@@ -7,6 +7,48 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
+	export class TabKindText {
+		readonly uri: Uri;
+		constructor(uri: Uri);
+	}
+
+	export class TabKindTextDiff {
+		readonly original: Uri;
+		readonly modified: Uri;
+		constructor(original: Uri, modified: Uri);
+	}
+
+	export class TabKindCustom {
+		readonly uri: Uri;
+		readonly viewType: string;
+		constructor(uri: Uri, viewType: string);
+	}
+
+	export class TabKindWebview {
+		/**
+		 * The type of webview. Maps to {@linkcode WebviewPanel.viewType WebviewPanel's viewType}
+		 */
+		readonly viewType: string;
+		constructor(viewType: string);
+	}
+
+	export class TabKindNotebook {
+		readonly uri: Uri;
+		readonly notebookType: string;
+		constructor(uri: Uri, notebookType: string);
+	}
+
+	export class TabKindNotebookDiff {
+		readonly original: Uri;
+		readonly modified: Uri;
+		readonly notebookType: string;
+		constructor(original: Uri, modified: Uri, notebookType: string);
+	}
+
+	export class TabKindTerminal {
+		constructor();
+	}
+
 	/**
 	 * Represents a tab within the window
 	 */
@@ -17,84 +59,119 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
-		 * The index of the tab within the column
+		 * The group which the tab belongs to
 		 */
-		readonly index: number;
+		readonly group: TabGroup;
 
 		/**
-		 * The column which the tab belongs to
+		 * Defines the structure of the tab i.e. text, notebook, custom, etc.
+		 * Resource and other useful properties are defined on the tab kind.
+		 */
+		readonly kind: TabKindText | TabKindTextDiff | TabKindCustom | TabKindWebview | TabKindNotebook | TabKindNotebookDiff | TabKindTerminal | unknown;
+
+		/**
+		 * Whether or not the tab is currently active
+		 * Dictated by being the selected tab in the group
+		 */
+		readonly isActive: boolean;
+
+		/**
+		 * Whether or not the dirty indicator is present on the tab
+		 */
+		readonly isDirty: boolean;
+
+		/**
+		 * Whether or not the tab is pinned (pin icon is present)
+		 */
+		readonly isPinned: boolean;
+
+		/**
+		 * Whether or not the tab is in preview mode.
+		 */
+		readonly isPreview: boolean;
+	}
+
+	export namespace window {
+		/**
+		 * Represents the grid widget within the main editor area
+		 */
+		export const tabGroups: TabGroups;
+	}
+
+	export interface TabGroup {
+		/**
+		 * Whether or not the group is currently active
+		 */
+		readonly isActive: boolean;
+
+		/**
+		 * The view column of the group
 		 */
 		readonly viewColumn: ViewColumn;
 
 		/**
-		 * The resource represented by the tab if available.
-		 * Note: Not all tabs have a resource associated with them.
+		 * The active tab in the group (this is the tab currently being rendered).
+		 * There can be one active tab per group. There can only be one active group.
 		 */
-		readonly resource: Uri | undefined;
+		readonly activeTab: Tab | undefined;
 
 		/**
-		 * The identifier of the view contained in the tab
-		 * This is equivalent to `viewType` for custom editors and `notebookType` for notebooks.
-		 * The built-in text editor has an id of 'default' for all configurations.
+		 * The list of tabs contained within the group.
+		 * This can be empty if the group has no tabs open.
 		 */
-		readonly viewId: string | undefined;
+		readonly tabs: readonly Tab[];
+	}
+
+	export interface TabGroups {
+		/**
+		 * All the groups within the group container
+		 */
+		readonly groups: readonly TabGroup[];
 
 		/**
-		 * All the resources and viewIds represented by a tab
-		 * {@link Tab.resource resource} and {@link Tab.viewId viewId} will
-		 * always be at index 0.
+		 * The currently active group
 		 */
-		readonly additionalResourcesAndViewIds: readonly {
-			readonly resource: Uri | undefined,
-			readonly viewId: string | undefined
-		}[];
+		readonly activeTabGroup: TabGroup;
 
 		/**
-		 * Whether or not the tab is currently active
-		 * Dictated by being the selected tab in the active group
+		 * An {@link Event} which fires when a group changes.
 		 */
-		readonly isActive: boolean;
+		// TODO@API add TabGroup instance
+		readonly onDidChangeTabGroup: Event<void>;
+
+		/**
+		 * An {@link Event} which fires when a tab changes.
+		 */
+		// TODO@API use richer event type?
+		readonly onDidChangeTab: Event<Tab>;
+
+		/**
+		 * An {@link Event} which fires when the active group changes.
+		 * This does not fire when the properties within the group change.
+		 */
+		readonly onDidChangeActiveTabGroup: Event<TabGroup>;
+
+		/**
+		 * Closes the tab. This makes the tab object invalid and the tab
+		 * should no longer be used for further actions.
+		 * Note: In the case of a dirty tab, a confirmation dialog will be shown which may be cancelled. If cancelled the tab is still valid
+		 * @param tab The tab to close, must be reference equal to a tab given by the API
+		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
+		 */
+		close(tab: Tab[], preserveFocus?: boolean): Thenable<void>;
+		close(tab: Tab, preserveFocus?: boolean): Thenable<void>;
 
 		/**
 		 * Moves a tab to the given index within the column.
 		 * If the index is out of range, the tab will be moved to the end of the column.
 		 * If the column is out of range, a new one will be created after the last existing column.
-		 * @param index The index to move the tab to
+		 *
+		 * @package tab The tab to move.
 		 * @param viewColumn The column to move the tab into
+		 * @param index The index to move the tab to
 		 */
-		move(index: number, viewColumn: ViewColumn): Thenable<void>;
-
-		/**
-		 * Closes the tab. This makes the tab object invalid and the tab
-		 * should no longer be used for further actions.
-		 */
-		close(): Thenable<void>;
-	}
-
-	export namespace window {
-		/**
-		 * A list of all opened tabs
-		 * Ordered from left to right
-		 */
-		export const tabs: readonly Tab[];
-
-		/**
-		 * The currently active tab
-		 * Undefined if no tabs are currently opened
-		 */
-		export const activeTab: Tab | undefined;
-
-		/**
-		 * An {@link Event} which fires when the array of {@link window.tabs tabs}
-		 * has changed.
-		 */
-		export const onDidChangeTabs: Event<readonly Tab[]>;
-
-		/**
-		 * An {@link Event} which fires when the {@link window.activeTab activeTab}
-		 * has changed.
-		 */
-		export const onDidChangeActiveTab: Event<Tab | undefined>;
-
+		// TODO@API support TabGroup in addition to ViewColumn
+		// TODO@API support just index for moving inside current group
+		move(tab: Tab, viewColumn: ViewColumn, index: number, preserveFocus?: boolean): Thenable<void>;
 	}
 }

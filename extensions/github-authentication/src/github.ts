@@ -18,7 +18,7 @@ interface SessionData {
 		label?: string;
 		displayName?: string;
 		id: string;
-	}
+	};
 	scopes: string[];
 	accessToken: string;
 }
@@ -39,7 +39,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	private _disposable: vscode.Disposable;
 
 	constructor(private readonly context: vscode.ExtensionContext, private readonly type: AuthProviderType) {
-		const { name, version, aiKey } = context.extension.packageJSON as { name: string, version: string, aiKey: string };
+		const { name, version, aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
 		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(name, version, aiKey));
 
 		if (this.type === AuthProviderType.github) {
@@ -149,7 +149,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			if (scopesSeen.has(scopesStr)) {
 				return undefined;
 			}
-			let userInfo: { id: string, accountName: string } | undefined;
+			let userInfo: { id: string; accountName: string } | undefined;
 			if (!session.account) {
 				try {
 					userInfo = await this._githubServer.getUserInfo(session.accessToken);

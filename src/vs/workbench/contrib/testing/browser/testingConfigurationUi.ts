@@ -100,7 +100,7 @@ const triggerButtonHandler = (service: ITestProfileService, resolve: (arg: undef
 CommandsRegistry.registerCommand({
 	id: 'vscode.pickMultipleTestProfiles',
 	handler: async (accessor: ServicesAccessor, options: IConfigurationPickerOptions & {
-		selected?: ITestRunProfile[],
+		selected?: ITestRunProfile[];
 	}) => {
 		const profileService = accessor.get(ITestProfileService);
 		const quickpick = buildPicker(accessor, options);

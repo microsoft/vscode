@@ -31,7 +31,7 @@ export class CodeActionUi extends Disposable {
 		quickFixActionId: string,
 		preferredFixActionId: string,
 		private readonly delegate: {
-			applyCodeAction: (action: CodeActionItem, regtriggerAfterApply: boolean) => Promise<void>
+			applyCodeAction: (action: CodeActionItem, regtriggerAfterApply: boolean) => Promise<void>;
 		},
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {

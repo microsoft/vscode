@@ -195,7 +195,7 @@ export class BrowserWindow extends Disposable {
 
 	private registerLabelFormatters() {
 		this._register(this.labelService.registerFormatter({
-			scheme: Schemas.userData,
+			scheme: Schemas.vscodeUserData,
 			priority: true,
 			formatting: {
 				label: '(Settings) ${path}',

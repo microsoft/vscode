@@ -167,7 +167,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult {
 
 		// all applicable kernels
-		const kernels: { kernel: INotebookKernel, instanceAffinity: number, typeAffinity: number, score: number }[] = [];
+		const kernels: { kernel: INotebookKernel; instanceAffinity: number; typeAffinity: number; score: number }[] = [];
 		for (const info of this._kernels.values()) {
 			const score = NotebookKernelService._score(info.kernel, notebook);
 			if (score) {
@@ -221,6 +221,15 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 				this._notebookBindings.delete(key);
 			}
 			this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel, newKernel: kernel.id });
+			this._persistMementos();
+		}
+	}
+
+	preselectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void {
+		const key = NotebookTextModelLikeId.str(notebook);
+		const oldKernel = this._notebookBindings.get(key);
+		if (oldKernel !== kernel?.id) {
+			this._notebookBindings.set(key, kernel.id);
 			this._persistMementos();
 		}
 	}

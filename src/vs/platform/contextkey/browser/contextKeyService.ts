@@ -18,7 +18,7 @@ const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 export class Context implements IContext {
 
 	protected _parent: Context | null;
-	protected _value: { [key: string]: any; };
+	protected _value: { [key: string]: any };
 	protected _id: number;
 
 	constructor(id: number, parent: Context | null) {
@@ -58,7 +58,7 @@ export class Context implements IContext {
 		this._parent = parent;
 	}
 
-	public collectAllValues(): { [key: string]: any; } {
+	public collectAllValues(): { [key: string]: any } {
 		let result = this._parent ? this._parent.collectAllValues() : Object.create(null);
 		result = { ...result, ...this._value };
 		delete result['_contextId'];
@@ -86,7 +86,7 @@ class NullContext extends Context {
 		return undefined;
 	}
 
-	override collectAllValues(): { [key: string]: any; } {
+	override collectAllValues(): { [key: string]: any } {
 		return Object.create(null);
 	}
 }
@@ -175,7 +175,7 @@ class ConfigAwareContextValuesContainer extends Context {
 		return super.removeValue(key);
 	}
 
-	override collectAllValues(): { [key: string]: any; } {
+	override collectAllValues(): { [key: string]: any } {
 		const result: { [key: string]: any } = Object.create(null);
 		this._values.forEach((value, index) => result[index] = value);
 		return { ...result, ...super.collectAllValues() };

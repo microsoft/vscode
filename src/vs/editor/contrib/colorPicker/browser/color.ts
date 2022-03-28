@@ -8,9 +8,11 @@ import { illegalArgument } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { ColorProviderRegistry, DocumentColorProvider, IColorInformation, IColorPresentation } from 'vs/editor/common/languages';
+import { DocumentColorProvider, IColorInformation, IColorPresentation } from 'vs/editor/common/languages';
 import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
 
 export interface IColorData {
@@ -18,9 +20,9 @@ export interface IColorData {
 	provider: DocumentColorProvider;
 }
 
-export function getColors(model: ITextModel, token: CancellationToken): Promise<IColorData[]> {
+export function getColors(registry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken): Promise<IColorData[]> {
 	const colors: IColorData[] = [];
-	const providers = ColorProviderRegistry.ordered(model).reverse();
+	const providers = registry.ordered(model).reverse();
 	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, token)).then(result => {
 		if (Array.isArray(result)) {
 			for (let colorInfo of result) {
@@ -42,14 +44,14 @@ CommandsRegistry.registerCommand('_executeDocumentColorProvider', function (acce
 	if (!(resource instanceof URI)) {
 		throw illegalArgument();
 	}
-
+	const { colorProvider: colorProviderRegistry } = accessor.get(ILanguageFeaturesService);
 	const model = accessor.get(IModelService).getModel(resource);
 	if (!model) {
 		throw illegalArgument();
 	}
 
-	const rawCIs: { range: IRange, color: [number, number, number, number] }[] = [];
-	const providers = ColorProviderRegistry.ordered(model).reverse();
+	const rawCIs: { range: IRange; color: [number, number, number, number] }[] = [];
+	const providers = colorProviderRegistry.ordered(model).reverse();
 	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, CancellationToken.None)).then(result => {
 		if (Array.isArray(result)) {
 			for (let ci of result) {
@@ -71,6 +73,7 @@ CommandsRegistry.registerCommand('_executeColorPresentationProvider', function (
 	}
 	const [red, green, blue, alpha] = color;
 
+	const { colorProvider: colorProviderRegistry } = accessor.get(ILanguageFeaturesService);
 	const model = accessor.get(IModelService).getModel(uri);
 	if (!model) {
 		throw illegalArgument();
@@ -82,7 +85,7 @@ CommandsRegistry.registerCommand('_executeColorPresentationProvider', function (
 	};
 
 	const presentations: IColorPresentation[] = [];
-	const providers = ColorProviderRegistry.ordered(model).reverse();
+	const providers = colorProviderRegistry.ordered(model).reverse();
 	const promises = providers.map(provider => Promise.resolve(provider.provideColorPresentations(model, colorInfo, CancellationToken.None)).then(result => {
 		if (Array.isArray(result)) {
 			presentations.push(...result);

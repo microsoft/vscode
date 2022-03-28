@@ -22,7 +22,7 @@ type GettingStartedIndexListOptions<T> = {
 	contextService: IContextKeyService;
 };
 
-export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyExpression; }> extends Disposable {
+export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyExpression }> extends Disposable {
 	private readonly _onDidChangeEntries = new Emitter<void>();
 	private readonly onDidChangeEntries: Event<void> = this._onDidChangeEntries.event;
 

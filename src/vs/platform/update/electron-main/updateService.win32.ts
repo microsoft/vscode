@@ -73,20 +73,6 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 	override initialize(): void {
 		super.initialize();
-
-		if (getUpdateType() === UpdateType.Setup) {
-			/* __GDPR__
-				"update:win32SetupTarget" : {
-					"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			/* __GDPR__
-				"update:win<NUMBER>SetupTarget" : {
-					"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('update:win32SetupTarget', { target: this.productService.target });
-		}
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {

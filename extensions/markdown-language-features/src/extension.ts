@@ -8,6 +8,7 @@ import { CommandManager } from './commandManager';
 import * as commands from './commands/index';
 import LinkProvider from './features/documentLinkProvider';
 import MDDocumentSymbolProvider from './features/documentSymbolProvider';
+import { registerDropIntoEditor } from './features/dropIntoEditor';
 import MarkdownFoldingProvider from './features/foldingProvider';
 import { PathCompletionProvider } from './features/pathCompletions';
 import { MarkdownContentProvider } from './features/previewContentProvider';
@@ -45,6 +46,8 @@ export function activate(context: vscode.ExtensionContext) {
 		logger.updateConfiguration();
 		previewManager.updateConfiguration();
 	}));
+
+	context.subscriptions.push(registerDropIntoEditor());
 }
 
 function registerMarkdownLanguageFeatures(

@@ -70,6 +70,7 @@ export interface IBulkEditOptions {
 	token?: CancellationToken;
 	showPreview?: boolean;
 	label?: string;
+	code?: string;
 	quotableLabel?: string;
 	undoRedoSource?: UndoRedoSource;
 	undoRedoGroupId?: number;

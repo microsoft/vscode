@@ -10,8 +10,8 @@ import { Schemas } from 'vs/base/common/network';
 import { gt } from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { CLIOutput, getIdAndVersion, IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { CLIOutput, IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions, getGalleryExtensionId, getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 
@@ -27,7 +27,7 @@ function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
 	}
 }
 
-type InstallExtensionInfo = { id: string, version?: string, installOptions: InstallOptions; };
+type InstallExtensionInfo = { id: string; version?: string; installOptions: InstallOptions };
 
 
 export class ExtensionManagementCLIService implements IExtensionManagementCLIService {
@@ -90,7 +90,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 		const checkIfNotInstalled = (id: string, version?: string): boolean => {
 			const installedExtension = installed.find(i => areSameExtensions(i.identifier, { id }));
 			if (installedExtension) {
-				if (!version && !force) {
+				if (!force && (!version || (version === 'prerelease' && installedExtension.preRelease))) {
 					output.log(localize('alreadyInstalled-checkAndUpdate', "Extension '{0}' v{1} is already installed. Use '--force' option to update to latest version or provide '@<version>' to install a specific version, for example: '{2}@1.2.3'.", id, installedExtension.manifest.version, id));
 					return false;
 				}
@@ -101,6 +101,9 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 			}
 			return true;
 		};
+		const addInstallExtensionInfo = (id: string, version: string | undefined, isBuiltin: boolean) => {
+			installExtensionInfos.push({ id, version: version !== 'prerelease' ? version : undefined, installOptions: { ...installOptions, isBuiltin, installPreReleaseVersion: version === 'prerelease' || installOptions.installPreReleaseVersion } });
+		};
 		const vsixs: URI[] = [];
 		const installExtensionInfos: InstallExtensionInfo[] = [];
 		for (const extension of extensions) {
@@ -109,14 +112,14 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 			} else {
 				const [id, version] = getIdAndVersion(extension);
 				if (checkIfNotInstalled(id, version)) {
-					installExtensionInfos.push({ id, version, installOptions: { ...installOptions, isBuiltin: false } });
+					addInstallExtensionInfo(id, version, false);
 				}
 			}
 		}
 		for (const extension of builtinExtensionIds) {
 			const [id, version] = getIdAndVersion(extension);
 			if (checkIfNotInstalled(id, version)) {
-				installExtensionInfos.push({ id, version, installOptions: { ...installOptions, isBuiltin: true } });
+				addInstallExtensionInfo(id, version, true);
 			}
 		}
 
@@ -191,7 +194,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 	private async getGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<Map<string, IGalleryExtension>> {
 		const galleryExtensions = new Map<string, IGalleryExtension>();
 		const preRelease = extensions.some(e => e.installOptions.installPreReleaseVersion);
-		const result = await this.extensionGalleryService.getExtensions(extensions.map(e => ({...e, preRelease})), CancellationToken.None);
+		const result = await this.extensionGalleryService.getExtensions(extensions.map(e => ({ ...e, preRelease })), CancellationToken.None);
 		for (const extension of result) {
 			galleryExtensions.set(extension.identifier.id.toLowerCase(), extension);
 		}

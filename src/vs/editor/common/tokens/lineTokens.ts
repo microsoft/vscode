@@ -184,7 +184,7 @@ export class LineTokens implements IViewLineTokens {
 	 * @pure
 	 * @param insertTokens Must be sorted by offset.
 	*/
-	public withInserted(insertTokens: { offset: number, text: string, tokenMetadata: number }[]): LineTokens {
+	public withInserted(insertTokens: { offset: number; text: string; tokenMetadata: number }[]): LineTokens {
 		if (insertTokens.length === 0) {
 			return this;
 		}

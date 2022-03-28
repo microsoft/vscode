@@ -230,7 +230,7 @@ class AnnotatedDocument {
 }
 
 interface MockLanguageOptions {
-	configuration?: LanguageConfiguration
+	configuration?: LanguageConfiguration;
 }
 
 class MockLanguage extends Disposable {

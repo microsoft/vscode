@@ -24,7 +24,7 @@ export function workspaceTrustToString(trustState: boolean) {
 
 export interface WorkspaceTrustRequestButton {
 	readonly label: string;
-	readonly type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel'
+	readonly type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel';
 }
 
 export interface WorkspaceTrustRequestOptions {
@@ -99,10 +99,10 @@ export interface IWorkspaceTrustTransitionParticipant {
 }
 
 export interface IWorkspaceTrustUriInfo {
-	uri: URI,
-	trusted: boolean
+	uri: URI;
+	trusted: boolean;
 }
 
 export interface IWorkspaceTrustInfo {
-	uriTrustInfo: IWorkspaceTrustUriInfo[]
+	uriTrustInfo: IWorkspaceTrustUriInfo[];
 }

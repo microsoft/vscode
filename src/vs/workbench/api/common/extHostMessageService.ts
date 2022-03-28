@@ -49,7 +49,7 @@ export class ExtHostMessageService {
 			checkProposedApiEnabled(extension, 'resolvers');
 		}
 
-		const commands: { title: string; isCloseAffordance: boolean; handle: number; }[] = [];
+		const commands: { title: string; isCloseAffordance: boolean; handle: number }[] = [];
 
 		for (let handle = 0; handle < items.length; handle++) {
 			const command = items[handle];

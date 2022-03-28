@@ -344,7 +344,7 @@ export function activate(context: vscode.ExtensionContext) {
 	vscode.commands.executeCommand('setContext', 'forwardedPortsViewEnabled', true);
 }
 
-type ActionItem = (vscode.MessageItem & { execute: () => void; });
+type ActionItem = (vscode.MessageItem & { execute: () => void });
 
 function getActions(): ActionItem[] {
 	const actions: ActionItem[] = [];
@@ -418,7 +418,7 @@ async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreation
 
 	return createTunnelService();
 
-	function newTunnel(localAddress: { host: string, port: number }): vscode.Tunnel {
+	function newTunnel(localAddress: { host: string; port: number }): vscode.Tunnel {
 		const onDidDispose: vscode.EventEmitter<void> = new vscode.EventEmitter();
 		let isDisposed = false;
 		return {

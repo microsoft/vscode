@@ -21,7 +21,16 @@ async function start() {
 	// Do a quick parse to determine if a server or the cli needs to be started
 	const parsedArgs = minimist(process.argv.slice(2), {
 		boolean: ['start-server', 'list-extensions', 'print-ip-address', 'help', 'version', 'accept-server-license-terms'],
-		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port', 'compatibility']
+		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port', 'compatibility'],
+		alias: { help: 'h', version: 'v' }
+	});
+	['host', 'port', 'accept-server-license-terms'].forEach(e => {
+		if (!parsedArgs[e]) {
+			const envValue = process.env[`VSCODE_SERVER_${e.toUpperCase().replace('-', '_')}`];
+			if (envValue) {
+				parsedArgs[e] = envValue;
+			}
+		}
 	});
 
 	const extensionLookupArgs = ['list-extensions', 'locate-extension'];
@@ -63,14 +72,18 @@ async function start() {
 	if (Array.isArray(product.serverLicense) && product.serverLicense.length) {
 		console.log(product.serverLicense.join('\n'));
 		if (product.serverLicensePrompt && parsedArgs['accept-server-license-terms'] !== true) {
+			if (hasStdinWithoutTty()) {
+				console.log('To accept the license terms, start the server with --accept-server-license-terms');
+				process.exit(1);
+			}
 			try {
 				const accept = await prompt(product.serverLicensePrompt);
 				if (!accept) {
-					process.exit();
+					process.exit(1);
 				}
 			} catch (e) {
 				console.log(e);
-				process.exit();
+				process.exit(1);
 			}
 		}
 	}
@@ -101,15 +114,15 @@ async function start() {
 		const remoteExtensionHostAgentServer = await getRemoteExtensionHostAgentServer();
 		return remoteExtensionHostAgentServer.handleServerError(err);
 	});
-	const host = parsedArgs['host'] || (parsedArgs['compatibility'] !== '1.63' ? 'localhost' : undefined);
+
+	const host = sanitizeStringArg(parsedArgs['host']) || (parsedArgs['compatibility'] !== '1.63' ? 'localhost' : undefined);
 	const nodeListenOptions = (
 		parsedArgs['socket-path']
-			? { path: parsedArgs['socket-path'] }
-			: { host, port: await parsePort(host, parsedArgs['port'], parsedArgs['pick-port']) }
+			? { path: sanitizeStringArg(parsedArgs['socket-path']) }
+			: { host, port: await parsePort(host, sanitizeStringArg(parsedArgs['port']), sanitizeStringArg(parsedArgs['pick-port'])) }
 	);
 	server.listen(nodeListenOptions, async () => {
-		const serverGreeting = product.serverGreeting.join('\n');
-		let output = serverGreeting ? `\n\n${serverGreeting}\n\n` : ``;
+		let output = Array.isArray(product.serverGreeting) && product.serverGreeting.length ? `\n\n${product.serverGreeting.join('\n')}\n\n` : ``;
 
 		if (typeof nodeListenOptions.port === 'number' && parsedArgs['print-ip-address']) {
 			const ifaces = os.networkInterfaces();
@@ -127,6 +140,7 @@ async function start() {
 			throw new Error('Unexpected server address');
 		}
 
+		output += `Server bound to ${typeof address === 'string' ? address : `${address.address}:${address.port} (${address.family})`}\n`;
 		// Do not change this line. VS Code looks for this in the output.
 		output += `Extension host agent listening on ${typeof address === 'string' ? address : address.port}\n`;
 		console.log(output);
@@ -144,6 +158,16 @@ async function start() {
 			_remoteExtensionHostAgentServer.dispose();
 		}
 	});
+}
+/**
+ * @param {any} val
+ * @returns {string | undefined}
+ */
+function sanitizeStringArg(val) {
+	if (Array.isArray(val)) { // if an argument is passed multiple times, minimist creates an array
+		val = val.pop(); // take the last item
+	}
+	return typeof val === 'string' ? val : undefined;
 }
 
 /**
@@ -256,6 +280,8 @@ function loadCode() {
 	return new Promise((resolve, reject) => {
 		const path = require('path');
 
+		delete process.env['ELECTRON_RUN_AS_NODE']; // Keep bootstrap-amd.js from redefining 'fs'.
+
 		if (process.env['VSCODE_DEV']) {
 			// When running out of sources, we need to load node modules from remote/node_modules,
 			// which are compiled against nodejs, not electron
@@ -266,6 +292,15 @@ function loadCode() {
 		}
 		require('./bootstrap-amd').load('vs/server/node/server.main', resolve, reject);
 	});
+}
+
+function hasStdinWithoutTty() {
+	try {
+		return !process.stdin.isTTY; // Via https://twitter.com/MylesBorins/status/782009479382626304
+	} catch (error) {
+		// Windows workaround for https://github.com/nodejs/node/issues/11656
+	}
+	return false;
 }
 
 /**

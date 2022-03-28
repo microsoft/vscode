@@ -141,11 +141,19 @@ export interface ITask<T> {
 	(): T;
 }
 
-export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: number): Promise<T> {
+export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: number, onBeforeRetry?: () => Promise<unknown>): Promise<T> {
 	let lastError: Error | undefined;
 
 	for (let i = 0; i < retries; i++) {
 		try {
+			if (i > 0 && typeof onBeforeRetry === 'function') {
+				try {
+					await onBeforeRetry();
+				} catch (error) {
+					console.warn(`onBeforeRetry failed with: ${error}`);
+				}
+			}
+
 			return await task();
 		} catch (error) {
 			lastError = error;

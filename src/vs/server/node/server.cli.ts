@@ -32,7 +32,7 @@ interface ProductDescription {
 	executableName: string;
 }
 
-interface RemoteParsedArgs extends NativeParsedArgs { 'gitCredential'?: string; 'openExternal'?: boolean; }
+interface RemoteParsedArgs extends NativeParsedArgs { 'gitCredential'?: string; 'openExternal'?: boolean }
 
 
 const isSupportedForCmd = (optionId: keyof RemoteParsedArgs) => {
@@ -105,7 +105,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 		options['openExternal'] = { type: 'boolean' };
 	}
 
-	const errorReporter : ErrorReporter = {
+	const errorReporter: ErrorReporter = {
 		onMultipleValues: (id: string, usedValue: string) => {
 			console.error(`Option ${id} can only be defined once. Using value ${usedValue}.`);
 		},
@@ -261,6 +261,8 @@ export function main(desc: ProductDescription, args: string[]): void {
 				type: 'status'
 			}, verbose).then((res: string) => {
 				console.log(res);
+			}).catch(e => {
+				console.error('Error when requesting status:', e);
 			});
 			return;
 		}
@@ -274,6 +276,8 @@ export function main(desc: ProductDescription, args: string[]): void {
 				force: parsedArgs['force']
 			}, verbose).then((res: string) => {
 				console.log(res);
+			}).catch(e => {
+				console.error('Error when invoking the extension management command:', e);
 			});
 			return;
 		}
@@ -298,7 +302,9 @@ export function main(desc: ProductDescription, args: string[]): void {
 			forceNewWindow: parsedArgs['new-window'],
 			waitMarkerFilePath,
 			remoteAuthority: remote
-		}, verbose);
+		}, verbose).catch(e => {
+			console.error('Error when invoking the open command:', e);
+		});
 
 		if (waitMarkerFilePath) {
 			waitForFileDeleted(waitMarkerFilePath);
@@ -329,7 +335,9 @@ function openInBrowser(args: string[], verbose: boolean) {
 		sendToPipe({
 			type: 'openExternal',
 			uris
-		}, verbose);
+		}, verbose).catch(e => {
+			console.error('Error when invoking the open external command:', e);
+		});
 	}
 }
 
@@ -337,7 +345,7 @@ function sendToPipe(args: PipeCommand, verbose: boolean): Promise<any> {
 	if (verbose) {
 		console.log(JSON.stringify(args, null, '  '));
 	}
-	return new Promise<string>(resolve => {
+	return new Promise<string>((resolve, reject) => {
 		const message = JSON.stringify(args);
 		if (!cliPipe) {
 			console.log('Message ' + message);
@@ -348,10 +356,19 @@ function sendToPipe(args: PipeCommand, verbose: boolean): Promise<any> {
 		const opts: _http.RequestOptions = {
 			socketPath: cliPipe,
 			path: '/',
-			method: 'POST'
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				'accept': 'application/json'
+			}
 		};
 
 		const req = _http.request(opts, res => {
+			if (res.headers['content-type'] !== 'application/json') {
+				reject('Error in response: Invalid content type: Expected \'application/json\', is: ' + res.headers['content-type']);
+				return;
+			}
+
 			const chunks: string[] = [];
 			res.setEncoding('utf8');
 			res.on('data', chunk => {
@@ -359,7 +376,17 @@ function sendToPipe(args: PipeCommand, verbose: boolean): Promise<any> {
 			});
 			res.on('error', (err) => fatal('Error in response.', err));
 			res.on('end', () => {
-				resolve(chunks.join(''));
+				const content = chunks.join('');
+				try {
+					const obj = JSON.parse(content);
+					if (res.statusCode === 200) {
+						resolve(obj);
+					} else {
+						reject(obj);
+					}
+				} catch (e) {
+					reject('Error in response: Unable to parse response as JSON: ' + content);
+				}
 			});
 		});
 

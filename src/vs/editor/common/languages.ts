@@ -13,7 +13,6 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as model from 'vs/editor/common/model';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
@@ -787,8 +786,24 @@ export interface InlineCompletion {
 	 * The text to insert.
 	 * If the text contains a line break, the range must end at the end of a line.
 	 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
+	 *
+	 * The text can also be a snippet. In that case, a preview with default parameters is shown.
+	 * When accepting the suggestion, the full snippet is inserted.
 	*/
-	readonly text: string;
+	readonly insertText: string | { snippet: string };
+
+	/**
+	 * A text that is used to decide if this inline completion should be shown.
+	 * An inline completion is shown if the text to replace is a subword of the filter text.
+	 */
+	readonly filterText?: string;
+
+	/**
+	 * An optional array of additional text edits that are applied when
+	 * selecting this completion. Edits must not overlap with the main edit
+	 * nor with themselves.
+	 */
+	readonly additionalTextEdits?: ISingleEditOperation[];
 
 	/**
 	 * The range to replace.
@@ -860,7 +875,7 @@ export interface CodeActionList extends IDisposable {
  */
 export interface CodeActionProvider {
 
-	displayName?: string
+	displayName?: string;
 
 	/**
 	 * Provide commands for the given document and range.
@@ -877,7 +892,7 @@ export interface CodeActionProvider {
 	 */
 	readonly providedCodeActionKinds?: ReadonlyArray<string>;
 
-	readonly documentation?: ReadonlyArray<{ readonly kind: string, readonly command: Command }>;
+	readonly documentation?: ReadonlyArray<{ readonly kind: string; readonly command: Command }>;
 
 	/**
 	 * @internal
@@ -1276,7 +1291,7 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: model.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 }
 
-export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence; };
+export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence };
 
 /**
  * Interface used to format a model
@@ -1542,7 +1557,7 @@ export interface WorkspaceEditMetadata {
 	/**
 	 * @internal
 	 */
-	iconPath?: ThemeIcon | URI | { light: URI, dark: URI };
+	iconPath?: ThemeIcon | URI | { light: URI; dark: URI };
 }
 
 export interface WorkspaceFileEditOptions {
@@ -1585,37 +1600,6 @@ export interface RenameLocation {
 export interface RenameProvider {
 	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit & Rejection>;
 	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
-}
-
-/**
- * @internal
- */
-export interface AuthenticationSession {
-	id: string;
-	accessToken: string;
-	account: {
-		label: string;
-		id: string;
-	}
-	scopes: ReadonlyArray<string>;
-	idToken?: string;
-}
-
-/**
- * @internal
- */
-export interface AuthenticationSessionsChangeEvent {
-	added: ReadonlyArray<AuthenticationSession>;
-	removed: ReadonlyArray<AuthenticationSession>;
-	changed: ReadonlyArray<AuthenticationSession>;
-}
-
-/**
- * @internal
- */
-export interface AuthenticationProviderInformation {
-	id: string;
-	label: string;
 }
 
 export interface Command {
@@ -1676,7 +1660,13 @@ export enum CommentThreadCollapsibleState {
 	Expanded = 1
 }
 
-
+/**
+ * @internal
+ */
+export enum CommentThreadState {
+	Unresolved = 0,
+	Resolved = 1
+}
 
 /**
  * @internal
@@ -1699,24 +1689,27 @@ export interface CommentInput {
 /**
  * @internal
  */
-export interface CommentThread {
+export interface CommentThread<T = IRange> {
+	isDocumentCommentThread(): this is CommentThread<IRange>;
 	commentThreadHandle: number;
 	controllerHandle: number;
 	extensionId?: string;
 	threadId: string;
 	resource: string | null;
-	range: IRange;
+	range: T;
 	label: string | undefined;
 	contextValue: string | undefined;
 	comments: Comment[] | undefined;
 	onDidChangeComments: Event<Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
+	state?: CommentThreadState;
 	canReply: boolean;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
-	onDidChangeRange: Event<IRange>;
+	onDidChangeRange: Event<T>;
 	onDidChangeLabel: Event<string | undefined>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
+	onDidChangeState: Event<CommentThreadState | undefined>;
 	onDidChangeCanReply: Event<boolean>;
 	isDisposed: boolean;
 }
@@ -1776,27 +1769,27 @@ export interface Comment {
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
 	readonly mode?: CommentMode;
-	readonly timestamp?: Date;
+	readonly timestamp?: string;
 }
 
 /**
  * @internal
  */
-export interface CommentThreadChangedEvent {
+export interface CommentThreadChangedEvent<T> {
 	/**
 	 * Added comment threads.
 	 */
-	readonly added: CommentThread[];
+	readonly added: CommentThread<T>[];
 
 	/**
 	 * Removed comment threads.
 	 */
-	readonly removed: CommentThread[];
+	readonly removed: CommentThread<T>[];
 
 	/**
 	 * Changed comment threads.
 	 */
-	readonly changed: CommentThread[];
+	readonly changed: CommentThread<T>[];
 }
 
 export interface CodeLens {
@@ -1818,24 +1811,24 @@ export interface CodeLensProvider {
 
 
 export enum InlayHintKind {
-	Other = 0,
 	Type = 1,
 	Parameter = 2,
 }
 
 export interface InlayHintLabelPart {
 	label: string;
-	tooltip?: string | IMarkdownString
+	tooltip?: string | IMarkdownString;
 	// collapsible?: boolean;
-	command?: Command
+	command?: Command;
 	location?: Location;
 }
 
 export interface InlayHint {
 	label: string | InlayHintLabelPart[];
-	tooltip?: string | IMarkdownString
+	tooltip?: string | IMarkdownString;
+	textEdits?: TextEdit[];
 	position: IPosition;
-	kind: InlayHintKind;
+	kind?: InlayHintKind;
 	paddingLeft?: boolean;
 	paddingRight?: boolean;
 }
@@ -1846,7 +1839,7 @@ export interface InlayHintList {
 }
 
 export interface InlayHintsProvider {
-	displayName?: string
+	displayName?: string;
 	onDidChangeInlayHints?: Event<void>;
 	provideInlayHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHintList>;
 	resolveInlayHint?(hint: InlayHint, token: CancellationToken): ProviderResult<InlayHint>;
@@ -1884,143 +1877,6 @@ export interface DocumentRangeSemanticTokensProvider {
 	getLegend(): SemanticTokensLegend;
 	provideDocumentRangeSemanticTokens(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 }
-
-// --- feature registries ------
-
-/**
- * @internal
- */
-export const ReferenceProviderRegistry = new LanguageFeatureRegistry<ReferenceProvider>();
-
-/**
- * @internal
- */
-export const RenameProviderRegistry = new LanguageFeatureRegistry<RenameProvider>();
-
-/**
- * @internal
- */
-export const CompletionProviderRegistry = new LanguageFeatureRegistry<CompletionItemProvider>();
-
-/**
- * @internal
- */
-export const InlineCompletionsProviderRegistry = new LanguageFeatureRegistry<InlineCompletionsProvider>();
-
-/**
- * @internal
- */
-export const SignatureHelpProviderRegistry = new LanguageFeatureRegistry<SignatureHelpProvider>();
-
-/**
- * @internal
- */
-export const HoverProviderRegistry = new LanguageFeatureRegistry<HoverProvider>();
-
-/**
- * @internal
- */
-export const EvaluatableExpressionProviderRegistry = new LanguageFeatureRegistry<EvaluatableExpressionProvider>();
-
-/**
- * @internal
- */
-export const InlineValuesProviderRegistry = new LanguageFeatureRegistry<InlineValuesProvider>();
-
-/**
- * @internal
- */
-export const DocumentSymbolProviderRegistry = new LanguageFeatureRegistry<DocumentSymbolProvider>();
-
-/**
- * @internal
- */
-export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<DocumentHighlightProvider>();
-
-/**
- * @internal
- */
-export const LinkedEditingRangeProviderRegistry = new LanguageFeatureRegistry<LinkedEditingRangeProvider>();
-
-/**
- * @internal
- */
-export const DefinitionProviderRegistry = new LanguageFeatureRegistry<DefinitionProvider>();
-
-/**
- * @internal
- */
-export const DeclarationProviderRegistry = new LanguageFeatureRegistry<DeclarationProvider>();
-
-/**
- * @internal
- */
-export const ImplementationProviderRegistry = new LanguageFeatureRegistry<ImplementationProvider>();
-
-/**
- * @internal
- */
-export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry<TypeDefinitionProvider>();
-
-/**
- * @internal
- */
-export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProvider>();
-
-/**
- * @internal
- */
-export const InlayHintsProviderRegistry = new LanguageFeatureRegistry<InlayHintsProvider>();
-
-/**
- * @internal
- */
-export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeActionProvider>();
-
-/**
- * @internal
- */
-export const DocumentFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentFormattingEditProvider>();
-
-/**
- * @internal
- */
-export const DocumentRangeFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentRangeFormattingEditProvider>();
-
-/**
- * @internal
- */
-export const OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry<OnTypeFormattingEditProvider>();
-
-/**
- * @internal
- */
-export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
-
-/**
- * @internal
- */
-export const ColorProviderRegistry = new LanguageFeatureRegistry<DocumentColorProvider>();
-
-/**
- * @internal
- */
-export const SelectionRangeRegistry = new LanguageFeatureRegistry<SelectionRangeProvider>();
-
-/**
- * @internal
- */
-export const FoldingRangeProviderRegistry = new LanguageFeatureRegistry<FoldingRangeProvider>();
-
-/**
- * @internal
- */
-export const DocumentSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentSemanticTokensProvider>();
-
-/**
- * @internal
- */
-export const DocumentRangeSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentRangeSemanticTokensProvider>();
 
 /**
  * @internal

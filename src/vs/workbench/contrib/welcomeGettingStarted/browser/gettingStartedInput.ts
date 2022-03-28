@@ -37,7 +37,7 @@ export class GettingStartedInput extends EditorInput {
 	}
 
 	constructor(
-		options: { selectedCategory?: string, selectedStep?: string, showTelemetryNotice?: boolean, }
+		options: { selectedCategory?: string; selectedStep?: string; showTelemetryNotice?: boolean }
 	) {
 		super();
 		this.selectedCategory = options.selectedCategory;

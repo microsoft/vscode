@@ -5,6 +5,7 @@
 	"lightPlusColorThemeLabel": "Light+ (default light)",
 	"darkColorThemeLabel": "Dark (Visual Studio)",
 	"lightColorThemeLabel": "Light (Visual Studio)",
-	"hcColorThemeLabel": "High Contrast",
+	"hcColorThemeLabel": "Dark High Contrast",
+	"lightHcColorThemeLabel": "Light High Contrast (Experimental)",
 	"minimalIconThemeLabel": "Minimal (Visual Studio Code)"
 }

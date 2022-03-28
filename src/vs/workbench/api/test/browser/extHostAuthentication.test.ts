@@ -18,7 +18,8 @@ import { MainThreadAuthentication } from 'vs/workbench/api/browser/mainThreadAut
 import { ExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
 import { IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { AuthenticationService, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { AuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService, nullExtensionDescription as extensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
@@ -411,6 +412,35 @@ suite('ExtHostAuthentication', () => {
 		} catch (e) {
 			assert.ok(e);
 		}
+	});
+
+	test('Can get multiple sessions (with different scopes) in one extension', async () => {
+		let session: AuthenticationSession | undefined = await extHostAuthentication.getSession(
+			extensionDescription,
+			'test-multiple',
+			['foo'],
+			{
+				createIfNone: true
+			});
+		session = await extHostAuthentication.getSession(
+			extensionDescription,
+			'test-multiple',
+			['bar'],
+			{
+				createIfNone: true
+			});
+		assert.strictEqual(session?.id, '2');
+		assert.strictEqual(session?.scopes[0], 'bar');
+
+		session = await extHostAuthentication.getSession(
+			extensionDescription,
+			'test-multiple',
+			['foo'],
+			{
+				createIfNone: false
+			});
+		assert.strictEqual(session?.id, '1');
+		assert.strictEqual(session?.scopes[0], 'foo');
 	});
 
 	//#endregion

@@ -127,7 +127,7 @@ class TextMateWorkerModel extends MirrorTextModel {
 export class TextMateWorker {
 
 	private readonly _host: TextMateWorkerHost;
-	private readonly _models: { [uri: string]: TextMateWorkerModel; };
+	private readonly _models: { [uri: string]: TextMateWorkerModel };
 	private readonly _grammarCache: Promise<ICreateGrammarResult>[];
 	private readonly _grammarFactory: Promise<TMGrammarFactory | null>;
 

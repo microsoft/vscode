@@ -3,22 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { firstNonWhitespaceIndex } from 'vs/base/common/strings';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
 import { GhostTextModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextModel';
 import { GhostTextWidget } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
 import * as nls from 'vs/nls';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class GhostTextController extends Disposable {
 	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible', false, nls.localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
@@ -36,6 +35,9 @@ export class GhostTextController extends Disposable {
 	public get activeModel(): GhostTextModel | undefined {
 		return this.activeController.value?.model;
 	}
+
+	private readonly activeModelDidChangeEmitter = this._register(new Emitter<void>());
+	public readonly onActiveModelDidChange = this.activeModelDidChangeEmitter.event;
 
 	constructor(
 		public readonly editor: ICodeEditor,
@@ -57,7 +59,7 @@ export class GhostTextController extends Disposable {
 		this.updateModelController();
 	}
 
-	// Don't call this method when not neccessary. It will recreate the activeController.
+	// Don't call this method when not necessary. It will recreate the activeController.
 	private updateModelController(): void {
 		const suggestOptions = this.editor.getOption(EditorOption.suggest);
 		const inlineSuggestOptions = this.editor.getOption(EditorOption.inlineSuggest);
@@ -71,6 +73,7 @@ export class GhostTextController extends Disposable {
 					this.editor
 				)
 				: undefined;
+		this.activeModelDidChangeEmitter.fire();
 	}
 
 	public shouldShowHoverAt(hoverRange: Range): boolean {
@@ -183,39 +186,6 @@ export class ActiveGhostTextController extends Disposable {
 	}
 }
 
-const GhostTextCommand = EditorCommand.bindToContribution(GhostTextController.get);
-
-export const commitInlineSuggestionAction = new GhostTextCommand({
-	id: inlineSuggestCommitId,
-	precondition: GhostTextController.inlineSuggestionVisible,
-	handler(x) {
-		x.commit();
-		x.editor.focus();
-	}
-});
-registerEditorCommand(commitInlineSuggestionAction);
-KeybindingsRegistry.registerKeybindingRule({
-	primary: KeyCode.Tab,
-	weight: 200,
-	id: commitInlineSuggestionAction.id,
-	when: ContextKeyExpr.and(
-		commitInlineSuggestionAction.precondition,
-		EditorContextKeys.tabMovesFocus.toNegated(),
-		GhostTextController.inlineSuggestionHasIndentationLessThanTabSize
-	),
-});
-
-registerEditorCommand(new GhostTextCommand({
-	id: 'editor.action.inlineSuggest.hide',
-	precondition: GhostTextController.inlineSuggestionVisible,
-	kbOpts: {
-		weight: 100,
-		primary: KeyCode.Escape,
-	},
-	handler(x) {
-		x.hide();
-	}
-}));
 
 export class ShowNextInlineSuggestionAction extends EditorAction {
 	public static ID = 'editor.action.inlineSuggest.showNext';
@@ -282,8 +252,3 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 		}
 	}
 }
-
-registerEditorContribution(GhostTextController.ID, GhostTextController);
-registerEditorAction(TriggerInlineSuggestionAction);
-registerEditorAction(ShowNextInlineSuggestionAction);
-registerEditorAction(ShowPreviousInlineSuggestionAction);

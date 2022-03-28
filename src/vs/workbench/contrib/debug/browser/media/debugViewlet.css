@@ -242,7 +242,6 @@
 .debug-pane .inputBoxContainer {
 	box-sizing: border-box;
 	flex-grow: 1;
-	display: none;
 }
 
 .debug-pane .debug-watch .monaco-inputbox {

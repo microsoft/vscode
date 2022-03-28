@@ -21,7 +21,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { DocumentFormattingEditProvider, DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProvider, DocumentRangeFormattingEditProviderRegistry, FormattingOptions, OnTypeFormattingEditProviderRegistry, TextEdit } from 'vs/editor/common/languages';
+import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, FormattingOptions, TextEdit } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FormattingEdit } from 'vs/editor/contrib/format/browser/formattingEdit';
@@ -30,6 +30,8 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress } from 'vs/platform/progress/common/progress';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
 export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -58,12 +60,16 @@ export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 	}
 }
 
-export function getRealAndSyntheticDocumentFormattersOrdered(model: ITextModel): DocumentFormattingEditProvider[] {
+export function getRealAndSyntheticDocumentFormattersOrdered(
+	documentFormattingEditProvider: LanguageFeatureRegistry<DocumentFormattingEditProvider>,
+	documentRangeFormattingEditProvider: LanguageFeatureRegistry<DocumentRangeFormattingEditProvider>,
+	model: ITextModel
+): DocumentFormattingEditProvider[] {
 	const result: DocumentFormattingEditProvider[] = [];
 	const seen = new Set<string>();
 
 	// (1) add all document formatter
-	const docFormatter = DocumentFormattingEditProviderRegistry.ordered(model);
+	const docFormatter = documentFormattingEditProvider.ordered(model);
 	for (const formatter of docFormatter) {
 		result.push(formatter);
 		if (formatter.extensionId) {
@@ -72,7 +78,7 @@ export function getRealAndSyntheticDocumentFormattersOrdered(model: ITextModel):
 	}
 
 	// (2) add all range formatter as document formatter (unless the same extension already did that)
-	const rangeFormatter = DocumentRangeFormattingEditProviderRegistry.ordered(model);
+	const rangeFormatter = documentRangeFormattingEditProvider.ordered(model);
 	for (const formatter of rangeFormatter) {
 		if (formatter.extensionId) {
 			if (seen.has(ExtensionIdentifier.toKey(formatter.extensionId))) {
@@ -131,8 +137,9 @@ export async function formatDocumentRangesWithSelectedProvider(
 ): Promise<void> {
 
 	const instaService = accessor.get(IInstantiationService);
+	const { documentRangeFormattingEditProvider: documentRangeFormattingEditProviderRegistry } = accessor.get(ILanguageFeaturesService);
 	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
-	const provider = DocumentRangeFormattingEditProviderRegistry.ordered(model);
+	const provider = documentRangeFormattingEditProviderRegistry.ordered(model);
 	const selected = await FormattingConflicts.select(provider, model, mode);
 	if (selected) {
 		progress.report(selected);
@@ -286,8 +293,9 @@ export async function formatDocumentWithSelectedProvider(
 ): Promise<void> {
 
 	const instaService = accessor.get(IInstantiationService);
+	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
-	const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
+	const provider = getRealAndSyntheticDocumentFormattersOrdered(languageFeaturesService.documentFormattingEditProvider, languageFeaturesService.documentRangeFormattingEditProvider, model);
 	const selected = await FormattingConflicts.select(provider, model, mode);
 	if (selected) {
 		progress.report(selected);
@@ -370,13 +378,14 @@ export async function formatDocumentWithProvider(
 
 export async function getDocumentRangeFormattingEditsUntilResult(
 	workerService: IEditorWorkerService,
+	languageFeaturesService: ILanguageFeaturesService,
 	model: ITextModel,
 	range: Range,
 	options: FormattingOptions,
 	token: CancellationToken
 ): Promise<TextEdit[] | undefined> {
 
-	const providers = DocumentRangeFormattingEditProviderRegistry.ordered(model);
+	const providers = languageFeaturesService.documentRangeFormattingEditProvider.ordered(model);
 	for (const provider of providers) {
 		let rawEdits = await Promise.resolve(provider.provideDocumentRangeFormattingEdits(model, range, options, token)).catch(onUnexpectedExternalError);
 		if (isNonEmptyArray(rawEdits)) {
@@ -388,12 +397,13 @@ export async function getDocumentRangeFormattingEditsUntilResult(
 
 export async function getDocumentFormattingEditsUntilResult(
 	workerService: IEditorWorkerService,
+	languageFeaturesService: ILanguageFeaturesService,
 	model: ITextModel,
 	options: FormattingOptions,
 	token: CancellationToken
 ): Promise<TextEdit[] | undefined> {
 
-	const providers = getRealAndSyntheticDocumentFormattersOrdered(model);
+	const providers = getRealAndSyntheticDocumentFormattersOrdered(languageFeaturesService.documentFormattingEditProvider, languageFeaturesService.documentRangeFormattingEditProvider, model);
 	for (const provider of providers) {
 		let rawEdits = await Promise.resolve(provider.provideDocumentFormattingEdits(model, options, token)).catch(onUnexpectedExternalError);
 		if (isNonEmptyArray(rawEdits)) {
@@ -405,6 +415,7 @@ export async function getDocumentFormattingEditsUntilResult(
 
 export function getOnTypeFormattingEdits(
 	workerService: IEditorWorkerService,
+	languageFeaturesService: ILanguageFeaturesService,
 	model: ITextModel,
 	position: Position,
 	ch: string,
@@ -412,7 +423,7 @@ export function getOnTypeFormattingEdits(
 	token: CancellationToken
 ): Promise<TextEdit[] | null | undefined> {
 
-	const providers = OnTypeFormattingEditProviderRegistry.ordered(model);
+	const providers = languageFeaturesService.onTypeFormattingEditProvider.ordered(model);
 
 	if (providers.length === 0) {
 		return Promise.resolve(undefined);
@@ -434,9 +445,10 @@ CommandsRegistry.registerCommand('_executeFormatRangeProvider', async function (
 
 	const resolverService = accessor.get(ITextModelService);
 	const workerService = accessor.get(IEditorWorkerService);
+	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const reference = await resolverService.createModelReference(resource);
 	try {
-		return getDocumentRangeFormattingEditsUntilResult(workerService, reference.object.textEditorModel, Range.lift(range), options, CancellationToken.None);
+		return getDocumentRangeFormattingEditsUntilResult(workerService, languageFeaturesService, reference.object.textEditorModel, Range.lift(range), options, CancellationToken.None);
 	} finally {
 		reference.dispose();
 	}
@@ -448,9 +460,10 @@ CommandsRegistry.registerCommand('_executeFormatDocumentProvider', async functio
 
 	const resolverService = accessor.get(ITextModelService);
 	const workerService = accessor.get(IEditorWorkerService);
+	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const reference = await resolverService.createModelReference(resource);
 	try {
-		return getDocumentFormattingEditsUntilResult(workerService, reference.object.textEditorModel, options, CancellationToken.None);
+		return getDocumentFormattingEditsUntilResult(workerService, languageFeaturesService, reference.object.textEditorModel, options, CancellationToken.None);
 	} finally {
 		reference.dispose();
 	}
@@ -464,9 +477,10 @@ CommandsRegistry.registerCommand('_executeFormatOnTypeProvider', async function 
 
 	const resolverService = accessor.get(ITextModelService);
 	const workerService = accessor.get(IEditorWorkerService);
+	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const reference = await resolverService.createModelReference(resource);
 	try {
-		return getOnTypeFormattingEdits(workerService, reference.object.textEditorModel, Position.lift(position), ch, options, CancellationToken.None);
+		return getOnTypeFormattingEdits(workerService, languageFeaturesService, reference.object.textEditorModel, Position.lift(position), ch, options, CancellationToken.None);
 	} finally {
 		reference.dispose();
 	}

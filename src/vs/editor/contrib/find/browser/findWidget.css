@@ -16,6 +16,10 @@
 	transform: translateY(calc(-100% - 10px)); /* shadow (10px) */
 }
 
+.monaco-workbench.reduce-motion .monaco-editor .find-widget {
+	transition: transform 0ms linear;
+}
+
 .monaco-editor .find-widget textarea {
 	margin: 0px;
 }

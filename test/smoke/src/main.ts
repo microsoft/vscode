@@ -14,7 +14,7 @@ import * as mkdirp from 'mkdirp';
 import * as vscodetest from '@vscode/test-electron';
 import fetch from 'node-fetch';
 import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog } from '../../automation';
-import { timeout } from './utils';
+import { retry, timeout } from './utils';
 
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
@@ -50,14 +50,14 @@ const opts = minimist(args, {
 		verbose: false
 	}
 }) as {
-	verbose?: boolean,
-	remote?: boolean,
-	headless?: boolean,
-	web?: boolean,
-	build?: string,
-	'stable-build'?: string,
-	browser?: string,
-	electronArgs?: string
+	verbose?: boolean;
+	remote?: boolean;
+	headless?: boolean;
+	web?: boolean;
+	build?: string;
+	'stable-build'?: string;
+	browser?: string;
+	electronArgs?: string;
 };
 
 const logger = createLogger();
@@ -113,7 +113,7 @@ function fail(errorMessage): void {
 let quality: Quality;
 let version: string | undefined;
 
-function parseVersion(version: string): { major: number, minor: number, patch: number } {
+function parseVersion(version: string): { major: number; minor: number; patch: number } {
 	const [, major, minor, patch] = /^(\d+)\.(\d+)\.(\d+)/.exec(version)!;
 	return { major: parseInt(major), minor: parseInt(minor), patch: parseInt(patch) };
 }
@@ -262,7 +262,7 @@ async function ensureStableCode(): Promise<void> {
 	if (!stableCodePath) {
 		const { major, minor } = parseVersion(version!);
 		const majorMinorVersion = `${major}.${minor - 1}`;
-		const versionsReq = await measureAndLog(fetch('https://update.code.visualstudio.com/api/releases/stable', { headers: { 'x-api-version': '2' } }), 'versionReq', logger);
+		const versionsReq = await retry(() => measureAndLog(fetch('https://update.code.visualstudio.com/api/releases/stable', { headers: { 'x-api-version': '2' } }), 'versionReq', logger), 1000, 20);
 
 		if (!versionsReq.ok) {
 			throw new Error('Could not fetch releases from update server');
@@ -280,8 +280,9 @@ async function ensureStableCode(): Promise<void> {
 
 		let lastProgressMessage: string | undefined = undefined;
 		let lastProgressReportedAt = 0;
-		const stableCodeExecutable = await measureAndLog(vscodetest.download({
-			cachePath: path.join(os.tmpdir(), 'vscode-test'),
+		const stableCodeDestination = path.join(testDataPath, 's');
+		const stableCodeExecutable = await retry(() => measureAndLog(vscodetest.download({
+			cachePath: stableCodeDestination,
 			version: previousVersion.version,
 			extractSync: true,
 			reporter: {
@@ -301,7 +302,15 @@ async function ensureStableCode(): Promise<void> {
 				},
 				error: error => logger.log(`download stable code error: ${error}`)
 			}
-		}), 'download stable code', logger);
+		}), 'download stable code', logger), 1000, 3, () => new Promise<void>((resolve, reject) => {
+			rimraf(stableCodeDestination, { maxBusyTries: 10 }, error => {
+				if (error) {
+					reject(error);
+				} else {
+					resolve();
+				}
+			});
+		}));
 
 		if (process.platform === 'darwin') {
 			// Visual Studio Code.app/Contents/MacOS/Electron

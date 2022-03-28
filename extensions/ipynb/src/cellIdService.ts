@@ -8,7 +8,7 @@ import { v4 as uuid } from 'uuid';
 import { getCellMetadata } from './serializers';
 import { CellMetadata } from './common';
 import { getNotebookMetadata } from './notebookSerializer';
-import { nbformat } from '@jupyterlab/coreutils';
+import * as nbformat from '@jupyterlab/nbformat';
 
 /**
  * Ensure all new cells in notebooks with nbformat >= 4.5 have an id.

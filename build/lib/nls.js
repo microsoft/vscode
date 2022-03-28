@@ -107,6 +107,15 @@ var _nls;
             this.file = ts.ScriptSnapshot.fromString(contents);
             this.lib = ts.ScriptSnapshot.fromString('');
         }
+        readFile(path, _encoding) {
+            if (path === this.filename) {
+                return this.file.getText(0, this.file.getLength());
+            }
+            return undefined;
+        }
+        fileExists(path) {
+            return path === this.filename;
+        }
     }
     function isCallExpressionWithinTextSpanCollectStep(ts, textSpan, node) {
         if (!ts.textSpanContainsTextSpan({ start: node.pos, length: node.end - node.pos }, textSpan)) {

@@ -82,7 +82,7 @@ export class IdentityProvider implements IIdentityProvider<Type> {
 		public getDirection: () => TypeHierarchyDirection
 	) { }
 
-	getId(element: Type): { toString(): string; } {
+	getId(element: Type): { toString(): string } {
 		let res = this.getDirection() + JSON.stringify(element.item.uri) + JSON.stringify(element.item.range);
 		if (element.parent) {
 			res += this.getId(element.parent);

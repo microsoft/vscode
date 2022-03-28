@@ -68,7 +68,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 	}
 }
 
-function getHeadersForPosition(toc: readonly TocEntry[], position: vscode.Position): { headers: TocEntry[], headerOnThisLine: boolean } {
+function getHeadersForPosition(toc: readonly TocEntry[], position: vscode.Position): { headers: TocEntry[]; headerOnThisLine: boolean } {
 	const enclosingHeaders = toc.filter(header => header.location.range.start.line <= position.line && header.location.range.end.line >= position.line);
 	const sortedHeaders = enclosingHeaders.sort((header1, header2) => (header1.line - position.line) - (header2.line - position.line));
 	const onThisLine = toc.find(header => header.line === position.line) !== undefined;
@@ -164,7 +164,7 @@ function createFencedRange(token: MarkdownItTokenWithMap, cursorLine: number, do
 }
 
 function createBoldRange(lineText: string, cursorChar: number, cursorLine: number, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
-	const regex = /(?:\*\*([^*]+)(?:\*([^*]+)([^*]+)\*)*([^*]+)\*\*)/g;
+	const regex = /\*\*([^*]+\*?[^*]+\*?[^*]+)\*\*/gim;
 	const matches = [...lineText.matchAll(regex)].filter(match => lineText.indexOf(match[0]) <= cursorChar && lineText.indexOf(match[0]) + match[0].length >= cursorChar);
 	if (matches.length) {
 		// should only be one match, so select first and index 0 contains the entire match

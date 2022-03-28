@@ -80,7 +80,7 @@ export const enum WebviewContentPurpose {
 	WebviewView = 'webviewView',
 }
 
-export type WebviewStyles = { readonly [key: string]: string | number; };
+export type WebviewStyles = { readonly [key: string]: string | number };
 
 export interface WebviewOptions {
 	/**

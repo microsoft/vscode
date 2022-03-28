@@ -64,8 +64,8 @@ export interface IWorkerClient<W> {
 }
 
 export class NotebookEditorModelManager extends Disposable {
-	private _syncedModels: { [modelUrl: string]: IDisposable; } = Object.create(null);
-	private _syncedModelsLastUsedTime: { [modelUrl: string]: number; } = Object.create(null);
+	private _syncedModels: { [modelUrl: string]: IDisposable } = Object.create(null);
+	private _syncedModelsLastUsedTime: { [modelUrl: string]: number } = Object.create(null);
 
 	constructor(
 		private readonly _proxy: NotebookEditorSimpleWorker,

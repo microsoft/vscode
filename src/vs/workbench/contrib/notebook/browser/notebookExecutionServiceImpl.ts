@@ -9,7 +9,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, INotebookTextModel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -45,7 +45,7 @@ export class NotebookExecutionService implements INotebookExecutionService {
 			return;
 		}
 
-		const cellHandles: number[] = [];
+		const executeCells: NotebookCellTextModel[] = [];
 		for (const cell of cellsArr) {
 			const cellExe = this._notebookExecutionStateService.getCellExecution(cell.uri);
 			if (cell.cellKind !== CellKind.Code || !!cellExe) {
@@ -54,12 +54,19 @@ export class NotebookExecutionService implements INotebookExecutionService {
 			if (!kernel.supportedLanguages.includes(cell.language)) {
 				continue;
 			}
-			cellHandles.push(cell.handle);
+			executeCells.push(cell);
 		}
 
-		if (cellHandles.length > 0) {
+		if (executeCells.length > 0) {
 			this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
-			await kernel.executeNotebookCellsRequest(notebook.uri, cellHandles);
+
+			const exes = executeCells.map(c => this._notebookExecutionStateService.createCellExecution(kernel!.id, notebook.uri, c.handle));
+			await kernel.executeNotebookCellsRequest(notebook.uri, executeCells.map(c => c.handle));
+			const unconfirmed = exes.filter(exe => exe.state === NotebookCellExecutionState.Unconfirmed);
+			if (unconfirmed.length) {
+				this._logService.debug(`NotebookExecutionService#executeNotebookCells completing unconfirmed executions ${JSON.stringify(unconfirmed.map(exe => exe.cellHandle))}`);
+				unconfirmed.forEach(exe => exe.complete({}));
+			}
 		}
 	}
 

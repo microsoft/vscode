@@ -156,16 +156,16 @@ declare module 'vscode' {
 		/**
 		 * Markdown text of the message.
 		 */
-		text: string,
+		text: string;
 		/**
 		 * Whether the source of the message is trusted, command links are disabled for untrusted message sources.
 		 * Messaged are untrusted by default.
 		 */
-		trusted?: boolean,
+		trusted?: boolean;
 		/**
 		 * The message type, this affects how the message will be rendered.
 		 */
-		type: TextSearchCompleteMessageType,
+		type: TextSearchCompleteMessageType;
 	}
 
 	/**

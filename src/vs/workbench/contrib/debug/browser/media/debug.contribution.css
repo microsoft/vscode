@@ -84,7 +84,8 @@
 	font-size: 11px;
 }
 
-.monaco-workbench .monaco-list-row .expression .value {
+.monaco-workbench .monaco-list-row .expression .value,
+.monaco-workbench .monaco-list-row .expression .lazy-button {
 	margin-left: 6px;
 }
 
@@ -114,6 +115,22 @@
 
 .monaco-workbench .monaco-list-row .expression .unavailable {
 	font-style: italic;
+}
+
+.monaco-workbench .monaco-list-row .expression .lazy-button {
+	display: none;
+}
+
+.monaco-workbench .monaco-list-row .expression .lazy-button:hover {
+	text-decoration: underline;
+}
+
+.monaco-workbench .monaco-list-row .expression.lazy .lazy-button {
+	display: inline;
+}
+
+.monaco-workbench .monaco-list-row .expression.lazy .value {
+	display: none;
 }
 
 .monaco-workbench .debug-inline-value {

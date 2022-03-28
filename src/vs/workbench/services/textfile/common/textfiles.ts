@@ -8,13 +8,13 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { ReadableStream } from 'vs/base/common/stream';
-import { IBaseStatWithMetadata, IFileStatWithMetadata, IWriteFileOptions, FileOperationError, FileOperationResult, IReadFileStreamOptions } from 'vs/platform/files/common/files';
+import { IBaseFileStatWithMetadata, IFileStatWithMetadata, IWriteFileOptions, FileOperationError, FileOperationResult, IReadFileStreamOptions } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { areFunctions, isUndefinedOrNull } from 'vs/base/common/types';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
@@ -96,7 +96,7 @@ export interface ITextFileService extends IDisposable {
 	 * Create files. If the file exists it will be overwritten with the contents if
 	 * the options enable to overwrite.
 	 */
-	create(operations: { resource: URI, value?: string | ITextSnapshot, options?: { overwrite?: boolean } }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
+	create(operations: { resource: URI; value?: string | ITextSnapshot; options?: { overwrite?: boolean } }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
 
 	/**
 	 * Returns the readable that uses the appropriate encoding. This method should
@@ -241,7 +241,7 @@ export const enum TextFileResolveReason {
 	OTHER = 3
 }
 
-interface IBaseTextFileContent extends IBaseStatWithMetadata {
+interface IBaseTextFileContent extends IBaseFileStatWithMetadata {
 
 	/**
 	 * The encoding of the content if known.
@@ -308,13 +308,24 @@ export interface ITextFileEditorModelResolveOrCreateOptions {
 	readonly allowBinary?: boolean;
 }
 
-export interface ITextFileSaveEvent {
+export interface ITextFileSaveEvent extends ITextFileEditorModelSaveEvent {
+
+	/**
+	 * The model that was saved.
+	 */
 	readonly model: ITextFileEditorModel;
-	readonly reason: SaveReason;
 }
 
 export interface ITextFileResolveEvent {
+
+	/**
+	 * The model that was resolved.
+	 */
 	readonly model: ITextFileEditorModel;
+
+	/**
+	 * The reason why the model was resolved.
+	 */
 	readonly reason: TextFileResolveReason;
 }
 
@@ -374,7 +385,7 @@ export interface ITextFileEditorModelManager {
 	/**
 	 * Runs the registered save participants on the provided model.
 	 */
-	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>
+	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason }, token: CancellationToken): Promise<void>;
 
 	/**
 	 * Waits for the model to be ready to be disposed. There may be conditions
@@ -476,9 +487,17 @@ export interface ILanguageSupport {
 	setLanguageId(languageId: string, setExplicitly?: boolean): void;
 }
 
+export interface ITextFileEditorModelSaveEvent extends IWorkingCopySaveEvent {
+
+	/**
+	 * The resolved stat from the save operation.
+	 */
+	readonly stat: IFileStatWithMetadata;
+}
+
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, ILanguageSupport, IWorkingCopy {
 
-	readonly onDidChangeContent: Event<void>;
+	readonly onDidSave: Event<ITextFileEditorModelSaveEvent>;
 	readonly onDidSaveError: Event<void>;
 	readonly onDidChangeOrphaned: Event<void>;
 	readonly onDidChangeReadonly: Event<void>;

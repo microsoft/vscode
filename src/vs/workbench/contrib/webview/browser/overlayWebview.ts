@@ -21,7 +21,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
 	public readonly onDidWheel = this._onDidWheel.event;
 
-	private readonly _pendingMessages = new Set<{ readonly message: any, readonly transfer?: readonly ArrayBuffer[] }>();
+	private readonly _pendingMessages = new Set<{ readonly message: any; readonly transfer?: readonly ArrayBuffer[] }>();
 	private readonly _webview = this._register(new MutableDisposable<IWebviewElement>());
 	private readonly _webviewEvents = this._register(new DisposableStore());
 
@@ -256,8 +256,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private readonly _onDidReload = this._register(new Emitter<void>());
 	public readonly onDidReload = this._onDidReload.event;
 
-	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number; }>());
-	public readonly onDidScroll: Event<{ scrollYPercentage: number; }> = this._onDidScroll.event;
+	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number }>());
+	public readonly onDidScroll: Event<{ scrollYPercentage: number }> = this._onDidScroll.event;
 
 	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
 	public readonly onDidUpdateState: Event<string | undefined> = this._onDidUpdateState.event;

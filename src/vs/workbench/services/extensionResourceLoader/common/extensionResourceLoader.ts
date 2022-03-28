@@ -41,7 +41,7 @@ export interface IExtensionResourceLoaderService {
 	/**
 	 * Computes the URL of a extension gallery resource. Returns `undefined` if gallery does not provide extension resources.
 	 */
-	getExtensionGalleryResourceURL(galleryExtension: { publisher: string, name: string, version: string }, path?: string): URI | undefined;
+	getExtensionGalleryResourceURL(galleryExtension: { publisher: string; name: string; version: string }, path?: string): URI | undefined;
 }
 
 
@@ -69,7 +69,7 @@ export abstract class AbstractExtensionResourceLoaderService implements IExtensi
 		return this._extensionGalleryResourceUrlTemplate !== undefined;
 	}
 
-	public getExtensionGalleryResourceURL(galleryExtension: { publisher: string, name: string, version: string }, path?: string): URI | undefined {
+	public getExtensionGalleryResourceURL(galleryExtension: { publisher: string; name: string; version: string }, path?: string): URI | undefined {
 		if (this._extensionGalleryResourceUrlTemplate) {
 			const uri = URI.parse(format2(this._extensionGalleryResourceUrlTemplate, { publisher: galleryExtension.publisher, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }));
 			return this._isWebExtensionResourceEndPoint(uri) ? uri.with({ scheme: RemoteAuthorities.getPreferredWebSchema() }) : uri;

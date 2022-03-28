@@ -8,7 +8,7 @@ import { createApiFactoryAndRegisterActors } from 'vs/workbench/api/common/extHo
 import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
 import { MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { connectProxyResolver } from 'vs/workbench/services/extensions/node/proxyResolver';
+import { connectProxyResolver } from 'vs/workbench/api/node/proxyResolver';
 import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtHostDownloadService } from 'vs/workbench/api/node/extHostDownloadService';
 import { URI } from 'vs/base/common/uri';
@@ -24,7 +24,7 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 		const that = this;
 		const node_module = <any>require.__$__nodeRequire('module');
 		const originalLoad = node_module._load;
-		node_module._load = function load(request: string, parent: { filename: string; }, isMain: boolean) {
+		node_module._load = function load(request: string, parent: { filename: string }, isMain: boolean) {
 			request = applyAlternatives(request);
 			if (!that._factories.has(request)) {
 				return originalLoad.apply(this, arguments);

@@ -9,6 +9,8 @@ import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 
+type RegexpModel = { detect: (inp: string, langBiases: Record<string, number>) => string | undefined };
+
 /**
  * Called on the worker side
  * @internal
@@ -26,24 +28,96 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 	private static readonly positiveConfidenceCorrectionBucket2 = 0.025;
 	private static readonly negativeConfidenceCorrection = 0.5;
 
+	private _regexpModel: RegexpModel | undefined;
+	private _regexpLoadFailed: boolean = false;
+
 	private _modelOperations: ModelOperations | undefined;
 	private _loadFailed: boolean = false;
 
-	public async detectLanguage(uri: string): Promise<string | undefined> {
+	public async detectLanguage(uri: string, langBiases: Record<string, number> | undefined, preferHistory: boolean): Promise<string | undefined> {
 		const languages: string[] = [];
 		const confidences: number[] = [];
 		const stopWatch = new StopWatch(true);
-		for await (const language of this.detectLanguagesImpl(uri)) {
-			languages.push(language.languageId);
-			confidences.push(language.confidence);
-		}
-		stopWatch.stop();
+		const documentTextSample = this.getTextForDetection(uri);
+		if (!documentTextSample) { return; }
 
-		if (languages.length) {
-			this._host.fhr('sendTelemetryEvent', [languages, confidences, stopWatch.elapsed()]);
-			return languages[0];
+		const neuralResolver = async () => {
+			for await (const language of this.detectLanguagesImpl(documentTextSample)) {
+				languages.push(language.languageId);
+				confidences.push(language.confidence);
+			}
+			stopWatch.stop();
+
+			if (languages.length) {
+				this._host.fhr('sendTelemetryEvent', [languages, confidences, stopWatch.elapsed()]);
+				return languages[0];
+			}
+			return undefined;
+		};
+
+		const historicalResolver = async () => {
+			if (langBiases) {
+				const regexpDetection = await this.runRegexpModel(documentTextSample, langBiases);
+				if (regexpDetection) {
+					return regexpDetection;
+				}
+			}
+			return undefined;
+		};
+
+		if (preferHistory) {
+			const history = await historicalResolver();
+			if (history) { return history; }
+			const neural = await neuralResolver();
+			if (neural) { return neural; }
+		} else {
+			const neural = await neuralResolver();
+			if (neural) { return neural; }
+			const history = await historicalResolver();
+			if (history) { return history; }
 		}
+
 		return undefined;
+	}
+
+	private getTextForDetection(uri: string): string | undefined {
+		const editorModel = this._getModel(uri);
+		if (!editorModel) { return; }
+
+		const end = editorModel.positionAt(10000);
+		const content = editorModel.getValueInRange({
+			startColumn: 1,
+			startLineNumber: 1,
+			endColumn: end.column,
+			endLineNumber: end.lineNumber
+		});
+		return content;
+	}
+
+	private async getRegexpModel(): Promise<RegexpModel | undefined> {
+		if (this._regexpLoadFailed) {
+			return;
+		}
+		if (this._regexpModel) {
+			return this._regexpModel;
+		}
+		const uri: string = await this._host.fhr('getRegexpModelUri', []);
+		try {
+			this._regexpModel = await import(uri) as RegexpModel;
+			return this._regexpModel;
+		} catch (e) {
+			this._regexpLoadFailed = true;
+			// console.warn('error loading language detection model', e);
+			return;
+		}
+	}
+
+	private async runRegexpModel(content: string, langBiases: Record<string, number>): Promise<string | undefined> {
+		const regexpModel = await this.getRegexpModel();
+		if (!regexpModel) { return; }
+
+		const detected = regexpModel.detect(content, langBiases);
+		return detected;
 	}
 
 	private async getModelOperations(): Promise<ModelOperations> {
@@ -127,7 +201,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 		return modelResult;
 	}
 
-	private async * detectLanguagesImpl(uri: string): AsyncGenerator<ModelResult, void, unknown> {
+	private async * detectLanguagesImpl(content: string): AsyncGenerator<ModelResult, void, unknown> {
 		if (this._loadFailed) {
 			return;
 		}
@@ -141,20 +215,8 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 			return;
 		}
 
-		const model = this._getModel(uri);
-		if (!model) {
-			return;
-		}
-
 		let modelResults: ModelResult[] | undefined;
-		// Grab the first 10000 characters
-		const end = model.positionAt(10000);
-		const content = model.getValueInRange({
-			startColumn: 1,
-			startLineNumber: 1,
-			endColumn: end.column,
-			endLineNumber: end.lineNumber
-		});
+
 		try {
 			modelResults = await modelOperations.runModel(content);
 		} catch (e) {

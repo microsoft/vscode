@@ -10,10 +10,6 @@ import 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
 import { ICommentService, CommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
-export interface ICommentsConfiguration {
-	openPanel: 'neverOpen' | 'openOnSessionStart' | 'openOnSessionStartWithComments';
-}
-
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'comments',
 	order: 20,
@@ -24,13 +20,20 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			enum: ['neverOpen', 'openOnSessionStart', 'openOnSessionStartWithComments'],
 			default: 'openOnSessionStartWithComments',
 			description: nls.localize('openComments', "Controls when the comments panel should open."),
+			restricted: false,
+			markdownDeprecationMessage: nls.localize('comments.openPanel.deprecated', "This setting is deprecated in favor of `comments.openView`.")
+		},
+		'comments.openView': {
+			enum: ['never', 'file'],
+			enumDescriptions: [nls.localize('comments.openView.never', "The comments view will never be opened."), nls.localize('comments.openView.file', "The comments view will open when a file with comments is active.")],
+			default: 'file',
+			description: nls.localize('comments.openView', "Controls when the comments view should open."),
 			restricted: false
 		},
 		'comments.useRelativeTime': {
 			type: 'boolean',
 			default: true,
 			description: nls.localize('useRelativeTime', "Determines if relative time will be used in comment timestamps (ex. '1 day ago').")
-
 		}
 	}
 });

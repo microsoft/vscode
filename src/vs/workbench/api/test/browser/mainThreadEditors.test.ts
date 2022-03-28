@@ -56,6 +56,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 
 suite('MainThreadEditors', () => {
 
@@ -93,9 +94,9 @@ suite('MainThreadEditors', () => {
 			undoRedoService,
 			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService(),
-			new LanguageFeatureDebounceService(logService)
+			new LanguageFeatureDebounceService(logService),
+			new LanguageFeaturesService()
 		);
-
 
 		const services = new ServiceCollection();
 		services.set(IBulkEditService, new SyncDescriptor(BulkEditService));

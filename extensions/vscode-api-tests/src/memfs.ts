@@ -82,7 +82,7 @@ export class TestFS implements vscode.FileSystemProvider {
 		throw vscode.FileSystemError.FileNotFound();
 	}
 
-	writeFile(uri: vscode.Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): void {
+	writeFile(uri: vscode.Uri, content: Uint8Array, options: { create: boolean; overwrite: boolean }): void {
 		let basename = path.posix.basename(uri.path);
 		let parent = this._lookupParentDirectory(uri);
 		let entry = parent.entries.get(basename);

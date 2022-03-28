@@ -8,7 +8,8 @@
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never",
-				"group": "buildWatchers"
+				"group": "buildWatchers",
+				"close": false
 			},
 			"problemMatcher": {
 				"owner": "typescript",
@@ -35,7 +36,8 @@
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never",
-				"group": "buildWatchers"
+				"group": "buildWatchers",
+				"close": false
 			},
 			"problemMatcher": {
 				"owner": "typescript",
@@ -98,6 +100,16 @@
 				"Kill Ext - Build"
 			],
 			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "Restart VS Code - Build",
+			"dependsOn": [
+				"Kill VS Code - Build",
+				"VS Code - Build"
+			],
+			"group": "build",
+			"dependsOrder": "sequence",
 			"problemMatcher": []
 		},
 		{

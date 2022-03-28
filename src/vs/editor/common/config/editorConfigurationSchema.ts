@@ -174,7 +174,7 @@ const editorConfiguration: IConfigurationNode = {
 	}
 };
 
-function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; }): x is IConfigurationPropertySchema {
+function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {
 	return (typeof x.type !== 'undefined' || typeof x.anyOf !== 'undefined');
 }
 
@@ -195,10 +195,10 @@ for (const editorOption of editorOptionsRegistry) {
 	}
 }
 
-let cachedEditorConfigurationKeys: { [key: string]: boolean; } | null = null;
-function getEditorConfigurationKeys(): { [key: string]: boolean; } {
+let cachedEditorConfigurationKeys: { [key: string]: boolean } | null = null;
+function getEditorConfigurationKeys(): { [key: string]: boolean } {
 	if (cachedEditorConfigurationKeys === null) {
-		cachedEditorConfigurationKeys = <{ [key: string]: boolean; }>Object.create(null);
+		cachedEditorConfigurationKeys = <{ [key: string]: boolean }>Object.create(null);
 		Object.keys(editorConfiguration.properties!).forEach((prop) => {
 			cachedEditorConfigurationKeys![prop] = true;
 		});

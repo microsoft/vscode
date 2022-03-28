@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, equals, flatten, isNonEmptyArray } from 'vs/base/common/arrays';
+import { coalesce, equals, isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, isCancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -12,11 +12,13 @@ import { TextModelCancellationTokenSource } from 'vs/editor/contrib/editorState/
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 import { CodeActionFilter, CodeActionKind, CodeActionTrigger, filtersAction, mayIncludeActionsOfKind } from './types';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export const codeActionCommandId = 'editor.action.codeAction';
 export const refactorCommandId = 'editor.action.refactor';
@@ -27,13 +29,13 @@ export const fixAllCommandId = 'editor.action.fixAll';
 export class CodeActionItem {
 
 	constructor(
-		readonly action: modes.CodeAction,
-		readonly provider: modes.CodeActionProvider | undefined,
+		readonly action: languages.CodeAction,
+		readonly provider: languages.CodeActionProvider | undefined,
 	) { }
 
 	async resolve(token: CancellationToken): Promise<this> {
 		if (this.provider?.resolveCodeAction && !this.action.edit) {
-			let action: modes.CodeAction | undefined | null;
+			let action: languages.CodeAction | undefined | null;
 			try {
 				action = await this.provider.resolveCodeAction(this.action, token);
 			} catch (err) {
@@ -52,7 +54,7 @@ export interface CodeActionSet extends IDisposable {
 	readonly allActions: readonly CodeActionItem[];
 	readonly hasAutoFix: boolean;
 
-	readonly documentation: readonly modes.Command[];
+	readonly documentation: readonly languages.Command[];
 }
 
 class ManagedCodeActionSet extends Disposable implements CodeActionSet {
@@ -82,7 +84,7 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
 	public constructor(
 		actions: readonly CodeActionItem[],
-		public readonly documentation: readonly modes.Command[],
+		public readonly documentation: readonly languages.Command[],
 		disposables: DisposableStore,
 	) {
 		super();
@@ -100,21 +102,22 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 const emptyCodeActionsResponse = { actions: [] as CodeActionItem[], documentation: undefined };
 
 export function getCodeActions(
+	registry: LanguageFeatureRegistry<languages.CodeActionProvider>,
 	model: ITextModel,
 	rangeOrSelection: Range | Selection,
 	trigger: CodeActionTrigger,
-	progress: IProgress<modes.CodeActionProvider>,
+	progress: IProgress<languages.CodeActionProvider>,
 	token: CancellationToken,
 ): Promise<CodeActionSet> {
 	const filter = trigger.filter || {};
 
-	const codeActionContext: modes.CodeActionContext = {
+	const codeActionContext: languages.CodeActionContext = {
 		only: filter.include?.value,
 		trigger: trigger.type,
 	};
 
 	const cts = new TextModelCancellationTokenSource(model, token);
-	const providers = getCodeActionProviders(model, filter);
+	const providers = getCodeActionProviders(registry, model, filter);
 
 	const disposables = new DisposableStore();
 	const promises = providers.map(async provider => {
@@ -144,15 +147,15 @@ export function getCodeActions(
 		}
 	});
 
-	const listener = modes.CodeActionProviderRegistry.onDidChange(() => {
-		const newProviders = modes.CodeActionProviderRegistry.all(model);
+	const listener = registry.onDidChange(() => {
+		const newProviders = registry.all(model);
 		if (!equals(newProviders, providers)) {
 			cts.cancel();
 		}
 	});
 
 	return Promise.all(promises).then(actions => {
-		const allActions = flatten(actions.map(x => x.actions));
+		const allActions = actions.map(x => x.actions).flat();
 		const allDocumentation = coalesce(actions.map(x => x.documentation));
 		return new ManagedCodeActionSet(allActions, allDocumentation, disposables);
 	})
@@ -163,10 +166,11 @@ export function getCodeActions(
 }
 
 function getCodeActionProviders(
+	registry: LanguageFeatureRegistry<languages.CodeActionProvider>,
 	model: ITextModel,
 	filter: CodeActionFilter
 ) {
-	return modes.CodeActionProviderRegistry.all(model)
+	return registry.all(model)
 		// Don't include providers that we know will not return code actions of interest
 		.filter(provider => {
 			if (!provider.providedCodeActionKinds) {
@@ -178,10 +182,10 @@ function getCodeActionProviders(
 }
 
 function getDocumentation(
-	provider: modes.CodeActionProvider,
-	providedCodeActions: readonly modes.CodeAction[],
+	provider: languages.CodeActionProvider,
+	providedCodeActions: readonly languages.CodeAction[],
 	only?: CodeActionKind
-): modes.Command | undefined {
+): languages.Command | undefined {
 	if (!provider.documentation) {
 		return undefined;
 	}
@@ -189,7 +193,7 @@ function getDocumentation(
 	const documentation = provider.documentation.map(entry => ({ kind: new CodeActionKind(entry.kind), command: entry.command }));
 
 	if (only) {
-		let currentBest: { readonly kind: CodeActionKind, readonly command: modes.Command; } | undefined;
+		let currentBest: { readonly kind: CodeActionKind; readonly command: languages.Command } | undefined;
 		for (const entry of documentation) {
 			if (entry.kind.contains(only)) {
 				if (!currentBest) {
@@ -223,11 +227,12 @@ function getDocumentation(
 	return undefined;
 }
 
-CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (accessor, resource: URI, rangeOrSelection: Range | Selection, kind?: string, itemResolveCount?: number): Promise<ReadonlyArray<modes.CodeAction>> {
+CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (accessor, resource: URI, rangeOrSelection: Range | Selection, kind?: string, itemResolveCount?: number): Promise<ReadonlyArray<languages.CodeAction>> {
 	if (!(resource instanceof URI)) {
 		throw illegalArgument();
 	}
 
+	const { codeActionProvider } = accessor.get(ILanguageFeaturesService);
 	const model = accessor.get(IModelService).getModel(resource);
 	if (!model) {
 		throw illegalArgument();
@@ -245,9 +250,10 @@ CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (a
 
 	const include = typeof kind === 'string' ? new CodeActionKind(kind) : undefined;
 	const codeActionSet = await getCodeActions(
+		codeActionProvider,
 		model,
 		validatedRangeOrSelection,
-		{ type: modes.CodeActionTriggerType.Invoke, filter: { includeSourceActions: true, include } },
+		{ type: languages.CodeActionTriggerType.Invoke, filter: { includeSourceActions: true, include } },
 		Progress.None,
 		CancellationToken.None);
 

@@ -27,7 +27,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.showNewFileEntries',
-			title: localize('welcome.newFile', "New File..."),
+			title: { value: localize('welcome.newFile', "New File..."), original: 'New File...' },
 			category,
 			f1: true,
 			keybinding: {
@@ -48,7 +48,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-type NewFileItem = { commandID: string, title: string, from: string, group: string };
+type NewFileItem = { commandID: string; title: string; from: string; group: string };
 class NewFileTemplatesManager extends Disposable {
 	static Instance: NewFileTemplatesManager | undefined;
 
@@ -170,7 +170,7 @@ class NewFileTemplatesManager extends Disposable {
 
 		disposables.add(qp.onDidTriggerItemButton(e => {
 			qp.hide();
-			this.commandService.executeCommand('workbench.action.openGlobalKeybindings', (e.item as any).action.runCommand);
+			this.commandService.executeCommand('workbench.action.openGlobalKeybindings', (e.item as (IQuickPickItem & NewFileItem)).commandID);
 		}));
 
 		qp.show();

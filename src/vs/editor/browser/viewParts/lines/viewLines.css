@@ -27,6 +27,12 @@
 	-ms-user-select: none;
 }
 
+.monaco-editor.enable-user-select {
+	user-select: initial;
+	-webkit-user-select: initial;
+	-ms-user-select: initial;
+}
+
 .monaco-editor .view-lines {
 	white-space: nowrap;
 }

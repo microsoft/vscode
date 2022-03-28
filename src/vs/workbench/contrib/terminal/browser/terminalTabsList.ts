@@ -46,7 +46,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
 
 const $ = DOM.$;
 
@@ -109,6 +109,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		const instanceDisposables: IDisposable[] = [
 			this._terminalGroupService.onDidChangeInstances(() => this.refresh()),
 			this._terminalGroupService.onDidChangeGroups(() => this.refresh()),
+			this._terminalGroupService.onDidShow(() => this.refresh()),
 			this._terminalGroupService.onDidChangeInstanceCapability(() => this.refresh()),
 			this._terminalService.onDidChangeInstanceTitle(() => this.refresh()),
 			this._terminalService.onDidChangeInstanceIcon(() => this.refresh()),
@@ -307,21 +308,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}
 
-		let shellIntegrationString = '';
-		const shellIntegrationCapabilities: TerminalCapability[] = [];
-		if (instance.capabilities.has(TerminalCapability.CommandDetection)) {
-			shellIntegrationCapabilities.push(TerminalCapability.CommandDetection);
-		}
-		if (instance.capabilities.has(TerminalCapability.CwdDetection)) {
-			shellIntegrationCapabilities.push(TerminalCapability.CwdDetection);
-		}
-		if (shellIntegrationCapabilities.length > 0) {
-			shellIntegrationString += `\n\n---\n\n ${localize('shellIntegration.enabled', "Shell integration is enabled")}`;
-			for (const capability of shellIntegrationCapabilities) {
-				shellIntegrationString += `\n- ${this._getCapabilityName(capability)}`;
-			}
-		}
-
+		const shellIntegrationString = getShellIntegrationTooltip(instance, true);
 		const iconId = getIconId(instance);
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
@@ -512,18 +499,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}
 		this._terminalGroupService.focusTabs();
 		this._listService.lastFocusedList?.focusNext();
-	}
-
-	private _getCapabilityName(capability: TerminalCapability): string | undefined {
-		switch (capability) {
-			case TerminalCapability.CwdDetection:
-			case TerminalCapability.NaiveCwdDetection:
-				return localize('capability.cwdDetection', "Current working directory detection");
-			case TerminalCapability.CommandDetection:
-				return localize('capability.commandDetection', "Command detection");
-			case TerminalCapability.PartialCommandDetection:
-				return localize('capability.partialCommandDetection', "Command detection (partial)");
-		}
 	}
 }
 

@@ -20,7 +20,7 @@ export interface HTMLDocumentRegions {
 
 export const CSS_STYLE_RULE = '__';
 
-interface EmbeddedRegion { languageId: string | undefined; start: number; end: number; attributeValue?: boolean; }
+interface EmbeddedRegion { languageId: string | undefined; start: number; end: number; attributeValue?: boolean }
 
 
 export function getDocumentRegions(languageService: LanguageService, document: TextDocument): HTMLDocumentRegions {
@@ -181,6 +181,7 @@ function getPrefix(c: EmbeddedRegion) {
 	if (c.attributeValue) {
 		switch (c.languageId) {
 			case 'css': return CSS_STYLE_RULE + '{';
+			case 'javascript': return '()=>{';
 		}
 	}
 	return '';
@@ -189,7 +190,7 @@ function getSuffix(c: EmbeddedRegion) {
 	if (c.attributeValue) {
 		switch (c.languageId) {
 			case 'css': return '}';
-			case 'javascript': return ';';
+			case 'javascript': return '};';
 		}
 	}
 	return '';

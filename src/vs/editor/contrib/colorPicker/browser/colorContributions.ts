@@ -9,8 +9,10 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ColorDecorationInjectedTextMarker } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
+import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
 import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { HoverStartMode } from 'vs/editor/contrib/hover/browser/hoverOperation';
+import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
 
 export class ColorContribution extends Disposable implements IEditorContribution {
 
@@ -59,3 +61,4 @@ export class ColorContribution extends Disposable implements IEditorContribution
 }
 
 registerEditorContribution(ColorContribution.ID, ColorContribution);
+HoverParticipantRegistry.register(ColorHoverParticipant);

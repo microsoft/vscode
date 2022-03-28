@@ -498,7 +498,7 @@ function walk(marker: Marker[], visitor: (marker: Marker) => boolean): void {
 
 export class TextmateSnippet extends Marker {
 
-	private _placeholders?: { all: Placeholder[], last?: Placeholder };
+	private _placeholders?: { all: Placeholder[]; last?: Placeholder };
 
 	get placeholderInfo() {
 		if (!this._placeholders) {

@@ -87,7 +87,8 @@ export class ExplorerItem {
 	public isError = false;
 	private _isExcluded = false;
 
-	private nestedChildren: ExplorerItem[] | undefined;
+	public nestedParent: ExplorerItem | undefined;
+	public nestedChildren: ExplorerItem[] | undefined;
 
 	constructor(
 		public resource: URI,
@@ -296,87 +297,103 @@ export class ExplorerItem {
 		return this.children.get(this.getPlatformAwareName(name));
 	}
 
-	async fetchChildren(sortOrder: SortOrder): Promise<ExplorerItem[]> {
-		const nestingConfig = this.configService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting;
-		if (nestingConfig.enabled && this.nestedChildren) { return this.nestedChildren; }
+	fetchChildren(sortOrder: SortOrder): ExplorerItem[] | Promise<ExplorerItem[]> {
+		const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.experimental.fileNesting;
 
-		if (!this._isDirectoryResolved) {
-			// Resolve metadata only when the mtime is needed since this can be expensive
-			// Mtime is only used when the sort order is 'modified'
-			const resolveMetadata = sortOrder === SortOrder.Modified;
-			this.isError = false;
-			try {
-				const stat = await this.fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
-				const resolved = ExplorerItem.create(this.fileService, this.configService, stat, this);
-				ExplorerItem.mergeLocalWithDisk(resolved, this);
-			} catch (e) {
-				this.isError = true;
-				throw e;
-			}
-			this._isDirectoryResolved = true;
+		// fast path when the children can be resolved sync
+		if (nestingConfig.enabled && this.nestedChildren) {
+			return this.nestedChildren;
 		}
 
-		const items: ExplorerItem[] = [];
-		if (nestingConfig.enabled) {
-			const fileChildren: [string, ExplorerItem][] = [];
-			const dirChildren: [string, ExplorerItem][] = [];
-			for (const child of this.children.entries()) {
-				if (child[1].isDirectory) {
-					dirChildren.push(child);
-				} else {
-					fileChildren.push(child);
+		return (async () => {
+			if (!this._isDirectoryResolved) {
+				// Resolve metadata only when the mtime is needed since this can be expensive
+				// Mtime is only used when the sort order is 'modified'
+				const resolveMetadata = sortOrder === SortOrder.Modified;
+				this.isError = false;
+				try {
+					const stat = await this.fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
+					const resolved = ExplorerItem.create(this.fileService, this.configService, stat, this);
+					ExplorerItem.mergeLocalWithDisk(resolved, this);
+				} catch (e) {
+					this.isError = true;
+					throw e;
 				}
+				this._isDirectoryResolved = true;
 			}
 
-			const nested = this.buildFileNester().nest(fileChildren.map(([name]) => name));
-
-			for (const [fileEntryName, fileEntryItem] of fileChildren) {
-				const nestedItems = nested.get(fileEntryName);
-				if (nestedItems !== undefined) {
-					fileEntryItem.nestedChildren = [];
-					for (const name of nestedItems.keys()) {
-						fileEntryItem.nestedChildren.push(assertIsDefined(this.children.get(name)));
+			const items: ExplorerItem[] = [];
+			if (nestingConfig.enabled) {
+				const fileChildren: [string, ExplorerItem][] = [];
+				const dirChildren: [string, ExplorerItem][] = [];
+				for (const child of this.children.entries()) {
+					child[1].nestedParent = undefined;
+					if (child[1].isDirectory) {
+						dirChildren.push(child);
+					} else {
+						fileChildren.push(child);
 					}
-					items.push(fileEntryItem);
-				} else {
-					fileEntryItem.nestedChildren = undefined;
 				}
-			}
 
-			for (const [_, dirEntryItem] of dirChildren.values()) {
-				items.push(dirEntryItem);
-			}
-		} else {
-			this.children.forEach(child => {
-				items.push(child);
-			});
-		}
+				const nested = this.fileNester.nest(
+					fileChildren.map(([name]) => name),
+					this.getPlatformAwareName(this.name));
 
-		return items;
+				for (const [fileEntryName, fileEntryItem] of fileChildren) {
+					const nestedItems = nested.get(fileEntryName);
+					if (nestedItems !== undefined) {
+						fileEntryItem.nestedChildren = [];
+						for (const name of nestedItems.keys()) {
+							const child = assertIsDefined(this.children.get(name));
+							fileEntryItem.nestedChildren.push(child);
+							child.nestedParent = fileEntryItem;
+						}
+						items.push(fileEntryItem);
+					} else {
+						fileEntryItem.nestedChildren = undefined;
+					}
+				}
+
+				for (const [_, dirEntryItem] of dirChildren.values()) {
+					items.push(dirEntryItem);
+				}
+			} else {
+				this.children.forEach(child => {
+					items.push(child);
+				});
+			}
+			return items;
+		})();
 	}
 
-	// TODO:@jkearl, share one nester across all explorer items and only build on config change
-	private buildFileNester(): ExplorerFileNestingTrie {
-		const nestingConfig = this.configService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting;
-		const patterns = Object.entries(nestingConfig.patterns)
-			.filter(entry =>
-				typeof (entry[0]) === 'string' && typeof (entry[1]) === 'string' && entry[0] && entry[1])
-			.map(([parentPattern, childrenPatterns]) =>
-				[parentPattern.trim(), childrenPatterns.split(',').map(p => p.trim())] as [string, string[]]);
+	private _fileNester: ExplorerFileNestingTrie | undefined;
+	private get fileNester(): ExplorerFileNestingTrie {
+		if (!this.root._fileNester) {
+			const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.experimental.fileNesting;
+			const patterns = Object.entries(nestingConfig.patterns)
+				.filter(entry =>
+					typeof (entry[0]) === 'string' && typeof (entry[1]) === 'string' && entry[0] && entry[1])
+				.map(([parentPattern, childrenPatterns]) =>
+					[parentPattern.trim(), childrenPatterns.split(',').map(p => this.getPlatformAwareName(p.trim().replace(/\u200b/g, '')))] as [string, string[]]);
 
-		return new ExplorerFileNestingTrie(patterns);
+			this.root._fileNester = new ExplorerFileNestingTrie(patterns);
+		}
+		return this.root._fileNester;
 	}
 
 	/**
 	 * Removes a child element from this folder.
 	 */
 	removeChild(child: ExplorerItem): void {
+		this.nestedChildren = undefined;
 		this.children.delete(this.getPlatformAwareName(child.name));
 	}
 
 	forgetChildren(): void {
 		this.children.clear();
+		this.nestedChildren = undefined;
 		this._isDirectoryResolved = false;
+		this._fileNester = undefined;
 	}
 
 	private getPlatformAwareName(name: string): string {
@@ -387,6 +404,9 @@ export class ExplorerItem {
 	 * Moves this element under a new parent element.
 	 */
 	move(newParent: ExplorerItem): void {
+		if (this.nestedParent) {
+			this.nestedParent.removeChild(this);
+		}
 		if (this._parent) {
 			this._parent.removeChild(this);
 		}
@@ -413,7 +433,7 @@ export class ExplorerItem {
 	 * Tells this stat that it was renamed. This requires changes to all children of this stat (if any)
 	 * so that the path property can be updated properly.
 	 */
-	rename(renamedStat: { name: string, mtime?: number }): void {
+	rename(renamedStat: { name: string; mtime?: number }): void {
 
 		// Merge a subset of Properties that can change on rename
 		this.updateName(renamedStat.name);

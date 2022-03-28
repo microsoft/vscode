@@ -290,16 +290,15 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 
 		let activeBracketPairRange: Range | undefined = undefined;
 		if (activePosition && bracketPairs.length > 0) {
-			const bracketsContainingActivePosition =
+			const bracketsContainingActivePosition = (
 				startLineNumber <= activePosition.lineNumber &&
 					activePosition.lineNumber <= endLineNumber
-					? // Does active position intersect with the view port? -> Intersect bracket pairs with activePosition
-					bracketPairs.filter((bp) =>
-						Range.strictContainsPosition(bp.range, activePosition)
-					)
+					// We don't need to query the brackets again if the cursor is in the viewport
+					? bracketPairs
 					: this.textModel.bracketPairs.getBracketPairsInRange(
 						Range.fromPositions(activePosition)
-					);
+					)
+			).filter((bp) => Range.strictContainsPosition(bp.range, activePosition));
 
 			activeBracketPairRange = findLast(
 				bracketsContainingActivePosition,
@@ -318,6 +317,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 		/** Indexed by nesting level */
 		const activeGuides = new Array<{
 			nestingLevel: number;
+			nestingLevelOfEqualBracketType: number;
 			guideVisibleColumn: number;
 			start: Position;
 			visibleStartColumn: number;
@@ -328,6 +328,8 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 		} | null>();
 		const nextGuides = new Array<IndentGuide>();
 		const colorProvider = new BracketPairGuidesClassNames();
+		const independentColorPoolPerBracketType = this.textModel.getOptions().bracketPairColorizationOptions
+			.independentColorPoolPerBracketType;
 
 		for (
 			let lineNumber = startLineNumber;
@@ -383,6 +385,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 				} else {
 					activeGuides[pair.nestingLevel] = {
 						nestingLevel: pair.nestingLevel,
+						nestingLevelOfEqualBracketType: pair.nestingLevelOfEqualBracketType,
 						guideVisibleColumn,
 						start,
 						visibleStartColumn: this.getVisibleColumnFromPosition(start),
@@ -403,7 +406,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 					line.bracketPair.range.equalsRange(activeBracketPairRange);
 
 				const className =
-					colorProvider.getInlineClassNameOfLevel(line.nestingLevel) +
+					colorProvider.getInlineClassName(line.nestingLevel, line.nestingLevelOfEqualBracketType, independentColorPoolPerBracketType) +
 					(options.highlightActive && isActive
 						? ' ' + colorProvider.activeClassName
 						: '');
@@ -459,8 +462,11 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 					line.bracketPair.range.equalsRange(activeBracketPairRange);
 
 				const className =
-					colorProvider.getInlineClassNameOfLevel(line.nestingLevel) +
-					(isActive ? ' ' + colorProvider.activeClassName : '');
+					colorProvider.getInlineClassName(
+						line.nestingLevel,
+						line.nestingLevelOfEqualBracketType,
+						independentColorPoolPerBracketType
+					) + (isActive ? ' ' + colorProvider.activeClassName : '');
 
 				if (isActive || options.includeInactive) {
 					if (
@@ -629,6 +635,10 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 
 export class BracketPairGuidesClassNames {
 	public readonly activeClassName = 'indent-active';
+
+	getInlineClassName(nestingLevel: number, nestingLevelOfEqualBracketType: number, independentColorPoolPerBracketType: boolean): string {
+		return this.getInlineClassNameOfLevel(independentColorPoolPerBracketType ? nestingLevelOfEqualBracketType : nestingLevel);
+	}
 
 	getInlineClassNameOfLevel(level: number): string {
 		// To support a dynamic amount of colors up to 6 colors,

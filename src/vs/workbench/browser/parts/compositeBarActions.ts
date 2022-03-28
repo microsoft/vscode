@@ -417,7 +417,8 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			content: this.computeTitle(),
 			showPointer: true,
 			compact: true,
-			skipFadeInAnimation
+			hideOnKeyDown: true,
+			skipFadeInAnimation,
 		});
 	}
 
@@ -454,7 +455,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 
 	constructor(
 		action: ActivityAction,
-		private getOverflowingComposites: () => { id: string, name?: string }[],
+		private getOverflowingComposites: () => { id: string; name?: string }[],
 		private getActiveCompositeId: () => string | undefined,
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => IAction,

@@ -15,7 +15,7 @@ import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/edit
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
-import { CodeLens, CodeLensProviderRegistry, Command } from 'vs/editor/common/languages';
+import { CodeLens, Command } from 'vs/editor/common/languages';
 import { CodeLensItem, CodeLensModel, getCodeLensModel } from 'vs/editor/contrib/codelens/browser/codelens';
 import { ICodeLensCache } from 'vs/editor/contrib/codelens/browser/codeLensCache';
 import { CodeLensHelper, CodeLensWidget } from 'vs/editor/contrib/codelens/browser/codelensWidget';
@@ -24,6 +24,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export class CodeLensContribution implements IEditorContribution {
 
@@ -46,13 +47,14 @@ export class CodeLensContribution implements IEditorContribution {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageFeatureDebounceService debounceService: ILanguageFeatureDebounceService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICodeLensCache private readonly _codeLensCache: ICodeLensCache
 	) {
-		this._provideCodeLensDebounce = debounceService.for(CodeLensProviderRegistry, 'CodeLensProvide', { min: 250 });
-		this._resolveCodeLensesDebounce = debounceService.for(CodeLensProviderRegistry, 'CodeLensResolve', { min: 250, salt: 'resolve' });
+		this._provideCodeLensDebounce = debounceService.for(_languageFeaturesService.codeLensProvider, 'CodeLensProvide', { min: 250 });
+		this._resolveCodeLensesDebounce = debounceService.for(_languageFeaturesService.codeLensProvider, 'CodeLensResolve', { min: 250, salt: 'resolve' });
 		this._resolveCodeLensesScheduler = new RunOnceScheduler(() => this._resolveCodeLensesInViewport(), this._resolveCodeLensesDebounce.default());
 
 		this._disposables.add(this._editor.onDidChangeModel(() => this._onModelChange()));
@@ -65,7 +67,7 @@ export class CodeLensContribution implements IEditorContribution {
 				this._onModelChange();
 			}
 		}));
-		this._disposables.add(CodeLensProviderRegistry.onDidChange(this._onModelChange, this));
+		this._disposables.add(_languageFeaturesService.codeLensProvider.onDidChange(this._onModelChange, this));
 		this._onModelChange();
 
 		this._styleClassName = '_' + hash(this._editor.getId()).toString(16);
@@ -153,7 +155,7 @@ export class CodeLensContribution implements IEditorContribution {
 			this._renderCodeLensSymbols(cachedLenses);
 		}
 
-		if (!CodeLensProviderRegistry.has(model)) {
+		if (!this._languageFeaturesService.codeLensProvider.has(model)) {
 			// no provider -> return but check with
 			// cached lenses. they expire after 30 seconds
 			if (cachedLenses) {
@@ -168,7 +170,7 @@ export class CodeLensContribution implements IEditorContribution {
 			return;
 		}
 
-		for (const provider of CodeLensProviderRegistry.all(model)) {
+		for (const provider of this._languageFeaturesService.codeLensProvider.all(model)) {
 			if (typeof provider.onDidChange === 'function') {
 				let registration = provider.onDidChange(() => scheduler.schedule());
 				this._localToDispose.add(registration);
@@ -179,7 +181,7 @@ export class CodeLensContribution implements IEditorContribution {
 			const t1 = Date.now();
 
 			this._getCodeLensModelPromise?.cancel();
-			this._getCodeLensModelPromise = createCancelablePromise(token => getCodeLensModel(model, token));
+			this._getCodeLensModelPromise = createCancelablePromise(token => getCodeLensModel(this._languageFeaturesService.codeLensProvider, model, token));
 
 			this._getCodeLensModelPromise.then(result => {
 				if (this._currentCodeLensModel) {
@@ -484,7 +486,7 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 			return;
 		}
 
-		const items: { label: string, command: Command }[] = [];
+		const items: { label: string; command: Command }[] = [];
 		for (const lens of model.lenses) {
 			if (lens.symbol.command && lens.symbol.range.startLineNumber === lineNumber) {
 				items.push({

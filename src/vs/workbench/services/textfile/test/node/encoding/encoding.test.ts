@@ -322,9 +322,6 @@ suite('Encoding', () => {
 	});
 
 	test('toDecodeStream - decodes buffer entirely', async function () {
-		if (!process.versions.electron) {
-			this.skip(); // TODO@bpasero enable once we ship Electron 16
-		}
 		const emojis = Buffer.from('🖥️💻💾');
 		const incompleteEmojis = emojis.slice(0, emojis.length - 1);
 

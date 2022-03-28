@@ -19,7 +19,7 @@ import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { INotebookCellToolbarActionContext, INotebookCommandContext, NotebookMultiCellAction, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { NotebookCellInternalMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
@@ -88,19 +88,7 @@ export class CellEditorOptions extends CellPart {
 		this._value = this._computeEditorOptions();
 	}
 
-
-	renderCell(element: ICellViewModel): void {
-		// no op
-	}
-
-	prepareLayout(): void {
-		// nothing to read
-	}
-	updateInternalLayoutNow(element: ICellViewModel): void {
-		// nothing to update
-	}
-
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent) {
+	override updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent) {
 		if (e.cellLineNumberChanged) {
 			this.setLineNumbers(element.lineNumbers);
 		}
@@ -117,7 +105,7 @@ export class CellEditorOptions extends CellPart {
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: this.language }));
 		const layoutConfig = this.notebookOptions.getLayoutConfiguration();
 		const editorOptionsOverrideRaw = layoutConfig.editorOptionsCustomizations ?? {};
-		const editorOptionsOverride: { [key: string]: any; } = {};
+		const editorOptionsOverride: { [key: string]: any } = {};
 		for (const key in editorOptionsOverrideRaw) {
 			if (key.indexOf('editor.') === 0) {
 				editorOptionsOverride[key.substring(7)] = editorOptionsOverrideRaw[key];

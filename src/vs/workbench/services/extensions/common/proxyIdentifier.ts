@@ -65,7 +65,7 @@ export type Dto<T> = T extends { toJSON(): infer U }
 	: T;
 
 export type Proxied<T> = { [K in keyof T]: T[K] extends (...args: infer A) => infer R
-	? (...args: A) => Promise<Dto<Awaited<R>>>
+	? (...args: { [K in keyof A]: Dto<A[K]> }) => Promise<Dto<Awaited<R>>>
 	: never
 };
 

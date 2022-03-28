@@ -18,7 +18,7 @@ import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/edit
 import { CompletionItemKind, CompletionItemKinds, CompletionItemTag } from 'vs/editor/common/languages';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as nls from 'vs/nls';
 import { FileKind } from 'vs/platform/files/common/files';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';

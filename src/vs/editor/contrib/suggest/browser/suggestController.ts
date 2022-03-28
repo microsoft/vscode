@@ -31,11 +31,10 @@ import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
 import { WordContextKey } from 'vs/editor/contrib/suggest/browser/wordContextKey';
 import * as nls from 'vs/nls';
-import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CompletionItem, Context as SuggestContext, ISuggestItemPreselector, suggestWidgetStatusbarMenu } from './suggest';
 import { SuggestAlternatives } from './suggestAlternatives';
@@ -315,7 +314,7 @@ export class SuggestController implements IEditorContribution {
 			const scrollState = StableEditorScrollState.capture(this.editor);
 			this.editor.executeEdits(
 				'suggestController.additionalTextEdits.sync',
-				item.completion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text))
+				item.completion.additionalTextEdits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text))
 			);
 			scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
 
@@ -362,7 +361,7 @@ export class SuggestController implements IEditorContribution {
 				const scrollState = StableEditorScrollState.capture(this.editor);
 				this.editor.executeEdits(
 					'suggestController.additionalTextEdits.async',
-					item.completion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text))
+					item.completion.additionalTextEdits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text))
 				);
 				scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
 				if (didType || !(oldFlags & InsertFlags.NoAfterUndoStop)) {
@@ -448,12 +447,12 @@ export class SuggestController implements IEditorContribution {
 			return;
 		}
 
-		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string; };
+		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string };
 		type AcceptedSuggestionClassification = {
-			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; };
-			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; };
-			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; };
-			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; };
+			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
 		// _debugDisplayName looks like `vscode.css-language-features(/-:)`, where the last bit is the trigger chars
 		// normalize it to just the extension ID and lowercase
@@ -466,7 +465,7 @@ export class SuggestController implements IEditorContribution {
 		});
 	}
 
-	getOverwriteInfo(item: CompletionItem, toggleMode: boolean): { overwriteBefore: number, overwriteAfter: number } {
+	getOverwriteInfo(item: CompletionItem, toggleMode: boolean): { overwriteBefore: number; overwriteAfter: number } {
 		assertType(this.editor.hasModel());
 
 		let replace = this.editor.getOption(EditorOption.suggest).insertMode === 'replace';
@@ -728,43 +727,38 @@ registerEditorCommand(new SuggestCommand({
 	precondition: SuggestContext.Visible,
 	handler(x) {
 		x.acceptSelectedSuggestion(true, false);
-	}
+	},
+	kbOpts: [{
+		// normal tab
+		primary: KeyCode.Tab,
+		kbExpr: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
+		weight,
+	}, {
+		// accept on enter has special rules
+		primary: KeyCode.Enter,
+		kbExpr: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
+		weight,
+	}],
+	menuOpts: [{
+		menuId: suggestWidgetStatusbarMenu,
+		title: nls.localize('accept.insert', "Insert"),
+		group: 'left',
+		order: 1,
+		when: SuggestContext.HasInsertAndReplaceRange.toNegated()
+	}, {
+		menuId: suggestWidgetStatusbarMenu,
+		title: nls.localize('accept.insert', "Insert"),
+		group: 'left',
+		order: 1,
+		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert'))
+	}, {
+		menuId: suggestWidgetStatusbarMenu,
+		title: nls.localize('accept.replace', "Replace"),
+		group: 'left',
+		order: 1,
+		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace'))
+	}]
 }));
-
-// normal tab
-KeybindingsRegistry.registerKeybindingRule({
-	id: 'acceptSelectedSuggestion',
-	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
-	primary: KeyCode.Tab,
-	weight
-});
-
-// accept on enter has special rules
-KeybindingsRegistry.registerKeybindingRule({
-	id: 'acceptSelectedSuggestion',
-	when: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
-	primary: KeyCode.Enter,
-	weight,
-});
-
-MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.insert', "Insert") },
-	group: 'left',
-	order: 1,
-	when: SuggestContext.HasInsertAndReplaceRange.toNegated()
-});
-MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.insert', "Insert") },
-	group: 'left',
-	order: 1,
-	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert'))
-});
-MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.replace', "Replace") },
-	group: 'left',
-	order: 1,
-	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace'))
-});
 
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptAlternativeSelectedSuggestion',

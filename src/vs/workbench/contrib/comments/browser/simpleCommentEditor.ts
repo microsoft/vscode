@@ -20,16 +20,15 @@ import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/t
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);
 
 
 export class SimpleCommentEditor extends CodeEditorWidget {
-	private _parentEditor: ICodeEditor;
 	private _parentThread: ICommentThreadWidget;
 	private _commentEditorFocused: IContextKey<boolean>;
 	private _commentEditorEmpty: IContextKey<boolean>;
@@ -37,7 +36,6 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 	constructor(
 		domElement: HTMLElement,
 		options: IEditorOptions,
-		parentEditor: ICodeEditor,
 		parentThread: ICommentThreadWidget,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -46,7 +44,8 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
@@ -59,22 +58,17 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 			]
 		};
 
-		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService);
+		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
 
 		this._commentEditorFocused = ctxCommentEditorFocused.bindTo(contextKeyService);
 		this._commentEditorEmpty = CommentContextKeys.commentIsEmpty.bindTo(contextKeyService);
 		this._commentEditorEmpty.set(!this.getValue());
-		this._parentEditor = parentEditor;
 		this._parentThread = parentThread;
 
 		this._register(this.onDidFocusEditorWidget(_ => this._commentEditorFocused.set(true)));
 
 		this._register(this.onDidChangeModelContent(e => this._commentEditorEmpty.set(!this.getValue())));
 		this._register(this.onDidBlurEditorWidget(_ => this._commentEditorFocused.reset()));
-	}
-
-	getParentEditor(): ICodeEditor {
-		return this._parentEditor;
 	}
 
 	getParentThread(): ICommentThreadWidget {

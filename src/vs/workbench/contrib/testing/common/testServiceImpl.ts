@@ -279,7 +279,7 @@ export class TestService extends Disposable implements ITestService {
 			const diff: TestsDiff = [];
 			for (const root of this.collection.rootItems) {
 				if (root.controllerId === id) {
-					diff.push([TestDiffOpType.Remove, root.item.extId]);
+					diff.push({ op: TestDiffOpType.Remove, itemId: root.item.extId });
 				}
 			}
 

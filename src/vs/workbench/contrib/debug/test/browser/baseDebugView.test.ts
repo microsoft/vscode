@@ -95,7 +95,8 @@ suite('Debug - Base Debug View', () => {
 		let name = $('.');
 		let value = $('.');
 		const label = new HighlightedLabel(name);
-		renderVariable(variable, { expression, name, value, label }, false, []);
+		let lazyButton = $('.');
+		renderVariable(variable, { expression, name, value, label, lazyButton }, false, []);
 
 		assert.strictEqual(label.element.textContent, 'foo');
 		assert.strictEqual(value.textContent, '');
@@ -105,7 +106,7 @@ suite('Debug - Base Debug View', () => {
 		expression = $('.');
 		name = $('.');
 		value = $('.');
-		renderVariable(variable, { expression, name, value, label }, false, [], linkDetector);
+		renderVariable(variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
 		assert.strictEqual(value.textContent, 'hey');
 		assert.strictEqual(label.element.textContent, 'foo:');
 		assert.strictEqual(label.element.title, 'string');
@@ -114,7 +115,7 @@ suite('Debug - Base Debug View', () => {
 		expression = $('.');
 		name = $('.');
 		value = $('.');
-		renderVariable(variable, { expression, name, value, label }, false, [], linkDetector);
+		renderVariable(variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
 		assert.ok(value.querySelector('a'));
 		assert.strictEqual(value.querySelector('a')!.textContent, variable.value);
 
@@ -122,7 +123,7 @@ suite('Debug - Base Debug View', () => {
 		expression = $('.');
 		name = $('.');
 		value = $('.');
-		renderVariable(variable, { expression, name, value, label }, false, [], linkDetector);
+		renderVariable(variable, { expression, name, value, label, lazyButton }, false, [], linkDetector);
 		assert.strictEqual(name.className, 'virtual');
 		assert.strictEqual(label.element.textContent, 'console:');
 		assert.strictEqual(label.element.title, 'console');

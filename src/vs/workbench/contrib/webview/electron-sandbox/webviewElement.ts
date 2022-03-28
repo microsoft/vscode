@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Delayer } from 'vs/base/common/async';
+import { VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
+import { consumeStream } from 'vs/base/common/stream';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -16,8 +19,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { FindInFrameOptions, IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
@@ -58,11 +61,12 @@ export class ElectronWebviewElement extends WebviewElement {
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@INotificationService notificationService: INotificationService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider,
 			configurationService, contextMenuService, menuService, notificationService, environmentService,
-			fileService, logService, remoteAuthorityResolverService, telemetryService, tunnelService, instantiationService);
+			fileService, logService, remoteAuthorityResolverService, telemetryService, tunnelService, instantiationService, accessibilityService);
 
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, nativeHostService);
 
@@ -90,8 +94,24 @@ export class ElectronWebviewElement extends WebviewElement {
 		}
 	}
 
-	protected override get webviewContentEndpoint(): string {
-		return `${Schemas.vscodeWebview}://${this.iframeId}`;
+	protected override webviewContentEndpoint(iframeId: string): string {
+		return `${Schemas.vscodeWebview}://${iframeId}`;
+	}
+
+	protected override streamToBuffer(stream: VSBufferReadableStream): Promise<ArrayBufferLike> {
+		// Join buffers from stream without using the Node.js backing pool.
+		// This lets us transfer the resulting buffer to the webview.
+		return consumeStream<VSBuffer, ArrayBufferLike>(stream, (buffers: readonly VSBuffer[]) => {
+			const totalLength = buffers.reduce((prev, curr) => prev + curr.byteLength, 0);
+			const ret = new ArrayBuffer(totalLength);
+			const view = new Uint8Array(ret);
+			let offset = 0;
+			for (const element of buffers) {
+				view.set(element.buffer, offset);
+				offset += element.byteLength;
+			}
+			return ret;
+		});
 	}
 
 	/**

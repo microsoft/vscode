@@ -18,7 +18,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -35,7 +35,7 @@ export interface IWorkspaceFolderData {
 
 export interface ICreateTerminalProcessArguments {
 	configuration: ICompleteTerminalConfiguration;
-	resolvedVariables: { [name: string]: string; };
+	resolvedVariables: { [name: string]: string };
 	envVariableCollections: ITerminalEnvironmentVariableCollections;
 	shellLaunchConfig: IShellLaunchConfigDto;
 	workspaceId: string;
@@ -44,10 +44,11 @@ export interface ICreateTerminalProcessArguments {
 	activeWorkspaceFolder: IWorkspaceFolderData | null;
 	activeFileResource: UriComponents | undefined;
 	shouldPersistTerminal: boolean;
+	options: ITerminalProcessOptions;
 	cols: number;
 	rows: number;
 	unicodeVersion: '6' | '11';
-	resolverEnv: { [key: string]: string | null; } | undefined
+	resolverEnv: { [key: string]: string | null } | undefined;
 }
 
 export interface ICreateTerminalProcessResult {
@@ -72,29 +73,29 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	get onPtyHostRequestResolveVariables(): Event<IRequestResolveVariablesEvent> {
 		return this._channel.listen<IRequestResolveVariablesEvent>('$onPtyHostRequestResolveVariablesEvent');
 	}
-	get onProcessData(): Event<{ id: number, event: IProcessDataEvent | string }> {
-		return this._channel.listen<{ id: number, event: IProcessDataEvent | string }>('$onProcessDataEvent');
+	get onProcessData(): Event<{ id: number; event: IProcessDataEvent | string }> {
+		return this._channel.listen<{ id: number; event: IProcessDataEvent | string }>('$onProcessDataEvent');
 	}
-	get onProcessExit(): Event<{ id: number, event: number | undefined }> {
-		return this._channel.listen<{ id: number, event: number | undefined }>('$onProcessExitEvent');
+	get onProcessExit(): Event<{ id: number; event: number | undefined }> {
+		return this._channel.listen<{ id: number; event: number | undefined }>('$onProcessExitEvent');
 	}
-	get onProcessReady(): Event<{ id: number, event: { pid: number, cwd: string, requireWindowsMode?: boolean } }> {
-		return this._channel.listen<{ id: number, event: { pid: number, cwd: string, requiresWindowsMode?: boolean } }>('$onProcessReadyEvent');
+	get onProcessReady(): Event<{ id: number; event: { pid: number; cwd: string; requireWindowsMode?: boolean } }> {
+		return this._channel.listen<{ id: number; event: { pid: number; cwd: string; requiresWindowsMode?: boolean } }>('$onProcessReadyEvent');
 	}
-	get onProcessReplay(): Event<{ id: number, event: IPtyHostProcessReplayEvent }> {
-		return this._channel.listen<{ id: number, event: IPtyHostProcessReplayEvent }>('$onProcessReplayEvent');
+	get onProcessReplay(): Event<{ id: number; event: IPtyHostProcessReplayEvent }> {
+		return this._channel.listen<{ id: number; event: IPtyHostProcessReplayEvent }>('$onProcessReplayEvent');
 	}
 	get onProcessOrphanQuestion(): Event<{ id: number }> {
 		return this._channel.listen<{ id: number }>('$onProcessOrphanQuestion');
 	}
-	get onExecuteCommand(): Event<{ reqId: number, commandId: string, commandArgs: any[] }> {
-		return this._channel.listen<{ reqId: number, commandId: string, commandArgs: any[] }>('$onExecuteCommand');
+	get onExecuteCommand(): Event<{ reqId: number; commandId: string; commandArgs: any[] }> {
+		return this._channel.listen<{ reqId: number; commandId: string; commandArgs: any[] }>('$onExecuteCommand');
 	}
-	get onDidRequestDetach(): Event<{ requestId: number, workspaceId: string, instanceId: number }> {
-		return this._channel.listen<{ requestId: number, workspaceId: string, instanceId: number }>('$onDidRequestDetach');
+	get onDidRequestDetach(): Event<{ requestId: number; workspaceId: string; instanceId: number }> {
+		return this._channel.listen<{ requestId: number; workspaceId: string; instanceId: number }>('$onDidRequestDetach');
 	}
-	get onDidChangeProperty(): Event<{ id: number, property: IProcessProperty<any> }> {
-		return this._channel.listen<{ id: number, property: IProcessProperty<any> }>('$onDidChangeProperty');
+	get onDidChangeProperty(): Event<{ id: number; property: IProcessProperty<any> }> {
+		return this._channel.listen<{ id: number; property: IProcessProperty<any> }>('$onDidChangeProperty');
 	}
 
 	constructor(
@@ -114,7 +115,16 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		return this._channel.call('$restartPtyHost', []);
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfigDto, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, shouldPersistTerminal: boolean, cols: number, rows: number, unicodeVersion: '6' | '11'): Promise<ICreateTerminalProcessResult> {
+	async createProcess(
+		shellLaunchConfig: IShellLaunchConfigDto,
+		configuration: ICompleteTerminalConfiguration,
+		activeWorkspaceRootUri: URI | undefined,
+		options: ITerminalProcessOptions,
+		shouldPersistTerminal: boolean,
+		cols: number,
+		rows: number,
+		unicodeVersion: '6' | '11'
+	): Promise<ICreateTerminalProcessResult> {
 		// Be sure to first wait for the remote configuration
 		await this._configurationService.whenRemoteConfigurationLoaded();
 
@@ -153,7 +163,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 
 		const activeFileResource = EditorResourceAccessor.getOriginalUri(this._editorService.activeEditor, {
 			supportSideBySide: SideBySideEditor.PRIMARY,
-			filterByScheme: [Schemas.file, Schemas.userData, Schemas.vscodeRemote]
+			filterByScheme: [Schemas.file, Schemas.vscodeUserData, Schemas.vscodeRemote]
 		});
 
 		const args: ICreateTerminalProcessArguments = {
@@ -167,6 +177,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 			activeWorkspaceFolder,
 			activeFileResource,
 			shouldPersistTerminal,
+			options,
 			cols,
 			rows,
 			unicodeVersion,

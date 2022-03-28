@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -19,12 +20,12 @@ export interface ResolvedAuthority {
 export interface ResolvedOptions {
 	readonly extensionHostEnv?: { [key: string]: string | null };
 	readonly isTrusted?: boolean;
-	readonly authenticationSession?: { id: string, providerId: string };
+	readonly authenticationSession?: { id: string; providerId: string };
 }
 
 export interface TunnelDescription {
-	remoteAddress: { port: number, host: string };
-	localAddress: { port: number, host: string } | string;
+	remoteAddress: { port: number; host: string };
+	localAddress: { port: number; host: string } | string;
 	privacy?: string;
 	protocol?: string;
 }
@@ -39,7 +40,7 @@ export interface TunnelInformation {
 		elevation: boolean;
 		public?: boolean;
 		privacyOptions: TunnelPrivacy[];
-	}
+	};
 }
 
 export interface ResolverResult {
@@ -61,7 +62,7 @@ export enum RemoteAuthorityResolverErrorCode {
 	NoResolverFound = 'NoResolverFound'
 }
 
-export class RemoteAuthorityResolverError extends Error {
+export class RemoteAuthorityResolverError extends ErrorNoTelemetry {
 
 	public static isTemporarilyNotAvailable(err: any): boolean {
 		return (err instanceof RemoteAuthorityResolverError) && err._code === RemoteAuthorityResolverErrorCode.TemporarilyNotAvailable;

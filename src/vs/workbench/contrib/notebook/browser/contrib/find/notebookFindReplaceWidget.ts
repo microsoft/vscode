@@ -210,7 +210,7 @@ class NotebookFindInput extends FindInput {
 		this._filterButtonContainer.style.backgroundColor = this._filterChecked && this.inputActiveOptionBackground ? this.inputActiveOptionBackground.toString() : '';
 	}
 
-	getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[]; } {
+	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
@@ -335,6 +335,10 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this._delayedUpdateHistory();
 		});
 
+		this._register(this._findInput.inputBox.onDidChange(() => {
+			this._state.change({ searchString: this._findInput.getValue() }, true);
+		}));
+
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
 		this._findInput.setWholeWords(!!this._state.wholeWord);
@@ -455,7 +459,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._innerReplaceDomNode.appendChild(this._replaceAllBtn.domNode);
 	}
 
-	getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[]; } {
+	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };

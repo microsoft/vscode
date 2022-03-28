@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -70,22 +70,6 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	private _editState: CellEditState = CellEditState.Preview;
 
-	// get editState(): CellEditState {
-	// 	return this._editState;
-	// }
-
-	// set editState(newState: CellEditState) {
-	// 	if (newState === this._editState) {
-	// 		return;
-	// 	}
-
-	// 	this._editState = newState;
-	// 	this._onDidChangeState.fire({ editStateChanged: true });
-	// 	if (this._editState === CellEditState.Preview) {
-	// 		this.focusMode = CellFocusMode.Container;
-	// 	}
-	// }
-
 	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
 	get lineNumbers(): 'on' | 'off' | 'inherit' {
 		return this._lineNumbers;
@@ -120,8 +104,8 @@ export abstract class BaseCellViewModel extends Disposable {
 	private _editorTransientState: IWordWrapTransientState | null = null;
 	private _resolvedCellDecorations = new Map<string, INotebookCellDecorationOptions>();
 
-	private readonly _cellDecorationsChanged = this._register(new Emitter<{ added: INotebookCellDecorationOptions[], removed: INotebookCellDecorationOptions[] }>());
-	onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[], removed: INotebookCellDecorationOptions[] }> = this._cellDecorationsChanged.event;
+	private readonly _cellDecorationsChanged = this._register(new Emitter<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }>());
+	onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }> = this._cellDecorationsChanged.event;
 
 	private _resolvedDecorations = new Map<string, {
 		id?: string;
@@ -149,6 +133,7 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	set dragging(v: boolean) {
 		this._dragging = v;
+		this._onDidChangeState.fire({ dragStateChanged: true });
 	}
 
 	protected _textModelRef: IReference<IResolvedTextEditorModel> | undefined;
@@ -287,7 +272,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		this._textEditor = undefined;
-		this._editorListeners.forEach(e => e.dispose());
+		dispose(this._editorListeners);
 		this._editorListeners = [];
 		this._onDidChangeEditorAttachState.fire();
 
@@ -598,8 +583,14 @@ export abstract class BaseCellViewModel extends Disposable {
 	override dispose() {
 		super.dispose();
 
-		this._editorListeners.forEach(e => e.dispose());
-		this._undoRedoService.removeElements(this.uri);
+		dispose(this._editorListeners);
+
+		// Only remove the undo redo stack if we map this cell uri to itself
+		// If we are not in perCell mode, it will map to the full NotebookDocument and
+		// we don't want to remove that entire document undo / redo stack when a cell is deleted
+		if (this._undoRedoService.getUriComparisonKey(this.uri) === this.uri.toString()) {
+			this._undoRedoService.removeElements(this.uri);
+		}
 
 		if (this._textModelRef) {
 			this._textModelRef.dispose();

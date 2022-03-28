@@ -19,6 +19,7 @@ import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/not
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, INotebookKernelService, ISelectedNotebooksChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
@@ -133,6 +134,34 @@ suite('NotebookExecutionService', () => {
 			assert.ok(event !== undefined);
 			assert.strictEqual(event.newKernel, kernel.id);
 			assert.strictEqual(event.oldKernel, undefined);
+		});
+	});
+
+	test('Completes unconfirmed executions', async function () {
+
+		return withTestNotebook([], async viewModel => {
+			let didExecute = false;
+			const kernel = new class extends TestNotebookKernel {
+				constructor() {
+					super({ languages: ['javascript'] });
+					this.id = 'mySpecialId';
+				}
+
+				override async executeNotebookCellsRequest() {
+					didExecute = true;
+					return;
+				}
+			};
+
+			kernelService.registerKernel(kernel);
+			const executionService = instantiationService.createInstance(NotebookExecutionService);
+			const exeStateService = instantiationService.get(INotebookExecutionStateService);
+
+			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
+			await executionService.executeNotebookCells(viewModel.notebookDocument, [cell]);
+
+			assert.strictEqual(didExecute, true);
+			assert.strictEqual(exeStateService.getCellExecution(cell.uri), undefined);
 		});
 	});
 });

@@ -30,7 +30,7 @@ export interface ILanguageStatus {
 }
 
 export interface ILanguageStatusProvider {
-	provideLanguageStatus(langId: string, token: CancellationToken): Promise<ILanguageStatus | undefined>
+	provideLanguageStatus(langId: string, token: CancellationToken): Promise<ILanguageStatus | undefined>;
 }
 
 export const ILanguageStatusService = createDecorator<ILanguageStatusService>('ILanguageStatusService');

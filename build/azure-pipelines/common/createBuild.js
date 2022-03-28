@@ -21,9 +21,9 @@ function getEnv(name) {
 async function main() {
     const [, , _version] = process.argv;
     const quality = getEnv('VSCODE_QUALITY');
-    const commit = getEnv('BUILD_SOURCEVERSION');
+    const commit = process.env['VSCODE_DISTRO_COMMIT']?.trim() || getEnv('BUILD_SOURCEVERSION');
     const queuedBy = getEnv('BUILD_QUEUEDBY');
-    const sourceBranch = getEnv('BUILD_SOURCEBRANCH');
+    const sourceBranch = process.env['VSCODE_DISTRO_REF']?.trim() || getEnv('BUILD_SOURCEBRANCH');
     const version = _version + (quality === 'stable' ? '' : `-${quality}`);
     console.log('Creating build...');
     console.log('Quality:', quality);
@@ -34,6 +34,7 @@ async function main() {
         timestamp: (new Date()).getTime(),
         version,
         isReleased: false,
+        private: Boolean(process.env['VSCODE_DISTRO_REF']?.trim()),
         sourceBranch,
         queuedBy,
         assets: [],
@@ -42,7 +43,7 @@ async function main() {
     const aadCredentials = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
     const client = new cosmos_1.CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT'], aadCredentials });
     const scripts = client.database('builds').container(quality).scripts;
-    await (0, retry_1.retry)(() => scripts.storedProcedure('createBuild').execute('', [Object.assign(Object.assign({}, build), { _partitionKey: '' })]));
+    await (0, retry_1.retry)(() => scripts.storedProcedure('createBuild').execute('', [{ ...build, _partitionKey: '' }]));
 }
 main().then(() => {
     console.log('Build successfully created');

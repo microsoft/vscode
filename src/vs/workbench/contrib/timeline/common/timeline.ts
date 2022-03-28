@@ -12,6 +12,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export function toKey(extension: ExtensionIdentifier | string, source: string) {
 	return `${typeof extension === 'string' ? extension : ExtensionIdentifier.toKey(extension)}|${source}`;
@@ -20,18 +21,32 @@ export function toKey(extension: ExtensionIdentifier | string, source: string) {
 export const TimelinePaneId = 'timeline';
 
 export interface TimelineItem {
+
+	/**
+	 * The handle of the item must be unique across all the
+	 * timeline items provided by this source.
+	 */
 	handle: string;
+
+	/**
+	 * The identifier of the timeline provider this timeline item is from.
+	 */
 	source: string;
 
 	id?: string;
-	timestamp: number;
+
 	label: string;
-	accessibilityInformation?: IAccessibilityInformation;
-	icon?: URI,
-	iconDark?: URI,
-	themeIcon?: ThemeIcon,
 	description?: string;
-	detail?: string;
+	tooltip?: string | IMarkdownString | undefined;
+
+	timestamp: number;
+
+	accessibilityInformation?: IAccessibilityInformation;
+
+	icon?: URI;
+	iconDark?: URI;
+	themeIcon?: ThemeIcon;
+
 	command?: Command;
 	contextValue?: string;
 
@@ -40,9 +55,22 @@ export interface TimelineItem {
 }
 
 export interface TimelineChangeEvent {
+
+	/**
+	 * The identifier of the timeline provider this event is from.
+	 */
 	id: string;
+
+	/**
+	 * The resource that has timeline entries changed or `undefined`
+	 * if not known.
+	 */
 	uri: URI | undefined;
-	reset: boolean
+
+	/**
+	 * Whether to drop all timeline entries and refresh them again.
+	 */
+	reset: boolean;
 }
 
 export interface TimelineOptions {
@@ -56,12 +84,17 @@ export interface InternalTimelineOptions {
 }
 
 export interface Timeline {
+
+	/**
+	 * The identifier of the timeline provider this timeline is from.
+	 */
 	source: string;
+
 	items: TimelineItem[];
 
 	paging?: {
 		cursor: string | undefined;
-	}
+	};
 }
 
 export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {
@@ -76,8 +109,20 @@ export interface TimelineSource {
 }
 
 export interface TimelineProviderDescriptor {
+
+	/**
+	 * An identifier of the source of the timeline items. This can be used to filter sources.
+	 */
 	id: string;
+
+	/**
+	 * A human-readable string describing the source of the timeline items. This can be used as the display label when filtering sources.
+	 */
 	label: string;
+
+	/**
+	 * The resource scheme(s) this timeline provider is providing entries for.
+	 */
 	scheme: string | string[];
 }
 

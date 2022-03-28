@@ -8,8 +8,8 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
-import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/cursor/cursorCommon';
+import { CompositionSurroundSelectionCommand, SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
+import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/cursorCommon';
 import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -584,7 +584,7 @@ export class TypeOperations {
 		// In order to avoid adding checks for `chIsAlreadyTyped` in all places, we will work
 		// with two conceptual positions, the position before `ch` and the position after `ch`
 		//
-		const positions: { lineNumber: number; beforeColumn: number; afterColumn: number; }[] = selections.map((s) => {
+		const positions: { lineNumber: number; beforeColumn: number; afterColumn: number }[] = selections.map((s) => {
 			const position = s.getPosition();
 			if (chIsAlreadyTyped) {
 				return { lineNumber: position.lineNumber, beforeColumn: position.column - ch.length, afterColumn: position.column };
@@ -704,8 +704,7 @@ export class TypeOperations {
 
 		const isTypingAQuoteCharacter = isQuote(ch);
 
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
+		for (const selection of selections) {
 
 			if (selection.isEmpty()) {
 				return false;
@@ -788,7 +787,7 @@ export class TypeOperations {
 			const match = model.bracketPairs.findMatchingBracketUp(electricAction.matchOpenBracket, {
 				lineNumber: position.lineNumber,
 				column: endColumn
-			});
+			}, 500 /* give at most 500ms to compute */);
 
 			if (match) {
 				if (match.startLineNumber === position.lineNumber) {
@@ -821,29 +820,81 @@ export class TypeOperations {
 	/**
 	 * This is very similar with typing, but the character is already in the text buffer!
 	 */
-	public static compositionEndWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selectionsWhenCompositionStarted: Selection[] | null, selections: Selection[], autoClosedCharacters: Range[]): EditOperationResult | null {
-		if (!selectionsWhenCompositionStarted || Selection.selectionsArrEqual(selectionsWhenCompositionStarted, selections)) {
-			// no content was typed
+	public static compositionEndWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, compositions: CompositionOutcome[] | null, selections: Selection[], autoClosedCharacters: Range[]): EditOperationResult | null {
+		if (!compositions) {
+			// could not deduce what the composition did
 			return null;
 		}
 
-		let ch: string | null = null;
-		// extract last typed character
-		for (const selection of selections) {
-			if (!selection.isEmpty()) {
-				return null;
-			}
-			const position = selection.getPosition();
-			const currentChar = model.getValueInRange(new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column));
-			if (ch === null) {
-				ch = currentChar;
-			} else if (ch !== currentChar) {
+		let insertedText: string | null = null;
+		for (const composition of compositions) {
+			if (insertedText === null) {
+				insertedText = composition.insertedText;
+			} else if (insertedText !== composition.insertedText) {
+				// not all selections agree on what was typed
 				return null;
 			}
 		}
 
-		if (!ch) {
+		if (!insertedText || insertedText.length !== 1) {
+			// we're only interested in the case where a single character was inserted
 			return null;
+		}
+
+		const ch = insertedText;
+
+		let hasDeletion = false;
+		for (const composition of compositions) {
+			if (composition.deletedText.length !== 0) {
+				hasDeletion = true;
+				break;
+			}
+		}
+
+		if (hasDeletion) {
+			// Check if this could have been a surround selection
+
+			if (!TypeOperations._shouldSurroundChar(config, ch) || !config.surroundingPairs.hasOwnProperty(ch)) {
+				return null;
+			}
+
+			const isTypingAQuoteCharacter = isQuote(ch);
+
+			for (const composition of compositions) {
+				if (composition.deletedSelectionStart !== 0 || composition.deletedSelectionEnd !== composition.deletedText.length) {
+					// more text was deleted than was selected, so this could not have been a surround selection
+					return null;
+				}
+				if (/^[ \t]+$/.test(composition.deletedText)) {
+					// deleted text was only whitespace
+					return null;
+				}
+				if (isTypingAQuoteCharacter && isQuote(composition.deletedText)) {
+					// deleted text was a quote
+					return null;
+				}
+			}
+
+			const positions: Position[] = [];
+			for (const selection of selections) {
+				if (!selection.isEmpty()) {
+					return null;
+				}
+				positions.push(selection.getPosition());
+			}
+
+			if (positions.length !== compositions.length) {
+				return null;
+			}
+
+			const commands: ICommand[] = [];
+			for (let i = 0, len = positions.length; i < len; i++) {
+				commands.push(new CompositionSurroundSelectionCommand(positions[i], compositions[i].deletedText, ch));
+			}
+			return new EditOperationResult(EditOperationType.TypingOther, commands, {
+				shouldPushStackElementBefore: true,
+				shouldPushStackElementAfter: false
+			});
 		}
 
 		if (this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch)) {
@@ -894,7 +945,7 @@ export class TypeOperations {
 			}
 		}
 
-		if (!isDoingComposition && this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch)) {
+		if (this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch)) {
 			return this._runAutoClosingOvertype(prevEditOperationType, config, model, selections, ch);
 		}
 
@@ -905,7 +956,7 @@ export class TypeOperations {
 			}
 		}
 
-		if (this._isSurroundSelectionType(config, model, selections, ch)) {
+		if (!isDoingComposition && this._isSurroundSelectionType(config, model, selections, ch)) {
 			return this._runSurroundSelectionType(prevEditOperationType, config, model, selections, ch);
 		}
 
@@ -1009,6 +1060,17 @@ export class TypeWithAutoClosingCommand extends ReplaceCommandWithOffsetCursorSt
 		this.enclosingRange = new Range(range.startLineNumber, range.endColumn - this._openCharacter.length - this._closeCharacter.length, range.endLineNumber, range.endColumn);
 		return super.computeCursorState(model, helper);
 	}
+}
+
+export class CompositionOutcome {
+	constructor(
+		public readonly deletedText: string,
+		public readonly deletedSelectionStart: number,
+		public readonly deletedSelectionEnd: number,
+		public readonly insertedText: string,
+		public readonly insertedSelectionStart: number,
+		public readonly insertedSelectionEnd: number,
+	) { }
 }
 
 function getTypingOperation(typedText: string, previousTypingOperation: EditOperationType): EditOperationType {

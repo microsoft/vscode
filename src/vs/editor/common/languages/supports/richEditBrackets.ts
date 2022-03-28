@@ -208,11 +208,11 @@ export class RichEditBrackets {
 	/**
 	 * A map useful for decoding a regex match and finding which bracket group was matched.
 	 */
-	public readonly textIsBracket: { [text: string]: RichEditBracket; };
+	public readonly textIsBracket: { [text: string]: RichEditBracket };
 	/**
 	 * A set useful for decoding if a regex match is the open bracket of a bracket pair.
 	 */
-	public readonly textIsOpenBracket: { [text: string]: boolean; };
+	public readonly textIsOpenBracket: { [text: string]: boolean };
 
 	constructor(languageId: string, _brackets: readonly CharacterPair[]) {
 		const brackets = groupFuzzyBrackets(_brackets);

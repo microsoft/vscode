@@ -5,7 +5,7 @@
 
 import { Proxied, ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { CharCode } from 'vs/base/common/charCode';
-import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { isThenable } from 'vs/base/common/async';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
@@ -37,8 +37,8 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 	private _idle?: Promise<any>;
 	private _completeIdle?: Function;
 
-	private readonly _locals: { [id: string]: any; };
-	private readonly _proxies: { [id: string]: any; };
+	private readonly _locals: { [id: string]: any };
+	private readonly _proxies: { [id: string]: any };
 
 	constructor() {
 		this._locals = Object.create(null);

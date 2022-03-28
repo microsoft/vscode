@@ -8,8 +8,8 @@ import { URI } from 'vs/base/common/uri';
 import { IFileCoverage, CoverageDetails, ICoveredCount } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface ICoverageAccessor {
-	provideFileCoverage: (token: CancellationToken) => Promise<IFileCoverage[]>,
-	resolveFileCoverage: (fileIndex: number, token: CancellationToken) => Promise<CoverageDetails[]>,
+	provideFileCoverage: (token: CancellationToken) => Promise<IFileCoverage[]>;
+	resolveFileCoverage: (fileIndex: number, token: CancellationToken) => Promise<CoverageDetails[]>;
 }
 
 /**

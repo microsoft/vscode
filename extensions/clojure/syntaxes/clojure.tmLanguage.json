@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-clojure/commit/de877502aa4a77ccdc2c7f0c9180436aea3effff",
+	"version": "https://github.com/atom/language-clojure/commit/45bdb881501d0b8f8b707ca1d3fcc8b4b99fca03",
 	"name": "Clojure",
 	"scopeName": "source.clojure",
 	"patterns": [
@@ -79,35 +79,31 @@
 					"name": "constant.language.boolean.clojure"
 				},
 				{
-					"match": "(-?\\d+/\\d+)",
+					"match": "(##(?:Inf|-Inf|NaN))",
+					"name": "constant.numeric.symbol.clojure"
+				},
+				{
+					"match": "([-+]?\\d+/\\d+)",
 					"name": "constant.numeric.ratio.clojure"
 				},
 				{
-					"match": "(-?\\d+[rR]\\w+)",
+					"match": "([-+]?(?:(?:3[0-6])|(?:[12]\\d)|[2-9])[rR][0-9A-Za-z]+N?)",
 					"name": "constant.numeric.arbitrary-radix.clojure"
 				},
 				{
-					"match": "(-?0[xX][0-9a-fA-F]+)",
+					"match": "([-+]?0[xX][0-9a-fA-F]+N?)",
 					"name": "constant.numeric.hexadecimal.clojure"
 				},
 				{
-					"match": "(-?0\\d+)",
+					"match": "([-+]?0[0-7]+N?)",
 					"name": "constant.numeric.octal.clojure"
 				},
 				{
-					"match": "(-?\\d+\\.\\d+([eE][+-]?\\d+)?M)",
-					"name": "constant.numeric.bigdecimal.clojure"
-				},
-				{
-					"match": "(-?\\d+\\.\\d+([eE][+-]?\\d+)?)",
+					"match": "([-+]?[0-9]+(?:(\\.|(?=[eEM]))[0-9]*([eE][-+]?[0-9]+)?)M?)",
 					"name": "constant.numeric.double.clojure"
 				},
 				{
-					"match": "(-?\\d+N)",
-					"name": "constant.numeric.bigint.clojure"
-				},
-				{
-					"match": "(-?\\d+)",
+					"match": "([-+]?\\d+N?)",
 					"name": "constant.numeric.long.clojure"
 				},
 				{

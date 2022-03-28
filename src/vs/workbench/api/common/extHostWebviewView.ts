@@ -138,7 +138,7 @@ export class ExtHostWebviewViews implements extHostProtocol.ExtHostWebviewViewsS
 		viewType: string,
 		provider: vscode.WebviewViewProvider,
 		webviewOptions?: {
-			retainContextWhenHidden?: boolean
+			retainContextWhenHidden?: boolean;
 		},
 	): vscode.Disposable {
 		if (this._viewProviders.has(viewType)) {

@@ -8,7 +8,7 @@ This repository includes configuration for a development container for working w
 
 1. Install Docker Desktop or Docker for Linux on your local machine. (See [docs](https://aka.ms/vscode-remote/containers/getting-started) for additional details.)
 
-2. **Important**: Docker needs at least **4 Cores and 6 GB of RAM (8 GB recommended)** to run a full build. If you are on macOS, or are using the old Hyper-V engine for Windows, update these values for Docker Desktop by right-clicking on the Docker status bar item and going to **Preferences/Settings > Resources > Advanced**.
+2. **Important**: Docker needs at least **4 Cores and 8 GB of RAM** to run a full build. If you are on macOS, or are using the old Hyper-V engine for Windows, update these values for Docker Desktop by right-clicking on the Docker status bar item and going to **Preferences/Settings > Resources > Advanced**.
 
     > **Note:** The [Resource Monitor](https://marketplace.visualstudio.com/items?itemName=mutantdino.resourcemonitor) extension is included in the container so you can keep an eye on CPU/Memory in the status bar.
 
@@ -63,7 +63,7 @@ You may see improved VNC responsiveness when accessing a codespace from VS Code 
 
 4. After you have connected to the codespace, you can use a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) to connect to `localhost:5901` and enter `vscode` as the password.
 
-    > **Tip:** You may also need change your VNC client's **Picture Quaility** setting to **High** to get a full color desktop.
+    > **Tip:** You may also need change your VNC client's **Picture Quality** setting to **High** to get a full color desktop.
 
 5. Anything you start in VS Code, or the integrated terminal, will appear here.
 

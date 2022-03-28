@@ -26,7 +26,9 @@ import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
 import { assertIsDefined } from 'vs/base/common/types';
-import { MoveSidePanelToPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
+import { ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class AuxiliaryBarPart extends BasePanelPart {
 	static readonly activePanelSettingsKey = 'workbench.auxiliarybar.activepanelid';
@@ -38,6 +40,8 @@ export class AuxiliaryBarPart extends BasePanelPart {
 	override readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	override readonly minimumHeight: number = 0;
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+
+	readonly priority: LayoutPriority = LayoutPriority.Low;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -51,6 +55,7 @@ export class AuxiliaryBarPart extends BasePanelPart {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
+		@ICommandService private commandService: ICommandService,
 	) {
 		super(
 			notificationService,
@@ -105,10 +110,13 @@ export class AuxiliaryBarPart extends BasePanelPart {
 	}
 
 	protected fillExtraContextMenuActions(actions: IAction[]): void {
+		const currentPositionRight = this.layoutService.getSideBarPosition() === Position.LEFT;
 		actions.push(...[
 			new Separator(),
-			toAction({ id: MoveSidePanelToPanelAction.ID, label: localize('moveToPanel', "Move Views to Panel"), run: () => this.instantiationService.invokeFunction(accessor => new MoveSidePanelToPanelAction().run(accessor)) }),
-			this.instantiationService.createInstance(ToggleAuxiliaryBarAction, ToggleAuxiliaryBarAction.ID, localize('hideAuxiliaryBar', "Hide Side Panel"))
+			toAction({
+				id: ToggleSidebarPositionAction.ID, label: currentPositionRight ? localize('move second side bar left', "Move Secondary Side Bar Left") : localize('move second side bar right', "Move Secondary Side Bar Right"), run: () => this.commandService.executeCommand(ToggleSidebarPositionAction.ID)
+			}),
+			this.instantiationService.createInstance(ToggleAuxiliaryBarAction, ToggleAuxiliaryBarAction.ID, localize('hideAuxiliaryBar', "Hide Secondary Side Bar"))
 		]);
 	}
 

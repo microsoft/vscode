@@ -31,7 +31,7 @@ export interface IConfigurationResolverService {
 	 * Returns a copy of it with substituted values and a map of variables and their resolution.
 	 * Keys in the map will be of the format input:variableName or command:variableName.
 	 */
-	resolveAnyMap(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<{ newConfig: any, resolvedVariables: Map<string, string> }>;
+	resolveAnyMap(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<{ newConfig: any; resolvedVariables: Map<string, string> }>;
 
 	/**
 	 * Recursively resolves all variables (including commands and user input) in the given config and returns a copy of it with substituted values.
@@ -67,7 +67,7 @@ export interface PickStringInputInfo {
 	id: string;
 	type: 'pickString';
 	description: string;
-	options: (string | { value: string, label?: string })[];
+	options: (string | { value: string; label?: string })[];
 	default?: string;
 }
 

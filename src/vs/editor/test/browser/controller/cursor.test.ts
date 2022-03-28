@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -16,16 +16,17 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { EncodedTokenizationResult, IState, ITokenizationSupport, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
 import { IndentAction, IndentationRule } from 'vs/editor/common/languages/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/languages/nullMode';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { withTestCodeEditor, TestCodeEditorInstantiationOptions, ITestCodeEditor, createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
 import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModelEventDispatcher';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 
 // --------- utils
 
@@ -1228,6 +1229,38 @@ suite('Editor Controller - Cursor', () => {
 				new Selection(7, 4, 7, 35),
 			]);
 		});
+	});
+
+	test('setSelection / setPosition with source', () => {
+
+		const tokenizationSupport: ITokenizationSupport = {
+			getInitialState: () => NullState,
+			tokenize: undefined!,
+			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
+				return new EncodedTokenizationResult(new Uint32Array(0), state);
+			}
+		};
+
+		const LANGUAGE_ID = 'modelModeTest1';
+		const languageRegistration = TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
+		let model = createTextModel('Just text', LANGUAGE_ID);
+
+		withTestCodeEditor(model, {}, (editor1, cursor1) => {
+			let event: ICursorPositionChangedEvent | undefined = undefined;
+			editor1.onDidChangeCursorPosition(e => {
+				event = e;
+			});
+
+			editor1.setSelection(new Range(1, 2, 1, 3), 'navigation');
+			assert.strictEqual(event!.source, 'navigation');
+
+			event = undefined;
+			editor1.setPosition(new Position(1, 2), 'navigation');
+			assert.strictEqual(event!.source, 'navigation');
+		});
+
+		languageRegistration.dispose();
+		model.dispose();
 	});
 });
 
@@ -4829,7 +4862,7 @@ suite('autoClosingPairs', () => {
 					tokenize: undefined!,
 					tokenizeEncoded: function (line: string, hasEOL: boolean, _state: IState): EncodedTokenizationResult {
 						let state = <State>_state;
-						const tokens: { length: number; type: StandardTokenType; }[] = [];
+						const tokens: { length: number; type: StandardTokenType }[] = [];
 						const generateToken = (length: number, type: StandardTokenType, newState?: State) => {
 							if (tokens.length > 0 && tokens[tokens.length - 1].type === type) {
 								// grow last tokens
@@ -6016,6 +6049,57 @@ suite('autoClosingPairs', () => {
 			viewModel.endComposition('keyboard');
 
 			assert.strictEqual(model.getValue(), 'abc\'');
+		});
+		mode.dispose();
+	});
+
+	test('issue #144690: Quotes do not overtype when using US Intl PC keyboard layout', () => {
+		const mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				''
+			],
+			languageId: mode.languageId
+		}, (editor, model, viewModel) => {
+			assertCursor(viewModel, new Position(1, 1));
+
+			// Pressing ' + ' + ;
+
+			viewModel.startComposition();
+			viewModel.type(`'`, 'keyboard');
+			viewModel.compositionType(`'`, 1, 0, 0, 'keyboard');
+			viewModel.compositionType(`'`, 1, 0, 0, 'keyboard');
+			viewModel.endComposition('keyboard');
+			viewModel.startComposition();
+			viewModel.type(`'`, 'keyboard');
+			viewModel.compositionType(`';`, 1, 0, 0, 'keyboard');
+			viewModel.compositionType(`';`, 2, 0, 0, 'keyboard');
+			viewModel.endComposition('keyboard');
+
+			assert.strictEqual(model.getValue(), `'';`);
+		});
+		mode.dispose();
+	});
+
+	test('issue #144693: Typing a quote using US Intl PC keyboard layout always surrounds words', () => {
+		const mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'const hello = 3;'
+			],
+			languageId: mode.languageId
+		}, (editor, model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 7, 1, 12)]);
+
+			// Pressing ' + e
+
+			viewModel.startComposition();
+			viewModel.type(`'`, 'keyboard');
+			viewModel.compositionType(`é`, 1, 0, 0, 'keyboard');
+			viewModel.compositionType(`é`, 1, 0, 0, 'keyboard');
+			viewModel.endComposition('keyboard');
+
+			assert.strictEqual(model.getValue(), `const é = 3;`);
 		});
 		mode.dispose();
 	});

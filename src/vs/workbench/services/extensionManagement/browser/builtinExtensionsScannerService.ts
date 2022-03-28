@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionManifest, IExtension } from 'vs/platform/extensions/common/extensions';
+import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionManifest, IExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -57,16 +57,14 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 					manifest: e.packageNLS ? localizeManifest(e.packageJSON, e.packageNLS) : e.packageJSON,
 					readmeUrl: e.readmePath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.readmePath) : undefined,
 					changelogUrl: e.changelogPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.changelogPath) : undefined,
+					targetPlatform: TargetPlatform.WEB,
 				}));
 			}
 		}
 	}
 
 	async scanBuiltinExtensions(): Promise<IExtension[]> {
-		if (isWeb) {
-			return this.builtinExtensions;
-		}
-		throw new Error('not supported');
+		return [...this.builtinExtensions];
 	}
 }
 

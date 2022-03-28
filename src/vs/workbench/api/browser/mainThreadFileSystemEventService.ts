@@ -5,8 +5,8 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
-import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, IExtHostContext } from '../common/extHost.protocol';
+import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtHostContext } from '../common/extHost.protocol';
 import { localize } from 'vs/nls';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -165,6 +165,8 @@ export class MainThreadFileSystemEventService {
 						return localize('msg-copy', "Running 'File Copy' participants...");
 					case FileOperation.DELETE:
 						return localize('msg-delete', "Running 'File Delete' participants...");
+					case FileOperation.WRITE:
+						return localize('msg-write', "Running 'File Write' participants...");
 				}
 			}
 		};

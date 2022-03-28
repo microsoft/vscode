@@ -251,5 +251,5 @@ export interface IProfileQuickPickItem extends IQuickPickItem {
 }
 
 export interface ITerminalQuickPickItem extends IPickerQuickAccessItem {
-	terminal: ITerminalInstance
+	terminal: ITerminalInstance;
 }

@@ -9,6 +9,10 @@ schedules:
         - joao/web
 
 parameters:
+  - name: VSCODE_DISTRO_REF
+    displayName: Distro Ref (Private build)
+    type: string
+    default: " "
   - name: VSCODE_QUALITY
     displayName: Quality
     type: string
@@ -73,6 +77,10 @@ parameters:
     displayName: "Publish to builds.code.visualstudio.com"
     type: boolean
     default: true
+  - name: VSCODE_PUBLISH_TO_MOONCAKE
+    displayName: "Publish to Azure China"
+    type: boolean
+    default: true
   - name: VSCODE_RELEASE
     displayName: "Release build if successful"
     type: boolean
@@ -87,12 +95,12 @@ parameters:
     default: false
 
 variables:
+  - name: VSCODE_DISTRO_REF
+    value: ${{ parameters.VSCODE_DISTRO_REF }}
   - name: ENABLE_TERRAPIN
     value: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
   - name: VSCODE_QUALITY
     value: ${{ parameters.VSCODE_QUALITY }}
-  - name: VSCODE_RELEASE
-    value: ${{ parameters.VSCODE_RELEASE }}
   - name: VSCODE_BUILD_STAGE_WINDOWS
     value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_LINUX
@@ -103,6 +111,8 @@ variables:
     value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
   - name: VSCODE_PUBLISH
     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
+  - name: VSCODE_PUBLISH_TO_MOONCAKE
+    value: ${{ eq(parameters.VSCODE_PUBLISH_TO_MOONCAKE, true) }}
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
   - name: VSCODE_STEP_ON_IT
@@ -122,7 +132,7 @@ variables:
 
 resources:
   containers:
-    - container: vscode-x64
+    - container: vscode-bionic-x64
       image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-x64
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
@@ -134,6 +144,10 @@ resources:
       image: vscodehub.azurecr.io/vscode-linux-build-agent:stretch-armhf
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
+    - container: centos7-devtoolset8-x64
+      image: vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-x64
+      endpoint: VSCodeHub
+      options: --user 0:0 --cap-add SYS_ADMIN
     - container: snapcraft
       image: snapcore/snapcraft:stable
 
@@ -141,7 +155,7 @@ stages:
   - stage: Compile
     jobs:
       - job: Compile
-        pool: vscode-1es
+        pool: vscode-1es-linux
         variables:
           VSCODE_ARCH: x64
         steps:
@@ -151,8 +165,7 @@ stages:
       - stage: Windows
         dependsOn:
           - Compile
-        pool:
-          vmImage: windows-latest
+        pool: vscode-1es-windows
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
               - job: Windows
@@ -179,26 +192,40 @@ stages:
                   - template: win32/product-build-win32.yml
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
+      - stage: LinuxServerDependencies
+        dependsOn: [] # run in parallel to compile stage
+        pool: vscode-1es-linux
+        jobs:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+              - job: x64
+                container: centos7-devtoolset8-x64
+                variables:
+                  VSCODE_ARCH: x64
+                  NPM_ARCH: x64
+                steps:
+                  - template: linux/product-build-linux-server.yml
+
+  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
       - stage: Linux
         dependsOn:
           - Compile
-        pool:
-          vmImage: "Ubuntu-18.04"
+          - LinuxServerDependencies
+        pool: vscode-1es-linux
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
-              - job: Linux
-                container: vscode-x64
+              - job: Linuxx64
+                container: vscode-bionic-x64
                 variables:
                   VSCODE_ARCH: x64
                   NPM_ARCH: x64
                   DISPLAY: ":10"
                 steps:
-                  - template: linux/product-build-linux.yml
+                  - template: linux/product-build-linux-client.yml
 
           - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true), ne(variables['VSCODE_PUBLISH'], 'false')) }}:
               - job: LinuxSnap
                 dependsOn:
-                  - Linux
+                  - Linuxx64
                 container: snapcraft
                 variables:
                   VSCODE_ARCH: x64
@@ -212,7 +239,7 @@ stages:
                   VSCODE_ARCH: armhf
                   NPM_ARCH: armv7l
                 steps:
-                  - template: linux/product-build-linux.yml
+                  - template: linux/product-build-linux-client.yml
 
           # TODO@joaomoreno: We don't ship ARM snaps for now
           - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
@@ -232,7 +259,7 @@ stages:
                   VSCODE_ARCH: arm64
                   NPM_ARCH: arm64
                 steps:
-                  - template: linux/product-build-linux.yml
+                  - template: linux/product-build-linux-client.yml
 
           # TODO@joaomoreno: We don't ship ARM snaps for now
           - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
@@ -273,6 +300,8 @@ stages:
           - Compile
         pool:
           vmImage: macOS-latest
+        variables:
+          BUILDSECMON_OPT_IN: true
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
               - job: macOS
@@ -332,8 +361,7 @@ stages:
       - stage: Publish
         dependsOn:
           - Compile
-        pool:
-          vmImage: "Ubuntu-18.04"
+        pool: vscode-1es-linux
         variables:
           - name: BUILDS_API_URL
             value: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
@@ -344,12 +372,11 @@ stages:
             steps:
               - template: product-publish.yml
 
-      - ${{ if or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
+      - ${{ if or(and(parameters.VSCODE_RELEASE, eq(parameters.VSCODE_DISTRO_REF, ' ')), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
           - stage: Release
             dependsOn:
               - Publish
-            pool:
-              vmImage: "Ubuntu-18.04"
+            pool: vscode-1es-linux
             jobs:
               - job: ReleaseBuild
                 displayName: Release Build

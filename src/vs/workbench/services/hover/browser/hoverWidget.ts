@@ -21,13 +21,13 @@ import { isMarkdownString } from 'vs/base/common/htmlContent';
 
 const $ = dom.$;
 type TargetRect = {
-	left: number,
-	right: number,
-	top: number,
-	bottom: number,
-	width: number,
-	height: number,
-	center: { x: number, y: number },
+	left: number;
+	right: number;
+	top: number;
+	bottom: number;
+	width: number;
+	height: number;
+	center: { x: number; y: number };
 };
 
 const enum Constants {

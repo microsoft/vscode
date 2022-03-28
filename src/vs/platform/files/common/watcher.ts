@@ -143,8 +143,8 @@ export abstract class AbstractWatcherClient extends Disposable {
 		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean,
 		private options: {
-			type: string,
-			restartOnError: boolean
+			type: string;
+			restartOnError: boolean;
 		}
 	) {
 		super();

@@ -18,8 +18,8 @@ export interface IPaneCompositePartService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly onDidPaneCompositeOpen: Event<{ composite: IPaneComposite, viewContainerLocation: ViewContainerLocation }>;
-	readonly onDidPaneCompositeClose: Event<{ composite: IPaneComposite, viewContainerLocation: ViewContainerLocation }>;
+	readonly onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
+	readonly onDidPaneCompositeClose: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
 
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.

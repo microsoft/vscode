@@ -223,6 +223,13 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		return `${path}.backup`;
 	}
 
+	async vacuum(): Promise<void> {
+		this.logger.trace(`[storage ${this.name}] vacuum()`);
+
+		const connection = await this.whenConnected;
+		await this.exec(connection, 'VACUUM');
+	}
+
 	async checkIntegrity(full: boolean): Promise<string> {
 		this.logger.trace(`[storage ${this.name}] checkIntegrity(full: ${full})`);
 
@@ -360,7 +367,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		});
 	}
 
-	private all(connection: IDatabaseConnection, sql: string): Promise<{ key: string, value: string }[]> {
+	private all(connection: IDatabaseConnection, sql: string): Promise<{ key: string; value: string }[]> {
 		return new Promise((resolve, reject) => {
 			connection.db.all(sql, (error, rows) => {
 				if (error) {

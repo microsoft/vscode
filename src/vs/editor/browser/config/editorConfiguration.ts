@@ -30,6 +30,12 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 	 * Defaults to an internal DOM node.
 	 */
 	overflowWidgetsDomNode?: HTMLElement;
+	/**
+	 * Enables dropping into the editor.
+	 *
+	 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
+	 */
+	enableDropIntoEditor?: boolean;
 }
 
 export class EditorConfiguration extends Disposable implements IEditorConfiguration {
@@ -213,6 +219,7 @@ function getExtraEditorClassName(): string {
 	if (browser.isSafari) {
 		// See https://github.com/microsoft/vscode/issues/108822
 		extra += 'no-minimap-shadow ';
+		extra += 'enable-user-select ';
 	}
 	if (platform.isMacintosh) {
 		extra += 'mac ';

@@ -38,7 +38,7 @@ export class TopmostLineMonitor extends Disposable {
 		}));
 	}
 
-	private readonly _onChanged = this._register(new vscode.EventEmitter<{ readonly resource: vscode.Uri, readonly line: number }>());
+	private readonly _onChanged = this._register(new vscode.EventEmitter<{ readonly resource: vscode.Uri; readonly line: number }>());
 	public readonly onDidChanged = this._onChanged.event;
 
 	public setPreviousStaticEditorLine(scrollLocation: LastScrollLocation): void {
@@ -60,6 +60,11 @@ export class TopmostLineMonitor extends Disposable {
 		const scrollLoc = this.previousTextEditorInfo.get(resource.toString());
 		this.previousTextEditorInfo.delete(resource.toString());
 		return scrollLoc?.line;
+	}
+
+	public getPreviousStaticTextEditorLineByUri(resource: vscode.Uri): number | undefined {
+		const state = this.previousStaticEditorInfo.get(resource.toString());
+		return state?.line;
 	}
 
 	public updateLine(

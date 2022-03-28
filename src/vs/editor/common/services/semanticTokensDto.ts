@@ -15,7 +15,7 @@ export interface IFullSemanticTokensDto {
 export interface IDeltaSemanticTokensDto {
 	id: number;
 	type: 'delta';
-	deltas: { start: number; deleteCount: number; data?: Uint32Array; }[];
+	deltas: { start: number; deleteCount: number; data?: Uint32Array }[];
 }
 
 export type ISemanticTokensDto = IFullSemanticTokensDto | IDeltaSemanticTokensDto;
@@ -133,7 +133,7 @@ export function decodeSemanticTokensDto(_buff: VSBuffer): ISemanticTokensDto {
 		};
 	}
 	const deltaCount = src[offset++];
-	const deltas: { start: number; deleteCount: number; data?: Uint32Array; }[] = [];
+	const deltas: { start: number; deleteCount: number; data?: Uint32Array }[] = [];
 	for (let i = 0; i < deltaCount; i++) {
 		const start = src[offset++];
 		const deleteCount = src[offset++];

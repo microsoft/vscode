@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IProgress, IProgressService, IProgressStep, ProgressLocation, IProgressOptions, IProgressNotificationOptions } from 'vs/platform/progress/common/progress';
-import { MainThreadProgressShape, MainContext, IExtHostContext, ExtHostProgressShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { MainThreadProgressShape, MainContext, ExtHostProgressShape, ExtHostContext } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { Action } from 'vs/base/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { localize } from 'vs/nls';
@@ -22,7 +22,7 @@ class ManageExtensionAction extends Action {
 export class MainThreadProgress implements MainThreadProgressShape {
 
 	private readonly _progressService: IProgressService;
-	private _progress = new Map<number, { resolve: () => void, progress: IProgress<IProgressStep> }>();
+	private _progress = new Map<number, { resolve: () => void; progress: IProgress<IProgressStep> }>();
 	private readonly _proxy: ExtHostProgressShape;
 
 	constructor(

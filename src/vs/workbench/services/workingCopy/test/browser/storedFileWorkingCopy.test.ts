@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
+import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, isStoredFileWorkingCopySaveEvent, IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { bufferToStream, newWriteableBufferStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -14,7 +14,7 @@ import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { basename } from 'vs/base/common/resources';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
-import { SaveReason } from 'vs/workbench/common/editor';
+import { SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { Promises } from 'vs/base/common/async';
 import { consumeReadable, consumeStream, isReadableStream } from 'vs/base/common/stream';
 
@@ -158,6 +158,11 @@ suite('StoredFileWorkingCopy', function () {
 			contentChangeCounter++;
 		});
 
+		let savedCounter = 0;
+		workingCopy.onDidSave(() => {
+			savedCounter++;
+		});
+
 		// Dirty from: Model content change
 		workingCopy.model?.updateContents('hello dirty');
 		assert.strictEqual(contentChangeCounter, 1);
@@ -171,6 +176,7 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
 		assert.strictEqual(changeDirtyCounter, 2);
+		assert.strictEqual(savedCounter, 1);
 
 		// Dirty from: Initial contents
 		await workingCopy.resolve({ contents: bufferToStream(VSBuffer.fromString('hello dirty stream')) });
@@ -417,10 +423,10 @@ suite('StoredFileWorkingCopy', function () {
 
 	test('save (no errors)', async () => {
 		let savedCounter = 0;
-		let lastSavedReason: SaveReason | undefined = undefined;
-		workingCopy.onDidSave(reason => {
+		let lastSaveEvent: IStoredFileWorkingCopySaveEvent | undefined = undefined;
+		workingCopy.onDidSave(e => {
 			savedCounter++;
-			lastSavedReason = reason;
+			lastSaveEvent = e;
 		});
 
 		let saveErrorCounter = 0;
@@ -441,17 +447,22 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(savedCounter, 1);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(lastSavedReason, SaveReason.EXPLICIT);
+		assert.strictEqual(lastSaveEvent!.reason, SaveReason.EXPLICIT);
+		assert.ok(lastSaveEvent!.stat);
+		assert.ok(isStoredFileWorkingCopySaveEvent(lastSaveEvent!));
 		assert.strictEqual(workingCopy.model?.pushedStackElement, true);
 
 		// save reason
 		workingCopy.model?.updateContents('hello save');
-		await workingCopy.save({ reason: SaveReason.AUTO });
+
+		const source = SaveSourceRegistry.registerSource('testSource', 'Hello Save');
+		await workingCopy.save({ reason: SaveReason.AUTO, source });
 
 		assert.strictEqual(savedCounter, 2);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(lastSavedReason, SaveReason.AUTO);
+		assert.strictEqual((lastSaveEvent as IStoredFileWorkingCopySaveEvent).reason, SaveReason.AUTO);
+		assert.strictEqual((lastSaveEvent as IStoredFileWorkingCopySaveEvent).source, source);
 
 		// multiple saves in parallel are fine and result
 		// in a single save when content does not change

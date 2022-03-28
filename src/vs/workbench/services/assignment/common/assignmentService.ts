@@ -103,8 +103,8 @@ export class WorkbenchAssignmentService extends BaseAssignmentService {
 		};
 
 		type TASClientReadTreatmentClassification = {
-			treatmentValue: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', };
-			treatmentName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', };
+			treatmentValue: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			treatmentName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 		};
 
 		this.telemetryService.publicLog2<TASClientReadTreatmentData, TASClientReadTreatmentClassification>('tasClientReadTreatmentComplete',

@@ -82,7 +82,7 @@ function fromRange(rng: Range): number[] {
 }
 
 suite('Multicursor selection', () => {
-	let queryState: { [key: string]: any; } = {};
+	let queryState: { [key: string]: any } = {};
 	let serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, {
 		_serviceBrand: undefined,

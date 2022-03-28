@@ -108,7 +108,7 @@ export interface NodeSocketCloseEvent {
 	/**
 	 * Underlying error.
 	 */
-	readonly error: Error | undefined
+	readonly error: Error | undefined;
 }
 
 export interface WebSocketCloseEvent {

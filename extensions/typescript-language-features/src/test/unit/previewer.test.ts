@@ -30,7 +30,7 @@ suite('typescript.previewer', () => {
 			markdownDocumentation(
 				'x {@link http://www.example.com/foo} y {@link https://api.jquery.com/bind/#bind-eventType-eventData-handler} z',
 				[],
-				noopToResource
+				noopToResource, undefined
 			).value,
 			'x [http://www.example.com/foo](http://www.example.com/foo) y [https://api.jquery.com/bind/#bind-eventType-eventData-handler](https://api.jquery.com/bind/#bind-eventType-eventData-handler) z');
 	});
@@ -40,7 +40,7 @@ suite('typescript.previewer', () => {
 			markdownDocumentation(
 				'x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z',
 				[],
-				noopToResource
+				noopToResource, undefined
 			).value,
 			'x [abc xyz](http://www.example.com/foo) y [b a z](http://www.example.com/bar) z');
 	});
@@ -50,7 +50,7 @@ suite('typescript.previewer', () => {
 			markdownDocumentation(
 				'x {@linkcode http://www.example.com/foo} y {@linkplain http://www.example.com/bar} z',
 				[],
-				noopToResource
+				noopToResource, undefined
 			).value,
 			'x [`http://www.example.com/foo`](http://www.example.com/foo) y [http://www.example.com/bar](http://www.example.com/bar) z');
 	});
@@ -71,7 +71,7 @@ suite('typescript.previewer', () => {
 			markdownDocumentation(
 				'x {@link http://www.example.com/foo y {@link http://www.example.com/bar bar} z',
 				[],
-				noopToResource
+				noopToResource, undefined
 			).value,
 			'x {@link http://www.example.com/foo y [bar](http://www.example.com/bar) z');
 	});

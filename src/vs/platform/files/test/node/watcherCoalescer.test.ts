@@ -12,13 +12,13 @@ import { FileChangesEvent, FileChangeType, IFileChange } from 'vs/platform/files
 import { IDiskFileChange, coalesceEvents, toFileChanges } from 'vs/platform/files/common/watcher';
 
 class TestFileWatcher {
-	private readonly _onDidFilesChange: Emitter<{ raw: IFileChange[], event: FileChangesEvent }>;
+	private readonly _onDidFilesChange: Emitter<{ raw: IFileChange[]; event: FileChangesEvent }>;
 
 	constructor() {
-		this._onDidFilesChange = new Emitter<{ raw: IFileChange[], event: FileChangesEvent }>();
+		this._onDidFilesChange = new Emitter<{ raw: IFileChange[]; event: FileChangesEvent }>();
 	}
 
-	get onDidFilesChange(): Event<{ raw: IFileChange[], event: FileChangesEvent }> {
+	get onDidFilesChange(): Event<{ raw: IFileChange[]; event: FileChangesEvent }> {
 		return this._onDidFilesChange.event;
 	}
 

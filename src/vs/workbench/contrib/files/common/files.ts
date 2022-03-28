@@ -13,7 +13,7 @@ import { ITextModelContentProvider } from 'vs/editor/common/services/resolverSer
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService, ILanguageSelection } from 'vs/editor/common/services/language';
+import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages/language';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -101,10 +101,11 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		experimental: {
 			fileNesting: {
 				enabled: boolean;
+				operateAsGroup: boolean;
 				expand: boolean;
-				patterns: { [parent: string]: string }
-			}
-		}
+				patterns: { [parent: string]: string };
+			};
+		};
 	};
 	editor: IEditorOptions;
 }
@@ -252,7 +253,7 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	isPreview(): boolean {
-		return this._group.previewEditor === this.editor;
+		return !this._group.isPinned(this.editor);
 	}
 
 	isSticky(): boolean {

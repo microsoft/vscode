@@ -409,7 +409,7 @@ export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] 
 
 export function translatePackageJSON(packageJSON: string, packageNLSPath: string) {
 	interface NLSFormat {
-		[key: string]: string | { message: string, comment: string[] };
+		[key: string]: string | { message: string; comment: string[] };
 	}
 	const CharCode_PC = '%'.charCodeAt(0);
 	const packageNls: NLSFormat = JSON.parse(fs.readFileSync(packageNLSPath).toString());
@@ -434,19 +434,16 @@ export function translatePackageJSON(packageJSON: string, packageNLSPath: string
 
 const extensionsPath = path.join(root, 'extensions');
 
-// Additional projects to webpack. These typically build code for webviews
-const webpackMediaConfigFiles = [
-	'markdown-language-features/webpack.config.js',
-	'simple-browser/webpack.config.js',
-];
-
 // Additional projects to run esbuild on. These typically build code for webviews
 const esbuildMediaScripts = [
-	'markdown-language-features/esbuild.js',
+	'markdown-language-features/esbuild-notebook.js',
+	'markdown-language-features/esbuild-preview.js',
 	'markdown-math/esbuild.js',
+	'notebook-renderers/esbuild.js',
+	'simple-browser/esbuild-preview.js',
 ];
 
-export async function webpackExtensions(taskName: string, isWatch: boolean, webpackConfigLocations: { configPath: string, outputRoot?: string }[]) {
+export async function webpackExtensions(taskName: string, isWatch: boolean, webpackConfigLocations: { configPath: string; outputRoot?: string }[]) {
 	const webpack = require('webpack') as typeof import('webpack');
 
 	const webpackConfigs: webpack.Configuration[] = [];
@@ -515,7 +512,7 @@ export async function webpackExtensions(taskName: string, isWatch: boolean, webp
 	});
 }
 
-async function esbuildExtensions(taskName: string, isWatch: boolean, scripts: { script: string, outputRoot?: string }[]) {
+async function esbuildExtensions(taskName: string, isWatch: boolean, scripts: { script: string; outputRoot?: string }[]) {
 	function reporter(stdError: string, script: string) {
 		const matches = (stdError || '').match(/\> (.+): error: (.+)?/g);
 		fancyLog(`Finished ${ansiColors.green(taskName)} ${script} with ${matches ? matches.length : 0} errors.`);
@@ -553,16 +550,8 @@ async function esbuildExtensions(taskName: string, isWatch: boolean, scripts: { 
 }
 
 export async function buildExtensionMedia(isWatch: boolean, outputRoot?: string) {
-	return Promise.all([
-		webpackExtensions('webpacking extension media', isWatch, webpackMediaConfigFiles.map(p => {
-			return {
-				configPath: path.join(extensionsPath, p),
-				outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
-			};
-		})),
-		esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(p => ({
-			script: path.join(extensionsPath, p),
-			outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
-		}))),
-	]);
+	return esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(p => ({
+		script: path.join(extensionsPath, p),
+		outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
+	})));
 }

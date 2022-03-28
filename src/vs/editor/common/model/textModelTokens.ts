@@ -9,7 +9,7 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { EncodedTokenizationResult, ILanguageIdCodec, IState, ITokenizationSupport, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
-import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullMode';
+import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -17,6 +17,7 @@ import { countEOL } from 'vs/editor/common/core/eolCounter';
 import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
 import { setTimeout0 } from 'vs/base/common/platform';
+import { IModelContentChangedEvent, IModelLanguageChangedEvent } from 'vs/editor/common/textModelEvents';
 
 const enum Constants {
 	CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048
@@ -181,31 +182,6 @@ export class TextModelTokenization extends Disposable {
 			this._textModel.clearTokens();
 		}));
 
-		this._register(this._textModel.onDidChangeContentFast((e) => {
-			if (e.isFlush) {
-				this._resetTokenizationState();
-				return;
-			}
-			if (this._tokenizationStateStore) {
-				for (let i = 0, len = e.changes.length; i < len; i++) {
-					const change = e.changes[i];
-					const [eolCount] = countEOL(change.text);
-					this._tokenizationStateStore.applyEdits(change.range, eolCount);
-				}
-			}
-
-			this._beginBackgroundTokenization();
-		}));
-
-		this._register(this._textModel.onDidChangeAttached(() => {
-			this._beginBackgroundTokenization();
-		}));
-
-		this._register(this._textModel.onDidChangeLanguage(() => {
-			this._resetTokenizationState();
-			this._textModel.clearTokens();
-		}));
-
 		this._resetTokenizationState();
 	}
 
@@ -213,6 +189,35 @@ export class TextModelTokenization extends Disposable {
 		this._isDisposed = true;
 		super.dispose();
 	}
+
+	//#region TextModel events
+
+	public handleDidChangeContent(e: IModelContentChangedEvent): void {
+		if (e.isFlush) {
+			this._resetTokenizationState();
+			return;
+		}
+		if (this._tokenizationStateStore) {
+			for (let i = 0, len = e.changes.length; i < len; i++) {
+				const change = e.changes[i];
+				const [eolCount] = countEOL(change.text);
+				this._tokenizationStateStore.applyEdits(change.range, eolCount);
+			}
+		}
+
+		this._beginBackgroundTokenization();
+	}
+
+	public handleDidChangeAttached(): void {
+		this._beginBackgroundTokenization();
+	}
+
+	public handleDidChangeLanguage(e: IModelLanguageChangedEvent): void {
+		this._resetTokenizationState();
+		this._textModel.clearTokens();
+	}
+
+	//#endregion
 
 	private _resetTokenizationState(): void {
 		const [tokenizationSupport, initialState] = initializeTokenization(this._textModel);
@@ -289,13 +294,13 @@ export class TextModelTokenization extends Disposable {
 			}
 		} while (this._hasLinesToTokenize());
 
-		this._textModel.setTokens(builder.finalize(), !this._hasLinesToTokenize());
+		this._textModel.setTokens(builder.finalize(), this._isTokenizationComplete());
 	}
 
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
 		const builder = new ContiguousMultilineTokensBuilder();
 		this._tokenizeViewport(builder, startLineNumber, endLineNumber);
-		this._textModel.setTokens(builder.finalize(), !this._hasLinesToTokenize());
+		this._textModel.setTokens(builder.finalize(), this._isTokenizationComplete());
 	}
 
 	public reset(): void {
@@ -306,7 +311,7 @@ export class TextModelTokenization extends Disposable {
 	public forceTokenization(lineNumber: number): void {
 		const builder = new ContiguousMultilineTokensBuilder();
 		this._updateTokensUntilLine(builder, lineNumber);
-		this._textModel.setTokens(builder.finalize(), !this._hasLinesToTokenize());
+		this._textModel.setTokens(builder.finalize(), this._isTokenizationComplete());
 	}
 
 	public getTokenTypeIfInsertingCharacter(position: Position, character: string): StandardTokenType {
@@ -398,6 +403,13 @@ export class TextModelTokenization extends Disposable {
 			return false;
 		}
 		return (this._tokenizationStateStore.invalidLineStartIndex < this._textModel.getLineCount());
+	}
+
+	private _isTokenizationComplete(): boolean {
+		if (!this._tokenizationStateStore) {
+			return false;
+		}
+		return (this._tokenizationStateStore.invalidLineStartIndex >= this._textModel.getLineCount());
 	}
 
 	private _tokenizeOneInvalidLine(builder: ContiguousMultilineTokensBuilder): number {

@@ -51,7 +51,7 @@ export class SparseTokensStore {
 			range = _range.plusRange(_firstRange).plusRange(_lastRange);
 		}
 
-		let insertPosition: { index: number; } | null = null;
+		let insertPosition: { index: number } | null = null;
 		for (let i = 0, len = this._pieces.length; i < len; i++) {
 			const piece = this._pieces[i];
 			if (piece.endLineNumber < range.startLineNumber) {

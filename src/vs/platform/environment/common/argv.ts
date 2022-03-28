@@ -107,6 +107,7 @@ export interface NativeParsedArgs {
 	'allow-insecure-localhost'?: boolean;
 	'log-net-log'?: string;
 	'vmodule'?: string;
+	'disable-dev-shm-usage'?: boolean;
 
 	// MS Build command line arg
 	'ms-enable-electron-run-as-node'?: boolean;

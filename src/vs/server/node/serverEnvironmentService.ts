@@ -33,6 +33,7 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	'user-data-dir': OPTIONS['user-data-dir'],
 	'driver': OPTIONS['driver'],
 	'disable-telemetry': OPTIONS['disable-telemetry'],
+	'disable-workspace-trust': OPTIONS['disable-workspace-trust'],
 	'file-watcher-polling': { type: 'string', deprecates: ['fileWatcherPolling'] },
 	'log': OPTIONS['log'],
 	'logsPath': OPTIONS['logsPath'],
@@ -40,8 +41,11 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 
 	/* ----- vs code web options ----- */
 
-	'folder': { type: 'string', deprecationMessage: 'No longer supported. Folder needs to be provided in the browser URL.' },
-	'workspace': { type: 'string', deprecationMessage: 'No longer supported. Workspace needs to be provided in the browser URL.' },
+	'folder': { type: 'string', deprecationMessage: 'No longer supported. Folder needs to be provided in the browser URL or with `default-folder`.' },
+	'workspace': { type: 'string', deprecationMessage: 'No longer supported. Workspace needs to be provided in the browser URL or with `default-workspace`.' },
+
+	'default-folder': { type: 'string', description: nls.localize('default-folder', 'The workspace folder to open when no input is specified in the browser URL. A relative or absolute path resolved against the current working directory.') },
+	'default-workspace': { type: 'string', description: nls.localize('default-workspace', 'The workspace to open when no input is specified in the browser URL. A relative or absolute path resolved against the current working directory.') },
 
 	'enable-sync': { type: 'boolean' },
 	'github-auth': { type: 'string' },
@@ -130,6 +134,8 @@ export interface ServerParsedArgs {
 
 	'telemetry-level'?: string;
 
+	'disable-workspace-trust'?: boolean;
+
 	/* ----- vs code options ----- */
 
 	'user-data-dir'?: string;
@@ -145,10 +151,16 @@ export interface ServerParsedArgs {
 	'force-disable-user-env'?: boolean;
 
 	/* ----- vs code web options ----- */
-	/** @deprecated */
+
+	'default-workspace'?: string;
+	'default-folder'?: string;
+
+	/** @deprecated, use default-workspace instead */
 	workspace: string;
-	/** @deprecated */
+	/** @deprecated, use default-folder instead */
 	folder: string;
+
+
 	'enable-sync'?: boolean;
 	'github-auth'?: string;
 
@@ -182,7 +194,7 @@ export interface ServerParsedArgs {
 	help: boolean;
 	version: boolean;
 
-	compatibility: string
+	compatibility: string;
 
 	_: string[];
 }

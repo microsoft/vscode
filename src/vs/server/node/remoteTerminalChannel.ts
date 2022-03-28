@@ -18,7 +18,7 @@ import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAg
 import { IPtyService, IShellLaunchConfig, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { createRemoteURITransformer } from 'vs/server/node/remoteUriTransformer';
+import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { CLIServerBase, ICommandsExecuter } from 'vs/workbench/api/node/extHostCLIServer';
 import { IEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
@@ -35,7 +35,7 @@ class CustomVariableResolver extends AbstractVariableResolverService {
 		env: platform.IProcessEnvironment,
 		workspaceFolders: IWorkspaceFolder[],
 		activeFileResource: URI | undefined,
-		resolvedVariables: { [name: string]: string; }
+		resolvedVariables: { [name: string]: string }
 	) {
 		super({
 			getFolderUri: (folderName: string): URI | undefined => {
@@ -69,7 +69,7 @@ class CustomVariableResolver extends AbstractVariableResolverService {
 			getLineNumber: (): string | undefined => {
 				return resolvedVariables['lineNumber'];
 			}
-		}, undefined, Promise.resolve(env));
+		}, undefined, Promise.resolve(os.homedir()), Promise.resolve(env));
 	}
 }
 
@@ -82,7 +82,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		uriTransformer: IURITransformer;
 	}>();
 
-	private readonly _onExecuteCommand = this._register(new Emitter<{ reqId: number, commandId: string, commandArgs: any[] }>());
+	private readonly _onExecuteCommand = this._register(new Emitter<{ reqId: number; commandId: string; commandArgs: any[] }>());
 	readonly onExecuteCommand = this._onExecuteCommand.event;
 
 	constructor(
@@ -99,7 +99,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$restartPtyHost': return this._ptyService.restartPtyHost?.apply(this._ptyService, args);
 
 			case '$createProcess': {
-				const uriTransformer = createRemoteURITransformer(ctx.remoteAuthority);
+				const uriTransformer = createURITransformer(ctx.remoteAuthority);
 				return this._createProcess(uriTransformer, <ICreateTerminalProcessArguments>args);
 			}
 			case '$attachToProcess': return this._ptyService.attachToProcess.apply(this._ptyService, args);
@@ -180,13 +180,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		};
 
 
-		let baseEnv: platform.IProcessEnvironment;
-		if (args.shellLaunchConfig.useShellEnvironment) {
-			this._logService.trace('*');
-			baseEnv = await buildUserEnvironment(args.resolverEnv, platform.language, false, this._environmentService, this._logService);
-		} else {
-			baseEnv = this._getEnvironment();
-		}
+		const baseEnv = await buildUserEnvironment(args.resolverEnv, !!args.shellLaunchConfig.useShellEnvironment, platform.language, false, this._environmentService, this._logService);
 		this._logService.trace('baseEnv', baseEnv);
 
 		const reviveWorkspaceFolder = (workspaceData: IWorkspaceFolderData): IWorkspaceFolder => {
@@ -242,7 +236,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		};
 		const cliServer = new CLIServerBase(commandsExecuter, this._logService, ipcHandlePath);
 
-		const id = await this._ptyService.createProcess(shellLaunchConfig, initialCwd, args.cols, args.rows, args.unicodeVersion, env, baseEnv, false, args.shouldPersistTerminal, args.workspaceId, args.workspaceName);
+		const id = await this._ptyService.createProcess(shellLaunchConfig, initialCwd, args.cols, args.rows, args.unicodeVersion, env, baseEnv, args.options, args.shouldPersistTerminal, args.workspaceId, args.workspaceName);
 		this._ptyService.onProcessExit(e => e.id === id && cliServer.dispose());
 
 		return {

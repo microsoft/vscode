@@ -75,7 +75,7 @@ export class BannerPart extends Part implements IBannerService {
 		return this.visible ? this.height : 0;
 	}
 
-	private _onDidChangeSize = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+	private _onDidChangeSize = this._register(new Emitter<{ width: number; height: number } | undefined>());
 	override get onDidChange() { return this._onDidChangeSize.event; }
 
 	//#endregion

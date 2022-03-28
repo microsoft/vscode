@@ -27,7 +27,7 @@ export function isRemoteConsoleLog(obj: any): obj is IRemoteConsoleLog {
 	return entry && typeof entry.type === 'string' && typeof entry.severity === 'string';
 }
 
-export function parse(entry: IRemoteConsoleLog): { args: any[], stack?: string } {
+export function parse(entry: IRemoteConsoleLog): { args: any[]; stack?: string } {
 	const args: any[] = [];
 	let stack: string | undefined;
 

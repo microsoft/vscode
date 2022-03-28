@@ -112,7 +112,7 @@ export interface CommandOptions {
 	 * The environment of the executed program or shell. If omitted
 	 * the parent process' environment is used.
 	 */
-	env?: { [key: string]: string; };
+	env?: { [key: string]: string };
 }
 
 export namespace CommandOptions {
@@ -1153,7 +1153,7 @@ export namespace KeyedTaskIdentifier {
 }
 
 export namespace TaskDefinition {
-	export function createTaskIdentifier(external: TaskIdentifier, reporter: { error(message: string): void; }): KeyedTaskIdentifier | undefined {
+	export function createTaskIdentifier(external: TaskIdentifier, reporter: { error(message: string): void }): KeyedTaskIdentifier | undefined {
 		let definition = TaskDefinitionRegistry.get(external.type);
 		if (definition === undefined) {
 			// We have no task definition so we can't sanitize the literal. Take it as is

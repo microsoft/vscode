@@ -11,7 +11,8 @@
 	background-size: 16px;
 }
 
-.monaco-action-bar .action-item.menu-entry .action-label {
+.monaco-action-bar .action-item.menu-entry .action-label,
+.hc-light .monaco-action-bar .action-item.menu-entry .action-label {
 	background-image: var(--menu-entry-icon-light);
 }
 
@@ -39,7 +40,8 @@
 	background-size: 16px;
 }
 
-.monaco-dropdown-with-default > .action-container.menu-entry > .action-label {
+.monaco-dropdown-with-default > .action-container.menu-entry > .action-label,
+.hc-light .monaco-dropdown-with-default > .action-container.menu-entry > .action-label {
 	background-image: var(--menu-entry-icon-light);
 }
 

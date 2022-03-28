@@ -25,8 +25,7 @@ module.exports = new (_a = class ApiEventNaming {
             const verbs = new Set(config.verbs);
             return {
                 ['TSTypeAnnotation TSTypeReference Identifier[name="Event"]']: (node) => {
-                    var _a, _b;
-                    const def = (_b = (_a = node.parent) === null || _a === void 0 ? void 0 : _a.parent) === null || _b === void 0 ? void 0 : _b.parent;
+                    const def = node.parent?.parent?.parent;
                     const ident = this.getIdent(def);
                     if (!ident) {
                         // event on unknown structure...

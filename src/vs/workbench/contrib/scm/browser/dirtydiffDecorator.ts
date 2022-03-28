@@ -20,8 +20,7 @@ import { URI } from 'vs/base/common/uri';
 import { ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector, themeColorFromId, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { Color, RGBA } from 'vs/base/common/color';
+import { editorBackground, editorErrorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { PeekViewWidget, getOuterEditor, peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/browser/peekView';
@@ -52,6 +51,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IChange } from 'vs/editor/common/diff/diffComputer';
+import { Color } from 'vs/base/common/color';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -849,48 +849,54 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 }
 
 export const editorGutterModifiedBackground = registerColor('editorGutter.modifiedBackground', {
-	dark: new Color(new RGBA(12, 125, 157)),
-	light: new Color(new RGBA(102, 175, 224)),
-	hc: new Color(new RGBA(0, 155, 249))
+	dark: '#1B81A8',
+	light: '#2090D3',
+	hcDark: '#1B81A8',
+	hcLight: '#2090D3'
 }, nls.localize('editorGutterModifiedBackground', "Editor gutter background color for lines that are modified."));
 
 export const editorGutterAddedBackground = registerColor('editorGutter.addedBackground', {
-	dark: new Color(new RGBA(88, 124, 12)),
-	light: new Color(new RGBA(129, 184, 139)),
-	hc: new Color(new RGBA(51, 171, 78))
+	dark: '#487E02',
+	light: '#48985D',
+	hcDark: '#487E02',
+	hcLight: '#48985D'
 }, nls.localize('editorGutterAddedBackground', "Editor gutter background color for lines that are added."));
 
 export const editorGutterDeletedBackground = registerColor('editorGutter.deletedBackground', {
-	dark: new Color(new RGBA(148, 21, 27)),
-	light: new Color(new RGBA(202, 75, 81)),
-	hc: new Color(new RGBA(252, 93, 109))
+	dark: editorErrorForeground,
+	light: editorErrorForeground,
+	hcDark: editorErrorForeground,
+	hcLight: editorErrorForeground
 }, nls.localize('editorGutterDeletedBackground', "Editor gutter background color for lines that are deleted."));
 
 export const minimapGutterModifiedBackground = registerColor('minimapGutter.modifiedBackground', {
-	dark: new Color(new RGBA(12, 125, 157)),
-	light: new Color(new RGBA(102, 175, 224)),
-	hc: new Color(new RGBA(0, 155, 249))
+	dark: editorGutterModifiedBackground,
+	light: editorGutterModifiedBackground,
+	hcDark: editorGutterModifiedBackground,
+	hcLight: editorGutterModifiedBackground
 }, nls.localize('minimapGutterModifiedBackground', "Minimap gutter background color for lines that are modified."));
 
 export const minimapGutterAddedBackground = registerColor('minimapGutter.addedBackground', {
-	dark: new Color(new RGBA(88, 124, 12)),
-	light: new Color(new RGBA(129, 184, 139)),
-	hc: new Color(new RGBA(51, 171, 78))
+	dark: editorGutterAddedBackground,
+	light: editorGutterAddedBackground,
+	hcDark: editorGutterAddedBackground,
+	hcLight: editorGutterAddedBackground
 }, nls.localize('minimapGutterAddedBackground', "Minimap gutter background color for lines that are added."));
 
 export const minimapGutterDeletedBackground = registerColor('minimapGutter.deletedBackground', {
-	dark: new Color(new RGBA(148, 21, 27)),
-	light: new Color(new RGBA(202, 75, 81)),
-	hc: new Color(new RGBA(252, 93, 109))
+	dark: editorGutterDeletedBackground,
+	light: editorGutterDeletedBackground,
+	hcDark: editorGutterDeletedBackground,
+	hcLight: editorGutterDeletedBackground
 }, nls.localize('minimapGutterDeletedBackground', "Minimap gutter background color for lines that are deleted."));
 
-export const overviewRulerModifiedForeground = registerColor('editorOverviewRuler.modifiedForeground', { dark: transparent(editorGutterModifiedBackground, 0.6), light: transparent(editorGutterModifiedBackground, 0.6), hc: transparent(editorGutterModifiedBackground, 0.6) }, nls.localize('overviewRulerModifiedForeground', 'Overview ruler marker color for modified content.'));
-export const overviewRulerAddedForeground = registerColor('editorOverviewRuler.addedForeground', { dark: transparent(editorGutterAddedBackground, 0.6), light: transparent(editorGutterAddedBackground, 0.6), hc: transparent(editorGutterAddedBackground, 0.6) }, nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
-export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler.deletedForeground', { dark: transparent(editorGutterDeletedBackground, 0.6), light: transparent(editorGutterDeletedBackground, 0.6), hc: transparent(editorGutterDeletedBackground, 0.6) }, nls.localize('overviewRulerDeletedForeground', 'Overview ruler marker color for deleted content.'));
+export const overviewRulerModifiedForeground = registerColor('editorOverviewRuler.modifiedForeground', { dark: transparent(editorGutterModifiedBackground, 0.6), light: transparent(editorGutterModifiedBackground, 0.6), hcDark: transparent(editorGutterModifiedBackground, 0.6), hcLight: transparent(editorGutterModifiedBackground, 0.6) }, nls.localize('overviewRulerModifiedForeground', 'Overview ruler marker color for modified content.'));
+export const overviewRulerAddedForeground = registerColor('editorOverviewRuler.addedForeground', { dark: transparent(editorGutterAddedBackground, 0.6), light: transparent(editorGutterAddedBackground, 0.6), hcDark: transparent(editorGutterAddedBackground, 0.6), hcLight: transparent(editorGutterAddedBackground, 0.6) }, nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
+export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler.deletedForeground', { dark: transparent(editorGutterDeletedBackground, 0.6), light: transparent(editorGutterDeletedBackground, 0.6), hcDark: transparent(editorGutterDeletedBackground, 0.6), hcLight: transparent(editorGutterDeletedBackground, 0.6) }, nls.localize('overviewRulerDeletedForeground', 'Overview ruler marker color for deleted content.'));
 
 class DirtyDiffDecorator extends Disposable {
 
-	static createDecoration(className: string, options: { gutter: boolean, overview: { active: boolean, color: string }, minimap: { active: boolean, color: string }, isWholeLine: boolean }): ModelDecorationOptions {
+	static createDecoration(className: string, options: { gutter: boolean; overview: { active: boolean; color: string }; minimap: { active: boolean; color: string }; isWholeLine: boolean }): ModelDecorationOptions {
 		const decorationOptions: IModelDecorationOptions = {
 			description: 'dirty-diff-decoration',
 			isWholeLine: options.isWholeLine,
@@ -1078,8 +1084,8 @@ export class DirtyDiffModel extends Disposable {
 	private readonly originalModelDisposables = this._register(new DisposableStore());
 	private _disposed = false;
 
-	private readonly _onDidChange = new Emitter<{ changes: IChange[], diff: ISplice<IChange>[] }>();
-	readonly onDidChange: Event<{ changes: IChange[], diff: ISplice<IChange>[] }> = this._onDidChange.event;
+	private readonly _onDidChange = new Emitter<{ changes: IChange[]; diff: ISplice<IChange>[] }>();
+	readonly onDidChange: Event<{ changes: IChange[]; diff: ISplice<IChange>[] }> = this._onDidChange.event;
 
 	private _changes: IChange[] = [];
 	get changes(): IChange[] { return this._changes; }
@@ -1461,15 +1467,22 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 registerEditorContribution(DirtyDiffController.ID, DirtyDiffController);
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+	const editorBackgroundColor = theme.getColor(editorBackground);
 	const editorGutterModifiedBackgroundColor = theme.getColor(editorGutterModifiedBackground);
+	const linearGradient = `-45deg, ${editorGutterModifiedBackgroundColor} 25%, ${editorBackgroundColor} 25%, ${editorBackgroundColor} 50%, ${editorGutterModifiedBackgroundColor} 50%, ${editorGutterModifiedBackgroundColor} 75%, ${editorBackgroundColor} 75%, ${editorBackgroundColor}`;
+
 	if (editorGutterModifiedBackgroundColor) {
 		collector.addRule(`
 			.monaco-editor .dirty-diff-modified {
-				border-left: 3px solid ${editorGutterModifiedBackgroundColor};
+				background-size: 3px 4.5px;
+				background-repeat-x: no-repeat;
+				background-image: linear-gradient(${linearGradient});
 				transition: opacity 0.5s;
 			}
 			.monaco-editor .dirty-diff-modified:before {
-				background: ${editorGutterModifiedBackgroundColor};
+				transform: translateX(3px);
+				background-size: 3px 3px;
+				background-image: linear-gradient(${linearGradient});
 			}
 			.monaco-editor .margin:hover .dirty-diff-modified {
 				opacity: 1;

@@ -224,7 +224,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 			},
 			menuOpts: {
 				menuId: MarkerNavigationWidget.TitleMenu,
-				title: NextMarkerAction.LABEL,
+				title: PrevMarkerAction.LABEL,
 				icon: registerIcon('marker-navigation-previous', Codicon.arrowUp, nls.localize('previousMarkerIcon', 'Icon for goto previous marker.')),
 				group: 'navigation',
 				order: 2

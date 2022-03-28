@@ -90,7 +90,7 @@ suite('Files - FileEditorInput', () => {
 		assert(resolvedModelA === resolved); // OK: Resolved Model cached globally per input
 
 		try {
-			DisposableStore.DISABLE_DISPOSED_WARNING = true; // prevent unwanted warning output from occuring
+			DisposableStore.DISABLE_DISPOSED_WARNING = true; // prevent unwanted warning output from occurring
 
 			const otherResolved = await sameOtherInput.resolve();
 			assert(otherResolved === resolvedModelA); // OK: Resolved Model cached globally per input

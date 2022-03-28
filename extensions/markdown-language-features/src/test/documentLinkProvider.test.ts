@@ -151,6 +151,33 @@ suite('markdown.DocumentLinkProvider', () => {
 		assertRangeEqual(link2.range, new vscode.Range(1, 6, 1, 8));
 	});
 
+	test('Should only find one link for reference sources [a]: source (#141285)', async () => {
+		const links = await getLinksForFile([
+			'[Works]: https://microsoft.com',
+		].join('\n'));
+
+		assert.strictEqual(links.length, 1);
+	});
+
+	test('Should find links for referees with only one [] (#141285)', async () => {
+		let links = await getLinksForFile([
+			'[ref]',
+			'[ref]: https://microsoft.com',
+		].join('\n'));
+		assert.strictEqual(links.length, 2);
+
+		links = await getLinksForFile([
+			'[Does Not Work]',
+			'[def]: https://microsoft.com',
+		].join('\n'));
+		assert.strictEqual(links.length, 1);
+	});
+
+	test('Should not find link for reference using one [] when source does not exist (#141285)', async () => {
+		const links = await getLinksForFile('[Works]');
+		assert.strictEqual(links.length, 0);
+	});
+
 	test('Should not consider links in code fenced with backticks', async () => {
 		const text = joinLines(
 			'```',
@@ -198,7 +225,7 @@ suite('markdown.DocumentLinkProvider', () => {
 			'[b](https://1.com) `[b](https://2.com)',
 			'` [b](https://3.com)');
 		const links = await getLinksForFile(text);
-		assert.deepStrictEqual(links.map(l => l.target?.authority), ['1.com', '3.com'])
+		assert.deepStrictEqual(links.map(l => l.target?.authority), ['1.com', '3.com']);
 	});
 
 	test('Should not consider links in multiline inline code span with new line after the first backtick', async () => {
@@ -220,5 +247,3 @@ suite('markdown.DocumentLinkProvider', () => {
 		assert.strictEqual(links.length, 1);
 	});
 });
-
-

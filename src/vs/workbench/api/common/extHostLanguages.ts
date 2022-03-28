@@ -42,7 +42,7 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 		await this._proxy.$changeLanguage(uri, languageId);
 		const data = this._documents.getDocumentData(uri);
 		if (!data) {
-			throw new Error(`document '${uri.toString}' NOT found`);
+			throw new Error(`document '${uri.toString()}' NOT found`);
 		}
 		return data.document;
 	}

@@ -64,7 +64,7 @@ function executeAction(instantiationService: IInstantiationService, editor: ICod
 }
 
 suite('FindController', async () => {
-	const queryState: { [key: string]: any; } = {};
+	const queryState: { [key: string]: any } = {};
 	let clipboardState = '';
 	const serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, {
@@ -493,7 +493,7 @@ suite('FindController', async () => {
 });
 
 suite('FindController query options persistence', async () => {
-	let queryState: { [key: string]: any; } = {};
+	let queryState: { [key: string]: any } = {};
 	queryState['editor.isRegex'] = false;
 	queryState['editor.matchCase'] = false;
 	queryState['editor.wholeWord'] = false;

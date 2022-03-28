@@ -19,8 +19,8 @@ export class TestInstantiationService extends InstantiationService {
 
 	private _servciesMap: Map<ServiceIdentifier<any>, any>;
 
-	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection()) {
-		super(_serviceCollection);
+	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection(), strict: boolean = false) {
+		super(_serviceCollection, strict);
 
 		this._servciesMap = new Map<ServiceIdentifier<any>, any>();
 	}

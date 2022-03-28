@@ -10,7 +10,7 @@ import * as tss from './treeshaking';
 const REPO_ROOT = path.join(__dirname, '../../');
 const SRC_DIR = path.join(REPO_ROOT, 'src');
 
-let dirCache: { [dir: string]: boolean; } = {};
+let dirCache: { [dir: string]: boolean } = {};
 
 function writeFile(filePath: string, contents: Buffer | string): void {
 	function ensureDirs(dirPath: string): void {
@@ -69,7 +69,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 			writeFile(path.join(options.destRoot, fileName), result[fileName]);
 		}
 	}
-	let copied: { [fileName: string]: boolean; } = {};
+	let copied: { [fileName: string]: boolean } = {};
 	const copyFile = (fileName: string) => {
 		if (copied[fileName]) {
 			return;
@@ -131,7 +131,7 @@ export interface IOptions2 {
 	outFolder: string;
 	outResourcesFolder: string;
 	ignores: string[];
-	renames: { [filename: string]: string; };
+	renames: { [filename: string]: string };
 }
 
 export function createESMSourcesAndResources2(options: IOptions2): void {

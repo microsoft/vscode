@@ -125,7 +125,7 @@ export interface CodeActionTrigger {
 }
 
 export class CodeActionCommandArgs {
-	public static fromUser(arg: any, defaults: { kind: CodeActionKind, apply: CodeActionAutoApply }): CodeActionCommandArgs {
+	public static fromUser(arg: any, defaults: { kind: CodeActionKind; apply: CodeActionAutoApply }): CodeActionCommandArgs {
 		if (!arg || typeof arg !== 'object') {
 			return new CodeActionCommandArgs(defaults.kind, defaults.apply, false);
 		}

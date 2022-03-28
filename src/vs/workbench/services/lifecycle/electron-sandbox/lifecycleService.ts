@@ -11,13 +11,14 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { Promises, disposableTimeout } from 'vs/base/common/async';
+import { Promises, disposableTimeout, raceCancellation } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export class NativeLifecycleService extends AbstractLifecycleService {
 
 	private static readonly BEFORE_SHUTDOWN_WARNING_DELAY = 5000;
-	private static readonly WILL_SHUTDOWN_WARNING_DELAY = 5000;
+	private static readonly WILL_SHUTDOWN_WARNING_DELAY = 800;
 
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
@@ -33,7 +34,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		const windowId = this.nativeHostService.windowId;
 
 		// Main side indicates that window is about to unload, check for vetos
-		ipcRenderer.on('vscode:onBeforeUnload', async (event: unknown, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
+		ipcRenderer.on('vscode:onBeforeUnload', async (event: unknown, reply: { okChannel: string; cancelChannel: string; reason: ShutdownReason }) => {
 			this.logService.trace(`[lifecycle] onBeforeUnload (reason: ${reply.reason})`);
 
 			// trigger onBeforeShutdown events and veto collecting
@@ -42,6 +43,9 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 			// veto: cancel unload
 			if (veto) {
 				this.logService.trace('[lifecycle] onBeforeUnload prevented via veto');
+
+				// Indicate as event
+				this._onShutdownVeto.fire();
 
 				ipcRenderer.send(reply.cancelChannel, windowId);
 			}
@@ -56,7 +60,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		});
 
 		// Main side indicates that we will indeed shutdown
-		ipcRenderer.on('vscode:onWillUnload', async (event: unknown, reply: { replyChannel: string, reason: ShutdownReason }) => {
+		ipcRenderer.on('vscode:onWillUnload', async (event: unknown, reply: { replyChannel: string; reason: ShutdownReason }) => {
 			this.logService.trace(`[lifecycle] onWillUnload (reason: ${reply.reason})`);
 
 			// trigger onWillShutdown events and joining
@@ -81,6 +85,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 
 		// before-shutdown event with veto support
 		this._onBeforeShutdown.fire({
+			reason,
 			veto(value, id) {
 				vetos.push(value);
 
@@ -106,8 +111,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 				} else {
 					throw new Error(`[lifecycle]: Final veto is already defined (id: ${id})`);
 				}
-			},
-			reason
+			}
 		});
 
 		const longRunningBeforeShutdownWarning = disposableTimeout(() => {
@@ -152,8 +156,11 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 	protected async handleWillShutdown(reason: ShutdownReason): Promise<void> {
 		const joiners: Promise<void>[] = [];
 		const pendingJoiners = new Set<string>();
+		const cts = new CancellationTokenSource();
 
 		this._onWillShutdown.fire({
+			reason,
+			token: cts.token,
 			join(promise, id) {
 				joiners.push(promise);
 
@@ -161,7 +168,9 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 				pendingJoiners.add(id);
 				promise.finally(() => pendingJoiners.delete(id));
 			},
-			reason
+			force: () => {
+				cts.dispose(true);
+			}
 		});
 
 		const longRunningWillShutdownWarning = disposableTimeout(() => {
@@ -169,7 +178,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		}, NativeLifecycleService.WILL_SHUTDOWN_WARNING_DELAY);
 
 		try {
-			await Promises.settled(joiners);
+			await raceCancellation(Promises.settled(joiners), cts.token);
 		} catch (error) {
 			this.logService.error(`[lifecycle]: Error during will-shutdown phase (error: ${toErrorMessage(error)})`); // this error will not prevent the shutdown
 		} finally {

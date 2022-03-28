@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/contrib/welcomeGettingStarted/common/media/example_markdown_media';
+import 'vs/workbench/contrib/welcomeGettingStarted/common/media/theme_picker';
 import 'vs/workbench/contrib/welcomeGettingStarted/common/media/notebookProfile';
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
@@ -18,37 +18,37 @@ const intermediateIcon = registerIcon('getting-started-intermediate', Codicon.mo
 
 
 export type BuiltinGettingStartedStep = {
-	id: string
-	title: string,
-	description: string,
-	completionEvents?: string[]
-	when?: string,
+	id: string;
+	title: string;
+	description: string;
+	completionEvents?: string[];
+	when?: string;
 	media:
-	| { type: 'image', path: string | { hc: string, light: string, dark: string }, altText: string }
-	| { type: 'svg', path: string, altText: string }
-	| { type: 'markdown', path: string },
+	| { type: 'image'; path: string | { hc: string; hcLight?: string; light: string; dark: string }; altText: string }
+	| { type: 'svg'; path: string; altText: string }
+	| { type: 'markdown'; path: string };
 };
 
 export type BuiltinGettingStartedCategory = {
-	id: string
-	title: string,
-	description: string,
-	isFeatured: boolean,
-	next?: string,
-	icon: ThemeIcon,
-	when?: string,
+	id: string;
+	title: string;
+	description: string;
+	isFeatured: boolean;
+	next?: string;
+	icon: ThemeIcon;
+	when?: string;
 	content:
-	| { type: 'steps', steps: BuiltinGettingStartedStep[] }
+	| { type: 'steps'; steps: BuiltinGettingStartedStep[] };
 };
 
 export type BuiltinGettingStartedStartEntry = {
-	id: string
-	title: string,
-	description: string,
-	icon: ThemeIcon,
-	when?: string,
+	id: string;
+	title: string;
+	description: string;
+	icon: ThemeIcon;
+	when?: string;
 	content:
-	| { type: 'startEntry', command: string }
+	| { type: 'startEntry'; command: string };
 };
 
 type GettingStartedWalkthroughContent = BuiltinGettingStartedCategory[];
@@ -113,10 +113,10 @@ export const startEntries: GettingStartedStartEntryContent = [
 		title: localize('gettingStarted.openFolder.title', "Open Folder..."),
 		description: localize('gettingStarted.openFolder.description', "Open a folder to start working"),
 		icon: Codicon.folderOpened,
-		when: 'isWeb && workbenchState == \'workspace\'',
+		when: '!openFolderWorkspaceSupport && workbenchState == \'workspace\'',
 		content: {
 			type: 'startEntry',
-			command: 'command:workbench.action.addRootFolder',
+			command: 'command:workbench.action.files.openFolderViaWorkspace',
 		}
 	},
 	{
@@ -198,7 +198,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 						'onSettingChanged:workbench.colorTheme',
 						'onCommand:workbench.action.selectTheme'
 					],
-					media: { type: 'markdown', path: 'example_markdown_media', }
+					media: { type: 'markdown', path: 'theme_picker', }
 				},
 				{
 					id: 'settingsSync',
@@ -284,7 +284,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 						'onSettingChanged:workbench.colorTheme',
 						'onCommand:workbench.action.selectTheme'
 					],
-					media: { type: 'markdown', path: 'example_markdown_media', }
+					media: { type: 'markdown', path: 'theme_picker', }
 				},
 				{
 					id: 'settingsSyncWeb',

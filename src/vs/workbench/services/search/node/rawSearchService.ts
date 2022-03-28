@@ -24,7 +24,7 @@ export class SearchService implements IRawSearchService {
 
 	private static readonly BATCH_SIZE = 512;
 
-	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
+	private caches: { [cacheKey: string]: Cache } = Object.create(null);
 
 	constructor(private readonly processType: IFileSearchStats['type'] = 'searchProcess') { }
 
@@ -83,7 +83,7 @@ export class SearchService implements IRawSearchService {
 		return this.doFileSearchWithEngine(FileSearchEngine, config, progressCallback, token);
 	}
 
-	doFileSearchWithEngine(EngineClass: { new(config: IFileQuery): ISearchEngine<IRawFileMatch>; }, config: IFileQuery, progressCallback: IProgressCallback, token?: CancellationToken, batchSize = SearchService.BATCH_SIZE): Promise<ISerializedSearchSuccess> {
+	doFileSearchWithEngine(EngineClass: { new(config: IFileQuery): ISearchEngine<IRawFileMatch> }, config: IFileQuery, progressCallback: IProgressCallback, token?: CancellationToken, batchSize = SearchService.BATCH_SIZE): Promise<ISerializedSearchSuccess> {
 		let resultCount = 0;
 		const fileProgressCallback: IFileProgressCallback = progress => {
 			if (Array.isArray(progress)) {
@@ -403,7 +403,7 @@ interface ICacheRow {
 
 class Cache {
 
-	resultsToSearchCache: { [searchValue: string]: ICacheRow; } = Object.create(null);
+	resultsToSearchCache: { [searchValue: string]: ICacheRow } = Object.create(null);
 
 	scorerCache: FuzzyScorerCache = Object.create(null);
 }

@@ -16,6 +16,14 @@
 	visibility: hidden;
 }
 
+.monaco-workbench.reduce-motion .simple-fr-find-part-wrapper {
+	transition: top 0ms linear;
+}
+
+.monaco-workbench .notebookOverlay .simple-fr-find-part-wrapper.visible {
+	z-index: 100;
+}
+
 .monaco-workbench .simple-fr-find-part {
 	/* visibility: hidden;		Use visibility to maintain flex layout while hidden otherwise interferes with transition */
 	z-index: 10;
@@ -119,7 +127,7 @@
 	cursor: default;
 }
 
-.monaco-workbench .simple-fr-find-part-wrapper .monaco-custom-checkbox.disabled {
+.monaco-workbench .simple-fr-find-part-wrapper .monaco-custom-toggle.disabled {
 	opacity: 0.3;
 	cursor: default;
 	user-select: none;
@@ -130,12 +138,12 @@
 
 .monaco-workbench .simple-fr-find-part-wrapper .find-filter-button {
 	color: inherit;
-    margin-left: 2px;
-    float: left;
-    cursor: pointer;
-    box-sizing: border-box;
-    user-select: none;
-    -webkit-user-select: none;
+	margin-left: 2px;
+	float: left;
+	cursor: pointer;
+	box-sizing: border-box;
+	user-select: none;
+	-webkit-user-select: none;
 }
 
 .find-filter-button .monaco-action-bar .action-label {

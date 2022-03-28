@@ -29,7 +29,7 @@ export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
 export class DocumentSymbolNavigationLabelProvider implements IKeyboardNavigationLabelProvider<DocumentSymbolItem> {
 
-	getKeyboardNavigationLabel(element: DocumentSymbolItem): { toString(): string; } {
+	getKeyboardNavigationLabel(element: DocumentSymbolItem): { toString(): string } {
 		if (element instanceof OutlineGroup) {
 			return element.label;
 		} else {
@@ -55,7 +55,7 @@ export class DocumentSymbolAccessibilityProvider implements IListAccessibilityPr
 }
 
 export class DocumentSymbolIdentityProvider implements IIdentityProvider<DocumentSymbolItem> {
-	getId(element: DocumentSymbolItem): { toString(): string; } {
+	getId(element: DocumentSymbolItem): { toString(): string } {
 		return element.id;
 	}
 }

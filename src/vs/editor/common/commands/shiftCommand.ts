@@ -22,7 +22,7 @@ export interface IShiftCommandOpts {
 	autoIndent: EditorAutoIndentStrategy;
 }
 
-const repeatCache: { [str: string]: string[]; } = Object.create(null);
+const repeatCache: { [str: string]: string[] } = Object.create(null);
 export function cachedStringRepeat(str: string, count: number): string {
 	if (count <= 0) {
 		return '';

@@ -58,7 +58,7 @@ export interface IWheelMessage extends BaseToWebviewMessage {
 
 export interface IScrollAckMessage extends BaseToWebviewMessage {
 	readonly type: 'scroll-ack';
-	readonly data: { top: number; };
+	readonly data: { top: number };
 	readonly version: number;
 }
 
@@ -139,24 +139,22 @@ export interface IInitializedMarkupMessage extends BaseToWebviewMessage {
 	readonly type: 'initializedMarkup';
 }
 
+export interface ICodeBlockHighlightRequest {
+	readonly id: string;
+	readonly value: string;
+	readonly lang: string;
+}
+
 export interface IRenderedMarkupMessage extends BaseToWebviewMessage {
 	readonly type: 'renderedMarkup';
 	readonly cellId: string;
 	readonly html: string;
-	readonly codeBlocks: ReadonlyArray<{
-		readonly id: string;
-		readonly value: string;
-		readonly lang: string;
-	}>;
+	readonly codeBlocks: ReadonlyArray<ICodeBlockHighlightRequest>;
 }
 
-export interface ITelemetryFoundRenderedMarkdownMath extends BaseToWebviewMessage {
-	readonly type: 'telemetryFoundRenderedMarkdownMath';
-}
-
-export interface ITelemetryFoundUnrenderedMarkdownMath extends BaseToWebviewMessage {
-	readonly type: 'telemetryFoundUnrenderedMarkdownMath';
-	readonly latexDirective: string;
+export interface IRenderedCellOutputMessage extends BaseToWebviewMessage {
+	readonly type: 'renderedCellOutput';
+	readonly codeBlocks: ReadonlyArray<ICodeBlockHighlightRequest>;
 }
 
 export interface IClearMessage {
@@ -167,22 +165,22 @@ export interface IOutputRequestMetadata {
 	/**
 	 * Additional attributes of a cell metadata.
 	 */
-	readonly custom?: { readonly [key: string]: unknown; };
+	readonly custom?: { readonly [key: string]: unknown };
 }
 
 export interface IOutputRequestDto {
 	/**
 	 * { mime_type: value }
 	 */
-	readonly data: { readonly [key: string]: unknown; };
+	readonly data: { readonly [key: string]: unknown };
 
 	readonly metadata?: IOutputRequestMetadata;
 	readonly outputId: string;
 }
 
 export type ICreationContent =
-	| { readonly type: RenderOutputType.Html; readonly htmlContent: string; }
-	| { readonly type: RenderOutputType.Extension; readonly outputId: string; readonly valueBytes: Uint8Array; readonly metadata: unknown; readonly mimeType: string; };
+	| { readonly type: RenderOutputType.Html; readonly htmlContent: string }
+	| { readonly type: RenderOutputType.Extension; readonly outputId: string; readonly valueBytes: Uint8Array; readonly metadata: unknown; readonly mimeType: string };
 
 export interface ICreationRequestMessage {
 	readonly type: 'html';
@@ -244,6 +242,7 @@ export interface IShowOutputMessage {
 	readonly outputId: string;
 	readonly cellTop: number;
 	readonly outputOffset: number;
+	readonly content?: ICreationContent;
 }
 
 export interface IFocusOutputMessage {
@@ -367,7 +366,7 @@ export interface ITokenizedStylesChangedMessage {
 export interface IFindMessage {
 	readonly type: 'find';
 	readonly query: string;
-	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; }
+	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean };
 }
 
 
@@ -427,8 +426,7 @@ export type FromWebviewMessage = WebviewInitialized |
 	ICellDragEndMessage |
 	IInitializedMarkupMessage |
 	IRenderedMarkupMessage |
-	ITelemetryFoundRenderedMarkdownMath |
-	ITelemetryFoundUnrenderedMarkdownMath |
+	IRenderedCellOutputMessage |
 	IDidFindMessage |
 	IDidFindHighlightMessage;
 

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
 import { Emitter } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -64,7 +63,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		super();
 
 		codeActionsExtensionPoint.setHandler(extensionPoints => {
-			this._contributedCodeActions = flatten(extensionPoints.map(x => x.value));
+			this._contributedCodeActions = extensionPoints.map(x => x.value).flat();
 			this.updateConfigurationSchema(this._contributedCodeActions);
 			this._onDidChangeContributions.fire();
 		});
@@ -135,7 +134,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		};
 
 		const getActions = (ofKind: CodeActionKind): ContributedCodeAction[] => {
-			const allActions = flatten(this._contributedCodeActions.map(desc => desc.actions.slice()));
+			const allActions = this._contributedCodeActions.map(desc => desc.actions).flat();
 
 			const out = new Map<string, ContributedCodeAction>();
 			for (const action of allActions) {

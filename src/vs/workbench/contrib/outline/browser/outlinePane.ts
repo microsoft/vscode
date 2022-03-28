@@ -325,7 +325,7 @@ export class OutlinePane extends ViewPane {
 		this._editorControlDisposables.add(newOutline.onDidChange(revealActiveElement));
 
 		// feature: update view when user state changes
-		this._editorControlDisposables.add(this._outlineViewState.onDidChange((e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) => {
+		this._editorControlDisposables.add(this._outlineViewState.onDidChange((e: { followCursor?: boolean; sortBy?: boolean; filterOnType?: boolean }) => {
 			this._outlineViewState.persist(this._storageService);
 			if (e.filterOnType) {
 				tree.updateOptions({ filterOnType: this._outlineViewState.filterOnType });

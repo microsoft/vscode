@@ -29,6 +29,7 @@ export default class API {
 	public static readonly v340 = API.fromSimpleString('3.4.0');
 	public static readonly v345 = API.fromSimpleString('3.4.5');
 	public static readonly v350 = API.fromSimpleString('3.5.0');
+	public static readonly v370 = API.fromSimpleString('3.7.0');
 	public static readonly v380 = API.fromSimpleString('3.8.0');
 	public static readonly v381 = API.fromSimpleString('3.8.1');
 	public static readonly v390 = API.fromSimpleString('3.9.0');

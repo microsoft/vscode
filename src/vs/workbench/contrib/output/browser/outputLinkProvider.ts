@@ -6,13 +6,14 @@
 import { URI } from 'vs/base/common/uri';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/model';
-import { LinkProviderRegistry, ILink } from 'vs/editor/common/languages';
+import { ILink } from 'vs/editor/common/languages';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { OUTPUT_MODE_ID, LOG_MODE_ID } from 'vs/workbench/contrib/output/common/output';
 import { MonacoWebWorker, createWebWorker } from 'vs/editor/browser/services/webWorker';
 import { ICreateData, OutputLinkComputer } from 'vs/workbench/contrib/output/common/outputLinkComputer';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export class OutputLinkProvider {
 
@@ -25,7 +26,8 @@ export class OutputLinkProvider {
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IModelService private readonly modelService: IModelService,
-		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService
+		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		this.disposeWorkerScheduler = new RunOnceScheduler(() => this.disposeWorker(), OutputLinkProvider.DISPOSE_WORKER_TIME);
 
@@ -43,7 +45,7 @@ export class OutputLinkProvider {
 		const folders = this.contextService.getWorkspace().folders;
 		if (folders.length > 0) {
 			if (!this.linkProviderRegistration) {
-				this.linkProviderRegistration = LinkProviderRegistry.register([{ language: OUTPUT_MODE_ID, scheme: '*' }, { language: LOG_MODE_ID, scheme: '*' }], {
+				this.linkProviderRegistration = this.languageFeaturesService.linkProvider.register([{ language: OUTPUT_MODE_ID, scheme: '*' }, { language: LOG_MODE_ID, scheme: '*' }], {
 					provideLinks: async model => {
 						const links = await this.provideLinks(model.uri);
 

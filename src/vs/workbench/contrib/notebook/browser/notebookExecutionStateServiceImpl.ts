@@ -115,6 +115,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		if (!exe) {
 			exe = this._createNotebookCellExecution(notebook, cellHandle);
 			notebookExecutionMap.set(cellHandle, exe);
+			this._onDidChangeCellExecution.fire(new NotebookExecutionEvent(notebookUri, cellHandle, exe));
 		}
 
 		return exe;
@@ -128,7 +129,6 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 			exe.onDidComplete(() => this._onCellExecutionDidComplete(notebookUri, cellHandle, exe)));
 		this._cellListeners.set(CellUri.generate(notebookUri, cellHandle), disposable);
 
-		this._onDidChangeCellExecution.fire(new NotebookExecutionEvent(notebookUri, cellHandle, exe));
 		return exe;
 	}
 
@@ -260,7 +260,7 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 	private readonly _onDidComplete = this._register(new Emitter<void>());
 	readonly onDidComplete = this._onDidComplete.event;
 
-	private _state: NotebookCellExecutionState = NotebookCellExecutionState.Pending;
+	private _state: NotebookCellExecutionState = NotebookCellExecutionState.Unconfirmed;
 	get state() {
 		return this._state;
 	}
@@ -285,6 +285,7 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this._logService.debug(`CellExecution#ctor ${this.getCellLog()}`);
 		const startExecuteEdit: ICellEditOperation = {
 			editType: CellEditType.PartialInternalMetadata,
 			handle: this.cellHandle,
@@ -298,17 +299,23 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 		this._applyExecutionEdits([startExecuteEdit]);
 	}
 
-	private getCellLog(cellHandle: number): string {
-		return `${this._notebookModel.uri.toString()}, ${cellHandle}`;
+	private getCellLog(): string {
+		return `${this._notebookModel.uri.toString()}, ${this.cellHandle}`;
 	}
 
-	private logUpdates(cellHandle: number, updates: ICellExecuteUpdate[]): void {
+	private logUpdates(updates: ICellExecuteUpdate[]): void {
 		const updateTypes = updates.map(u => CellExecutionUpdateType[u.editType]).join(', ');
-		this._logService.debug(`NotebookExecution#updateExecution ${this.getCellLog(cellHandle)}, [${updateTypes}]`);
+		this._logService.debug(`CellExecution#updateExecution ${this.getCellLog()}, [${updateTypes}]`);
+	}
+
+	confirm() {
+		this._logService.debug(`CellExecution#confirm ${this.getCellLog()}`);
+		this._state = NotebookCellExecutionState.Pending;
+		this._onDidUpdate.fire();
 	}
 
 	update(updates: ICellExecuteUpdate[]): void {
-		this.logUpdates(this.cellHandle, updates);
+		this.logUpdates(updates);
 		if (updates.some(u => u.editType === CellExecutionUpdateType.ExecutionState)) {
 			this._state = NotebookCellExecutionState.Executing;
 		}

@@ -175,7 +175,7 @@ export async function mkdirp(path: string, mode?: number): Promise<boolean> {
 }
 
 export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
-	const seen: { [key: string]: boolean; } = Object.create(null);
+	const seen: { [key: string]: boolean } = Object.create(null);
 
 	return element => {
 		const key = keyFn(element);
@@ -395,7 +395,7 @@ export class Limiter<T> {
 	}
 }
 
-type Completion<T> = { success: true, value: T } | { success: false, err: any };
+type Completion<T> = { success: true; value: T } | { success: false; err: any };
 
 export class PromiseSource<T> {
 

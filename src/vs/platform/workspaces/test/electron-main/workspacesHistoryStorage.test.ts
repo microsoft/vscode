@@ -8,7 +8,8 @@ import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, IWorkspaceIdentifier, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
 
 suite('History Storage', () => {
 

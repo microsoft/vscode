@@ -177,7 +177,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			insidersApp = undefined;
 		});
 
-		it.skip('verifies that "hot exit" works for dirty files (without delay)', async function () { // TODO@bpasero enable test once 1.64 shipped
+		it('verifies that "hot exit" works for dirty files (without delay)', async function () {
 			return testHotExit.call(this, undefined);
 		});
 

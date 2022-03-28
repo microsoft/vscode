@@ -16,8 +16,8 @@ import 'vs/css!./parameterHints';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as modes from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import * as languages from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
 import { Context } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
 import * as nls from 'vs/nls';
@@ -25,8 +25,9 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorHoverBackground, editorHoverBorder, editorHoverForeground, registerColor, textCodeBlockBackground, textLinkActiveForeground, textLinkForeground, listHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 const $ = dom.$;
 
@@ -62,10 +63,11 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@ILanguageService languageService: ILanguageService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService
 	) {
 		super();
 		this.markdownRenderer = this._register(new MarkdownRenderer({ editor }, languageService, openerService));
-		this.model = this._register(new ParameterHintsModel(editor));
+		this.model = this._register(new ParameterHintsModel(editor, languageFeaturesService.signatureHelpProvider));
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
 
@@ -190,7 +192,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		return null;
 	}
 
-	private render(hints: modes.SignatureHelp): void {
+	private render(hints: languages.SignatureHelp): void {
 		this.renderDisposeables.clear();
 
 		if (!this.domNodes) {
@@ -224,7 +226,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			this.renderParameters(code, signature, activeParameterIndex);
 		}
 
-		const activeParameter: modes.ParameterInformation | undefined = signature.parameters[activeParameterIndex];
+		const activeParameter: languages.ParameterInformation | undefined = signature.parameters[activeParameterIndex];
 		if (activeParameter?.documentation) {
 			const documentation = $('span.documentation');
 			if (typeof activeParameter.documentation === 'string') {
@@ -291,7 +293,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		return renderedContents;
 	}
 
-	private hasDocs(signature: modes.SignatureInformation, activeParameter: modes.ParameterInformation | undefined): boolean {
+	private hasDocs(signature: languages.SignatureInformation, activeParameter: languages.ParameterInformation | undefined): boolean {
 		if (activeParameter && typeof activeParameter.documentation === 'string' && assertIsDefined(activeParameter.documentation).length > 0) {
 			return true;
 		}
@@ -307,7 +309,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		return false;
 	}
 
-	private renderParameters(parent: HTMLElement, signature: modes.SignatureInformation, activeParameterIndex: number): void {
+	private renderParameters(parent: HTMLElement, signature: languages.SignatureInformation, activeParameterIndex: number): void {
 		const [start, end] = this.getParameterLabelOffsets(signature, activeParameterIndex);
 
 		const beforeSpan = document.createElement('span');
@@ -323,7 +325,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		dom.append(parent, beforeSpan, paramSpan, afterSpan);
 	}
 
-	private getParameterLabelOffsets(signature: modes.SignatureInformation, paramIdx: number): [number, number] {
+	private getParameterLabelOffsets(signature: languages.SignatureInformation, paramIdx: number): [number, number] {
 		const param = signature.parameters[paramIdx];
 		if (!param) {
 			return [0, 0];
@@ -384,12 +386,12 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	}
 }
 
-export const editorHoverWidgetHighlightForeground = registerColor('editorHoverWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hc: listHighlightForeground }, nls.localize('editorHoverWidgetHighlightForeground', 'Foreground color of the active item in the parameter hint.'));
+export const editorHoverWidgetHighlightForeground = registerColor('editorHoverWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hcDark: listHighlightForeground, hcLight: listHighlightForeground }, nls.localize('editorHoverWidgetHighlightForeground', 'Foreground color of the active item in the parameter hint.'));
 
 registerThemingParticipant((theme, collector) => {
 	const border = theme.getColor(editorHoverBorder);
 	if (border) {
-		const borderWidth = theme.type === ColorScheme.HIGH_CONTRAST ? 2 : 1;
+		const borderWidth = isHighContrast(theme.type) ? 2 : 1;
 		collector.addRule(`.monaco-editor .parameter-hints-widget { border: ${borderWidth}px solid ${border}; }`);
 		collector.addRule(`.monaco-editor .parameter-hints-widget.multiple .body { border-left: 1px solid ${border.transparent(0.5)}; }`);
 		collector.addRule(`.monaco-editor .parameter-hints-widget .signature.has-docs { border-bottom: 1px solid ${border.transparent(0.5)}; }`);

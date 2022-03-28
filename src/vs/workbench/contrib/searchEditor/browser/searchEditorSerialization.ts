@@ -23,13 +23,13 @@ const translateRangeLines =
 		(range: Range) =>
 			new Range(range.startLineNumber + n, range.startColumn, range.endLineNumber + n, range.endColumn);
 
-const matchToSearchResultFormat = (match: Match, longestLineNumber: number): { line: string, ranges: Range[], lineNumber: string }[] => {
+const matchToSearchResultFormat = (match: Match, longestLineNumber: number): { line: string; ranges: Range[]; lineNumber: string }[] => {
 	const getLinePrefix = (i: number) => `${match.range().startLineNumber + i}`;
 
 	const fullMatchLines = match.fullPreviewLines();
 
 
-	const results: { line: string, ranges: Range[], lineNumber: string }[] = [];
+	const results: { line: string; ranges: Range[]; lineNumber: string }[] = [];
 
 	fullMatchLines
 		.forEach((sourceLine, i) => {
@@ -41,7 +41,7 @@ const matchToSearchResultFormat = (match: Match, longestLineNumber: number): { l
 			// split instead of replace to avoid creating a new string object
 			const line = prefix + (sourceLine.split(/\r?\n?$/, 1)[0] || '');
 
-			const rangeOnThisLine = ({ start, end }: { start?: number; end?: number; }) => new Range(1, (start ?? 1) + prefixOffset, 1, (end ?? sourceLine.length + 1) + prefixOffset);
+			const rangeOnThisLine = ({ start, end }: { start?: number; end?: number }) => new Range(1, (start ?? 1) + prefixOffset, 1, (end ?? sourceLine.length + 1) + prefixOffset);
 
 			const matchRange = match.rangeInPreview();
 			const matchIsSingleLine = matchRange.startLineNumber === matchRange.endLineNumber;
@@ -58,7 +58,7 @@ const matchToSearchResultFormat = (match: Match, longestLineNumber: number): { l
 	return results;
 };
 
-type SearchResultSerialization = { text: string[], matchRanges: Range[] };
+type SearchResultSerialization = { text: string[]; matchRanges: Range[] };
 
 function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x: URI) => string): SearchResultSerialization {
 	const sortedMatches = fileMatch.matches().sort(searchMatchComparer);
@@ -70,7 +70,7 @@ function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x:
 
 	const targetLineNumberToOffset: Record<string, number> = {};
 
-	const context: { line: string, lineNumber: number }[] = [];
+	const context: { line: string; lineNumber: number }[] = [];
 	fileMatch.context.forEach((line, lineNumber) => context.push({ line, lineNumber }));
 	context.sort((a, b) => a.lineNumber - b.lineNumber);
 
@@ -213,7 +213,7 @@ export const extractSearchQueryFromLines = (lines: string[]): SearchConfiguratio
 };
 
 export const serializeSearchResultForEditor =
-	(searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string, sortOrder: SearchSortOrder, limitHit?: boolean): { matchRanges: Range[], text: string, config: Partial<SearchConfiguration> } => {
+	(searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string, sortOrder: SearchSortOrder, limitHit?: boolean): { matchRanges: Range[]; text: string; config: Partial<SearchConfiguration> } => {
 		if (!searchResult.query) { throw Error('Internal Error: Expected query, got null'); }
 		const config = contentPatternToSearchConfiguration(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines);
 

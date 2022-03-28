@@ -1735,12 +1735,12 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.getRelativeTop(index);
 	}
 
-	getViewState(): AbstractTreeViewState {
-		if (!this.options.identityProvider) {
+	getViewState(identityProvider = this.options.identityProvider): AbstractTreeViewState {
+		if (!identityProvider) {
 			throw new TreeError(this._user, 'Can\'t get tree view state without an identity provider');
 		}
 
-		const getId = (element: T | null) => this.options.identityProvider!.getId(element!).toString();
+		const getId = (element: T | null) => identityProvider.getId(element!).toString();
 		const state = AbstractTreeViewState.empty(this.scrollTop);
 		for (const focus of this.getFocus()) {
 			state.focus.add(getId(focus));

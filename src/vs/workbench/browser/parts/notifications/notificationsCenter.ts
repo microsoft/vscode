@@ -11,7 +11,7 @@ import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, 
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Emitter } from 'vs/base/common/event';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import {  INotificationsCenterController } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { INotificationsCenterController } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { isAncestor, Dimension } from 'vs/base/browser/dom';

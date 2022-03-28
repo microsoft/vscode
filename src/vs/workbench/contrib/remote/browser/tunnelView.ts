@@ -21,7 +21,8 @@ import { Disposable, IDisposable, toDisposable, MutableDisposable, dispose, Disp
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { IMenuService, MenuId, MenuRegistry, ILocalizedString } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelItem, Tunnel, TUNNEL_VIEW_ID, parseAddress, CandidatePort, TunnelEditId, mapHasAddressLocalhostOrAllInterfaces, Attributes, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -259,7 +260,7 @@ class LocalAddressColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 
 			const markdown = new MarkdownString('', true);
 			const uri = localAddress.startsWith('http') ? localAddress : `http://${localAddress}`;
-			return markdown.appendMarkdown(`[Follow link](${uri}) (${clickLabel})`);
+			return markdown.appendLink(uri, 'Follow link').appendMarkdown(` (${clickLabel})`);
 		};
 	}
 }
@@ -569,7 +570,7 @@ class TunnelItem implements ITunnelItem {
 		public tunnelType: TunnelType,
 		public remoteHost: string,
 		public remotePort: number,
-		public source: { source: TunnelSource, description: string },
+		public source: { source: TunnelSource; description: string },
 		public hasRunningProcess: boolean,
 		public protocol: TunnelProtocol,
 		public localUri?: URI,
@@ -1040,7 +1041,7 @@ namespace LabelTunnelAction {
 	}
 
 	export function handler(): ICommandHandler {
-		return async (accessor, arg): Promise<{ port: number, label: string } | undefined> => {
+		return async (accessor, arg): Promise<{ port: number; label: string } | undefined> => {
 			const context = isITunnelItem(arg) ? arg : accessor.get(IContextKeyService).getContextKeyValue<ITunnelItem | undefined>(TunnelViewSelectionKeyName);
 			if (context) {
 				return new Promise(resolve => {
@@ -1080,7 +1081,7 @@ export namespace ForwardPortAction {
 	export const TREEITEM_LABEL = nls.localize('remote.tunnel.forwardItem', "Forward Port");
 	const forwardPrompt = nls.localize('remote.tunnel.forwardPrompt', "Port number or address (eg. 3000 or 10.10.10.10:2000).");
 
-	function validateInput(remoteExplorerService: IRemoteExplorerService, value: string, canElevate: boolean): { content: string, severity: Severity } | null {
+	function validateInput(remoteExplorerService: IRemoteExplorerService, value: string, canElevate: boolean): { content: string; severity: Severity } | null {
 		const parsed = parseAddress(value);
 		if (!parsed) {
 			return { content: invalidPortString, severity: Severity.Error };
@@ -1108,7 +1109,7 @@ export namespace ForwardPortAction {
 			remoteExplorerService.setEditable(undefined, TunnelEditId.New, {
 				onFinish: async (value, success) => {
 					remoteExplorerService.setEditable(undefined, TunnelEditId.New, null);
-					let parsed: { host: string, port: number } | undefined;
+					let parsed: { host: string; port: number } | undefined;
 					if (success && (parsed = parseAddress(value))) {
 						remoteExplorerService.forward({
 							remote: { host: parsed.host, port: parsed.port },
@@ -1134,7 +1135,7 @@ export namespace ForwardPortAction {
 				prompt: forwardPrompt,
 				validateInput: (value) => Promise.resolve(validateInput(remoteExplorerService, value, tunnelService.canElevate))
 			});
-			let parsed: { host: string, port: number } | undefined;
+			let parsed: { host: string; port: number } | undefined;
 			if (value && (parsed = parseAddress(value))) {
 				remoteExplorerService.forward({
 					remote: { host: parsed.host, port: parsed.port },
@@ -1146,7 +1147,7 @@ export namespace ForwardPortAction {
 }
 
 interface QuickPickTunnel extends IQuickPickItem {
-	tunnel?: ITunnelItem
+	tunnel?: ITunnelItem;
 }
 
 function makeTunnelPicks(tunnels: Tunnel[], remoteExplorerService: IRemoteExplorerService, tunnelService: ITunnelService): QuickPickInput<QuickPickTunnel>[] {
@@ -1360,7 +1361,7 @@ namespace ChangeLocalPortAction {
 	export const ID = 'remote.tunnel.changeLocalPort';
 	export const LABEL = nls.localize('remote.tunnel.changeLocalPort', "Change Local Address Port");
 
-	function validateInput(value: string, canElevate: boolean): { content: string, severity: Severity } | null {
+	function validateInput(value: string, canElevate: boolean): { content: string; severity: Severity } | null {
 		if (!value.match(/^[0-9]+$/)) {
 			return { content: invalidPortString, severity: Severity.Error };
 		} else if (Number(value) >= maxPortNumber) {
@@ -1691,7 +1692,8 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 export const portWithRunningProcessForeground = registerColor('ports.iconRunningProcessForeground', {
 	light: STATUS_BAR_HOST_NAME_BACKGROUND,
 	dark: STATUS_BAR_HOST_NAME_BACKGROUND,
-	hc: STATUS_BAR_HOST_NAME_BACKGROUND
+	hcDark: STATUS_BAR_HOST_NAME_BACKGROUND,
+	hcLight: STATUS_BAR_HOST_NAME_BACKGROUND
 }, nls.localize('portWithRunningProcess.foreground', "The color of the icon for a port that has an associated running process."));
 
 registerThemingParticipant((theme, collector) => {

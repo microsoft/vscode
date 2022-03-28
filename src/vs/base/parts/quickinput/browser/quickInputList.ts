@@ -31,6 +31,7 @@ import { localize } from 'vs/nls';
 const $ = dom.$;
 
 interface IListElement {
+	readonly hasCheckbox: boolean;
 	readonly index: number;
 	readonly item: IQuickPickItem;
 	readonly saneLabel: string;
@@ -47,6 +48,7 @@ interface IListElement {
 }
 
 class ListElement implements IListElement, IDisposable {
+	hasCheckbox!: boolean;
 	index!: number;
 	item!: IQuickPickItem;
 	saneLabel!: string;
@@ -446,7 +448,9 @@ export class QuickInputList {
 					.filter(s => !!s)
 					.join(', ');
 
+				const hasCheckbox = this.parent.classList.contains('show-checkboxes');
 				result.push(new ListElement({
+					hasCheckbox,
 					index,
 					item,
 					saneLabel,
@@ -751,7 +755,18 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<List
 		return 'listbox';
 	}
 
-	getRole() {
-		return 'option';
+	getRole(element: ListElement) {
+		return element.hasCheckbox ? 'checkbox' : 'option';
+	}
+
+	isChecked(element: ListElement) {
+		if (!element.hasCheckbox) {
+			return undefined;
+		}
+
+		return {
+			value: element.checked,
+			onDidChange: element.onChecked
+		};
 	}
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { nbformat } from '@jupyterlab/coreutils';
+import * as nbformat from '@jupyterlab/nbformat';
 import * as detectIndent from 'detect-indent';
 import * as vscode from 'vscode';
 import { defaultNotebookFormat } from './constants';
@@ -22,7 +22,7 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		} catch {
 		}
 
-		let json = contents ? (JSON.parse(contents) as Partial<nbformat.INotebookContent>) : {};
+		let json = contents && /\S/.test(contents) ? (JSON.parse(contents) as Partial<nbformat.INotebookContent>) : {};
 
 		if (json.__webview_backup) {
 			const backupId = json.__webview_backup;
@@ -83,9 +83,11 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 
 	public serializeNotebookToString(data: vscode.NotebookData): string {
 		const notebookContent = getNotebookMetadata(data);
+		// use the preferred language from document metadata or the first cell language as the notebook preferred cell language
+		const preferredCellLanguage = notebookContent.metadata?.language_info?.name ?? data.cells[0].languageId;
 
 		notebookContent.cells = data.cells
-			.map(cell => createJupyterCellFromNotebookCell(cell))
+			.map(cell => createJupyterCellFromNotebookCell(cell, preferredCellLanguage))
 			.map(pruneCell);
 
 		const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string' ?

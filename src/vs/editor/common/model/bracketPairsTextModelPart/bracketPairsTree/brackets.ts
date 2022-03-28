@@ -17,7 +17,7 @@ export class BracketTokens {
 
 		const brackets = configuration.characterPair.getColorizedBrackets();
 
-		const closingBrackets = new Map</* closingText */ string, { openingBrackets: SmallImmutableSet<OpeningBracketId>, first: OpeningBracketId }>();
+		const closingBrackets = new Map</* closingText */ string, { openingBrackets: SmallImmutableSet<OpeningBracketId>; first: OpeningBracketId }>();
 		const openingBrackets = new Set</* openingText */ string>();
 
 		for (const [openingText, closingText] of brackets) {
@@ -41,7 +41,7 @@ export class BracketTokens {
 				TokenKind.ClosingBracket,
 				info.first,
 				info.openingBrackets,
-				BracketAstNode.create(length, configuration.languageId, info.openingBrackets)
+				BracketAstNode.create(length, configuration.languageId, closingText, info.openingBrackets)
 			));
 		}
 
@@ -54,7 +54,7 @@ export class BracketTokens {
 				TokenKind.OpeningBracket,
 				openingTextId,
 				bracketIds,
-				BracketAstNode.create(length, configuration.languageId, bracketIds)
+				BracketAstNode.create(length, configuration.languageId, openingText, bracketIds)
 			));
 		}
 

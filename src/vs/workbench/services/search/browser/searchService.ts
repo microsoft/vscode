@@ -18,13 +18,14 @@ import { IWorkerClient, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/b
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost, SearchWorkerFileSystemHandle } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
+import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
 import { memoize } from 'vs/base/common/decorators';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
+import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 
 export class RemoteSearchService extends SearchService {
 	constructor(
@@ -49,15 +50,16 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	protected _worker: IWorkerClient<ILocalFileSearchSimpleWorker> | null;
 	protected readonly _workerFactory: DefaultWorkerFactory;
 
-	private readonly _onDidRecieveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>, queryId: number }>();
-	readonly onDidRecieveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>, queryId: number }> = this._onDidRecieveTextSearchMatch.event;
+	private readonly _onDidReceiveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>; queryId: number }>();
+	readonly onDidReceiveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>; queryId: number }> = this._onDidReceiveTextSearchMatch.event;
 
-	private cache: { key: string, cache: ISearchComplete } | undefined;
+	private cache: { key: string; cache: ISearchComplete } | undefined;
 
 	private queryId: number = 0;
 
 	constructor(
 		@IFileService private fileService: IFileService,
+		@IUriIdentityService private uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._worker = null;
@@ -65,7 +67,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	}
 
 	sendTextSearchMatch(match: IFileMatch<UriComponents>, queryId: number): void {
-		this._onDidRecieveTextSearchMatch.fire({ match, queryId });
+		this._onDidReceiveTextSearchMatch.fire({ match, queryId });
 	}
 
 	@memoize
@@ -91,8 +93,8 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 				const queryId = this.queryId++;
 				queryDisposables.add(token?.onCancellationRequested(e => this.cancelQuery(queryId)) || Disposable.None);
 
-				const handle: SearchWorkerFileSystemHandle | undefined = await this.fileSystemProvider.getHandle(fq.folder);
-				if (!handle || handle.kind !== 'directory') {
+				const handle: FileSystemHandle | undefined = await this.fileSystemProvider.getHandle(fq.folder);
+				if (!handle || !WebFileSystemAccess.isFileSystemDirectoryHandle(handle)) {
 					console.error('Could not get directory handle for ', fq);
 					return;
 				}
@@ -102,13 +104,14 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 					results: result.results
 				});
 
-				queryDisposables.add(this.onDidRecieveTextSearchMatch(e => {
+				queryDisposables.add(this.onDidReceiveTextSearchMatch(e => {
 					if (e.queryId === queryId) {
 						onProgress?.(reviveMatch(e.match));
 					}
 				}));
 
-				const folderResults = await proxy.searchDirectory(handle, query, fq, queryId);
+				const ignorePathCasing = this.uriIdentityService.extUri.ignorePathCasing(fq.folder);
+				const folderResults = await proxy.searchDirectory(handle, query, fq, ignorePathCasing, queryId);
 				for (const folderResult of folderResults.results) {
 					results.push(reviveMatch(folderResult));
 				}
@@ -144,13 +147,13 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 				const queryId = this.queryId++;
 				queryDisposables.add(token?.onCancellationRequested(e => this.cancelQuery(queryId)) || Disposable.None);
 
-				const handle: SearchWorkerFileSystemHandle | undefined = await this.fileSystemProvider.getHandle(fq.folder);
-				if (!handle || handle.kind !== 'directory') {
+				const handle: FileSystemHandle | undefined = await this.fileSystemProvider.getHandle(fq.folder);
+				if (!handle || !WebFileSystemAccess.isFileSystemDirectoryHandle(handle)) {
 					console.error('Could not get directory handle for ', fq);
 					return;
 				}
-
-				const folderResults = await proxy.listDirectory(handle, query, fq, queryId);
+				const caseSensitive = this.uriIdentityService.extUri.ignorePathCasing(fq.folder);
+				const folderResults = await proxy.listDirectory(handle, query, fq, caseSensitive, queryId);
 				for (const folderResult of folderResults.results) {
 					results.push({ resource: URI.joinPath(fq.folder, folderResult) });
 				}

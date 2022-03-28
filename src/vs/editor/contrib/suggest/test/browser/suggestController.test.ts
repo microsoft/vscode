@@ -12,7 +12,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { CompletionItemInsertTextRule, CompletionItemKind, CompletionProviderRegistry } from 'vs/editor/common/languages';
+import { CompletionItemInsertTextRule, CompletionItemKind } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
@@ -29,6 +29,8 @@ import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/com
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 suite('SuggestController', function () {
 
@@ -37,6 +39,8 @@ suite('SuggestController', function () {
 	let controller: SuggestController;
 	let editor: ITestCodeEditor;
 	let model: TextModel;
+	const languageFeaturesService = new LanguageFeaturesService();
+
 
 	teardown(function () {
 		disposables.clear();
@@ -45,6 +49,7 @@ suite('SuggestController', function () {
 	setup(function () {
 
 		const serviceCollection = new ServiceCollection(
+			[ILanguageFeaturesService, languageFeaturesService],
 			[ITelemetryService, NullTelemetryService],
 			[ILogService, new NullLogService()],
 			[IStorageService, new InMemoryStorageService()],
@@ -78,7 +83,7 @@ suite('SuggestController', function () {
 	});
 
 	test('postfix completion reports incorrect position #86984', async function () {
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -114,7 +119,7 @@ suite('SuggestController', function () {
 
 	test('use additionalTextEdits sync when possible', async function () {
 
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -155,7 +160,7 @@ suite('SuggestController', function () {
 
 		let resolveCallCount = 0;
 
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -207,7 +212,7 @@ suite('SuggestController', function () {
 
 		let resolveCallCount = 0;
 		let resolve: Function = () => { };
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -263,7 +268,7 @@ suite('SuggestController', function () {
 
 		let resolveCallCount = 0;
 		let resolve: Function = () => { };
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -312,7 +317,7 @@ suite('SuggestController', function () {
 
 		let resolveCallCount = 0;
 		let resolve: Function = () => { };
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -366,7 +371,7 @@ suite('SuggestController', function () {
 	test('resolve additionalTextEdits async when needed (cancel)', async function () {
 
 		let resolve: Function[] = [];
-		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -418,5 +423,43 @@ suite('SuggestController', function () {
 
 		// next suggestion used
 		assert.strictEqual(editor.getValue(), 'halloabc');
+	});
+
+	test('Completion edits are applied inconsistently when additionalTextEdits and textEdit start at the same offset #143888', async function () {
+
+
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			provideCompletionItems(doc, pos) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Text,
+						label: 'MyClassName',
+						insertText: 'MyClassName',
+						range: Range.fromPositions(pos),
+						additionalTextEdits: [{
+							range: Range.fromPositions(pos),
+							text: 'import "my_class.txt";\n'
+						}]
+					}]
+				};
+			}
+		}));
+
+		editor.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		// trigger
+		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+		await p1;
+
+		//
+		let p2 = Event.toPromise(controller.model.onDidCancel);
+		controller.acceptSelectedSuggestion(true, false);
+		await p2;
+
+		// insertText happens sync!
+		assert.strictEqual(editor.getValue(), 'import "my_class.txt";\nMyClassName');
+
 	});
 });

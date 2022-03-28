@@ -6,6 +6,7 @@
 import * as arrays from 'vs/base/common/arrays';
 import * as types from 'vs/base/common/types';
 import * as nls from 'vs/nls';
+import { IAction } from 'vs/base/common/actions';
 
 function exceptionToErrorMessage(exception: any, verbose: boolean): string {
 	if (verbose && (exception.stack || exception.stacktrace)) {
@@ -80,4 +81,29 @@ export function toErrorMessage(error: any = null, verbose: boolean = false): str
 	}
 
 	return nls.localize('error.defaultMessage', "An unknown error occurred. Please consult the log for more details.");
+}
+
+
+export interface IErrorOptions {
+	actions?: readonly IAction[];
+}
+
+export interface IErrorWithActions {
+	actions?: readonly IAction[];
+}
+
+export function isErrorWithActions(obj: unknown): obj is IErrorWithActions {
+	const candidate = obj as IErrorWithActions | undefined;
+
+	return candidate instanceof Error && Array.isArray(candidate.actions);
+}
+
+export function createErrorWithActions(message: string, options: IErrorOptions = Object.create(null)): Error & IErrorWithActions {
+	const result = new Error(message);
+
+	if (options.actions) {
+		(result as IErrorWithActions).actions = options.actions;
+	}
+
+	return result;
 }

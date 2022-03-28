@@ -15,6 +15,7 @@ export interface IOutputChannelDescriptor {
 	id: string;
 	label: string;
 	log: boolean;
+	languageId?: string;
 	file?: URI;
 }
 

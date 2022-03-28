@@ -83,4 +83,19 @@ suite('Snippets', function () {
 		assertNeedsClipboard('baba', false);
 	});
 
+	test('Snippet#isTrivial', function () {
+
+		function assertIsTrivial(body: string, expected: boolean): void {
+			let snippet = new Snippet(['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSource.User);
+			assert.strictEqual(snippet.isTrivial, expected);
+		}
+
+		assertIsTrivial('foo', true);
+		assertIsTrivial('foo$0', true);
+		assertIsTrivial('foo$0bar', false);
+		assertIsTrivial('foo$1', false);
+		assertIsTrivial('foo$1$0', false);
+		assertIsTrivial('${1:foo}', false);
+	});
+
 });

@@ -5,7 +5,7 @@
 
 
 import { WorkspaceFileEditOptions } from 'vs/editor/common/languages';
-import { IFileService, FileSystemProviderCapabilities, IFileContent } from 'vs/platform/files/common/files';
+import { IFileService, FileSystemProviderCapabilities, IFileContent, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, IMoveOperation, ICopyOperation, IDeleteOperation, ICreateOperation, ICreateFileOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -233,7 +233,10 @@ class DeleteOperation implements IFileOperation {
 		const undoes: CreateEdit[] = [];
 
 		for (const edit of this._edits) {
-			if (!await this._fileService.exists(edit.oldUri)) {
+			let fileStat: IFileStatWithMetadata | undefined;
+			try {
+				fileStat = await this._fileService.resolve(edit.oldUri, { resolveMetadata: true });
+			} catch (err) {
 				if (!edit.options.ignoreIfNotExists) {
 					throw new Error(`${edit.oldUri} does not exist and can not be deleted`);
 				}
@@ -249,15 +252,15 @@ class DeleteOperation implements IFileOperation {
 
 			// read file contents for undo operation. when a file is too large it won't be restored
 			let fileContent: IFileContent | undefined;
-			if (!edit.undoesCreate && !edit.options.folder) {
+			if (!edit.undoesCreate && !edit.options.folder && !(typeof edit.options.maxSize === 'number' && fileStat.size > edit.options.maxSize)) {
 				try {
 					fileContent = await this._fileService.readFile(edit.oldUri);
 				} catch (err) {
 					this._logService.critical(err);
 				}
 			}
-			if (!(typeof edit.options.maxSize === 'number' && fileContent && (fileContent?.size > edit.options.maxSize))) {
-				undoes.push(new CreateEdit(edit.oldUri, edit.options, fileContent?.value));
+			if (fileContent !== undefined) {
+				undoes.push(new CreateEdit(edit.oldUri, edit.options, fileContent.value));
 			}
 		}
 
@@ -286,6 +289,7 @@ class FileUndoRedoElement implements IWorkspaceUndoRedoElement {
 
 	constructor(
 		readonly label: string,
+		readonly code: string,
 		readonly operations: IFileOperation[],
 		readonly confirmBeforeUndo: boolean
 	) {
@@ -317,6 +321,7 @@ export class BulkFileEdits {
 
 	constructor(
 		private readonly _label: string,
+		private readonly _code: string,
 		private readonly _undoRedoGroup: UndoRedoGroup,
 		private readonly _undoRedoSource: UndoRedoSource | undefined,
 		private readonly _confirmBeforeUndo: boolean,
@@ -390,6 +395,6 @@ export class BulkFileEdits {
 			this._progress.report(undefined);
 		}
 
-		this._undoRedoService.pushElement(new FileUndoRedoElement(this._label, undoOperations, this._confirmBeforeUndo), this._undoRedoGroup, this._undoRedoSource);
+		this._undoRedoService.pushElement(new FileUndoRedoElement(this._label, this._code, undoOperations, this._confirmBeforeUndo), this._undoRedoGroup, this._undoRedoSource);
 	}
 }

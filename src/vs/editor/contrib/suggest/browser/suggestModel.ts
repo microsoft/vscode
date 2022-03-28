@@ -11,11 +11,11 @@ import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle'
 import { getLeadingWhitespace, isHighSurrogate, isLowSurrogate } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/cursor/cursorEvents';
+import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionContext, CompletionItemKind, CompletionItemProvider, CompletionProviderRegistry, CompletionTriggerKind, StandardTokenType } from 'vs/editor/common/languages';
+import { CompletionContext, CompletionItemKind, CompletionItemProvider, CompletionTriggerKind } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
@@ -25,8 +25,9 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CompletionModel } from './completionModel';
-import { CompletionDurations, CompletionItem, CompletionOptions, getSnippetSuggestSupport, getSuggestionComparator, provideSuggestionItems, SnippetSortOrder } from './suggest';
+import { CompletionDurations, CompletionItem, CompletionOptions, getSnippetSuggestSupport, getSuggestionComparator, provideSuggestionItems, QuickSuggestionsOptions, SnippetSortOrder } from './suggest';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -166,6 +167,7 @@ export class SuggestModel implements IDisposable {
 		@ILogService private readonly _logService: ILogService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 	) {
 		this._currentSelection = this._editor.getSelection() || new Selection(1, 1, 1, 1);
 
@@ -182,7 +184,7 @@ export class SuggestModel implements IDisposable {
 			this._updateTriggerCharacters();
 			this._updateQuickSuggest();
 		}));
-		this._toDispose.add(CompletionProviderRegistry.onDidChange(() => {
+		this._toDispose.add(this._languageFeaturesService.completionProvider.onDidChange(() => {
 			this._updateTriggerCharacters();
 			this._updateActiveSuggestSession();
 		}));
@@ -243,7 +245,7 @@ export class SuggestModel implements IDisposable {
 		}
 
 		const supportsByTriggerCharacter = new Map<string, Set<CompletionItemProvider>>();
-		for (const support of CompletionProviderRegistry.all(this._editor.getModel())) {
+		for (const support of this._languageFeaturesService.completionProvider.all(this._editor.getModel())) {
 			for (const ch of support.triggerCharacters || []) {
 				let set = supportsByTriggerCharacter.get(ch);
 				if (!set) {
@@ -322,7 +324,7 @@ export class SuggestModel implements IDisposable {
 
 	private _updateActiveSuggestSession(): void {
 		if (this._state !== State.Idle) {
-			if (!this._editor.hasModel() || !CompletionProviderRegistry.has(this._editor.getModel())) {
+			if (!this._editor.hasModel() || !this._languageFeaturesService.completionProvider.has(this._editor.getModel())) {
 				this.cancel();
 			} else {
 				this.trigger({ auto: this._state === State.Auto, shy: false }, true);
@@ -374,7 +376,7 @@ export class SuggestModel implements IDisposable {
 
 	private _doTriggerQuickSuggest(): void {
 
-		if (this._editor.getOption(EditorOption.quickSuggestions) === false) {
+		if (QuickSuggestionsOptions.isAllOff(this._editor.getOption(EditorOption.quickSuggestions))) {
 			// not enabled
 			return;
 		}
@@ -399,21 +401,17 @@ export class SuggestModel implements IDisposable {
 			const model = this._editor.getModel();
 			const pos = this._editor.getPosition();
 			// validate enabled now
-			const quickSuggestions = this._editor.getOption(EditorOption.quickSuggestions);
-			if (quickSuggestions === false) {
+			const config = this._editor.getOption(EditorOption.quickSuggestions);
+			if (QuickSuggestionsOptions.isAllOff(config)) {
 				return;
-			} else if (quickSuggestions === true) {
-				// all good
-			} else {
+			}
+
+			if (!QuickSuggestionsOptions.isAllOn(config)) {
 				// Check the type of the token that triggered this
 				model.tokenizeIfCheap(pos.lineNumber);
 				const lineTokens = model.getLineTokens(pos.lineNumber);
 				const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
-				const inValidScope = quickSuggestions.other && tokenType === StandardTokenType.Other
-					|| quickSuggestions.comments && tokenType === StandardTokenType.Comment
-					|| quickSuggestions.strings && tokenType === StandardTokenType.String;
-
-				if (!inValidScope) {
+				if (QuickSuggestionsOptions.valueFor(config, tokenType) !== 'on') {
 					return;
 				}
 			}
@@ -423,7 +421,7 @@ export class SuggestModel implements IDisposable {
 				return;
 			}
 
-			if (!CompletionProviderRegistry.has(model)) {
+			if (!this._languageFeaturesService.completionProvider.has(model)) {
 				return;
 			}
 
@@ -453,7 +451,7 @@ export class SuggestModel implements IDisposable {
 		});
 	}
 
-	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: Set<CompletionItemProvider>, existing?: { items: CompletionItem[], clipboardText: string | undefined }): void {
+	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: Set<CompletionItemProvider>, existing?: { items: CompletionItem[]; clipboardText: string | undefined }): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -501,6 +499,7 @@ export class SuggestModel implements IDisposable {
 		const wordDistance = WordDistance.create(this._editorWorkerService, this._editor);
 
 		const completions = provideSuggestionItems(
+			this._languageFeaturesService.completionProvider,
 			model,
 			this._editor.getPosition(),
 			new CompletionOptions(snippetSortOrder, itemKindFilter, onlyFrom, showDeprecated),
@@ -564,8 +563,8 @@ export class SuggestModel implements IDisposable {
 		}
 
 		setTimeout(() => {
-			type Durations = { data: string; };
-			type DurationsClassification = { data: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' } };
+			type Durations = { data: string };
+			type DurationsClassification = { data: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' } };
 			this._telemetryService.publicLog2<Durations, DurationsClassification>('suggest.durations.json', { data: JSON.stringify(durations) });
 			this._logService.debug('suggest.durations.json', durations);
 		});
@@ -655,7 +654,7 @@ export class SuggestModel implements IDisposable {
 
 			// Select those providers have not contributed to this completion model and re-trigger completions for
 			// them. Also adopt the existing items and merge them into the new completion model
-			const inactiveProvider = new Set(CompletionProviderRegistry.all(this._editor.getModel()!));
+			const inactiveProvider = new Set(this._languageFeaturesService.completionProvider.all(this._editor.getModel()!));
 			for (let provider of this._completionModel.allProvider) {
 				inactiveProvider.delete(provider);
 			}

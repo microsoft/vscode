@@ -6,7 +6,7 @@
 import assert = require('assert');
 import { PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
-import { ModelLineProjectionData } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
 
 suite('Editor ViewModel - LineBreakData', () => {
 	test('Basic', () => {

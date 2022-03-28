@@ -151,7 +151,30 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 			ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
 		}
 
-		return model.validateRange(ret);
+		ret = model.validateRange(ret);
+
+		if (ret.isEmpty()) {
+			const maxColumn = model.getLineLastNonWhitespaceColumn(ret.startLineNumber) ||
+				model.getLineMaxColumn(ret.startLineNumber);
+
+			if (maxColumn === 1 || ret.endColumn >= maxColumn) {
+				// empty line or behind eol
+				// keep the range as is, it will be rendered 1ch wide
+				return ret;
+			}
+
+			const word = model.getWordAtPosition(ret.getStartPosition());
+			if (word) {
+				ret = new Range(ret.startLineNumber, word.startColumn, ret.endLineNumber, word.endColumn);
+			}
+		} else if (rawMarker.endColumn === Number.MAX_VALUE && rawMarker.startColumn === 1 && ret.startLineNumber === ret.endLineNumber) {
+			let minColumn = model.getLineFirstNonWhitespaceColumn(rawMarker.startLineNumber);
+			if (minColumn < ret.endColumn) {
+				ret = new Range(ret.startLineNumber, minColumn, ret.endLineNumber, ret.endColumn);
+				rawMarker.startColumn = minColumn;
+			}
+		}
+		return ret;
 	}
 
 	private _createDecorationOption(marker: IMarker): IModelDecorationOptions {
