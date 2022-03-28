@@ -11,9 +11,10 @@ import { Promises } from 'vs/base/node/pfs';
 import { InMemoryStorageDatabase, IStorage, Storage, StorageHint, StorageState } from 'vs/base/parts/storage/common/storage';
 import { ISQLiteStorageDatabaseLoggingOptions, SQLiteStorageDatabase } from 'vs/base/parts/storage/node/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
-import { currentSessionDateStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { currentSessionDateStorageKey, firstSessionDateStorageKey, ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export interface IStorageMainOptions {
@@ -110,7 +111,9 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 	private state = StorageState.None;
 
 	constructor(
-		protected readonly logService: ILogService
+		protected readonly logService: ILogService,
+		private readonly fileService: IFileService,
+		private readonly telemetryService: ITelemetryService
 	) {
 		super();
 	}
@@ -219,9 +222,11 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 	constructor(
 		private readonly options: IStorageMainOptions,
 		logService: ILogService,
-		private readonly environmentService: IEnvironmentService
+		private readonly environmentService: IEnvironmentService,
+		fileService: IFileService,
+		telemetryService: ITelemetryService
 	) {
-		super(logService);
+		super(logService, fileService, telemetryService);
 	}
 
 	protected async doCreate(): Promise<IStorage> {
@@ -271,9 +276,11 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier,
 		private readonly options: IStorageMainOptions,
 		logService: ILogService,
-		private readonly environmentService: IEnvironmentService
+		private readonly environmentService: IEnvironmentService,
+		fileService: IFileService,
+		telemetryService: ITelemetryService
 	) {
-		super(logService);
+		super(logService, fileService, telemetryService);
 	}
 
 	protected async doCreate(): Promise<IStorage> {

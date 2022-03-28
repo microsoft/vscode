@@ -10,6 +10,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
@@ -18,6 +19,7 @@ import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from 'vs/platform/storage/electron-main/storageMain';
 import { StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ICodeWindow, UnloadReason } from 'vs/platform/window/electron-main/window';
 
 suite('StorageMainService', function () {
@@ -123,15 +125,19 @@ suite('StorageMainService', function () {
 		storageCloseListener.dispose();
 	}
 
+	function createStorageService(lifecycleMainService: ILifecycleMainService = new StorageTestLifecycleMainService()): TestStorageMainService {
+		return new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), lifecycleMainService, new FileService(new NullLogService()), NullTelemetryService);
+	}
+
 	test('basics (global)', function () {
-		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), new StorageTestLifecycleMainService());
+		const storageMainService = createStorageService();
 
 		return testStorage(storageMainService.globalStorage, true);
 	});
 
 	test('basics (workspace)', function () {
 		const workspace = { id: generateUuid() };
-		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), new StorageTestLifecycleMainService());
+		const storageMainService = createStorageService();
 
 		return testStorage(storageMainService.workspaceStorage(workspace), false);
 	});
@@ -139,7 +145,7 @@ suite('StorageMainService', function () {
 	test('storage closed onWillShutdown', async function () {
 		const lifecycleMainService = new StorageTestLifecycleMainService();
 		const workspace = { id: generateUuid() };
-		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), lifecycleMainService);
+		const storageMainService = createStorageService(lifecycleMainService);
 
 		let workspaceStorage = storageMainService.workspaceStorage(workspace);
 		let didCloseWorkspaceStorage = false;
@@ -170,7 +176,7 @@ suite('StorageMainService', function () {
 	});
 
 	test('storage closed before init works', async function () {
-		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), new StorageTestLifecycleMainService());
+		const storageMainService = createStorageService();
 		const workspace = { id: generateUuid() };
 
 		let workspaceStorage = storageMainService.workspaceStorage(workspace);
@@ -193,7 +199,7 @@ suite('StorageMainService', function () {
 	});
 
 	test('storage closed before init awaits works', async function () {
-		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), new StorageTestLifecycleMainService());
+		const storageMainService = createStorageService();
 		const workspace = { id: generateUuid() };
 
 		let workspaceStorage = storageMainService.workspaceStorage(workspace);
