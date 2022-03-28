@@ -81,8 +81,14 @@
 	z-index: 31;
 }
 
-.monaco-workbench .simple-find-part-wrapper {
+.monaco-workbench .simple-find-part-wrapper.terminal-find {
 	z-index: 33 !important;
+	overflow: unset;
+	margin-right: 90px;
+}
+
+.terminal-find .simple-find-part {
+	width: 300px;
 }
 
 .xterm .xterm-screen {

@@ -26,6 +26,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._register(findState.onFindReplaceStateChange(() => {
 			this.show();
 		}));
+		super.getDomNode().classList.add('terminal-find');
 		this._findInputFocused = TerminalContextKeys.findInputFocus.bindTo(this._contextKeyService);
 		this._findWidgetFocused = TerminalContextKeys.findFocus.bindTo(this._contextKeyService);
 		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(_contextKeyService);
@@ -88,9 +89,18 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			this._matchesCount = document.createElement('div');
 		}
 		this._matchesCount.className = 'matchesCount';
-		this._matchesCount.appendChild(document.createTextNode(`${xterm.getMatchesCount()} Results`));
+		this._matchesCount.innerText = '';
+		const count = xterm.getMatchesCount();
+		const matches = count > 0 ? `${count} Results` : `No Results`;
+		this._matchesCount.appendChild(document.createTextNode(matches));
 		const node = super.getDomNode().querySelector('.monaco-findInput');
-		node?.insertAdjacentElement('beforeend', this._matchesCount);
+		if (count === 0) {
+			this._matchesCount.style.color = '#F48771';
+		} else {
+			this._matchesCount.style.color = 'inherit';
+		}
+		this._matchesCount.style.paddingLeft = '3px';
+		node?.insertAdjacentElement('afterend', this._matchesCount);
 	}
 
 	protected _onFocusTrackerFocus() {
