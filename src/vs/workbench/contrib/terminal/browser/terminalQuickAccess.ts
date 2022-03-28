@@ -81,8 +81,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 
 	private _createPick(terminal: ITerminalInstance, terminalIndex: number, filter: string, groupIndex?: number): IPickerQuickAccessItem | undefined {
 		const iconId = getIconId(terminal);
-		const terminalExtendedName = terminal.cwd ? `${terminal.title} (${terminal.cwd})` : terminal.title;
-		const label = groupIndex ? `$(${iconId}) ${groupIndex + 1}.${terminalIndex + 1}: ${terminalExtendedName}` : `$(${iconId}) ${terminalIndex + 1}: ${terminalExtendedName}`;
+		const label = groupIndex ? `$(${iconId}) ${groupIndex + 1}.${terminalIndex + 1}: ${terminal.title}` : `$(${iconId}) ${terminalIndex + 1}: ${terminal.title}`;
 		const iconClasses: string[] = [];
 		const colorClass = getColorClass(terminal);
 		if (colorClass) {
@@ -96,6 +95,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		if (highlights) {
 			return {
 				label,
+				description: terminal.description,
 				highlights: { label: highlights },
 				buttons: [
 					{
