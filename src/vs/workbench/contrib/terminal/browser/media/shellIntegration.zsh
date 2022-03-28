@@ -22,13 +22,14 @@ if [ -f ~/.zshrc ]; then
 	. ~/.zshrc
 fi
 
+# Shell integration was disabled by the shell, exit without warning assuming either the shell has
+# explicitly disabled shell integration as it's incompatible or it implements the protocol.
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
-	echo -e "\033[1;32mShell integration was disabled by the shell\033[0m"
 	return
 fi
 
-IN_COMMAND_EXECUTION="1"
-LAST_HISTORY_ID=0
+__vsc_in_command_execution="1"
+__vsc_last_history_id=0
 
 __vsc_prompt_start() {
 	printf "\033]633;A\007"
@@ -63,49 +64,49 @@ __vsc_right_prompt_end() {
 }
 
 __vsc_command_complete() {
-	local VSC_HISTORY_ID=$(history | tail -n1 | awk '{print $1;}')
-	if [[ "$VSC_HISTORY_ID" == "$LAST_HISTORY_ID" ]]; then
+	local __vsc_history_id=$(history | tail -n1 | awk '{print $1;}')
+	if [[ "$__vsc_history_id" == "$__vsc_last_history_id" ]]; then
 		printf "\033]633;D\007"
 	else
-		printf "\033]633;D;%s\007" "$VSC_STATUS"
-		LAST_HISTORY_ID=$VSC_HISTORY_ID
+		printf "\033]633;D;%s\007" "$__vsc_status"
+		__vsc_last_history_id=$__vsc_history_id
 	fi
 	__vsc_update_cwd
 }
 
 __vsc_update_prompt() {
-	PRIOR_PROMPT="$PS1"
-	IN_COMMAND_EXECUTION=""
+	__vsc_prior_prompt="$PS1"
+	__vsc_in_command_execution=""
 	PS1="%{$(__vsc_prompt_start)%}$PREFIX$PS1%{$(__vsc_prompt_end)%}"
 	PS2="%{$(__vsc_continuation_start)%}$PS2%{$(__vsc_continuation_end)%}"
 	if [ -n "$RPROMPT" ]; then
-		PRIOR_RPROMPT="$RPROMPT"
+		__vsc_prior_rprompt="$RPROMPT"
 		RPROMPT="%{$(__vsc_right_prompt_start)%}$RPROMPT%{$(__vsc_right_prompt_end)%}"
 	fi
 }
 
 __vsc_precmd() {
-	local VSC_STATUS="$?"
-	if [ -z "${IN_COMMAND_EXECUTION-}" ]; then
+	local __vsc_status="$?"
+	if [ -z "${__vsc_in_command_execution-}" ]; then
 		# not in command execution
 		__vsc_command_output_start
 	fi
 
-	__vsc_command_complete "$VSC_STATUS"
+	__vsc_command_complete "$__vsc_status"
 
 	# in command execution
-	if [ -n "$IN_COMMAND_EXECUTION" ]; then
+	if [ -n "$__vsc_in_command_execution" ]; then
 		# non null
 		__vsc_update_prompt
 	fi
 }
 
 __vsc_preexec() {
-	PS1="$PRIOR_PROMPT"
+	PS1="$__vsc_prior_prompt"
 	if [ -n "$RPROMPT" ]; then
-		RPROMPT="$PRIOR_RPROMPT"
+		RPROMPT="$__vsc_prior_rprompt"
 	fi
-	IN_COMMAND_EXECUTION="1"
+	__vsc_in_command_execution="1"
 	__vsc_command_output_start
 }
 add-zsh-hook precmd __vsc_precmd

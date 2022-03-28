@@ -31,8 +31,8 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	return
 fi
 
-IN_COMMAND_EXECUTION="1"
-LAST_HISTORY_ID=$(history 1 | awk '{print $1;}')
+__vsc_in_command_execution="1"
+__vsc_last_history_id=$(history 1 | awk '{print $1;}')
 
 __vsc_prompt_start() {
 	printf "\033]633;A\007"
@@ -59,77 +59,77 @@ __vsc_continuation_end() {
 }
 
 __vsc_command_complete() {
-	local VSC_HISTORY_ID=$(history 1 | awk '{print $1;}')
-	if [[ "$VSC_HISTORY_ID" == "$LAST_HISTORY_ID" ]]; then
+	local __vsc_history_id=$(history 1 | awk '{print $1;}')
+	if [[ "$__vsc_history_id" == "$__vsc_last_history_id" ]]; then
 		printf "\033]633;D\007"
 	else
-		printf "\033]633;D;%s\007" "$VSC_STATUS"
-		LAST_HISTORY_ID=$VSC_HISTORY_ID
+		printf "\033]633;D;%s\007" "$__vsc_status"
+		__vsc_last_history_id=$__vsc_history_id
 	fi
 	__vsc_update_cwd
 }
 
 __vsc_update_prompt() {
-	PRIOR_PROMPT="$PS1"
-	IN_COMMAND_EXECUTION=""
+	__vsc_prior_prompt="$PS1"
+	__vsc_in_command_execution=""
 	PS1="\[$(__vsc_prompt_start)\]$PREFIX$PS1\[$(__vsc_prompt_end)\]"
 	PS2="\[$(__vsc_continuation_start)\]$PS2\[$(__vsc_continuation_end)\]"
 }
 
-precmd() {
-	__vsc_command_complete "$VSC_STATUS"
+__vsc_precmd() {
+	__vsc_command_complete "$__vsc_status"
 
 	# in command execution
-	if [ -n "$IN_COMMAND_EXECUTION" ]; then
+	if [ -n "$__vsc_in_command_execution" ]; then
 		# non null
 		__vsc_update_prompt
 	fi
 }
-preexec() {
-	PS1="$PRIOR_PROMPT"
-	if [ -z "${IN_COMMAND_EXECUTION-}" ]; then
-		IN_COMMAND_EXECUTION="1"
+__vsc_preexec() {
+	PS1="$__vsc_prior_prompt"
+	if [ -z "${__vsc_in_command_execution-}" ]; then
+		__vsc_in_command_execution="1"
 		__vsc_command_output_start
 	fi
 }
 
 __vsc_update_prompt
 
-prompt_cmd_original() {
-	VSC_STATUS="$?"
-	if [[ "$ORIGINAL_PROMPT_COMMAND" =~ .+\;.+ ]]; then
+__vsc_prompt_cmd_original() {
+	__vsc_status="$?"
+	if [[ "$__vsc_original_prompt_command" =~ .+\;.+ ]]; then
 		IFS=';'
 	else
 		IFS=' '
 	fi
-	read -ra ADDR <<<"$ORIGINAL_PROMPT_COMMAND"
+	read -ra ADDR <<<"$__vsc_original_prompt_command"
 	for ((i = 0; i < ${#ADDR[@]}; i++)); do
 		eval ${ADDR[i]}
 	done
 	IFS=''
-	precmd
+	__vsc_precmd
 }
 
-prompt_cmd() {
-	VSC_STATUS="$?"
-	precmd
+__vsc_prompt_cmd() {
+	__vsc_status="$?"
+	__vsc_precmd
 }
 
 if [[ "$PROMPT_COMMAND" =~ (.+\;.+) ]]; then
 	# item1;item2...
-	ORIGINAL_PROMPT_COMMAND="$PROMPT_COMMAND"
+	__vsc_original_prompt_command="$PROMPT_COMMAND"
 else
 	# (item1, item2...)
-	ORIGINAL_PROMPT_COMMAND=${PROMPT_COMMAND[@]}
+	__vsc_original_prompt_command=${PROMPT_COMMAND[@]}
 fi
 
-if [[ -n "$ORIGINAL_PROMPT_COMMAND" && "$ORIGINAL_PROMPT_COMMAND" != "prompt_cmd" ]]; then
-	PROMPT_COMMAND=prompt_cmd_original
+if [[ -n "$__vsc_original_prompt_command" && "$__vsc_original_prompt_command" != "__vsc_prompt_cmd" ]]; then
+	PROMPT_COMMAND=__vsc_prompt_cmd_original
 else
-	PROMPT_COMMAND=prompt_cmd
+	PROMPT_COMMAND=__vsc_prompt_cmd
 fi
 
-trap 'preexec' DEBUG
+trap '__vsc_preexec' DEBUG
 if [ -z "$VSCODE_SHELL_HIDE_WELCOME" ]; then
 	echo -e "\033[1;32mShell integration activated\033[0m"
 else

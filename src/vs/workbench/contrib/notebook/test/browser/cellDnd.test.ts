@@ -205,4 +205,24 @@ suite('cellDND', () => {
 			}
 		);
 	});
+
+	test('dragged cell is not focused or selected', async () => {
+		await testCellDnd(
+			{
+				startOrder: ['0', '1', '2', '3'],
+				selections: [{ start: 1, end: 2 }],
+				focus: 1
+			},
+			{
+				dragIdx: 2,
+				dragOverIdx: 3,
+				direction: 'below'
+			},
+			{
+				endOrder: ['0', '1', '3', '2'],
+				selection: { start: 3, end: 4 },
+				focus: 3
+			}
+		);
+	});
 });

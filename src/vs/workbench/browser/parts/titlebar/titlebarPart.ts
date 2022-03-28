@@ -150,7 +150,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			}
 		}
 
-		if (this.titleBarStyle !== 'native' && this.windowControls && event.affectsConfiguration('workbench.experimental.layoutControl.enabled')) {
+		if (this.titleBarStyle !== 'native' && this.windowControls && event.affectsConfiguration('workbench.layoutControl.enabled')) {
 			this.windowControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
 		}
 	}
@@ -550,7 +550,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private get layoutControlEnabled(): boolean {
-		return this.configurationService.getValue<boolean>('workbench.experimental.layoutControl.enabled');
+		return this.configurationService.getValue<boolean>('workbench.layoutControl.enabled');
 	}
 
 	updateLayout(dimension: Dimension): void {

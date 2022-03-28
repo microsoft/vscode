@@ -9,8 +9,9 @@ import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { CustomEditorTabInput, NotebookDiffEditorTabInput, NotebookEditorTabInput, TextDiffTabInput, TextTabInput, ViewColumn } from 'vs/workbench/api/common/extHostTypes';
+import { CustomEditorTabInput, NotebookDiffEditorTabInput, NotebookEditorTabInput, TerminalEditorTabInput, TextDiffTabInput, TextTabInput, ViewColumn, WebviewEditorTabInput } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
 	readonly _serviceBrand: undefined;
@@ -19,7 +20,7 @@ export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
 
 export const IExtHostEditorTabs = createDecorator<IExtHostEditorTabs>('IExtHostEditorTabs');
 
-type AnyTabInput = TextTabInput | TextDiffTabInput;
+type AnyTabInput = TextTabInput | TextDiffTabInput | CustomEditorTabInput | NotebookEditorTabInput | NotebookDiffEditorTabInput | WebviewEditorTabInput | TerminalEditorTabInput;
 
 class ExtHostEditorTab {
 	private _apiObject: vscode.Tab | undefined;
@@ -84,10 +85,14 @@ class ExtHostEditorTab {
 				return new TextDiffTabInput(URI.revive(this._dto.input.original), URI.revive(this._dto.input.modified));
 			case TabInputKind.CustomEditorInput:
 				return new CustomEditorTabInput(URI.revive(this._dto.input.uri), this._dto.input.viewType);
+			case TabInputKind.WebviewEditorInput:
+				return new WebviewEditorTabInput(this._dto.input.viewType);
 			case TabInputKind.NotebookInput:
 				return new NotebookEditorTabInput(URI.revive(this._dto.input.uri), this._dto.input.notebookType);
 			case TabInputKind.NotebookDiffInput:
 				return new NotebookDiffEditorTabInput(URI.revive(this._dto.input.original), URI.revive(this._dto.input.modified), this._dto.input.notebookType);
+			case TabInputKind.TerminalEditorInput:
+				return new TerminalEditorTabInput();
 			default:
 				return undefined;
 		}
@@ -174,9 +179,10 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 	private readonly _proxy: MainThreadEditorTabsShape;
 	private readonly _onDidChangeTab = new Emitter<vscode.Tab>();
 	private readonly _onDidChangeTabGroup = new Emitter<void>();
-	private readonly _onDidChangeActiveTabGroup = new Emitter<vscode.TabGroup | undefined>();
+	private readonly _onDidChangeActiveTabGroup = new Emitter<vscode.TabGroup>();
 
-	private _activeGroupId: number | undefined;
+	// Have to use ! because this gets initialized via an RPC proxy
+	private _activeGroupId!: number;
 
 	private _extHostTabGroups: ExtHostEditorTabGroup[] = [];
 
@@ -200,10 +206,8 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 				},
 				get activeTabGroup() {
 					const activeTabGroupId = that._activeGroupId;
-					if (activeTabGroupId === undefined) {
-						return undefined;
-					}
-					return that._extHostTabGroups.find(candidate => candidate.groupId === activeTabGroupId)?.apiObject;
+					const activeTabGroup = assertIsDefined(that._extHostTabGroups.find(candidate => candidate.groupId === activeTabGroupId)?.apiObject);
+					return activeTabGroup;
 				},
 				close: async (tab: vscode.Tab | vscode.Tab[], preserveFocus?: boolean) => {
 					const tabs = Array.isArray(tab) ? tab : [tab];
@@ -251,8 +255,8 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 		});
 
 		// Set the active tab group id
-		const activeTabGroupId = tabGroups.find(group => group.isActive === true)?.groupId;
-		if (this._activeGroupId !== activeTabGroupId) {
+		const activeTabGroupId = assertIsDefined(tabGroups.find(group => group.isActive === true)?.groupId);
+		if (activeTabGroupId !== undefined && this._activeGroupId !== activeTabGroupId) {
 			this._activeGroupId = activeTabGroupId;
 			this._onDidChangeActiveTabGroup.fire(this.tabGroups.activeTabGroup);
 		}

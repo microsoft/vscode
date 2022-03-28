@@ -82,11 +82,16 @@
 }
 
 .monaco-workbench .simple-find-part-wrapper {
-	z-index: 32 !important;
+	z-index: 33 !important;
 }
 
 .xterm .xterm-screen {
 	cursor: text;
+}
+
+.xterm .xterm-accessibility {
+	z-index: 32 !important;
+	pointer-events: none;
 }
 
 /* Apply cursor styles to xterm-screen as well due to how .xterm-viewport/.xterm are positioned */
@@ -197,11 +202,12 @@
 	content: "";
 	border: 1px solid;
 	position: absolute;
-	left: -5px;
+	left: 0;
 	top: 0;
-	right: -5px;
+	right: 0;
 	bottom: 0;
-	z-index: 10;
+	z-index: 32;
+	pointer-events: none;
 }
 
 .monaco-workbench.hc-black .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm.focus::before,
@@ -404,7 +410,7 @@
 	pointer-events: none;
 	opacity: 0; /* hidden initially */
 	transition: left 70ms ease-out, right 70ms ease-out, top 70ms ease-out, bottom 70ms ease-out, opacity 150ms ease-out;
-	z-index: 33;
+	z-index: 34;
 }
 .monaco-workbench .pane-body.integrated-terminal .terminal-group > .monaco-split-view2.horizontal .terminal-drop-overlay.drop-before {
 	right: 50%;
@@ -432,4 +438,9 @@
 	left: 0;
 	right: 0;
 	border: 1px solid #ffffff;
+}
+
+.hc-black .xterm-find-result-decoration,
+.hc-light .xterm-find-result-decoration {
+	outline-style: dotted !important;
 }

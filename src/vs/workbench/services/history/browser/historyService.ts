@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { parse, stringify } from 'vs/base/common/marshalling';
 import { IResourceEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection, IEditorWillMoveEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -987,18 +986,30 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private loadHistoryFromStorage(): Array<IResourceEditorInput> {
-		let entries: ISerializedEditorHistoryEntry[] = [];
+		const entries: IResourceEditorInput[] = [];
 
 		const entriesRaw = this.storageService.get(HistoryService.HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
 			try {
-				entries = coalesce(parse(entriesRaw));
+				const entriesParsed: ISerializedEditorHistoryEntry[] = JSON.parse(entriesRaw);
+				for (const entryParsed of entriesParsed) {
+					try {
+						entries.push({
+							...entryParsed.editor,
+							resource: typeof entryParsed.editor.resource === 'string' ?
+								URI.parse(entryParsed.editor.resource) :  	//  from 1.67.x: URI is stored efficiently as URI.toString()
+								URI.from(entryParsed.editor.resource)		// until 1.66.x: URI was stored very verbose as URI.toJSON()
+						});
+					} catch (error) {
+						onUnexpectedError(error); // do not fail entire history when one entry fails
+					}
+				}
 			} catch (error) {
 				onUnexpectedError(error); // https://github.com/microsoft/vscode/issues/99075
 			}
 		}
 
-		return coalesce(entries.map(entry => entry.editor));
+		return entries;
 	}
 
 	private saveState(): void {
@@ -1012,10 +1023,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 				continue; // only save resource editor inputs
 			}
 
-			entries.push({ editor });
+			entries.push({
+				editor: {
+					...editor,
+					resource: editor.resource.toString()
+				}
+			});
 		}
 
-		this.storageService.store(HistoryService.HISTORY_STORAGE_KEY, stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(HistoryService.HISTORY_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	//#endregion
@@ -2014,7 +2030,7 @@ class EditorHelper {
 }
 
 interface ISerializedEditorHistoryEntry {
-	editor: IResourceEditorInput;
+	editor: Omit<IResourceEditorInput, 'resource'> & { resource: string };
 }
 
 interface IRecentlyClosedEditor {

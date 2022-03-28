@@ -16,7 +16,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from 'vs/editor/common/model';
-import { RawContentChangedType, ModelRawContentChangedEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/textModelEvents';
+import { RawContentChangedType, ModelInjectedTextChangedEvent, InternalModelContentChangeEvent } from 'vs/editor/common/textModelEvents';
 import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from 'vs/editor/common/viewEvents';
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
@@ -216,8 +216,8 @@ export class CursorsController extends Disposable {
 		this.revealPrimary(eventsCollector, 'restoreState', false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Immediate);
 	}
 
-	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent): void {
-		if (e instanceof ModelInjectedTextChangedEvent) {
+	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, event: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
+		if (event instanceof ModelInjectedTextChangedEvent) {
 			// If injected texts change, the view positions of all cursors need to be updated.
 			if (this._isHandling) {
 				// The view positions will be updated when handling finishes
@@ -234,6 +234,7 @@ export class CursorsController extends Disposable {
 				this._isHandling = false;
 			}
 		} else {
+			const e = event.rawContentChangedEvent;
 			this._knownModelVersionId = e.versionId;
 			if (this._isHandling) {
 				return;

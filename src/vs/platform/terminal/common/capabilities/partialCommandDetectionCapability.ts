@@ -34,6 +34,13 @@ export class PartialCommandDetectionCapability implements IPartialCommandDetecti
 		private readonly _terminal: Terminal,
 	) {
 		this._terminal.onData(e => this._onData(e));
+		this._terminal.parser.registerCsiHandler({ final: 'J' }, params => {
+			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
+				this._clearCommandsInViewport();
+			}
+			// We don't want to override xterm.js' default behavior, just augment it
+			return false;
+		});
 	}
 
 	private _onData(data: string): void {
@@ -53,5 +60,18 @@ export class PartialCommandDetectionCapability implements IPartialCommandDetecti
 				this._onCommandFinished.fire(marker);
 			}
 		}
+	}
+
+	private _clearCommandsInViewport(): void {
+		// Find the number of commands on the tail end of the array that are within the viewport
+		let count = 0;
+		for (let i = this._commands.length - 1; i >= 0; i--) {
+			if (this._commands[i].line < this._terminal.buffer.active.baseY) {
+				break;
+			}
+			count++;
+		}
+		// Remove them
+		this._commands.splice(this._commands.length - count, count);
 	}
 }

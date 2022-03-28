@@ -7,10 +7,10 @@ import { mock } from 'vs/base/test/common/mock';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { ITestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -20,16 +20,14 @@ class TestSnippetController extends SnippetController2 {
 
 	constructor(
 		editor: ICodeEditor,
-		@IInstantiationService instaService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
-		super(editor, instaService, new NullLogService(), _contextKeyService);
+		super(editor, new NullLogService(), new LanguageFeaturesService(), _contextKeyService);
 	}
 
 	isInSnippetMode(): boolean {
 		return SnippetController2.InSnippetMode.getValue(this._contextKeyService)!;
 	}
-
 }
 
 suite('SnippetController', () => {

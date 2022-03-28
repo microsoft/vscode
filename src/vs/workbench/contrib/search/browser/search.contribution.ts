@@ -478,7 +478,7 @@ registerAction2(class ClearSearchResultsAction extends Action2 {
 
 const RevealInSideBarForSearchResultsCommand: ICommandAction = {
 	id: Constants.RevealInSideBarForSearchResults,
-	title: nls.localize('revealInSideBar', "Reveal in Side Bar")
+	title: nls.localize('revealInSideBar', "Reveal in Explorer View")
 };
 
 MenuRegistry.appendMenuItem(MenuId.SearchContext, {
@@ -840,7 +840,7 @@ configurationRegistry.registerConfiguration({
 								type: 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
 								pattern: '\\w*\\$\\(basename\\)\\w*',
 								default: '$(basename).ext',
-								description: nls.localize('exclude.when', 'Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.')
+								markdownDescription: nls.localize('exclude.when', 'Additional check on the siblings of a matching file. Use \\$(basename) as variable for the matching file name.')
 							}
 						}
 					}
@@ -852,9 +852,9 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['view', 'reuseEditor', 'newEditor'],
 			default: 'view',
-			markdownDescription: nls.localize('search.mode', "Controls where new `Search: Find in Files` and `Find in Folder` operations occur: either in the sidebar's search view, or in a search editor"),
+			markdownDescription: nls.localize('search.mode', "Controls where new `Search: Find in Files` and `Find in Folder` operations occur: either in the search view, or in a search editor"),
 			enumDescriptions: [
-				nls.localize('search.mode.view', "Search in the search view, either in the panel or sidebar."),
+				nls.localize('search.mode.view', "Search in the search view, either in the panel or side bars."),
 				nls.localize('search.mode.reuseEditor', "Search in an existing search editor if present, otherwise in a new search editor."),
 				nls.localize('search.mode.newEditor', "Search in a new search editor."),
 			]

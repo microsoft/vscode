@@ -28,8 +28,7 @@ suite('ExtHostEditorTabs', function () {
 		return { ...defaultTabDto, ...dto };
 	}
 
-	test('empty', function () {
-
+	test('Ensure empty model throws when accessing active group', function () {
 		const extHostEditorTabs = new ExtHostEditorTabs(
 			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
 				// override/implement $moveTab or $closeTab
@@ -37,7 +36,9 @@ suite('ExtHostEditorTabs', function () {
 		);
 
 		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 0);
-		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup, undefined);
+		// Active group should never be undefined (there is always an active group). Ensure accessing it undefined throws.
+		// TODO @lramos15 Add a throw on the main side when a model is sent without an active group
+		assert.throws(() => extHostEditorTabs.tabGroups.activeTabGroup);
 	});
 
 	test('single tab', function () {
@@ -110,10 +111,8 @@ suite('ExtHostEditorTabs', function () {
 		let count = 0;
 		extHostEditorTabs.tabGroups.onDidChangeTabGroup(() => count++);
 
-
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 0);
-		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup, undefined);
 		assert.strictEqual(count, 0);
+
 		extHostEditorTabs.$acceptEditorTabModel([{
 			isActive: true,
 			viewColumn: 0,
