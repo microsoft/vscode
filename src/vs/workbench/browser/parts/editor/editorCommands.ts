@@ -818,6 +818,7 @@ function registerCloseEditorCommands() {
 
 				return group.closeEditors(editorsToClose, { preserveFocus: context?.preserveFocus });
 			}
+			return true;
 		}));
 	}
 
@@ -883,6 +884,7 @@ function registerCloseEditorCommands() {
 				if (group) {
 					return group.closeEditors({ savedOnly: true, excludeSticky: true }, { preserveFocus: context?.preserveFocus });
 				}
+				return true;
 			}));
 		}
 	});
@@ -911,6 +913,7 @@ function registerCloseEditorCommands() {
 
 					return group.closeEditors(editorsToClose, { preserveFocus: context?.preserveFocus });
 				}
+				return true;
 			}));
 		}
 	});
@@ -931,6 +934,7 @@ function registerCloseEditorCommands() {
 
 				return group.closeEditors({ direction: CloseDirection.RIGHT, except: editor, excludeSticky: true }, { preserveFocus: context?.preserveFocus });
 			}
+			return true;
 		}
 	});
 
