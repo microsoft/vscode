@@ -523,7 +523,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	override async run(context?: IEditorIdentifier): Promise<void> {
 		const { group, editor } = this.getTarget(context);
 		if (group && editor) {
-			return group.closeEditors({ direction: CloseDirection.LEFT, except: editor, excludeSticky: true });
+			await group.closeEditors({ direction: CloseDirection.LEFT, except: editor, excludeSticky: true });
 		}
 	}
 

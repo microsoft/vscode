@@ -1737,7 +1737,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	@debounce(2000)
 	private async _updateProcessCwd(): Promise<void> {
-		if (this._isDisposed) {
+		if (this._isDisposed || this.shellLaunchConfig.customPtyImplementation) {
 			return;
 		}
 		// reset cwd if it has changed, so file based url paths can be resolved

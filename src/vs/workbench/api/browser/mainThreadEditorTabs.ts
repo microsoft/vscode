@@ -473,7 +473,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		return;
 	}
 
-	async $closeTab(tabIds: string[], preserveFocus?: boolean): Promise<void> {
+	async $closeTab(tabIds: string[], preserveFocus?: boolean): Promise<boolean> {
 		const groups: Map<IEditorGroup, EditorInput[]> = new Map();
 		for (const tabId of tabIds) {
 			const tabInfo = this._tabInfoLookup.get(tabId);
@@ -492,9 +492,12 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			}
 		}
 		// Loop over keys of the groups map and call closeEditors
+		let results: boolean[] = [];
 		for (const [group, editors] of groups) {
-			await group.closeEditors(editors, { preserveFocus });
+			results.push(await group.closeEditors(editors, { preserveFocus }));
 		}
+		// TODO @jrieken This isn't quite right how can we say true for some but not others?
+		return results.every(result => result);
 	}
 	//#endregion
 }

@@ -222,7 +222,7 @@
     "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
-    "@vscode/windows-registry": "1.0.5",
+    "@vscode/windows-registry": "1.0.6",
     "windows-foreground-love": "0.4.0",
     "windows-mutex": "0.4.1",
     "windows-process-tree": "^0.3.2"
