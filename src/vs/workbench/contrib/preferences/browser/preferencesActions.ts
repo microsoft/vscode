@@ -23,7 +23,7 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
