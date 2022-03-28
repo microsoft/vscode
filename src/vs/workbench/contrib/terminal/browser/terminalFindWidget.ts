@@ -70,8 +70,11 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		if (instance) {
 			instance.focus();
 		}
-		if (this._terminalService.activeInstance?.target !== TerminalLocation.Editor && this._terminalGroupService.activeGroup) {
-			for (const terminal of this._terminalGroupService.activeGroup?.terminalInstances) {
+		// Terminals in a group currently share a find widget, so hide
+		// all decorations for terminals in this group
+		const activeGroup = this._terminalGroupService.activeGroup;
+		if (instance?.target !== TerminalLocation.Editor && activeGroup) {
+			for (const terminal of activeGroup.terminalInstances) {
 				terminal.xterm?.clearSearchDecorations();
 			}
 		} else {
