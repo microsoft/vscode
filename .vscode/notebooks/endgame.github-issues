@@ -67,6 +67,16 @@
   {
     "kind": 1,
     "language": "markdown",
+    "value": "## Open Test Plan Items without milestone"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$REPOS $MILESTONE is:issue is:open label:testplan-item no:milestone"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
     "value": "# Testing"
   },
   {

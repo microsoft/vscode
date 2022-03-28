@@ -48,6 +48,7 @@ export class InMemoryDocument implements vscode.TextDocument {
 		const before = this._contents.slice(0, offset);
 		const newLines = before.match(/\r\n|\n/g);
 		const line = newLines ? newLines.length : 0;
+		// eslint-disable-next-line code-no-look-behind-regex
 		const preCharacters = before.match(/(?<=\r\n|\n|^).*$/g);
 		return new vscode.Position(line, preCharacters ? preCharacters[0].length : 0);
 	}

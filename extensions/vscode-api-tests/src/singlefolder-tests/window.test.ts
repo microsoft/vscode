@@ -517,6 +517,119 @@ suite('vscode API - window', () => {
 		assert.ok(!getActiveTabInActiveGroup());
 	});
 
+	// TODO@lramos15 https://github.com/microsoft/vscode/issues/145846
+	// Should ensure to either use existing tab API for modifications
+	// or commands that operate on a dedicated editor that is passed
+	// in as an argument
+
+	// test('Tabs - verify pinned state', async () => {
+
+	// 	const [docA] = await Promise.all([
+	// 		workspace.openTextDocument(await createRandomFile())
+	// 	]);
+
+	// 	await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+
+	// 	const tab = window.tabGroups.activeTabGroup?.activeTab;
+	// 	assert.ok(tab);
+
+	// 	assert.strictEqual(tab.isPinned, false);
+
+	// 	let onDidChangeTab = asPromise(window.tabGroups.onDidChangeTab);
+
+	// 	await commands.executeCommand('workbench.action.pinEditor');
+	// 	await onDidChangeTab;
+
+	// 	assert.strictEqual(tab.isPinned, true);
+
+	// 	onDidChangeTab = asPromise(window.tabGroups.onDidChangeTab);
+
+	// 	await commands.executeCommand('workbench.action.unpinEditor');
+	// 	await onDidChangeTab;
+
+	// 	assert.strictEqual(tab.isPinned, false);
+	// });
+
+	// test('Tabs - verify preview state', async () => {
+
+	// 	const [docA] = await Promise.all([
+	// 		workspace.openTextDocument(await createRandomFile())
+	// 	]);
+
+	// 	await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: true });
+
+	// 	const tab = window.tabGroups.activeTabGroup?.activeTab;
+	// 	assert.ok(tab);
+
+	// 	assert.strictEqual(tab.isPreview, true);
+
+	// 	let onDidChangeTab = asPromise(window.tabGroups.onDidChangeTab);
+
+	// 	await commands.executeCommand('workbench.action.keepEditor');
+	// 	await onDidChangeTab;
+
+	// 	assert.strictEqual(tab.isPreview, false);
+	// });
+
+	// test('Tabs - verify dirty state', async () => {
+
+	// 	const [docA] = await Promise.all([
+	// 		workspace.openTextDocument(await createRandomFile())
+	// 	]);
+
+	// 	await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: true });
+
+	// 	const tab = window.tabGroups.activeTabGroup?.activeTab;
+	// 	assert.ok(tab);
+
+	// 	assert.strictEqual(tab.isDirty, false);
+	// 	assert.strictEqual(docA.isDirty, false);
+
+	// 	let onDidChangeTab = asPromise(window.tabGroups.onDidChangeTab);
+
+	// 	const edit = new WorkspaceEdit();
+	// 	edit.insert(docA.uri, new Position(0, 0), 'var abc = 0;');
+	// 	await workspace.applyEdit(edit);
+
+	// 	await onDidChangeTab;
+
+	// 	assert.strictEqual(tab.isDirty, true);
+
+	// 	onDidChangeTab = asPromise(window.tabGroups.onDidChangeTab);
+
+	// 	await commands.executeCommand('workbench.action.files.save');
+
+	// 	await onDidChangeTab;
+
+	// 	assert.strictEqual(tab.isDirty, false);
+	// });
+
+	// test('Tabs - verify active state', async () => {
+
+	// 	const [docA, docB] = await Promise.all([
+	// 		workspace.openTextDocument(await createRandomFile()),
+	// 		workspace.openTextDocument(await createRandomFile()),
+	// 	]);
+
+	// 	await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+	// 	await window.showTextDocument(docB, { viewColumn: ViewColumn.One, preview: false });
+
+	// 	const tab = window.tabGroups.activeTabGroup?.tabs;
+	// 	assert.strictEqual(tab?.length, 2);
+
+	// 	assert.strictEqual(tab[0].isActive, false);
+	// 	assert.strictEqual(tab[1].isActive, true);
+
+	// 	let onDidChangeTab = asPromise(window.tabGroups.onDidChangeTab);
+
+	// 	await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+
+	// 	await onDidChangeTab;
+
+	// 	assert.strictEqual(tab[0].isActive, true);
+	// 	assert.strictEqual(tab[1].isActive, false);
+	// });
+
 	/*
 
 	test('Tabs - Move Tab', async () => {

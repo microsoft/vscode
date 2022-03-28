@@ -85,10 +85,9 @@ export class BracketPairInfo {
 		public readonly range: Range,
 		public readonly openingBracketRange: Range,
 		public readonly closingBracketRange: Range | undefined,
-		/**
-		 * 0-based
-		*/
+		/** 0-based */
 		public readonly nestingLevel: number,
+		public readonly nestingLevelOfEqualBracketType: number,
 	) { }
 }
 
@@ -101,11 +100,12 @@ export class BracketPairWithMinIndentationInfo extends BracketPairInfo {
 		 * 0-based
 		*/
 		nestingLevel: number,
+		nestingLevelOfEqualBracketType: number,
 		/**
 		 * -1 if not requested, otherwise the size of the minimum indentation in the bracket pair in terms of visible columns.
 		*/
 		public readonly minVisibleColumnIndentation: number,
 	) {
-		super(range, openingBracketRange, closingBracketRange, nestingLevel);
+		super(range, openingBracketRange, closingBracketRange, nestingLevel, nestingLevelOfEqualBracketType);
 	}
 }

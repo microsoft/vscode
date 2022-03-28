@@ -175,9 +175,9 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 		readonly hasWillDrop: boolean,
 		private readonly _proxy: ExtHostTreeViewsShape) { }
 
-	async handleDrop(dataTransfer: IDataTransfer, targetTreeItem: ITreeItem, token: CancellationToken,
+	async handleDrop(dataTransfer: IDataTransfer, targetTreeItem: ITreeItem | undefined, token: CancellationToken,
 		operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
-		return this._proxy.$handleDrop(this.treeViewId, await DataTransferConverter.toDataTransferDTO(dataTransfer), targetTreeItem.handle, token, operationUuid, sourceTreeId, sourceTreeItemHandles);
+		return this._proxy.$handleDrop(this.treeViewId, await DataTransferConverter.toDataTransferDTO(dataTransfer), targetTreeItem?.handle, token, operationUuid, sourceTreeId, sourceTreeItemHandles);
 	}
 
 	async handleDrag(sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<IDataTransfer | undefined> {

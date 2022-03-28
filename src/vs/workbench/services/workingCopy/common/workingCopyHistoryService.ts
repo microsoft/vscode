@@ -12,7 +12,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { WorkingCopyHistoryTracker } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryTracker';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor, IWorkingCopyHistoryEvent, IWorkingCopyHistoryService, MAX_PARALLEL_HISTORY_IO_OPS } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
-import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { URI } from 'vs/base/common/uri';
 import { DeferredPromise, Limiter } from 'vs/base/common/async';
@@ -50,7 +50,7 @@ export class WorkingCopyHistoryModel {
 
 	private static readonly SETTINGS = {
 		MAX_ENTRIES: 'workbench.localHistory.maxFileEntries',
-		MERGE_PERIOD: 'workbench.localHistory.mergePeriod'
+		MERGE_PERIOD: 'workbench.localHistory.mergeWindow'
 	};
 
 	private entries: IWorkingCopyHistoryEntry[] = [];
@@ -525,8 +525,6 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		super();
 
 		this.resolveLocalHistoryHome();
-
-		this._register(this.fileService.onDidRunOperation(e => this.onDidRunFileOperation(e)));
 	}
 
 	private async resolveLocalHistoryHome(): Promise<void> {
@@ -550,26 +548,18 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		this.localHistoryHome.complete(historyHome);
 	}
 
-	private async onDidRunFileOperation(e: FileOperationEvent): Promise<void> {
-		if (!e.isOperation(FileOperation.MOVE)) {
-			return; // only interested in move operations
-		}
-
-		const source = e.resource;
-		const target = e.target.resource;
-
-		const limiter = new Limiter(MAX_PARALLEL_HISTORY_IO_OPS);
-		const promises = [];
+	async moveEntries(source: URI, target: URI): Promise<URI[]> {
+		const limiter = new Limiter<URI>(MAX_PARALLEL_HISTORY_IO_OPS);
+		const promises: Promise<URI>[] = [];
 
 		for (const [resource, model] of this.models) {
 			if (!this.uriIdentityService.extUri.isEqualOrParent(resource, source)) {
 				continue; // model does not match moved resource
 			}
 
-
 			// Determine new resulting target resource
 			let targetResource: URI;
-			if (isEqual(source, resource)) {
+			if (this.uriIdentityService.extUri.isEqual(source, resource)) {
 				targetResource = target; // file got moved
 			} else {
 				const index = indexOfPath(resource.path, source.path);
@@ -578,28 +568,30 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 
 			// Figure out save source
 			let saveSource: SaveSource;
-			if (isEqual(dirname(resource), dirname(targetResource))) {
+			if (this.uriIdentityService.extUri.isEqual(dirname(resource), dirname(targetResource))) {
 				saveSource = WorkingCopyHistoryService.FILE_RENAMED_SOURCE;
 			} else {
 				saveSource = WorkingCopyHistoryService.FILE_MOVED_SOURCE;
 			}
 
 			// Move entries to target queued
-			promises.push(limiter.queue(() => this.moveEntries(model, saveSource, resource, targetResource)));
+			promises.push(limiter.queue(() => this.doMoveEntries(model, saveSource, resource, targetResource)));
 		}
 
 		if (!promises.length) {
-			return;
+			return [];
 		}
 
 		// Await move operations
-		await Promise.all(promises);
+		const resources = await Promise.all(promises);
 
 		// Events
 		this._onDidMoveEntries.fire();
+
+		return resources;
 	}
 
-	private async moveEntries(model: WorkingCopyHistoryModel, source: SaveSource, sourceWorkingCopyResource: URI, targetWorkingCopyResource: URI): Promise<void> {
+	private async doMoveEntries(model: WorkingCopyHistoryModel, source: SaveSource, sourceWorkingCopyResource: URI, targetWorkingCopyResource: URI): Promise<URI> {
 
 		// Move to target via model
 		await model.moveEntries(targetWorkingCopyResource, source, CancellationToken.None);
@@ -607,6 +599,8 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		// Update model in our map
 		this.models.delete(sourceWorkingCopyResource);
 		this.models.set(targetWorkingCopyResource, model);
+
+		return targetWorkingCopyResource;
 	}
 
 	async addEntry({ resource, source, timestamp }: IWorkingCopyHistoryEntryDescriptor, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined> {

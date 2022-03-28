@@ -482,6 +482,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		for (let i = removeRange.end - 1; i >= removeRange.start; i--) {
 			const item = this.items[i];
 			item.dragStartDisposable.dispose();
+			item.checkedDisposable.dispose();
 
 			if (item.row) {
 				let rows = rowsToDispose.get(item.templateId);

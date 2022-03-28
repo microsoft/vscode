@@ -495,10 +495,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				e.affectsConfiguration(TerminalSettingId.TerminalDescription)) {
 				this._labelComputer?.refreshLabel();
 			}
-			if ((e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) && !this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)) ||
-				(e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled) && !this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled))) {
-				this.xterm?.clearDecorations();
-			}
 		}));
 		this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._labelComputer?.refreshLabel());
 
@@ -1741,7 +1737,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	@debounce(2000)
 	private async _updateProcessCwd(): Promise<void> {
-		if (this._isDisposed) {
+		if (this._isDisposed || this.shellLaunchConfig.customPtyImplementation) {
 			return;
 		}
 		// reset cwd if it has changed, so file based url paths can be resolved

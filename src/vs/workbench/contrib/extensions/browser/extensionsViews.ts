@@ -338,12 +338,14 @@ export class ExtensionsListView extends ViewPane {
 		const result = (await this.extensionsWorkbenchService.queryLocal(this.options.server))
 			.filter(e => idsSet.has(e.identifier.id.toLowerCase()));
 
-		if (result.length) {
-			return this.getPagedModel(this.sortExtensions(result, options));
+		const galleryIds = result.length ? ids.filter(id => result.every(r => !areSameExtensions(r.identifier, { id }))) : ids;
+
+		if (galleryIds.length) {
+			const galleryResult = await this.extensionsWorkbenchService.getExtensions(galleryIds.map(id => ({ id })), { source: 'queryById' }, token);
+			result.push(...galleryResult);
 		}
 
-		return this.extensionsWorkbenchService.getExtensions(ids.map(id => ({ id })), { source: 'queryById' }, token)
-			.then(extension => this.getPagedModel(extension));
+		return this.getPagedModel(result);
 	}
 
 	private async queryLocal(query: Query, options: IQueryOptions): Promise<IQueryResult> {

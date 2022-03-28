@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionType, IExtensionIdentifier, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtension, IExtensionIdentifier, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, InstallOptions, Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -45,14 +45,14 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return false;
 	}
 
-	async getInstalled(type?: ExtensionType, donotIgnoreInvalidExtensions?: boolean): Promise<ILocalExtension[]> {
+	async getInstalled(type?: ExtensionType, bailOut?: boolean): Promise<ILocalExtension[]> {
 		const extensions = [];
 		if (type === undefined || type === ExtensionType.System) {
 			const systemExtensions = await this.webExtensionsScannerService.scanSystemExtensions();
 			extensions.push(...systemExtensions);
 		}
 		if (type === undefined || type === ExtensionType.User) {
-			const userExtensions = await this.webExtensionsScannerService.scanUserExtensions(donotIgnoreInvalidExtensions);
+			const userExtensions = await this.webExtensionsScannerService.scanUserExtensions({ bailOut });
 			extensions.push(...userExtensions);
 		}
 		return Promise.all(extensions.map(e => toLocalExtension(e)));
@@ -101,7 +101,7 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	updateExtensionScope(): Promise<ILocalExtension> { throw new Error('unsupported'); }
 }
 
-function toLocalExtension(extension: IScannedExtension): ILocalExtension {
+function toLocalExtension(extension: IExtension): ILocalExtension {
 	const metadata = getMetadata(undefined, extension);
 	return {
 		...extension,
@@ -117,8 +117,8 @@ function toLocalExtension(extension: IScannedExtension): ILocalExtension {
 	};
 }
 
-function getMetadata(options?: InstallOptions, existingExtension?: IScannedExtension): Metadata {
-	const metadata: Metadata = { ...(existingExtension?.metadata || {}) };
+function getMetadata(options?: InstallOptions, existingExtension?: IExtension): Metadata {
+	const metadata: Metadata = { ...((<IScannedExtension>existingExtension)?.metadata || {}) };
 	metadata.isMachineScoped = options?.isMachineScoped || metadata.isMachineScoped;
 	return metadata;
 }

@@ -1222,9 +1222,13 @@ export class ChangeLanguageAction extends Action {
 							if (detectedLanguageId === currentLanguageId && currentLanguageId !== chosenLanguageId) {
 								// If they didn't choose the detected language (which should also be the active language if automatic detection is enabled)
 								// then the automatic language detection was likely wrong and the user is correcting it. In this case, we want telemetry.
+								// Keep track of what model was preferred and length of input to help track down potential differences between the result quality across models and content size.
+								const modelPreference = this.configurationService.getValue<boolean>('workbench.editor.preferHistoryBasedLanguageDetection') ? 'history' : 'classic';
 								this.telemetryService.publicLog2<IAutomaticLanguageDetectionLikelyWrongData, AutomaticLanguageDetectionLikelyWrongClassification>(AutomaticLanguageDetectionLikelyWrongId, {
 									currentLanguageId: currentLanguageName ?? 'unknown',
-									nextLanguageId: pick.label
+									nextLanguageId: pick.label,
+									lineCount: textModel?.getLineCount() ?? -1,
+									modelPreference,
 								});
 							}
 						});
@@ -1236,7 +1240,7 @@ export class ChangeLanguageAction extends Action {
 					languageSupport.setLanguageId(languageSelection.languageId);
 
 					if (resource?.scheme === Schemas.untitled) {
-						type SetUntitledDocumentLanguageEvent = { to: string; from: string };
+						type SetUntitledDocumentLanguageEvent = { to: string; from: string; modelPreference: string };
 						type SetUntitledDocumentLanguageClassification = {
 							to: {
 								classification: 'SystemMetaData';
@@ -1250,10 +1254,18 @@ export class ChangeLanguageAction extends Action {
 								owner: 'JacksonKearl';
 								comment: 'Help understand effectiveness of automatic language detection';
 							};
+							modelPreference: {
+								classification: 'SystemMetaData';
+								purpose: 'FeatureInsight';
+								owner: 'JacksonKearl';
+								comment: 'Help understand effectiveness of automatic language detection';
+							};
 						};
+						const modelPreference = this.configurationService.getValue<boolean>('workbench.editor.preferHistoryBasedLanguageDetection') ? 'history' : 'classic';
 						this.telemetryService.publicLog2<SetUntitledDocumentLanguageEvent, SetUntitledDocumentLanguageClassification>('setUntitledDocumentLanguage', {
 							to: languageSelection.languageId,
 							from: currentLanguageId ?? 'none',
+							modelPreference,
 						});
 					}
 				}

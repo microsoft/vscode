@@ -168,7 +168,7 @@ const ignoringReporter: ErrorReporter = {
 
 export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, errorReporter: ErrorReporter = ignoringReporter): T {
 	const alias: { [key: string]: string } = {};
-	const string: string[] = [];
+	const string: string[] = ['_'];
 	const boolean: string[] = [];
 	for (let optionId in options) {
 		const o = options[optionId];

@@ -166,15 +166,15 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		const cellParts = [
 			titleToolbar,
 			templateDisposables.add(scopedInstaService.createInstance(BetweenCellToolbar, this.notebookEditor, titleToolbarContainer, bottomCellContainer)),
-			templateDisposables.add(this.instantiationService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart, undefined)),
+			templateDisposables.add(scopedInstaService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart, undefined)),
 			templateDisposables.add(new CellFocusIndicator(this.notebookEditor, titleToolbar, focusIndicatorTop, focusIndicatorLeft, focusIndicatorRight, focusIndicatorBottom)),
 			templateDisposables.add(scopedInstaService.createInstance(FoldedCellHint, this.notebookEditor, DOM.append(container, $('.notebook-folded-hint')))),
 			templateDisposables.add(new CellDecorations(rootContainer, decorationContainer)),
-			templateDisposables.add(this.instantiationService.createInstance(CellComments, this.notebookEditor, cellCommentPartContainer)),
+			templateDisposables.add(scopedInstaService.createInstance(CellComments, this.notebookEditor, cellCommentPartContainer)),
 			templateDisposables.add(new CollapsedCellInput(this.notebookEditor, cellInputCollapsedContainer)),
 			templateDisposables.add(new CellFocusPart(container, undefined, this.notebookEditor)),
 			templateDisposables.add(new CellDragAndDropPart(container)),
-			templateDisposables.add(this.instantiationService.createInstance(CellContextKeyPart, this.notebookEditor)),
+			templateDisposables.add(scopedInstaService.createInstance(CellContextKeyPart, this.notebookEditor)),
 		];
 
 		const templateData: MarkdownCellRenderTemplate = {
@@ -305,17 +305,17 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			focusIndicatorPart,
 			titleToolbar,
 			templateDisposables.add(scopedInstaService.createInstance(BetweenCellToolbar, this.notebookEditor, titleToolbarContainer, bottomCellToolbarContainer)),
-			templateDisposables.add(this.instantiationService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart, editor)),
-			templateDisposables.add(this.instantiationService.createInstance(CellProgressBar, editorPart, cellInputCollapsedContainer)),
-			templateDisposables.add(this.instantiationService.createInstance(RunToolbar, this.notebookEditor, contextKeyService, container, runButtonContainer)),
+			templateDisposables.add(scopedInstaService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart, editor)),
+			templateDisposables.add(scopedInstaService.createInstance(CellProgressBar, editorPart, cellInputCollapsedContainer)),
+			templateDisposables.add(scopedInstaService.createInstance(RunToolbar, this.notebookEditor, contextKeyService, container, runButtonContainer)),
 			templateDisposables.add(new CellDecorations(rootContainer, decorationContainer)),
-			templateDisposables.add(this.instantiationService.createInstance(CellComments, this.notebookEditor, cellCommentPartContainer)),
+			templateDisposables.add(scopedInstaService.createInstance(CellComments, this.notebookEditor, cellCommentPartContainer)),
 			templateDisposables.add(new CellExecutionPart(this.notebookEditor, executionOrderLabel)),
-			templateDisposables.add(this.instantiationService.createInstance(CollapsedCellOutput, this.notebookEditor, cellOutputCollapsedContainer)),
+			templateDisposables.add(scopedInstaService.createInstance(CollapsedCellOutput, this.notebookEditor, cellOutputCollapsedContainer)),
 			templateDisposables.add(new CollapsedCellInput(this.notebookEditor, cellInputCollapsedContainer)),
 			templateDisposables.add(new CellFocusPart(container, focusSinkElement, this.notebookEditor)),
 			templateDisposables.add(new CellDragAndDropPart(container)),
-			templateDisposables.add(this.instantiationService.createInstance(CellContextKeyPart, this.notebookEditor)),
+			templateDisposables.add(scopedInstaService.createInstance(CellContextKeyPart, this.notebookEditor)),
 		];
 
 		const templateData: CodeCellRenderTemplate = {

@@ -31,11 +31,15 @@ export const AutomaticLanguageDetectionLikelyWrongId = 'automaticlanguagedetecti
 export interface IAutomaticLanguageDetectionLikelyWrongData {
 	currentLanguageId: string;
 	nextLanguageId: string;
+	lineCount: number;
+	modelPreference: string;
 }
 
 export type AutomaticLanguageDetectionLikelyWrongClassification = {
 	currentLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	nextLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	modelPreference: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 export const LanguageDetectionStatsId = 'automaticlanguagedetection.stats';
