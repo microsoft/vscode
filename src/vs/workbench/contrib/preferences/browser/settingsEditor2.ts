@@ -1375,7 +1375,6 @@ export class SettingsEditor2 extends EditorPane {
 			'counts.filterResult': number | undefined;
 			'requestCount': number | undefined;
 		};
-
 		type SettingsEditorFilterClassification = {
 			'durations.nlpResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; owner: 'rzhao271'; 'comment': 'How long the remote search provider took, if applicable.' };
 			'counts.nlpResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; owner: 'rzhao271'; 'comment': 'The number of matches found by the remote search provider, if applicable.' };
@@ -1541,6 +1540,7 @@ export class SettingsEditor2 extends EditorPane {
 					type SettingsSearchErrorClassification = {
 						'message': { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'owner': 'rzhao271'; 'comment': 'The error message of the search error.' };
 					};
+
 					const message = getErrorMessage(err).trim();
 					if (message && message !== 'Error') {
 						// "Error" = any generic network error
