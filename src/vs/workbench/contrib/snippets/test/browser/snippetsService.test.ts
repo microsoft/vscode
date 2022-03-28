@@ -15,6 +15,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/langua
 import { CompletionContext, CompletionItemLabel, CompletionItemRanges, CompletionTriggerKind } from 'vs/editor/common/languages';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 
 class SimpleSnippetService implements ISnippetsService {
 	declare readonly _serviceBrand: undefined;
@@ -724,6 +725,38 @@ suite('SnippetsService', function () {
 		)!;
 
 		assert.strictEqual(result.suggestions.length, 0);
+		model.dispose();
+	});
+
+	test('Snippets disappear with . key #145960', async function () {
+		snippetService = new SimpleSnippetService([
+			new Snippet(['fooLang'], 'div', 'div', '', 'div', '', SnippetSource.User),
+			new Snippet(['fooLang'], 'div.', 'div.', '', 'div.', '', SnippetSource.User),
+			new Snippet(['fooLang'], 'div#', 'div#', '', 'div#', '', SnippetSource.User),
+		]);
+
+		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		let model = createTextModel('di', 'fooLang');
+		let result = await provider.provideCompletionItems(
+			model,
+			new Position(1, 3),
+			{ triggerKind: CompletionTriggerKind.Invoke }
+		)!;
+
+		assert.strictEqual(result.suggestions.length, 3);
+
+
+		model.applyEdits([EditOperation.insert(new Position(1, 3), '.')]);
+		assert.strictEqual(model.getValue(), 'di.');
+		let result2 = await provider.provideCompletionItems(
+			model,
+			new Position(1, 4),
+			{ triggerKind: CompletionTriggerKind.TriggerCharacter, triggerCharacter: '.' }
+		)!;
+
+		assert.strictEqual(result2.suggestions.length, 1);
+		assert.strictEqual(result2.suggestions[0].insertText, 'div.');
+
 		model.dispose();
 	});
 });

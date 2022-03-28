@@ -350,6 +350,7 @@ suite('ExtHostEditorTabs', function () {
 				// override/implement $moveTab or $closeTab
 				override async $closeTab(tabIds: string[], preserveFocus?: boolean) {
 					closedTabIds.push(tabIds);
+					return true;
 				}
 			})
 		);
@@ -387,6 +388,7 @@ suite('ExtHostEditorTabs', function () {
 				// override/implement $moveTab or $closeTab
 				override async $closeTab(tabIds: string[], preserveFocus?: boolean) {
 					closedTabIds.push(tabIds);
+					return true;
 				}
 			})
 		);

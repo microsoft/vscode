@@ -157,9 +157,11 @@ declare module 'vscode' {
 		 * Note: In the case of a dirty tab, a confirmation dialog will be shown which may be cancelled. If cancelled the tab is still valid
 		 * @param tab The tab to close, must be reference equal to a tab given by the API
 		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
+		 * @returns A promise that resolves true when then tab is closed. Otherwise it will return false.
+		 * If false is returned the tab is still valid.
 		 */
-		close(tab: Tab[], preserveFocus?: boolean): Thenable<void>;
-		close(tab: Tab, preserveFocus?: boolean): Thenable<void>;
+		close(tab: Tab[], preserveFocus?: boolean): Thenable<boolean>;
+		close(tab: Tab, preserveFocus?: boolean): Thenable<boolean>;
 
 		/**
 		 * Moves a tab to the given index within the column.
