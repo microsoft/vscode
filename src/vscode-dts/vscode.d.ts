@@ -9836,7 +9836,7 @@ declare module 'vscode' {
 		 * The mime types that the {@link TreeDragAndDropController.handleDrag `handleDrag`} method of this `TreeDragAndDropController` may add to the tree data transfer.
 		 * This could be well-defined, existing, mime types, and also mime types defined by the extension.
 		 *
-		 * The recommended mime type of the tree will be automatically added.
+		 * The recommended mime type of the tree (`application/vnd.code.tree.<treeidlowercase>`) will be automatically added.
 		 */
 		readonly dragMimeTypes: string[];
 

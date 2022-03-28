@@ -12,7 +12,7 @@ import { ExtUri } from 'vs/base/common/resources';
 import { isString } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { createFileSystemProviderError, FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
 
 // Standard FS Errors (expected to be thrown in production when invalid FS operations are requested)
@@ -325,7 +325,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		return buffer;
 	}
 
-	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 		const existing = await this.stat(resource).catch(() => undefined);
 		if (existing?.type === FileType.Directory) {
 			throw ERR_FILE_IS_DIR;
@@ -333,7 +333,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		await this.bulkWrite([[resource, content]]);
 	}
 
-	async rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+	async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
 		const fileTree = await this.getFiletree();
 		const fromEntry = fileTree.read(from.path);
 		if (!fromEntry) {
@@ -380,7 +380,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		await this.delete(from, { recursive: true, useTrash: false });
 	}
 
-	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
+	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
 		let stat: IStat;
 		try {
 			stat = await this.stat(resource);

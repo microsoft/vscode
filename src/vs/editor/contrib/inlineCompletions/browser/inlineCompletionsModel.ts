@@ -285,7 +285,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		const cursorPosition = model.validatePosition(this.editor.getPosition());
 		this.filteredCompletions = this.cache.value.completions.filter(c => {
 			const originalValue = model.getValueInRange(c.synchronizedRange).toLowerCase();
-			const filterText = c.inlineCompletion.filterText;
+			const filterText = c.inlineCompletion.filterText.toLowerCase();
 
 			const indent = model.getLineIndentColumn(c.synchronizedRange.startLineNumber);
 
