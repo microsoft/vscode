@@ -148,7 +148,8 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 			if (result) {
 				const { uri, isDirectory } = result;
 				const linkToOpen = {
-					text: matchLink,
+					// Use the absolute URI's path here so the optional line/col get detected
+					text: result.uri.fsPath + (matchLink.match(/:\d+(:\d+)?$/)?.[0] || ''),
 					uri,
 					bufferRange: link.bufferRange,
 					type: link.type
@@ -194,7 +195,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 }
 
 interface IResourceMatch {
-	uri: URI | undefined;
+	uri: URI;
 	isDirectory?: boolean;
 }
 
