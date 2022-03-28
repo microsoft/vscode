@@ -22,5 +22,6 @@ export class ExtensionsCleaner extends Disposable {
 		super();
 		extensionManagementService.removeDeprecatedExtensions();
 		migrateUnsupportedExtensions(extensionManagementService, extensionGalleryService, extensionStorageService, extensionEnablementService, logService);
+		extensionStorageService.removeOutdatedExtensionVersions();
 	}
 }
