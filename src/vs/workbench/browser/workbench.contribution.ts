@@ -258,6 +258,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'exclusiveMinimum': 0,
 				'markdownDescription': localize('limitEditorsMaximum', "Controls the maximum number of opened editors. Use the `#workbench.editor.limit.perEditorGroup#` setting to control this limit per editor group or across all groups.")
 			},
+			'workbench.editor.limit.excludeDirty': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('limitEditorsExcludeDirty', "Controls if the maximum number of opened editors should exclude dirty editors for counting towards the configured limit.")
+			},
 			'workbench.editor.limit.perEditorGroup': {
 				'type': 'boolean',
 				'default': false,
