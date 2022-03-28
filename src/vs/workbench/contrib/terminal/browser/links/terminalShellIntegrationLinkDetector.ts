@@ -51,6 +51,9 @@ export class TerminalShellIntegrationLinkDetector implements ITerminalLinkDetect
 	}
 
 	private _matches(lines: IBufferLine[]): boolean {
+		if (lines.length < linkCodes.length) {
+			return false;
+		}
 		let cell: IBufferCell | undefined;
 		for (let i = 0; i < linkCodes.length; i++) {
 			cell = lines[Math.floor(i / this.xterm.cols)].getCell(i % this.xterm.cols, cell);
