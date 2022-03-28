@@ -253,6 +253,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
 			// Ghost text depends on the cursor position
+			this.cache.value?.updateRanges();
 			if (this.cache.value) {
 				this.updateFilteredInlineCompletions();
 				this.onDidChangeEmitter.fire();
