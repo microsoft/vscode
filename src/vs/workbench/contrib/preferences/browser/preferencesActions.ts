@@ -11,6 +11,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as nls from 'vs/nls';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class ConfigureLanguageBasedSettingsAction extends Action {
 
@@ -23,7 +24,8 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(id, label);
 	}
@@ -55,7 +57,11 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 				if (pick) {
 					const languageId = this.languageService.getLanguageIdByLanguageName(pick.label);
 					if (typeof languageId === 'string') {
-						return this.preferencesService.openUserSettings({ query: `@lang:${languageId}` });
+						if (this.configurationService.getValue('workbench.settings.editor') === 'json') {
+							return this.preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: `[${languageId}]`, edit: true } });
+						} else {
+							return this.preferencesService.openUserSettings({ query: `@lang:${languageId}` });
+						}
 					}
 				}
 				return undefined;
