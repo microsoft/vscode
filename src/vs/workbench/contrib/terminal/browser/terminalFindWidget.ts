@@ -97,13 +97,13 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		}
 		return false;
 	}
-	private _updateMatchesCount(xterm: IXtermTerminal) {
+	private async _updateMatchesCount(xterm: IXtermTerminal): Promise<void> {
 		if (!this._matchesCount) {
 			this._matchesCount = document.createElement('div');
 		}
 		this._matchesCount.className = 'matchesCount';
 		this._matchesCount.innerText = '';
-		const count = xterm.getMatchesCount();
+		const count = await xterm.getMatchesCount();
 		const matches = count > 0 ? `${count} Results` : `No Results`;
 		this._matchesCount.appendChild(document.createTextNode(matches));
 		const node = super.getDomNode().querySelector('.monaco-findInput');
