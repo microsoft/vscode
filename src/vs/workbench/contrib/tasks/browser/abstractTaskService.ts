@@ -342,6 +342,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	public get supportsMultipleTaskExecutions(): boolean {
 		return this.inTerminal();
 	}
+
 	private registerCommands(): void {
 		CommandsRegistry.registerCommand({
 			id: 'workbench.action.tasks.runTask',
