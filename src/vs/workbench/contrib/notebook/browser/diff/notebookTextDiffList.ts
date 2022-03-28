@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./notebookDiff';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import * as DOM from 'vs/base/browser/dom';
-import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, IListStyles, isMonacoEditor, IStyleController, MouseController } from 'vs/base/browser/ui/list/listWidget';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -281,6 +281,17 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 	}
 }
 
+export class NotebookMouseController<T> extends MouseController<T> {
+	protected override onViewPointer(e: IListMouseEvent<T>): void {
+		if (isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+			const focus = typeof e.index === 'undefined' ? [] : [e.index];
+			this.list.setFocus(focus, e.browserEvent);
+		} else {
+			super.onViewPointer(e);
+		}
+	}
+}
+
 export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase> implements IDisposable, IStyleController {
 	private styleElement?: HTMLStyleElement;
 
@@ -300,6 +311,10 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService) {
 		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
+	}
+
+	protected override createMouseController(options: IListOptions<DiffElementViewModelBase>): MouseController<DiffElementViewModelBase> {
+		return new NotebookMouseController(this);
 	}
 
 	getAbsoluteTopOfElement(element: DiffElementViewModelBase): number {
