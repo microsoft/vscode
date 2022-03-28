@@ -255,7 +255,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.limit.excludeDirty': {
 				'type': 'boolean',
 				'default': false,
-				'description': localize('limitEditorsExcludeDirty', "Controls if the maximum number of opened editors should exclude dirty editors for the configured limit.")
+				'description': localize('limitEditorsExcludeDirty', "Controls if the maximum number of opened editors should exclude dirty editors for counting towards the configured limit.")
 			},
 			'workbench.editor.limit.perEditorGroup': {
 				'type': 'boolean',
