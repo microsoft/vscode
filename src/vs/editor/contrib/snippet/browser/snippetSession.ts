@@ -239,8 +239,17 @@ export class OneSnippet {
 		return result;
 	}
 
-	get choice(): Choice | undefined {
+	get activeChoice(): Choice | undefined {
 		return this._placeholderGroups[this._placeholderGroupsIdx][0].choice;
+	}
+
+	get hasChoice(): boolean {
+		let result = false;
+		this._snippet.walk(marker => {
+			result = marker instanceof Choice;
+			return !result;
+		});
+		return result;
 	}
 
 	merge(others: OneSnippet[]): void {
@@ -601,8 +610,12 @@ export class SnippetSession {
 		return this._snippets[0].hasPlaceholder;
 	}
 
-	get choice(): Choice | undefined {
-		return this._snippets[0].choice;
+	get hasChoice(): boolean {
+		return this._snippets[0].hasChoice;
+	}
+
+	get activeChoice(): Choice | undefined {
+		return this._snippets[0].activeChoice;
 	}
 
 	isSelectionWithinPlaceholders(): boolean {
