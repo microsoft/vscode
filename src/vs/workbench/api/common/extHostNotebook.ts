@@ -48,12 +48,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
 	private readonly _commandsConverter: CommandsConverter;
 
-	private readonly _onDidChangeNotebookCells = new Emitter<vscode.NotebookCellsChangeEvent>();
-	readonly onDidChangeNotebookCells = this._onDidChangeNotebookCells.event;
-	private readonly _onDidChangeCellOutputs = new Emitter<vscode.NotebookCellOutputsChangeEvent>();
-	readonly onDidChangeCellOutputs = this._onDidChangeCellOutputs.event;
-	private readonly _onDidChangeCellMetadata = new Emitter<vscode.NotebookCellMetadataChangeEvent>();
-	readonly onDidChangeCellMetadata = this._onDidChangeCellMetadata.event;
 	private readonly _onDidChangeActiveNotebookEditor = new Emitter<vscode.NotebookEditor | undefined>();
 	readonly onDidChangeActiveNotebookEditor = this._onDidChangeActiveNotebookEditor.event;
 
@@ -442,23 +436,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				if (this._documents.has(uri)) {
 					throw new Error(`adding EXISTING notebook ${uri} `);
 				}
-				const that = this;
 
 				const document = new ExtHostNotebookDocument(
 					this._notebookDocumentsProxy,
 					this._textDocumentsAndEditors,
 					this._textDocuments,
-					{
-						emitModelChange(event: vscode.NotebookCellsChangeEvent): void {
-							that._onDidChangeNotebookCells.fire(event);
-						},
-						emitCellOutputsChange(event: vscode.NotebookCellOutputsChangeEvent): void {
-							that._onDidChangeCellOutputs.fire(event);
-						},
-						emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void {
-							that._onDidChangeCellMetadata.fire(event);
-						}
-					},
 					uri,
 					modelData
 				);
