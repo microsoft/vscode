@@ -22,6 +22,9 @@
 		<!-- Workbench Auth Session -->
 		<meta id="vscode-workbench-auth-session" data-settings="{{WORKBENCH_AUTH_SESSION}}">
 
+		<!-- NLS Configuration -->
+		<meta id="vscode-remote-nls-configuration" data-settings="{{NLS_CONFIGURATION}}">
+
 		<!-- Workbench Icon/Manifest/CSS -->
 		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
 		<link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
@@ -36,6 +39,30 @@
 	<script src="./static/out/vs/loader.js"></script>
 	<script src="./static/out/vs/webPackagePaths.js"></script>
 	<script>
+		let nlsConfig
+		try {
+			nlsConfig = JSON.parse(document.getElementById("vscode-remote-nls-configuration").getAttribute("data-settings"))
+			if (nlsConfig._resolvedLanguagePackCoreLocation) {
+				const bundles = Object.create(null)
+				nlsConfig.loadBundle = (bundle, _language, cb) => {
+					const result = bundles[bundle]
+					if (result) {
+						return cb(undefined, result)
+					}
+					const path = nlsConfig._resolvedLanguagePackCoreLocation + "/" + bundle.replace(/\//g, "!") + ".nls.json"
+					fetch(`./vscode-remote-resource?path=${encodeURIComponent(path)}`)
+						.then((response) => response.json())
+						.then((json) => {
+							bundles[bundle] = json
+							cb(undefined, json)
+						})
+						.catch(cb)
+				}
+			}
+		} catch (e) {
+		}
+	</script>
+	<script>
 		Object.keys(self.webPackagePaths).map(function (key, index) {
 			self.webPackagePaths[key] = `${window.location.origin}/static/node_modules/${key}/${self.webPackagePaths[key]}`;
 		});
@@ -47,7 +74,8 @@
 					return value;
 				}
 			}),
-			paths: self.webPackagePaths
+			paths: self.webPackagePaths,
+			'vs/nls': nlsConfig,
 		});
 	</script>
 	<script>
