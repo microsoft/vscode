@@ -163,8 +163,7 @@ class TerminalBackendRegistry implements ITerminalBackendRegistry {
 	private readonly _backends = new Map<string, ITerminalBackend>();
 
 	registerTerminalBackend(backend: ITerminalBackend): void {
-		// Normalize the key to lowercase as the authority is case-insensitive
-		const key = backend.remoteAuthority?.toLowerCase() ?? '';
+		const key = this._sanitizeRemoteAuthority(backend.remoteAuthority);
 		if (this._backends.has(key)) {
 			throw new Error(`A terminal backend with remote authority '${key}' was already registered.`);
 		}
@@ -172,7 +171,12 @@ class TerminalBackendRegistry implements ITerminalBackendRegistry {
 	}
 
 	getTerminalBackend(remoteAuthority: string | undefined): ITerminalBackend | undefined {
-		return this._backends.get(remoteAuthority?.toLowerCase() ?? '');
+		return this._backends.get(this._sanitizeRemoteAuthority(remoteAuthority));
+	}
+
+	private _sanitizeRemoteAuthority(remoteAuthority: string | undefined) {
+		// Normalize the key to lowercase as the authority is case-insensitive
+		return remoteAuthority?.toLowerCase() ?? '';
 	}
 }
 Registry.add(TerminalExtensions.Backend, new TerminalBackendRegistry());
