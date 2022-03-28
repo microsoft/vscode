@@ -10,7 +10,6 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { ITestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -23,7 +22,7 @@ class TestSnippetController extends SnippetController2 {
 		editor: ICodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
-		super(editor, new NullLogService(), new LanguageFeaturesService(), new TestConfigurationService(), _contextKeyService);
+		super(editor, new NullLogService(), new LanguageFeaturesService(), _contextKeyService);
 	}
 
 	isInSnippetMode(): boolean {
