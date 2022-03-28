@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CompletionItem, CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
@@ -20,7 +18,6 @@ import { Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
 import { localize } from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -66,7 +63,6 @@ export class SnippetController2 implements IEditorContribution {
 	private _snippetListener = new DisposableStore();
 	private _modelVersionId: number = -1;
 	private _currentChoice?: Choice;
-	private _currentChoiceCleanup = new DisposableStore();
 
 	private _choiceCompletionItemProvider?: CompletionItemProvider;
 
@@ -74,7 +70,6 @@ export class SnippetController2 implements IEditorContribution {
 		private readonly _editor: ICodeEditor,
 		@ILogService private readonly _logService: ILogService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this._inSnippet = SnippetController2.InSnippetMode.bindTo(contextKeyService);
@@ -148,6 +143,9 @@ export class SnippetController2 implements IEditorContribution {
 					if (!activeChoice || activeChoice.options.length === 0) {
 						return undefined;
 					}
+
+					const info = model.getWordUntilPosition(position);
+					const isDefaultOption = info.word === activeChoice.options[0].value;
 					const suggestions: CompletionItem[] = [];
 					for (let i = 0; i < activeChoice.options.length; i++) {
 						const option = activeChoice.options[i];
@@ -156,7 +154,8 @@ export class SnippetController2 implements IEditorContribution {
 							label: option.value,
 							insertText: option.value,
 							sortText: 'a'.repeat(i + 1),
-							range: Range.fromPositions(position),
+							range: new Range(position.lineNumber, info.startColumn, position.lineNumber, info.endColumn),
+							filterText: isDefaultOption ? `${info.word}_${option.value}` : option.value,
 							command: { id: 'jumpToNextSnippetPlaceholder', title: localize('next', 'Go to next placeholder...') }
 						});
 					}
@@ -213,45 +212,19 @@ export class SnippetController2 implements IEditorContribution {
 	private _handleChoice(): void {
 		if (!this._session || !this._editor.hasModel()) {
 			this._currentChoice = undefined;
-			this._currentChoiceCleanup.clear();
 			return;
 		}
 
 		const { activeChoice } = this._session;
 		if (!activeChoice || !this._choiceCompletionItemProvider) {
 			this._currentChoice = undefined;
-			this._currentChoiceCleanup.clear();
 			return;
 		}
 
 		if (this._currentChoice !== activeChoice) {
-			this._currentChoiceCleanup.clear();
 			this._currentChoice = activeChoice;
 
-			// when reaching a choice element the default value is removed from the buffer
-			// and suggest with all choice options is shown instead. Erasing the default
-			// option helps suggest "feel better". To reduce flickering we temporarily
-			// enable suggest-preview. With that the width of the text doesn't really change
-
-			// (1) remove default option
-			const edits: ISingleEditOperation[] = [];
-			const selections: Selection[] = [];
-			for (const selection of this._editor.getSelections()) {
-				edits.push(EditOperation.delete(selection));
-				selections.push(new Selection(selection.startLineNumber, selection.startColumn, selection.startLineNumber, selection.startColumn));
-			}
-			this._editor.executeEdits('snippet_choice_prepare', edits, selections);
-
-			// (2) enable suggest preview
-			const config = 'editor.suggest.preview';
-			const overrides = { resource: this._editor.getModel().uri };
-			const oldValue = this._configurationService.getValue(config, overrides);
-			this._configurationService.updateValue(config, true, overrides, ConfigurationTarget.MEMORY);
-			this._currentChoiceCleanup.add(toDisposable(() => {
-				this._configurationService.updateValue(config, oldValue, overrides, ConfigurationTarget.MEMORY);
-			}));
-
-			// (3) trigger suggest with the special choice completion provider
+			// trigger suggest with the special choice completion provider
 			queueMicrotask(() => {
 				showSimpleSuggestions(this._editor, this._choiceCompletionItemProvider!);
 			});
@@ -271,7 +244,6 @@ export class SnippetController2 implements IEditorContribution {
 		this._snippetListener.clear();
 
 		this._currentChoice = undefined;
-		this._currentChoiceCleanup.clear();
 
 		this._session?.dispose();
 		this._session = undefined;
