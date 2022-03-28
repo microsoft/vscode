@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
 export class ExtensionsCleaner implements IWorkbenchContribution {
 
 	constructor(
-		@IExtensionStorageService extensionStorageService: IExtensionStorageService,
+		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IStorageService storageService: IStorageService,
 	) {
-		extensionStorageService.removeOutdatedExtensionVersions();
+		ExtensionStorageService.removeOutdatedExtensionVersions(extensionManagementService, storageService);
 	}
 }
