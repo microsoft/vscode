@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled, isCancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { CancellationError, isCancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { DisposableStore, IDisposable, isDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -295,7 +295,7 @@ export async function provideSuggestionItems(
 
 	if (token.isCancellationRequested) {
 		disposables.dispose();
-		return Promise.reject<any>(canceled());
+		return Promise.reject<any>(new CancellationError());
 	}
 
 	return new CompletionItemModel(

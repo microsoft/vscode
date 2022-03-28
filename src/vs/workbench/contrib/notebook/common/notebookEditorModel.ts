@@ -27,7 +27,7 @@ import { assertType } from 'vs/base/common/types';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { StoredFileWorkingCopyState, IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { canceled } from 'vs/base/common/errors';
+import { CancellationError } from 'vs/base/common/errors';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { filter } from 'vs/base/common/objects';
@@ -631,7 +631,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 
 		const bytes = await this._notebookSerializer.notebookToData(data);
 		if (token.isCancellationRequested) {
-			throw canceled();
+			throw new CancellationError();
 		}
 		return bufferToStream(bytes);
 	}
@@ -642,7 +642,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 		const data = await this._notebookSerializer.dataToNotebook(bytes);
 
 		if (token.isCancellationRequested) {
-			throw canceled();
+			throw new CancellationError();
 		}
 		this._notebookModel.reset(data.cells, data.metadata, this._notebookSerializer.options);
 	}
@@ -674,7 +674,7 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 		const data = await info.serializer.dataToNotebook(bytes);
 
 		if (token.isCancellationRequested) {
-			throw canceled();
+			throw new CancellationError();
 		}
 
 		const notebookModel = this._notebookService.createNotebookTextModel(info.viewType, resource, data, info.serializer.options);
