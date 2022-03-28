@@ -816,9 +816,8 @@ function registerCloseEditorCommands() {
 					.map(editor => typeof editor.editorIndex === 'number' ? group.getEditorByIndex(editor.editorIndex) : group.activeEditor))
 					.filter(editor => !keepStickyEditors || !group.isSticky(editor));
 
-				return group.closeEditors(editorsToClose, { preserveFocus: context?.preserveFocus });
+				await group.closeEditors(editorsToClose, { preserveFocus: context?.preserveFocus });
 			}
-			return true;
 		}));
 	}
 
@@ -882,9 +881,8 @@ function registerCloseEditorCommands() {
 		handler: (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			return Promise.all(getEditorsContext(accessor, resourceOrContext, context).groups.map(async group => {
 				if (group) {
-					return group.closeEditors({ savedOnly: true, excludeSticky: true }, { preserveFocus: context?.preserveFocus });
+					await group.closeEditors({ savedOnly: true, excludeSticky: true }, { preserveFocus: context?.preserveFocus });
 				}
-				return true;
 			}));
 		}
 	});
@@ -911,9 +909,8 @@ function registerCloseEditorCommands() {
 						}
 					}
 
-					return group.closeEditors(editorsToClose, { preserveFocus: context?.preserveFocus });
+					await group.closeEditors(editorsToClose, { preserveFocus: context?.preserveFocus });
 				}
-				return true;
 			}));
 		}
 	});
@@ -932,9 +929,8 @@ function registerCloseEditorCommands() {
 					group.pinEditor(group.activeEditor);
 				}
 
-				return group.closeEditors({ direction: CloseDirection.RIGHT, except: editor, excludeSticky: true }, { preserveFocus: context?.preserveFocus });
+				await group.closeEditors({ direction: CloseDirection.RIGHT, except: editor, excludeSticky: true }, { preserveFocus: context?.preserveFocus });
 			}
-			return true;
 		}
 	});
 

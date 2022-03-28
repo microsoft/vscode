@@ -1725,6 +1725,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Do close
 		this.doCloseEditors(editors, options);
+
 		return true;
 	}
 
