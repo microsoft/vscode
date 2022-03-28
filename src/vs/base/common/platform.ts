@@ -84,6 +84,19 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isWeb = true;
 	_locale = navigator.language;
 	_language = _locale;
+	const el = typeof document !== 'undefined' && document.getElementById('vscode-remote-nls-configuration');
+	const rawNlsConfig = el && el.getAttribute('data-settings');
+	if (rawNlsConfig) {
+		try {
+			const nlsConfig: NLSConfig = JSON.parse(rawNlsConfig);
+			const resolved = nlsConfig.availableLanguages['*'];
+			_locale = nlsConfig.locale;
+			// VSCode's default language is 'en'
+			_language = resolved ? resolved : LANGUAGE_DEFAULT;
+			_translationsConfigFile = nlsConfig._translationsConfigFile;
+		} catch (e) {
+		}
+	}
 }
 
 // Native environment
