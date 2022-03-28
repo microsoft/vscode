@@ -581,7 +581,11 @@ export class InteractiveEditor extends EditorPane {
 				return;
 			}
 
-			if (this.#lastCell instanceof CodeCellViewModel && (e as CodeCellLayoutChangeEvent).outputHeight === undefined && !this.#notebookWidget.value!.isScrolledToBottom()) {
+			if (!this.#notebookWidget.value) {
+				return;
+			}
+
+			if (this.#lastCell instanceof CodeCellViewModel && (e as CodeCellLayoutChangeEvent).outputHeight === undefined && !this.#notebookWidget.value.isScrolledToBottom()) {
 				return;
 			}
 
