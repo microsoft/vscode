@@ -56,13 +56,15 @@ function registerMarkdownLanguageFeatures(
 ): vscode.Disposable {
 	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
 
+	const linkProvider = new MdLinkProvider(engine);
+
 	return vscode.Disposable.from(
 		vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
-		vscode.languages.registerDocumentLinkProvider(selector, new MdLinkProvider(engine)),
+		vscode.languages.registerDocumentLinkProvider(selector, linkProvider),
 		vscode.languages.registerFoldingRangeProvider(selector, new MdFoldingProvider(engine)),
 		vscode.languages.registerSelectionRangeProvider(selector, new MdSmartSelect(engine)),
 		vscode.languages.registerWorkspaceSymbolProvider(new MdWorkspaceSymbolProvider(symbolProvider)),
-		MdPathCompletionProvider.register(selector, engine),
+		MdPathCompletionProvider.register(selector, engine, linkProvider),
 	);
 }
 

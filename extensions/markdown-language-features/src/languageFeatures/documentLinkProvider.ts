@@ -99,13 +99,25 @@ const angleBracketLinkRe = /^<(.*)>$/;
  *
  * <http://example.com> will be transformed to http://example.com
 */
-export function stripAngleBrackets(link: string) {
+function stripAngleBrackets(link: string) {
 	return link.replace(angleBracketLinkRe, '$1');
 }
 
+/**
+ * Matches `[text](link)`
+ */
 const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*(".*?")?\)/g;
+
+/**
+ * Matches `[text][ref]`
+ */
 const referenceLinkPattern = /(?:(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]|\[\s*?([^\s\]]*?)\])(?!\:)/g;
+
+/**
+ * Matches `[text]: link`
+ */
 const definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)([^<]\S*|<[^>]+>)/gm;
+
 const inlineCodePattern = /(?:^|[^`])(`+)(?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?\1(?:$|[^`])/gm;
 
 interface CodeInDocument {
@@ -149,15 +161,12 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 	): Promise<vscode.DocumentLink[]> {
 		const text = document.getText();
 		return [
-			...(await this.providerInlineLinks(text, document)),
-			...this.provideReferenceLinks(text, document)
+			...(await this.getInlineLinks(text, document)),
+			...this.getReferenceLinks(text, document)
 		];
 	}
 
-	private async providerInlineLinks(
-		text: string,
-		document: vscode.TextDocument,
-	): Promise<vscode.DocumentLink[]> {
+	private async getInlineLinks(text: string, document: vscode.TextDocument): Promise<vscode.DocumentLink[]> {
 		const results: vscode.DocumentLink[] = [];
 		const codeInDocument = await findCode(document, this.engine);
 		for (const match of text.matchAll(linkPattern)) {
@@ -173,13 +182,8 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 		return results;
 	}
 
-	private provideReferenceLinks(
-		text: string,
-		document: vscode.TextDocument,
-	): vscode.DocumentLink[] {
-		const results: vscode.DocumentLink[] = [];
-
-		const definitions = MdLinkProvider.getDefinitions(text, document);
+	public *getReferenceLinks(text: string, document: vscode.TextDocument): Iterable<vscode.DocumentLink> {
+		const definitions = this.getDefinitions(text, document);
 		for (const match of text.matchAll(referenceLinkPattern)) {
 			let linkStart: vscode.Position;
 			let linkEnd: vscode.Position;
@@ -201,9 +205,9 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 			try {
 				const link = definitions.get(reference);
 				if (link) {
-					results.push(new vscode.DocumentLink(
+					yield new vscode.DocumentLink(
 						new vscode.Range(linkStart, linkEnd),
-						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([link.linkRange.start.line, link.linkRange.start.character]))}`)));
+						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([link.linkRange.start.line, link.linkRange.start.character]))}`));
 				}
 			} catch (e) {
 				// noop
@@ -214,17 +218,15 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 			try {
 				const linkData = parseLink(document, definition.link);
 				if (linkData) {
-					results.push(new vscode.DocumentLink(definition.linkRange, linkData.uri));
+					yield new vscode.DocumentLink(definition.linkRange, linkData.uri);
 				}
 			} catch (e) {
 				// noop
 			}
 		}
-
-		return results;
 	}
 
-	public static getDefinitions(text: string, document: vscode.TextDocument) {
+	public getDefinitions(text: string, document: vscode.TextDocument): Map<string, { readonly link: string; readonly linkRange: vscode.Range }> {
 		const out = new Map<string, { link: string; linkRange: vscode.Range }>();
 		for (const match of text.matchAll(definitionPattern)) {
 			const pre = match[1];
