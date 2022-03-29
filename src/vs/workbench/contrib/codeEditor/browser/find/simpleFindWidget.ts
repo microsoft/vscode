@@ -163,7 +163,8 @@ export abstract class SimpleFindWidget extends Widget {
 		}));
 
 		if (_options?.showResultCount) {
-			this._domNode.classList.add('terminal-find');
+			this._domNode.classList.add('result-count');
+			this._register(this._findInput.onDidChange(() => this._updateResultCount()));
 		}
 	}
 
