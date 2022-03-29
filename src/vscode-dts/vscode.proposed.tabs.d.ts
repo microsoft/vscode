@@ -54,9 +54,6 @@ declare module 'vscode' {
 	 */
 	export interface Tab {
 
-		// TODO@API consider adding:
-		// readonly index: number;
-
 		/**
 		 * The text displayed on the tab
 		 */
@@ -146,15 +143,12 @@ declare module 'vscode' {
 		/**
 		 * An {@link Event} which fires when a tab changes.
 		 */
-		// TODO@API use richer event type?
-		// TODO@API future proof: event with an array of tab-instances
-		readonly onDidChangeTab: Event<Tab>;
+		readonly onDidChangeTabs: Event<Tab[]>;
 
 		/**
 		 * An {@link Event} which fires when the active group changes.
 		 * This does not fire when the properties within the group change.
 		 */
-		// TODO@API consider to replace with onDidChangeActiveTAB (group can be inferred from that)
 		readonly onDidChangeActiveTabGroup: Event<TabGroup>;
 
 		/**
