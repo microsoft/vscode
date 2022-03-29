@@ -95,9 +95,9 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 	}
 
 	private async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
-		const matchingDocuments = vscode.workspace.textDocuments.filter((doc) => doc.uri.toString() === resource.toString());
-		if (matchingDocuments.length !== 0) {
-			return matchingDocuments[0];
+		const matchingDocument = vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === resource.toString());
+		if (matchingDocument) {
+			return matchingDocument;
 		}
 
 		const bytes = await vscode.workspace.fs.readFile(resource);
