@@ -13,10 +13,11 @@ import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { openDocumentLink, resolveDocumentLink, resolveUriToMarkdownFile } from '../util/openDocumentLink';
 import { WebviewResourceProvider } from '../util/resources';
-import { getVisibleLine, LastScrollLocation, TopmostLineMonitor } from './topmostLineMonitor';
 import { urlToUri } from '../util/url';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider } from './previewContentProvider';
+import { scrollEditorToLine, StartingScrollFragment, StartingScrollLine, StartingScrollLocation } from './scrolling';
+import { getVisibleLine, LastScrollLocation, TopmostLineMonitor } from './topmostLineMonitor';
 
 const localize = nls.loadMessageBundle();
 
@@ -83,44 +84,27 @@ interface MarkdownPreviewDelegate {
 	openPreviewLinkToMarkdownFile(markdownLink: vscode.Uri, fragment: string): void;
 }
 
-class StartingScrollLine {
-	public readonly type = 'line';
-
-	constructor(
-		public readonly line: number,
-	) { }
-}
-
-export class StartingScrollFragment {
-	public readonly type = 'fragment';
-
-	constructor(
-		public readonly fragment: string,
-	) { }
-}
-
-type StartingScrollLocation = StartingScrollLine | StartingScrollFragment;
 
 class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
+	private static readonly unwatchedImageSchemes = new Set(['https', 'http', 'data']);
+
+	private _disposed: boolean = false;
+
 	private readonly delay = 300;
+	private throttleTimer: any;
 
 	private readonly _resource: vscode.Uri;
 	private readonly _webviewPanel: vscode.WebviewPanel;
 
-	private throttleTimer: any;
-
 	private line: number | undefined;
 	private scrollToFragment: string | undefined;
-
 	private firstUpdate = true;
 	private currentVersion?: PreviewDocumentVersion;
 	private isScrolling = false;
-	private _disposed: boolean = false;
-	private imageInfo: { readonly id: string; readonly width: number; readonly height: number }[] = [];
 
+	private imageInfo: { readonly id: string; readonly width: number; readonly height: number }[] = [];
 	private readonly _fileWatchersBySrc = new Map</* src: */ string, vscode.FileSystemWatcher>();
-	private readonly _unwatchedImageSchemes = new Set(['https', 'http', 'data']);
 
 	private readonly _onScrollEmitter = this._register(new vscode.EventEmitter<LastScrollLocation>());
 	public readonly onScroll = this._onScrollEmitter.event;
@@ -411,7 +395,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		const root = vscode.Uri.joinPath(this._resource, '../');
 		for (const src of srcs) {
 			const uri = urlToUri(src, root);
-			if (uri && !this._unwatchedImageSchemes.has(uri.scheme) && !this._fileWatchersBySrc.has(src)) {
+			if (uri && !MarkdownPreview.unwatchedImageSchemes.has(uri.scheme) && !this._fileWatchersBySrc.has(src)) {
 				const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(uri, '*'));
 				watcher.onDidChange(() => {
 					this.refresh(true);
@@ -816,20 +800,4 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 			this._logger,
 			this._contributionProvider);
 	}
-}
-
-/**
- * Change the top-most visible line of `editor` to be at `line`
- */
-export function scrollEditorToLine(
-	line: number,
-	editor: vscode.TextEditor
-) {
-	const sourceLine = Math.floor(line);
-	const fraction = line - sourceLine;
-	const text = editor.document.lineAt(sourceLine).text;
-	const start = Math.floor(fraction * text.length);
-	editor.revealRange(
-		new vscode.Range(sourceLine, start, sourceLine + 1, 0),
-		vscode.TextEditorRevealType.AtTop);
 }
