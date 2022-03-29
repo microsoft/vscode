@@ -54,7 +54,7 @@ export class CodeCell extends Disposable {
 		super();
 
 		const cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, this.viewCell.language));
-		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 2 });
+		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
 		this.cellParts = [...templateData.cellParts, cellEditorOptions, this._outputContainerRenderer];
 
 		const editorHeight = this.calculateInitEditorHeight();
