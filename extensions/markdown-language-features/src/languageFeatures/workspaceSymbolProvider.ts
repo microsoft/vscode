@@ -129,7 +129,8 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 }
 
 export default class MarkdownWorkspaceSymbolProvider extends Disposable implements vscode.WorkspaceSymbolProvider {
-	private _symbolCache = new Map<string, Lazy<Thenable<vscode.SymbolInformation[]>>>();
+
+	private readonly _symbolCache = new Map<string, Lazy<Thenable<vscode.SymbolInformation[]>>>();
 	private _symbolCachePopulated: boolean = false;
 
 	public constructor(
@@ -157,21 +158,21 @@ export default class MarkdownWorkspaceSymbolProvider extends Disposable implemen
 	public async populateSymbolCache(): Promise<void> {
 		const markdownDocumentUris = await this._workspaceMarkdownDocumentProvider.getAllMarkdownDocuments();
 		for (const document of markdownDocumentUris) {
-			this._symbolCache.set(document.uri.fsPath, this.getSymbols(document));
+			this._symbolCache.set(document.uri.toString(), this.getSymbols(document));
 		}
 	}
 
 	private getSymbols(document: SkinnyTextDocument): Lazy<Thenable<vscode.SymbolInformation[]>> {
-		return lazy(async () => {
+		return lazy(() => {
 			return this._symbolProvider.provideDocumentSymbolInformation(document);
 		});
 	}
 
 	private onDidChangeDocument(document: SkinnyTextDocument) {
-		this._symbolCache.set(document.uri.fsPath, this.getSymbols(document));
+		this._symbolCache.set(document.uri.toString(), this.getSymbols(document));
 	}
 
 	private onDidDeleteDocument(resource: vscode.Uri) {
-		this._symbolCache.delete(resource.fsPath);
+		this._symbolCache.delete(resource.toString());
 	}
 }
