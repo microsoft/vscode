@@ -180,7 +180,7 @@ export class MarkdownEngine {
 		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
 	}
 
-	public resetSlugCount(): void {
+	private resetSlugCount(): void {
 		this._slugCount = new Map<string, number>();
 	}
 

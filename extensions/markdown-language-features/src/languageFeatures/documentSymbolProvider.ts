@@ -13,7 +13,7 @@ interface MarkdownSymbol {
 	readonly children: vscode.DocumentSymbol[];
 }
 
-export default class MDDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
+export class MdDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 
 	constructor(
 		private readonly engine: MarkdownEngine

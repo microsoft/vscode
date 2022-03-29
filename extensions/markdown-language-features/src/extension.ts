@@ -6,13 +6,13 @@
 import * as vscode from 'vscode';
 import { CommandManager } from './commandManager';
 import * as commands from './commands/index';
-import LinkProvider from './languageFeatures/documentLinkProvider';
-import MDDocumentSymbolProvider from './languageFeatures/documentSymbolProvider';
+import { MdLinkProvider } from './languageFeatures/documentLinkProvider';
+import { MdDocumentSymbolProvider } from './languageFeatures/documentSymbolProvider';
 import { registerDropIntoEditor } from './languageFeatures/dropIntoEditor';
-import MarkdownFoldingProvider from './languageFeatures/foldingProvider';
-import { PathCompletionProvider } from './languageFeatures/pathCompletions';
-import MarkdownSmartSelect from './languageFeatures/smartSelect';
-import MarkdownWorkspaceSymbolProvider from './languageFeatures/workspaceSymbolProvider';
+import { MdFoldingProvider } from './languageFeatures/foldingProvider';
+import { MdPathCompletionProvider } from './languageFeatures/pathCompletions';
+import { MdSmartSelect } from './languageFeatures/smartSelect';
+import { MdWorkspaceSymbolProvider } from './languageFeatures/workspaceSymbolProvider';
 import { Logger } from './logger';
 import { MarkdownEngine } from './markdownEngine';
 import { getMarkdownExtensionContributions } from './markdownExtensions';
@@ -35,7 +35,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const logger = new Logger();
 
 	const contentProvider = new MarkdownContentProvider(engine, context, cspArbiter, contributions, logger);
-	const symbolProvider = new MDDocumentSymbolProvider(engine);
+	const symbolProvider = new MdDocumentSymbolProvider(engine);
 	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions, engine);
 	context.subscriptions.push(previewManager);
 
@@ -51,18 +51,18 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 function registerMarkdownLanguageFeatures(
-	symbolProvider: MDDocumentSymbolProvider,
+	symbolProvider: MdDocumentSymbolProvider,
 	engine: MarkdownEngine
 ): vscode.Disposable {
 	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
 
 	return vscode.Disposable.from(
 		vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
-		vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider(engine)),
-		vscode.languages.registerFoldingRangeProvider(selector, new MarkdownFoldingProvider(engine)),
-		vscode.languages.registerSelectionRangeProvider(selector, new MarkdownSmartSelect(engine)),
-		vscode.languages.registerWorkspaceSymbolProvider(new MarkdownWorkspaceSymbolProvider(symbolProvider)),
-		PathCompletionProvider.register(selector, engine),
+		vscode.languages.registerDocumentLinkProvider(selector, new MdLinkProvider(engine)),
+		vscode.languages.registerFoldingRangeProvider(selector, new MdFoldingProvider(engine)),
+		vscode.languages.registerSelectionRangeProvider(selector, new MdSmartSelect(engine)),
+		vscode.languages.registerWorkspaceSymbolProvider(new MdWorkspaceSymbolProvider(symbolProvider)),
+		MdPathCompletionProvider.register(selector, engine),
 	);
 }
 

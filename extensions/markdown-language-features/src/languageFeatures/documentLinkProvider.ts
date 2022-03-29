@@ -138,7 +138,7 @@ function isLinkInsideCode(code: CodeInDocument, link: vscode.DocumentLink) {
 		code.inline.some(position => position.intersection(link.range));
 }
 
-export default class LinkProvider implements vscode.DocumentLinkProvider {
+export class MdLinkProvider implements vscode.DocumentLinkProvider {
 	constructor(
 		private readonly engine: MarkdownEngine
 	) { }
@@ -179,7 +179,7 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 	): vscode.DocumentLink[] {
 		const results: vscode.DocumentLink[] = [];
 
-		const definitions = LinkProvider.getDefinitions(text, document);
+		const definitions = MdLinkProvider.getDefinitions(text, document);
 		for (const match of text.matchAll(referenceLinkPattern)) {
 			let linkStart: vscode.Position;
 			let linkEnd: vscode.Position;

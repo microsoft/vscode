@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContents } from '../tableOfContentsProvider';
 import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
-import LinkProvider from './documentLinkProvider';
+import { MdLinkProvider } from './documentLinkProvider';
 
 enum CompletionContextKind {
 	/** `[...](|)` */
@@ -75,10 +75,10 @@ function tryDecodeUriComponent(str: string): string {
 	}
 }
 
-export class PathCompletionProvider implements vscode.CompletionItemProvider {
+export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
 
 	public static register(selector: vscode.DocumentSelector, engine: MarkdownEngine): vscode.Disposable {
-		return vscode.languages.registerCompletionItemProvider(selector, new PathCompletionProvider(engine), '.', '/', '#');
+		return vscode.languages.registerCompletionItemProvider(selector, new MdPathCompletionProvider(engine), '.', '/', '#');
 	}
 
 	constructor(
@@ -230,7 +230,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 		const insertionRange = new vscode.Range(context.linkTextStartPosition, position);
 		const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
 
-		const definitions = LinkProvider.getDefinitions(document.getText(), document);
+		const definitions = MdLinkProvider.getDefinitions(document.getText(), document);
 		for (const def of definitions) {
 			yield {
 				kind: vscode.CompletionItemKind.Reference,

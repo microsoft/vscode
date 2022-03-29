@@ -11,7 +11,7 @@ interface MarkdownItTokenWithMap extends Token {
 	map: [number, number];
 }
 
-export default class MarkdownSmartSelect implements vscode.SelectionRangeProvider {
+export class MdSmartSelect implements vscode.SelectionRangeProvider {
 
 	constructor(
 		private readonly engine: MarkdownEngine

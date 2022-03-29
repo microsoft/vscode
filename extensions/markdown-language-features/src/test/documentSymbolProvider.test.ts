@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import SymbolProvider from '../languageFeatures/documentSymbolProvider';
+import { MdDocumentSymbolProvider } from '../languageFeatures/documentSymbolProvider';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryDocument } from './inMemoryDocument';
 
@@ -16,7 +16,7 @@ const testFileName = vscode.Uri.file('test.md');
 
 function getSymbolsForFile(fileContents: string) {
 	const doc = new InMemoryDocument(testFileName, fileContents);
-	const provider = new SymbolProvider(createNewMarkdownEngine());
+	const provider = new MdDocumentSymbolProvider(createNewMarkdownEngine());
 	return provider.provideDocumentSymbols(doc);
 }
 

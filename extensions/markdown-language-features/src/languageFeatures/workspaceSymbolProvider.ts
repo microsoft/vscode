@@ -8,7 +8,7 @@ import { SkinnyTextDocument, SkinnyTextLine } from '../tableOfContentsProvider';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { Lazy, lazy } from '../util/lazy';
-import MDDocumentSymbolProvider from './documentSymbolProvider';
+import { MdDocumentSymbolProvider } from './documentSymbolProvider';
 
 export interface WorkspaceMarkdownDocumentProvider {
 	getAllMarkdownDocuments(): Thenable<Iterable<SkinnyTextDocument>>;
@@ -128,13 +128,13 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 	}
 }
 
-export default class MarkdownWorkspaceSymbolProvider extends Disposable implements vscode.WorkspaceSymbolProvider {
+export class MdWorkspaceSymbolProvider extends Disposable implements vscode.WorkspaceSymbolProvider {
 
 	private readonly _symbolCache = new Map<string, Lazy<Thenable<vscode.SymbolInformation[]>>>();
 	private _symbolCachePopulated: boolean = false;
 
 	public constructor(
-		private _symbolProvider: MDDocumentSymbolProvider,
+		private _symbolProvider: MdDocumentSymbolProvider,
 		private _workspaceMarkdownDocumentProvider: WorkspaceMarkdownDocumentProvider = new VSCodeWorkspaceMarkdownDocumentProvider()
 	) {
 		super();

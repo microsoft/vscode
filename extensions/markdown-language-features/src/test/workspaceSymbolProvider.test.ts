@@ -6,17 +6,17 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import MDDocumentSymbolProvider from '../languageFeatures/documentSymbolProvider';
-import MarkdownWorkspaceSymbolProvider, { WorkspaceMarkdownDocumentProvider } from '../languageFeatures/workspaceSymbolProvider';
+import { MdDocumentSymbolProvider } from '../languageFeatures/documentSymbolProvider';
+import { MdWorkspaceSymbolProvider, WorkspaceMarkdownDocumentProvider } from '../languageFeatures/workspaceSymbolProvider';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryDocument } from './inMemoryDocument';
 
 
-const symbolProvider = new MDDocumentSymbolProvider(createNewMarkdownEngine());
+const symbolProvider = new MdDocumentSymbolProvider(createNewMarkdownEngine());
 
 suite('markdown.WorkspaceSymbolProvider', () => {
 	test('Should not return anything for empty workspace', async () => {
-		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocumentProvider([]));
+		const provider = new MdWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocumentProvider([]));
 
 		assert.deepStrictEqual(await provider.provideWorkspaceSymbols(''), []);
 	});
@@ -24,7 +24,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 	test('Should return symbols from workspace with one markdown file', async () => {
 		const testFileName = vscode.Uri.file('test.md');
 
-		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocumentProvider([
+		const provider = new MdWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocumentProvider([
 			new InMemoryDocument(testFileName, `# header1\nabc\n## header2`)
 		]));
 
@@ -42,7 +42,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 			files.push(new InMemoryDocument(testFileName, `# common\nabc\n## header${i}`));
 		}
 
-		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocumentProvider(files));
+		const provider = new MdWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocumentProvider(files));
 
 		const symbols = await provider.provideWorkspaceSymbols('');
 		assert.strictEqual(symbols.length, fileNameCount * 2);
@@ -55,7 +55,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 			new InMemoryDocument(testFileName, `# header1`, 1 /* version */)
 		]);
 
-		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, workspaceFileProvider);
+		const provider = new MdWorkspaceSymbolProvider(symbolProvider, workspaceFileProvider);
 
 		assert.strictEqual((await provider.provideWorkspaceSymbols('')).length, 1);
 
@@ -74,7 +74,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 			new InMemoryDocument(testFileName, `# header1`)
 		]);
 
-		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, workspaceFileProvider);
+		const provider = new MdWorkspaceSymbolProvider(symbolProvider, workspaceFileProvider);
 		assert.strictEqual((await provider.provideWorkspaceSymbols('')).length, 1);
 
 		// delete file
@@ -90,7 +90,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 			new InMemoryDocument(testFileName, `# header1`)
 		]);
 
-		const provider = new MarkdownWorkspaceSymbolProvider(symbolProvider, workspaceFileProvider);
+		const provider = new MdWorkspaceSymbolProvider(symbolProvider, workspaceFileProvider);
 		assert.strictEqual((await provider.provideWorkspaceSymbols('')).length, 1);
 
 		// Creat file

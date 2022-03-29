@@ -14,7 +14,7 @@ interface MarkdownItTokenWithMap extends Token {
 	map: [number, number];
 }
 
-export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvider {
+export class MdFoldingProvider implements vscode.FoldingRangeProvider {
 
 	constructor(
 		private readonly engine: MarkdownEngine
