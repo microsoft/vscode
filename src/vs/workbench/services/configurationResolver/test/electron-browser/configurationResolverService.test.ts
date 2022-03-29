@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { stub } from 'sinon';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -16,12 +17,14 @@ import { EditorType } from 'vs/editor/common/editorCommon';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { IWorkspace, IWorkspaceFolder, IWorkspaceIdentifier, Workspace } from 'vs/platform/workspace/common/workspace';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { TestEditorService, TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService, TestExtensionService, TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -68,7 +71,7 @@ suite('Configuration Resolver Service', () => {
 	let quickInputService: TestQuickInputService;
 	let labelService: MockLabelService;
 	let pathService: MockPathService;
-	let extensionService: TestExtensionService;
+	let extensionService: IExtensionService;
 
 	setup(() => {
 		mockCommandService = new MockCommandService();
@@ -185,6 +188,13 @@ suite('Configuration Resolver Service', () => {
 
 	test('disallows nested keys (#77289)', async () => {
 		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${env:key1} ${env:key1${env:key2}}'), 'Value for key1 ${env:key1${env:key2}}');
+	});
+
+	test('supports extensionDir', async () => {
+		const getExtension = stub(extensionService, 'getExtension');
+		getExtension.withArgs('publisher.extId').returns(Promise.resolve({ extensionLocation: uri.file('/some/path') } as IExtensionDescription));
+
+		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${extensionDir:publisher.extId}'), uri.file('/some/path').fsPath);
 	});
 
 	// test('substitute keys and values in object', () => {

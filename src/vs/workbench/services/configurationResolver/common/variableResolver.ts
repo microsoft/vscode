@@ -142,10 +142,14 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 			return Promise.all(value.map(s => this.recursiveResolve(environment, folderUri, s, commandValueMapping, resolvedVariables)));
 		} else if (types.isObject(value)) {
 			let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
-			await Promise.all(Object.keys(value).map(async key => {
+			const replaced = await Promise.all(Object.keys(value).map(async key => {
 				const replaced = await this.resolveString(environment, folderUri, key, commandValueMapping, resolvedVariables);
-				result[replaced] = await this.recursiveResolve(environment, folderUri, value[key], commandValueMapping, resolvedVariables);
+				return [replaced, await this.recursiveResolve(environment, folderUri, value[key], commandValueMapping, resolvedVariables)] as const;
 			}));
+			// two step process to preserve object key order
+			for (const [key, value] of replaced) {
+				result[key] = value;
+			}
 			return result;
 		}
 		return value;
