@@ -12,7 +12,7 @@ export class ElementSizeObserver extends Disposable {
 	private _onDidChange = this._register(new Emitter<void>());
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	private readonly _referenceDomElement: HTMLElement | null;
+	private _referenceDomElement: HTMLElement | null;
 	private _width: number;
 	private _height: number;
 	private _resizeObserver: ResizeObserver | null;
@@ -28,6 +28,7 @@ export class ElementSizeObserver extends Disposable {
 
 	public override dispose(): void {
 		this.stopObserving();
+		this._referenceDomElement = null;
 		super.dispose();
 	}
 

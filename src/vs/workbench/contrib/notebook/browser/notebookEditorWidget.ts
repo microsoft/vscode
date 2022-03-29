@@ -2809,6 +2809,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.remove();
 		this.viewModel?.dispose();
 
+		this._renderedEditors.clear();
+
+		super.dispose();
+
 		// unref
 		this._webview = null;
 		this._webviewResolvePromise = null;
@@ -2817,11 +2821,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._listTopCellToolbar = null;
 		this._notebookViewModel = undefined;
 		this._cellContextKeyManager = null;
-		this._renderedEditors.clear();
+		this._notebookTopToolbar = null!;
+		this._list = null!;
+		this._listViewInfoAccessor = null!;
 		this._pendingLayouts = null;
 		this._listDelegate = null;
-
-		super.dispose();
 	}
 
 	toJSON(): { notebookUri: URI | undefined } {

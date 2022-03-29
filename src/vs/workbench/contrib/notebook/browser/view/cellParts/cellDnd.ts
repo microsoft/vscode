@@ -68,7 +68,7 @@ export class CellDragAndDropController extends Disposable {
 	private readonly listOnWillScrollListener = this._register(new MutableDisposable());
 
 	constructor(
-		private readonly notebookEditor: INotebookEditorDelegate,
+		private notebookEditor: INotebookEditorDelegate,
 		private readonly notebookListContainer: HTMLElement
 	) {
 		super();
@@ -405,6 +405,11 @@ export class CellDragAndDropController extends Disposable {
 		const dragPosRatio = dragPosInElement / cellHeight;
 
 		return this.getDropInsertDirection(dragPosRatio);
+	}
+
+	override dispose() {
+		this.notebookEditor = null!;
+		super.dispose();
 	}
 }
 
