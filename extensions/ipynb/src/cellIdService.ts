@@ -9,6 +9,7 @@ import { getCellMetadata } from './serializers';
 import { CellMetadata } from './common';
 import { getNotebookMetadata } from './notebookSerializer';
 import * as nbformat from '@jupyterlab/nbformat';
+import { JupyterNotebookType } from './constants';
 
 /**
  * Ensure all new cells in notebooks with nbformat >= 4.5 have an id.
@@ -19,6 +20,9 @@ export function ensureAllNewCellsHaveCellIds(context: ExtensionContext) {
 }
 
 function onDidChangeNotebookCells(e: NotebookCellsChangeEvent) {
+	if (e.document.notebookType !== JupyterNotebookType) {
+		return;
+	}
 	const nbMetadata = getNotebookMetadata(e.document);
 	if (!isCellIdRequired(nbMetadata)) {
 		return;

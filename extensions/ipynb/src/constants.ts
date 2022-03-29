@@ -4,3 +4,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const defaultNotebookFormat = { major: 4, minor: 2 };
+export const JupyterNotebookType = 'jupyter-notebook';
