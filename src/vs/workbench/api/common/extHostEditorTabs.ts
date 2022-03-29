@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext, MainThreadEditorTabsShape, TabInputKind } from 'vs/workbench/api/common/extHost.protocol';
 import { URI } from 'vs/base/common/uri';
@@ -162,6 +162,11 @@ class ExtHostEditorTabGroup {
 		}
 		if (dto.isActive) {
 			this._activeTabId = dto.id;
+		} else if (this._activeTabId === dto.id && !dto.isActive) {
+			// Events aren't guaranteed to be in order so if we receive a dto that matches the active tab id
+			// but isn't active we mark the active tab id as empty. This prevent onDidActiveTabChange frorm
+			// firing incorrectly
+			this._activeTabId = '';
 		}
 		tab.acceptDtoUpdate(dto);
 		return tab;
@@ -177,8 +182,9 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 	readonly _serviceBrand: undefined;
 
 	private readonly _proxy: MainThreadEditorTabsShape;
-	private readonly _onDidChangeTab = new Emitter<vscode.Tab[]>();
-	private readonly _onDidChangeTabGroup = new Emitter<void>();
+	private readonly _onDidChangeTabs = new Emitter<vscode.Tab[]>();
+	private readonly _onDidChangeActiveTab = new Emitter<vscode.Tab>();
+	private readonly _onDidChangeTabGroups = new Emitter<vscode.TabGroup[]>();
 	private readonly _onDidChangeActiveTabGroup = new Emitter<vscode.TabGroup>();
 
 	// Have to use ! because this gets initialized via an RPC proxy
@@ -197,9 +203,10 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			const that = this;
 			const obj: vscode.TabGroups = {
 				// never changes -> simple value
-				onDidChangeTabGroup: that._onDidChangeTabGroup.event,
+				onDidChangeTabGroups: that._onDidChangeTabGroups.event,
 				onDidChangeActiveTabGroup: that._onDidChangeActiveTabGroup.event,
-				onDidChangeTabs: that._onDidChangeTab.event,
+				onDidChangeTabs: that._onDidChangeTabs.event,
+				onDidChangeActiveTab: that._onDidChangeActiveTab.event,
 				// dynamic -> getters
 				get groups() {
 					return Object.freeze(that._extHostTabGroups.map(group => group.apiObject));
@@ -259,7 +266,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			this._activeGroupId = activeTabGroupId;
 			this._onDidChangeActiveTabGroup.fire(this.tabGroups.activeTabGroup);
 		}
-		this._onDidChangeTabGroup.fire();
+		this._onDidChangeTabGroups.fire(this._extHostTabGroups.map(g => g.apiObject));
 	}
 
 	$acceptTabGroupUpdate(groupDto: IEditorTabGroupDto) {
@@ -275,7 +282,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 				this._onDidChangeActiveTabGroup.fire(group.apiObject);
 			}
 		}
-		this._onDidChangeTabGroup.fire();
+		this._onDidChangeTabGroups.fire([group.apiObject]);
 	}
 
 	$acceptTabUpdate(groupId: number, tabDto: IEditorTabDto) {
@@ -284,6 +291,9 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			throw new Error('Update Tabs IPC call received before group creation.');
 		}
 		const tab = group.acceptTabDtoUpdate(tabDto);
-		this._onDidChangeTab.fire([tab.apiObject]);
+		this._onDidChangeTabs.fire([tab.apiObject]);
+		if (tab.apiObject.isActive) {
+			this._onDidChangeActiveTab.fire(tab.apiObject);
+		}
 	}
 }

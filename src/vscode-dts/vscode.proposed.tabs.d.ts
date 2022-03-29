@@ -71,8 +71,8 @@ declare module 'vscode' {
 		readonly kind: TabKindText | TabKindTextDiff | TabKindCustom | TabKindWebview | TabKindNotebook | TabKindNotebookDiff | TabKindTerminal | unknown;
 
 		/**
-		 * Whether or not the tab is currently active
-		 * Dictated by being the selected tab in the group
+		 * Whether or not the tab is currently active.
+		 * This is dictated by being the selected tab in the group
 		 */
 		readonly isActive: boolean;
 
@@ -137,13 +137,19 @@ declare module 'vscode' {
 		/**
 		 * An {@link Event} which fires when a group changes.
 		 */
-		// TODO@API add TabGroup instance
-		readonly onDidChangeTabGroup: Event<void>;
+		readonly onDidChangeTabGroups: Event<TabGroup[]>;
 
 		/**
 		 * An {@link Event} which fires when a tab changes.
 		 */
 		readonly onDidChangeTabs: Event<Tab[]>;
+
+		/**
+		 * An {@link Event} which fires when an active tab changes.
+		 * Similar to {@link TabGroup.onDidChangeTabs} but only on tabs
+		 * with isActive equal to true.
+		 */
+		readonly onDidChangeActiveTab: Event<Tab>;
 
 		/**
 		 * An {@link Event} which fires when the active group changes.
