@@ -63,7 +63,7 @@
     "@parcel/watcher": "2.0.5",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/ripgrep": "^1.14.2",
-    "@vscode/sqlite3": "5.0.7",
+    "@vscode/sqlite3": "5.0.8",
     "@vscode/sudo-prompt": "9.3.1",
     "@vscode/vscode-languagedetection": "1.0.21",
     "applicationinsights": "1.4.2",
