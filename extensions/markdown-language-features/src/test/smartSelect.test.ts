@@ -717,9 +717,9 @@ function assertLineNumbersEqual(selectionRange: vscode.SelectionRange, startLine
 	assert.strictEqual(selectionRange.range.end.line, endLine, `failed on end line ${message}`);
 }
 
-async function getSelectionRangesForDocument(contents: string, pos?: vscode.Position[]) {
+function getSelectionRangesForDocument(contents: string, pos?: vscode.Position[]): Promise<vscode.SelectionRange[] | undefined> {
 	const doc = new InMemoryDocument(testFileName, contents);
 	const provider = new MdSmartSelect(createNewMarkdownEngine());
 	const positions = pos ? pos : getCursorPositions(contents, doc);
-	return await provider.provideSelectionRanges(doc, positions, new vscode.CancellationTokenSource().token);
+	return provider.provideSelectionRanges(doc, positions, new vscode.CancellationTokenSource().token);
 }
