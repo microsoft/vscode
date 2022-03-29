@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import { MarkdownContributionProvider as MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
 import { SkinnyTextDocument } from './tableOfContentsProvider';
-import { hash } from './util/hash';
+import { stringHash } from './util/hash';
 import { isOfScheme, Schemes } from './util/links';
 import { WebviewResourceProvider } from './util/resources';
 
@@ -237,7 +237,7 @@ export class MarkdownEngine {
 			const src = token.attrGet('src');
 			if (src) {
 				env.containingImages?.push({ src });
-				const imgHash = hash(src);
+				const imgHash = stringHash(src);
 				token.attrSet('id', `image-hash-${imgHash}`);
 
 				if (!token.attrGet('data-src')) {
