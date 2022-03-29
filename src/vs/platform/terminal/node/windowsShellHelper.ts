@@ -132,7 +132,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			windowsProcessTree = await import('windows-process-tree');
 		}
 		this._currentRequest = new Promise<string>(resolve => {
-			windowsProcessTree.getProcessTree(this._rootProcessId, (tree: WindowsProcessTreeType.IProcessTreeNode | undefined) => {
+			windowsProcessTree.getProcessTree(this._rootProcessId, (tree: any /* WindowsProcessTreeType.IProcessTreeNode | undefined */) => {
 				const name = this.traverseTree(tree);
 				this._currentRequest = undefined;
 				resolve(name);
