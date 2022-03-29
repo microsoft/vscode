@@ -31,7 +31,6 @@ import { TestCommandId, Testing } from 'vs/workbench/contrib/testing/common/cons
 import { ITestItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { TestId, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
-import { ITestingAutoRun, TestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingDecorationsService } from 'vs/workbench/contrib/testing/common/testingDecorations';
@@ -50,7 +49,6 @@ registerSingleton(ITestResultStorage, TestResultStorage, true);
 registerSingleton(ITestProfileService, TestProfileService, true);
 registerSingleton(ITestResultService, TestResultService, true);
 registerSingleton(ITestExplorerFilterState, TestExplorerFilterState, true);
-registerSingleton(ITestingAutoRun, TestingAutoRun, true);
 registerSingleton(ITestingOutputTerminalService, TestingOutputTerminalService, true);
 registerSingleton(ITestingPeekOpener, TestingPeekOpener, true);
 registerSingleton(ITestingProgressUiService, TestingProgressUiService, true);

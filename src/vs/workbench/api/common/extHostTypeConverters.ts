@@ -1762,7 +1762,6 @@ export namespace TestItem {
 				return new types.TestTag(tagId);
 			}),
 			range: Range.to(item.range || undefined),
-			invalidateResults: () => undefined,
 			canResolveChildren: false,
 			busy: false,
 			description: item.description || undefined,

@@ -10,7 +10,6 @@ import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/t
 
 export class MainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> implements IMainThreadTestCollection {
 	private busyProvidersChangeEmitter = new Emitter<number>();
-	private retireTestEmitter = new Emitter<string>();
 	private expandPromises = new WeakMap<IncrementalTestCollectionItem, {
 		pendingLvl: number;
 		doneLvl: number;
@@ -43,7 +42,6 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	}
 
 	public readonly onBusyProvidersChange = this.busyProvidersChangeEmitter.event;
-	public readonly onDidRetireTest = this.retireTestEmitter.event;
 
 	constructor(private readonly expandActual: (id: string, levels: number) => Promise<void>) {
 		super();
@@ -138,13 +136,6 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	 */
 	protected createItem(internal: InternalTestItem): IncrementalTestCollectionItem {
 		return { ...internal, children: new Set() };
-	}
-
-	/**
-	 * @override
-	 */
-	protected override retireTest(testId: string) {
-		this.retireTestEmitter.fire(testId);
 	}
 
 	private *getIterator() {
