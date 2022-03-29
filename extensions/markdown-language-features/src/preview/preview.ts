@@ -584,9 +584,6 @@ interface DynamicPreviewInput {
 	readonly line?: number;
 }
 
-/**
- * A
- */
 export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdownPreview {
 
 	public static readonly viewType = 'markdown.preview';
