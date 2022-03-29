@@ -10,13 +10,12 @@ import { Mimes } from 'vs/base/common/mime';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebookDiffModel } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 class CellSequence implements ISequence {
 
-	constructor(readonly textModel: NotebookTextModel) {
+	constructor(readonly textModel: INotebookTextModel) {
 	}
 
 	getElements(): string[] | number[] | Int32Array {

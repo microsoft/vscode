@@ -7,7 +7,6 @@ import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -62,7 +61,7 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 						case NotebookCellsChangeType.ModelChange:
 							eventDto.rawEvents.push({
 								kind: e.kind,
-								changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => NotebookDto.toNotebookCellDto(cell as NotebookCellTextModel))] as [number, number, NotebookCellDto[]])
+								changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => NotebookDto.toNotebookCellDto(cell))] as [number, number, NotebookCellDto[]])
 							});
 							break;
 						case NotebookCellsChangeType.Move:

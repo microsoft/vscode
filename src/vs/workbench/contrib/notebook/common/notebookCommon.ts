@@ -18,11 +18,13 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Command } from 'vs/editor/common/languages';
+import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -214,7 +216,10 @@ export interface ICell {
 	outputs: ICellOutput[];
 	metadata: NotebookCellMetadata;
 	internalMetadata: NotebookCellInternalMetadata;
+	getHashValue(): number;
+	textBuffer: IReadonlyTextBuffer;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice>;
+	onDidChangeOutputItems?: Event<void>;
 	onDidChangeLanguage: Event<string>;
 	onDidChangeMetadata: Event<void>;
 	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent>;
@@ -223,10 +228,14 @@ export interface ICell {
 export interface INotebookTextModel {
 	readonly viewType: string;
 	metadata: NotebookDocumentMetadata;
+	readonly transientOptions: TransientOptions;
 	readonly uri: URI;
 	readonly versionId: number;
-
+	readonly length: number;
 	readonly cells: readonly ICell[];
+	reset(cells: ICellDto2[], metadata: NotebookDocumentMetadata, transientOptions: TransientOptions): void;
+	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo?: boolean): boolean;
+	onDidChangeContent: Event<NotebookTextModelChangedEvent>;
 	onWillDispose: Event<void>;
 }
 
