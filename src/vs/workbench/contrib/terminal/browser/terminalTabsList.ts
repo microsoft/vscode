@@ -9,7 +9,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -585,13 +585,13 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		// Attach terminals type to event
 		const terminals: ITerminalInstance[] = dndData.filter(e => 'instanceId' in (e as any));
 		if (terminals.length > 0) {
-			originalEvent.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminals.map(e => e.resource.toString())));
+			originalEvent.dataTransfer.setData(TerminalDataTransfers.Terminals, JSON.stringify(terminals.map(e => e.resource.toString())));
 		}
 	}
 
 	onDragOver(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction {
 		if (data instanceof NativeDragAndDropData) {
-			if (!containsDragType(originalEvent, DataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.TERMINALS, CodeDataTransfers.FILES)) {
+			if (!containsDragType(originalEvent, DataTransfers.FILES, DataTransfers.RESOURCES, TerminalDataTransfers.Terminals, CodeDataTransfers.FILES)) {
 				return false;
 			}
 		}
@@ -602,7 +602,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 			this._autoFocusInstance = targetInstance;
 		}
 
-		if (!targetInstance && !containsDragType(originalEvent, DataTransfers.TERMINALS)) {
+		if (!targetInstance && !containsDragType(originalEvent, TerminalDataTransfers.Terminals)) {
 			return data instanceof ElementsDragAndDropData;
 		}
 

@@ -918,3 +918,7 @@ export const enum LinuxDistro {
 	Fedora = 2,
 	Ubuntu = 3,
 }
+
+export const enum TerminalDataTransfers {
+	Terminals = 'Terminals'
+}
