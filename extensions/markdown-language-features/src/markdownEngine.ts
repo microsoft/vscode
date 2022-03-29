@@ -6,12 +6,12 @@
 import MarkdownIt = require('markdown-it');
 import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
-import { MarkdownContributionProvider as MarkdownContributionProvider } from './markdownExtensions';
+import { MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
 import { SkinnyTextDocument } from './tableOfContentsProvider';
 import { stringHash } from './util/hash';
-import { isOfScheme, Schemes } from './util/schemes';
 import { WebviewResourceProvider } from './util/resources';
+import { isOfScheme, Schemes } from './util/schemes';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 

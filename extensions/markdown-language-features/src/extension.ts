@@ -11,13 +11,13 @@ import MDDocumentSymbolProvider from './languageFeatures/documentSymbolProvider'
 import { registerDropIntoEditor } from './languageFeatures/dropIntoEditor';
 import MarkdownFoldingProvider from './languageFeatures/foldingProvider';
 import { PathCompletionProvider } from './languageFeatures/pathCompletions';
-import { MarkdownContentProvider } from './preview/previewContentProvider';
-import { MarkdownPreviewManager } from './preview/previewManager';
 import MarkdownSmartSelect from './languageFeatures/smartSelect';
 import MarkdownWorkspaceSymbolProvider from './languageFeatures/workspaceSymbolProvider';
 import { Logger } from './logger';
 import { MarkdownEngine } from './markdownEngine';
 import { getMarkdownExtensionContributions } from './markdownExtensions';
+import { MarkdownContentProvider } from './preview/previewContentProvider';
+import { MarkdownPreviewManager } from './preview/previewManager';
 import { ContentSecurityPolicyArbiter, ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './preview/security';
 import { githubSlugifier } from './slugify';
 import { loadDefaultTelemetryReporter, TelemetryReporter } from './telemetryReporter';
