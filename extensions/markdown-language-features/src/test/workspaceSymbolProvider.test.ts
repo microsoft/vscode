@@ -7,7 +7,8 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { MdDocumentSymbolProvider } from '../languageFeatures/documentSymbolProvider';
-import { MdWorkspaceSymbolProvider, WorkspaceMarkdownDocumentProvider } from '../languageFeatures/workspaceSymbolProvider';
+import { MdWorkspaceSymbolProvider } from '../languageFeatures/workspaceSymbolProvider';
+import { MdWorkspaceContents } from '../workspaceContents';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryDocument } from './inMemoryDocument';
 
@@ -16,7 +17,7 @@ const symbolProvider = new MdDocumentSymbolProvider(createNewMarkdownEngine());
 
 suite('markdown.WorkspaceSymbolProvider', () => {
 	test('Should not return anything for empty workspace', async () => {
-		const provider = new MdWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocumentProvider([]));
+		const provider = new MdWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocuments([]));
 
 		assert.deepStrictEqual(await provider.provideWorkspaceSymbols(''), []);
 	});
@@ -24,7 +25,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 	test('Should return symbols from workspace with one markdown file', async () => {
 		const testFileName = vscode.Uri.file('test.md');
 
-		const provider = new MdWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocumentProvider([
+		const provider = new MdWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocuments([
 			new InMemoryDocument(testFileName, `# header1\nabc\n## header2`)
 		]));
 
@@ -42,7 +43,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 			files.push(new InMemoryDocument(testFileName, `# common\nabc\n## header${i}`));
 		}
 
-		const provider = new MdWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocumentProvider(files));
+		const provider = new MdWorkspaceSymbolProvider(symbolProvider, new InMemoryWorkspaceMarkdownDocuments(files));
 
 		const symbols = await provider.provideWorkspaceSymbols('');
 		assert.strictEqual(symbols.length, fileNameCount * 2);
@@ -51,7 +52,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 	test('Should update results when markdown file changes symbols', async () => {
 		const testFileName = vscode.Uri.file('test.md');
 
-		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocumentProvider([
+		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocuments([
 			new InMemoryDocument(testFileName, `# header1`, 1 /* version */)
 		]);
 
@@ -70,7 +71,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 	test('Should remove results when file is deleted', async () => {
 		const testFileName = vscode.Uri.file('test.md');
 
-		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocumentProvider([
+		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocuments([
 			new InMemoryDocument(testFileName, `# header1`)
 		]);
 
@@ -86,7 +87,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 	test('Should update results when markdown file is created', async () => {
 		const testFileName = vscode.Uri.file('test.md');
 
-		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocumentProvider([
+		const workspaceFileProvider = new InMemoryWorkspaceMarkdownDocuments([
 			new InMemoryDocument(testFileName, `# header1`)
 		]);
 
@@ -101,7 +102,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 });
 
 
-class InMemoryWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocumentProvider {
+class InMemoryWorkspaceMarkdownDocuments implements MdWorkspaceContents {
 	private readonly _documents = new Map<string, vscode.TextDocument>();
 
 	constructor(documents: vscode.TextDocument[]) {

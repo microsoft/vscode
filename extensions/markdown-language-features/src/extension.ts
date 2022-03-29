@@ -21,6 +21,7 @@ import { MarkdownPreviewManager } from './preview/previewManager';
 import { ContentSecurityPolicyArbiter, ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './preview/security';
 import { githubSlugifier } from './slugify';
 import { loadDefaultTelemetryReporter, TelemetryReporter } from './telemetryReporter';
+import { VsCodeMdWorkspaceContents } from './workspaceContents';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -57,13 +58,14 @@ function registerMarkdownLanguageFeatures(
 	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
 
 	const linkProvider = new MdLinkProvider(engine);
+	const w = new VsCodeMdWorkspaceContents();
 
 	return vscode.Disposable.from(
 		vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
 		vscode.languages.registerDocumentLinkProvider(selector, linkProvider),
 		vscode.languages.registerFoldingRangeProvider(selector, new MdFoldingProvider(engine)),
 		vscode.languages.registerSelectionRangeProvider(selector, new MdSmartSelect(engine)),
-		vscode.languages.registerWorkspaceSymbolProvider(new MdWorkspaceSymbolProvider(symbolProvider)),
+		vscode.languages.registerWorkspaceSymbolProvider(new MdWorkspaceSymbolProvider(symbolProvider, w)),
 		MdPathCompletionProvider.register(selector, engine, linkProvider),
 	);
 }

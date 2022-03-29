@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { MarkdownEngine } from './markdownEngine';
 import { githubSlugifier, Slug } from './slugify';
 import { isMarkdownFile } from './util/file';
+import { SkinnyTextDocument } from './workspaceContents';
 
 export interface TocEntry {
 	readonly slug: Slug;
@@ -14,19 +15,6 @@ export interface TocEntry {
 	readonly level: number;
 	readonly line: number;
 	readonly location: vscode.Location;
-}
-
-export interface SkinnyTextLine {
-	text: string;
-}
-
-export interface SkinnyTextDocument {
-	readonly uri: vscode.Uri;
-	readonly version: number;
-	readonly lineCount: number;
-
-	lineAt(line: number): SkinnyTextLine;
-	getText(): string;
 }
 
 export class TableOfContents {

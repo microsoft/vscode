@@ -8,10 +8,10 @@ import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
-import { SkinnyTextDocument } from './tableOfContentsProvider';
 import { stringHash } from './util/hash';
 import { WebviewResourceProvider } from './util/resources';
 import { isOfScheme, Schemes } from './util/schemes';
+import { SkinnyTextDocument } from './workspaceContents';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
