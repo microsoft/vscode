@@ -103,6 +103,7 @@
 	width: 68px;
 	max-width: 68px;
 	min-width: 68px;
+	padding-left: 5px;
 }
 
 .xterm .xterm-screen {

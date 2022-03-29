@@ -92,28 +92,23 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		if (instance?.xterm) {
 			instance.xterm.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true }).then(foundMatch => {
 				this.updateButtons(foundMatch);
-				this._updateMatchesCount(instance.xterm!);
+				this._updateResultCount(instance.xterm!);
 			});
 		}
 		return false;
 	}
-	private async _updateMatchesCount(xterm: IXtermTerminal): Promise<void> {
+
+	private async _updateResultCount(xterm: IXtermTerminal): Promise<void> {
 		if (!this._matchesCount) {
 			this._matchesCount = document.createElement('div');
+			this._matchesCount.className = 'matchesCount';
 		}
-		this._matchesCount.className = 'matchesCount';
 		this._matchesCount.innerText = '';
-		const count = await xterm.getMatchesCount();
-		const matches = count > 0 ? `${count} Results` : `No Results`;
-		this._matchesCount.appendChild(document.createTextNode(matches));
-		const node = super.getDomNode().querySelector('.monaco-findInput');
-		if (count === 0) {
-			this._matchesCount.classList.add('no-results');
-		} else {
-			this._matchesCount.classList.remove('no-results');
-		}
-		this._matchesCount.style.paddingLeft = '3px';
-		node?.insertAdjacentElement('afterend', this._matchesCount);
+		const count = await xterm.getSearchResultCount();
+		const label = count > 0 ? `${count} Results` : `No Results`;
+		this._matchesCount.appendChild(document.createTextNode(label));
+		this._matchesCount.classList.toggle('no-results', count === 0);
+		super.getDomNode().querySelector('.monaco-findInput')?.insertAdjacentElement('afterend', this._matchesCount);
 	}
 
 	protected _onFocusTrackerFocus() {

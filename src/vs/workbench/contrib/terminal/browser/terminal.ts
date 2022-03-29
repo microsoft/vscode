@@ -908,9 +908,9 @@ export interface IXtermTerminal {
 	clearSearchDecorations(): void;
 
 	/**
-	 * Gets the count of find matches
+	 * Gets the count of search results
 	 */
-	getMatchesCount(): Promise<number>;
+	getSearchResultCount(): Promise<number>;
 }
 
 export interface IRequestAddInstanceToGroupEvent {
