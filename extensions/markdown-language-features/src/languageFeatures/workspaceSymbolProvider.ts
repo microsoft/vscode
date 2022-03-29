@@ -69,29 +69,29 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 
 		this._watcher = this._register(vscode.workspace.createFileSystemWatcher('**/*.md'));
 
-		this._watcher.onDidChange(async resource => {
+		this._register(this._watcher.onDidChange(async resource => {
 			const document = await this.getMarkdownDocument(resource);
 			if (document) {
 				this._onDidChangeMarkdownDocumentEmitter.fire(document);
 			}
-		}, null, this._disposables);
+		}));
 
-		this._watcher.onDidCreate(async resource => {
+		this._register(this._watcher.onDidCreate(async resource => {
 			const document = await this.getMarkdownDocument(resource);
 			if (document) {
 				this._onDidCreateMarkdownDocumentEmitter.fire(document);
 			}
-		}, null, this._disposables);
+		}));
 
-		this._watcher.onDidDelete(async resource => {
+		this._register(this._watcher.onDidDelete(resource => {
 			this._onDidDeleteMarkdownDocumentEmitter.fire(resource);
-		}, null, this._disposables);
+		}));
 
-		vscode.workspace.onDidChangeTextDocument(e => {
+		this._register(vscode.workspace.onDidChangeTextDocument(e => {
 			if (isMarkdownFile(e.document)) {
 				this._onDidChangeMarkdownDocumentEmitter.fire(e.document);
 			}
-		}, null, this._disposables);
+		}));
 	}
 
 	private async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
