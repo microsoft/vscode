@@ -19,6 +19,7 @@ import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackg
 import { IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
+import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -35,6 +36,8 @@ export abstract class SimpleFindWidget extends Widget {
 	private readonly _updateHistoryDelayer: Delayer<void>;
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
+	private _matchesCount: HTMLElement | undefined;
+	private _terminal: IXtermTerminal | undefined;
 
 	private _isVisible: boolean = false;
 	private _foundMatch: boolean = false;
@@ -44,7 +47,8 @@ export abstract class SimpleFindWidget extends Widget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		private readonly _state: FindReplaceState = new FindReplaceState(),
 		showOptionButtons?: boolean,
-		checkImeCompletionState?: boolean
+		checkImeCompletionState?: boolean,
+		showResultCount?: boolean
 	) {
 		super();
 
@@ -69,9 +73,12 @@ export abstract class SimpleFindWidget extends Widget {
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);
 
-		this._register(this._findInput.onInput(async (e) => {
+		this._register(this._findInput.onInput(async () => {
 			if (!checkImeCompletionState || !this._findInput.isImeSessionInProgress) {
 				this._foundMatch = await this._onInputChanged();
+				if (showResultCount && this._terminal) {
+					this._foundMatch = await this._updateResultCount(this._terminal);
+				}
 				this.updateButtons(this._foundMatch);
 				this.focusFindBox();
 				this._delayedUpdateHistory();
@@ -168,6 +175,10 @@ export abstract class SimpleFindWidget extends Widget {
 
 	public get focusTracker(): dom.IFocusTracker {
 		return this._focusTracker;
+	}
+
+	public setTerminal(terminal: IXtermTerminal) {
+		this._terminal = terminal;
 	}
 
 	public updateTheme(theme: IColorTheme): void {
@@ -280,6 +291,20 @@ export abstract class SimpleFindWidget extends Widget {
 		// requires focusing onto the next button first
 		this.nextBtn.focus();
 		this._findInput.inputBox.focus();
+	}
+
+	private async _updateResultCount(xterm: IXtermTerminal): Promise<boolean> {
+		if (!this._matchesCount) {
+			this._matchesCount = document.createElement('div');
+			this._matchesCount.className = 'matchesCount';
+		}
+		this._matchesCount.innerText = '';
+		const count = await xterm.getSearchResultCount();
+		const label = count > 0 ? `${count} Results` : `No Results`;
+		this._matchesCount.appendChild(document.createTextNode(label));
+		this._matchesCount.classList.toggle('no-results', count === 0);
+		this._findInput?.domNode.insertAdjacentElement('afterend', this._matchesCount);
+		return count > 0;
 	}
 }
 

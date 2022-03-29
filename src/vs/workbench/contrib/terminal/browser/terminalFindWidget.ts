@@ -7,7 +7,7 @@ import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/s
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
-import { ITerminalGroupService, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { errorForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -17,7 +17,6 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	protected _findInputFocused: IContextKey<boolean>;
 	protected _findWidgetFocused: IContextKey<boolean>;
 	private _findWidgetVisible: IContextKey<boolean>;
-	private _matchesCount: HTMLElement | undefined;
 
 	constructor(
 		findState: FindReplaceState,
@@ -26,7 +25,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService
 	) {
-		super(_contextViewService, _contextKeyService, findState, true);
+		super(_contextViewService, _contextKeyService, findState, true, false, true);
 		this._register(findState.onFindReplaceStateChange(() => {
 			this.show();
 		}));
@@ -34,6 +33,11 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._findInputFocused = TerminalContextKeys.findInputFocus.bindTo(this._contextKeyService);
 		this._findWidgetFocused = TerminalContextKeys.findFocus.bindTo(this._contextKeyService);
 		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(_contextKeyService);
+		this._terminalService.onDidChangeActiveInstance(e => {
+			if (e?.xterm) {
+				super.setTerminal(e?.xterm);
+			}
+		});
 	}
 
 	find(previous: boolean) {
@@ -91,25 +95,10 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		const instance = this._terminalService.activeInstance;
 		if (instance?.xterm) {
 			instance.xterm.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true }).then(async foundMatch => {
-				const found = await this._updateResultCount(instance.xterm!);
-				this.updateButtons(found);
+				this.updateButtons(foundMatch);
 			});
 		}
 		return false;
-	}
-
-	private async _updateResultCount(xterm: IXtermTerminal): Promise<boolean> {
-		if (!this._matchesCount) {
-			this._matchesCount = document.createElement('div');
-			this._matchesCount.className = 'matchesCount';
-		}
-		this._matchesCount.innerText = '';
-		const count = await xterm.getSearchResultCount();
-		const label = count > 0 ? `${count} Results` : `No Results`;
-		this._matchesCount.appendChild(document.createTextNode(label));
-		this._matchesCount.classList.toggle('no-results', count === 0);
-		super.getDomNode().querySelector('.monaco-findInput')?.insertAdjacentElement('afterend', this._matchesCount);
-		return count > 0;
 	}
 
 	protected _onFocusTrackerFocus() {
