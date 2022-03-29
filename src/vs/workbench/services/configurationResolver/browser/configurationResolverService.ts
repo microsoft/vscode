@@ -20,6 +20,7 @@ import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/com
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
@@ -37,7 +38,8 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		private readonly workspaceContextService: IWorkspaceContextService,
 		private readonly quickInputService: IQuickInputService,
 		private readonly labelService: ILabelService,
-		private readonly pathService: IPathService
+		private readonly pathService: IPathService,
+		extensionService: IExtensionService,
 	) {
 		super({
 			getFolderUri: (folderName: string): uri | undefined => {
@@ -110,7 +112,10 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					}
 				}
 				return undefined;
-			}
+			},
+			getExtension: id => {
+				return extensionService.getExtension(id);
+			},
 		}, labelService, pathService.userHome().then(home => home.path), envVariablesPromise);
 	}
 
@@ -378,10 +383,11 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@ILabelService labelService: ILabelService,
-		@IPathService pathService: IPathService
+		@IPathService pathService: IPathService,
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super({ getAppRoot: () => undefined, getExecPath: () => undefined },
 			Promise.resolve(Object.create(null)), editorService, configurationService,
-			commandService, workspaceContextService, quickInputService, labelService, pathService);
+			commandService, workspaceContextService, quickInputService, labelService, pathService, extensionService);
 	}
 }

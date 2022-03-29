@@ -5,6 +5,7 @@
 
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { EnvironmentVariableMutatorType, IEnvironmentVariableCollection, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { VariableResolver } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 
 export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVariableCollection {
 	readonly map: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
@@ -41,16 +42,16 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		});
 	}
 
-	applyToProcessEnvironment(env: IProcessEnvironment, variableResolver?: (str: string) => string): void {
+	async applyToProcessEnvironment(env: IProcessEnvironment, variableResolver?: VariableResolver): Promise<void> {
 		let lowerToActualVariableNames: { [lowerKey: string]: string | undefined } | undefined;
 		if (isWindows) {
 			lowerToActualVariableNames = {};
 			Object.keys(env).forEach(e => lowerToActualVariableNames![e.toLowerCase()] = e);
 		}
-		this.map.forEach((mutators, variable) => {
+		for (const [variable, mutators] of this.map) {
 			const actualVariable = isWindows ? lowerToActualVariableNames![variable.toLowerCase()] || variable : variable;
-			mutators.forEach(mutator => {
-				const value = variableResolver ? variableResolver(mutator.value) : mutator.value;
+			for (const mutator of mutators) {
+				const value = variableResolver ? await variableResolver(mutator.value) : mutator.value;
 				switch (mutator.type) {
 					case EnvironmentVariableMutatorType.Append:
 						env[actualVariable] = (env[actualVariable] || '') + value;
@@ -62,8 +63,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 						env[actualVariable] = value;
 						break;
 				}
-			});
-		});
+			}
+		}
 	}
 
 	diff(other: IMergedEnvironmentVariableCollection): IMergedEnvironmentVariableCollectionDiff | undefined {
