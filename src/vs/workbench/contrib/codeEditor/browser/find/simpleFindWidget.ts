@@ -19,7 +19,12 @@ import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackg
 import { IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
-import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+
+interface IFindOptions {
+	showOptionButtons?: boolean;
+	checkImeCompletionState?: boolean;
+	showResultCount?: boolean;
+}
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -37,7 +42,6 @@ export abstract class SimpleFindWidget extends Widget {
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
 	private _matchesCount: HTMLElement | undefined;
-	private _terminal: IXtermTerminal | undefined;
 
 	private _isVisible: boolean = false;
 	private _foundMatch: boolean = false;
@@ -46,9 +50,7 @@ export abstract class SimpleFindWidget extends Widget {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		private readonly _state: FindReplaceState = new FindReplaceState(),
-		showOptionButtons?: boolean,
-		checkImeCompletionState?: boolean,
-		showResultCount?: boolean
+		private readonly _options: IFindOptions
 	) {
 		super();
 
@@ -68,16 +70,16 @@ export abstract class SimpleFindWidget extends Widget {
 					return { content: e.message };
 				}
 			}
-		}, contextKeyService, showOptionButtons));
+		}, contextKeyService, this._options.showOptionButtons));
 
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);
 
 		this._register(this._findInput.onInput(async () => {
-			if (!checkImeCompletionState || !this._findInput.isImeSessionInProgress) {
+			if (!this._options.checkImeCompletionState || !this._findInput.isImeSessionInProgress) {
 				this._foundMatch = await this._onInputChanged();
-				if (showResultCount && this._terminal) {
-					this._foundMatch = await this._updateResultCount(this._terminal);
+				if (this._options.showResultCount) {
+					await this._updateResultCount();
 				}
 				this.updateButtons(this._foundMatch);
 				this.focusFindBox();
@@ -168,6 +170,7 @@ export abstract class SimpleFindWidget extends Widget {
 	protected abstract _onFocusTrackerBlur(): void;
 	protected abstract _onFindInputFocusTrackerFocus(): void;
 	protected abstract _onFindInputFocusTrackerBlur(): void;
+	protected abstract _getResultCount(): Promise<number | undefined> | undefined;
 
 	protected get inputValue() {
 		return this._findInput.getValue();
@@ -175,10 +178,6 @@ export abstract class SimpleFindWidget extends Widget {
 
 	public get focusTracker(): dom.IFocusTracker {
 		return this._focusTracker;
-	}
-
-	public setTerminal(terminal: IXtermTerminal) {
-		this._terminal = terminal;
 	}
 
 	public updateTheme(theme: IColorTheme): void {
@@ -293,18 +292,18 @@ export abstract class SimpleFindWidget extends Widget {
 		this._findInput.inputBox.focus();
 	}
 
-	private async _updateResultCount(xterm: IXtermTerminal): Promise<boolean> {
+	private async _updateResultCount(): Promise<void> {
 		if (!this._matchesCount) {
 			this._matchesCount = document.createElement('div');
 			this._matchesCount.className = 'matchesCount';
 		}
 		this._matchesCount.innerText = '';
-		const count = await xterm.getSearchResultCount();
+		const count = await this._getResultCount();
 		const label = !count || count === 0 ? `No Results` : `${count} Results`;
 		this._matchesCount.appendChild(document.createTextNode(label));
 		this._matchesCount.classList.toggle('no-results', !count || count === 0);
 		this._findInput?.domNode.insertAdjacentElement('afterend', this._matchesCount);
-		return !!count && count > 0;
+		this._foundMatch = !!count && count > 0;
 	}
 }
 

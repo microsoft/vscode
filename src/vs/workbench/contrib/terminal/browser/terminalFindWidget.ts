@@ -18,6 +18,10 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	protected _findWidgetFocused: IContextKey<boolean>;
 	private _findWidgetVisible: IContextKey<boolean>;
 
+	protected _getResultCount(): Promise<number | undefined> | undefined {
+		return this._terminalService.activeInstance?.xterm?.getSearchResultCount();
+	}
+
 	constructor(
 		findState: FindReplaceState,
 		@IContextViewService _contextViewService: IContextViewService,
@@ -25,7 +29,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService
 	) {
-		super(_contextViewService, _contextKeyService, findState, true, false, true);
+		super(_contextViewService, _contextKeyService, findState, { showOptionButtons: true, showResultCount: true });
 		this._register(findState.onFindReplaceStateChange(() => {
 			this.show();
 		}));
@@ -33,11 +37,6 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._findInputFocused = TerminalContextKeys.findInputFocus.bindTo(this._contextKeyService);
 		this._findWidgetFocused = TerminalContextKeys.findFocus.bindTo(this._contextKeyService);
 		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(_contextKeyService);
-		this._terminalService.onDidChangeActiveInstance(e => {
-			if (e?.xterm) {
-				super.setTerminal(e?.xterm);
-			}
-		});
 	}
 
 	find(previous: boolean) {
