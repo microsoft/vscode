@@ -161,6 +161,10 @@ export abstract class SimpleFindWidget extends Widget {
 		this._register(dom.addDisposableListener(this._innerDomNode, 'click', (event) => {
 			event.stopPropagation();
 		}));
+
+		if (_options?.showResultCount) {
+			this._domNode.classList.add('terminal-find');
+		}
 	}
 
 	protected abstract _onInputChanged(): boolean;

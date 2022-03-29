@@ -33,7 +33,6 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._register(findState.onFindReplaceStateChange(() => {
 			this.show();
 		}));
-		super.getDomNode().classList.add('terminal-find');
 		this._findInputFocused = TerminalContextKeys.findInputFocus.bindTo(this._contextKeyService);
 		this._findWidgetFocused = TerminalContextKeys.findFocus.bindTo(this._contextKeyService);
 		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(_contextKeyService);
