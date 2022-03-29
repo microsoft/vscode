@@ -90,11 +90,19 @@
 .monaco-workbench .simple-find-part-wrapper.terminal-find {
 	z-index: 33 !important;
 	overflow: unset;
-	margin-right: 90px;
+	padding-right: 80px;
 }
 
 .terminal-find .simple-find-part {
-	width: 300px;
+	width: 280px;
+	max-width: 280px;
+	min-width: 280px;
+}
+
+.terminal-find .matchesCount {
+	width: 68px;
+	max-width: 68px;
+	min-width: 68px;
 }
 
 .xterm .xterm-screen {
