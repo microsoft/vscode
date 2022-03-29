@@ -8,7 +8,7 @@ import * as nls from 'vscode-nls';
 import * as uri from 'vscode-uri';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
 import { MarkdownEngine } from '../markdownEngine';
-import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/links';
+import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/schemes';
 
 const localize = nls.loadMessageBundle();
 

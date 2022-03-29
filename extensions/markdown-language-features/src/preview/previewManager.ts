@@ -9,7 +9,7 @@ import { MarkdownEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable, disposeAll } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
-import { TopmostLineMonitor } from '../util/topmostLineMonitor';
+import { TopmostLineMonitor } from './topmostLineMonitor';
 import { DynamicMarkdownPreview, ManagedMarkdownPreview, scrollEditorToLine, StartingScrollFragment, StaticMarkdownPreview } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider } from './previewContentProvider';

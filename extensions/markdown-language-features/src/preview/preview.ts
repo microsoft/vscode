@@ -13,7 +13,7 @@ import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { openDocumentLink, resolveDocumentLink, resolveUriToMarkdownFile } from '../util/openDocumentLink';
 import { WebviewResourceProvider } from '../util/resources';
-import { getVisibleLine, LastScrollLocation, TopmostLineMonitor } from '../util/topmostLineMonitor';
+import { getVisibleLine, LastScrollLocation, TopmostLineMonitor } from './topmostLineMonitor';
 import { urlToUri } from '../util/url';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider } from './previewContentProvider';

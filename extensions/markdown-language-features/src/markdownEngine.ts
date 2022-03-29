@@ -10,7 +10,7 @@ import { MarkdownContributionProvider as MarkdownContributionProvider } from './
 import { Slugifier } from './slugify';
 import { SkinnyTextDocument } from './tableOfContentsProvider';
 import { stringHash } from './util/hash';
-import { isOfScheme, Schemes } from './util/links';
+import { isOfScheme, Schemes } from './util/schemes';
 import { WebviewResourceProvider } from './util/resources';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
