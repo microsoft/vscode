@@ -6,7 +6,7 @@
 import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContents } from '../tableOfContentsProvider';
+import { TableOfContents } from '../tableOfContents';
 
 const rangeLimit = 5000;
 

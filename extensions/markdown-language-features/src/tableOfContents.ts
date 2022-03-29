@@ -45,15 +45,6 @@ export class TableOfContents {
 		return this.create(engine, document);
 	}
 
-	private constructor(
-		public readonly entries: readonly TocEntry[],
-	) { }
-
-	public lookup(fragment: string): TocEntry | undefined {
-		const slug = githubSlugifier.fromHeading(fragment);
-		return this.entries.find(entry => entry.slug.equals(slug));
-	}
-
 	private static async buildToc(engine: MarkdownEngine, document: SkinnyTextDocument): Promise<TocEntry[]> {
 		const toc: TocEntry[] = [];
 		const tokens = await engine.parse(document);
@@ -119,5 +110,14 @@ export class TableOfContents {
 
 	private static getHeaderText(header: string): string {
 		return header.replace(/^\s*#+\s*(.*?)(\s+#+)?$/, (_, word) => word.trim());
+	}
+
+	private constructor(
+		public readonly entries: readonly TocEntry[],
+	) { }
+
+	public lookup(fragment: string): TocEntry | undefined {
+		const slug = githubSlugifier.fromHeading(fragment);
+		return this.entries.find(entry => entry.slug.equals(slug));
 	}
 }

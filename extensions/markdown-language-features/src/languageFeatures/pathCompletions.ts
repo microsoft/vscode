@@ -6,7 +6,7 @@
 import { dirname, resolve } from 'path';
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContents } from '../tableOfContentsProvider';
+import { TableOfContents } from '../tableOfContents';
 import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
 import { MdLinkProvider } from './documentLinkProvider';
 

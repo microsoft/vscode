@@ -5,7 +5,7 @@
 import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContents, TocEntry } from '../tableOfContentsProvider';
+import { TableOfContents, TocEntry } from '../tableOfContents';
 
 interface MarkdownItTokenWithMap extends Token {
 	map: [number, number];
