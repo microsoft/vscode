@@ -1776,6 +1776,7 @@ export namespace TestItem {
 		testItem.range = Range.to(item.range || undefined);
 		testItem.description = item.description || undefined;
 		testItem.sortText = item.sortText || undefined;
+		testItem.tags = item.tags.map(t => TestTag.to({ id: TestTag.denamespace(t).tagId }));
 		return testItem;
 	}
 
