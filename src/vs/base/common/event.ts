@@ -727,7 +727,7 @@ export class Emitter<T> {
 			// the driver of this
 
 			if (!this._deliveryQueue) {
-				this._deliveryQueue = new EventDeliveryQueue();
+				this._deliveryQueue = new PrivateEventDeliveryQueue();
 			}
 
 			for (let listener of this._listeners) {
@@ -752,9 +752,9 @@ export class Emitter<T> {
 }
 
 export class EventDeliveryQueue {
-	private _queue = new LinkedList<EventDeliveryQueueElement>();
+	protected _queue = new LinkedList<EventDeliveryQueueElement>();
 
-	public get size(): number {
+	get size(): number {
 		return this._queue.size;
 	}
 
@@ -784,11 +784,22 @@ export class EventDeliveryQueue {
 	}
 }
 
+/**
+ * An `EventDeliveryQueue` that is guaranteed to be used by a single `Emitter`.
+ */
+class PrivateEventDeliveryQueue extends EventDeliveryQueue {
+	override clear<T>(emitter: Emitter<T>): void {
+		// Here we can just clear the entire linked list because
+		// all elements are guaranteed to belong to this emitter
+		this._queue.clear();
+	}
+}
+
 class EventDeliveryQueueElement<T = any> {
 	constructor(
-		public readonly emitter: Emitter<T>,
-		public readonly listener: Listener<T>,
-		public readonly event: T
+		readonly emitter: Emitter<T>,
+		readonly listener: Listener<T>,
+		readonly event: T
 	) { }
 }
 
