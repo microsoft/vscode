@@ -9,7 +9,7 @@ import * as uri from 'vscode-uri';
 import { Logger } from '../logger';
 import { MarkdownEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
-import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from '../security';
+import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from './security';
 import { WebviewResourceProvider } from '../util/resources';
 import { MarkdownPreviewConfiguration, MarkdownPreviewConfigurationManager } from './previewConfig';
 

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import MarkdownSmartSelect from '../features/smartSelect';
+import MarkdownSmartSelect from '../languageFeatures/smartSelect';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryDocument } from './inMemoryDocument';
 import { CURSOR, getCursorPositions, joinLines } from './util';

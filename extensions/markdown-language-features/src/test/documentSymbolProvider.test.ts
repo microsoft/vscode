@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import SymbolProvider from '../features/documentSymbolProvider';
+import SymbolProvider from '../languageFeatures/documentSymbolProvider';
 import { InMemoryDocument } from './inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
 
@@ -85,7 +85,7 @@ suite('markdown.DocumentSymbolProvider', () => {
 
 	test('Should handle line separator in file. Issue #63749', async () => {
 		const symbols = await getSymbolsForFile(`# A
-- foo 
+- foo
 
 # B
 - bar`);

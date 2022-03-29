@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { PathCompletionProvider } from '../features/pathCompletions';
+import { PathCompletionProvider } from '../languageFeatures/pathCompletions';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryDocument } from './inMemoryDocument';
 import { CURSOR, getCursorPositions, joinLines, noopToken } from './util';

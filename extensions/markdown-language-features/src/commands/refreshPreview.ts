@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Command } from '../commandManager';
-import { MarkdownPreviewManager } from '../features/previewManager';
+import { MarkdownPreviewManager } from '../preview/previewManager';
 import { MarkdownEngine } from '../markdownEngine';
 
 export class RefreshPreviewCommand implements Command {

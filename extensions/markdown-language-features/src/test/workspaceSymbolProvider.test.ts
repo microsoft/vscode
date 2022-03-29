@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import MDDocumentSymbolProvider from '../features/documentSymbolProvider';
-import MarkdownWorkspaceSymbolProvider, { WorkspaceMarkdownDocumentProvider } from '../features/workspaceSymbolProvider';
+import MDDocumentSymbolProvider from '../languageFeatures/documentSymbolProvider';
+import MarkdownWorkspaceSymbolProvider, { WorkspaceMarkdownDocumentProvider } from '../languageFeatures/workspaceSymbolProvider';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryDocument } from './inMemoryDocument';
 
