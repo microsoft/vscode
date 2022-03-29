@@ -620,6 +620,11 @@ export const enum TabInputKind {
 	TerminalEditorInput
 }
 
+export const enum TabModelOperationKind {
+	TAB_OPEN,
+	TAB_CLOSE
+}
+
 export interface UnknownInputDto {
 	kind: TabInputKind.UnknownInput;
 }
@@ -678,6 +683,12 @@ export interface IEditorTabGroupDto {
 	// This allows us to patch the model without having to do full rebuilds
 	tabs: IEditorTabDto[];
 	groupId: number;
+}
+
+export interface TabOperation {
+	readonly kind: TabModelOperationKind.TAB_OPEN | TabModelOperationKind.TAB_CLOSE;
+	readonly index: number;
+	readonly tab: IEditorTabDto;
 }
 
 export interface IEditorTabDto {
