@@ -143,3 +143,8 @@
 	font-size: 14px;
 	color: inherit;
 }
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item  span.codicon::before {
+	content: " ";
+	white-space: pre;
+}
+
