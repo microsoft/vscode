@@ -910,7 +910,7 @@ export interface IXtermTerminal {
 	/**
 	 * Gets the count of search results
 	 */
-	getSearchResultCount(): Promise<number>;
+	getSearchResultCount(): Promise<number | undefined>;
 }
 
 export interface IRequestAddInstanceToGroupEvent {

@@ -300,11 +300,11 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 		this._matchesCount.innerText = '';
 		const count = await xterm.getSearchResultCount();
-		const label = count > 0 ? `${count} Results` : `No Results`;
+		const label = !count || count === 0 ? `No Results` : `${count} Results`;
 		this._matchesCount.appendChild(document.createTextNode(label));
-		this._matchesCount.classList.toggle('no-results', count === 0);
+		this._matchesCount.classList.toggle('no-results', !count || count === 0);
 		this._findInput?.domNode.insertAdjacentElement('afterend', this._matchesCount);
-		return count > 0;
+		return !!count && count > 0;
 	}
 }
 

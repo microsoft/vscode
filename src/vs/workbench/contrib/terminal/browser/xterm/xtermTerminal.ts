@@ -253,8 +253,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		}
 	}
 
-	async getSearchResultCount(): Promise<number> {
-		return (await this._getSearchAddon()).getSearchResultCount();
+	async getSearchResultCount(): Promise<number | undefined> {
+		return (await this._getSearchAddon()).resultCount;
 	}
 
 	async findNext(term: string, searchOptions: ISearchOptions): Promise<boolean> {
