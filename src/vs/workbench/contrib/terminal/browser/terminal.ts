@@ -554,6 +554,8 @@ export interface ITerminalInstance {
 	 */
 	onExit: Event<number | ITerminalLaunchError | undefined>;
 
+	onDidChangeFindResults: Event<void>;
+
 	readonly exitCode: number | undefined;
 
 	readonly areLinksReady: boolean;

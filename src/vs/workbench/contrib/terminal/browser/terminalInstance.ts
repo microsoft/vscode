@@ -329,6 +329,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onRequestAddInstanceToGroup = this._onRequestAddInstanceToGroup.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
+	private readonly _onDidChangeFindResults = new Emitter<void>();
+	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
 
 	constructor(
 		private readonly _terminalFocusContextKey: IContextKey<boolean>,
@@ -972,6 +974,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Attach the xterm object to the DOM, exposing it to the smoke tests
 		this._wrapperElement.xterm = xterm.raw;
+
+		xterm.onDidChangeFindResults(() => this._onDidChangeFindResults.fire());
 
 		const screenElement = xterm.attachToElement(xtermElement);
 

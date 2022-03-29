@@ -152,6 +152,8 @@ export class TerminalTabbedView extends Disposable {
 		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL, proportionalLayout: false });
 
 		this._setupSplitView(terminalOuterContainer);
+
+		this._terminalService.onDidCreateInstance(instance => instance.onDidChangeFindResults(() => this._findWidget.updateResultCount()));
 	}
 
 	private _shouldShowTabs(): boolean {

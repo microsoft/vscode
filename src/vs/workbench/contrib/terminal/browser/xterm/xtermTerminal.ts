@@ -71,6 +71,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	private readonly _onDidRequestRunCommand = new Emitter<string>();
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
 
+	private readonly _onDidChangeFindResults = new Emitter<void>();
+	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
+
 	get commandTracker(): ICommandTracker { return this._commandNavigationAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
 
@@ -296,6 +299,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		const AddonCtor = await this._getSearchAddonConstructor();
 		this._searchAddon = new AddonCtor();
 		this.raw.loadAddon(this._searchAddon);
+		this._searchAddon.onDidChangeResults(() => this._onDidChangeFindResults.fire());
 		return this._searchAddon;
 	}
 

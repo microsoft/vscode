@@ -19,7 +19,6 @@ import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackg
 import { IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
-
 interface IFindOptions {
 	showOptionButtons?: boolean;
 	checkImeCompletionState?: boolean;
@@ -80,7 +79,7 @@ export abstract class SimpleFindWidget extends Widget {
 			if (!this._options.checkImeCompletionState || !this._findInput.isImeSessionInProgress) {
 				this._foundMatch = await this._onInputChanged();
 				if (this._options.showResultCount) {
-					await this._updateResultCount();
+					await this.updateResultCount();
 				}
 				this.updateButtons(this._foundMatch);
 				this.focusFindBox();
@@ -158,14 +157,13 @@ export abstract class SimpleFindWidget extends Widget {
 		this._findInputFocusTracker = this._register(dom.trackFocus(this._findInput.domNode));
 		this._register(this._findInputFocusTracker.onDidFocus(this._onFindInputFocusTrackerFocus.bind(this)));
 		this._register(this._findInputFocusTracker.onDidBlur(this._onFindInputFocusTrackerBlur.bind(this)));
-
 		this._register(dom.addDisposableListener(this._innerDomNode, 'click', (event) => {
 			event.stopPropagation();
 		}));
 
 		if (_options?.showResultCount) {
 			this._domNode.classList.add('result-count');
-			this._register(this._findInput.onDidChange(() => this._updateResultCount()));
+			this._register(this._findInput.onDidChange(() => this.updateResultCount()));
 		}
 	}
 
@@ -298,7 +296,7 @@ export abstract class SimpleFindWidget extends Widget {
 		this._findInput.inputBox.focus();
 	}
 
-	private async _updateResultCount(): Promise<void> {
+	async updateResultCount(): Promise<void> {
 		const count = await this._getResultCount();
 
 		if (!this._matchesCount) {
