@@ -42,6 +42,7 @@ export abstract class SimpleFindWidget extends Widget {
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
 	private _matchesCount: HTMLElement | undefined;
+	private _lastCount: number | undefined;
 
 	private _isVisible: boolean = false;
 	private _foundMatch: boolean = false;
@@ -298,17 +299,21 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	private async _updateResultCount(): Promise<void> {
+		const count = await this._getResultCount();
+
 		if (!this._matchesCount) {
 			this._matchesCount = document.createElement('div');
 			this._matchesCount.className = 'matchesCount';
+		} else if (this._lastCount === count) {
+			return;
 		}
 		this._matchesCount.innerText = '';
-		const count = await this._getResultCount();
 		const label = !count || count === 0 ? `No Results` : `${count} Results`;
 		this._matchesCount.appendChild(document.createTextNode(label));
 		this._matchesCount.classList.toggle('no-results', !count || count === 0);
 		this._findInput?.domNode.insertAdjacentElement('afterend', this._matchesCount);
 		this._foundMatch = !!count && count > 0;
+		this._lastCount = count;
 	}
 }
 
