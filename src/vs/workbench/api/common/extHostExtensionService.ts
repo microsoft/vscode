@@ -611,7 +611,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		}
 
 		// Require the test runner via node require from the provided path
-		const testRunner: ITestRunner | INewTestRunner | undefined = await this._loadCommonJSModule(null, extensionTestsLocationURI, new ExtensionActivationTimesBuilder(false));
+		const testRunner = await this._loadCommonJSModule<ITestRunner | INewTestRunner | undefined>(null, extensionTestsLocationURI, new ExtensionActivationTimesBuilder(false));
 
 		if (!testRunner || typeof testRunner.run !== 'function') {
 			throw new Error(nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsLocationURI.toString()));
@@ -848,7 +848,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	protected abstract _beforeAlmostReadyToRunExtensions(): Promise<void>;
 	protected abstract _getEntryPoint(extensionDescription: IExtensionDescription): string | undefined;
-	protected abstract _loadCommonJSModule<T>(extensionId: ExtensionIdentifier | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T>;
+	protected abstract _loadCommonJSModule<T extends object | undefined>(extensionId: ExtensionIdentifier | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T>;
 	public abstract $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 }
 
@@ -897,7 +897,7 @@ export interface IExtHostExtensionService extends AbstractExtHostExtensionServic
 	getRemoteConnectionData(): IRemoteConnectionData | null;
 }
 
-export class Extension<T> implements vscode.Extension<T> {
+export class Extension<T extends object | null | undefined> implements vscode.Extension<T> {
 
 	#extensionService: IExtHostExtensionService;
 	#originExtensionId: ExtensionIdentifier;
