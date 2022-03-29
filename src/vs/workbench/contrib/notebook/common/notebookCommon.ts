@@ -5,7 +5,7 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
+import { IDiffResult } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
@@ -763,7 +763,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly onDidChangeReadonly: Event<void>;
 	readonly resource: URI;
 	readonly viewType: string;
-	readonly notebook: NotebookTextModel | undefined;
+	readonly notebook: INotebookTextModel | undefined;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
 	isReadonly(): boolean;
@@ -857,20 +857,6 @@ export interface INotebookCellStatusBarItemProvider {
 	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined>;
 }
 
-export class CellSequence implements ISequence {
-
-	constructor(readonly textModel: NotebookTextModel) {
-	}
-
-	getElements(): string[] | number[] | Int32Array {
-		const hashValue = new Int32Array(this.textModel.cells.length);
-		for (let i = 0; i < this.textModel.cells.length; i++) {
-			hashValue[i] = this.textModel.cells[i].getHashValue();
-		}
-
-		return hashValue;
-	}
-}
 
 export interface INotebookDiffResult {
 	cellsDiff: IDiffResult;
