@@ -90,6 +90,7 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 							});
 							break;
 						case NotebookCellsChangeType.ChangeLanguage:
+						case NotebookCellsChangeType.ChangeCellContent:
 						case NotebookCellsChangeType.ChangeCellMetadata:
 						case NotebookCellsChangeType.ChangeCellInternalMetadata:
 							eventDto.rawEvents.push(e);
