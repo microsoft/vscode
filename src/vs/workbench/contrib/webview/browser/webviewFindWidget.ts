@@ -20,11 +20,11 @@ export interface WebviewFindDelegate {
 }
 
 export class WebviewFindWidget extends SimpleFindWidget {
+	protected _getResultCount(): boolean | { resultIndex: number; resultCount: number } | undefined {
+		return false;
+	}
 	protected readonly _findWidgetFocused: IContextKey<boolean>;
 
-	protected _getResultCount(): Promise<number | undefined> | undefined {
-		return undefined;
-	}
 
 	constructor(
 		private readonly _delegate: WebviewFindDelegate,

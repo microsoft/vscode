@@ -908,11 +908,6 @@ export interface IXtermTerminal {
 	 * Clears the search result decorations
 	 */
 	clearSearchDecorations(): void;
-
-	/**
-	 * Gets the count of search results
-	 */
-	getSearchResultCount(): Promise<number | undefined>;
 }
 
 export interface IRequestAddInstanceToGroupEvent {

@@ -41,7 +41,6 @@ export abstract class SimpleFindWidget extends Widget {
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
 	private _matchesCount: HTMLElement | undefined;
-	private _lastCount: number | undefined;
 
 	private _isVisible: boolean = false;
 	private _foundMatch: boolean = false;
@@ -174,7 +173,7 @@ export abstract class SimpleFindWidget extends Widget {
 	protected abstract _onFocusTrackerBlur(): void;
 	protected abstract _onFindInputFocusTrackerFocus(): void;
 	protected abstract _onFindInputFocusTrackerBlur(): void;
-	protected abstract _getResultCount(): Promise<number | undefined> | undefined;
+	protected abstract _getResultCount(): { resultIndex: number; resultCount: number } | boolean | undefined;
 
 	protected get inputValue() {
 		return this._findInput.getValue();
@@ -228,6 +227,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 
 		this._isVisible = true;
+		this.updateResultCount();
 		this.updateButtons(this._foundMatch);
 
 		setTimeout(() => {
@@ -257,6 +257,7 @@ export abstract class SimpleFindWidget extends Widget {
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
+				this.updateResultCount();
 				this.updateButtons(this._foundMatch);
 				this._innerDomNode.classList.remove('visible');
 			}, 200);
@@ -298,20 +299,19 @@ export abstract class SimpleFindWidget extends Widget {
 
 	async updateResultCount(): Promise<void> {
 		const count = await this._getResultCount();
-
 		if (!this._matchesCount) {
 			this._matchesCount = document.createElement('div');
 			this._matchesCount.className = 'matchesCount';
-		} else if (this._lastCount === count) {
+		}
+		if (!count || count === true) {
 			return;
 		}
 		this._matchesCount.innerText = '';
-		const label = !count || count === 0 ? `No Results` : `${count} Results`;
+		const label = count.resultCount === 0 ? `No Results` : `${count.resultIndex} of ${count.resultCount}`;
 		this._matchesCount.appendChild(document.createTextNode(label));
-		this._matchesCount.classList.toggle('no-results', !count || count === 0);
+		this._matchesCount.classList.toggle('no-results', !count || count.resultCount === 0);
 		this._findInput?.domNode.insertAdjacentElement('afterend', this._matchesCount);
-		this._foundMatch = !!count && count > 0;
-		this._lastCount = count;
+		this._foundMatch = !!count && count.resultCount > 0;
 	}
 }
 
