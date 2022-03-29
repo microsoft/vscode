@@ -627,7 +627,7 @@ class DragAndDropContributionRegistry implements IDragAndDropContributionRegistr
 }
 
 export const Extensions = {
-	DragAndDropContribution: 'base.contributions.dragAndDrop'
+	DragAndDropContribution: 'workbench.contributions.dragAndDrop'
 };
 
 Registry.add(Extensions.DragAndDropContribution, new DragAndDropContributionRegistry());
