@@ -89,7 +89,6 @@
 
 .monaco-workbench .simple-find-part-wrapper.terminal-find {
 	z-index: 33 !important;
-	overflow: unset;
 	padding-right: 80px;
 }
 

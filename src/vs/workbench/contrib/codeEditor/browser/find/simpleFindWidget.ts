@@ -154,7 +154,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}));
 	}
 
-	protected abstract _onInputChanged(): Promise<boolean>;
+	protected abstract _onInputChanged(): boolean;
 	protected abstract find(previous: boolean): void;
 	protected abstract findFirst(): void;
 	protected abstract _onFocusTrackerFocus(): void;

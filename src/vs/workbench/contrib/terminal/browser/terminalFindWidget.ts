@@ -86,7 +86,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		}
 	}
 
-	protected async _onInputChanged(): Promise<boolean> {
+	protected _onInputChanged(): boolean {
 		// Ignore input changes for now
 		const instance = this._terminalService.activeInstance;
 		if (instance?.xterm) {

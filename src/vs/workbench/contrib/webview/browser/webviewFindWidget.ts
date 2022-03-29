@@ -54,7 +54,7 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		this._delegate.focus();
 	}
 
-	protected async _onInputChanged(): Promise<boolean> {
+	protected _onInputChanged(): boolean {
 		const val = this.inputValue;
 		if (val) {
 			this._delegate.updateFind(val);
