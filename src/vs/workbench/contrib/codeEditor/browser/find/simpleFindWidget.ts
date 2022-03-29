@@ -37,7 +37,7 @@ export abstract class SimpleFindWidget extends Widget {
 	private readonly nextBtn: SimpleButton;
 
 	private _isVisible: boolean = false;
-	private foundMatch: boolean = false;
+	private _foundMatch: boolean = false;
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -59,8 +59,8 @@ export abstract class SimpleFindWidget extends Widget {
 					new RegExp(value);
 					return null;
 				} catch (e) {
-					this.foundMatch = false;
-					this.updateButtons(this.foundMatch);
+					this._foundMatch = false;
+					this.updateButtons(this._foundMatch);
 					return { content: e.message };
 				}
 			}
@@ -69,10 +69,10 @@ export abstract class SimpleFindWidget extends Widget {
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);
 
-		this._register(this._findInput.onInput((e) => {
+		this._register(this._findInput.onInput(async (e) => {
 			if (!checkImeCompletionState || !this._findInput.isImeSessionInProgress) {
-				this.foundMatch = this._onInputChanged();
-				this.updateButtons(this.foundMatch);
+				this._foundMatch = await this._onInputChanged();
+				this.updateButtons(this._foundMatch);
 				this.focusFindBox();
 				this._delayedUpdateHistory();
 			}
@@ -154,7 +154,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}));
 	}
 
-	protected abstract _onInputChanged(): boolean;
+	protected abstract _onInputChanged(): Promise<boolean>;
 	protected abstract find(previous: boolean): void;
 	protected abstract findFirst(): void;
 	protected abstract _onFocusTrackerFocus(): void;
@@ -214,7 +214,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 
 		this._isVisible = true;
-		this.updateButtons(this.foundMatch);
+		this.updateButtons(this._foundMatch);
 
 		setTimeout(() => {
 			this._innerDomNode.classList.add('visible', 'visible-transition');
@@ -243,7 +243,7 @@ export abstract class SimpleFindWidget extends Widget {
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
-				this.updateButtons(this.foundMatch);
+				this.updateButtons(this._foundMatch);
 				this._innerDomNode.classList.remove('visible');
 			}, 200);
 		}
