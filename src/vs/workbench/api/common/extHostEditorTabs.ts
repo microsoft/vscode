@@ -219,8 +219,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 						}
 						extHostTabIds.push(extHostTab.tabId);
 					}
-					this._proxy.$closeTab(extHostTabIds, preserveFocus);
-					return;
+					return this._proxy.$closeTab(extHostTabIds, preserveFocus);
 				},
 				move: async (tab: vscode.Tab, viewColumn: ViewColumn, index: number, preservceFocus?: boolean) => {
 					const extHostTab = this._findExtHostTabFromApi(tab);

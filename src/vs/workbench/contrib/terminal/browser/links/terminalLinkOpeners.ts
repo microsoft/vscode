@@ -148,7 +148,8 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 			if (result) {
 				const { uri, isDirectory } = result;
 				const linkToOpen = {
-					text: matchLink,
+					// Use the absolute URI's path here so the optional line/col get detected
+					text: result.uri.fsPath + (matchLink.match(/:\d+(:\d+)?$/)?.[0] || ''),
 					uri,
 					bufferRange: link.bufferRange,
 					type: link.type
@@ -194,7 +195,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 }
 
 interface IResourceMatch {
-	uri: URI | undefined;
+	uri: URI;
 	isDirectory?: boolean;
 }
 
@@ -209,7 +210,9 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 		if (!link.uri) {
 			throw new Error('Tried to open a url without a resolved URI');
 		}
-		this._openerService.open(link.uri || URI.parse(link.text), {
+		// It's important to use the raw string value here to avoid converting pre-encoded values
+		// from the URL like `%2B` -> `+`.
+		this._openerService.open(link.text, {
 			allowTunneling: this._isRemote,
 			allowContributedOpeners: true,
 		});

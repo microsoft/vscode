@@ -63,7 +63,7 @@
     "@parcel/watcher": "2.0.5",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/ripgrep": "^1.14.2",
-    "@vscode/sqlite3": "5.0.7",
+    "@vscode/sqlite3": "5.0.8",
     "@vscode/sudo-prompt": "9.3.1",
     "@vscode/vscode-languagedetection": "1.0.21",
     "applicationinsights": "1.4.2",
@@ -222,7 +222,7 @@
     "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
-    "@vscode/windows-registry": "1.0.5",
+    "@vscode/windows-registry": "1.0.6",
     "windows-foreground-love": "0.4.0",
     "windows-mutex": "0.4.1",
     "windows-process-tree": "^0.3.2"
