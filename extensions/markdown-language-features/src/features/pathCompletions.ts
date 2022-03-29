@@ -11,11 +11,14 @@ import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
 import LinkProvider from './documentLinkProvider';
 
 enum CompletionContextKind {
-	Link, // [...](|)
+	/** `[...](|)` */
+	Link,
 
-	ReferenceLink, // [...][|]
+	/** `[...][|]` */
+	ReferenceLink,
 
-	LinkDefinition, // []: | // TODO: not implemented
+	/** `[]: |` */
+	LinkDefinition,
 }
 
 interface AnchorContext {
@@ -25,6 +28,7 @@ interface AnchorContext {
 	 * For `[text](xy#z|abc)` this is `xy`.
 	 */
 	readonly beforeAnchor: string;
+
 	/**
 	 * Text of the anchor before the current position.
 	 *
