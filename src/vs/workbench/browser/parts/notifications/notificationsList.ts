@@ -19,7 +19,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
 	widgetAriaLabel?: string;

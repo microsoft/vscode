@@ -23,7 +23,6 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
