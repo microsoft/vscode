@@ -447,6 +447,8 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 		this._parent.disposeContext(this._myContextId);
 		this._parentChangeListener.dispose();
 		this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
+		// Prevent leakers from holding on to the dom node
+		this._domNode = null!;
 		this._isDisposed = true;
 	}
 
