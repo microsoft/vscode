@@ -9,7 +9,6 @@ import * as vscode from 'vscode';
 export const enum ExtHostTestItemEventOp {
 	Upsert,
 	RemoveChild,
-	Invalidated,
 	SetProp,
 	Bulk,
 }
@@ -22,10 +21,6 @@ export interface ITestItemUpsertChild {
 export interface ITestItemRemoveChild {
 	op: ExtHostTestItemEventOp.RemoveChild;
 	id: string;
-}
-
-export interface ITestItemInvalidated {
-	op: ExtHostTestItemEventOp.Invalidated;
 }
 
 export interface ITestItemSetProp {
@@ -42,7 +37,6 @@ export interface ITestItemBulkReplace {
 export type ExtHostTestItemEvent =
 	| ITestItemUpsertChild
 	| ITestItemRemoveChild
-	| ITestItemInvalidated
 	| ITestItemSetProp
 	| ITestItemBulkReplace;
 
@@ -310,11 +304,6 @@ export class TestItemImpl implements vscode.TestItem {
 			},
 			...makePropDescriptors(api, label),
 		});
-	}
-
-	/** @deprecated back compat */
-	public invalidateResults() {
-		getPrivateApiFor(this).listener?.({ op: ExtHostTestItemEventOp.Invalidated });
 	}
 }
 
