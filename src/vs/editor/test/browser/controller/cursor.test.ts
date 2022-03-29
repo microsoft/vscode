@@ -468,6 +468,120 @@ suite('Editor Controller - Cursor', () => {
 		});
 	});
 
+	test('issue #144041: Cursor up/down works', () => {
+		let model = createTextModel(
+			[
+				'Word1 Word2 Word3 Word4',
+				'Word5 Word6 Word7 Word8',
+			].join('\n')
+		);
+
+		withTestCodeEditor(model, { wrappingIndent: 'indent', wordWrap: 'wordWrapColumn', wordWrapColumn: 20 }, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
+
+			let cursorPositions: any[] = [];
+			function reportCursorPosition() {
+				cursorPositions.push(viewModel.getCursorStates()[0].viewState.position.toString());
+			}
+
+			reportCursorPosition();
+			CoreNavigationCommands.CursorDown.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorDown.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorDown.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorDown.runEditorCommand(null, editor, null);
+
+			reportCursorPosition();
+			CoreNavigationCommands.CursorUp.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorUp.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorUp.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorUp.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+
+			assert.deepStrictEqual(cursorPositions, [
+				'(1,1)',
+				'(2,5)',
+				'(3,1)',
+				'(4,5)',
+				'(4,10)',
+				'(3,1)',
+				'(2,5)',
+				'(1,1)',
+				'(1,1)',
+			]);
+		});
+
+		model.dispose();
+	});
+
+	test('issue #140195: Cursor up/down makes progress', () => {
+		let model = createTextModel(
+			[
+				'Word1 Word2 Word3 Word4',
+				'Word5 Word6 Word7 Word8',
+			].join('\n')
+		);
+
+		withTestCodeEditor(model, { wrappingIndent: 'indent', wordWrap: 'wordWrapColumn', wordWrapColumn: 20 }, (editor, viewModel) => {
+			editor.deltaDecorations([], [
+				{
+					range: new Range(1, 22, 1, 22),
+					options: {
+						showIfCollapsed: true,
+						description: 'test',
+						after: {
+							content: 'some very very very very very very very very long text',
+						}
+					}
+				}
+			]);
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
+
+			let cursorPositions: any[] = [];
+			function reportCursorPosition() {
+				cursorPositions.push(viewModel.getCursorStates()[0].viewState.position.toString());
+			}
+
+			reportCursorPosition();
+			CoreNavigationCommands.CursorDown.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorDown.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorDown.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorDown.runEditorCommand(null, editor, null);
+
+			reportCursorPosition();
+			CoreNavigationCommands.CursorUp.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorUp.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorUp.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+			CoreNavigationCommands.CursorUp.runEditorCommand(null, editor, null);
+			reportCursorPosition();
+
+			assert.deepStrictEqual(cursorPositions, [
+				'(1,1)',
+				'(2,5)',
+				'(5,19)',
+				'(6,1)',
+				'(7,5)',
+				'(6,1)',
+				'(2,8)',
+				'(1,1)',
+				'(1,1)',
+			]);
+		});
+
+		model.dispose();
+	});
+
 	// --------- move to beginning of line
 
 	test('move to beginning of line', () => {

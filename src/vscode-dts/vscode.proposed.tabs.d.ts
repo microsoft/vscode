@@ -53,6 +53,10 @@ declare module 'vscode' {
 	 * Represents a tab within the window
 	 */
 	export interface Tab {
+
+		// TODO@API consider adding:
+		// readonly index: number;
+
 		/**
 		 * The text displayed on the tab
 		 */
@@ -143,12 +147,14 @@ declare module 'vscode' {
 		 * An {@link Event} which fires when a tab changes.
 		 */
 		// TODO@API use richer event type?
+		// TODO@API future proof: event with an array of tab-instances
 		readonly onDidChangeTab: Event<Tab>;
 
 		/**
 		 * An {@link Event} which fires when the active group changes.
 		 * This does not fire when the properties within the group change.
 		 */
+		// TODO@API consider to replace with onDidChangeActiveTAB (group can be inferred from that)
 		readonly onDidChangeActiveTabGroup: Event<TabGroup>;
 
 		/**
@@ -160,8 +166,9 @@ declare module 'vscode' {
 		 * @returns A promise that resolves true when then tab is closed. Otherwise it will return false.
 		 * If false is returned the tab is still valid.
 		 */
-		close(tab: Tab[], preserveFocus?: boolean): Thenable<boolean>;
-		close(tab: Tab, preserveFocus?: boolean): Thenable<boolean>;
+		close(tab: Tab | Tab[], preserveFocus?: boolean): Thenable<boolean>;
+		// TODO@API support to close "all"
+		// close(tab: TabGroup | TabGroup[], preserveFocus?: boolean): Thenable<boolean>;
 
 		/**
 		 * Moves a tab to the given index within the column.
@@ -174,6 +181,7 @@ declare module 'vscode' {
 		 */
 		// TODO@API support TabGroup in addition to ViewColumn
 		// TODO@API support just index for moving inside current group
+		// TODO@API move a tag group
 		move(tab: Tab, viewColumn: ViewColumn, index: number, preserveFocus?: boolean): Thenable<void>;
 	}
 }
