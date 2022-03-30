@@ -372,6 +372,26 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 		return basicCrudTest(filePath, true);
 	});
 
+	test('includes can be updated (folder watch)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['nothing'], recursive: false }]);
+		await watcher.watch([{ path: testDir, excludes: [], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'files-includes.txt'));
+	});
+
+	test('non-includes are ignored (file watch)', async function () {
+		const filePath = join(testDir, 'lorem.txt');
+		await watcher.watch([{ path: filePath, excludes: [], includes: ['nothing'], recursive: false }]);
+
+		return basicCrudTest(filePath, true);
+	});
+
+	test('includes are supported (folder watch)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['**/files-includes.txt'], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'files-includes.txt'));
+	});
+
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (folder watch)', async function () {
 		const link = join(testDir, 'deep-linked');
 		const linkTarget = join(testDir, 'deep');
@@ -495,5 +515,3 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 		return watchPromise;
 	});
 });
-
-// TODO test for excludes? subsequent updates to rewatch like parcel?
