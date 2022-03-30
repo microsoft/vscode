@@ -279,7 +279,7 @@ class ImplictKernelSelector implements IDisposable {
 					case NotebookCellsChangeType.ChangeCellContent:
 					case NotebookCellsChangeType.ModelChange:
 					case NotebookCellsChangeType.Move:
-					case NotebookCellsChangeType.ChangeLanguage:
+					case NotebookCellsChangeType.ChangeCellLanguage:
 						logService.trace('IMPLICIT kernel selection because of change event', event.kind);
 						selectKernel();
 						break;

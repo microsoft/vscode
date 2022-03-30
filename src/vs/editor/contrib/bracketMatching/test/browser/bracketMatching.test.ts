@@ -5,138 +5,131 @@
 import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/browser/bracketMatching';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { createCodeEditorServices, instantiateTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 
 suite('bracket matching', () => {
-	class BracketMode extends MockMode {
-		constructor() {
-			super('bracketMode');
-			this._register(LanguageConfigurationRegistry.register(this.languageId, {
-				brackets: [
-					['{', '}'],
-					['[', ']'],
-					['(', ')'],
-				]
-			}));
-		}
+
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+	let languageConfigurationService: ILanguageConfigurationService;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		instantiationService = createCodeEditorServices(disposables);
+		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	function createTextModelWithBrackets(text: string) {
+		const languageId = 'bracketMode';
+		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')'],
+			]
+		}));
+		return disposables.add(instantiateTextModel(instantiationService, text, languageId));
+	}
+
+	function createCodeEditorWithBrackets(text: string) {
+		return disposables.add(instantiateTestCodeEditor(instantiationService, createTextModelWithBrackets(text)));
 	}
 
 	test('issue #183: jump to matching bracket position', () => {
-		const mode = new BracketMode();
-		const model = createTextModel('var x = (3 + (5-7)) + ((5+3)+5);', mode.languageId);
+		const editor = createCodeEditorWithBrackets('var x = (3 + (5-7)) + ((5+3)+5);');
+		const bracketMatchingController = disposables.add(editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController));
 
-		withTestCodeEditor(model, {}, (editor) => {
-			const bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
+		// start on closing bracket
+		editor.setPosition(new Position(1, 20));
+		bracketMatchingController.jumpToBracket();
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 9));
+		bracketMatchingController.jumpToBracket();
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 19));
+		bracketMatchingController.jumpToBracket();
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 9));
 
-			// start on closing bracket
-			editor.setPosition(new Position(1, 20));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 9));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 19));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 9));
-
-			// start on opening bracket
-			editor.setPosition(new Position(1, 23));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 31));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 23));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 31));
-
-			bracketMatchingController.dispose();
-		});
-
-		model.dispose();
-		mode.dispose();
+		// start on opening bracket
+		editor.setPosition(new Position(1, 23));
+		bracketMatchingController.jumpToBracket();
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 31));
+		bracketMatchingController.jumpToBracket();
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 23));
+		bracketMatchingController.jumpToBracket();
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 31));
 	});
 
 	test('Jump to next bracket', () => {
-		const mode = new BracketMode();
-		const model = createTextModel('var x = (3 + (5-7)); y();', mode.languageId);
+		const editor = createCodeEditorWithBrackets('var x = (3 + (5-7)); y();');
+		const bracketMatchingController = disposables.add(editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController));
 
-		withTestCodeEditor(model, {}, (editor) => {
-			const bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
+		// start position between brackets
+		editor.setPosition(new Position(1, 16));
+		bracketMatchingController.jumpToBracket();
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 18));
+		bracketMatchingController.jumpToBracket();
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 14));
+		bracketMatchingController.jumpToBracket();
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 18));
 
-			// start position between brackets
-			editor.setPosition(new Position(1, 16));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 18));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 14));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 18));
+		// skip brackets in comments
+		editor.setPosition(new Position(1, 21));
+		bracketMatchingController.jumpToBracket();
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 23));
+		bracketMatchingController.jumpToBracket();
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 24));
+		bracketMatchingController.jumpToBracket();
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 23));
 
-			// skip brackets in comments
-			editor.setPosition(new Position(1, 21));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 23));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 24));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 23));
-
-			// do not break if no brackets are available
-			editor.setPosition(new Position(1, 26));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 26));
-
-			bracketMatchingController.dispose();
-		});
-
-		model.dispose();
-		mode.dispose();
+		// do not break if no brackets are available
+		editor.setPosition(new Position(1, 26));
+		bracketMatchingController.jumpToBracket();
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 26));
 	});
 
 	test('Select to next bracket', () => {
-		const mode = new BracketMode();
-		const model = createTextModel('var x = (3 + (5-7)); y();', mode.languageId);
+		const editor = createCodeEditorWithBrackets('var x = (3 + (5-7)); y();');
+		const bracketMatchingController = disposables.add(editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController));
 
-		withTestCodeEditor(model, {}, (editor) => {
-			const bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
+		// start position in open brackets
+		editor.setPosition(new Position(1, 9));
+		bracketMatchingController.selectToBracket(true);
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 20));
+		assert.deepStrictEqual(editor.getSelection(), new Selection(1, 9, 1, 20));
 
+		// start position in close brackets (should select backwards)
+		editor.setPosition(new Position(1, 20));
+		bracketMatchingController.selectToBracket(true);
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 9));
+		assert.deepStrictEqual(editor.getSelection(), new Selection(1, 20, 1, 9));
 
-			// start position in open brackets
-			editor.setPosition(new Position(1, 9));
-			bracketMatchingController.selectToBracket(true);
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 20));
-			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 9, 1, 20));
+		// start position between brackets
+		editor.setPosition(new Position(1, 16));
+		bracketMatchingController.selectToBracket(true);
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 19));
+		assert.deepStrictEqual(editor.getSelection(), new Selection(1, 14, 1, 19));
 
-			// start position in close brackets (should select backwards)
-			editor.setPosition(new Position(1, 20));
-			bracketMatchingController.selectToBracket(true);
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 9));
-			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 20, 1, 9));
+		// start position outside brackets
+		editor.setPosition(new Position(1, 21));
+		bracketMatchingController.selectToBracket(true);
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 25));
+		assert.deepStrictEqual(editor.getSelection(), new Selection(1, 23, 1, 25));
 
-			// start position between brackets
-			editor.setPosition(new Position(1, 16));
-			bracketMatchingController.selectToBracket(true);
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 19));
-			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 14, 1, 19));
-
-			// start position outside brackets
-			editor.setPosition(new Position(1, 21));
-			bracketMatchingController.selectToBracket(true);
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 25));
-			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 23, 1, 25));
-
-			// do not break if no brackets are available
-			editor.setPosition(new Position(1, 26));
-			bracketMatchingController.selectToBracket(true);
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 26));
-			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 26, 1, 26));
-
-			bracketMatchingController.dispose();
-		});
-
-		model.dispose();
-		mode.dispose();
+		// do not break if no brackets are available
+		editor.setPosition(new Position(1, 26));
+		bracketMatchingController.selectToBracket(true);
+		assert.deepStrictEqual(editor.getPosition(), new Position(1, 26));
+		assert.deepStrictEqual(editor.getSelection(), new Selection(1, 26, 1, 26));
 	});
 
 	test('issue #1772: jump to enclosing brackets', () => {
@@ -147,21 +140,12 @@ suite('bracket matching', () => {
 			'    somethingmore: [0, 2, 4]',
 			'};',
 		].join('\n');
-		const mode = new BracketMode();
-		const model = createTextModel(text, mode.languageId);
+		const editor = createCodeEditorWithBrackets(text);
+		const bracketMatchingController = disposables.add(editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController));
 
-		withTestCodeEditor(model, {}, (editor) => {
-			const bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
-
-			editor.setPosition(new Position(3, 5));
-			bracketMatchingController.jumpToBracket();
-			assert.deepStrictEqual(editor.getSelection(), new Selection(5, 1, 5, 1));
-
-			bracketMatchingController.dispose();
-		});
-
-		model.dispose();
-		mode.dispose();
+		editor.setPosition(new Position(3, 5));
+		bracketMatchingController.jumpToBracket();
+		assert.deepStrictEqual(editor.getSelection(), new Selection(5, 1, 5, 1));
 	});
 
 	test('issue #43371: argument to not select brackets', () => {
@@ -172,73 +156,55 @@ suite('bracket matching', () => {
 			'    somethingmore: [0, 2, 4]',
 			'};',
 		].join('\n');
-		const mode = new BracketMode();
-		const model = createTextModel(text, mode.languageId);
+		const editor = createCodeEditorWithBrackets(text);
+		const bracketMatchingController = disposables.add(editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController));
 
-		withTestCodeEditor(model, {}, (editor) => {
-			const bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
-
-			editor.setPosition(new Position(3, 5));
-			bracketMatchingController.selectToBracket(false);
-			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 12, 5, 1));
-
-			bracketMatchingController.dispose();
-		});
-
-		model.dispose();
-		mode.dispose();
+		editor.setPosition(new Position(3, 5));
+		bracketMatchingController.selectToBracket(false);
+		assert.deepStrictEqual(editor.getSelection(), new Selection(1, 12, 5, 1));
 	});
 
 	test('issue #45369: Select to Bracket with multicursor', () => {
-		const mode = new BracketMode();
-		const model = createTextModel('{  }   {   }   { }', mode.languageId);
+		const editor = createCodeEditorWithBrackets('{  }   {   }   { }');
+		const bracketMatchingController = disposables.add(editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController));
 
-		withTestCodeEditor(model, {}, (editor) => {
-			const bracketMatchingController = editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController);
+		// cursors inside brackets become selections of the entire bracket contents
+		editor.setSelections([
+			new Selection(1, 3, 1, 3),
+			new Selection(1, 10, 1, 10),
+			new Selection(1, 17, 1, 17)
+		]);
+		bracketMatchingController.selectToBracket(true);
+		assert.deepStrictEqual(editor.getSelections(), [
+			new Selection(1, 1, 1, 5),
+			new Selection(1, 8, 1, 13),
+			new Selection(1, 16, 1, 19)
+		]);
 
-			// cursors inside brackets become selections of the entire bracket contents
-			editor.setSelections([
-				new Selection(1, 3, 1, 3),
-				new Selection(1, 10, 1, 10),
-				new Selection(1, 17, 1, 17)
-			]);
-			bracketMatchingController.selectToBracket(true);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 5),
-				new Selection(1, 8, 1, 13),
-				new Selection(1, 16, 1, 19)
-			]);
+		// cursors to the left of bracket pairs become selections of the entire pair
+		editor.setSelections([
+			new Selection(1, 1, 1, 1),
+			new Selection(1, 6, 1, 6),
+			new Selection(1, 14, 1, 14)
+		]);
+		bracketMatchingController.selectToBracket(true);
+		assert.deepStrictEqual(editor.getSelections(), [
+			new Selection(1, 1, 1, 5),
+			new Selection(1, 8, 1, 13),
+			new Selection(1, 16, 1, 19)
+		]);
 
-			// cursors to the left of bracket pairs become selections of the entire pair
-			editor.setSelections([
-				new Selection(1, 1, 1, 1),
-				new Selection(1, 6, 1, 6),
-				new Selection(1, 14, 1, 14)
-			]);
-			bracketMatchingController.selectToBracket(true);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 5),
-				new Selection(1, 8, 1, 13),
-				new Selection(1, 16, 1, 19)
-			]);
-
-			// cursors just right of a bracket pair become selections of the entire pair
-			editor.setSelections([
-				new Selection(1, 5, 1, 5),
-				new Selection(1, 13, 1, 13),
-				new Selection(1, 19, 1, 19)
-			]);
-			bracketMatchingController.selectToBracket(true);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 5, 1, 1),
-				new Selection(1, 13, 1, 8),
-				new Selection(1, 19, 1, 16)
-			]);
-
-			bracketMatchingController.dispose();
-		});
-
-		model.dispose();
-		mode.dispose();
+		// cursors just right of a bracket pair become selections of the entire pair
+		editor.setSelections([
+			new Selection(1, 5, 1, 5),
+			new Selection(1, 13, 1, 13),
+			new Selection(1, 19, 1, 19)
+		]);
+		bracketMatchingController.selectToBracket(true);
+		assert.deepStrictEqual(editor.getSelections(), [
+			new Selection(1, 5, 1, 1),
+			new Selection(1, 13, 1, 8),
+			new Selection(1, 19, 1, 16)
+		]);
 	});
 });

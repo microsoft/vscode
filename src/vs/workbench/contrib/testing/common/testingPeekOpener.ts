@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestResultItem } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 
 export interface ITestingPeekOpener {

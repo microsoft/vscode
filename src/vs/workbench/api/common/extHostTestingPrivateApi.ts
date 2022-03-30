@@ -3,42 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as editorRange from 'vs/editor/common/core/range';
+import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
+import { ITestItem } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestIdPathParts } from 'vs/workbench/contrib/testing/common/testId';
+import { createTestItemChildren, ExtHostTestItemEvent, InvalidTestItemError, ITestChildrenLike, ITestItemChildren, TestItemCollection, TestItemEventOp } from 'vs/workbench/contrib/testing/common/testItemCollection';
 import * as vscode from 'vscode';
-
-export const enum ExtHostTestItemEventOp {
-	Upsert,
-	RemoveChild,
-	SetProp,
-	Bulk,
-}
-
-export interface ITestItemUpsertChild {
-	op: ExtHostTestItemEventOp.Upsert;
-	item: TestItemImpl;
-}
-
-export interface ITestItemRemoveChild {
-	op: ExtHostTestItemEventOp.RemoveChild;
-	id: string;
-}
-
-export interface ITestItemSetProp {
-	op: ExtHostTestItemEventOp.SetProp;
-	key: keyof vscode.TestItem;
-	value: any;
-	previous: any;
-}
-export interface ITestItemBulkReplace {
-	op: ExtHostTestItemEventOp.Bulk;
-	ops: (ITestItemUpsertChild | ITestItemRemoveChild)[];
-}
-
-export type ExtHostTestItemEvent =
-	| ITestItemUpsertChild
-	| ITestItemRemoveChild
-	| ITestItemSetProp
-	| ITestItemBulkReplace;
 
 export interface IExtHostTestItemApi {
 	controllerId: string;
@@ -59,13 +29,20 @@ export const createPrivateApiFor = (impl: TestItemImpl, controllerId: string) =>
  * is a managed object, but we keep a weakmap to avoid exposing any of the
  * internals to extensions.
  */
-export const getPrivateApiFor = (impl: TestItemImpl) => eventPrivateApis.get(impl)!;
+export const getPrivateApiFor = (impl: TestItemImpl) => {
+	const api = eventPrivateApis.get(impl);
+	if (!api) {
+		throw new InvalidTestItemError(impl?.id || '<unknown>');
+	}
+
+	return api;
+};
 
 const testItemPropAccessor = <K extends keyof vscode.TestItem>(
 	api: IExtHostTestItemApi,
-	key: K,
 	defaultValue: vscode.TestItem[K],
-	equals: (a: vscode.TestItem[K], b: vscode.TestItem[K]) => boolean
+	equals: (a: vscode.TestItem[K], b: vscode.TestItem[K]) => boolean,
+	toUpdate: (newValue: vscode.TestItem[K], oldValue: vscode.TestItem[K]) => ExtHostTestItemEvent,
 ) => {
 	let value = defaultValue;
 	return {
@@ -78,12 +55,7 @@ const testItemPropAccessor = <K extends keyof vscode.TestItem>(
 			if (!equals(value, newValue)) {
 				const oldValue = value;
 				value = newValue;
-				api.listener?.({
-					op: ExtHostTestItemEventOp.SetProp,
-					key,
-					value: newValue,
-					previous: oldValue,
-				});
+				api.listener?.(toUpdate(newValue, oldValue));
 			}
 		},
 	};
@@ -118,148 +90,31 @@ const propComparators: { [K in keyof Required<WritableProps>]: (a: vscode.TestIt
 	},
 };
 
-const writablePropKeys = Object.keys(propComparators) as (keyof Required<WritableProps>)[];
+const evSetProps = <T>(fn: (newValue: T) => Partial<ITestItem>): (newValue: T) => ExtHostTestItemEvent =>
+	v => ({ op: TestItemEventOp.SetProp, update: fn(v) });
 
 const makePropDescriptors = (api: IExtHostTestItemApi, label: string): { [K in keyof Required<WritableProps>]: PropertyDescriptor } => ({
-	range: testItemPropAccessor(api, 'range', undefined, propComparators.range),
-	label: testItemPropAccessor(api, 'label', label, propComparators.label),
-	description: testItemPropAccessor(api, 'description', undefined, propComparators.description),
-	sortText: testItemPropAccessor(api, 'sortText', undefined, propComparators.sortText),
-	canResolveChildren: testItemPropAccessor(api, 'canResolveChildren', false, propComparators.canResolveChildren),
-	busy: testItemPropAccessor(api, 'busy', false, propComparators.busy),
-	error: testItemPropAccessor(api, 'error', undefined, propComparators.error),
-	tags: testItemPropAccessor(api, 'tags', [], propComparators.tags),
+	range: testItemPropAccessor<'range'>(api, undefined, propComparators.range, evSetProps(r => ({ range: editorRange.Range.lift(Convert.Range.from(r)) }))),
+	label: testItemPropAccessor<'label'>(api, label, propComparators.label, evSetProps(label => ({ label }))),
+	description: testItemPropAccessor<'description'>(api, undefined, propComparators.description, evSetProps(description => ({ description }))),
+	sortText: testItemPropAccessor<'sortText'>(api, undefined, propComparators.sortText, evSetProps(sortText => ({ sortText }))),
+	canResolveChildren: testItemPropAccessor<'canResolveChildren'>(api, false, propComparators.canResolveChildren, state => ({
+		op: TestItemEventOp.UpdateCanResolveChildren,
+		state,
+	})),
+	busy: testItemPropAccessor<'busy'>(api, false, propComparators.busy, evSetProps(busy => ({ busy }))),
+	error: testItemPropAccessor<'error'>(api, undefined, propComparators.error, evSetProps(error => ({ error: Convert.MarkdownString.fromStrict(error) || null }))),
+	tags: testItemPropAccessor<'tags'>(api, [], propComparators.tags, (current, previous) => ({
+		op: TestItemEventOp.SetTags,
+		new: current.map(Convert.TestTag.from),
+		old: previous.map(Convert.TestTag.from),
+	})),
 });
-
-/**
- * Returns a partial test item containing the writable properties in B that
- * are different from A.
- */
-export const diffTestItems = (a: vscode.TestItem, b: vscode.TestItem) => {
-	const output = new Map<keyof WritableProps, unknown>();
-	for (const key of writablePropKeys) {
-		const cmp = propComparators[key] as (a: unknown, b: unknown) => boolean;
-		if (!cmp(a[key], b[key])) {
-			output.set(key, b[key]);
-		}
-	}
-
-	return output;
-};
-
-export class DuplicateTestItemError extends Error {
-	constructor(id: string) {
-		super(`Attempted to insert a duplicate test item ID ${id}`);
-	}
-}
-
-export class InvalidTestItemError extends Error {
-	constructor(id: string) {
-		super(`TestItem with ID "${id}" is invalid. Make sure to create it from the createTestItem method.`);
-	}
-}
-
-export class MixedTestItemController extends Error {
-	constructor(id: string, ctrlA: string, ctrlB: string) {
-		super(`TestItem with ID "${id}" is from controller "${ctrlA}" and cannot be added as a child of an item from controller "${ctrlB}".`);
-	}
-}
-
-
-export type TestItemCollectionImpl = vscode.TestItemCollection & { toJSON(): readonly TestItemImpl[] } & Iterable<TestItemImpl>;
-
-const createTestItemCollection = (owningItem: TestItemImpl): TestItemCollectionImpl => {
-	const api = getPrivateApiFor(owningItem);
-	let mapped = new Map<string, TestItemImpl>();
-
-	return {
-		/** @inheritdoc */
-		get size() {
-			return mapped.size;
-		},
-
-		/** @inheritdoc */
-		forEach(callback: (item: vscode.TestItem, collection: vscode.TestItemCollection) => unknown, thisArg?: unknown) {
-			for (const item of mapped.values()) {
-				callback.call(thisArg, item, this);
-			}
-		},
-
-		/** @inheritdoc */
-		replace(items: Iterable<vscode.TestItem>) {
-			const newMapped = new Map<string, TestItemImpl>();
-			const toDelete = new Set(mapped.keys());
-			const bulk: ITestItemBulkReplace = { op: ExtHostTestItemEventOp.Bulk, ops: [] };
-
-			for (const item of items) {
-				if (!(item instanceof TestItemImpl)) {
-					throw new InvalidTestItemError(item.id);
-				}
-
-				const itemController = getPrivateApiFor(item).controllerId;
-				if (itemController !== api.controllerId) {
-					throw new MixedTestItemController(item.id, itemController, api.controllerId);
-				}
-
-				if (newMapped.has(item.id)) {
-					throw new DuplicateTestItemError(item.id);
-				}
-
-				newMapped.set(item.id, item);
-				toDelete.delete(item.id);
-				bulk.ops.push({ op: ExtHostTestItemEventOp.Upsert, item });
-			}
-
-			for (const id of toDelete.keys()) {
-				bulk.ops.push({ op: ExtHostTestItemEventOp.RemoveChild, id });
-			}
-
-			api.listener?.(bulk);
-
-			// important mutations come after firing, so if an error happens no
-			// changes will be "saved":
-			mapped = newMapped;
-		},
-
-
-		/** @inheritdoc */
-		add(item: vscode.TestItem) {
-			if (!(item instanceof TestItemImpl)) {
-				throw new InvalidTestItemError(item.id);
-			}
-
-			mapped.set(item.id, item);
-			api.listener?.({ op: ExtHostTestItemEventOp.Upsert, item });
-		},
-
-		/** @inheritdoc */
-		delete(id: string) {
-			if (mapped.delete(id)) {
-				api.listener?.({ op: ExtHostTestItemEventOp.RemoveChild, id });
-			}
-		},
-
-		/** @inheritdoc */
-		get(itemId: string) {
-			return mapped.get(itemId);
-		},
-
-		/** JSON serialization function. */
-		toJSON() {
-			return Array.from(mapped.values());
-		},
-
-		/** @inheritdoc */
-		[Symbol.iterator]() {
-			return mapped.values();
-		},
-	};
-};
 
 export class TestItemImpl implements vscode.TestItem {
 	public readonly id!: string;
 	public readonly uri!: vscode.Uri | undefined;
-	public readonly children!: TestItemCollectionImpl;
+	public readonly children!: ITestItemChildren<vscode.TestItem>;
 	public readonly parent!: TestItemImpl | undefined;
 
 	public range!: vscode.Range | undefined;
@@ -298,7 +153,7 @@ export class TestItemImpl implements vscode.TestItem {
 				},
 			},
 			children: {
-				value: createTestItemCollection(this),
+				value: createTestItemChildren(api, getPrivateApiFor, TestItemImpl),
 				enumerable: true,
 				writable: false,
 			},
@@ -310,5 +165,17 @@ export class TestItemImpl implements vscode.TestItem {
 export class TestItemRootImpl extends TestItemImpl {
 	constructor(controllerId: string, label: string) {
 		super(controllerId, controllerId, label, undefined);
+	}
+}
+
+export class ExtHostTestItemCollection extends TestItemCollection<TestItemImpl> {
+	constructor(controllerId: string, controllerLabel: string) {
+		super({
+			controllerId,
+			getApiFor: getPrivateApiFor,
+			getChildren: (item) => item.children as ITestChildrenLike<TestItemImpl>,
+			root: new TestItemRootImpl(controllerId, controllerLabel),
+			toITestItem: Convert.TestItem.from,
+		});
 	}
 }

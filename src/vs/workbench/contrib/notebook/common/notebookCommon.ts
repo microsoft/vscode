@@ -266,7 +266,7 @@ export interface IMainCellDto {
 export enum NotebookCellsChangeType {
 	ModelChange = 1,
 	Move = 2,
-	ChangeLanguage = 5,
+	ChangeCellLanguage = 5,
 	Initialize = 6,
 	ChangeCellMetadata = 7,
 	Output = 8,
@@ -317,7 +317,7 @@ export interface NotebookOutputItemChangedEvent {
 }
 
 export interface NotebookCellsChangeLanguageEvent {
-	readonly kind: NotebookCellsChangeType.ChangeLanguage;
+	readonly kind: NotebookCellsChangeType.ChangeCellLanguage;
 	readonly index: number;
 	readonly language: string;
 }

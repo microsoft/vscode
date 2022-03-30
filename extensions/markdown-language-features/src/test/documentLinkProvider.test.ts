@@ -8,7 +8,7 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from './inMemoryDocument';
+import { InMemoryDocument } from '../util/inMemoryDocument';
 import { joinLines, noopToken } from './util';
 
 

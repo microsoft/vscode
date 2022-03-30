@@ -11,6 +11,7 @@ import { MdDocumentSymbolProvider } from './languageFeatures/documentSymbolProvi
 import { registerDropIntoEditor } from './languageFeatures/dropIntoEditor';
 import { MdFoldingProvider } from './languageFeatures/foldingProvider';
 import { MdPathCompletionProvider } from './languageFeatures/pathCompletions';
+import { MdReferencesProvider } from './languageFeatures/references';
 import { MdSmartSelect } from './languageFeatures/smartSelect';
 import { MdWorkspaceSymbolProvider } from './languageFeatures/workspaceSymbolProvider';
 import { Logger } from './logger';
@@ -21,6 +22,7 @@ import { MarkdownPreviewManager } from './preview/previewManager';
 import { ContentSecurityPolicyArbiter, ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './preview/security';
 import { githubSlugifier } from './slugify';
 import { loadDefaultTelemetryReporter, TelemetryReporter } from './telemetryReporter';
+import { VsCodeMdWorkspaceContents } from './workspaceContents';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -56,13 +58,17 @@ function registerMarkdownLanguageFeatures(
 ): vscode.Disposable {
 	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
 
+	const linkProvider = new MdLinkProvider(engine);
+	const workspaceContents = new VsCodeMdWorkspaceContents();
+
 	return vscode.Disposable.from(
 		vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
-		vscode.languages.registerDocumentLinkProvider(selector, new MdLinkProvider(engine)),
+		vscode.languages.registerDocumentLinkProvider(selector, linkProvider),
 		vscode.languages.registerFoldingRangeProvider(selector, new MdFoldingProvider(engine)),
 		vscode.languages.registerSelectionRangeProvider(selector, new MdSmartSelect(engine)),
-		vscode.languages.registerWorkspaceSymbolProvider(new MdWorkspaceSymbolProvider(symbolProvider)),
-		MdPathCompletionProvider.register(selector, engine),
+		vscode.languages.registerWorkspaceSymbolProvider(new MdWorkspaceSymbolProvider(symbolProvider, workspaceContents)),
+		vscode.languages.registerReferenceProvider(selector, new MdReferencesProvider(linkProvider, workspaceContents, engine)),
+		MdPathCompletionProvider.register(selector, engine, linkProvider),
 	);
 }
 

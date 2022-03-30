@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CharCode } from 'vs/base/common/charCode';
 import { Codicon } from 'vs/base/common/codicons';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { InvisibleCharacters } from 'vs/base/common/strings';
@@ -495,12 +495,12 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 			};
 
 			const adjustSettings = nls.localize('unicodeHighlight.adjustSettings', 'Adjust settings');
-			const contents: Array<IMarkdownString> = [{
-				value: `${reason} [${adjustSettings}](command:${ShowExcludeOptions.ID}?${encodeURIComponent(JSON.stringify(adjustSettingsArgs))})`,
-				isTrusted: true,
-			}];
-
-			result.push(new MarkdownHover(this, d.range, contents, index++));
+			const uri = `command:${ShowExcludeOptions.ID}?${encodeURIComponent(JSON.stringify(adjustSettingsArgs))}`;
+			const markdown = new MarkdownString('', true)
+				.appendMarkdown(reason)
+				.appendText(' ')
+				.appendLink(uri, adjustSettings);
+			result.push(new MarkdownHover(this, d.range, [markdown], index++));
 		}
 		return result;
 	}

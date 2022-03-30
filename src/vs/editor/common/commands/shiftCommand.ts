@@ -10,8 +10,9 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
+import { getEnterAction } from 'vs/editor/common/languages/enterAction';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 export interface IShiftCommandOpts {
 	isUnshift: boolean;
@@ -79,7 +80,11 @@ export class ShiftCommand implements ICommand {
 	private _useLastEditRangeForCursorEndPosition: boolean;
 	private _selectionStartColumnStaysPut: boolean;
 
-	constructor(range: Selection, opts: IShiftCommandOpts) {
+	constructor(
+		range: Selection,
+		opts: IShiftCommandOpts,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
+	) {
 		this._opts = opts;
 		this._selection = range;
 		this._selectionId = null;
@@ -142,7 +147,7 @@ export class ShiftCommand implements ICommand {
 						// The current line is "miss-aligned", so let's see if this is expected...
 						// This can only happen when it has trailing commas in the indent
 						if (model.isCheapToTokenize(lineNumber - 1)) {
-							const enterAction = LanguageConfigurationRegistry.getEnterAction(this._opts.autoIndent, model, new Range(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1), lineNumber - 1, model.getLineMaxColumn(lineNumber - 1)));
+							const enterAction = getEnterAction(this._opts.autoIndent, model, new Range(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1), lineNumber - 1, model.getLineMaxColumn(lineNumber - 1)), this._languageConfigurationService);
 							if (enterAction) {
 								extraSpaces = previousLineExtraSpaces;
 								if (enterAction.appendText) {

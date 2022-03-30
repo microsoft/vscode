@@ -152,7 +152,7 @@ export class SettingsEditor2 extends EditorPane {
 	private controlsElement!: HTMLElement;
 	private settingsTargetsWidget!: SettingsTargetsWidget;
 
-	private splitView!: SplitView;
+	private splitView!: SplitView<number>;
 
 	private settingsTreeContainer!: HTMLElement;
 	private settingsTree!: SettingsTree;
@@ -712,9 +712,9 @@ export class SettingsEditor2 extends EditorPane {
 			element: this.tocTreeContainer,
 			minimumSize: SettingsEditor2.TOC_MIN_WIDTH,
 			maximumSize: Number.POSITIVE_INFINITY,
-			layout: (width) => {
+			layout: (width, _, height) => {
 				this.tocTreeContainer.style.width = `${width}px`;
-				this.tocTree.layout(undefined, width);
+				this.tocTree.layout(height, width);
 			}
 		}, startingWidth, undefined, true);
 		this.splitView.addView({
@@ -722,9 +722,9 @@ export class SettingsEditor2 extends EditorPane {
 			element: this.settingsTreeContainer,
 			minimumSize: SettingsEditor2.EDITOR_MIN_WIDTH,
 			maximumSize: Number.POSITIVE_INFINITY,
-			layout: (width) => {
+			layout: (width, _, height) => {
 				this.settingsTreeContainer.style.width = `${width}px`;
-				this.settingsTree.layout(undefined, width);
+				this.settingsTree.layout(height, width);
 			}
 		}, Sizing.Distribute, undefined, true);
 		this._register(this.splitView.onDidSashReset(() => {
@@ -1561,7 +1561,7 @@ export class SettingsEditor2 extends EditorPane {
 		// space it has, otherwise setViewVisible results in the first panel
 		// showing up at the minimum size whenever the Settings editor
 		// opens for the first time.
-		this.splitView.layout(this.bodyContainer.clientWidth);
+		this.splitView.layout(this.bodyContainer.clientWidth, listHeight);
 
 		const firstViewWasVisible = this.splitView.isViewVisible(0);
 		const firstViewVisible = this.bodyContainer.clientWidth >= SettingsEditor2.NARROW_TOTAL_WIDTH;

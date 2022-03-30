@@ -49,19 +49,19 @@ export class NodeJSWatcher extends Disposable implements INonRecursiveWatcher {
 				return true; // not yet watching that path
 			}
 
-			// Re-watch path if excludes have changed
-			return !equals(watcher.request.excludes, request.excludes);
+			// Re-watch path if excludes or includes have changed
+			return !equals(watcher.request.excludes, request.excludes) || !equals(watcher.request.includes, request.includes);
 		});
 
 		// Gather paths that we should stop watching
 		const pathsToStopWatching = Array.from(this.watchers.values()).filter(({ request }) => {
-			return !normalizedRequests.find(normalizedRequest => normalizedRequest.path === request.path && equals(normalizedRequest.excludes, request.excludes));
+			return !normalizedRequests.find(normalizedRequest => normalizedRequest.path === request.path && equals(normalizedRequest.excludes, request.excludes) && equals(normalizedRequest.includes, request.includes));
 		}).map(({ request }) => request.path);
 
 		// Logging
 
 		if (requestsToStartWatching.length) {
-			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'})`).join(',')}`);
+			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? request.includes : '<all>'})`).join(',')}`);
 		}
 
 		if (pathsToStopWatching.length) {

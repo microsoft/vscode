@@ -10,7 +10,7 @@ import { commonPrefixLength, getLeadingWhitespace, isFalsyOrWhitespace, splitLin
 import { generateUuid } from 'vs/base/common/uuid';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { Text, Variable, VariableResolver } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
 import * as nls from 'vs/nls';
@@ -234,14 +234,15 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 export class CommentBasedVariableResolver implements VariableResolver {
 	constructor(
 		private readonly _model: ITextModel,
-		private readonly _selection: Selection
+		private readonly _selection: Selection,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
 	) {
 		//
 	}
 	resolve(variable: Variable): string | undefined {
 		const { name } = variable;
 		const langId = this._model.getLanguageIdAtPosition(this._selection.selectionStartLineNumber, this._selection.selectionStartColumn);
-		const config = LanguageConfigurationRegistry.getComments(langId);
+		const config = this._languageConfigurationService.getLanguageConfiguration(langId).comments;
 		if (!config) {
 			return undefined;
 		}

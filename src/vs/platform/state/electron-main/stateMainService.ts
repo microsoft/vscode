@@ -154,7 +154,7 @@ export class StateMainService implements IStateMainService {
 	private static readonly STATE_FILE = 'storage.json';
 
 	private readonly legacyStateFilePath = URI.file(join(this.environmentMainService.userDataPath, StateMainService.STATE_FILE));
-	private readonly stateFilePath = joinPath(this.environmentMainService.appSettingsHome, StateMainService.STATE_FILE);
+	private readonly stateFilePath = joinPath(this.environmentMainService.globalStorageHome, StateMainService.STATE_FILE);
 
 	private readonly fileStorage: FileStorage;
 

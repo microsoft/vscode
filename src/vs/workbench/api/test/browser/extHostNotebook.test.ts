@@ -60,7 +60,7 @@ suite('NotebookCell#Document', function () {
 			}
 		};
 		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments, extHostStoragePaths);
-		extHostNotebookDocuments = new ExtHostNotebookDocuments(new NullLogService(), extHostNotebooks);
+		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 
 		let reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
 			// async openNotebook() { }
@@ -146,12 +146,13 @@ suite('NotebookCell#Document', function () {
 	test('cell document is vscode.TextDocument after changing it', async function () {
 
 		const p = new Promise<void>((resolve, reject) => {
-			extHostNotebooks.onDidChangeNotebookCells(e => {
-				try {
-					assert.strictEqual(e.changes.length, 1);
-					assert.strictEqual(e.changes[0].items.length, 2);
 
-					const [first, second] = e.changes[0].items;
+			extHostNotebookDocuments.onDidChangeNotebookDocument(e => {
+				try {
+					assert.strictEqual(e.contentChanges.length, 1);
+					assert.strictEqual(e.contentChanges[0].addedCells.length, 2);
+
+					const [first, second] = e.contentChanges[0].addedCells;
 
 					const doc1 = extHostDocuments.getAllDocumentData().find(data => isEqual(data.document.uri, first.document.uri));
 					assert.ok(doc1);
@@ -167,6 +168,7 @@ suite('NotebookCell#Document', function () {
 					reject(err);
 				}
 			});
+
 		});
 
 		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
@@ -317,7 +319,7 @@ suite('NotebookCell#Document', function () {
 
 	test('ERR MISSING extHostDocument for notebook cell: #116711', async function () {
 
-		const p = Event.toPromise(extHostNotebooks.onDidChangeNotebookCells);
+		const p = Event.toPromise(extHostNotebookDocuments.onDidChangeNotebookDocument);
 
 		// DON'T call this, make sure the cell-documents have not been created yet
 		// assert.strictEqual(notebook.notebookDocument.cellCount, 2);
@@ -350,14 +352,14 @@ suite('NotebookCell#Document', function () {
 
 		const event = await p;
 
-		assert.strictEqual(event.document === notebook.apiNotebook, true);
-		assert.strictEqual(event.changes.length, 1);
-		assert.strictEqual(event.changes[0].deletedCount, 2);
-		assert.strictEqual(event.changes[0].deletedItems[0].document.isClosed, true);
-		assert.strictEqual(event.changes[0].deletedItems[1].document.isClosed, true);
-		assert.strictEqual(event.changes[0].items.length, 2);
-		assert.strictEqual(event.changes[0].items[0].document.isClosed, false);
-		assert.strictEqual(event.changes[0].items[1].document.isClosed, false);
+		assert.strictEqual(event.notebook === notebook.apiNotebook, true);
+		assert.strictEqual(event.contentChanges.length, 1);
+		assert.strictEqual(event.contentChanges[0].range.end - event.contentChanges[0].range.start, 2);
+		assert.strictEqual(event.contentChanges[0].removedCells[0].document.isClosed, true);
+		assert.strictEqual(event.contentChanges[0].removedCells[1].document.isClosed, true);
+		assert.strictEqual(event.contentChanges[0].addedCells.length, 2);
+		assert.strictEqual(event.contentChanges[0].addedCells[0].document.isClosed, false);
+		assert.strictEqual(event.contentChanges[0].addedCells[1].document.isClosed, false);
 	});
 
 
@@ -407,7 +409,7 @@ suite('NotebookCell#Document', function () {
 
 		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
 			versionId: 12, rawEvents: [{
-				kind: NotebookCellsChangeType.ChangeLanguage,
+				kind: NotebookCellsChangeType.ChangeCellLanguage,
 				index: 0,
 				language: 'fooLang'
 			}]
@@ -506,7 +508,7 @@ suite('NotebookCell#Document', function () {
 		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
 			versionId: 12,
 			rawEvents: [{
-				kind: NotebookCellsChangeType.ChangeLanguage,
+				kind: NotebookCellsChangeType.ChangeCellLanguage,
 				index: 0,
 				language: 'fooLang'
 			}]

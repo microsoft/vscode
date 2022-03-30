@@ -88,15 +88,15 @@ export class CodeLensContribution implements IEditorContribution {
 	}
 
 	private _getLayoutInfo() {
+		const lineHeightFactor = Math.max(1.3, this._editor.getOption(EditorOption.lineHeight) / this._editor.getOption(EditorOption.fontSize));
 		let fontSize = this._editor.getOption(EditorOption.codeLensFontSize);
-		let codeLensHeight: number;
 		if (!fontSize || fontSize < 5) {
 			fontSize = (this._editor.getOption(EditorOption.fontSize) * .9) | 0;
-			codeLensHeight = this._editor.getOption(EditorOption.lineHeight);
-		} else {
-			codeLensHeight = (fontSize * Math.max(1.3, this._editor.getOption(EditorOption.lineHeight) / this._editor.getOption(EditorOption.fontSize))) | 0;
 		}
-		return { codeLensHeight, fontSize };
+		return {
+			fontSize,
+			codeLensHeight: (fontSize * lineHeightFactor) | 0,
+		};
 	}
 
 	private _updateLensStyle(): void {

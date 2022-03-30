@@ -165,7 +165,7 @@ class CliMain extends Disposable {
 				commonProperties: (async () => {
 					let machineId: string | undefined = undefined;
 					try {
-						const storageContents = await Promises.readFile(joinPath(environmentService.appSettingsHome, 'storage.json').fsPath);
+						const storageContents = await Promises.readFile(joinPath(environmentService.globalStorageHome, 'storage.json').fsPath);
 						machineId = JSON.parse(storageContents.toString())[machineIdKey];
 					} catch (error) {
 						if (error.code !== 'ENOENT') {

@@ -229,7 +229,7 @@ export interface ITestRunTask {
 }
 
 export interface ITestTag {
-	id: string;
+	readonly id: string;
 }
 
 const testTagDelimiter = '\0';
@@ -244,7 +244,6 @@ export const denamespaceTestTag = (namespaced: string) => {
 
 export interface ITestTagDisplayInfo {
 	id: string;
-	ctrlLabel: string;
 }
 
 /**
@@ -507,6 +506,8 @@ export const enum TestDiffOpType {
 	Remove,
 	/** Changes the number of controllers who are yet to publish their collection roots. */
 	IncrementPendingExtHosts,
+	/** Retires a test/result */
+	Retire,
 	/** Add a new test tag */
 	AddTag,
 	/** Remove a test tag */
@@ -517,6 +518,7 @@ export type TestsDiffOp =
 	| { op: TestDiffOpType.Add; item: InternalTestItem }
 	| { op: TestDiffOpType.Update; item: ITestItemUpdate }
 	| { op: TestDiffOpType.Remove; itemId: string }
+	| { op: TestDiffOpType.Retire; itemId: string }
 	| { op: TestDiffOpType.IncrementPendingExtHosts; amount: number }
 	| { op: TestDiffOpType.AddTag; tag: ITestTagDisplayInfo }
 	| { op: TestDiffOpType.RemoveTag; id: string };
@@ -526,6 +528,7 @@ export namespace TestsDiffOp {
 		| { op: TestDiffOpType.Add; item: InternalTestItem.Serialized }
 		| { op: TestDiffOpType.Update; item: ITestItemUpdate.Serialized }
 		| { op: TestDiffOpType.Remove; itemId: string }
+		| { op: TestDiffOpType.Retire; itemId: string }
 		| { op: TestDiffOpType.IncrementPendingExtHosts; amount: number }
 		| { op: TestDiffOpType.AddTag; tag: ITestTagDisplayInfo }
 		| { op: TestDiffOpType.RemoveTag; id: string };
@@ -715,6 +718,10 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 					break;
 				}
 
+				case TestDiffOpType.Retire:
+					this.retireTest(op.itemId);
+					break;
+
 				case TestDiffOpType.IncrementPendingExtHosts:
 					this.updatePendingRoots(op.amount);
 					break;
@@ -730,6 +737,13 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 		}
 
 		changes.complete();
+	}
+
+	/**
+	 * Called when the extension signals a test result should be retired.
+	 */
+	protected retireTest(testId: string) {
+		// no-op
 	}
 
 	/**

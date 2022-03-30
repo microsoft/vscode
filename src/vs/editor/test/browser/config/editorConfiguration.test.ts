@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { IEnvConfiguration } from 'vs/editor/browser/config/editorConfiguration';
+import { migrateOptions } from 'vs/editor/browser/config/migrateOptions';
 import { ConfigurationChangedEvent, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
@@ -221,5 +222,135 @@ suite('Common Editor Config', () => {
 			comments: 'off',
 			strings: 'on'
 		});
+	});
+});
+
+suite('migrateOptions', () => {
+	function migrate(options: any): any {
+		migrateOptions(options);
+		return options;
+	}
+
+	test('wordWrap', () => {
+		assert.deepStrictEqual(migrate({ wordWrap: true }), { wordWrap: 'on' });
+		assert.deepStrictEqual(migrate({ wordWrap: false }), { wordWrap: 'off' });
+	});
+	test('lineNumbers', () => {
+		assert.deepStrictEqual(migrate({ lineNumbers: true }), { lineNumbers: 'on' });
+		assert.deepStrictEqual(migrate({ lineNumbers: false }), { lineNumbers: 'off' });
+	});
+	test('autoClosingBrackets', () => {
+		assert.deepStrictEqual(migrate({ autoClosingBrackets: false }), { autoClosingBrackets: 'never', autoClosingQuotes: 'never', autoSurround: 'never' });
+	});
+	test('cursorBlinking', () => {
+		assert.deepStrictEqual(migrate({ cursorBlinking: 'visible' }), { cursorBlinking: 'solid' });
+	});
+	test('renderWhitespace', () => {
+		assert.deepStrictEqual(migrate({ renderWhitespace: true }), { renderWhitespace: 'boundary' });
+		assert.deepStrictEqual(migrate({ renderWhitespace: false }), { renderWhitespace: 'none' });
+	});
+	test('renderLineHighlight', () => {
+		assert.deepStrictEqual(migrate({ renderLineHighlight: true }), { renderLineHighlight: 'line' });
+		assert.deepStrictEqual(migrate({ renderLineHighlight: false }), { renderLineHighlight: 'none' });
+	});
+	test('acceptSuggestionOnEnter', () => {
+		assert.deepStrictEqual(migrate({ acceptSuggestionOnEnter: true }), { acceptSuggestionOnEnter: 'on' });
+		assert.deepStrictEqual(migrate({ acceptSuggestionOnEnter: false }), { acceptSuggestionOnEnter: 'off' });
+	});
+	test('tabCompletion', () => {
+		assert.deepStrictEqual(migrate({ tabCompletion: true }), { tabCompletion: 'onlySnippets' });
+		assert.deepStrictEqual(migrate({ tabCompletion: false }), { tabCompletion: 'off' });
+	});
+	test('suggest.filteredTypes', () => {
+		assert.deepStrictEqual(
+			migrate({
+				suggest: {
+					filteredTypes: {
+						method: false,
+						function: false,
+						constructor: false,
+						deprecated: false,
+						field: false,
+						variable: false,
+						class: false,
+						struct: false,
+						interface: false,
+						module: false,
+						property: false,
+						event: false,
+						operator: false,
+						unit: false,
+						value: false,
+						constant: false,
+						enum: false,
+						enumMember: false,
+						keyword: false,
+						text: false,
+						color: false,
+						file: false,
+						reference: false,
+						folder: false,
+						typeParameter: false,
+						snippet: false,
+					}
+				}
+			}), {
+			suggest: {
+				filteredTypes: undefined,
+				showMethods: false,
+				showFunctions: false,
+				showConstructors: false,
+				showDeprecated: false,
+				showFields: false,
+				showVariables: false,
+				showClasses: false,
+				showStructs: false,
+				showInterfaces: false,
+				showModules: false,
+				showProperties: false,
+				showEvents: false,
+				showOperators: false,
+				showUnits: false,
+				showValues: false,
+				showConstants: false,
+				showEnums: false,
+				showEnumMembers: false,
+				showKeywords: false,
+				showWords: false,
+				showColors: false,
+				showFiles: false,
+				showReferences: false,
+				showFolders: false,
+				showTypeParameters: false,
+				showSnippets: false,
+			}
+		});
+	});
+	test('hover', () => {
+		assert.deepStrictEqual(migrate({ hover: true }), { hover: { enabled: true } });
+		assert.deepStrictEqual(migrate({ hover: false }), { hover: { enabled: false } });
+	});
+	test('parameterHints', () => {
+		assert.deepStrictEqual(migrate({ parameterHints: true }), { parameterHints: { enabled: true } });
+		assert.deepStrictEqual(migrate({ parameterHints: false }), { parameterHints: { enabled: false } });
+	});
+	test('autoIndent', () => {
+		assert.deepStrictEqual(migrate({ autoIndent: true }), { autoIndent: 'full' });
+		assert.deepStrictEqual(migrate({ autoIndent: false }), { autoIndent: 'advanced' });
+	});
+	test('matchBrackets', () => {
+		assert.deepStrictEqual(migrate({ matchBrackets: true }), { matchBrackets: 'always' });
+		assert.deepStrictEqual(migrate({ matchBrackets: false }), { matchBrackets: 'never' });
+	});
+	test('renderIndentGuides, highlightActiveIndentGuide', () => {
+		assert.deepStrictEqual(migrate({ renderIndentGuides: true }), { renderIndentGuides: undefined, guides: { indentation: true } });
+		assert.deepStrictEqual(migrate({ renderIndentGuides: false }), { renderIndentGuides: undefined, guides: { indentation: false } });
+		assert.deepStrictEqual(migrate({ highlightActiveIndentGuide: true }), { highlightActiveIndentGuide: undefined, guides: { highlightActiveIndentation: true } });
+		assert.deepStrictEqual(migrate({ highlightActiveIndentGuide: false }), { highlightActiveIndentGuide: undefined, guides: { highlightActiveIndentation: false } });
+	});
+
+	test('migration does not overwrite new setting', () => {
+		assert.deepStrictEqual(migrate({ renderIndentGuides: true, guides: { indentation: false } }), { renderIndentGuides: undefined, guides: { indentation: false } });
+		assert.deepStrictEqual(migrate({ highlightActiveIndentGuide: true, guides: { highlightActiveIndentation: false } }), { highlightActiveIndentGuide: undefined, guides: { highlightActiveIndentation: false } });
 	});
 });

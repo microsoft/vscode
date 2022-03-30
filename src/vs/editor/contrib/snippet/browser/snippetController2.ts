@@ -12,6 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CompletionItem, CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
@@ -70,7 +71,8 @@ export class SnippetController2 implements IEditorContribution {
 		private readonly _editor: ICodeEditor,
 		@ILogService private readonly _logService: ILogService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 	) {
 		this._inSnippet = SnippetController2.InSnippetMode.bindTo(contextKeyService);
 		this._hasNextTabstop = SnippetController2.HasNextTabstop.bindTo(contextKeyService);
@@ -122,7 +124,7 @@ export class SnippetController2 implements IEditorContribution {
 
 		if (!this._session) {
 			this._modelVersionId = this._editor.getModel().getAlternativeVersionId();
-			this._session = new SnippetSession(this._editor, template, opts);
+			this._session = new SnippetSession(this._editor, template, opts, this._languageConfigurationService);
 			this._session.insert();
 		} else {
 			this._session.merge(template, opts);
@@ -145,7 +147,7 @@ export class SnippetController2 implements IEditorContribution {
 					}
 
 					const info = model.getWordUntilPosition(position);
-					const isDefaultOption = info.word === activeChoice.options[0].value;
+					const isAnyOfOptions = Boolean(activeChoice.options.find(o => o.value === info.word));
 					const suggestions: CompletionItem[] = [];
 					for (let i = 0; i < activeChoice.options.length; i++) {
 						const option = activeChoice.options[i];
@@ -155,7 +157,7 @@ export class SnippetController2 implements IEditorContribution {
 							insertText: option.value,
 							sortText: 'a'.repeat(i + 1),
 							range: new Range(position.lineNumber, info.startColumn, position.lineNumber, info.endColumn),
-							filterText: isDefaultOption ? `${info.word}_${option.value}` : option.value,
+							filterText: isAnyOfOptions ? `${info.word}_${option.value}` : undefined,
 							command: { id: 'jumpToNextSnippetPlaceholder', title: localize('next', 'Go to next placeholder...') }
 						});
 					}
