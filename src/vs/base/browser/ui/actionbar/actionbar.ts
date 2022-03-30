@@ -552,11 +552,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this._actionIds = [];
 
 		this.getContainer().remove();
-		super.dispose();
 
-		// Prevent leakers from holding on to the context or dom
-		this._context = null;
-		this.domNode = null!;
+		super.dispose();
 	}
 }
 
