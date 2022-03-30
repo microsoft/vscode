@@ -22,8 +22,8 @@ function getReferences(doc: InMemoryDocument, pos: vscode.Position, workspaceCon
 	return provider.provideReferences(doc, pos, { includeDeclaration: true }, noopToken);
 }
 
-suite('markdown references', () => {
-	test('Should not return references when not on header', async () => {
+suite('markdown: find all references', () => {
+	test('Should not return references when not on header or link', async () => {
 		const doc = new InMemoryDocument(workspaceFile('doc.md'), joinLines(
 			`# abc`,
 			``,
@@ -286,5 +286,60 @@ suite('markdown references', () => {
 			assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
 			assert.deepStrictEqual(ref.range.start.line, 2);
 		}
+	});
+
+	suite('Reference links', () => {
+		test('Should find reference links within file', async () => {
+			const docUri = workspaceFile('doc.md');
+			const doc = new InMemoryDocument(docUri, joinLines(
+				`[link 1][abc]`,
+				``,
+				`[abc]: https://example.com`,
+			));
+
+			const refs = await getReferences(doc, new vscode.Position(0, 12), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			assert.deepStrictEqual(refs!.length, 2);
+
+			{
+				const ref = refs![0];
+				assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
+				assert.deepStrictEqual(ref.range.start.line, 0);
+			}
+			{
+				const ref = refs![1];
+				assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
+				assert.deepStrictEqual(ref.range.start.line, 2);
+			}
+		});
+
+		test('Should not find reference links across files', async () => {
+			const docUri = workspaceFile('doc.md');
+			const doc = new InMemoryDocument(docUri, joinLines(
+				`[link 1][abc]`,
+				``,
+				`[abc]: https://example.com`,
+			));
+
+			const refs = await getReferences(doc, new vscode.Position(0, 12), new InMemoryWorkspaceMarkdownDocuments([
+				doc,
+				new InMemoryDocument(workspaceFile('other.md'), joinLines(
+					`[link 1][abc]`,
+					``,
+					`[abc]: https://example.com?bad`,
+				))
+			]));
+			assert.deepStrictEqual(refs!.length, 2);
+
+			{
+				const ref = refs![0];
+				assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
+				assert.deepStrictEqual(ref.range.start.line, 0);
+			}
+			{
+				const ref = refs![1];
+				assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
+				assert.deepStrictEqual(ref.range.start.line, 2);
+			}
+		});
 	});
 });

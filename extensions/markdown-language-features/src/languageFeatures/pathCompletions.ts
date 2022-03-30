@@ -9,7 +9,7 @@ import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContents } from '../tableOfContents';
 import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
 import { SkinnyTextDocument } from '../workspaceContents';
-import { MdLinkProvider } from './documentLinkProvider';
+import { DefinitionLinkTarget, MdLinkProvider } from './documentLinkProvider';
 
 enum CompletionContextKind {
 	/** `[...](|)` */
@@ -236,11 +236,11 @@ export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
 		const insertionRange = new vscode.Range(context.linkTextStartPosition, position);
 		const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
 
-		const definitions = this.linkProvider.getDefinitions(document);
+		const definitions = this.linkProvider.getDefinitionLinks(document);
 		for (const def of definitions) {
 			yield {
 				kind: vscode.CompletionItemKind.Reference,
-				label: def[0],
+				label: (def.target as DefinitionLinkTarget).ref,
 				range: {
 					inserting: insertionRange,
 					replacing: replacementRange,
