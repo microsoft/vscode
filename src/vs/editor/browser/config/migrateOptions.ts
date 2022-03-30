@@ -6,6 +6,10 @@
 import { forEach } from 'vs/base/common/collections';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
+export interface ISettingsReader {
+	(key: string): any;
+}
+
 export interface ISettingsWriter {
 	(key: string, value: any): void;
 }
@@ -16,15 +20,14 @@ export class EditorSettingMigration {
 
 	constructor(
 		public readonly key: string,
-		public readonly migrate: (value: any, write: ISettingsWriter) => void
+		public readonly migrate: (value: any, read: ISettingsReader, write: ISettingsWriter) => void
 	) { }
 
 	apply(options: any): void {
 		const value = EditorSettingMigration._read(options, this.key);
-		const write = (key: string, value: any): void => {
-			EditorSettingMigration._write(options, key, value);
-		};
-		this.migrate(value, write);
+		const read = (key: string) => EditorSettingMigration._read(options, key);
+		const write = (key: string, value: any) => EditorSettingMigration._write(options, key, value);
+		this.migrate(value, read, write);
 	}
 
 	private static _read(source: any, key: string): any {
@@ -52,12 +55,12 @@ export class EditorSettingMigration {
 	}
 }
 
-function registerEditorSettingMigration(key: string, migrate: (value: any, write: ISettingsWriter) => void): void {
+function registerEditorSettingMigration(key: string, migrate: (value: any, read: ISettingsReader, write: ISettingsWriter) => void): void {
 	EditorSettingMigration.items.push(new EditorSettingMigration(key, migrate));
 }
 
 function registerSimpleEditorSettingMigration(key: string, values: [any, any][]): void {
-	registerEditorSettingMigration(key, (value, write) => {
+	registerEditorSettingMigration(key, (value, read, write) => {
 		if (typeof value !== 'undefined') {
 			for (const [oldValue, newValue] of values) {
 				if (value === oldValue) {
@@ -88,25 +91,33 @@ registerSimpleEditorSettingMigration('parameterHints', [[true, { enabled: true }
 registerSimpleEditorSettingMigration('autoIndent', [[false, 'advanced'], [true, 'full']]);
 registerSimpleEditorSettingMigration('matchBrackets', [[true, 'always'], [false, 'never']]);
 
-registerEditorSettingMigration('autoClosingBrackets', (value, write) => {
+registerEditorSettingMigration('autoClosingBrackets', (value, read, write) => {
 	if (value === false) {
 		write('autoClosingBrackets', 'never');
-		write('autoClosingQuotes', 'never');
-		write('autoSurround', 'never');
+		if (typeof read('autoClosingQuotes') === 'undefined') {
+			write('autoClosingQuotes', 'never');
+		}
+		if (typeof read('autoSurround') === 'undefined') {
+			write('autoSurround', 'never');
+		}
 	}
 });
 
-registerEditorSettingMigration('renderIndentGuides', (value, write) => {
+registerEditorSettingMigration('renderIndentGuides', (value, read, write) => {
 	if (typeof value !== 'undefined') {
 		write('renderIndentGuides', undefined);
-		write('guides.indentation', !!value);
+		if (typeof read('guides.indentation') === 'undefined') {
+			write('guides.indentation', !!value);
+		}
 	}
 });
 
-registerEditorSettingMigration('highlightActiveIndentGuide', (value, write) => {
+registerEditorSettingMigration('highlightActiveIndentGuide', (value, read, write) => {
 	if (typeof value !== 'undefined') {
 		write('highlightActiveIndentGuide', undefined);
-		write('guides.highlightActiveIndentation', !!value);
+		if (typeof read('guides.highlightActiveIndentation') === 'undefined') {
+			write('guides.highlightActiveIndentation', !!value);
+		}
 	}
 });
 
@@ -139,12 +150,14 @@ const suggestFilteredTypesMapping: Record<string, string> = {
 	snippet: 'showSnippets',
 };
 
-registerEditorSettingMigration('suggest.filteredTypes', (value, write) => {
+registerEditorSettingMigration('suggest.filteredTypes', (value, read, write) => {
 	if (value && typeof value === 'object') {
 		forEach(suggestFilteredTypesMapping, entry => {
 			const v = value[entry.key];
 			if (v === false) {
-				write(`suggest.${entry.value}`, false);
+				if (typeof read(`suggest.${entry.value}`) === 'undefined') {
+					write(`suggest.${entry.value}`, false);
+				}
 			}
 		});
 		write('suggest.filteredTypes', undefined);
