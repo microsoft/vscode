@@ -296,34 +296,7 @@ suite('migrateOptions', () => {
 				}
 			}), {
 			suggest: {
-				filteredTypes: {
-					method: false,
-					function: false,
-					constructor: false,
-					deprecated: false,
-					field: false,
-					variable: false,
-					class: false,
-					struct: false,
-					interface: false,
-					module: false,
-					property: false,
-					event: false,
-					operator: false,
-					unit: false,
-					value: false,
-					constant: false,
-					enum: false,
-					enumMember: false,
-					keyword: false,
-					text: false,
-					color: false,
-					file: false,
-					reference: false,
-					folder: false,
-					typeParameter: false,
-					snippet: false,
-				},
+				filteredTypes: undefined,
 				showMethods: false,
 				showFunctions: false,
 				showConstructors: false,
@@ -370,9 +343,9 @@ suite('migrateOptions', () => {
 		assert.deepStrictEqual(migrate({ matchBrackets: false }), { matchBrackets: 'never' });
 	});
 	test('renderIndentGuides, highlightActiveIndentGuide', () => {
-		assert.deepStrictEqual(migrate({ renderIndentGuides: true }), { renderIndentGuides: true, guides: { indentation: true } });
-		assert.deepStrictEqual(migrate({ renderIndentGuides: false }), { renderIndentGuides: false, guides: { indentation: false } });
-		assert.deepStrictEqual(migrate({ highlightActiveIndentGuide: true }), { highlightActiveIndentGuide: true, guides: { highlightActiveIndentation: true } });
-		assert.deepStrictEqual(migrate({ highlightActiveIndentGuide: false }), { highlightActiveIndentGuide: false, guides: { highlightActiveIndentation: false } });
+		assert.deepStrictEqual(migrate({ renderIndentGuides: true }), { renderIndentGuides: undefined, guides: { indentation: true } });
+		assert.deepStrictEqual(migrate({ renderIndentGuides: false }), { renderIndentGuides: undefined, guides: { indentation: false } });
+		assert.deepStrictEqual(migrate({ highlightActiveIndentGuide: true }), { highlightActiveIndentGuide: undefined, guides: { highlightActiveIndentation: true } });
+		assert.deepStrictEqual(migrate({ highlightActiveIndentGuide: false }), { highlightActiveIndentGuide: undefined, guides: { highlightActiveIndentation: false } });
 	});
 });
