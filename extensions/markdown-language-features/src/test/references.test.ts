@@ -23,6 +23,17 @@ function getReferences(doc: InMemoryDocument, pos: vscode.Position, workspaceCon
 	return provider.provideReferences(doc, pos, { includeDeclaration: true }, noopToken);
 }
 
+function assertReferencesEqual(actualRefs: readonly vscode.Location[], ...expectedRefs: { uri: vscode.Uri; line: number }[]) {
+	assert.strictEqual(actualRefs.length, expectedRefs.length, `Reference counts should match`);
+
+	for (let i = 0; i < actualRefs.length; ++i) {
+		const actual = actualRefs[i];
+		const expected = expectedRefs[i];
+		assert.strictEqual(actual.uri.toString(), expected.uri.toString(), `Ref '${i}' has expected document`);
+		assert.strictEqual(actual.range.start.line, expected.line, `Ref '${i}' has expected line`);
+	}
+}
+
 suite('markdown: find all references', () => {
 	test('Should not return references when not on header or link', async () => {
 		const doc = new InMemoryDocument(workspaceFile('doc.md'), joinLines(
@@ -43,7 +54,8 @@ suite('markdown: find all references', () => {
 	});
 
 	test('Should find references from header within same file', async () => {
-		const doc = new InMemoryDocument(workspaceFile('doc.md'), joinLines(
+		const uri = workspaceFile('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
 			`# abc`,
 			``,
 			`[link 1](#abc)`,
@@ -51,21 +63,11 @@ suite('markdown: find all references', () => {
 			`[link 2](#abc)`,
 		));
 		const refs = await getReferences(doc, new vscode.Position(0, 3), new InMemoryWorkspaceMarkdownDocuments([doc]));
-
-		assert.deepStrictEqual(refs!.length, 3);
-
-		{
-			const ref = refs![0]; // Header definition
-			assert.deepStrictEqual(ref.range.start.line, 0);
-		}
-		{
-			const ref = refs![1];
-			assert.deepStrictEqual(ref.range.start.line, 2);
-		}
-		{
-			const ref = refs![2];
-			assert.deepStrictEqual(ref.range.start.line, 4);
-		}
+		assertReferencesEqual(refs!,
+			{ uri, line: 0 },
+			{ uri, line: 2 },
+			{ uri, line: 4 },
+		);
 	});
 
 	test('Should find references using normalized slug', async () => {
@@ -122,74 +124,45 @@ suite('markdown: find all references', () => {
 			))
 		]));
 
-		assert.deepStrictEqual(refs!.length, 4);
-
-		{
-			const ref = refs![0]; // Header definition
-			assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
-			assert.deepStrictEqual(ref.range.start.line, 0);
-		}
-		{
-			const ref = refs![1];
-			assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
-			assert.deepStrictEqual(ref.range.start.line, 2);
-		}
-		{
-			const ref = refs![2];
-			assert.deepStrictEqual(ref.uri.toString(), other1Uri.toString());
-			assert.deepStrictEqual(ref.range.start.line, 2);
-		}
-		{
-			const ref = refs![3];
-			assert.deepStrictEqual(ref.uri.toString(), other2Uri.toString());
-			assert.deepStrictEqual(ref.range.start.line, 2);
-		}
+		assertReferencesEqual(refs!,
+			{ uri: docUri, line: 0 }, // Header definition
+			{ uri: docUri, line: 2 },
+			{ uri: other1Uri, line: 2 },
+			{ uri: other2Uri, line: 2 },
+		);
 	});
 
 	test('Should find references from header to link definitions ', async () => {
-		const doc = new InMemoryDocument(workspaceFile('doc.md'), joinLines(
+		const uri = workspaceFile('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
 			`# abc`,
 			``,
 			`[bla]: #abc`
 		));
+
 		const refs = await getReferences(doc, new vscode.Position(0, 3), new InMemoryWorkspaceMarkdownDocuments([doc]));
-
-		assert.deepStrictEqual(refs!.length, 2);
-
-		{
-			const ref = refs![0]; // Header definition
-			assert.deepStrictEqual(ref.range.start.line, 0);
-		}
-		{
-			const ref = refs![1];
-			assert.deepStrictEqual(ref.range.start.line, 2);
-		}
+		assertReferencesEqual(refs!,
+			{ uri, line: 0 }, // Header definition
+			{ uri, line: 2 },
+		);
 	});
 
 	test('Should find references from link within same file', async () => {
-		const doc = new InMemoryDocument(workspaceFile('doc.md'), joinLines(
+		const uri = workspaceFile('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
 			`# abc`,
 			``,
 			`[link 1](#abc)`,
 			`[not link](#noabc)`,
 			`[link 2](#abc)`,
 		));
+
 		const refs = await getReferences(doc, new vscode.Position(2, 10), new InMemoryWorkspaceMarkdownDocuments([doc]));
-
-		assert.deepStrictEqual(refs!.length, 3);
-
-		{
-			const ref = refs![0]; // Header definition
-			assert.deepStrictEqual(ref.range.start.line, 0);
-		}
-		{
-			const ref = refs![1];
-			assert.deepStrictEqual(ref.range.start.line, 2);
-		}
-		{
-			const ref = refs![2];
-			assert.deepStrictEqual(ref.range.start.line, 4);
-		}
+		assertReferencesEqual(refs!,
+			{ uri, line: 0 }, // Header definition
+			{ uri, line: 2 },
+			{ uri, line: 4 },
+		);
 	});
 
 	test('Should find references from link across files', async () => {
@@ -217,33 +190,13 @@ suite('markdown: find all references', () => {
 			))
 		]));
 
-		assert.deepStrictEqual(refs!.length, 5);
-
-		{
-			const ref = refs![0]; // Header definition
-			assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
-			assert.deepStrictEqual(ref.range.start.line, 0);
-		}
-		{
-			const ref = refs![1]; // Within file
-			assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
-			assert.deepStrictEqual(ref.range.start.line, 2);
-		}
-		{
-			const ref = refs![2]; // Other with ext
-			assert.deepStrictEqual(ref.uri.toString(), other1Uri.toString());
-			assert.deepStrictEqual(ref.range.start.line, 2);
-		}
-		{
-			const ref = refs![3]; // Other without ext
-			assert.deepStrictEqual(ref.uri.toString(), other1Uri.toString());
-			assert.deepStrictEqual(ref.range.start.line, 3);
-		}
-		{
-			const ref = refs![4]; // Other2
-			assert.deepStrictEqual(ref.uri.toString(), other2Uri.toString());
-			assert.deepStrictEqual(ref.range.start.line, 2);
-		}
+		assertReferencesEqual(refs!,
+			{ uri: docUri, line: 0 }, // Header definition
+			{ uri: docUri, line: 2 },
+			{ uri: other1Uri, line: 2 }, // Other with ext
+			{ uri: other1Uri, line: 3 }, // Other without ext
+			{ uri: other2Uri, line: 2 }, // Other2
+		);
 	});
 
 	test('Should find references from link across files when triggered on link without file extension', async () => {
@@ -254,6 +207,7 @@ suite('markdown: find all references', () => {
 			`[with ext](./sub/other#header)`,
 			`[without ext](./sub/other.md#header)`,
 		));
+
 		const refs = await getReferences(doc, new vscode.Position(0, 15), new InMemoryWorkspaceMarkdownDocuments([
 			doc,
 			new InMemoryDocument(other1Uri, joinLines(
@@ -263,23 +217,11 @@ suite('markdown: find all references', () => {
 			)),
 		]));
 
-		assert.deepStrictEqual(refs!.length, 3);
-
-		{
-			const ref = refs![0]; // Header definition
-			assert.deepStrictEqual(ref.uri.toString(), other1Uri.toString());
-			assert.deepStrictEqual(ref.range.start.line, 1);
-		}
-		{
-			const ref = refs![1];
-			assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
-			assert.deepStrictEqual(ref.range.start.line, 0);
-		}
-		{
-			const ref = refs![2];
-			assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
-			assert.deepStrictEqual(ref.range.start.line, 1);
-		}
+		assertReferencesEqual(refs!,
+			{ uri: other1Uri, line: 1 }, // Header definition
+			{ uri: docUri, line: 0 },
+			{ uri: docUri, line: 1 },
+		);
 	});
 
 	test('Should include header references when triggered on file link', async () => {
@@ -291,6 +233,7 @@ suite('markdown: find all references', () => {
 			`[with ext](./sub/other#header)`,
 			`[without ext](./sub/other.md#no-such-header)`,
 		));
+
 		const refs = await getReferences(doc, new vscode.Position(0, 15), new InMemoryWorkspaceMarkdownDocuments([
 			doc,
 			new InMemoryDocument(otherUri, joinLines(
@@ -300,23 +243,11 @@ suite('markdown: find all references', () => {
 			)),
 		]));
 
-		assert.deepStrictEqual(refs!.length, 3);
-
-		{
-			const ref = refs![0];
-			assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
-			assert.deepStrictEqual(ref.range.start.line, 0);
-		}
-		{
-			const ref = refs![1];
-			assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
-			assert.deepStrictEqual(ref.range.start.line, 1);
-		}
-		{
-			const ref = refs![2];
-			assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
-			assert.deepStrictEqual(ref.range.start.line, 2);
-		}
+		assertReferencesEqual(refs!,
+			{ uri: docUri, line: 0 }, // Header definition
+			{ uri: docUri, line: 1 },
+			{ uri: docUri, line: 2 },
+		);
 	});
 
 	suite('Reference links', () => {
@@ -329,18 +260,10 @@ suite('markdown: find all references', () => {
 			));
 
 			const refs = await getReferences(doc, new vscode.Position(0, 12), new InMemoryWorkspaceMarkdownDocuments([doc]));
-			assert.deepStrictEqual(refs!.length, 2);
-
-			{
-				const ref = refs![0];
-				assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
-				assert.deepStrictEqual(ref.range.start.line, 0);
-			}
-			{
-				const ref = refs![1];
-				assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
-				assert.deepStrictEqual(ref.range.start.line, 2);
-			}
+			assertReferencesEqual(refs!,
+				{ uri: docUri, line: 0 },
+				{ uri: docUri, line: 2 },
+			);
 		});
 
 		test('Should not find reference links across files', async () => {
@@ -359,18 +282,10 @@ suite('markdown: find all references', () => {
 					`[abc]: https://example.com?bad`,
 				))
 			]));
-			assert.deepStrictEqual(refs!.length, 2);
-
-			{
-				const ref = refs![0];
-				assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
-				assert.deepStrictEqual(ref.range.start.line, 0);
-			}
-			{
-				const ref = refs![1];
-				assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
-				assert.deepStrictEqual(ref.range.start.line, 2);
-			}
+			assertReferencesEqual(refs!,
+				{ uri: docUri, line: 0 },
+				{ uri: docUri, line: 2 },
+			);
 		});
 	});
 });
