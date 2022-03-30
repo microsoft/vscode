@@ -190,8 +190,6 @@ function isLinkInsideCode(code: CodeInDocument, link: LinkData) {
 		code.inline.some(position => position.intersection(link.sourceRange));
 }
 
-
-
 export class MdLinkProvider implements vscode.DocumentLinkProvider {
 
 	constructor(
@@ -246,7 +244,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 		]);
 	}
 
-	public async getInlineLinks(document: SkinnyTextDocument): Promise<LinkData[]> {
+	private async getInlineLinks(document: SkinnyTextDocument): Promise<LinkData[]> {
 		const text = document.getText();
 
 		const results: LinkData[] = [];
@@ -264,7 +262,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 		return results;
 	}
 
-	public *getReferenceLinks(document: SkinnyTextDocument): Iterable<LinkData> {
+	private *getReferenceLinks(document: SkinnyTextDocument): Iterable<LinkData> {
 		const text = document.getText();
 		for (const match of text.matchAll(referenceLinkPattern)) {
 			let linkStart: vscode.Position;
