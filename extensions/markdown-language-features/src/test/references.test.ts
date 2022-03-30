@@ -262,7 +262,7 @@ suite('markdown: find all references', () => {
 			doc,
 			new InMemoryDocument(otherUri, joinLines(
 				`# header`, // Definition should not be included since we triggered on a file link
-				`[text](#header)`, // Definition should not be included since we triggered on a file link
+				`[text](#header)`, // Ref should not be included since it is to own file
 			)),
 		]));
 
