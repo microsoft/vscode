@@ -21,6 +21,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	protected async _getResultCount(dataChanged?: boolean): Promise<{ resultIndex: number; resultCount: number } | boolean | undefined> {
 		if (dataChanged) {
+                         // update the lastResult since the data has changed
 			await this.find(true);
 		}
 		return this._lastResult;
