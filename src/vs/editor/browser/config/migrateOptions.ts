@@ -142,14 +142,17 @@ export function migrateOptions(options: IEditorOptions): void {
 		renderIndentGuides: boolean;
 		highlightActiveIndentGuide: boolean;
 	};
-	if (!options.guides) {
-		options.guides = {};
-	}
 
 	if (renderIndentGuides !== undefined) {
+		if (!options.guides) {
+			options.guides = {};
+		}
 		options.guides.indentation = !!renderIndentGuides;
 	}
 	if (highlightActiveIndentGuide !== undefined) {
+		if (!options.guides) {
+			options.guides = {};
+		}
 		options.guides.highlightActiveIndentation = !!highlightActiveIndentGuide;
 	}
 }
