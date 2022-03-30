@@ -203,14 +203,6 @@ export class LanguageConfigurationRegistryImpl {
 		return entries?.getResolvedConfiguration() || null;
 	}
 
-	public getComments(languageId: string): ICommentsConfiguration | null {
-		const value = this.getLanguageConfiguration(languageId);
-		if (!value) {
-			return null;
-		}
-		return value.comments || null;
-	}
-
 	// begin Indent Rules
 
 	public getIndentRulesSupport(languageId: string): IndentRulesSupport | null {
