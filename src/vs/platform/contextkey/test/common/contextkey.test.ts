@@ -241,6 +241,41 @@ suite('ContextKeyExpr', () => {
 		assert.strictEqual(strImplies('a', 'a && b'), true);
 	});
 
+	test('issue #91473: Supports using patentheses in expressions', () => {
+		function checkEvaluate(expr: string, ctx: any, expected: any): void {
+			const _expr = ContextKeyExpr.deserialize(expr)!;
+			assert.strictEqual(_expr.evaluate(createContext(ctx)), expected);
+		}
+
+		checkEvaluate(' false && false  || true', {}, true);
+		checkEvaluate('(false && false) || true', {}, true);
+		checkEvaluate(' false && (false || true)', {}, false);
+	});
+
+	test('issue #91473: Does not consider parentheses outside of AND or OR statements', () => {
+		function checkEvaluate(expr: string, ctx: any, expected: any): void {
+			const _expr = ContextKeyExpr.deserialize(expr)!;
+			assert.strictEqual(_expr.evaluate(createContext(ctx)), expected);
+		}
+
+		checkEvaluate('false || false || a == (test)', { a: '(test)' }, true);
+		checkEvaluate('false || true && a == (test)', { a: '(test)' }, true);
+		checkEvaluate('(true || false) && a == (test)', { a: '(test)' }, true);
+	});
+
+	test('issue #91473: Gracefully handles mismatched brackets', () => {
+		function checkEvaluate(expr: string, ctx: any, expected: any): void {
+			const _expr = ContextKeyExpr.deserialize(expr)!;
+			assert.strictEqual(_expr.evaluate(createContext(ctx)), expected);
+		}
+
+		// It can handle too many closed brackets.
+		checkEvaluate('true && a == test) && (true || false)', { a: 'test)' }, true);
+
+		// It should survive too many opened brackets.
+		checkEvaluate('true && a == (test && (true || false)', { a: 'test)' }, false);
+	});
+
 	test('Greater, GreaterEquals, Smaller, SmallerEquals evaluate', () => {
 		function checkEvaluate(expr: string, ctx: any, expected: any): void {
 			const _expr = ContextKeyExpr.deserialize(expr)!;

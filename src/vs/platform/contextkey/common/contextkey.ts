@@ -128,14 +128,61 @@ export abstract class ContextKeyExpr {
 		return this._deserializeOrExpression(serialized, strict);
 	}
 
+	private static _splitOutsideParens(serialized: string, match: '&&' | '||'): string[] {
+		if (serialized.startsWith('(') && serialized.endsWith(')')) {
+			serialized = serialized.substring(1, serialized.length - 1);
+		}
+		if (serialized.length <= 1) {
+			return [serialized];
+		}
+		const matchChar = match[0];
+
+		let cur = '';
+		let result: string[] = [];
+		let open = 0;
+		for (let pos = 0; pos < serialized.length - 1; pos++) {
+			const char = serialized[pos];
+
+			if (char === '(') {
+				open++;
+			}
+			if (char === ')') {
+				if (--open < 0) {
+					open = 0;
+				}
+			}
+
+			if (open > 0 || char !== matchChar || serialized[pos + 1] !== matchChar) {
+				cur += char;
+				continue;
+			}
+			result.push(cur);
+			cur = '';
+			pos++;
+		}
+		if (!serialized.endsWith(match)) {
+			cur += serialized[serialized.length - 1];
+			result.push(cur);
+		}
+		return result;
+	}
+
 	private static _deserializeOrExpression(serialized: string, strict: boolean): ContextKeyExpression | undefined {
-		let pieces = serialized.split('||');
+		let pieces = this._splitOutsideParens(serialized, '||');
 		return ContextKeyOrExpr.create(pieces.map(p => this._deserializeAndExpression(p, strict)), null, true);
 	}
 
 	private static _deserializeAndExpression(serialized: string, strict: boolean): ContextKeyExpression | undefined {
-		let pieces = serialized.split('&&');
-		return ContextKeyAndExpr.create(pieces.map(p => this._deserializeOne(p, strict)), null);
+		let pieces = this._splitOutsideParens(serialized, '&&');
+		return ContextKeyAndExpr.create(pieces.map(p => this._deserializePartialExpression(p, strict)), null);
+	}
+
+	private static _deserializePartialExpression(serialized: string, strict: boolean): ContextKeyExpression | undefined {
+		serialized = serialized.trim();
+		if (serialized.startsWith('(') && serialized.endsWith(')')) {
+			return this._deserializeOrExpression(serialized, strict);
+		}
+		return this._deserializeOne(serialized, strict);
 	}
 
 	private static _deserializeOne(serializedOne: string, strict: boolean): ContextKeyExpression {
