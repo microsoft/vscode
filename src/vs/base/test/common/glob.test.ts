@@ -1100,7 +1100,7 @@ suite('Glob', () => {
 		assertGlobMatch(p, URI.file('super/duper/long/some/file.md').with({ scheme: 'scheme' }).toString());
 	});
 
-	test('https://github.com/microsoft/vscode/issues/146294', async function () {
+	test('expression fails when siblings use promises (https://github.com/microsoft/vscode/issues/146294)', async function () {
 		let siblings = ['test.html', 'test.txt', 'test.ts'];
 		let hasSibling = (name: string) => Promise.resolve(siblings.indexOf(name) !== -1);
 
