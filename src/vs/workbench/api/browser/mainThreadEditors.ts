@@ -163,13 +163,15 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	private async onDropIntoEditor(editor: ICodeEditor, position: IPosition, dragEvent: DragEvent) {
-		if (!dragEvent.dataTransfer) {
+		if (!dragEvent.dataTransfer || !editor.hasModel()) {
 			return;
 		}
 		const id = this._editorLocator.getIdOfCodeEditor(editor);
 		if (typeof id !== 'string') {
 			return;
 		}
+
+		const modelVersionNow = editor.getModel().getVersionId();
 
 		const textEditorDataTransfer: IDataTransfer = new Map<string, IDataTransferItem>();
 		for (const item of dragEvent.dataTransfer.items) {
@@ -207,8 +209,10 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			return;
 		}
 
-		const [first] = edits; // TODO define how to pick the "one snippet edit";
-		performSnippetEdit(editor, first);
+		if (editor.getModel().getVersionId() === modelVersionNow) {
+			const [first] = edits; // TODO@jrieken define how to pick the "one snippet edit";
+			performSnippetEdit(editor, first);
+		}
 	}
 
 	// --- from extension host process
