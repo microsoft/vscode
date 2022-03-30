@@ -598,6 +598,17 @@ export class TextEdit {
 	}
 }
 
+export class SnippetTextEdit implements vscode.SnippetTextEdit {
+
+	range: vscode.Range;
+	snippet: vscode.SnippetString;
+
+	constructor(range: Range, snippet: SnippetString) {
+		this.range = range;
+		this.snippet = snippet;
+	}
+}
+
 export interface IFileOperationOptions {
 	overwrite?: boolean;
 	ignoreIfExists?: boolean;

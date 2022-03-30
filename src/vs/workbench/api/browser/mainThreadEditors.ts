@@ -37,6 +37,7 @@ import { IDataTransfer, IDataTransferItem } from 'vs/workbench/common/dnd';
 import { extractEditorsDropData } from 'vs/workbench/browser/dnd';
 import { Mimes } from 'vs/base/common/mime';
 import { distinct } from 'vs/base/common/arrays';
+import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
 
 export function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): ResourceEdit[] {
 	if (!data?.edits) {
@@ -111,7 +112,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		this._registeredDecorationTypes = Object.create(null);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		Object.keys(this._textEditorsListenersMap).forEach((editorId) => {
 			dispose(this._textEditorsListenersMap[editorId]);
 		});
@@ -196,10 +197,18 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			}
 		}
 
-		if (textEditorDataTransfer.size > 0) {
-			const dataTransferDto = await DataTransferConverter.toDataTransferDTO(textEditorDataTransfer);
-			return this._proxy.$textEditorHandleDrop(id, position, dataTransferDto);
+		if (textEditorDataTransfer.size === 0) {
+			return;
 		}
+
+		const dataTransferDto = await DataTransferConverter.toDataTransferDTO(textEditorDataTransfer);
+		const edits = await this._proxy.$textEditorHandleDrop(id, position, dataTransferDto);
+		if (edits.length === 0) {
+			return;
+		}
+
+		const [first] = edits; // TODO define how to pick the "one snippet edit";
+		performSnippetEdit(editor, first);
 	}
 
 	// --- from extension host process
