@@ -2416,7 +2416,7 @@
       },
       {
         "view": "scm",
-        "contents": "%view.workbench.scm.missing.guide.windows%",
+        "contents": "%view.workbench.scm.missing.guide.linux%",
         "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download && isLinux"
       },
       {
