@@ -602,4 +602,80 @@ suite('ExtHostEditorTabs', function () {
 		// Something related to the active tab changed
 		assert.strictEqual(activeTabChangeCount, 2);
 	});
+	test('Tab operations patches open and close correctly', function () {
+		const extHostEditorTabs = new ExtHostEditorTabs(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
+				// override/implement $moveTab or $closeTab
+			})
+		);
+
+		const tab1: IEditorTabDto = createTabDto({
+			id: 'uniquestring',
+			isActive: true,
+			label: 'label1',
+		});
+
+		const tab2: IEditorTabDto = createTabDto({
+			isActive: false,
+			id: 'uniquestring2',
+			label: 'label2',
+		});
+
+		const tab3: IEditorTabDto = createTabDto({
+			isActive: false,
+			id: 'uniquestring3',
+			label: 'label3',
+		});
+
+		extHostEditorTabs.$acceptEditorTabModel([{
+			isActive: true,
+			viewColumn: 0,
+			groupId: 12,
+			tabs: [tab1, tab2, tab3]
+		}]);
+
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 3);
+
+		// Close tab 2
+		extHostEditorTabs.$acceptTabOperation({
+			groupId: 12,
+			index: 1,
+			kind: TabModelOperationKind.TAB_CLOSE,
+			tabDto: tab2
+		});
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 2);
+
+		// Close active tab and update tab 3 to be active
+		extHostEditorTabs.$acceptTabOperation({
+			groupId: 12,
+			index: 0,
+			kind: TabModelOperationKind.TAB_CLOSE,
+			tabDto: tab1
+		});
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 1);
+		tab3.isActive = true;
+		extHostEditorTabs.$acceptTabOperation({
+			groupId: 12,
+			index: 0,
+			kind: TabModelOperationKind.TAB_UPDATE,
+			tabDto: tab3
+		});
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups[0]?.activeTab?.label, 'label3');
+
+		// Open tab 2 back
+		extHostEditorTabs.$acceptTabOperation({
+			groupId: 12,
+			index: 1,
+			kind: TabModelOperationKind.TAB_OPEN,
+			tabDto: tab2
+		});
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 2);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups[0]?.tabs[1]?.label, 'label2');
+	});
 });
