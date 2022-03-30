@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, hasReadWriteCapability, IFileService, IFileSystemProvider, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileType, IFileWriteOptions, hasReadWriteCapability, IFileService, IFileSystemProvider, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 import { isEqual } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 
@@ -145,13 +145,13 @@ export class LocalHistoryFileSystemProvider implements IFileSystemProvider, IFil
 	readonly onDidChangeCapabilities = Event.None;
 	readonly onDidChangeFile = Event.None;
 
-	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> { }
+	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> { }
 
 	async mkdir(resource: URI): Promise<void> { }
 	async readdir(resource: URI): Promise<[string, FileType][]> { return []; }
 
-	async rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { }
-	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> { }
+	async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> { }
+	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> { }
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable { return Disposable.None; }
 

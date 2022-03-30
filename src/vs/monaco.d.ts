@@ -973,7 +973,7 @@ declare namespace monaco.editor {
 	 * Create a new web worker that has model syncing capabilities built in.
 	 * Specify an AMD module to load that will `create` an object that will be proxied.
 	 */
-	export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T>;
+	export function createWebWorker<T extends object>(opts: IWebWorkerOptions): MonacoWebWorker<T>;
 
 	/**
 	 * Colorize the contents of `domNode` using attribute `data-lang`.
@@ -2096,7 +2096,15 @@ declare namespace monaco.editor {
 		/**
 		 * No preference.
 		*/
-		None = 2
+		None = 2,
+		/**
+		 * If the given position is on injected text, prefers the position left of it.
+		*/
+		LeftOfInjectedText = 3,
+		/**
+		 * If the given position is on injected text, prefers the position right of it.
+		*/
+		RightOfInjectedText = 4
 	}
 
 	/**
@@ -3724,6 +3732,12 @@ declare namespace monaco.editor {
 		 * Defaults to editor font family.
 		 */
 		fontFamily?: string;
+		/**
+		 * The display style to render inlay hints with.
+		 * Compact mode disables the borders and padding around the inlay hint.
+		 * Defaults to 'standard'.
+		 */
+		displayStyle: 'standard' | 'compact';
 	}
 
 	/**

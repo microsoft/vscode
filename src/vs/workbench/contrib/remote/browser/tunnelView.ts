@@ -424,7 +424,22 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 					: element.tooltip,
 				extraClasses: element.menuId === MenuId.TunnelLocalAddressInline ? ['ports-view-actionbar-cell-localaddress'] : undefined
 			});
-		templateData.actionBar.context = element.tunnel;
+		const tunnelContext: ITunnelItem = {
+			tunnelType: element.tunnel.tunnelType,
+			remoteHost: element.tunnel.remoteHost,
+			remotePort: element.tunnel.remotePort,
+			localAddress: element.tunnel.localAddress,
+			protocol: element.tunnel.protocol,
+			localUri: element.tunnel.localUri,
+			localPort: element.tunnel.localPort,
+			name: element.tunnel.name,
+			closeable: element.tunnel.closeable,
+			source: element.tunnel.source,
+			privacy: element.tunnel.privacy,
+			processDescription: element.tunnel.processDescription,
+			label: element.tunnel.label
+		};
+		templateData.actionBar.context = tunnelContext;
 		templateData.container.style.paddingLeft = '10px';
 		const context: [string, any][] =
 			[

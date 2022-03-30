@@ -5,7 +5,8 @@
 
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { SkinnyTextDocument, TableOfContents, TocEntry } from '../tableOfContentsProvider';
+import { TableOfContents, TocEntry } from '../tableOfContents';
+import { SkinnyTextDocument } from '../workspaceContents';
 
 interface MarkdownSymbol {
 	readonly level: number;
@@ -13,7 +14,7 @@ interface MarkdownSymbol {
 	readonly children: vscode.DocumentSymbol[];
 }
 
-export default class MDDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
+export class MdDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 
 	constructor(
 		private readonly engine: MarkdownEngine

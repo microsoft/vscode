@@ -93,7 +93,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		return this._notebook.uri;
 	}
 
-	get notebook() {
+	get notebook(): NotebookTextModel {
 		return this._notebook;
 	}
 

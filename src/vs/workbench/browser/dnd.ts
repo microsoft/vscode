@@ -41,6 +41,7 @@ import { ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 import { DeferredPromise } from 'vs/base/common/async';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 //#region Editor / Resources DND
 
@@ -132,19 +133,6 @@ export async function extractEditorsDropData(accessor: ServicesAccessor, e: Drag
 			}
 		}
 
-		// Check for terminals transfer
-		const terminals = e.dataTransfer.getData(DataTransfers.TERMINALS);
-		if (terminals) {
-			try {
-				const terminalEditors: string[] = JSON.parse(terminals);
-				for (const terminalEditor of terminalEditors) {
-					editors.push({ resource: URI.parse(terminalEditor) });
-				}
-			} catch (error) {
-				// Invalid transfer
-			}
-		}
-
 		// Web: Check for file transfer
 		if (isWeb && containsDragType(e, DataTransfers.FILES)) {
 			const files = e.dataTransfer.items;
@@ -153,6 +141,19 @@ export async function extractEditorsDropData(accessor: ServicesAccessor, e: Drag
 				const filesData = await instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, e));
 				for (const fileData of filesData) {
 					editors.push({ resource: fileData.resource, contents: fileData.contents?.toString(), isExternal: true, allowWorkspaceOpen: fileData.isDirectory });
+				}
+			}
+		}
+
+		// Workbench contributions
+		const contributions = Registry.as<IDragAndDropContributionRegistry>(Extensions.DragAndDropContribution).getAll();
+		for (const contribution of contributions) {
+			const data = e.dataTransfer.getData(contribution.dataFormatKey);
+			if (data) {
+				try {
+					editors.push(...contribution.getEditorInputs(data));
+				} catch (error) {
+					// Invalid transfer
 				}
 			}
 		}
@@ -502,10 +503,10 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(files.map(({ resource }) => resource.toString())));
 	}
 
-	// Terminal URI
-	const terminalResources = resources.filter(({ resource }) => resource.scheme === Schemas.vscodeTerminal);
-	if (terminalResources.length) {
-		event.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminalResources.map(({ resource }) => resource.toString())));
+	// Contributions
+	const contributions = Registry.as<IDragAndDropContributionRegistry>(Extensions.DragAndDropContribution).getAll();
+	for (const contribution of contributions) {
+		contribution.setData(resources, event);
 	}
 
 	// Editors: enables cross window DND of editors
@@ -587,6 +588,49 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		event.dataTransfer.setData(CodeDataTransfers.EDITORS, stringify(draggedEditors));
 	}
 }
+
+//#endregion
+
+//#region DND contributions
+
+export interface IDragAndDropContributionRegistry {
+	/**
+	 * Registers a drag and drop contribution.
+	 */
+	register(contribution: IDragAndDropContribution): void;
+
+	/**
+	 * Returns all registered drag and drop contributions.
+	 */
+	getAll(): IterableIterator<IDragAndDropContribution>;
+}
+
+export interface IDragAndDropContribution {
+	readonly dataFormatKey: string;
+	getEditorInputs(data: string): IDraggedResourceEditorInput[];
+	setData(resources: IResourceStat[], event: DragMouseEvent | DragEvent): void;
+}
+
+class DragAndDropContributionRegistry implements IDragAndDropContributionRegistry {
+	private readonly _contributions = new Map<string, IDragAndDropContribution>();
+
+	register(contribution: IDragAndDropContribution): void {
+		if (this._contributions.has(contribution.dataFormatKey)) {
+			throw new Error(`A drag and drop contributiont with key '${contribution.dataFormatKey}' was already registered.`);
+		}
+		this._contributions.set(contribution.dataFormatKey, contribution);
+	}
+
+	getAll(): IterableIterator<IDragAndDropContribution> {
+		return this._contributions.values();
+	}
+}
+
+export const Extensions = {
+	DragAndDropContribution: 'workbench.contributions.dragAndDrop'
+};
+
+Registry.add(Extensions.DragAndDropContribution, new DragAndDropContributionRegistry());
 
 //#endregion
 

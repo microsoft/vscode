@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/b98c2d4911652824fc990f4b26c9c30be59b78a2",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/4f330febaf180ed7faf3aa228d38611d8b5adbf5",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -1908,7 +1908,7 @@
 			"match": "(?:\\s*)((\\\\)(?:begin|end))(\\{)([a-z]+(?:\\*)?)(\\})(?:(\\[).*(\\]))?"
 		},
 		"definition-label": {
-			"begin": "((\\\\)label)(\\{)",
+			"begin": "((\\\\)label)((?:\\[[^\\[]*?\\])*)(\\{)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.label.latex"
@@ -1917,6 +1917,13 @@
 					"name": "punctuation.definition.keyword.latex"
 				},
 				"3": {
+					"patterns": [
+						{
+							"include": "#optional-arg"
+						}
+					]
+				},
+				"4": {
 					"name": "punctuation.definition.arguments.begin.latex"
 				}
 			},

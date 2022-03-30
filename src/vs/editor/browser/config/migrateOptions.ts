@@ -6,150 +6,160 @@
 import { forEach } from 'vs/base/common/collections';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
+export interface ISettingsReader {
+	(key: string): any;
+}
+
+export interface ISettingsWriter {
+	(key: string, value: any): void;
+}
+
+export class EditorSettingMigration {
+
+	public static items: EditorSettingMigration[] = [];
+
+	constructor(
+		public readonly key: string,
+		public readonly migrate: (value: any, read: ISettingsReader, write: ISettingsWriter) => void
+	) { }
+
+	apply(options: any): void {
+		const value = EditorSettingMigration._read(options, this.key);
+		const read = (key: string) => EditorSettingMigration._read(options, key);
+		const write = (key: string, value: any) => EditorSettingMigration._write(options, key, value);
+		this.migrate(value, read, write);
+	}
+
+	private static _read(source: any, key: string): any {
+		if (typeof source === 'undefined') {
+			return undefined;
+		}
+
+		const firstDotIndex = key.indexOf('.');
+		if (firstDotIndex >= 0) {
+			const firstSegment = key.substring(0, firstDotIndex);
+			return this._read(source[firstSegment], key.substring(firstDotIndex + 1));
+		}
+		return source[key];
+	}
+
+	private static _write(target: any, key: string, value: any): void {
+		const firstDotIndex = key.indexOf('.');
+		if (firstDotIndex >= 0) {
+			const firstSegment = key.substring(0, firstDotIndex);
+			target[firstSegment] = target[firstSegment] || {};
+			this._write(target[firstSegment], key.substring(firstDotIndex + 1), value);
+			return;
+		}
+		target[key] = value;
+	}
+}
+
+function registerEditorSettingMigration(key: string, migrate: (value: any, read: ISettingsReader, write: ISettingsWriter) => void): void {
+	EditorSettingMigration.items.push(new EditorSettingMigration(key, migrate));
+}
+
+function registerSimpleEditorSettingMigration(key: string, values: [any, any][]): void {
+	registerEditorSettingMigration(key, (value, read, write) => {
+		if (typeof value !== 'undefined') {
+			for (const [oldValue, newValue] of values) {
+				if (value === oldValue) {
+					write(key, newValue);
+					return;
+				}
+			}
+		}
+	});
+}
+
 /**
  * Compatibility with old options
  */
 export function migrateOptions(options: IEditorOptions): void {
-	const wordWrap = options.wordWrap;
-	if (<any>wordWrap === true) {
-		options.wordWrap = 'on';
-	} else if (<any>wordWrap === false) {
-		options.wordWrap = 'off';
-	}
+	EditorSettingMigration.items.forEach(migration => migration.apply(options));
+}
 
-	const lineNumbers = options.lineNumbers;
-	if (<any>lineNumbers === true) {
-		options.lineNumbers = 'on';
-	} else if (<any>lineNumbers === false) {
-		options.lineNumbers = 'off';
-	}
+registerSimpleEditorSettingMigration('wordWrap', [[true, 'on'], [false, 'off']]);
+registerSimpleEditorSettingMigration('lineNumbers', [[true, 'on'], [false, 'off']]);
+registerSimpleEditorSettingMigration('cursorBlinking', [['visible', 'solid']]);
+registerSimpleEditorSettingMigration('renderWhitespace', [[true, 'boundary'], [false, 'none']]);
+registerSimpleEditorSettingMigration('renderLineHighlight', [[true, 'line'], [false, 'none']]);
+registerSimpleEditorSettingMigration('acceptSuggestionOnEnter', [[true, 'on'], [false, 'off']]);
+registerSimpleEditorSettingMigration('tabCompletion', [[false, 'off'], [true, 'onlySnippets']]);
+registerSimpleEditorSettingMigration('hover', [[true, { enabled: true }], [false, { enabled: false }]]);
+registerSimpleEditorSettingMigration('parameterHints', [[true, { enabled: true }], [false, { enabled: false }]]);
+registerSimpleEditorSettingMigration('autoIndent', [[false, 'advanced'], [true, 'full']]);
+registerSimpleEditorSettingMigration('matchBrackets', [[true, 'always'], [false, 'never']]);
 
-	const autoClosingBrackets = options.autoClosingBrackets;
-	if (<any>autoClosingBrackets === false) {
-		options.autoClosingBrackets = 'never';
-		options.autoClosingQuotes = 'never';
-		options.autoSurround = 'never';
+registerEditorSettingMigration('autoClosingBrackets', (value, read, write) => {
+	if (value === false) {
+		write('autoClosingBrackets', 'never');
+		if (typeof read('autoClosingQuotes') === 'undefined') {
+			write('autoClosingQuotes', 'never');
+		}
+		if (typeof read('autoSurround') === 'undefined') {
+			write('autoSurround', 'never');
+		}
 	}
+});
 
-	const cursorBlinking = options.cursorBlinking;
-	if (<any>cursorBlinking === 'visible') {
-		options.cursorBlinking = 'solid';
+registerEditorSettingMigration('renderIndentGuides', (value, read, write) => {
+	if (typeof value !== 'undefined') {
+		write('renderIndentGuides', undefined);
+		if (typeof read('guides.indentation') === 'undefined') {
+			write('guides.indentation', !!value);
+		}
 	}
+});
 
-	const renderWhitespace = options.renderWhitespace;
-	if (<any>renderWhitespace === true) {
-		options.renderWhitespace = 'boundary';
-	} else if (<any>renderWhitespace === false) {
-		options.renderWhitespace = 'none';
+registerEditorSettingMigration('highlightActiveIndentGuide', (value, read, write) => {
+	if (typeof value !== 'undefined') {
+		write('highlightActiveIndentGuide', undefined);
+		if (typeof read('guides.highlightActiveIndentation') === 'undefined') {
+			write('guides.highlightActiveIndentation', !!value);
+		}
 	}
+});
 
-	const renderLineHighlight = options.renderLineHighlight;
-	if (<any>renderLineHighlight === true) {
-		options.renderLineHighlight = 'line';
-	} else if (<any>renderLineHighlight === false) {
-		options.renderLineHighlight = 'none';
-	}
+const suggestFilteredTypesMapping: Record<string, string> = {
+	method: 'showMethods',
+	function: 'showFunctions',
+	constructor: 'showConstructors',
+	deprecated: 'showDeprecated',
+	field: 'showFields',
+	variable: 'showVariables',
+	class: 'showClasses',
+	struct: 'showStructs',
+	interface: 'showInterfaces',
+	module: 'showModules',
+	property: 'showProperties',
+	event: 'showEvents',
+	operator: 'showOperators',
+	unit: 'showUnits',
+	value: 'showValues',
+	constant: 'showConstants',
+	enum: 'showEnums',
+	enumMember: 'showEnumMembers',
+	keyword: 'showKeywords',
+	text: 'showWords',
+	color: 'showColors',
+	file: 'showFiles',
+	reference: 'showReferences',
+	folder: 'showFolders',
+	typeParameter: 'showTypeParameters',
+	snippet: 'showSnippets',
+};
 
-	const acceptSuggestionOnEnter = options.acceptSuggestionOnEnter;
-	if (<any>acceptSuggestionOnEnter === true) {
-		options.acceptSuggestionOnEnter = 'on';
-	} else if (<any>acceptSuggestionOnEnter === false) {
-		options.acceptSuggestionOnEnter = 'off';
-	}
-
-	const tabCompletion = options.tabCompletion;
-	if (<any>tabCompletion === false) {
-		options.tabCompletion = 'off';
-	} else if (<any>tabCompletion === true) {
-		options.tabCompletion = 'onlySnippets';
-	}
-
-	const suggest = options.suggest;
-	if (suggest && typeof (<any>suggest).filteredTypes === 'object' && (<any>suggest).filteredTypes) {
-		const mapping: Record<string, string> = {};
-		mapping['method'] = 'showMethods';
-		mapping['function'] = 'showFunctions';
-		mapping['constructor'] = 'showConstructors';
-		mapping['deprecated'] = 'showDeprecated';
-		mapping['field'] = 'showFields';
-		mapping['variable'] = 'showVariables';
-		mapping['class'] = 'showClasses';
-		mapping['struct'] = 'showStructs';
-		mapping['interface'] = 'showInterfaces';
-		mapping['module'] = 'showModules';
-		mapping['property'] = 'showProperties';
-		mapping['event'] = 'showEvents';
-		mapping['operator'] = 'showOperators';
-		mapping['unit'] = 'showUnits';
-		mapping['value'] = 'showValues';
-		mapping['constant'] = 'showConstants';
-		mapping['enum'] = 'showEnums';
-		mapping['enumMember'] = 'showEnumMembers';
-		mapping['keyword'] = 'showKeywords';
-		mapping['text'] = 'showWords';
-		mapping['color'] = 'showColors';
-		mapping['file'] = 'showFiles';
-		mapping['reference'] = 'showReferences';
-		mapping['folder'] = 'showFolders';
-		mapping['typeParameter'] = 'showTypeParameters';
-		mapping['snippet'] = 'showSnippets';
-		forEach(mapping, entry => {
-			const value = (<any>suggest).filteredTypes[entry.key];
-			if (value === false) {
-				(<any>suggest)[entry.value] = value;
+registerEditorSettingMigration('suggest.filteredTypes', (value, read, write) => {
+	if (value && typeof value === 'object') {
+		forEach(suggestFilteredTypesMapping, entry => {
+			const v = value[entry.key];
+			if (v === false) {
+				if (typeof read(`suggest.${entry.value}`) === 'undefined') {
+					write(`suggest.${entry.value}`, false);
+				}
 			}
 		});
-		// delete (<any>suggest).filteredTypes;
+		write('suggest.filteredTypes', undefined);
 	}
-
-	const hover = options.hover;
-	if (<any>hover === true) {
-		options.hover = {
-			enabled: true
-		};
-	} else if (<any>hover === false) {
-		options.hover = {
-			enabled: false
-		};
-	}
-
-	const parameterHints = options.parameterHints;
-	if (<any>parameterHints === true) {
-		options.parameterHints = {
-			enabled: true
-		};
-	} else if (<any>parameterHints === false) {
-		options.parameterHints = {
-			enabled: false
-		};
-	}
-
-	const autoIndent = options.autoIndent;
-	if (<any>autoIndent === true) {
-		options.autoIndent = 'full';
-	} else if (<any>autoIndent === false) {
-		options.autoIndent = 'advanced';
-	}
-
-	const matchBrackets = options.matchBrackets;
-	if (<any>matchBrackets === true) {
-		options.matchBrackets = 'always';
-	} else if (<any>matchBrackets === false) {
-		options.matchBrackets = 'never';
-	}
-
-	const { renderIndentGuides, highlightActiveIndentGuide } = options as any as {
-		renderIndentGuides: boolean;
-		highlightActiveIndentGuide: boolean;
-	};
-	if (!options.guides) {
-		options.guides = {};
-	}
-
-	if (renderIndentGuides !== undefined) {
-		options.guides.indentation = !!renderIndentGuides;
-	}
-	if (highlightActiveIndentGuide !== undefined) {
-		options.guides.highlightActiveIndentation = !!highlightActiveIndentGuide;
-	}
-}
+});

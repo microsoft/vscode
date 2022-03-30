@@ -151,4 +151,67 @@ suite('CodeEditorWidget', () => {
 		});
 	});
 
+	test('issue #146174: Events delivered out of order when adding decorations in content change listener (1 of 2)', () => {
+		withTestCodeEditor('', {}, (editor, viewModel) => {
+			const disposables = new DisposableStore();
+
+			const calls: string[] = [];
+			disposables.add(editor.onDidChangeModelContent((e) => {
+				calls.push(`listener1 - contentchange(${e.changes.reduce<any[]>((aggr, c) => [...aggr, c.text, c.rangeOffset, c.rangeLength], []).join(', ')})`);
+			}));
+			disposables.add(editor.onDidChangeCursorSelection((e) => {
+				calls.push(`listener1 - cursorchange(${e.selection.positionLineNumber}, ${e.selection.positionColumn})`);
+			}));
+			disposables.add(editor.onDidChangeModelContent((e) => {
+				calls.push(`listener2 - contentchange(${e.changes.reduce<any[]>((aggr, c) => [...aggr, c.text, c.rangeOffset, c.rangeLength], []).join(', ')})`);
+			}));
+			disposables.add(editor.onDidChangeCursorSelection((e) => {
+				calls.push(`listener2 - cursorchange(${e.selection.positionLineNumber}, ${e.selection.positionColumn})`);
+			}));
+
+			viewModel.type('a', 'test');
+
+			assert.deepStrictEqual(calls, ([
+				'listener1 - contentchange(a, 0, 0)',
+				'listener2 - contentchange(a, 0, 0)',
+				'listener1 - cursorchange(1, 2)',
+				'listener2 - cursorchange(1, 2)',
+			]));
+
+			disposables.dispose();
+		});
+	});
+
+	test('issue #146174: Events delivered out of order when adding decorations in content change listener (2 of 2)', () => {
+		withTestCodeEditor('', {}, (editor, viewModel) => {
+			const disposables = new DisposableStore();
+
+			const calls: string[] = [];
+			disposables.add(editor.onDidChangeModelContent((e) => {
+				calls.push(`listener1 - contentchange(${e.changes.reduce<any[]>((aggr, c) => [...aggr, c.text, c.rangeOffset, c.rangeLength], []).join(', ')})`);
+				editor.deltaDecorations([], [{ range: new Range(1, 1, 1, 1), options: { description: 'test' } }]);
+			}));
+			disposables.add(editor.onDidChangeCursorSelection((e) => {
+				calls.push(`listener1 - cursorchange(${e.selection.positionLineNumber}, ${e.selection.positionColumn})`);
+			}));
+			disposables.add(editor.onDidChangeModelContent((e) => {
+				calls.push(`listener2 - contentchange(${e.changes.reduce<any[]>((aggr, c) => [...aggr, c.text, c.rangeOffset, c.rangeLength], []).join(', ')})`);
+			}));
+			disposables.add(editor.onDidChangeCursorSelection((e) => {
+				calls.push(`listener2 - cursorchange(${e.selection.positionLineNumber}, ${e.selection.positionColumn})`);
+			}));
+
+			viewModel.type('a', 'test');
+
+			assert.deepStrictEqual(calls, ([
+				'listener1 - contentchange(a, 0, 0)',
+				'listener2 - contentchange(a, 0, 0)',
+				'listener1 - cursorchange(1, 2)',
+				'listener2 - cursorchange(1, 2)',
+			]));
+
+			disposables.dispose();
+		});
+	});
+
 });

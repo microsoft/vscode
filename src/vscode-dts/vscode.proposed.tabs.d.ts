@@ -53,6 +53,7 @@ declare module 'vscode' {
 	 * Represents a tab within the window
 	 */
 	export interface Tab {
+
 		/**
 		 * The text displayed on the tab
 		 */
@@ -70,8 +71,8 @@ declare module 'vscode' {
 		readonly kind: TabKindText | TabKindTextDiff | TabKindCustom | TabKindWebview | TabKindNotebook | TabKindNotebookDiff | TabKindTerminal | unknown;
 
 		/**
-		 * Whether or not the tab is currently active
-		 * Dictated by being the selected tab in the group
+		 * Whether or not the tab is currently active.
+		 * This is dictated by being the selected tab in the group
 		 */
 		readonly isActive: boolean;
 
@@ -131,19 +132,25 @@ declare module 'vscode' {
 		/**
 		 * The currently active group
 		 */
+		// TOD@API name: maybe `activeGroup` to align with `groups` (which isn't tabGroups)
 		readonly activeTabGroup: TabGroup;
 
 		/**
-		 * An {@link Event} which fires when a group changes.
+		 * An {@link Event event} which fires when {@link TabGroup tab groups} has changed.
 		 */
-		// TODO@API add TabGroup instance
-		readonly onDidChangeTabGroup: Event<void>;
+		readonly onDidChangeTabGroups: Event<TabGroup[]>;
 
 		/**
-		 * An {@link Event} which fires when a tab changes.
+		 * An {@link Event event} which fires when a {@link Tab tabs} have changed.
 		 */
-		// TODO@API use richer event type?
-		readonly onDidChangeTab: Event<Tab>;
+		readonly onDidChangeTabs: Event<Tab[]>;
+
+		/**
+		 * An {@link Event} which fires when an active tab changes.
+		 * Similar to {@link TabGroup.onDidChangeTabs} but only on tabs
+		 * with isActive equal to true.
+		 */
+		readonly onDidChangeActiveTab: Event<Tab>;
 
 		/**
 		 * An {@link Event} which fires when the active group changes.
@@ -157,9 +164,12 @@ declare module 'vscode' {
 		 * Note: In the case of a dirty tab, a confirmation dialog will be shown which may be cancelled. If cancelled the tab is still valid
 		 * @param tab The tab to close, must be reference equal to a tab given by the API
 		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
+		 * @returns A promise that resolves true when then tab is closed. Otherwise it will return false.
+		 * If false is returned the tab is still valid.
 		 */
-		close(tab: Tab[], preserveFocus?: boolean): Thenable<void>;
-		close(tab: Tab, preserveFocus?: boolean): Thenable<void>;
+		close(tab: Tab | Tab[], preserveFocus?: boolean): Thenable<boolean>;
+		// TODO@API support to close "all"
+		// close(tab: TabGroup | TabGroup[], preserveFocus?: boolean): Thenable<boolean>;
 
 		/**
 		 * Moves a tab to the given index within the column.
@@ -172,6 +182,7 @@ declare module 'vscode' {
 		 */
 		// TODO@API support TabGroup in addition to ViewColumn
 		// TODO@API support just index for moving inside current group
+		// TODO@API move a tag group
 		move(tab: Tab, viewColumn: ViewColumn, index: number, preserveFocus?: boolean): Thenable<void>;
 	}
 }

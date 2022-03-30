@@ -15,6 +15,8 @@ import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editO
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { TextChange } from 'vs/editor/common/core/textChange';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
@@ -27,6 +29,7 @@ export class OneSnippet {
 
 	private _placeholderDecorations?: Map<Placeholder, string>;
 	private _placeholderGroups: Placeholder[][];
+	private _offset: number = -1;
 	_placeholderGroupsIdx: number;
 	_nestingLevel: number = 1;
 
@@ -38,11 +41,16 @@ export class OneSnippet {
 	};
 
 	constructor(
-		private readonly _editor: IActiveCodeEditor, private readonly _snippet: TextmateSnippet,
-		private readonly _offset: number, private readonly _snippetLineLeadingWhitespace: string
+		private readonly _editor: IActiveCodeEditor,
+		private readonly _snippet: TextmateSnippet,
+		private readonly _snippetLineLeadingWhitespace: string
 	) {
 		this._placeholderGroups = groupBy(_snippet.placeholders, Placeholder.compareByIndex);
 		this._placeholderGroupsIdx = -1;
+	}
+
+	public initialize(textChange: TextChange): void {
+		this._offset = textChange.newPosition;
 	}
 
 	dispose(): void {
@@ -53,6 +61,10 @@ export class OneSnippet {
 	}
 
 	private _initDecorations(): void {
+
+		if (this._offset === -1) {
+			throw new Error(`Snippet not initialized!`);
+		}
 
 		if (this._placeholderDecorations) {
 			// already initialized
@@ -196,6 +208,11 @@ export class OneSnippet {
 		return this._snippet.placeholders.length > 0;
 	}
 
+	get isTrivialSnippet(): boolean {
+		return this._snippet.placeholders.length === 0
+			|| (this._snippet.placeholders.length === 1 && this._snippet.placeholders[0].isFinalTabstop);
+	}
+
 	computePossibleSelections() {
 		const result = new Map<number, Range[]>();
 		for (const placeholdersWithEqualIndex of this._placeholderGroups) {
@@ -228,8 +245,17 @@ export class OneSnippet {
 		return result;
 	}
 
-	get choice(): Choice | undefined {
+	get activeChoice(): Choice | undefined {
 		return this._placeholderGroups[this._placeholderGroupsIdx][0].choice;
+	}
+
+	get hasChoice(): boolean {
+		let result = false;
+		this._snippet.walk(marker => {
+			result = marker instanceof Choice;
+			return !result;
+		});
+		return result;
 	}
 
 	merge(others: OneSnippet[]): void {
@@ -245,6 +271,7 @@ export class OneSnippet {
 			// elements from the beginning of the array
 			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
 				const nested = others.shift()!;
+				console.assert(nested._offset !== -1);
 				console.assert(!nested._placeholderDecorations);
 
 				// Massage placeholder-indicies of the nested snippet to be
@@ -392,7 +419,7 @@ export class SnippetSession {
 		return selection;
 	}
 
-	static createEditsAndSnippets(editor: IActiveCodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean, adjustWhitespace: boolean, clipboardText: string | undefined, overtypingCapturer: OvertypingCapturer | undefined): { edits: IIdentifiedSingleEditOperation[]; snippets: OneSnippet[] } {
+	static createEditsAndSnippets(editor: IActiveCodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean, adjustWhitespace: boolean, clipboardText: string | undefined, overtypingCapturer: OvertypingCapturer | undefined, languageConfigurationService: ILanguageConfigurationService): { edits: IIdentifiedSingleEditOperation[]; snippets: OneSnippet[] } {
 		const edits: IIdentifiedSingleEditOperation[] = [];
 		const snippets: OneSnippet[] = [];
 
@@ -404,8 +431,6 @@ export class SnippetSession {
 		const workspaceService = editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService));
 		const modelBasedVariableResolver = editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService), model));
 		const readClipboardText = () => clipboardText;
-
-		let delta = 0;
 
 		// know what text the overwrite[Before|After] extensions
 		// of the primary curser have selected because only when
@@ -460,21 +485,19 @@ export class SnippetSession {
 				modelBasedVariableResolver,
 				new ClipboardBasedVariableResolver(readClipboardText, idx, indexedSelections.length, editor.getOption(EditorOption.multiCursorPaste) === 'spread'),
 				new SelectionBasedVariableResolver(model, selection, idx, overtypingCapturer),
-				new CommentBasedVariableResolver(model, selection),
+				new CommentBasedVariableResolver(model, selection, languageConfigurationService),
 				new TimeBasedVariableResolver,
 				new WorkspaceBasedVariableResolver(workspaceService),
 				new RandomBasedVariableResolver,
 			]));
-
-			const offset = model.getOffsetAt(start) + delta;
-			delta += snippet.toString().length - model.getValueLengthInRange(snippetSelection);
 
 			// store snippets with the index of their originating selection.
 			// that ensures the primiary cursor stays primary despite not being
 			// the one with lowest start position
 			edits[idx] = EditOperation.replace(snippetSelection, snippet.toString());
 			edits[idx].identifier = { major: idx, minor: 0 }; // mark the edit so only our undo edits will be used to generate end cursors
-			snippets[idx] = new OneSnippet(editor, snippet, offset, snippetLineLeadingWhitespace);
+			edits[idx]._isTracked = true;
+			snippets[idx] = new OneSnippet(editor, snippet, snippetLineLeadingWhitespace);
 		}
 
 		return { edits, snippets };
@@ -486,7 +509,12 @@ export class SnippetSession {
 	private readonly _options: ISnippetSessionInsertOptions;
 	private _snippets: OneSnippet[] = [];
 
-	constructor(editor: IActiveCodeEditor, template: string, options: ISnippetSessionInsertOptions = _defaultOptions) {
+	constructor(
+		editor: IActiveCodeEditor,
+		template: string,
+		options: ISnippetSessionInsertOptions = _defaultOptions,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
+	) {
 		this._editor = editor;
 		this._template = template;
 		this._options = options;
@@ -506,15 +534,22 @@ export class SnippetSession {
 		}
 
 		// make insert edit and start with first selections
-		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._options.overwriteBefore, this._options.overwriteAfter, false, this._options.adjustWhitespace, this._options.clipboardText, this._options.overtypingCapturer);
+		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._options.overwriteBefore, this._options.overwriteAfter, false, this._options.adjustWhitespace, this._options.clipboardText, this._options.overtypingCapturer, this._languageConfigurationService);
 		this._snippets = snippets;
 
-		this._editor.executeEdits('snippet', edits, undoEdits => {
+		this._editor.executeEdits('snippet', edits, _undoEdits => {
+			// Sometimes, the text buffer will remove automatic whitespace when doing any edits,
+			// so we need to look only at the undo edits relevant for us.
+			// Our edits have an identifier set so that's how we can distinguish them
+			const undoEdits = _undoEdits.filter(edit => !!edit.identifier);
+			for (let idx = 0; idx < snippets.length; idx++) {
+				snippets[idx].initialize(undoEdits[idx].textChange);
+			}
+
 			if (this._snippets[0].hasPlaceholder) {
 				return this._move(true);
 			} else {
 				return undoEdits
-					.filter(edit => !!edit.identifier) // only use our undo edits
 					.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
 			}
 		});
@@ -526,22 +561,32 @@ export class SnippetSession {
 			return;
 		}
 		this._templateMerges.push([this._snippets[0]._nestingLevel, this._snippets[0]._placeholderGroupsIdx, template]);
-		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, template, options.overwriteBefore, options.overwriteAfter, true, options.adjustWhitespace, options.clipboardText, options.overtypingCapturer);
+		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, template, options.overwriteBefore, options.overwriteAfter, true, options.adjustWhitespace, options.clipboardText, options.overtypingCapturer, this._languageConfigurationService);
 
-		this._editor.executeEdits('snippet', edits, undoEdits => {
-			for (const snippet of this._snippets) {
-				snippet.merge(snippets);
+		this._editor.executeEdits('snippet', edits, _undoEdits => {
+			// Sometimes, the text buffer will remove automatic whitespace when doing any edits,
+			// so we need to look only at the undo edits relevant for us.
+			// Our edits have an identifier set so that's how we can distinguish them
+			const undoEdits = _undoEdits.filter(edit => !!edit.identifier);
+			for (let idx = 0; idx < snippets.length; idx++) {
+				snippets[idx].initialize(undoEdits[idx].textChange);
 			}
-			console.assert(snippets.length === 0);
 
-			if (this._snippets[0].hasPlaceholder) {
+			// Trivial snippets have no placeholder or are just the final placeholder. That means they
+			// are just text insertions and we don't need to merge the nested snippet into the existing
+			// snippet
+			const isTrivialSnippet = snippets[0].isTrivialSnippet;
+			if (!isTrivialSnippet) {
+				for (const snippet of this._snippets) {
+					snippet.merge(snippets);
+				}
+				console.assert(snippets.length === 0);
+			}
+
+			if (this._snippets[0].hasPlaceholder && !isTrivialSnippet) {
 				return this._move(undefined);
 			} else {
-				return (
-					undoEdits
-						.filter(edit => !!edit.identifier) // only use our undo edits
-						.map(edit => Selection.fromPositions(edit.range.getEndPosition()))
-				);
+				return undoEdits.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
 			}
 		});
 	}
@@ -579,8 +624,12 @@ export class SnippetSession {
 		return this._snippets[0].hasPlaceholder;
 	}
 
-	get choice(): Choice | undefined {
-		return this._snippets[0].choice;
+	get hasChoice(): boolean {
+		return this._snippets[0].hasChoice;
+	}
+
+	get activeChoice(): Choice | undefined {
+		return this._snippets[0].activeChoice;
 	}
 
 	isSelectionWithinPlaceholders(): boolean {

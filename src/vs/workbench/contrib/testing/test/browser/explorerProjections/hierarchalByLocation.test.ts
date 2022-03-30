@@ -119,7 +119,6 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 			},
 			parent: 'id-root',
 			tasks: [],
-			retired: false,
 			ownComputedState: state,
 			computedState: state,
 			expand: 0,

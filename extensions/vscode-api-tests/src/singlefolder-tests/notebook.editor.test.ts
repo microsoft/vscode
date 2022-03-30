@@ -20,6 +20,27 @@ import * as utils from '../utils';
 		}
 	};
 
+	const onDidOpenNotebookEditor = (timeout = vscode.env.uiKind === vscode.UIKind.Desktop ? 5000 : 15000) => {
+		return new Promise<boolean>((resolve, reject) => {
+
+			const handle = setTimeout(() => {
+				sub.dispose();
+				reject(new Error('onDidOpenNotebookEditor TIMEOUT reached'));
+			}, timeout);
+
+			const sub = vscode.window.onDidChangeActiveNotebookEditor(() => {
+				if (vscode.window.activeNotebookEditor === undefined) {
+					// skip if there is no active notebook editor (e.g. when opening a new notebook)
+					return;
+				}
+
+				clearTimeout(handle);
+				sub.dispose();
+				resolve(true);
+			});
+		});
+	};
+
 	const disposables: vscode.Disposable[] = [];
 	const testDisposables: vscode.Disposable[] = [];
 
@@ -78,8 +99,8 @@ import * as utils from '../utils';
 	});
 
 	// #138683
-	test.skip('Opening a notebook should fire activeNotebook event changed only once', async function () {
-		const openedEditor = utils.asPromise(vscode.window.onDidChangeActiveNotebookEditor);
+	test('Opening a notebook should fire activeNotebook event changed only once', async function () {
+		const openedEditor = onDidOpenNotebookEditor();
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const editor = await vscode.window.showNotebookDocument(resource);
 		assert.ok(await openedEditor);

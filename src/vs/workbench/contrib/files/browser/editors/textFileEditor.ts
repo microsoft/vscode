@@ -211,7 +211,6 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 	}
 
 	private openAsBinary(input: FileEditorInput, options: ITextEditorOptions | undefined): void {
-
 		const defaultBinaryEditor = this.configurationService.getValue<string | undefined>('workbench.editor.defaultBinaryEditor');
 		const groupToOpen = this.group ?? this.editorGroupService.activeGroup;
 		const editorOptions = {
@@ -223,16 +222,18 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 			activation: EditorActivation.PRESERVE
 		};
 
-		// If we the user setting specifies a default binary editor we use that.
+		// If we the user setting specifies a default binary editor we use that
 		if (defaultBinaryEditor && defaultBinaryEditor !== '') {
 			this.editorService.replaceEditors([{
 				editor: input,
 				replacement: { resource: input.resource, options: { ...editorOptions, override: defaultBinaryEditor } }
 			}], groupToOpen);
-		} else {
-			// Mark file input for forced binary opening
+		}
+
+		// Otherwise we mark file input for forced binary opening and reopen the file
+		else {
 			input.setForceOpenAsBinary();
-			// Open in group
+
 			groupToOpen.openEditor(input, editorOptions);
 		}
 	}

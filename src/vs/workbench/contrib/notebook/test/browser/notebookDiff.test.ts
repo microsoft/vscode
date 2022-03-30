@@ -5,13 +5,29 @@
 
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { LcsDiff } from 'vs/base/common/diff/diff';
+import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { Mimes } from 'vs/base/common/mime';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
-import { CellKind, CellSequence } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebookDiffModel } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+
+class CellSequence implements ISequence {
+
+	constructor(readonly textModel: INotebookTextModel) {
+	}
+
+	getElements(): string[] | number[] | Int32Array {
+		const hashValue = new Int32Array(this.textModel.cells.length);
+		for (let i = 0; i < this.textModel.cells.length; i++) {
+			hashValue[i] = this.textModel.cells[i].getHashValue();
+		}
+
+		return hashValue;
+	}
+}
+
 
 suite('NotebookCommon', () => {
 	const configurationService = new TestConfigurationService();

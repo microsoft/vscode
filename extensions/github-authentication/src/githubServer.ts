@@ -167,7 +167,10 @@ export class GitHubServer implements IGitHubServer {
 
 		const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
 		// If we are running in insiders vscode.dev, then ensure we use the redirect route on that.
-		const redirectUri = proxyEndpoints?.github?.includes('https://insiders.vscode.dev') ? REDIRECT_URL_INSIDERS : REDIRECT_URL_STABLE;
+		let redirectUri = REDIRECT_URL_STABLE;
+		if (proxyEndpoints?.github && new URL(proxyEndpoints.github).hostname === 'insiders.vscode.dev') {
+			redirectUri = REDIRECT_URL_INSIDERS;
+		}
 		const searchParams = new URLSearchParams([
 			['client_id', CLIENT_ID],
 			['redirect_uri', redirectUri],
