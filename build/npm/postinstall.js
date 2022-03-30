@@ -28,50 +28,73 @@ function yarnInstall(location, opts) {
 
 	console.log(`Installing dependencies in ${location}...`);
 	console.log(`$ yarn ${args.join(' ')}`);
-	const result = cp.spawnSync(yarn, args, opts);
+	const result = cp.spawn(yarn, args, opts);
 
-	if (result.error || result.status !== 0) {
-		process.exit(1);
-	}
+	return new Promise(res => {
+		result.on('close', code => {
+			if (code !== 0) {
+				process.exit(1);
+			}
+			res();
+		});
+	});
 }
 
-for (let dir of dirs) {
-
-	if (dir === '') {
-		// `yarn` already executed in root
-		continue;
+async function main() {
+	const isSync = process.env['YARN_SYNC'] === '1';
+	if (!isSync) {
+		console.log('Installing packages in parallel...');
+		console.log('Set the environment variable YARN_SYNC=1 to run in sync mode!')
+		console.log();
+		console.log();
 	}
 
-	if (/^remote/.test(dir) && process.platform === 'win32' && (process.arch === 'arm64' || process.env['npm_config_arch'] === 'arm64')) {
-		// windows arm: do not execute `yarn` on remote folder
-		continue;
+	let promises = [];
+	for (let dir of dirs) {
+
+		if (dir === '') {
+			// `yarn` already executed in root
+			continue;
+		}
+
+		if (/^remote/.test(dir) && process.platform === 'win32' && (process.arch === 'arm64' || process.env['npm_config_arch'] === 'arm64')) {
+			// windows arm: do not execute `yarn` on remote folder
+			continue;
+		}
+
+		if (dir === 'build/lib/watch') {
+			// node modules for watching, specific to host node version, not electron
+			yarnInstallBuildDependencies();
+			continue;
+		}
+
+		let opts;
+
+		if (dir === 'remote') {
+			// node modules used by vscode server
+			const env = { ...process.env };
+			if (process.env['VSCODE_REMOTE_CC']) { env['CC'] = process.env['VSCODE_REMOTE_CC']; }
+			if (process.env['VSCODE_REMOTE_CXX']) { env['CXX'] = process.env['VSCODE_REMOTE_CXX']; }
+			if (process.env['CXXFLAGS']) { delete env['CXXFLAGS']; }
+			if (process.env['CFLAGS']) { delete env['CFLAGS']; }
+			if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
+			if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
+
+			opts = { env };
+		} else if (/^extensions\//.test(dir)) {
+			opts = { ignoreEngines: true };
+		}
+
+		const promise = yarnInstall(dir, opts);
+		if (isSync) {
+			await promise;
+		}
+		promises.push(promise);
 	}
-
-	if (dir === 'build/lib/watch') {
-		// node modules for watching, specific to host node version, not electron
-		yarnInstallBuildDependencies();
-		continue;
-	}
-
-	let opts;
-
-	if (dir === 'remote') {
-		// node modules used by vscode server
-		const env = { ...process.env };
-		if (process.env['VSCODE_REMOTE_CC']) { env['CC'] = process.env['VSCODE_REMOTE_CC']; }
-		if (process.env['VSCODE_REMOTE_CXX']) { env['CXX'] = process.env['VSCODE_REMOTE_CXX']; }
-		if (process.env['CXXFLAGS']) { delete env['CXXFLAGS']; }
-		if (process.env['CFLAGS']) { delete env['CFLAGS']; }
-		if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
-		if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
-
-		opts = { env };
-	} else if (/^extensions\//.test(dir)) {
-		opts = { ignoreEngines: true };
-	}
-
-	yarnInstall(dir, opts);
+	await Promise.all(promises);
 }
+
+main();
 
 function yarnInstallBuildDependencies() {
 	// make sure we install the deps of build/lib/watch for the system installed
