@@ -13,12 +13,12 @@ import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
  */
 export class MdWorkspaceCache<T> extends Disposable {
 
-	private readonly _cache = new Map<string, Lazy<T>>();
+	private readonly _cache = new Map<string, Lazy<Promise<T>>>();
 	private _hasPopulatedCache = false;
 
 	public constructor(
 		private readonly workspaceContents: MdWorkspaceContents,
-		private readonly getValue: (document: SkinnyTextDocument) => T,
+		private readonly getValue: (document: SkinnyTextDocument) => Promise<T>,
 	) {
 		super();
 	}
@@ -33,7 +33,7 @@ export class MdWorkspaceCache<T> extends Disposable {
 			this.workspaceContents.onDidDeleteMarkdownDocument(this.onDidDeleteDocument, this, this._disposables);
 		}
 
-		return Array.from(this._cache.values(), x => x.value);
+		return Promise.all(Array.from(this._cache.values(), x => x.value));
 	}
 
 	private async populateSymbolCache(): Promise<void> {

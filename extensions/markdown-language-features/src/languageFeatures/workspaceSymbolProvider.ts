@@ -11,7 +11,7 @@ import { MdWorkspaceCache } from './workspaceCache';
 
 export class MdWorkspaceSymbolProvider extends Disposable implements vscode.WorkspaceSymbolProvider {
 
-	private readonly _cache: MdWorkspaceCache<Promise<vscode.SymbolInformation[]>>;
+	private readonly _cache: MdWorkspaceCache<vscode.SymbolInformation[]>;
 
 	public constructor(
 		symbolProvider: MdDocumentSymbolProvider,
@@ -23,8 +23,7 @@ export class MdWorkspaceSymbolProvider extends Disposable implements vscode.Work
 	}
 
 	public async provideWorkspaceSymbols(query: string): Promise<vscode.SymbolInformation[]> {
-		const allSymbolSets = await this._cache.getAll();
-		const allSymbols = (await Promise.all(allSymbolSets)).flat();
+		const allSymbols = (await this._cache.getAll()).flat();
 		return allSymbols.filter(symbolInformation => symbolInformation.name.toLowerCase().indexOf(query.toLowerCase()) !== -1);
 	}
 }

@@ -20,7 +20,7 @@ function isLinkToHeader(target: LinkTarget, header: TocEntry, headerDocument: vs
 
 export class MdReferencesProvider extends Disposable implements vscode.ReferenceProvider {
 
-	private readonly _linkCache: MdWorkspaceCache<Promise<LinkData[]>>;
+	private readonly _linkCache: MdWorkspaceCache<LinkData[]>;
 
 	public constructor(
 		private readonly linkProvider: MdLinkProvider,
@@ -47,7 +47,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 	}
 
 	private async getReferencesToHeader(document: SkinnyTextDocument, header: TocEntry, context: vscode.ReferenceContext,): Promise<vscode.Location[] | undefined> {
-		const links = (await Promise.all(await this._linkCache.getAll())).flat();
+		const links = (await this._linkCache.getAll()).flat();
 
 		const references: vscode.Location[] = [];
 
