@@ -483,7 +483,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 
 	async hasPreviouslySynced(): Promise<boolean> {
 		const lastSyncData = await this.getLastSyncUserData();
-		return !!lastSyncData;
+		return !!lastSyncData && lastSyncData.syncData !== null /* `null` sync data implies resource is not synced */;
 	}
 
 	async getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]> {
@@ -703,14 +703,6 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 
 	private getUserDataSyncConfiguration(): IUserDataSyncConfiguration {
 		return this.configurationService.getValue(USER_DATA_SYNC_CONFIGURATION_SCOPE);
-	}
-
-	protected hasToUpdateLastSyncUserData(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): boolean {
-		if (lastSyncUserData === null && remoteUserData.syncData === null) {
-			// No remote data and No lasty sync date, so update is not needed
-			return false;
-		}
-		return lastSyncUserData?.ref !== remoteUserData.ref;
 	}
 
 	protected abstract readonly version: number;

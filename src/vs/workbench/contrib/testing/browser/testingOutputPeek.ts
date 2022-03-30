@@ -349,11 +349,20 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	 * Gets the first failed message that can be displayed from the result.
 	 */
 	private getFailedCandidateMessage(test: TestResultItem) {
-		return mapFindTestMessage(test, (task, message, messageIndex, taskId) =>
-			isFailedState(task.state) && message.location
-				? { taskId, index: messageIndex, message }
-				: undefined
-		);
+		let best: { taskId: number; index: number; message: ITestMessage } | undefined;
+		mapFindTestMessage(test, (task, message, messageIndex, taskId) => {
+			if (!isFailedState(task.state) || !message.location) {
+				return;
+			}
+
+			if (best && message.type !== TestMessageType.Error) {
+				return;
+			}
+
+			best = { taskId, index: messageIndex, message };
+		});
+
+		return best;
 	}
 }
 

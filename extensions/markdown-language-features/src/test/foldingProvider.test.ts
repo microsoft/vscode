@@ -6,9 +6,9 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import MarkdownFoldingProvider from '../features/foldingProvider';
+import { MdFoldingProvider } from '../languageFeatures/foldingProvider';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from './inMemoryDocument';
+import { InMemoryDocument } from '../util/inMemoryDocument';
 
 
 const testFileName = vscode.Uri.file('test.md');
@@ -48,10 +48,10 @@ y`);
 		assert.strictEqual(folds.length, 2);
 		const firstFold = folds[0];
 		assert.strictEqual(firstFold.start, 1);
-		assert.strictEqual(firstFold.end, 3);
+		assert.strictEqual(firstFold.end, 2);
 	});
 
-	test('Should collapse multuple newlines to single newline before next header', async () => {
+	test('Should collapse multiple newlines to single newline before next header', async () => {
 		const folds = await getFoldsForDocument(`
 # a
 x
@@ -63,7 +63,7 @@ y`);
 		assert.strictEqual(folds.length, 2);
 		const firstFold = folds[0];
 		assert.strictEqual(firstFold.start, 1);
-		assert.strictEqual(firstFold.end, 5);
+		assert.strictEqual(firstFold.end, 4);
 	});
 
 	test('Should not collapse if there is no newline before next header', async () => {
@@ -132,7 +132,7 @@ b`);
 		assert.strictEqual(folds.length, 1);
 		const firstFold = folds[0];
 		assert.strictEqual(firstFold.start, 0);
-		assert.strictEqual(firstFold.end, 3);
+		assert.strictEqual(firstFold.end, 2);
 	});
 
 	test('Should fold fenced code blocks', async () => {
@@ -192,6 +192,6 @@ fa
 
 async function getFoldsForDocument(contents: string) {
 	const doc = new InMemoryDocument(testFileName, contents);
-	const provider = new MarkdownFoldingProvider(createNewMarkdownEngine());
+	const provider = new MdFoldingProvider(createNewMarkdownEngine());
 	return await provider.provideFoldingRanges(doc, {}, new vscode.CancellationTokenSource().token);
 }

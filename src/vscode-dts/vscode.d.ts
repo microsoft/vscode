@@ -9819,8 +9819,9 @@ declare module 'vscode' {
 		 * The mime types that the {@link TreeDragAndDropController.handleDrop `handleDrop`} method of this `DragAndDropController` supports.
 		 * This could be well-defined, existing, mime types, and also mime types defined by the extension.
 		 *
-		 * Each tree will automatically support drops from its own `DragAndDropController`. To support drops from other trees,
-		 * you will need to add the mime type of that tree. The mime type of a tree is of the format `application/vnd.code.tree.<treeidlowercase>`.
+		 * To support drops from trees, you will need to add the mime type of that tree.
+		 * This includes drops from within the same tree.
+		 * The mime type of a tree is recommended to be of the format `application/vnd.code.tree.<treeidlowercase>`.
 		 *
 		 * To learn the mime type of a dragged item:
 		 * 1. Set up your `DragAndDropController`
@@ -9834,6 +9835,8 @@ declare module 'vscode' {
 		/**
 		 * The mime types that the {@link TreeDragAndDropController.handleDrag `handleDrag`} method of this `TreeDragAndDropController` may add to the tree data transfer.
 		 * This could be well-defined, existing, mime types, and also mime types defined by the extension.
+		 *
+		 * The recommended mime type of the tree (`application/vnd.code.tree.<treeidlowercase>`) will be automatically added.
 		 */
 		readonly dragMimeTypes: string[];
 
@@ -9842,7 +9845,8 @@ declare module 'vscode' {
 		 * Extensions can use `handleDrag` to add their {@link DataTransferItem `DataTransferItem`} items to the drag and drop.
 		 *
 		 * When the items are dropped on **another tree item** in **the same tree**, your `DataTransferItem` objects
-		 * will be preserved. See the documentation for `DataTransferItem` for how best to take advantage of this.
+		 * will be preserved. Use the recommended mime type for the tree (`application/vnd.code.tree.<treeidlowercase>`) to add
+		 * tree objects in a data transfer. See the documentation for `DataTransferItem` for how best to take advantage of this.
 		 *
 		 * To add a data transfer item that can be dragged into the editor, use the application specific mime type "text/uri-list".
 		 * The data for "text/uri-list" should be a string with `toString()`ed Uris separated by newlines. To specify a cursor position in the file,
@@ -9860,10 +9864,10 @@ declare module 'vscode' {
 		 * Extensions should fire {@link TreeDataProvider.onDidChangeTreeData onDidChangeTreeData} for any elements that need to be refreshed.
 		 *
 		 * @param dataTransfer The data transfer items of the source of the drag.
-		 * @param target The target tree element that the drop is occurring on.
+		 * @param target The target tree element that the drop is occurring on. When undefined, the target is the root.
 		 * @param token A cancellation token indicating that the drop has been cancelled.
 		 */
-		handleDrop?(target: T, dataTransfer: DataTransfer, token: CancellationToken): Thenable<void> | void;
+		handleDrop?(target: T | undefined, dataTransfer: DataTransfer, token: CancellationToken): Thenable<void> | void;
 	}
 
 	/**
@@ -11408,6 +11412,9 @@ declare module 'vscode' {
 		 * otherwise will be watched non-recursively (i.e. only changes to the first level of the path
 		 * will be reported).
 		 *
+		 * If possible, keep the use of recursive watchers to a minimum because recursive file watching
+		 * is quite resource intense.
+		 *
 		 * Providing a `string` as `globPattern` acts as convenience method for watching file events in
 		 * all opened workspace folders. It cannot be used to add more folders for file watching, nor will
 		 * it report any file events from folders that are not part of the opened workspace folders.
@@ -11416,10 +11423,11 @@ declare module 'vscode' {
 		 *
 		 * To stop listening to events the watcher must be disposed.
 		 *
-		 * *Note* that file events from file watchers may be excluded based on user configuration.
+		 * *Note* that file events from recursive file watchers may be excluded based on user configuration.
 		 * The setting `files.watcherExclude` helps to reduce the overhead of file events from folders
 		 * that are known to produce many file changes at once (such as `node_modules` folders). As such,
-		 * it is highly recommended to watch with simple patterns that do not require recursive watchers.
+		 * it is highly recommended to watch with simple patterns that do not require recursive watchers
+		 * where the exclude settings are ignored and you have full control over the events.
 		 *
 		 * *Note* that symbolic links are not automatically followed for file watching unless the path to
 		 * watch itself is a symbolic link.

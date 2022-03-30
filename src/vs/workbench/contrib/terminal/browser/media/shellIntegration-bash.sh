@@ -27,7 +27,6 @@ if [[ "$PROMPT_COMMAND" =~ .*(' '.*\;)|(\;.*' ').* ]]; then
 fi
 
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
-	echo -e "\033[1;33mShell integration was disabled by the shell\033[0m"
 	return
 fi
 

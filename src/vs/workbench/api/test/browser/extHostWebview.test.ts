@@ -133,12 +133,12 @@ suite('ExtHostWebview', () => {
 		const webviewUri = webview.webview.asWebviewUri(sourceUri);
 		assert.strictEqual(
 			webviewUri.toString(),
-			`https://vscode-remote%2Bssh-002dremote-002blocalhost-003dfoo-002fbar.vscode-resource.vscode-webview.net/Users/cody/x.png`,
+			`https://vscode-remote%2Bssh-002dremote-002blocalhost-003dfoo-002fbar.vscode-resource.vscode-cdn.net/Users/cody/x.png`,
 			'Check transform');
 
 		assert.strictEqual(
 			decodeAuthority(webviewUri.authority),
-			`vscode-remote+${authority}.vscode-resource.vscode-webview.net`,
+			`vscode-remote+${authority}.vscode-resource.vscode-cdn.net`,
 			'Check decoded authority'
 		);
 	});
@@ -156,12 +156,12 @@ suite('ExtHostWebview', () => {
 		const webviewUri = webview.webview.asWebviewUri(sourceUri);
 		assert.strictEqual(
 			webviewUri.toString(),
-			`https://vscode-remote%2Blocalhost-003a8080.vscode-resource.vscode-webview.net/Users/cody/x.png`,
+			`https://vscode-remote%2Blocalhost-003a8080.vscode-resource.vscode-cdn.net/Users/cody/x.png`,
 			'Check transform');
 
 		assert.strictEqual(
 			decodeAuthority(webviewUri.authority),
-			`vscode-remote+${authority}.vscode-resource.vscode-webview.net`,
+			`vscode-remote+${authority}.vscode-resource.vscode-cdn.net`,
 			'Check decoded authority'
 		);
 	});

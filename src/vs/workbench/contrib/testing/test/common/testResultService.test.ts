@@ -171,20 +171,6 @@ suite('Workbench - Test Results Service', () => {
 			assert.deepStrictEqual(r.getStateById(testId)?.ownComputedState, TestResultState.Errored);
 		});
 
-		test('retire', () => {
-			changed.clear();
-			r.retire(new TestId(['ctrlId', 'id-a']).toString());
-			assert.deepStrictEqual(getChangeSummary(), [
-				{ label: 'a', reason: TestResultItemChangeReason.Retired },
-				{ label: 'aa', reason: TestResultItemChangeReason.ParentRetired },
-				{ label: 'ab', reason: TestResultItemChangeReason.ParentRetired },
-			]);
-
-			changed.clear();
-			r.retire(new TestId(['ctrlId', 'id-a']).toString());
-			assert.strictEqual(changed.size, 0);
-		});
-
 		test('ignores outside run', () => {
 			changed.clear();
 			r.updateState(new TestId(['ctrlId', 'id-b']).toString(), 't', TestResultState.Running);
@@ -252,7 +238,7 @@ suite('Workbench - Test Results Service', () => {
 			const expected: any = { ...r.getStateById(tests.root.id)! };
 			expected.item.uri = actual.item.uri;
 			expected.item.children = actual.item.children;
-			assert.deepStrictEqual(actual, { ...expected, retired: true, children: [new TestId(['ctrlId', 'id-a']).toString()] });
+			assert.deepStrictEqual(actual, { ...expected, children: [new TestId(['ctrlId', 'id-a']).toString()] });
 			assert.deepStrictEqual(rehydrated.counts, r.counts);
 			assert.strictEqual(typeof rehydrated.completedAt, 'number');
 		});

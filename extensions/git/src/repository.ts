@@ -1857,11 +1857,12 @@ export class Repository implements Disposable {
 	@throttle
 	private async updateModelState(): Promise<void> {
 		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const untrackedChanges = scopedConfig.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
 		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
 
 		const limit = scopedConfig.get<number>('statusLimit', 10000);
 
-		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules });
+		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges });
 
 		if (didHitLimit) {
 			/* __GDPR__
@@ -1943,7 +1944,6 @@ export class Repository implements Disposable {
 		this._submodules = submodules!;
 		this.rebaseCommit = rebaseCommit;
 
-		const untrackedChanges = scopedConfig.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
 		const index: Resource[] = [];
 		const workingTree: Resource[] = [];
 		const merge: Resource[] = [];

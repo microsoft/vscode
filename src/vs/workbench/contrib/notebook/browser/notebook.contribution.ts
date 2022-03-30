@@ -29,7 +29,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { isCompositeNotebookEditorInput, NotebookEditorInput, NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellUri, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookWorkingCopyTypeIdentifier, NotebookSetting, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookWorkingCopyTypeIdentifier, NotebookSetting, ICellOutput, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -99,7 +99,6 @@ import { NotebookExecutionService } from 'vs/workbench/contrib/notebook/browser/
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookKeymapService } from 'vs/workbench/contrib/notebook/common/notebookKeymapService';
 import { NotebookKeymapService } from 'vs/workbench/contrib/notebook/browser/services/notebookKeymapServiceImpl';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -429,7 +428,7 @@ class CellInfoContentProvider {
 	private _getResult(data: {
 		notebook: URI;
 		outputId?: string | undefined;
-	}, cell: NotebookCellTextModel) {
+	}, cell: ICell) {
 		let result: { content: string; mode: ILanguageSelection } | undefined = undefined;
 
 		const mode = this._languageService.createById('json');
@@ -479,7 +478,7 @@ class CellInfoContentProvider {
 
 		if (result) {
 			const model = this._modelService.createModel(result.content, result.mode, resource);
-			const cellModelListener = Event.any(cell.onDidChangeOutputs, cell.onDidChangeOutputItems)(() => {
+			const cellModelListener = Event.any(cell.onDidChangeOutputs ?? Event.None, cell.onDidChangeOutputItems ?? Event.None)(() => {
 				const newResult = this._getResult(data, cell);
 
 				if (!newResult) {

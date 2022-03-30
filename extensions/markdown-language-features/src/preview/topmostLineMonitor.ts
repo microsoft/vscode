@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Disposable } from '../util/dispose';
-import { isMarkdownFile } from './file';
+import { isMarkdownFile } from '../util/file';
 
 export interface LastScrollLocation {
 	readonly line: number;

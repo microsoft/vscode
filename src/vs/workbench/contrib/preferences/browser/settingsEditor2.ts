@@ -411,7 +411,7 @@ export class SettingsEditor2 extends EditorPane {
 			return;
 		}
 
-		this.layoutTrees(dimension);
+		this.layoutSplitView(dimension);
 
 		const innerWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on left and right;
 		// minus padding inside inputbox, countElement width, controls width, extra padding before countElement
@@ -714,6 +714,7 @@ export class SettingsEditor2 extends EditorPane {
 			maximumSize: Number.POSITIVE_INFINITY,
 			layout: (width) => {
 				this.tocTreeContainer.style.width = `${width}px`;
+				this.tocTree.layout(undefined, width);
 			}
 		}, startingWidth, undefined, true);
 		this.splitView.addView({
@@ -723,6 +724,7 @@ export class SettingsEditor2 extends EditorPane {
 			maximumSize: Number.POSITIVE_INFINITY,
 			layout: (width) => {
 				this.settingsTreeContainer.style.width = `${width}px`;
+				this.settingsTree.layout(undefined, width);
 			}
 		}, Sizing.Distribute, undefined, true);
 		this._register(this.splitView.onDidSashReset(() => {
@@ -1006,6 +1008,25 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private reportModifiedSetting(props: { key: string; query: string; searchResults: ISearchResult[] | null; rawResults: ISearchResult[] | null; showConfiguredOnly: boolean; isReset: boolean; settingsTarget: SettingsTarget }): void {
+		type SettingsEditorModifiedSettingEvent = {
+			key: string;
+			groupId: string | undefined;
+			nlpIndex: number | undefined;
+			displayIndex: number | undefined;
+			showConfiguredOnly: boolean;
+			isReset: boolean;
+			target: string;
+		};
+		type SettingsEditorModifiedSettingClassification = {
+			key: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'rzhao271'; comment: 'The setting that is being modified.' };
+			groupId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'rzhao271'; comment: 'Whether the setting is from the local search or remote search provider, if applicable.' };
+			nlpIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; owner: 'rzhao271'; comment: 'The index of the setting in the remote search provider results, if applicable.' };
+			displayIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; owner: 'rzhao271'; comment: 'The index of the setting in the combined search results, if applicable.' };
+			showConfiguredOnly: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; 'owner': 'rzhao271'; comment: 'Whether the user is in the modified view, which shows configured settings only.' };
+			isReset: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'rzhao271'; comment: 'Identifies whether a setting was reset to its default value.' };
+			target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'rzhao271'; comment: 'The scope of the setting, such as user or workspace.' };
+		};
+
 		this.pendingSettingUpdate = null;
 
 		let groupId: string | undefined = undefined;
@@ -1048,18 +1069,7 @@ export class SettingsEditor2 extends EditorPane {
 			target: reportedTarget
 		};
 
-		/* __GDPR__
-			"settingsEditor.settingModified" : {
-				"key" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "The setting that is being modified." },
-				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "Whether the setting is from the local search or remote search provider, if applicable." },
-				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The index of the setting in the remote search provider results, if applicable." },
-				"displayIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The index of the setting in the combined search results, if applicable." },
-				"showConfiguredOnly" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "Whether the user is in the modified view, which shows configured settings only." },
-				"isReset" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "Identifies whether a setting was reset to its default value." },
-				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "The scope of the setting, such as user or workspace." }
-			}
-		*/
-		this.telemetryService.publicLog('settingsEditor.settingModified', data);
+		this.telemetryService.publicLog2<SettingsEditorModifiedSettingEvent, SettingsEditorModifiedSettingClassification>('settingsEditor.settingModified', data);
 	}
 
 	private onSearchModeToggled(): void {
@@ -1269,7 +1279,7 @@ export class SettingsEditor2 extends EditorPane {
 		await this.triggerSearch(query.replace(/\u203A/g, ' '));
 
 		if (query && this.searchResultModel) {
-			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(query, this.searchResultModel!.getUniqueResults()));
+			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(this.searchResultModel!.getUniqueResults()));
 		}
 	}
 
@@ -1358,7 +1368,20 @@ export class SettingsEditor2 extends EditorPane {
 		return filterModel;
 	}
 
-	private reportFilteringUsed(query: string, results: ISearchResult[]): void {
+	private reportFilteringUsed(results: ISearchResult[]): void {
+		type SettingsEditorFilterEvent = {
+			'durations.nlpResult': number | undefined;
+			'counts.nlpResult': number | undefined;
+			'counts.filterResult': number | undefined;
+			'requestCount': number | undefined;
+		};
+		type SettingsEditorFilterClassification = {
+			'durations.nlpResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; owner: 'rzhao271'; 'comment': 'How long the remote search provider took, if applicable.' };
+			'counts.nlpResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; owner: 'rzhao271'; 'comment': 'The number of matches found by the remote search provider, if applicable.' };
+			'counts.filterResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; owner: 'rzhao271'; 'comment': 'The number of matches found by the local search provider, if applicable.' };
+			'requestCount': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; owner: 'rzhao271'; 'comment': 'The number of requests sent to Bing, if applicable.' };
+		};
+
 		const nlpResult = results[SearchResultIdx.Remote];
 		const nlpMetadata = nlpResult?.metadata;
 
@@ -1380,20 +1403,13 @@ export class SettingsEditor2 extends EditorPane {
 		const requestCount = nlpMetadata?.requestCount;
 
 		const data = {
-			durations: duration,
-			counts,
+			'durations.nlpResult': duration.nlpResult,
+			'counts.nlpResult': counts['nlpResult'],
+			'counts.filterResult': counts['filterResult'],
 			requestCount
 		};
 
-		/* __GDPR__
-			"settingsEditor.filter" : {
-				"durations.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "How long the remote search provider took, if applicable." },
-				"counts.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The number of matches found by the remote search provider, if applicable." },
-				"counts.filterResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The number of matches found by the local search provider, if applicable." },
-				"requestCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The number of requests sent to Bing, if applicable." }
-			}
-		*/
-		this.telemetryService.publicLog('settingsEditor.filter', data);
+		this.telemetryService.publicLog2<SettingsEditorFilterEvent, SettingsEditorFilterClassification>('settingsEditor.filter', data);
 	}
 
 	private triggerFilterPreferences(query: string): Promise<void> {
@@ -1518,15 +1534,17 @@ export class SettingsEditor2 extends EditorPane {
 				if (isCancellationError(err)) {
 					return Promise.reject(err);
 				} else {
-					/* __GDPR__
-						"settingsEditor.searchError" : {
-							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight", "owner": "rzhao271", comment: "The error message of the search error." }
-						}
-					*/
+					type SettingsSearchErrorEvent = {
+						'message': string;
+					};
+					type SettingsSearchErrorClassification = {
+						'message': { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'owner': 'rzhao271'; 'comment': 'The error message of the search error.' };
+					};
+
 					const message = getErrorMessage(err).trim();
 					if (message && message !== 'Error') {
 						// "Error" = any generic network error
-						this.telemetryService.publicLogError('settingsEditor.searchError', { message });
+						this.telemetryService.publicLogError2<SettingsSearchErrorEvent, SettingsSearchErrorClassification>('settingsEditor.searchError', { message });
 						this.logService.info('Setting search error: ' + message);
 					}
 					return null;
@@ -1534,17 +1552,10 @@ export class SettingsEditor2 extends EditorPane {
 			});
 	}
 
-	private layoutTrees(dimension: DOM.Dimension): void {
+	private layoutSplitView(dimension: DOM.Dimension): void {
 		const listHeight = dimension.height - (72 + 11 + 14 /* header height + editor padding */);
-		const settingsTreeHeight = listHeight;
-		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
-		this.settingsTree.layout(settingsTreeHeight, dimension.width);
 
-		const tocTreeHeight = settingsTreeHeight;
-		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
-		this.tocTree.layout(tocTreeHeight);
-
-		this.splitView.el.style.height = `${settingsTreeHeight}px`;
+		this.splitView.el.style.height = `${listHeight}px`;
 
 		// We call layout first so the splitView has an idea of how much
 		// space it has, otherwise setViewVisible results in the first panel

@@ -265,7 +265,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			this.logService.info(`${this.syncResourceLogLabel}: Updated remote extensions.${remote.added.length ? ` Added: ${JSON.stringify(remote.added.map(e => e.identifier.id))}.` : ''}${remote.updated.length ? ` Updated: ${JSON.stringify(remote.updated.map(e => e.identifier.id))}.` : ''}${remote.removed.length ? ` Removed: ${JSON.stringify(remote.removed.map(e => e.identifier.id))}.` : ''}`);
 		}
 
-		if (this.hasToUpdateLastSyncUserData(remoteUserData, lastSyncUserData)) {
+		if (lastSyncUserData?.ref !== remoteUserData.ref) {
 			// update last sync
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized extensions...`);
 			await this.updateLastSyncUserData(remoteUserData, { skippedExtensions });

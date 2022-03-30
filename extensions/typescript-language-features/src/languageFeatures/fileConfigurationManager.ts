@@ -187,6 +187,8 @@ export default class FileConfigurationManager extends Disposable {
 			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
 			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
 			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
+			// @ts-expect-error until 4.7
+			includeCompletionsWithObjectLiteralMethodSnippets: config.get<boolean>('suggest.objectLiteralMethodSnippets.enabled', true),
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
 			...getInlayHintsPreferences(config),

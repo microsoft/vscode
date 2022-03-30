@@ -56,7 +56,7 @@ import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { labelForTestInState, TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
+import { labelForTestInState, TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { InternalTestItem, ITestRunProfile, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
@@ -1011,13 +1011,6 @@ const getLabelForTestTreeElement = (element: TestItemTreeElement) => {
 				comment: ['{0} is the original label in testing.treeElementLabel, {1} is a duration'],
 			}, '{0}, in {1}', label, formatDuration(element.duration));
 		}
-
-		if (element.retired) {
-			label = localize({
-				key: 'testing.treeElementLabelOutdated',
-				comment: ['{0} is the original label in testing.treeElementLabel'],
-			}, '{0}, outdated result', label, testStateNames[element.state]);
-		}
 	}
 
 	return label;
@@ -1210,10 +1203,6 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 				: node.element.state);
 
 		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
-		if (node.element.retired) {
-			data.icon.className += ' retired';
-		}
-
 		label.resource = node.element.test.item.uri;
 		options.title = getLabelForTestTreeElement(node.element);
 		options.fileKind = FileKind.FILE;

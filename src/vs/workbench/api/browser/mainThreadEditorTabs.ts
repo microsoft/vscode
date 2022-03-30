@@ -10,14 +10,15 @@ import { EditorResourceAccessor, GroupModelChangeKind, SideBySideEditor } from '
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorsChangeEvent, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { GroupDirection, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorsChangeEvent, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 
 interface TabInfo {
@@ -40,6 +41,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
 	) {
 
@@ -444,7 +446,12 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		}
 		// If group index is out of bounds then we make a new one that's to the right of the last group
 		if (this._groupLookup.get(groupId) === undefined) {
-			targetGroup = this._editorGroupsService.addGroup(this._editorGroupsService.groups[this._editorGroupsService.groups.length - 1], GroupDirection.RIGHT, undefined);
+			let direction = GroupDirection.RIGHT;
+			// Make sure we respect the user's preferred side direction
+			if (viewColumn === SIDE_GROUP) {
+				direction = preferredSideBySideGroupDirection(this._configurationService);
+			}
+			targetGroup = this._editorGroupsService.addGroup(this._editorGroupsService.groups[this._editorGroupsService.groups.length - 1], direction, undefined);
 		} else {
 			targetGroup = this._editorGroupsService.getGroup(groupId);
 		}
@@ -466,7 +473,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		return;
 	}
 
-	async $closeTab(tabIds: string[], preserveFocus?: boolean): Promise<void> {
+	async $closeTab(tabIds: string[], preserveFocus?: boolean): Promise<boolean> {
 		const groups: Map<IEditorGroup, EditorInput[]> = new Map();
 		for (const tabId of tabIds) {
 			const tabInfo = this._tabInfoLookup.get(tabId);
@@ -485,9 +492,12 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			}
 		}
 		// Loop over keys of the groups map and call closeEditors
+		let results: boolean[] = [];
 		for (const [group, editors] of groups) {
-			await group.closeEditors(editors, { preserveFocus });
+			results.push(await group.closeEditors(editors, { preserveFocus }));
 		}
+		// TODO @jrieken This isn't quite right how can we say true for some but not others?
+		return results.every(result => result);
 	}
 	//#endregion
 }

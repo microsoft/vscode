@@ -65,14 +65,14 @@ stages:
               exec { git config user.name "VSCode" }
             displayName: Prepare tooling
 
-          - powershell: |
-              . build/azure-pipelines/win32/exec.ps1
-              $ErrorActionPreference = "Stop"
+          # - powershell: |
+          #     . build/azure-pipelines/win32/exec.ps1
+          #     $ErrorActionPreference = "Stop"
 
-              exec { git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $(VSCODE_DISTRO_REF) }
-              exec { git checkout FETCH_HEAD }
-            condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-            displayName: Checkout override commit
+          #     exec { git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $(VSCODE_DISTRO_REF) }
+          #     exec { git checkout FETCH_HEAD }
+          #   condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
+          #   displayName: Checkout override commit
 
           - powershell: |
               . build/azure-pipelines/win32/exec.ps1
@@ -169,13 +169,13 @@ stages:
               git config user.name "VSCode"
             displayName: Prepare tooling
 
-          - script: |
-              set -e
-              git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
-              echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-              git checkout FETCH_HEAD
-            condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-            displayName: Checkout override commit
+          # - script: |
+          #     set -e
+          #     git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
+          #     echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
+          #     git checkout FETCH_HEAD
+          #   condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
+          #   displayName: Checkout override commit
 
           - script: |
               set -e

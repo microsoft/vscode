@@ -5,10 +5,11 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
+import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { migrateUnsupportedExtensions } from 'vs/platform/extensionManagement/common/unsupportedExtensionsMigration';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class ExtensionsCleaner extends Disposable {
 
@@ -17,10 +18,12 @@ export class ExtensionsCleaner extends Disposable {
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 		@IExtensionStorageService extensionStorageService: IExtensionStorageService,
 		@IGlobalExtensionEnablementService extensionEnablementService: IGlobalExtensionEnablementService,
+		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
 	) {
 		super();
 		extensionManagementService.removeDeprecatedExtensions();
 		migrateUnsupportedExtensions(extensionManagementService, extensionGalleryService, extensionStorageService, extensionEnablementService, logService);
+		ExtensionStorageService.removeOutdatedExtensionVersions(extensionManagementService, storageService);
 	}
 }

@@ -77,12 +77,12 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 	private registerListeners(): void {
 
 		// History changes
-		this._register(this.workingCopyHistoryService.onDidAddEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, false /* entry added */)));
-		this._register(this.workingCopyHistoryService.onDidChangeEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, false /* entry changed */)));
-		this._register(this.workingCopyHistoryService.onDidReplaceEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, true /* entry replaced */)));
-		this._register(this.workingCopyHistoryService.onDidRemoveEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, true /* entry removed */)));
-		this._register(this.workingCopyHistoryService.onDidRemoveEntries(() => this.onDidChangeWorkingCopyHistoryEntry(undefined /* all entries */, true /* entry removed */)));
-		this._register(this.workingCopyHistoryService.onDidMoveEntries(() => this.onDidChangeWorkingCopyHistoryEntry(undefined /* all entries */, true /* entry moved */)));
+		this._register(this.workingCopyHistoryService.onDidAddEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry)));
+		this._register(this.workingCopyHistoryService.onDidChangeEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry)));
+		this._register(this.workingCopyHistoryService.onDidReplaceEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry)));
+		this._register(this.workingCopyHistoryService.onDidRemoveEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry)));
+		this._register(this.workingCopyHistoryService.onDidRemoveEntries(() => this.onDidChangeWorkingCopyHistoryEntry(undefined /* all entries */)));
+		this._register(this.workingCopyHistoryService.onDidMoveEntries(() => this.onDidChangeWorkingCopyHistoryEntry(undefined /* all entries */)));
 
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -92,13 +92,13 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		}));
 	}
 
-	private onDidChangeWorkingCopyHistoryEntry(entry: IWorkingCopyHistoryEntry | undefined, reset: boolean): void {
+	private onDidChangeWorkingCopyHistoryEntry(entry: IWorkingCopyHistoryEntry | undefined): void {
 
 		// Re-emit as timeline change event
 		this._onDidChange.fire({
 			id: LocalHistoryTimeline.ID,
 			uri: entry?.workingCopy.resource,
-			reset
+			reset: true // there is no other way to indicate that items might have been replaced/removed
 		});
 	}
 

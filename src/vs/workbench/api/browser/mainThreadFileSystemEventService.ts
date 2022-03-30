@@ -8,8 +8,6 @@ import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext } from '../common/extHost.protocol';
 import { localize } from 'vs/nls';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair, IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { reviveWorkspaceEditDto2 } from 'vs/workbench/api/browser/mainThreadEditors';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -193,17 +191,5 @@ registerAction2(class ResetMemento extends Action2 {
 	}
 	run(accessor: ServicesAccessor) {
 		accessor.get(IStorageService).remove(MainThreadFileSystemEventService.MementoKeyAdditionalEdits, StorageScope.GLOBAL);
-	}
-});
-
-
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	id: 'files',
-	properties: {
-		'files.participants.timeout': {
-			type: 'number',
-			default: 60000,
-			markdownDescription: localize('files.participants.timeout', "Timeout in milliseconds after which file participants for create, rename, and delete are cancelled. Use `0` to disable participants."),
-		}
 	}
 });

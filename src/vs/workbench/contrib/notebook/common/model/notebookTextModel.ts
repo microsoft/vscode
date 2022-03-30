@@ -324,7 +324,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 			case 'language':
 				this._pauseableEmitter.fire({
-					rawEvents: [{ kind: NotebookCellsChangeType.ChangeLanguage, index: this._getCellIndexByHandle(cell.handle), language: cell.language, transient: false }],
+					rawEvents: [{ kind: NotebookCellsChangeType.ChangeCellLanguage, index: this._getCellIndexByHandle(cell.handle), language: cell.language, transient: false }],
 					versionId: this.versionId,
 					synchronous: true,
 					endSelectionState: undefined
@@ -937,7 +937,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 
 		this._pauseableEmitter.fire({
-			rawEvents: [{ kind: NotebookCellsChangeType.ChangeLanguage, index: this._cells.indexOf(cell), language: languageId, transient: false }],
+			rawEvents: [{ kind: NotebookCellsChangeType.ChangeCellLanguage, index: this._cells.indexOf(cell), language: languageId, transient: false }],
 			versionId: this.versionId,
 			synchronous: true,
 			endSelectionState: undefined

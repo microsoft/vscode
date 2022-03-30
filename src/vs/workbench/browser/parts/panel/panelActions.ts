@@ -447,7 +447,7 @@ MenuRegistry.appendMenuItems([
 				icon: panelIcon,
 				toggled: PanelVisibleContext
 			},
-			when: ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'both')),
+			when: ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
 			order: 1
 		}
 	}, {

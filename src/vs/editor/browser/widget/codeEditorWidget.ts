@@ -12,7 +12,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter, EmitterOptions, Event, EventDeliveryQueue } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -116,114 +116,117 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	});
 
 	//#region Eventing
+
+	private readonly _deliveryQueue = new EventDeliveryQueue();
+
 	private readonly _onDidDispose: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
-	private readonly _onDidChangeModelContent: Emitter<IModelContentChangedEvent> = this._register(new Emitter<IModelContentChangedEvent>());
+	private readonly _onDidChangeModelContent: Emitter<IModelContentChangedEvent> = this._register(new Emitter<IModelContentChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeModelContent: Event<IModelContentChangedEvent> = this._onDidChangeModelContent.event;
 
-	private readonly _onDidChangeModelLanguage: Emitter<IModelLanguageChangedEvent> = this._register(new Emitter<IModelLanguageChangedEvent>());
+	private readonly _onDidChangeModelLanguage: Emitter<IModelLanguageChangedEvent> = this._register(new Emitter<IModelLanguageChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeModelLanguage: Event<IModelLanguageChangedEvent> = this._onDidChangeModelLanguage.event;
 
-	private readonly _onDidChangeModelLanguageConfiguration: Emitter<IModelLanguageConfigurationChangedEvent> = this._register(new Emitter<IModelLanguageConfigurationChangedEvent>());
+	private readonly _onDidChangeModelLanguageConfiguration: Emitter<IModelLanguageConfigurationChangedEvent> = this._register(new Emitter<IModelLanguageConfigurationChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeModelLanguageConfiguration: Event<IModelLanguageConfigurationChangedEvent> = this._onDidChangeModelLanguageConfiguration.event;
 
-	private readonly _onDidChangeModelOptions: Emitter<IModelOptionsChangedEvent> = this._register(new Emitter<IModelOptionsChangedEvent>());
+	private readonly _onDidChangeModelOptions: Emitter<IModelOptionsChangedEvent> = this._register(new Emitter<IModelOptionsChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeModelOptions: Event<IModelOptionsChangedEvent> = this._onDidChangeModelOptions.event;
 
-	private readonly _onDidChangeModelDecorations: Emitter<IModelDecorationsChangedEvent> = this._register(new Emitter<IModelDecorationsChangedEvent>());
+	private readonly _onDidChangeModelDecorations: Emitter<IModelDecorationsChangedEvent> = this._register(new Emitter<IModelDecorationsChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeModelDecorations: Event<IModelDecorationsChangedEvent> = this._onDidChangeModelDecorations.event;
 
-	private readonly _onDidChangeModelTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>());
+	private readonly _onDidChangeModelTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeModelTokens: Event<IModelTokensChangedEvent> = this._onDidChangeModelTokens.event;
 
-	private readonly _onDidChangeConfiguration: Emitter<ConfigurationChangedEvent> = this._register(new Emitter<ConfigurationChangedEvent>());
+	private readonly _onDidChangeConfiguration: Emitter<ConfigurationChangedEvent> = this._register(new Emitter<ConfigurationChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeConfiguration: Event<ConfigurationChangedEvent> = this._onDidChangeConfiguration.event;
 
-	protected readonly _onDidChangeModel: Emitter<editorCommon.IModelChangedEvent> = this._register(new Emitter<editorCommon.IModelChangedEvent>());
+	protected readonly _onDidChangeModel: Emitter<editorCommon.IModelChangedEvent> = this._register(new Emitter<editorCommon.IModelChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeModel: Event<editorCommon.IModelChangedEvent> = this._onDidChangeModel.event;
 
-	private readonly _onDidChangeCursorPosition: Emitter<ICursorPositionChangedEvent> = this._register(new Emitter<ICursorPositionChangedEvent>());
+	private readonly _onDidChangeCursorPosition: Emitter<ICursorPositionChangedEvent> = this._register(new Emitter<ICursorPositionChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeCursorPosition: Event<ICursorPositionChangedEvent> = this._onDidChangeCursorPosition.event;
 
-	private readonly _onDidChangeCursorSelection: Emitter<ICursorSelectionChangedEvent> = this._register(new Emitter<ICursorSelectionChangedEvent>());
+	private readonly _onDidChangeCursorSelection: Emitter<ICursorSelectionChangedEvent> = this._register(new Emitter<ICursorSelectionChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeCursorSelection: Event<ICursorSelectionChangedEvent> = this._onDidChangeCursorSelection.event;
 
-	private readonly _onDidAttemptReadOnlyEdit: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidAttemptReadOnlyEdit: Emitter<void> = this._register(new Emitter<void>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidAttemptReadOnlyEdit: Event<void> = this._onDidAttemptReadOnlyEdit.event;
 
-	private readonly _onDidLayoutChange: Emitter<EditorLayoutInfo> = this._register(new Emitter<EditorLayoutInfo>());
+	private readonly _onDidLayoutChange: Emitter<EditorLayoutInfo> = this._register(new Emitter<EditorLayoutInfo>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidLayoutChange: Event<EditorLayoutInfo> = this._onDidLayoutChange.event;
 
-	private readonly _editorTextFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
+	private readonly _editorTextFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidFocusEditorText: Event<void> = this._editorTextFocus.onDidChangeToTrue;
 	public readonly onDidBlurEditorText: Event<void> = this._editorTextFocus.onDidChangeToFalse;
 
-	private readonly _editorWidgetFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
+	private readonly _editorWidgetFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidFocusEditorWidget: Event<void> = this._editorWidgetFocus.onDidChangeToTrue;
 	public readonly onDidBlurEditorWidget: Event<void> = this._editorWidgetFocus.onDidChangeToFalse;
 
-	private readonly _onWillType: Emitter<string> = this._register(new Emitter<string>());
+	private readonly _onWillType: Emitter<string> = this._register(new Emitter<string>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onWillType = this._onWillType.event;
 
-	private readonly _onDidType: Emitter<string> = this._register(new Emitter<string>());
+	private readonly _onDidType: Emitter<string> = this._register(new Emitter<string>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidType = this._onDidType.event;
 
-	private readonly _onDidCompositionStart: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidCompositionStart: Emitter<void> = this._register(new Emitter<void>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidCompositionStart = this._onDidCompositionStart.event;
 
-	private readonly _onDidCompositionEnd: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidCompositionEnd: Emitter<void> = this._register(new Emitter<void>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidCompositionEnd = this._onDidCompositionEnd.event;
 
-	private readonly _onDidPaste: Emitter<editorBrowser.IPasteEvent> = this._register(new Emitter<editorBrowser.IPasteEvent>());
+	private readonly _onDidPaste: Emitter<editorBrowser.IPasteEvent> = this._register(new Emitter<editorBrowser.IPasteEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidPaste = this._onDidPaste.event;
 
-	private readonly _onMouseUp: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	private readonly _onMouseUp: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onMouseUp: Event<editorBrowser.IEditorMouseEvent> = this._onMouseUp.event;
 
-	private readonly _onMouseDown: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	private readonly _onMouseDown: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onMouseDown: Event<editorBrowser.IEditorMouseEvent> = this._onMouseDown.event;
 
-	private readonly _onMouseDrag: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	private readonly _onMouseDrag: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onMouseDrag: Event<editorBrowser.IEditorMouseEvent> = this._onMouseDrag.event;
 
-	private readonly _onMouseDrop: Emitter<editorBrowser.IPartialEditorMouseEvent> = this._register(new Emitter<editorBrowser.IPartialEditorMouseEvent>());
+	private readonly _onMouseDrop: Emitter<editorBrowser.IPartialEditorMouseEvent> = this._register(new Emitter<editorBrowser.IPartialEditorMouseEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onMouseDrop: Event<editorBrowser.IPartialEditorMouseEvent> = this._onMouseDrop.event;
 
-	private readonly _onMouseDropCanceled: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onMouseDropCanceled: Emitter<void> = this._register(new Emitter<void>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onMouseDropCanceled: Event<void> = this._onMouseDropCanceled.event;
 
-	private readonly _onDropIntoEditor = this._register(new Emitter<{ readonly position: IPosition; readonly event: DragEvent }>());
+	private readonly _onDropIntoEditor = this._register(new Emitter<{ readonly position: IPosition; readonly event: DragEvent }>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDropIntoEditor = this._onDropIntoEditor.event;
 
-	private readonly _onContextMenu: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	private readonly _onContextMenu: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onContextMenu: Event<editorBrowser.IEditorMouseEvent> = this._onContextMenu.event;
 
-	private readonly _onMouseMove: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	private readonly _onMouseMove: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onMouseMove: Event<editorBrowser.IEditorMouseEvent> = this._onMouseMove.event;
 
-	private readonly _onMouseLeave: Emitter<editorBrowser.IPartialEditorMouseEvent> = this._register(new Emitter<editorBrowser.IPartialEditorMouseEvent>());
+	private readonly _onMouseLeave: Emitter<editorBrowser.IPartialEditorMouseEvent> = this._register(new Emitter<editorBrowser.IPartialEditorMouseEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onMouseLeave: Event<editorBrowser.IPartialEditorMouseEvent> = this._onMouseLeave.event;
 
-	private readonly _onMouseWheel: Emitter<IMouseWheelEvent> = this._register(new Emitter<IMouseWheelEvent>());
+	private readonly _onMouseWheel: Emitter<IMouseWheelEvent> = this._register(new Emitter<IMouseWheelEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onMouseWheel: Event<IMouseWheelEvent> = this._onMouseWheel.event;
 
-	private readonly _onKeyUp: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>());
+	private readonly _onKeyUp: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
 
-	private readonly _onKeyDown: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>());
+	private readonly _onKeyDown: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
 
-	private readonly _onDidContentSizeChange: Emitter<editorCommon.IContentSizeChangedEvent> = this._register(new Emitter<editorCommon.IContentSizeChangedEvent>());
+	private readonly _onDidContentSizeChange: Emitter<editorCommon.IContentSizeChangedEvent> = this._register(new Emitter<editorCommon.IContentSizeChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidContentSizeChange: Event<editorCommon.IContentSizeChangedEvent> = this._onDidContentSizeChange.event;
 
-	private readonly _onDidScrollChange: Emitter<editorCommon.IScrollEvent> = this._register(new Emitter<editorCommon.IScrollEvent>());
+	private readonly _onDidScrollChange: Emitter<editorCommon.IScrollEvent> = this._register(new Emitter<editorCommon.IScrollEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidScrollChange: Event<editorCommon.IScrollEvent> = this._onDidScrollChange.event;
 
-	private readonly _onDidChangeViewZones: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidChangeViewZones: Emitter<void> = this._register(new Emitter<void>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeViewZones: Event<void> = this._onDidChangeViewZones.event;
 
-	private readonly _onDidChangeHiddenAreas: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidChangeHiddenAreas: Emitter<void> = this._register(new Emitter<void>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeHiddenAreas: Event<void> = this._onDidChangeHiddenAreas.event;
 	//#endregion
 
@@ -1840,15 +1843,17 @@ const enum BooleanEventValue {
 }
 
 export class BooleanEventEmitter extends Disposable {
-	private readonly _onDidChangeToTrue: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidChangeToTrue: Emitter<void> = this._register(new Emitter<void>(this._emitterOptions));
 	public readonly onDidChangeToTrue: Event<void> = this._onDidChangeToTrue.event;
 
-	private readonly _onDidChangeToFalse: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidChangeToFalse: Emitter<void> = this._register(new Emitter<void>(this._emitterOptions));
 	public readonly onDidChangeToFalse: Event<void> = this._onDidChangeToFalse.event;
 
 	private _value: BooleanEventValue;
 
-	constructor() {
+	constructor(
+		private readonly _emitterOptions: EmitterOptions
+	) {
 		super();
 		this._value = BooleanEventValue.NotSet;
 	}

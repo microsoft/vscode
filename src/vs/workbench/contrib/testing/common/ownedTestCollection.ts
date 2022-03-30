@@ -149,10 +149,6 @@ export class SingleUseTestCollection extends Disposable {
 
 	private onTestItemEvent(internal: OwnedCollectionTestItem, evt: ExtHostTestItemEvent) {
 		switch (evt.op) {
-			case ExtHostTestItemEventOp.Invalidated:
-				this.pushDiff({ op: TestDiffOpType.Retire, itemId: internal.fullId.toString() });
-				break;
-
 			case ExtHostTestItemEventOp.RemoveChild:
 				this.removeItem(TestId.joinToString(internal.fullId, evt.id));
 				break;

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-notebook-renderer';
-import { handleANSIOutput } from './ansi';
 import { truncatedArrayOfString } from './textHelper';
 
 interface IDisposable {
@@ -79,7 +78,7 @@ function renderJavascript(outputInfo: OutputItem, container: HTMLElement): void 
 	domEval(element);
 }
 
-function renderError(outputInfo: OutputItem, container: HTMLElement): void {
+function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
 	const element = document.createElement('div');
 	container.appendChild(element);
 	type ErrorLike = Partial<Error>;
@@ -96,7 +95,9 @@ function renderError(outputInfo: OutputItem, container: HTMLElement): void {
 		const stack = document.createElement('pre');
 		stack.classList.add('traceback');
 		stack.style.margin = '8px 0';
-		stack.appendChild(handleANSIOutput(err.stack));
+		const element = document.createElement('span');
+		truncatedArrayOfString(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, element);
+		stack.appendChild(element);
 		container.appendChild(stack);
 	} else {
 		const header = document.createElement('div');
@@ -127,7 +128,7 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 			const text = outputInfo.text();
 
 			const element = document.createElement('span');
-			truncatedArrayOfString(outputInfo.id, [text], 30, element);
+			truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, element);
 			outputElement.appendChild(element);
 			return;
 		}
@@ -164,7 +165,8 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	const style = document.createElement('style');
 	style.textContent = `
 	.output-plaintext,
-	.output-stream {
+	.output-stream,
+	.traceback {
 		line-height: 22px;
 		font-family: var(--notebook-cell-output-font-family);
 		white-space: pre-wrap;
@@ -177,19 +179,23 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		cursor: auto;
 	}
 	.output-plaintext .code-bold,
-	.output-stream .code-bold {
+	.output-stream .code-bold,
+	.traceback .code-bold {
 		font-weight: bold;
 	}
 	.output-plaintext .code-italic,
-	.output-stream .code-italic {
+	.output-stream .code-italic,
+	.traceback .code-italic {
 		font-style: italic;
 	}
 	.output-plaintext .code-strike-through,
-	.output-stream .code-strike-through {
+	.output-stream .code-strike-through,
+	.traceback .code-strike-through {
 		text-decoration: line-through;
 	}
 	.output-plaintext .code-underline,
-	.output-stream .code-underline {
+	.output-stream .code-underline,
+	.traceback .code-underline {
 		text-decoration: underline;
 	}
 	`;
@@ -227,7 +233,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 					break;
 				case 'application/vnd.code.notebook.error':
 					{
-						renderError(outputInfo, element);
+						renderError(outputInfo, element, latestContext);
 					}
 					break;
 				case 'application/vnd.code.notebook.stdout':

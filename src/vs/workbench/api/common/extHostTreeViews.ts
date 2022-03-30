@@ -18,12 +18,13 @@ import { isUndefinedOrNull, isString } from 'vs/base/common/types';
 import { equals, coalesce } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
+import { MarkdownString, ViewBadge } from 'vs/workbench/api/common/extHostTypeConverters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Command } from 'vs/editor/common/languages';
 import { DataTransferConverter, DataTransferDTO } from 'vs/workbench/api/common/shared/dataTransfer';
 import { ITreeViewsService, TreeviewsService } from 'vs/workbench/services/views/common/treeViewsService';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { IDataTransfer } from 'vs/workbench/common/dnd';
 
 type TreeItemHandle = string;
@@ -115,6 +116,14 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			set description(description: string | undefined) {
 				treeView.description = description;
 			},
+			get badge() {
+				checkProposedApiEnabled(extension, 'badges');
+				return treeView.badge;
+			},
+			set badge(badge: vscode.ViewBadge | undefined) {
+				checkProposedApiEnabled(extension, 'badges');
+				treeView.badge = badge;
+			},
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {
 				return treeView.reveal(element, options);
 			},
@@ -135,7 +144,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		return treeView.getChildren(treeItemHandle);
 	}
 
-	async $handleDrop(destinationViewId: string, treeDataTransferDTO: DataTransferDTO, newParentItemHandle: string, token: CancellationToken,
+	async $handleDrop(destinationViewId: string, treeDataTransferDTO: DataTransferDTO, targetItemHandle: string | undefined, token: CancellationToken,
 		operationUuid?: string, sourceViewId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
 		const treeView = this.treeViews.get(destinationViewId);
 		if (!treeView) {
@@ -146,7 +155,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if ((sourceViewId === destinationViewId) && sourceTreeItemHandles) {
 			await this.addAdditionalTransferItems(treeDataTransfer, treeView, sourceTreeItemHandles, token, operationUuid);
 		}
-		return treeView.onDrop(treeDataTransfer, newParentItemHandle, token);
+		return treeView.onDrop(treeDataTransfer, targetItemHandle, token);
 	}
 
 	private async addAdditionalTransferItems(treeDataTransfer: IDataTransfer, treeView: ExtHostTreeView<any>,
@@ -407,6 +416,21 @@ class ExtHostTreeView<T> extends Disposable {
 		this.proxy.$setTitle(this.viewId, this._title, description);
 	}
 
+	private _badge: vscode.ViewBadge | undefined;
+	get badge(): vscode.ViewBadge | undefined {
+		return this._badge;
+	}
+
+	set badge(badge: vscode.ViewBadge | undefined) {
+		if (this._badge?.value === badge?.value &&
+			this._badge?.tooltip === badge?.tooltip) {
+			return;
+		}
+
+		this._badge = ViewBadge.from(badge);
+		this.proxy.$setBadge(this.viewId, badge);
+	}
+
 	setExpanded(treeItemHandle: TreeItemHandle, expanded: boolean): void {
 		const element = this.getExtensionElement(treeItemHandle);
 		if (element) {
@@ -452,9 +476,9 @@ class ExtHostTreeView<T> extends Disposable {
 		return !!this.dndController?.handleDrag;
 	}
 
-	async onDrop(treeDataTransfer: vscode.DataTransfer, targetHandleOrNode: TreeItemHandle, token: CancellationToken): Promise<void> {
-		const target = this.getExtensionElement(targetHandleOrNode);
-		if (!target || !this.dndController?.handleDrop) {
+	async onDrop(treeDataTransfer: vscode.DataTransfer, targetHandleOrNode: TreeItemHandle | undefined, token: CancellationToken): Promise<void> {
+		const target = targetHandleOrNode ? this.getExtensionElement(targetHandleOrNode) : undefined;
+		if ((!target && targetHandleOrNode) || !this.dndController?.handleDrop) {
 			return;
 		}
 		return asPromise(() => this.dndController?.handleDrop

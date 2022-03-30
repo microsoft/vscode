@@ -258,6 +258,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'exclusiveMinimum': 0,
 				'markdownDescription': localize('limitEditorsMaximum', "Controls the maximum number of opened editors. Use the `#workbench.editor.limit.perEditorGroup#` setting to control this limit per editor group or across all groups.")
 			},
+			'workbench.editor.limit.excludeDirty': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('limitEditorsExcludeDirty', "Controls if the maximum number of opened editors should exclude dirty editors for counting towards the configured limit.")
+			},
 			'workbench.editor.limit.perEditorGroup': {
 				'type': 'boolean',
 				'default': false,
@@ -423,11 +428,28 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				default: 'auto',
 				enum: ['on', 'off', 'auto']
 			},
+			'workbench.layoutControl.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize({ key: 'layoutControlEnabled', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether the layout controls in the custom title bar is enabled via {0}.", '`#window.titleBarStyle#`'),
+			},
+			'workbench.layoutControl.type': {
+				'type': 'string',
+				'enum': ['menu', 'toggles', 'both'],
+				'enumDescriptions': [
+					localize('layoutcontrol.type.menu', "Shows a single button with a dropdown of layout options."),
+					localize('layoutcontrol.type.toggles', "Shows several buttons for toggling the visibility of the panels and side bar."),
+					localize('layoutcontrol.type.both', "Shows both the dropdown and toggle buttons."),
+				],
+				'default': 'both',
+				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
+			},
 			'workbench.experimental.layoutControl.enabled': {
 				'type': 'boolean',
 				'tags': ['experimental'],
 				'default': false,
 				'markdownDescription': localize({ key: 'layoutControlEnabled', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether the layout controls in the custom title bar is enabled via {0}.", '`#window.titleBarStyle#`'),
+				'markdownDeprecationMessage': localize({ key: 'layoutControlEnabledDeprecation', comment: ['{0} is a placeholder for a setting identifier.'] }, "This setting has been deprecated in favor of {0}", '`#workbench.layoutControl.enabled#`')
 			},
 			'workbench.experimental.layoutControl.type': {
 				'type': 'string',
@@ -440,6 +462,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'tags': ['experimental'],
 				'default': 'both',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
+				'markdownDeprecationMessage': localize({ key: 'layoutControlTypeDeprecation', comment: ['{0} is a placeholder for a setting identifier.'] }, "This setting has been deprecated in favor of {0}", '`#workbench.layoutControl.type#`')
 			},
 			'workbench.experimental.editor.dragAndDropIntoEditor.enabled': {
 				'type': 'boolean',

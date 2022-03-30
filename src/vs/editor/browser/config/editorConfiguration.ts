@@ -291,7 +291,7 @@ class EditorOptionsUtil {
 		if (Array.isArray(a) || Array.isArray(b)) {
 			return (Array.isArray(a) && Array.isArray(b) ? arrays.equals(a, b) : false);
 		}
-		if (Object.keys(a).length !== Object.keys(b).length) {
+		if (Object.keys(a as unknown as object).length !== Object.keys(b as unknown as object).length) {
 			return false;
 		}
 		for (const key in a) {

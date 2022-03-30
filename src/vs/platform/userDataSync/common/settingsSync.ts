@@ -243,7 +243,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			await this.fileService.del(this.previewResource);
 		} catch (e) { /* ignore */ }
 
-		if (this.hasToUpdateLastSyncUserData(remoteUserData, lastSyncUserData)) {
+		if (lastSyncUserData?.ref !== remoteUserData.ref) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized settings...`);
 			await this.updateLastSyncUserData(remoteUserData);
 			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized settings`);

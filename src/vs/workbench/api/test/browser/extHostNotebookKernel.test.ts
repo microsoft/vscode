@@ -98,7 +98,7 @@ suite('NotebookKernel', function () {
 		extHostCommands = new ExtHostCommands(rpcProtocol, new NullLogService());
 		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostStoragePaths);
 
-		extHostNotebookDocuments = new ExtHostNotebookDocuments(new NullLogService(), extHostNotebooks);
+		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 
 		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
 			addedDocuments: [{
