@@ -2,28 +2,34 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 import * as vscode from 'vscode';
+import * as uri from 'vscode-uri';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContents } from '../tableOfContents';
+import { TableOfContents, TocEntry } from '../tableOfContents';
 import { Disposable } from '../util/dispose';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { InternalLinkTarget, LinkData, MdLinkProvider } from './documentLinkProvider';
+import { InternalLinkTarget, LinkData, LinkTarget, MdLinkProvider } from './documentLinkProvider';
 import { MdWorkspaceCache } from './workspaceCache';
 
+
+function isLinkToHeader(target: LinkTarget, header: TocEntry, headerDocument: vscode.Uri): target is InternalLinkTarget {
+	return target.kind === 'internal'
+		&& target.path.fsPath === headerDocument.fsPath
+		&& target.fragment === header.slug.value;
+}
 
 export class MdReferencesProvider extends Disposable implements vscode.ReferenceProvider {
 
 	private readonly _linkCache: MdWorkspaceCache<Promise<LinkData[]>>;
 
 	public constructor(
-		linkProvider: MdLinkProvider,
-		workspaceContents: MdWorkspaceContents,
+		private readonly linkProvider: MdLinkProvider,
+		private readonly workspaceContents: MdWorkspaceContents,
 		private readonly engine: MarkdownEngine,
 	) {
 		super();
 
-		this._linkCache = this._register(new MdWorkspaceCache(workspaceContents, doc => linkProvider.getInlineLinks(doc.getText(), doc)));
+		this._linkCache = this._register(new MdWorkspaceCache(workspaceContents, doc => linkProvider.getAllLinks(doc)));
 	}
 
 	async provideReferences(document: SkinnyTextDocument, position: vscode.Position, context: vscode.ReferenceContext, token: vscode.CancellationToken): Promise<vscode.Location[] | undefined> {
@@ -33,29 +39,80 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		}
 
 		const header = toc.entries.find(entry => entry.line === position.line);
-		if (!header) {
-			return undefined;
+		if (header) {
+			return this.getReferencesToHeader(document, header, context);
+		} else {
+			return this.getReferencesToLink(document, position, context);
 		}
+	}
 
-		const locations: vscode.Location[] = [];
+	private async getReferencesToHeader(document: SkinnyTextDocument, header: TocEntry, context: vscode.ReferenceContext,): Promise<vscode.Location[] | undefined> {
+		const links = (await Promise.all(await this._linkCache.getAll())).flat();
+
+		const references: vscode.Location[] = [];
 
 		if (context.includeDeclaration) {
 			const line = document.lineAt(header.line);
-			locations.push(new vscode.Location(document.uri, new vscode.Range(header.line, 0, header.line, line.text.length)));
+			references.push(new vscode.Location(document.uri, new vscode.Range(header.line, 0, header.line, line.text.length)));
 		}
 
-		(await Promise.all(await this._linkCache.getAll()))
-			.flat()
-			.filter(link => {
-				return link.target.kind === 'internal'
-					&& link.target.path.fsPath === document.uri.fsPath
-					&& link.target.fragment === header.slug.value;
-			})
-			.forEach(link => {
-				const target = link.target as InternalLinkTarget;
-				locations.push(new vscode.Location(target.fromResource, link.sourceRange));
-			});
+		for (const link of links) {
+			if (isLinkToHeader(link.target, header, document.uri)) {
+				references.push(new vscode.Location(link.target.fromResource, link.sourceRange));
+			} else if (link.target.kind === 'definition' && isLinkToHeader(link.target.target, header, document.uri)) {
+				references.push(new vscode.Location(link.target.target.fromResource, link.sourceRange));
+			}
+		}
 
-		return locations;
+		return references;
+	}
+
+	private async getReferencesToLink(document: SkinnyTextDocument, position: vscode.Position, context: vscode.ReferenceContext): Promise<vscode.Location[] | undefined> {
+		const links = (await Promise.all(await this._linkCache.getAll())).flat();
+
+		const docLinks = await this.linkProvider.getInlineLinks(document);
+		const sourceLink = docLinks.find(link => link.sourceRange.contains(position));
+
+		if (sourceLink?.target.kind !== 'internal') {
+			return undefined;
+		}
+
+
+		let targetDoc = await this.workspaceContents.getMarkdownDocument(sourceLink.target.path);
+		if (!targetDoc) {
+			// We don't think the file exists. If it doesn't already have an extension, try tacking on a `.md` and using that instead
+			if (uri.Utils.extname(sourceLink.target.path) === '') {
+				const dotMdResource = sourceLink.target.path.with({ path: sourceLink.target.path.path + '.md' });
+				targetDoc = await this.workspaceContents.getMarkdownDocument(dotMdResource);
+			}
+		}
+
+		if (!targetDoc) {
+			return undefined;
+		}
+
+		const references: vscode.Location[] = [];
+
+		if (context.includeDeclaration) {
+			const toc = await TableOfContents.create(this.engine, targetDoc);
+			const entry = toc.lookup(sourceLink.target.fragment);
+			if (entry) {
+				references.push(entry.location);
+			}
+		}
+
+		for (const link of links) {
+			if (link.target.kind === 'internal'
+				&& link.target.fragment === sourceLink.target.fragment
+				&& (
+					link.target.path.fsPath === targetDoc.uri.fsPath
+					|| uri.Utils.extname(link.target.path) === '' && link.target.path.with({ path: link.target.path.path + '.md' }).fsPath === targetDoc.uri.fsPath
+				)
+			) {
+				references.push(new vscode.Location(link.target.fromResource, link.sourceRange));
+			}
+		}
+
+		return references;
 	}
 }

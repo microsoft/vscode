@@ -236,7 +236,7 @@ export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
 		const insertionRange = new vscode.Range(context.linkTextStartPosition, position);
 		const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
 
-		const definitions = this.linkProvider.getDefinitions(document.getText(), document);
+		const definitions = this.linkProvider.getDefinitions(document);
 		for (const def of definitions) {
 			yield {
 				kind: vscode.CompletionItemKind.Reference,
