@@ -132,15 +132,16 @@ declare module 'vscode' {
 		/**
 		 * The currently active group
 		 */
+		// TOD@API name: maybe `activeGroup` to align with `groups` (which isn't tabGroups)
 		readonly activeTabGroup: TabGroup;
 
 		/**
-		 * An {@link Event} which fires when a group changes.
+		 * An {@link Event event} which fires when {@link TabGroup tab groups} has changed.
 		 */
 		readonly onDidChangeTabGroups: Event<TabGroup[]>;
 
 		/**
-		 * An {@link Event} which fires when a tab changes.
+		 * An {@link Event event} which fires when a {@link Tab tabs} have changed.
 		 */
 		readonly onDidChangeTabs: Event<Tab[]>;
 
