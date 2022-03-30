@@ -7,7 +7,6 @@ import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -62,7 +61,7 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 						case NotebookCellsChangeType.ModelChange:
 							eventDto.rawEvents.push({
 								kind: e.kind,
-								changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => NotebookDto.toNotebookCellDto(cell as NotebookCellTextModel))] as [number, number, NotebookCellDto[]])
+								changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => NotebookDto.toNotebookCellDto(cell))] as [number, number, NotebookCellDto[]])
 							});
 							break;
 						case NotebookCellsChangeType.Move:
@@ -89,7 +88,7 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 								append: e.append
 							});
 							break;
-						case NotebookCellsChangeType.ChangeLanguage:
+						case NotebookCellsChangeType.ChangeCellLanguage:
 						case NotebookCellsChangeType.ChangeCellContent:
 						case NotebookCellsChangeType.ChangeCellMetadata:
 						case NotebookCellsChangeType.ChangeCellInternalMetadata:
@@ -109,10 +108,6 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 					this._notebookEditorModelResolverService.isDirty(textModel.uri),
 					hasDocumentMetadataChangeEvent ? textModel.metadata : undefined
 				);
-
-				if (hasDocumentMetadataChangeEvent) {
-					this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { metadata: textModel.metadata });
-				}
 			}));
 
 			this._documentEventListenersMapping.set(textModel.uri, disposableStore);

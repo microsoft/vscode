@@ -165,17 +165,22 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	$watch(extensionId: string, session: number, resource: UriComponents, opts: IWatchOptions): void {
 		const uri = URI.revive(resource);
+		const isInsideWorkspace = this._contextService.isInsideWorkspace(uri);
 
-		// refuse to watch anything that is already watched via
-		// our workspace watchers
-		if (this._contextService.isInsideWorkspace(uri)) {
+		// Refuse to watch anything that is already watched via
+		// our workspace watchers in case the request is a
+		// recursive file watcher.
+		// Still allow for non-recursive watch requests as a way
+		// to bypass configured exlcude rules though
+		// (see https://github.com/microsoft/vscode/issues/146066)
+		if (isInsideWorkspace && opts.recursive) {
 			this._logService.trace(`MainThreadFileSystem#$watch(): ignoring request to start watching because path is inside workspace (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
 			return;
 		}
 
 		this._logService.trace(`MainThreadFileSystem#$watch(): request to start watching (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
 
-		// automatically add `files.watcherExclude` patterns when watching
+		// Automatically add `files.watcherExclude` patterns when watching
 		// recursively to give users a chance to configure exclude rules
 		// for reducing the overhead of watching recursively
 		if (opts.recursive) {
@@ -186,6 +191,35 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 						opts.excludes.push(key);
 					}
 				}
+			}
+		}
+
+		// Non-recursive watching inside the workspace will overlap with
+		// our standard workspace watchers. To prevent duplicate events,
+		// we only want to include events for files that are otherwise
+		// excluded via `files.watcherExclude`. As such, we configure
+		// to include each configured exclude pattern so that only those
+		// events are reported that are otherwise excluded.
+		else if (isInsideWorkspace) {
+			const config = this._configurationService.getValue<IFilesConfiguration>();
+			if (config.files?.watcherExclude) {
+				for (const key in config.files.watcherExclude) {
+					if (config.files.watcherExclude[key] === true) {
+						if (!opts.includes) {
+							opts.includes = [];
+						}
+
+						opts.includes.push(key);
+					}
+				}
+			}
+
+			// Still ignore watch request if there are actually no configured
+			// exclude rules, because in that case our default recursive watcher
+			// should be able to take care of all events.
+			if (!opts.includes || opts.includes.length === 0) {
+				this._logService.trace(`MainThreadFileSystem#$watch(): ignoring request to start watching because path is inside workspace and no excludes are configured (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
+				return;
 			}
 		}
 

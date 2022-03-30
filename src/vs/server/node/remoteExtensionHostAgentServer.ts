@@ -798,7 +798,7 @@ class WebEndpointOriginChecker {
 		const exampleOrigin = exampleUrl.origin;
 		const originRegExpSource = (
 			escapeRegExpCharacters(exampleOrigin)
-				.replace(uuid, '[a-zA-Z0-9\-]+')
+				.replace(uuid, '[a-zA-Z0-9\\-]+')
 		);
 		try {
 			const originRegExp = createRegExp(`^${originRegExpSource}$`, true, { matchCase: false });

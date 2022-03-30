@@ -54,9 +54,6 @@ declare module 'vscode' {
 	 */
 	export interface Tab {
 
-		// TODO@API consider adding:
-		// readonly index: number;
-
 		/**
 		 * The text displayed on the tab
 		 */
@@ -74,8 +71,8 @@ declare module 'vscode' {
 		readonly kind: TabKindText | TabKindTextDiff | TabKindCustom | TabKindWebview | TabKindNotebook | TabKindNotebookDiff | TabKindTerminal | unknown;
 
 		/**
-		 * Whether or not the tab is currently active
-		 * Dictated by being the selected tab in the group
+		 * Whether or not the tab is currently active.
+		 * This is dictated by being the selected tab in the group
 		 */
 		readonly isActive: boolean;
 
@@ -135,26 +132,30 @@ declare module 'vscode' {
 		/**
 		 * The currently active group
 		 */
+		// TOD@API name: maybe `activeGroup` to align with `groups` (which isn't tabGroups)
 		readonly activeTabGroup: TabGroup;
 
 		/**
-		 * An {@link Event} which fires when a group changes.
+		 * An {@link Event event} which fires when {@link TabGroup tab groups} has changed.
 		 */
-		// TODO@API add TabGroup instance
-		readonly onDidChangeTabGroup: Event<void>;
+		readonly onDidChangeTabGroups: Event<TabGroup[]>;
 
 		/**
-		 * An {@link Event} which fires when a tab changes.
+		 * An {@link Event event} which fires when a {@link Tab tabs} have changed.
 		 */
-		// TODO@API use richer event type?
-		// TODO@API future proof: event with an array of tab-instances
-		readonly onDidChangeTab: Event<Tab>;
+		readonly onDidChangeTabs: Event<Tab[]>;
+
+		/**
+		 * An {@link Event} which fires when an active tab changes.
+		 * Similar to {@link TabGroup.onDidChangeTabs} but only on tabs
+		 * with isActive equal to true.
+		 */
+		readonly onDidChangeActiveTab: Event<Tab>;
 
 		/**
 		 * An {@link Event} which fires when the active group changes.
 		 * This does not fire when the properties within the group change.
 		 */
-		// TODO@API consider to replace with onDidChangeActiveTAB (group can be inferred from that)
 		readonly onDidChangeActiveTabGroup: Event<TabGroup>;
 
 		/**

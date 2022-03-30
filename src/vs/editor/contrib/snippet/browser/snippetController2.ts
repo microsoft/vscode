@@ -145,7 +145,7 @@ export class SnippetController2 implements IEditorContribution {
 					}
 
 					const info = model.getWordUntilPosition(position);
-					const isDefaultOption = info.word === activeChoice.options[0].value;
+					const isAnyOfOptions = Boolean(activeChoice.options.find(o => o.value === info.word));
 					const suggestions: CompletionItem[] = [];
 					for (let i = 0; i < activeChoice.options.length; i++) {
 						const option = activeChoice.options[i];
@@ -155,7 +155,7 @@ export class SnippetController2 implements IEditorContribution {
 							insertText: option.value,
 							sortText: 'a'.repeat(i + 1),
 							range: new Range(position.lineNumber, info.startColumn, position.lineNumber, info.endColumn),
-							filterText: isDefaultOption ? `${info.word}_${option.value}` : option.value,
+							filterText: isAnyOfOptions ? `${info.word}_${option.value}` : undefined,
 							command: { id: 'jumpToNextSnippetPlaceholder', title: localize('next', 'Go to next placeholder...') }
 						});
 					}
