@@ -51,15 +51,19 @@ suite('markdown header references', () => {
 		));
 		const refs = await getReferences(doc, new vscode.Position(0, 3), new InMemoryWorkspaceMarkdownDocuments([doc]));
 
-		assert.deepStrictEqual(refs!.length, 2);
+		assert.deepStrictEqual(refs!.length, 3);
 
 		{
-			const ref1 = refs![0];
-			assert.deepStrictEqual(ref1.range.start.line, 2);
+			const ref = refs![0]; // Header own ref
+			assert.deepStrictEqual(ref.range.start.line, 0);
 		}
 		{
-			const ref2 = refs![1];
-			assert.deepStrictEqual(ref2.range.start.line, 4);
+			const ref = refs![1];
+			assert.deepStrictEqual(ref.range.start.line, 2);
+		}
+		{
+			const ref = refs![2];
+			assert.deepStrictEqual(ref.range.start.line, 4);
 		}
 	});
 
@@ -87,22 +91,27 @@ suite('markdown header references', () => {
 			))
 		]));
 
-		assert.deepStrictEqual(refs!.length, 3);
+		assert.deepStrictEqual(refs!.length, 4);
 
 		{
-			const ref1 = refs![0];
-			assert.deepStrictEqual(ref1.uri.toString(), docUri.toString());
-			assert.deepStrictEqual(ref1.range.start.line, 2);
+			const ref = refs![0]; // Header own ref
+			assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
+			assert.deepStrictEqual(ref.range.start.line, 0);
 		}
 		{
-			const ref2 = refs![1];
-			assert.deepStrictEqual(ref2.uri.toString(), other1Uri.toString());
-			assert.deepStrictEqual(ref2.range.start.line, 2);
+			const ref = refs![1];
+			assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
+			assert.deepStrictEqual(ref.range.start.line, 2);
 		}
 		{
-			const ref3 = refs![2];
-			assert.deepStrictEqual(ref3.uri.toString(), other2Uri.toString());
-			assert.deepStrictEqual(ref3.range.start.line, 2);
+			const ref = refs![2];
+			assert.deepStrictEqual(ref.uri.toString(), other1Uri.toString());
+			assert.deepStrictEqual(ref.range.start.line, 2);
+		}
+		{
+			const ref = refs![3];
+			assert.deepStrictEqual(ref.uri.toString(), other2Uri.toString());
+			assert.deepStrictEqual(ref.range.start.line, 2);
 		}
 	});
 });

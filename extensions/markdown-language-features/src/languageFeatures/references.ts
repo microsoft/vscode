@@ -26,7 +26,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		this._linkCache = this._register(new MdWorkspaceCache(workspaceContents, doc => linkProvider.getInlineLinks(doc.getText(), doc)));
 	}
 
-	async provideReferences(document: SkinnyTextDocument, position: vscode.Position, _context: vscode.ReferenceContext, token: vscode.CancellationToken): Promise<vscode.Location[] | undefined> {
+	async provideReferences(document: SkinnyTextDocument, position: vscode.Position, context: vscode.ReferenceContext, token: vscode.CancellationToken): Promise<vscode.Location[] | undefined> {
 		const toc = await TableOfContents.create(this.engine, document);
 		if (token.isCancellationRequested) {
 			return undefined;
@@ -37,17 +37,25 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 			return undefined;
 		}
 
-		const links = await Promise.all(await this._linkCache.getAll());
-		return links
+		const locations: vscode.Location[] = [];
+
+		if (context.includeDeclaration) {
+			const line = document.lineAt(header.line);
+			locations.push(new vscode.Location(document.uri, new vscode.Range(header.line, 0, header.line, line.text.length)));
+		}
+
+		(await Promise.all(await this._linkCache.getAll()))
 			.flat()
 			.filter(link => {
 				return link.target.kind === 'internal'
 					&& link.target.path.fsPath === document.uri.fsPath
 					&& link.target.fragment === header.slug.value;
 			})
-			.map(link => {
+			.forEach(link => {
 				const target = link.target as InternalLinkTarget;
-				return new vscode.Location(target.fromResource, link.sourceRange);
+				locations.push(new vscode.Location(target.fromResource, link.sourceRange));
 			});
+
+		return locations;
 	}
 }
