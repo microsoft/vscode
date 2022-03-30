@@ -200,6 +200,7 @@ export class SettingsEditor2 extends EditorPane {
 	private treeFocusedElement: SettingsTreeElement | null = null;
 	private settingsTreeScrollTop = 0;
 	private dimension!: DOM.Dimension;
+	private listHeight = 0;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -714,7 +715,7 @@ export class SettingsEditor2 extends EditorPane {
 			maximumSize: Number.POSITIVE_INFINITY,
 			layout: (width) => {
 				this.tocTreeContainer.style.width = `${width}px`;
-				this.tocTree.layout(undefined, width);
+				this.tocTree.layout(this.listHeight, width);
 			}
 		}, startingWidth, undefined, true);
 		this.splitView.addView({
@@ -724,7 +725,7 @@ export class SettingsEditor2 extends EditorPane {
 			maximumSize: Number.POSITIVE_INFINITY,
 			layout: (width) => {
 				this.settingsTreeContainer.style.width = `${width}px`;
-				this.settingsTree.layout(undefined, width);
+				this.settingsTree.layout(this.listHeight, width);
 			}
 		}, Sizing.Distribute, undefined, true);
 		this._register(this.splitView.onDidSashReset(() => {
@@ -1553,9 +1554,8 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private layoutSplitView(dimension: DOM.Dimension): void {
-		const listHeight = dimension.height - (72 + 11 + 14 /* header height + editor padding */);
-
-		this.splitView.el.style.height = `${listHeight}px`;
+		this.listHeight = dimension.height - (72 + 11 + 14 /* header height + editor padding */);
+		this.splitView.el.style.height = `${this.listHeight}px`;
 
 		// We call layout first so the splitView has an idea of how much
 		// space it has, otherwise setViewVisible results in the first panel
