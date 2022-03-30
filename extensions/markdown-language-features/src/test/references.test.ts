@@ -13,7 +13,7 @@ import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
-import { joinLines, noopToken, workspaceFile } from './util';
+import { joinLines, noopToken, workspacePath } from './util';
 
 
 function getReferences(doc: InMemoryDocument, pos: vscode.Position, workspaceContents: MdWorkspaceContents) {
@@ -36,7 +36,7 @@ function assertReferencesEqual(actualRefs: readonly vscode.Location[], ...expect
 
 suite('markdown: find all references', () => {
 	test('Should not return references when not on header or link', async () => {
-		const doc = new InMemoryDocument(workspaceFile('doc.md'), joinLines(
+		const doc = new InMemoryDocument(workspacePath('doc.md'), joinLines(
 			`# abc`,
 			``,
 			`[link 1](#abc)`,
@@ -54,7 +54,7 @@ suite('markdown: find all references', () => {
 	});
 
 	test('Should find references from header within same file', async () => {
-		const uri = workspaceFile('doc.md');
+		const uri = workspacePath('doc.md');
 		const doc = new InMemoryDocument(uri, joinLines(
 			`# abc`,
 			``,
@@ -71,7 +71,7 @@ suite('markdown: find all references', () => {
 	});
 
 	test('Should find references using normalized slug', async () => {
-		const doc = new InMemoryDocument(workspaceFile('doc.md'), joinLines(
+		const doc = new InMemoryDocument(workspacePath('doc.md'), joinLines(
 			`# a B c`,
 			`[simple](#a-b-c)`,
 			`[start underscore](#_a-b-c)`,
@@ -101,9 +101,9 @@ suite('markdown: find all references', () => {
 	});
 
 	test('Should find references from header across files', async () => {
-		const docUri = workspaceFile('doc.md');
-		const other1Uri = workspaceFile('sub', 'other.md');
-		const other2Uri = workspaceFile('other2.md');
+		const docUri = workspacePath('doc.md');
+		const other1Uri = workspacePath('sub', 'other.md');
+		const other2Uri = workspacePath('other2.md');
 
 		const doc = new InMemoryDocument(docUri, joinLines(
 			`# abc`,
@@ -133,7 +133,7 @@ suite('markdown: find all references', () => {
 	});
 
 	test('Should find references from header to link definitions ', async () => {
-		const uri = workspaceFile('doc.md');
+		const uri = workspacePath('doc.md');
 		const doc = new InMemoryDocument(uri, joinLines(
 			`# abc`,
 			``,
@@ -148,7 +148,7 @@ suite('markdown: find all references', () => {
 	});
 
 	test('Should find references from link within same file', async () => {
-		const uri = workspaceFile('doc.md');
+		const uri = workspacePath('doc.md');
 		const doc = new InMemoryDocument(uri, joinLines(
 			`# abc`,
 			``,
@@ -166,9 +166,9 @@ suite('markdown: find all references', () => {
 	});
 
 	test('Should find references from link across files', async () => {
-		const docUri = workspaceFile('doc.md');
-		const other1Uri = workspaceFile('sub', 'other.md');
-		const other2Uri = workspaceFile('other2.md');
+		const docUri = workspacePath('doc.md');
+		const other1Uri = workspacePath('sub', 'other.md');
+		const other2Uri = workspacePath('other2.md');
 
 		const doc = new InMemoryDocument(docUri, joinLines(
 			`# abc`,
@@ -200,8 +200,8 @@ suite('markdown: find all references', () => {
 	});
 
 	test('Should find references from link across files when triggered on link without file extension', async () => {
-		const docUri = workspaceFile('doc.md');
-		const other1Uri = workspaceFile('sub', 'other.md');
+		const docUri = workspacePath('doc.md');
+		const other1Uri = workspacePath('sub', 'other.md');
 
 		const doc = new InMemoryDocument(docUri, joinLines(
 			`[with ext](./sub/other#header)`,
@@ -225,8 +225,8 @@ suite('markdown: find all references', () => {
 	});
 
 	test('Should include header references when triggered on file link', async () => {
-		const docUri = workspaceFile('doc.md');
-		const otherUri = workspaceFile('sub', 'other.md');
+		const docUri = workspacePath('doc.md');
+		const otherUri = workspacePath('sub', 'other.md');
 
 		const doc = new InMemoryDocument(docUri, joinLines(
 			`[with ext](./sub/other)`,
@@ -252,7 +252,7 @@ suite('markdown: find all references', () => {
 
 	suite('Reference links', () => {
 		test('Should find reference links within file', async () => {
-			const docUri = workspaceFile('doc.md');
+			const docUri = workspacePath('doc.md');
 			const doc = new InMemoryDocument(docUri, joinLines(
 				`[link 1][abc]`,
 				``,
@@ -267,7 +267,7 @@ suite('markdown: find all references', () => {
 		});
 
 		test('Should not find reference links across files', async () => {
-			const docUri = workspaceFile('doc.md');
+			const docUri = workspacePath('doc.md');
 			const doc = new InMemoryDocument(docUri, joinLines(
 				`[link 1][abc]`,
 				``,
@@ -276,7 +276,7 @@ suite('markdown: find all references', () => {
 
 			const refs = await getReferences(doc, new vscode.Position(0, 12), new InMemoryWorkspaceMarkdownDocuments([
 				doc,
-				new InMemoryDocument(workspaceFile('other.md'), joinLines(
+				new InMemoryDocument(workspacePath('other.md'), joinLines(
 					`[link 1][abc]`,
 					``,
 					`[abc]: https://example.com?bad`,
