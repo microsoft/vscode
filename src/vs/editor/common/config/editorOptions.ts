@@ -2514,6 +2514,13 @@ export interface IEditorInlayHintsOptions {
 	 * Defaults to editor font family.
 	 */
 	fontFamily?: string;
+
+	/**
+	 * The display style to render inlay hints with.
+	 * Compact mode disables the borders and padding around the inlay hint.
+	 * Defaults to 'standard'.
+	 */
+	displayStyle: 'standard' | 'compact'
 }
 
 /**
@@ -2524,7 +2531,7 @@ export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions
 class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditorInlayHintsOptions, EditorInlayHintsOptions> {
 
 	constructor() {
-		const defaults: EditorInlayHintsOptions = { enabled: true, fontSize: 0, fontFamily: '' };
+		const defaults: EditorInlayHintsOptions = { enabled: true, fontSize: 0, fontFamily: '', displayStyle: 'standard' };
 		super(
 			EditorOption.inlayHints, 'inlayHints', defaults,
 			{
@@ -2543,6 +2550,16 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					default: defaults.fontFamily,
 					markdownDescription: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
 				},
+				'editor.inlayHints.displayStyle': {
+					type: 'string',
+					enum: ['standard', 'compact'],
+					enumDescriptions: [
+						nls.localize('inlayHints.displayStyle.standard', "Renders inlay hints with the default style."),
+						nls.localize('inlayHints.displayStyle.compact', "Renders inlay hints without any padding, and removes the rounded borders."),
+					],
+					default: defaults.displayStyle,
+					description: nls.localize('inlayHints.displayStyle', "Controls the display style of inlay hints.")
+				}
 			}
 		);
 	}
@@ -2555,7 +2572,8 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			fontSize: EditorIntOption.clampedInt(input.fontSize, this.defaultValue.fontSize, 0, 100),
-			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily)
+			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
+			displayStyle: stringSet<'standard' | 'compact'>(input.displayStyle, this.defaultValue.displayStyle, ["standard", "compact"])
 		};
 	}
 }
