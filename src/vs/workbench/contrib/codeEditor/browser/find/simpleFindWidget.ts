@@ -173,7 +173,7 @@ export abstract class SimpleFindWidget extends Widget {
 	protected abstract _onFocusTrackerBlur(): void;
 	protected abstract _onFindInputFocusTrackerFocus(): void;
 	protected abstract _onFindInputFocusTrackerBlur(): void;
-	protected abstract _getResultCount(): { resultIndex: number; resultCount: number } | boolean | undefined;
+	protected abstract _getResultCount(dataChanged?: boolean): Promise<{ resultIndex: number; resultCount: number } | boolean | undefined>;
 
 	protected get inputValue() {
 		return this._findInput.getValue();
@@ -297,17 +297,18 @@ export abstract class SimpleFindWidget extends Widget {
 		this._findInput.inputBox.focus();
 	}
 
-	async updateResultCount(): Promise<void> {
-		const count = await this._getResultCount();
+	async updateResultCount(dataChanged?: boolean): Promise<void> {
+		const count = await this._getResultCount(dataChanged);
 		if (!this._matchesCount) {
 			this._matchesCount = document.createElement('div');
 			this._matchesCount.className = 'matchesCount';
 		}
-		if (!count || count === true) {
+
+		if (count === true) {
 			return;
 		}
 		this._matchesCount.innerText = '';
-		const label = count.resultCount === 0 ? `No Results` : `${count.resultIndex} of ${count.resultCount}`;
+		const label = !count || count.resultCount === 0 ? `No Results` : `${count.resultIndex} of ${count.resultCount}`;
 		this._matchesCount.appendChild(document.createTextNode(label));
 		this._matchesCount.classList.toggle('no-results', !count || count.resultCount === 0);
 		this._findInput?.domNode.insertAdjacentElement('afterend', this._matchesCount);

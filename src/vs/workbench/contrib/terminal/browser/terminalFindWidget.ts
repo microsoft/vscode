@@ -19,7 +19,10 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	private _findWidgetVisible: IContextKey<boolean>;
 	private _lastResult: { resultIndex: number; resultCount: number } | boolean | undefined;
 
-	protected _getResultCount(): { resultIndex: number; resultCount: number } | boolean | undefined {
+	protected async _getResultCount(dataChanged?: boolean): Promise<{ resultIndex: number; resultCount: number } | boolean | undefined> {
+		if (dataChanged) {
+			await this.find(true);
+		}
 		return this._lastResult;
 	}
 

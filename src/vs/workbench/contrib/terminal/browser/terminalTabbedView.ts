@@ -153,7 +153,9 @@ export class TerminalTabbedView extends Disposable {
 
 		this._setupSplitView(terminalOuterContainer);
 
-		this._terminalService.onDidCreateInstance(instance => instance.onDidChangeFindResults(() => this._findWidget.updateResultCount()));
+		this._terminalService.onDidCreateInstance(instance => instance.onDidChangeFindResults(() => {
+			this._findWidget.updateResultCount(true);
+		}));
 	}
 
 	private _shouldShowTabs(): boolean {
