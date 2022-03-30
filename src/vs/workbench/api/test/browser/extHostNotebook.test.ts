@@ -409,7 +409,7 @@ suite('NotebookCell#Document', function () {
 
 		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
 			versionId: 12, rawEvents: [{
-				kind: NotebookCellsChangeType.ChangeLanguage,
+				kind: NotebookCellsChangeType.ChangeCellLanguage,
 				index: 0,
 				language: 'fooLang'
 			}]
@@ -508,7 +508,7 @@ suite('NotebookCell#Document', function () {
 		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
 			versionId: 12,
 			rawEvents: [{
-				kind: NotebookCellsChangeType.ChangeLanguage,
+				kind: NotebookCellsChangeType.ChangeCellLanguage,
 				index: 0,
 				language: 'fooLang'
 			}]

@@ -242,7 +242,7 @@ export class ExtHostNotebookDocument {
 				this._setCellOutputItems(rawEvent.index, rawEvent.outputId, rawEvent.append, rawEvent.outputItems);
 				relaxedCellChanges.push({ cell: this._cells[rawEvent.index].apiCell, outputs: this._cells[rawEvent.index].apiCell.outputs });
 
-			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeLanguage) {
+			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeCellLanguage) {
 				this._changeCellLanguage(rawEvent.index, rawEvent.language);
 				relaxedCellChanges.push({ cell: this._cells[rawEvent.index].apiCell, document: this._cells[rawEvent.index].apiCell.document });
 
