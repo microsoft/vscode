@@ -362,9 +362,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			if (typeof profile.args === 'string') {
 				profile.args = await this._resolveVariables(profile.args, env, lastActiveWorkspace);
 			} else {
-				for (let i = 0; i < profile.args.length; i++) {
-					profile.args[i] = await this._resolveVariables(profile.args[i], env, lastActiveWorkspace);
-				}
+				profile.args = await Promise.all(profile.args.map(arg => this._resolveVariables(arg, env, lastActiveWorkspace)));
 			}
 		}
 

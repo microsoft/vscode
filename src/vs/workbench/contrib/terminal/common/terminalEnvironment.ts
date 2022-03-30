@@ -79,8 +79,7 @@ function mergeNonNullKeys(env: IProcessEnvironment, other: ITerminalEnvironment 
 }
 
 async function resolveConfigurationVariables(variableResolver: VariableResolver, env: ITerminalEnvironment): Promise<ITerminalEnvironment> {
-	for (const key of Object.keys(env)) {
-		const value = env[key];
+	await Promise.all(Object.entries(env).map(async ([key, value]) => {
 		if (typeof value === 'string') {
 			try {
 				env[key] = await variableResolver(value);
@@ -88,7 +87,7 @@ async function resolveConfigurationVariables(variableResolver: VariableResolver,
 				env[key] = value;
 			}
 		}
-	}
+	}));
 
 	return env;
 }
