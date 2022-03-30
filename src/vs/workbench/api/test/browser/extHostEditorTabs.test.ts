@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import assert = require('assert');
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
-import { IEditorTabDto, MainThreadEditorTabsShape, TabInputKind, TextInputDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IEditorTabDto, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TextInputDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { TextTabInput } from 'vs/workbench/api/common/extHostTypes';
@@ -248,7 +248,12 @@ suite('ExtHostEditorTabs', function () {
 
 		const tabDto2: IEditorTabDto = { ...tabDto, isDirty: false };
 		// Accept a simple update
-		extHostEditorTabs.$acceptTabUpdate(12, tabDto2);
+		extHostEditorTabs.$acceptTabOperation({
+			kind: TabModelOperationKind.TAB_UPDATE,
+			index: 0,
+			tabDto: tabDto2,
+			groupId: 12
+		});
 
 		all = extHostEditorTabs.tabGroups.groups.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 1);
@@ -306,7 +311,12 @@ suite('ExtHostEditorTabs', function () {
 		assert.strictEqual(activeTab1?.kind?.uri.toString(), URI.revive(dtoAAAResource)?.toString());
 		assert.strictEqual(activeTab1?.isActive, true);
 
-		extHostEditorTabs.$acceptTabUpdate(12, { ...tabDtoBBB, isActive: true }); /// BBB is now active
+		extHostEditorTabs.$acceptTabOperation({
+			groupId: 12,
+			index: 1,
+			kind: TabModelOperationKind.TAB_UPDATE,
+			tabDto: { ...tabDtoBBB, isActive: true } /// BBB is now active
+		});
 
 		const activeTab2 = extHostEditorTabs.tabGroups.activeTabGroup?.activeTab;
 		assert.ok(activeTab2?.kind instanceof TextTabInput);
@@ -415,7 +425,12 @@ suite('ExtHostEditorTabs', function () {
 
 		const p = new Promise<vscode.Tab[]>(resolve => extHostEditorTabs.tabGroups.onDidChangeTabs(resolve));
 
-		extHostEditorTabs.$acceptTabUpdate(12, { ...tabDto, label: 'NEW LABEL' });
+		extHostEditorTabs.$acceptTabOperation({
+			groupId: 12,
+			index: 0,
+			kind: TabModelOperationKind.TAB_UPDATE,
+			tabDto: { ...tabDto, label: 'NEW LABEL' }
+		});
 
 		const changedTab = (await p)[0];
 
@@ -466,8 +481,18 @@ suite('ExtHostEditorTabs', function () {
 		// Switching active tab works
 		tab1.isActive = false;
 		tab2.isActive = true;
-		extHostEditorTabs.$acceptTabUpdate(12, tab1);
-		extHostEditorTabs.$acceptTabUpdate(12, tab2);
+		extHostEditorTabs.$acceptTabOperation({
+			groupId: 12,
+			index: 0,
+			kind: TabModelOperationKind.TAB_UPDATE,
+			tabDto: tab1
+		});
+		extHostEditorTabs.$acceptTabOperation({
+			groupId: 12,
+			index: 1,
+			kind: TabModelOperationKind.TAB_UPDATE,
+			tabDto: tab2
+		});
 		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup?.activeTab, extHostEditorTabs.tabGroups.activeTabGroup?.tabs[1]);
 
 		//Closing tabs out works
@@ -541,8 +566,19 @@ suite('ExtHostEditorTabs', function () {
 		// Switching active tab works
 		tab1.isActive = false;
 		tab2.isActive = true;
-		extHostEditorTabs.$acceptTabUpdate(12, tab1);
-		extHostEditorTabs.$acceptTabUpdate(12, tab2);
+
+		extHostEditorTabs.$acceptTabOperation({
+			groupId: 12,
+			index: 0,
+			kind: TabModelOperationKind.TAB_UPDATE,
+			tabDto: tab1
+		});
+		extHostEditorTabs.$acceptTabOperation({
+			groupId: 12,
+			index: 1,
+			kind: TabModelOperationKind.TAB_UPDATE,
+			tabDto: tab2
+		});
 		// The active tab changed so it is fired once
 		assert.strictEqual(activeTabChangeCount, 1);
 
@@ -557,8 +593,89 @@ suite('ExtHostEditorTabs', function () {
 		// Accepting a model doesn't fire an active tab change event
 		assert.strictEqual(activeTabChangeCount, 1);
 		tab3.label = 'Foobar';
-		extHostEditorTabs.$acceptTabUpdate(12, tab3);
+		extHostEditorTabs.$acceptTabOperation({
+			groupId: 12,
+			index: 0,
+			kind: TabModelOperationKind.TAB_UPDATE,
+			tabDto: tab3
+		});
 		// Something related to the active tab changed
 		assert.strictEqual(activeTabChangeCount, 2);
+	});
+	test('Tab operations patches open and close correctly', function () {
+		const extHostEditorTabs = new ExtHostEditorTabs(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
+				// override/implement $moveTab or $closeTab
+			})
+		);
+
+		const tab1: IEditorTabDto = createTabDto({
+			id: 'uniquestring',
+			isActive: true,
+			label: 'label1',
+		});
+
+		const tab2: IEditorTabDto = createTabDto({
+			isActive: false,
+			id: 'uniquestring2',
+			label: 'label2',
+		});
+
+		const tab3: IEditorTabDto = createTabDto({
+			isActive: false,
+			id: 'uniquestring3',
+			label: 'label3',
+		});
+
+		extHostEditorTabs.$acceptEditorTabModel([{
+			isActive: true,
+			viewColumn: 0,
+			groupId: 12,
+			tabs: [tab1, tab2, tab3]
+		}]);
+
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 3);
+
+		// Close tab 2
+		extHostEditorTabs.$acceptTabOperation({
+			groupId: 12,
+			index: 1,
+			kind: TabModelOperationKind.TAB_CLOSE,
+			tabDto: tab2
+		});
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 2);
+
+		// Close active tab and update tab 3 to be active
+		extHostEditorTabs.$acceptTabOperation({
+			groupId: 12,
+			index: 0,
+			kind: TabModelOperationKind.TAB_CLOSE,
+			tabDto: tab1
+		});
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 1);
+		tab3.isActive = true;
+		extHostEditorTabs.$acceptTabOperation({
+			groupId: 12,
+			index: 0,
+			kind: TabModelOperationKind.TAB_UPDATE,
+			tabDto: tab3
+		});
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups[0]?.activeTab?.label, 'label3');
+
+		// Open tab 2 back
+		extHostEditorTabs.$acceptTabOperation({
+			groupId: 12,
+			index: 1,
+			kind: TabModelOperationKind.TAB_OPEN,
+			tabDto: tab2
+		});
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 2);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups[0]?.tabs[1]?.label, 'label2');
 	});
 });

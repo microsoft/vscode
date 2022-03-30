@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { StandardTokenType } from 'vs/editor/common/languages';
 import { StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('StandardAutoClosingPairConditional', () => {
@@ -94,8 +93,8 @@ suite('StandardAutoClosingPairConditional', () => {
 	test('language configurations priorities', () => {
 		const languageConfigurationService = new TestLanguageConfigurationService();
 		const id = 'testLang1';
-		const d1 = LanguageConfigurationRegistry.register(id, { comments: { lineComment: '1' } }, 100);
-		const d2 = LanguageConfigurationRegistry.register(id, { comments: { lineComment: '2' } }, 10);
+		const d1 = languageConfigurationService.register(id, { comments: { lineComment: '1' } }, 100);
+		const d2 = languageConfigurationService.register(id, { comments: { lineComment: '2' } }, 10);
 		assert.strictEqual(languageConfigurationService.getLanguageConfiguration(id).comments?.lineCommentToken, '1');
 		d1.dispose();
 		d2.dispose();

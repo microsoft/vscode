@@ -2,16 +2,30 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Selection } from 'vs/editor/common/core/selection';
+import { ICommand } from 'vs/editor/common/editorCommon';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { BlockCommentCommand } from 'vs/editor/contrib/comment/browser/blockCommentCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { CommentMode } from 'vs/editor/test/common/commentMode';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+
+function _testCommentCommand(lines: string[], selection: Selection, commandFactory: (accessor: ServicesAccessor, selection: Selection) => ICommand, expectedLines: string[], expectedSelection: Selection): void {
+	const languageId = 'commentMode';
+	const prepare = (accessor: ServicesAccessor, disposables: DisposableStore) => {
+		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
+		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			comments: { lineComment: '!@#', blockComment: ['<0', '0>'] }
+		}));
+	};
+	testCommand(lines, languageId, selection, commandFactory, expectedLines, expectedSelection, undefined, prepare);
+}
 
 function testBlockCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<0', '0>'] });
-	testCommand(lines, mode.languageId, selection, (sel) => new BlockCommentCommand(sel, true, new TestLanguageConfigurationService()), expectedLines, expectedSelection);
-	mode.dispose();
+	_testCommentCommand(lines, selection, (accessor, sel) => new BlockCommentCommand(sel, true, accessor.get(ILanguageConfigurationService)), expectedLines, expectedSelection);
 }
 
 suite('Editor Contrib - Block Comment Command', () => {
@@ -470,14 +484,9 @@ suite('Editor Contrib - Block Comment Command', () => {
 		);
 	});
 
-	test('', () => {
-	});
-
 	test('insertSpace false', () => {
 		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-			let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<0', '0>'] });
-			testCommand(lines, mode.languageId, selection, (sel) => new BlockCommentCommand(sel, false, new TestLanguageConfigurationService()), expectedLines, expectedSelection);
-			mode.dispose();
+			_testCommentCommand(lines, selection, (accessor, sel) => new BlockCommentCommand(sel, false, accessor.get(ILanguageConfigurationService)), expectedLines, expectedSelection);
 		}
 
 		testLineCommentCommand(
@@ -494,9 +503,7 @@ suite('Editor Contrib - Block Comment Command', () => {
 
 	test('insertSpace false does not remove space', () => {
 		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-			let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<0', '0>'] });
-			testCommand(lines, mode.languageId, selection, (sel) => new BlockCommentCommand(sel, false, new TestLanguageConfigurationService()), expectedLines, expectedSelection);
-			mode.dispose();
+			_testCommentCommand(lines, selection, (accessor, sel) => new BlockCommentCommand(sel, false, accessor.get(ILanguageConfigurationService)), expectedLines, expectedSelection);
 		}
 
 		testLineCommentCommand(
