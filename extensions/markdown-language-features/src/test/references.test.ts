@@ -244,9 +244,30 @@ suite('markdown: find all references', () => {
 		]));
 
 		assertReferencesEqual(refs!,
-			{ uri: docUri, line: 0 }, // Header definition
+			{ uri: docUri, line: 0 },
 			{ uri: docUri, line: 1 },
 			{ uri: docUri, line: 2 },
+		);
+	});
+
+	test('Should not include refs from other file to own header', async () => {
+		const docUri = workspacePath('doc.md');
+		const otherUri = workspacePath('sub', 'other.md');
+
+		const doc = new InMemoryDocument(docUri, joinLines(
+			`[other](./sub/other)`,
+		));
+
+		const refs = await getReferences(doc, new vscode.Position(0, 15), new InMemoryWorkspaceMarkdownDocuments([
+			doc,
+			new InMemoryDocument(otherUri, joinLines(
+				`# header`, // Definition should not be included since we triggered on a file link
+				`[text](#header)`, // Definition should not be included since we triggered on a file link
+			)),
+		]));
+
+		assertReferencesEqual(refs!,
+			{ uri: docUri, line: 0 },
 		);
 	});
 

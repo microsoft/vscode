@@ -135,7 +135,11 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 					references.push(new vscode.Location(link.target.fromResource, link.sourceRange));
 				}
 			} else { // Triggered on a link without a fragment so we only require matching the file and ignore fragments
-				references.push(new vscode.Location(link.target.fromResource, link.sourceRange));
+
+				// But exclude cases where the file is referencing itself
+				if (link.target.fromResource.fsPath !== targetDoc.uri.fsPath) {
+					references.push(new vscode.Location(link.target.fromResource, link.sourceRange));
+				}
 			}
 		}
 
