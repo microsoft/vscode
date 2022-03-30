@@ -41,13 +41,6 @@ class ExtHostVariableResolverService extends AbstractVariableResolverService {
 		context: DynamicContext,
 		homeDir: string | undefined,
 	) {
-
-		// folders: vscode.WorkspaceFolder[],
-		// editorService: ExtHostDocumentsAndEditors | undefined,
-		// configurationService: ExtHostConfigProvider,
-		// editorTabs: IExtHostEditorTabs,
-		// workspaceService?: IExtHostWorkspace,
-		// userHome?: string) {
 		function getActiveUri(): URI | undefined {
 			if (editorService) {
 				const activeEditor = editorService.activeEditor();

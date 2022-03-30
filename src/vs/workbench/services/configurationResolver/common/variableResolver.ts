@@ -11,7 +11,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IProcessEnvironment, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { localize } from 'vs/nls';
-import { URI, URI as uri } from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -27,7 +27,7 @@ export interface IVariableResolveContext {
 	getWorkspaceFolderPathForFile?(): string | undefined;
 	getSelectedText(): string | undefined;
 	getLineNumber(): string | undefined;
-	getExtension(id: string): Promise<{ readonly extensionLocation: URI } | undefined>;
+	getExtension(id: string): Promise<{ readonly extensionLocation: uri } | undefined>;
 }
 
 type Environment = { env: IProcessEnvironment | undefined; userHome: string | undefined };
@@ -277,7 +277,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 					if (!ext) {
 						throw new Error(localize('extensionNotInstalled', "Variable {0} can not be resolved because the extension {1} is not installed.", match, argument));
 					}
-					return ext.extensionLocation.fsPath;
+					return this.fsPath(ext.extensionLocation);
 				}
 				throw new Error(localize('missingExtensionName', "Variable {0} can not be resolved because no extension name is given.", match));
 
