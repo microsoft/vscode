@@ -190,31 +190,7 @@ function isLinkInsideCode(code: CodeInDocument, link: LinkData) {
 		code.inline.some(position => position.intersection(link.sourceRange));
 }
 
-function createDocumentLink(link: LinkData, definitionSet: LinkDefinitionSet): vscode.DocumentLink | undefined {
-	switch (link.target.kind) {
-		case 'external': {
-			return new vscode.DocumentLink(link.sourceRange, link.target.uri);
-		}
-		case 'internal': {
-			const uri = OpenDocumentLinkCommand.createCommandUri(link.sourceResource, link.target.path, link.target.fragment);
-			const documentLink = new vscode.DocumentLink(link.sourceRange, uri);
-			documentLink.tooltip = localize('documentLink.tooltip', 'Follow link');
-			return documentLink;
-		}
-		case 'reference': {
-			const def = definitionSet.lookup(link.target.ref);
-			if (def) {
-				return new vscode.DocumentLink(
-					link.sourceRange,
-					vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([def.sourceRange.start.line, def.sourceRange.start.character]))}`));
-			} else {
-				return undefined;
-			}
-		}
-		case 'definition':
-			return createDocumentLink({ sourceRange: link.sourceRange, sourceResource: link.sourceResource, target: link.target.target }, definitionSet);
-	}
-}
+
 
 export class MdLinkProvider implements vscode.DocumentLinkProvider {
 
@@ -233,7 +209,33 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 
 		const definitionSet = new LinkDefinitionSet(allLinks);
 		return coalesce(allLinks
-			.map(data => createDocumentLink(data, definitionSet)));
+			.map(data => this.toValidDocumentLink(data, definitionSet)));
+	}
+
+	private toValidDocumentLink(link: LinkData, definitionSet: LinkDefinitionSet): vscode.DocumentLink | undefined {
+		switch (link.target.kind) {
+			case 'external': {
+				return new vscode.DocumentLink(link.sourceRange, link.target.uri);
+			}
+			case 'internal': {
+				const uri = OpenDocumentLinkCommand.createCommandUri(link.sourceResource, link.target.path, link.target.fragment);
+				const documentLink = new vscode.DocumentLink(link.sourceRange, uri);
+				documentLink.tooltip = localize('documentLink.tooltip', 'Follow link');
+				return documentLink;
+			}
+			case 'reference': {
+				const def = definitionSet.lookup(link.target.ref);
+				if (def) {
+					return new vscode.DocumentLink(
+						link.sourceRange,
+						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([def.sourceRange.start.line, def.sourceRange.start.character]))}`));
+				} else {
+					return undefined;
+				}
+			}
+			case 'definition':
+				return this.toValidDocumentLink({ sourceRange: link.sourceRange, sourceResource: link.sourceResource, target: link.target.target }, definitionSet);
+		}
 	}
 
 	public async getAllLinks(document: SkinnyTextDocument): Promise<LinkData[]> {
