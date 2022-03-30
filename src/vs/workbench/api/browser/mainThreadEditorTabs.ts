@@ -96,7 +96,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			};
 		}
 
-		if (editor instanceof SideBySideEditorInput) {
+		if (editor instanceof SideBySideEditorInput && !(editor instanceof DiffEditorInput)) {
 			const primaryResource = editor.primary.resource;
 			const secondaryResource = editor.secondary.resource;
 			// If side by side editor with same resource on both sinds treat it as a singular tab kind
