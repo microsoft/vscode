@@ -623,7 +623,8 @@ export const enum TabInputKind {
 
 export const enum TabModelOperationKind {
 	TAB_OPEN,
-	TAB_CLOSE
+	TAB_CLOSE,
+	TAB_UPDATE
 }
 
 export interface UnknownInputDto {
@@ -687,9 +688,11 @@ export interface IEditorTabGroupDto {
 }
 
 export interface TabOperation {
-	readonly kind: TabModelOperationKind.TAB_OPEN | TabModelOperationKind.TAB_CLOSE;
+	readonly kind: TabModelOperationKind.TAB_OPEN | TabModelOperationKind.TAB_CLOSE | TabModelOperationKind.TAB_UPDATE;
+	// TODO @lramos15 Possibly get rid of index for tab update, it's only needed for open and close
 	readonly index: number;
-	readonly tab: IEditorTabDto;
+	readonly tabDto: IEditorTabDto;
+	readonly groupId: number;
 }
 
 export interface IEditorTabDto {
@@ -708,8 +711,8 @@ export interface IExtHostEditorTabsShape {
 	$acceptEditorTabModel(tabGroups: IEditorTabGroupDto[]): void;
 	// Only when group property changes (not the tabs inside)
 	$acceptTabGroupUpdate(groupDto: IEditorTabGroupDto): void;
-	// Only when tab property changes
-	$acceptTabUpdate(groupId: number, tabDto: IEditorTabDto): void;
+	// When a tab is added, removed, or updated
+	$acceptTabOperation(operation: TabOperation): void;
 }
 
 //#endregion
