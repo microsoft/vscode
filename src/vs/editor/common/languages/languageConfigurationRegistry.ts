@@ -201,38 +201,22 @@ export class LanguageConfigurationRegistryImpl {
 		const entries = this._entries.get(languageId);
 		return entries?.getResolvedConfiguration() || null;
 	}
+}
 
-	// begin onEnter
-
-	public getIndentationAtPosition(model: ITextModel, lineNumber: number, column: number): string {
-		const lineText = model.getLineContent(lineNumber);
-		let indentation = strings.getLeadingWhitespace(lineText);
-		if (indentation.length > column - 1) {
-			indentation = indentation.substring(0, column - 1);
-		}
-		return indentation;
+export function getIndentationAtPosition(model: ITextModel, lineNumber: number, column: number): string {
+	const lineText = model.getLineContent(lineNumber);
+	let indentation = strings.getLeadingWhitespace(lineText);
+	if (indentation.length > column - 1) {
+		indentation = indentation.substring(0, column - 1);
 	}
+	return indentation;
+}
 
-	public getScopedLineTokens(model: ITextModel, lineNumber: number, columnNumber?: number): ScopedLineTokens {
-		model.forceTokenization(lineNumber);
-		const lineTokens = model.getLineTokens(lineNumber);
-		const column = (typeof columnNumber === 'undefined' ? model.getLineMaxColumn(lineNumber) - 1 : columnNumber - 1);
-		return createScopedLineTokens(lineTokens, column);
-	}
-
-	// end onEnter
-
-	public getBracketsSupport(languageId: string): RichEditBrackets | null {
-		const value = this.getLanguageConfiguration(languageId);
-		if (!value) {
-			return null;
-		}
-		return value.brackets || null;
-	}
-
-	public getColorizedBracketPairs(languageId: string): readonly CharacterPair[] {
-		return this.getLanguageConfiguration(languageId)?.characterPair.getColorizedBrackets() || [];
-	}
+export function getScopedLineTokens(model: ITextModel, lineNumber: number, columnNumber?: number): ScopedLineTokens {
+	model.forceTokenization(lineNumber);
+	const lineTokens = model.getLineTokens(lineNumber);
+	const column = (typeof columnNumber === 'undefined' ? model.getLineMaxColumn(lineNumber) - 1 : columnNumber - 1);
+	return createScopedLineTokens(lineTokens, column);
 }
 
 /**

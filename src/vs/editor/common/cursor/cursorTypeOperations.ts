@@ -17,7 +17,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { ICommand, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { EnterAction, IndentAction, StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { getIndentationAtPosition } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
@@ -40,7 +40,7 @@ export class TypeOperations {
 				insertSpaces: config.insertSpaces,
 				useTabStops: config.useTabStops,
 				autoIndent: config.autoIndent
-			});
+			}, config.languageConfigurationService);
 		}
 		return commands;
 	}
@@ -55,7 +55,7 @@ export class TypeOperations {
 				insertSpaces: config.insertSpaces,
 				useTabStops: config.useTabStops,
 				autoIndent: config.autoIndent
-			});
+			}, config.languageConfigurationService);
 		}
 		return commands;
 	}
@@ -175,7 +175,7 @@ export class TypeOperations {
 			}
 
 			const maxColumn = model.getLineMaxColumn(lastLineNumber);
-			const expectedEnterAction = getEnterAction(config.autoIndent, model, new Range(lastLineNumber, maxColumn, lastLineNumber, maxColumn));
+			const expectedEnterAction = getEnterAction(config.autoIndent, model, new Range(lastLineNumber, maxColumn, lastLineNumber, maxColumn), config.languageConfigurationService);
 			if (expectedEnterAction) {
 				indentation = expectedEnterAction.indentation + expectedEnterAction.appendText;
 			}
@@ -255,7 +255,7 @@ export class TypeOperations {
 					insertSpaces: config.insertSpaces,
 					useTabStops: config.useTabStops,
 					autoIndent: config.autoIndent
-				});
+				}, config.languageConfigurationService);
 			}
 		}
 		return commands;
@@ -306,7 +306,7 @@ export class TypeOperations {
 			return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
 		}
 
-		const r = getEnterAction(config.autoIndent, model, range);
+		const r = getEnterAction(config.autoIndent, model, range, config.languageConfigurationService);
 		if (r) {
 			if (r.indentAction === IndentAction.None) {
 				// Nothing special
@@ -394,7 +394,7 @@ export class TypeOperations {
 	}
 
 	private static _runAutoIndentType(config: CursorConfiguration, model: ITextModel, range: Range, ch: string): ICommand | null {
-		const currentIndentation = LanguageConfigurationRegistry.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
+		const currentIndentation = getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
 		const actualIndentation = getIndentActionForType(config.autoIndent, model, range, ch, {
 			shiftIndent: (indentation) => {
 				return TypeOperations.shiftIndent(config, indentation);

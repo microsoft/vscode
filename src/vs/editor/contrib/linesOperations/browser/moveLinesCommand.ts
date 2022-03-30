@@ -299,7 +299,7 @@ export class MoveLinesCommand implements ICommand {
 		if (strings.lastNonWhitespaceIndex(futureAboveLineText) >= 0) {
 			// break
 			let maxColumn = model.getLineMaxColumn(futureAboveLineNumber);
-			let enter = getEnterAction(this._autoIndent, model, new Range(futureAboveLineNumber, maxColumn, futureAboveLineNumber, maxColumn));
+			let enter = getEnterAction(this._autoIndent, model, new Range(futureAboveLineNumber, maxColumn, futureAboveLineNumber, maxColumn), this._languageConfigurationService);
 			return this.parseEnterResult(model, indentConverter, tabSize, line, enter);
 		} else {
 			// go upwards, starting from `line - 1`
@@ -320,7 +320,7 @@ export class MoveLinesCommand implements ICommand {
 			}
 
 			let maxColumn = model.getLineMaxColumn(validPrecedingLine);
-			let enter = getEnterAction(this._autoIndent, model, new Range(validPrecedingLine, maxColumn, validPrecedingLine, maxColumn));
+			let enter = getEnterAction(this._autoIndent, model, new Range(validPrecedingLine, maxColumn, validPrecedingLine, maxColumn), this._languageConfigurationService);
 			return this.parseEnterResult(model, indentConverter, tabSize, line, enter);
 		}
 	}
@@ -348,7 +348,7 @@ export class MoveLinesCommand implements ICommand {
 		}
 
 		let maxColumn = model.getLineMaxColumn(validPrecedingLine);
-		let enter = getEnterAction(this._autoIndent, model, new Range(validPrecedingLine, maxColumn, validPrecedingLine, maxColumn));
+		let enter = getEnterAction(this._autoIndent, model, new Range(validPrecedingLine, maxColumn, validPrecedingLine, maxColumn), this._languageConfigurationService);
 		return this.parseEnterResult(model, indentConverter, tabSize, line, enter);
 	}
 

@@ -14,6 +14,7 @@ import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 /**
  * Create single edit operation
@@ -44,7 +45,7 @@ class DocBlockCommentMode extends MockMode {
 	}
 }
 
-function testShiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+function testShiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService = new TestLanguageConfigurationService()): void {
 	testCommand(lines, languageId, selection, (sel) => new ShiftCommand(sel, {
 		isUnshift: false,
 		tabSize: 4,
@@ -52,10 +53,10 @@ function testShiftCommand(lines: string[], languageId: string | null, useTabStop
 		insertSpaces: false,
 		useTabStops: useTabStops,
 		autoIndent: EditorAutoIndentStrategy.Full,
-	}), expectedLines, expectedSelection);
+	}, languageConfigurationService), expectedLines, expectedSelection);
 }
 
-function testUnshiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+function testUnshiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService = new TestLanguageConfigurationService()): void {
 	testCommand(lines, languageId, selection, (sel) => new ShiftCommand(sel, {
 		isUnshift: true,
 		tabSize: 4,
@@ -63,12 +64,13 @@ function testUnshiftCommand(lines: string[], languageId: string | null, useTabSt
 		insertSpaces: false,
 		useTabStops: useTabStops,
 		autoIndent: EditorAutoIndentStrategy.Full,
-	}), expectedLines, expectedSelection);
+	}, languageConfigurationService), expectedLines, expectedSelection);
 }
 
-function withDockBlockCommentMode(callback: (mode: DocBlockCommentMode) => void): void {
+function withDockBlockCommentMode(callback: (mode: DocBlockCommentMode, languageConfigurationService: TestLanguageConfigurationService) => void): void {
+	const languageConfigurationService = new TestLanguageConfigurationService();
 	let mode = new DocBlockCommentMode();
-	callback(mode);
+	callback(mode, languageConfigurationService);
 	mode.dispose();
 }
 
@@ -554,7 +556,7 @@ suite('Editor Commands - ShiftCommand', () => {
 	});
 
 	test('issue #348: indenting around doc block comments', () => {
-		withDockBlockCommentMode((mode) => {
+		withDockBlockCommentMode((mode, languageConfigurationService) => {
 
 			testShiftCommand(
 				[
@@ -574,7 +576,8 @@ suite('Editor Commands - ShiftCommand', () => {
 					'\t */',
 					'\tfunction hello() {}'
 				],
-				new Selection(1, 1, 5, 21)
+				new Selection(1, 1, 5, 21),
+				languageConfigurationService
 			);
 
 			testUnshiftCommand(
@@ -595,7 +598,8 @@ suite('Editor Commands - ShiftCommand', () => {
 					' */',
 					'function hello() {}'
 				],
-				new Selection(1, 1, 5, 20)
+				new Selection(1, 1, 5, 20),
+				languageConfigurationService
 			);
 
 			testUnshiftCommand(
@@ -616,14 +620,15 @@ suite('Editor Commands - ShiftCommand', () => {
 					' */',
 					'function hello() {}'
 				],
-				new Selection(1, 1, 5, 20)
+				new Selection(1, 1, 5, 20),
+				languageConfigurationService
 			);
 
 		});
 	});
 
 	test('issue #1609: Wrong indentation of block comments', () => {
-		withDockBlockCommentMode((mode) => {
+		withDockBlockCommentMode((mode, languageConfigurationService) => {
 			testShiftCommand(
 				[
 					'',
@@ -646,7 +651,8 @@ suite('Editor Commands - ShiftCommand', () => {
 					'\t */',
 					'\tvar foo = 0;'
 				],
-				new Selection(1, 1, 7, 14)
+				new Selection(1, 1, 7, 14),
+				languageConfigurationService
 			);
 		});
 	});
@@ -677,7 +683,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				insertSpaces: true,
 				useTabStops: false,
 				autoIndent: EditorAutoIndentStrategy.Full,
-			}),
+			}, new TestLanguageConfigurationService()),
 			[
 				'       Written | Numeric',
 				'           one | 1',
@@ -723,7 +729,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				insertSpaces: true,
 				useTabStops: false,
 				autoIndent: EditorAutoIndentStrategy.Full,
-			}),
+			}, new TestLanguageConfigurationService()),
 			[
 				'   Written | Numeric',
 				'       one | 1',
@@ -769,7 +775,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				insertSpaces: false,
 				useTabStops: false,
 				autoIndent: EditorAutoIndentStrategy.Full,
-			}),
+			}, new TestLanguageConfigurationService()),
 			[
 				'   Written | Numeric',
 				'       one | 1',
@@ -815,7 +821,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				insertSpaces: true,
 				useTabStops: false,
 				autoIndent: EditorAutoIndentStrategy.Full,
-			}),
+			}, new TestLanguageConfigurationService()),
 			[
 				'   Written | Numeric',
 				'       one | 1',
@@ -850,7 +856,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				insertSpaces: false,
 				useTabStops: true,
 				autoIndent: EditorAutoIndentStrategy.Full,
-			}),
+			}, new TestLanguageConfigurationService()),
 			[
 				'\tHello world!',
 				'another line'
@@ -961,7 +967,7 @@ suite('Editor Commands - ShiftCommand', () => {
 					insertSpaces: insertSpaces,
 					useTabStops: true,
 					autoIndent: EditorAutoIndentStrategy.Full,
-				});
+				}, new TestLanguageConfigurationService());
 				let actual = getEditOperation(model, op);
 				assert.deepStrictEqual(actual, expected);
 			});
@@ -976,7 +982,7 @@ suite('Editor Commands - ShiftCommand', () => {
 					insertSpaces: insertSpaces,
 					useTabStops: true,
 					autoIndent: EditorAutoIndentStrategy.Full,
-				});
+				}, new TestLanguageConfigurationService());
 				let actual = getEditOperation(model, op);
 				assert.deepStrictEqual(actual, expected);
 			});

@@ -10,7 +10,7 @@ import { IndentAction } from 'vs/editor/common/languages/languageConfiguration';
 import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { IndentConsts, IndentRulesSupport } from 'vs/editor/common/languages/supports/indentRules';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { IIndentConverter, ILanguageConfigurationService, IVirtualModel, LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { getScopedLineTokens, IIndentConverter, ILanguageConfigurationService, IVirtualModel } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 /**
  * Get nearest preceding line which doesn't match unIndentPattern or contains all whitespace.
@@ -196,7 +196,7 @@ export function getGoodIndentForLine(
 		return null;
 	}
 
-	const richEditSupport = LanguageConfigurationRegistry.getLanguageConfiguration(languageId);
+	const richEditSupport = languageConfigurationService.getLanguageConfiguration(languageId);
 	if (!richEditSupport) {
 		return null;
 	}
@@ -288,7 +288,7 @@ export function getIndentForEnter(
 	if (range.isEmpty()) {
 		afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 	} else {
-		const endScopedLineTokens = LanguageConfigurationRegistry.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
+		const endScopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
 		afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 	}
 
@@ -360,7 +360,7 @@ export function getIndentActionForType(
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
-	const scopedLineTokens = LanguageConfigurationRegistry.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+	const scopedLineTokens = getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 
 	if (scopedLineTokens.firstCharOffset) {
 		// this line has mixed languages and indentation rules will not work
@@ -380,7 +380,7 @@ export function getIndentActionForType(
 	if (range.isEmpty()) {
 		afterTypeText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 	} else {
-		const endScopedLineTokens = LanguageConfigurationRegistry.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
+		const endScopedLineTokens = getScopedLineTokens(model, range.endLineNumber, range.endColumn);
 		afterTypeText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 	}
 
