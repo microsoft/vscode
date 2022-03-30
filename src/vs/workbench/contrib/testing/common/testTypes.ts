@@ -561,7 +561,7 @@ export interface ITestItemContext {
 	/** Marshalling marker */
 	$mid: MarshalledId.TestItemContext;
 	/** Tests and parents from the root to the current items */
-	tests: InternalTestItem[];
+	tests: InternalTestItem.Serialized[];
 }
 
 /**

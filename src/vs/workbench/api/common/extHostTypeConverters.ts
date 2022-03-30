@@ -25,14 +25,14 @@ import { EditorResolution, ITextEditorOptions } from 'vs/platform/editor/common/
 import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { getPrivateApiFor, TestItemImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
+import { getPrivateApiFor } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IViewBadge } from 'vs/workbench/common/views';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
-import { CoverageDetails, denamespaceTestTag, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestItemContext, ITestTag, namespaceTestTag, TestMessageType, TestResultItem } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { CoverageDetails, denamespaceTestTag, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestItemContext, ITestTag, namespaceTestTag, TestMessageType, TestResultItem } from 'vs/workbench/contrib/testing/common/testTypes';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import type * as vscode from 'vscode';
@@ -1736,7 +1736,7 @@ export namespace TestTag {
 export namespace TestItem {
 	export type Raw = vscode.TestItem;
 
-	export function from(item: TestItemImpl): ITestItem {
+	export function from(item: vscode.TestItem): ITestItem {
 		const ctrlId = getPrivateApiFor(item).controllerId;
 		return {
 			extId: TestId.fromExtHostTestItem(item, ctrlId).toString(),
@@ -1751,7 +1751,7 @@ export namespace TestItem {
 		};
 	}
 
-	export function toPlain(item: ITestItem.Serialized): Omit<vscode.TestItem, 'children' | 'invalidate' | 'discoverChildren'> {
+	export function toPlain(item: ITestItem.Serialized): vscode.TestItem {
 		return {
 			parent: undefined,
 			error: undefined,
@@ -1762,6 +1762,14 @@ export namespace TestItem {
 				const { tagId } = TestTag.denamespace(t);
 				return new types.TestTag(tagId);
 			}),
+			children: {
+				add: () => { },
+				delete: () => { },
+				forEach: () => { },
+				get: () => undefined,
+				replace: () => { },
+				size: 0,
+			},
 			range: Range.to(item.range || undefined),
 			canResolveChildren: false,
 			busy: false,
@@ -1770,21 +1778,19 @@ export namespace TestItem {
 		};
 	}
 
-	function to(item: ITestItem): TestItemImpl {
-		const testId = TestId.fromString(item.extId);
-		const testItem = new TestItemImpl(testId.controllerId, testId.localId, item.label, URI.revive(item.uri) || undefined);
-		testItem.range = Range.to(item.range || undefined);
-		testItem.description = item.description || undefined;
-		testItem.sortText = item.sortText || undefined;
-		testItem.tags = item.tags.map(t => TestTag.to({ id: TestTag.denamespace(t).tagId }));
-		return testItem;
-	}
-
-	export function toItemFromContext(context: ITestItemContext): TestItemImpl {
-		let node: TestItemImpl | undefined;
+	export function toItemFromContext(context: ITestItemContext): vscode.TestItem {
+		let node: vscode.TestItem | undefined;
 		for (const test of context.tests) {
-			const next = to(test.item);
-			getPrivateApiFor(next).parent = node;
+			const next = toPlain(test.item);
+			(node as any).children = {
+				add: () => { },
+				delete: () => { },
+				forEach(fn) { fn(next, this); },
+				get: id => id === test.item.extId ? test.item : undefined,
+				replace: () => { },
+				size: 1,
+			} as vscode.TestItemCollection;
+			(next as any).parent = node;
 			node = next;
 		}
 
