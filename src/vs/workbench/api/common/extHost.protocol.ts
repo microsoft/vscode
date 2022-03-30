@@ -2075,7 +2075,6 @@ export interface ExtHostNotebookDocumentsShape {
 	$acceptModelChanged(uriComponents: UriComponents, event: SerializableObjectWithBuffers<NotebookCellsChangedEventDto>, isDirty: boolean, newMetadata?: notebookCommon.NotebookDocumentMetadata): void;
 	$acceptDirtyStateChanged(uriComponents: UriComponents, isDirty: boolean): void;
 	$acceptModelSaved(uriComponents: UriComponents): void;
-	$acceptDocumentPropertiesChanged(uriComponents: UriComponents, data: INotebookDocumentPropertiesChangeData): void;
 }
 
 export type INotebookEditorViewColumnInfo = Record<string, number>;

@@ -108,10 +108,6 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 					this._notebookEditorModelResolverService.isDirty(textModel.uri),
 					hasDocumentMetadataChangeEvent ? textModel.metadata : undefined
 				);
-
-				if (hasDocumentMetadataChangeEvent) {
-					this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { metadata: textModel.metadata });
-				}
 			}));
 
 			this._documentEventListenersMapping.set(textModel.uri, disposableStore);
