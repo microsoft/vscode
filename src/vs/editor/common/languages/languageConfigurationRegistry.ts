@@ -48,7 +48,14 @@ export interface ILanguageConfigurationService {
 	readonly _serviceBrand: undefined;
 
 	onDidChange: Event<LanguageConfigurationServiceChangeEvent>;
+
+	/**
+	 * @param priority Use a higher number for higher priority
+	 */
+	register(languageId: string, configuration: LanguageConfiguration, priority?: number): IDisposable;
+
 	getLanguageConfiguration(languageId: string): ResolvedLanguageConfiguration;
+
 }
 
 export class LanguageConfigurationServiceChangeEvent {
@@ -104,6 +111,10 @@ export class LanguageConfigurationService extends Disposable implements ILanguag
 			this.configurations.delete(e.languageId);
 			this.onDidChangeEmitter.fire(new LanguageConfigurationServiceChangeEvent(e.languageId));
 		}));
+	}
+
+	public register(languageId: string, configuration: LanguageConfiguration, priority?: number): IDisposable {
+		return LanguageConfigurationRegistry.register(languageId, configuration, priority);
 	}
 
 	public getLanguageConfiguration(languageId: string): ResolvedLanguageConfiguration {
