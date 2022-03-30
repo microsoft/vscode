@@ -21,6 +21,8 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/langua
 import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
+import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from 'vs/editor/common/languages/autoIndent';
+import { getEnterAction } from 'vs/editor/common/languages/enterAction';
 
 export class TypeOperations {
 
@@ -153,7 +155,7 @@ export class TypeOperations {
 		let action: IndentAction | EnterAction | null = null;
 		let indentation: string = '';
 
-		const expectedIndentAction = LanguageConfigurationRegistry.getInheritIndentForLine(config.autoIndent, model, lineNumber, false);
+		const expectedIndentAction = getInheritIndentForLine(config.autoIndent, model, lineNumber, false);
 		if (expectedIndentAction) {
 			action = expectedIndentAction.action;
 			indentation = expectedIndentAction.indentation;
@@ -173,7 +175,7 @@ export class TypeOperations {
 			}
 
 			const maxColumn = model.getLineMaxColumn(lastLineNumber);
-			const expectedEnterAction = LanguageConfigurationRegistry.getEnterAction(config.autoIndent, model, new Range(lastLineNumber, maxColumn, lastLineNumber, maxColumn));
+			const expectedEnterAction = getEnterAction(config.autoIndent, model, new Range(lastLineNumber, maxColumn, lastLineNumber, maxColumn));
 			if (expectedEnterAction) {
 				indentation = expectedEnterAction.indentation + expectedEnterAction.appendText;
 			}
@@ -304,7 +306,7 @@ export class TypeOperations {
 			return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
 		}
 
-		const r = LanguageConfigurationRegistry.getEnterAction(config.autoIndent, model, range);
+		const r = getEnterAction(config.autoIndent, model, range);
 		if (r) {
 			if (r.indentAction === IndentAction.None) {
 				// Nothing special
@@ -336,7 +338,7 @@ export class TypeOperations {
 		const indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
 
 		if (config.autoIndent >= EditorAutoIndentStrategy.Full) {
-			const ir = LanguageConfigurationRegistry.getIndentForEnter(config.autoIndent, model, range, {
+			const ir = getIndentForEnter(config.autoIndent, model, range, {
 				unshiftIndent: (indent) => {
 					return TypeOperations.unshiftIndent(config, indent);
 				},
@@ -393,7 +395,7 @@ export class TypeOperations {
 
 	private static _runAutoIndentType(config: CursorConfiguration, model: ITextModel, range: Range, ch: string): ICommand | null {
 		const currentIndentation = LanguageConfigurationRegistry.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
-		const actualIndentation = LanguageConfigurationRegistry.getIndentActionForType(config.autoIndent, model, range, ch, {
+		const actualIndentation = getIndentActionForType(config.autoIndent, model, range, ch, {
 			shiftIndent: (indentation) => {
 				return TypeOperations.shiftIndent(config, indentation);
 			},

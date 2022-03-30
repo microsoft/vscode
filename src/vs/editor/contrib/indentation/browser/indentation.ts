@@ -16,13 +16,14 @@ import { ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorContr
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { StandardTokenType, TextEdit } from 'vs/editor/common/languages';
-import { ILanguageConfigurationService, LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IndentConsts } from 'vs/editor/common/languages/supports/indentRules';
 import { IModelService } from 'vs/editor/common/services/model';
 import * as indentUtils from 'vs/editor/contrib/indentation/browser/indentUtils';
 import * as nls from 'vs/nls';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { normalizeIndentation } from 'vs/editor/common/core/indentation';
+import { getGoodIndentForLine, getIndentMetadata } from 'vs/editor/common/languages/autoIndent';
 
 export function getReindentEditOperations(model: ITextModel, languageConfigurationService: ILanguageConfigurationService, startLineNumber: number, endLineNumber: number, inheritedIndent?: string): ISingleEditOperation[] {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
@@ -503,7 +504,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 		let firstLineText = model.getLineContent(startLineNumber);
 		if (!/\S/.test(firstLineText.substring(0, range.startColumn - 1))) {
-			const indentOfFirstLine = LanguageConfigurationRegistry.getGoodIndentForLine(autoIndent, model, model.getLanguageId(), startLineNumber, indentConverter);
+			const indentOfFirstLine = getGoodIndentForLine(autoIndent, model, model.getLanguageId(), startLineNumber, indentConverter);
 
 			if (indentOfFirstLine !== null) {
 				let oldIndentation = strings.getLeadingWhitespace(firstLineText);
@@ -518,7 +519,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 					});
 					firstLineText = newIndent + firstLineText.substr(oldIndentation.length);
 				} else {
-					let indentMetadata = LanguageConfigurationRegistry.getIndentMetadata(model, startLineNumber);
+					let indentMetadata = getIndentMetadata(model, startLineNumber);
 
 					if (indentMetadata === 0 || indentMetadata === IndentConsts.UNINDENT_MASK) {
 						// we paste content into a line where only contains whitespaces
@@ -561,7 +562,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 					}
 				}
 			};
-			let indentOfSecondLine = LanguageConfigurationRegistry.getGoodIndentForLine(autoIndent, virtualModel, model.getLanguageId(), startLineNumber + 1, indentConverter);
+			let indentOfSecondLine = getGoodIndentForLine(autoIndent, virtualModel, model.getLanguageId(), startLineNumber + 1, indentConverter);
 			if (indentOfSecondLine !== null) {
 				let newSpaceCntOfSecondLine = indentUtils.getSpaceCnt(indentOfSecondLine, tabSize);
 				let oldSpaceCntOfSecondLine = indentUtils.getSpaceCnt(strings.getLeadingWhitespace(model.getLineContent(startLineNumber + 1)), tabSize);
