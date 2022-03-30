@@ -9,7 +9,7 @@ import { Slugifier } from '../slugify';
 import { TableOfContents, TocEntry } from '../tableOfContents';
 import { Disposable } from '../util/dispose';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { InternalLinkTarget, LinkData, LinkTarget, MdLinkProvider, ReferenceLinkTarget } from './documentLinkProvider';
+import { InternalLinkTarget, LinkData, LinkTarget, MdLinkProvider } from './documentLinkProvider';
 import { MdWorkspaceCache } from './workspaceCache';
 
 
@@ -75,12 +75,12 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 			if (isLinkToHeader(link.target, header, document.uri, this.slugifier)) {
 				references.push({
 					isDefinition: false,
-					location: new vscode.Location(link.target.fromResource, link.sourceRange)
+					location: new vscode.Location(link.sourceResource, link.sourceRange)
 				});
 			} else if (link.target.kind === 'definition' && isLinkToHeader(link.target.target, header, document.uri, this.slugifier)) {
 				references.push({
 					isDefinition: false,
-					location: new vscode.Location(link.target.target.fromResource, link.sourceRange)
+					location: new vscode.Location(link.sourceResource, link.sourceRange)
 				});
 			}
 		}
@@ -98,7 +98,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		const allLinksInWorkspace = (await this._linkCache.getAll()).flat();
 
 		if (sourceLink.target.kind === 'reference') {
-			return Array.from(this.getReferencesToReferenceLink(allLinksInWorkspace, sourceLink.target));
+			return Array.from(this.getReferencesToReferenceLink(allLinksInWorkspace, sourceLink));
 		}
 
 		if (sourceLink.target.kind !== 'internal') {
@@ -142,13 +142,13 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 
 			if (sourceLink.target.fragment) {
 				if (this.slugifier.fromHeading(link.target.fragment).equals(this.slugifier.fromHeading(sourceLink.target.fragment))) {
-					references.push({ isDefinition: false, location: new vscode.Location(link.target.fromResource, link.sourceRange) });
+					references.push({ isDefinition: false, location: new vscode.Location(link.sourceResource, link.sourceRange) });
 				}
 			} else { // Triggered on a link without a fragment so we only require matching the file and ignore fragments
 
 				// But exclude cases where the file is referencing itself
-				if (link.target.fromResource.fsPath !== targetDoc.uri.fsPath) {
-					references.push({ isDefinition: false, location: new vscode.Location(link.target.fromResource, link.sourceRange) });
+				if (link.sourceResource.fsPath !== targetDoc.uri.fsPath) {
+					references.push({ isDefinition: false, location: new vscode.Location(link.sourceResource, link.sourceRange) });
 				}
 			}
 		}
@@ -156,13 +156,16 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		return references;
 	}
 
-	private *getReferencesToReferenceLink(allLinks: Iterable<LinkData>, sourceLink: ReferenceLinkTarget): Iterable<MdReference> {
+	private *getReferencesToReferenceLink(allLinks: Iterable<LinkData>, sourceLink: LinkData): Iterable<MdReference> {
+		if (sourceLink.target.kind !== 'reference') {
+			return;
+		}
 		for (const link of allLinks) {
 			if (link.target.kind === 'reference' || link.target.kind === 'definition') {
-				if (link.target.ref === sourceLink.ref && link.target.fromResource.fsPath === sourceLink.fromResource.fsPath) {
+				if (link.target.ref === sourceLink.target.ref && link.sourceResource.fsPath === sourceLink.sourceResource.fsPath) {
 					yield {
 						isDefinition: false,
-						location: new vscode.Location(sourceLink.fromResource, link.sourceRange)
+						location: new vscode.Location(sourceLink.sourceResource, link.sourceRange)
 					};
 				}
 			}
