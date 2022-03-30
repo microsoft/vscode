@@ -8,8 +8,9 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { MdDocumentSymbolProvider } from '../languageFeatures/documentSymbolProvider';
 import { MdWorkspaceSymbolProvider } from '../languageFeatures/workspaceSymbolProvider';
+import { SkinnyTextDocument } from '../workspaceContents';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from './inMemoryDocument';
+import { InMemoryDocument } from '../util/inMemoryDocument';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
 
 
@@ -37,7 +38,7 @@ suite('markdown.WorkspaceSymbolProvider', () => {
 
 	test('Should return all content  basic workspace', async () => {
 		const fileNameCount = 10;
-		const files: vscode.TextDocument[] = [];
+		const files: SkinnyTextDocument[] = [];
 		for (let i = 0; i < fileNameCount; ++i) {
 			const testFileName = vscode.Uri.file(`test${i}.md`);
 			files.push(new InMemoryDocument(testFileName, `# common\nabc\n## header${i}`));

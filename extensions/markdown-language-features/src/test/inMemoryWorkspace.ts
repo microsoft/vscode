@@ -5,15 +5,15 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { MdWorkspaceContents } from '../workspaceContents';
+import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 
 
 export class InMemoryWorkspaceMarkdownDocuments implements MdWorkspaceContents {
-	private readonly _documents = new Map<string, vscode.TextDocument>();
+	private readonly _documents = new Map<string, SkinnyTextDocument>();
 
-	constructor(documents: vscode.TextDocument[]) {
+	constructor(documents: SkinnyTextDocument[]) {
 		for (const doc of documents) {
-			this._documents.set(doc.fileName, doc);
+			this._documents.set(doc.uri.toString(), doc);
 		}
 	}
 
@@ -21,29 +21,29 @@ export class InMemoryWorkspaceMarkdownDocuments implements MdWorkspaceContents {
 		return Array.from(this._documents.values());
 	}
 
-	private readonly _onDidChangeMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.TextDocument>();
+	private readonly _onDidChangeMarkdownDocumentEmitter = new vscode.EventEmitter<SkinnyTextDocument>();
 	public onDidChangeMarkdownDocument = this._onDidChangeMarkdownDocumentEmitter.event;
 
-	private readonly _onDidCreateMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.TextDocument>();
+	private readonly _onDidCreateMarkdownDocumentEmitter = new vscode.EventEmitter<SkinnyTextDocument>();
 	public onDidCreateMarkdownDocument = this._onDidCreateMarkdownDocumentEmitter.event;
 
 	private readonly _onDidDeleteMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.Uri>();
 	public onDidDeleteMarkdownDocument = this._onDidDeleteMarkdownDocumentEmitter.event;
 
-	public updateDocument(document: vscode.TextDocument) {
-		this._documents.set(document.fileName, document);
+	public updateDocument(document: SkinnyTextDocument) {
+		this._documents.set(document.uri.toString(), document);
 		this._onDidChangeMarkdownDocumentEmitter.fire(document);
 	}
 
-	public createDocument(document: vscode.TextDocument) {
-		assert.ok(!this._documents.has(document.uri.fsPath));
+	public createDocument(document: SkinnyTextDocument) {
+		assert.ok(!this._documents.has(document.uri.toString()));
 
-		this._documents.set(document.uri.fsPath, document);
+		this._documents.set(document.uri.toString(), document);
 		this._onDidCreateMarkdownDocumentEmitter.fire(document);
 	}
 
 	public deleteDocument(resource: vscode.Uri) {
-		this._documents.delete(resource.fsPath);
+		this._documents.delete(resource.toString());
 		this._onDidDeleteMarkdownDocumentEmitter.fire(resource);
 	}
 }

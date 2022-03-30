@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as os from 'os';
 import * as vscode from 'vscode';
-import { InMemoryDocument } from './inMemoryDocument';
+import { InMemoryDocument } from '../util/inMemoryDocument';
 
 export const joinLines = (...args: string[]) =>
 	args.join(os.platform() === 'win32' ? '\r\n' : '\n');

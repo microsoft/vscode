@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { MdPathCompletionProvider } from '../languageFeatures/pathCompletions';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from './inMemoryDocument';
+import { InMemoryDocument } from '../util/inMemoryDocument';
 import { CURSOR, getCursorPositions, joinLines, noopToken } from './util';
 
 

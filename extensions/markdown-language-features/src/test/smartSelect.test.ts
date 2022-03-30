@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { MdSmartSelect } from '../languageFeatures/smartSelect';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from './inMemoryDocument';
+import { InMemoryDocument } from '../util/inMemoryDocument';
 import { CURSOR, getCursorPositions, joinLines } from './util';
 
 const testFileName = vscode.Uri.file('test.md');
@@ -197,34 +197,35 @@ suite('markdown.SmartSelect', () => {
 	test('Smart select fenced code block then list then subheader content then subheader then header content then header', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
-				`# main header 1`,
-				`content 1`,
-				`## sub header 1`,
-				`- item 1`,
-				`- ~~~`,
-				`  ${CURSOR}a`,
-				`  ~~~`,
-				`- item 3`,
-				`- item 4`,
-				``,
-				`more content`,
-				`# main header 2`));
+				/* 00 */ `# main header 1`,
+				/* 01 */ `content 1`,
+				/* 02 */ `## sub header 1`,
+				/* 03 */ `- item 1`,
+				/* 04 */ `- ~~~`,
+				/* 05 */ `  ${CURSOR}a`,
+				/* 06 */ `  ~~~`,
+				/* 07 */ `- item 3`,
+				/* 08 */ `- item 4`,
+				/* 09 */ ``,
+				/* 10 */ `more content`,
+				/* 11 */ `# main header 2`));
 
-		assertNestedLineNumbersEqual(ranges![0], [4, 6], [3, 9], [3, 10], [2, 10], [1, 10], [0, 10]);
+		assertNestedLineNumbersEqual(ranges![0], [4, 6], [3, 8], [3, 10], [2, 10], [1, 10], [0, 10]);
 	});
 
 	test('Smart select list with one element without selecting child subheader', async () => {
 		const ranges = await getSelectionRangesForDocument(
 			joinLines(
-				`# main header 1`,
-				``,
-				`- list ${CURSOR}`,
-				``,
-				`## sub header`,
-				``,
-				`content 2`,
-				`# main header 2`));
-		assertNestedLineNumbersEqual(ranges![0], [2, 2], [2, 3], [1, 3], [1, 6], [0, 6]);
+				/* 00 */ `# main header 1`,
+				/* 01 */ ``,
+				/* 02 */ `- list ${CURSOR}`,
+				/* 03 */ ``,
+				/* 04 */ `## sub header`,
+				/* 05 */ ``,
+				/* 06 */ `content 2`,
+				/* 07 */ `# main header 2`));
+
+		assertNestedLineNumbersEqual(ranges![0], [2, 2], [1, 3], [1, 6], [0, 6]);
 	});
 
 	test('Smart select content under header then subheaders and their content', async () => {

@@ -190,7 +190,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 	) { }
 
 	public async provideDocumentLinks(
-		document: vscode.TextDocument,
+		document: SkinnyTextDocument,
 		_token: vscode.CancellationToken
 	): Promise<vscode.DocumentLink[]> {
 		const text = document.getText();
@@ -217,7 +217,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 		return results;
 	}
 
-	public *getReferenceLinks(text: string, document: vscode.TextDocument): Iterable<vscode.DocumentLink> {
+	public *getReferenceLinks(text: string, document: SkinnyTextDocument): Iterable<vscode.DocumentLink> {
 		const definitions = this.getDefinitions(text, document);
 		for (const match of text.matchAll(referenceLinkPattern)) {
 			let linkStart: vscode.Position;
@@ -261,7 +261,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 		}
 	}
 
-	public getDefinitions(text: string, document: vscode.TextDocument): Map<string, { readonly link: string; readonly linkRange: vscode.Range }> {
+	public getDefinitions(text: string, document: SkinnyTextDocument): Map<string, { readonly link: string; readonly linkRange: vscode.Range }> {
 		const out = new Map<string, { link: string; linkRange: vscode.Range }>();
 		for (const match of text.matchAll(definitionPattern)) {
 			const pre = match[1];

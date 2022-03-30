@@ -10,7 +10,7 @@ import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { MdReferencesProvider } from '../languageFeatures/references';
 import { MdWorkspaceContents } from '../workspaceContents';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from './inMemoryDocument';
+import { InMemoryDocument } from '../util/inMemoryDocument';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
 import { joinLines, noopToken, workspaceFile } from './util';
 
@@ -22,7 +22,7 @@ function getReferences(doc: InMemoryDocument, pos: vscode.Position, workspaceCon
 	return provider.provideReferences(doc, pos, { includeDeclaration: true }, noopToken);
 }
 
-suite.only('markdown header references', () => {
+suite('markdown header references', () => {
 	test('Should not return references when not on header', async () => {
 		const doc = new InMemoryDocument(workspaceFile('doc.md'), joinLines(
 			`# abc`,

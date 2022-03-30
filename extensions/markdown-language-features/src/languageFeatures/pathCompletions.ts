@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContents } from '../tableOfContents';
 import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
+import { SkinnyTextDocument } from '../workspaceContents';
 import { MdLinkProvider } from './documentLinkProvider';
 
 enum CompletionContextKind {
@@ -90,7 +91,7 @@ export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
 		private readonly linkProvider: MdLinkProvider,
 	) { }
 
-	public async provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, _token: vscode.CancellationToken, _context: vscode.CompletionContext): Promise<vscode.CompletionItem[]> {
+	public async provideCompletionItems(document: SkinnyTextDocument, position: vscode.Position, _token: vscode.CancellationToken, _context: vscode.CompletionContext): Promise<vscode.CompletionItem[]> {
 		if (!this.arePathSuggestionEnabled(document)) {
 			return [];
 		}
@@ -144,7 +145,7 @@ export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
 		}
 	}
 
-	private arePathSuggestionEnabled(document: vscode.TextDocument): boolean {
+	private arePathSuggestionEnabled(document: SkinnyTextDocument): boolean {
 		const config = vscode.workspace.getConfiguration('markdown', document.uri);
 		return config.get('suggest.paths.enabled', true);
 	}
@@ -158,7 +159,7 @@ export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
 	/// [id]: |
 	private readonly definitionPattern = /^\s*\[[\w\-]+\]:\s*([^\s]*)$/m;
 
-	private getPathCompletionContext(document: vscode.TextDocument, position: vscode.Position): CompletionContext | undefined {
+	private getPathCompletionContext(document: SkinnyTextDocument, position: vscode.Position): CompletionContext | undefined {
 		const line = document.lineAt(position.line).text;
 
 		const linePrefixText = line.slice(0, position.character);
@@ -231,7 +232,7 @@ export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
 		};
 	}
 
-	private *provideReferenceSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext): Iterable<vscode.CompletionItem> {
+	private *provideReferenceSuggestions(document: SkinnyTextDocument, position: vscode.Position, context: CompletionContext): Iterable<vscode.CompletionItem> {
 		const insertionRange = new vscode.Range(context.linkTextStartPosition, position);
 		const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
 
@@ -248,7 +249,7 @@ export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
 		}
 	}
 
-	private async *provideHeaderSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext, insertionRange: vscode.Range): AsyncIterable<vscode.CompletionItem> {
+	private async *provideHeaderSuggestions(document: SkinnyTextDocument, position: vscode.Position, context: CompletionContext, insertionRange: vscode.Range): AsyncIterable<vscode.CompletionItem> {
 		const toc = await TableOfContents.createForDocumentOrNotebook(this.engine, document);
 		for (const entry of toc.entries) {
 			const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
@@ -263,7 +264,7 @@ export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
 		}
 	}
 
-	private async *providePathSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext): AsyncIterable<vscode.CompletionItem> {
+	private async *providePathSuggestions(document: SkinnyTextDocument, position: vscode.Position, context: CompletionContext): AsyncIterable<vscode.CompletionItem> {
 		const valueBeforeLastSlash = context.linkPrefix.substring(0, context.linkPrefix.lastIndexOf('/') + 1); // keep the last slash
 
 		const parentDir = this.resolveReference(document, valueBeforeLastSlash || '.');
@@ -304,7 +305,7 @@ export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
 		}
 	}
 
-	private resolveReference(document: vscode.TextDocument, ref: string): vscode.Uri | undefined {
+	private resolveReference(document: SkinnyTextDocument, ref: string): vscode.Uri | undefined {
 		const docUri = this.getFileUriOfTextDocument(document);
 
 		if (ref.startsWith('/')) {
@@ -333,7 +334,7 @@ export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
 		}
 	}
 
-	private getFileUriOfTextDocument(document: vscode.TextDocument) {
+	private getFileUriOfTextDocument(document: SkinnyTextDocument) {
 		if (document.uri.scheme === 'vscode-notebook-cell') {
 			const notebook = vscode.workspace.notebookDocuments
 				.find(notebook => notebook.getCells().some(cell => cell.document === document));

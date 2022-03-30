@@ -6,12 +6,14 @@
 import * as vscode from 'vscode';
 import { Disposable } from './util/dispose';
 import { isMarkdownFile } from './util/file';
+import { InMemoryDocument } from './util/inMemoryDocument';
 
 /**
  * Minimal version of {@link vscode.TextLine}. Used for mocking out in testing.
  */
 export interface SkinnyTextLine {
 	readonly text: string;
+	readonly isEmptyOrWhitespace: boolean;
 }
 
 /**
@@ -129,36 +131,8 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 		}
 
 		const bytes = await vscode.workspace.fs.readFile(resource);
-
-		// We assume that markdown is in UTF-8
+		// // We assume that markdown is in UTF-8
 		const text = this.utf8Decoder.decode(bytes);
-
-		const lines: SkinnyTextLine[] = [];
-		const parts = text.split(/(\r?\n)/);
-		const lineCount = Math.floor(parts.length / 2) + 1;
-		for (let line = 0; line < lineCount; line++) {
-			lines.push({
-				text: parts[line * 2]
-			});
-		}
-
-		return {
-			uri: resource,
-			version: 0,
-			lineCount: lineCount,
-			lineAt: (index) => {
-				return lines[index];
-			},
-			getText: () => {
-				return text;
-			},
-			positionAt(offset: number): vscode.Position {
-				const before = text.slice(0, offset);
-				const newLines = before.match(/\r\n|\n/g);
-				const line = newLines ? newLines.length : 0;
-				const preCharacters = before.match(/(?<=\r\n|\n|^).*$/g);
-				return new vscode.Position(line, preCharacters ? preCharacters[0].length : 0);
-			}
-		};
+		return new InMemoryDocument(resource, text, 0);
 	}
 }

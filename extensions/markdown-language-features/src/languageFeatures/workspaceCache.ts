@@ -39,16 +39,16 @@ export class MdWorkspaceCache<T> extends Disposable {
 	private async populateSymbolCache(): Promise<void> {
 		const markdownDocumentUris = await this.workspaceContents.getAllMarkdownDocuments();
 		for (const document of markdownDocumentUris) {
-			this._cache.set(document.uri.toString(), this.update(document));
+			this.update(document);
 		}
 	}
 
-	private update(document: SkinnyTextDocument): Lazy<T> {
-		return lazy(() => this.getValue(document));
+	private update(document: SkinnyTextDocument): void {
+		this._cache.set(document.uri.toString(), lazy(() => this.getValue(document)));
 	}
 
 	private onDidChangeDocument(document: SkinnyTextDocument) {
-		this._cache.set(document.uri.toString(), this.update(document));
+		this.update(document);
 	}
 
 	private onDidDeleteDocument(resource: vscode.Uri) {
