@@ -678,8 +678,6 @@ flakySuite('SQLite Storage Library', function () {
 		const sizeAfterVacuum = (await Promises.stat(dbPath)).size;
 
 		ok(sizeBeforeVacuum > sizeAfterVacuum);
-
-		await storage.close();
 	});
 
 	test('multiple concurrent writes execute in sequence', async () => {
