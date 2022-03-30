@@ -304,7 +304,7 @@ export abstract class SimpleFindWidget extends Widget {
 			this._matchesCount.className = 'matchesCount';
 		}
 		this._matchesCount.innerText = '';
-		const label = !count || count.resultCount === 0 ? `No Results` : `${count.resultIndex} of ${count.resultCount}`;
+		const label = count === undefined || count.resultCount === 0 ? `No Results` : `${count.resultIndex + 1} of ${count.resultCount}`;
 		this._matchesCount.appendChild(document.createTextNode(label));
 		this._matchesCount.classList.toggle('no-results', !count || count.resultCount === 0);
 		this._findInput?.domNode.insertAdjacentElement('afterend', this._matchesCount);
