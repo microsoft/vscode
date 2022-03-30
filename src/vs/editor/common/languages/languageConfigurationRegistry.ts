@@ -202,18 +202,6 @@ export class LanguageConfigurationRegistryImpl {
 		return entries?.getResolvedConfiguration() || null;
 	}
 
-	// begin Indent Rules
-
-	public getIndentRulesSupport(languageId: string): IndentRulesSupport | null {
-		const value = this.getLanguageConfiguration(languageId);
-		if (!value) {
-			return null;
-		}
-		return value.indentRulesSupport || null;
-	}
-
-	// end Indent Rules
-
 	// begin onEnter
 
 	public getIndentationAtPosition(model: ITextModel, lineNumber: number, column: number): string {

@@ -155,7 +155,7 @@ export class TypeOperations {
 		let action: IndentAction | EnterAction | null = null;
 		let indentation: string = '';
 
-		const expectedIndentAction = getInheritIndentForLine(config.autoIndent, model, lineNumber, false);
+		const expectedIndentAction = getInheritIndentForLine(config.autoIndent, model, lineNumber, false, config.languageConfigurationService);
 		if (expectedIndentAction) {
 			action = expectedIndentAction.action;
 			indentation = expectedIndentAction.indentation;
@@ -348,7 +348,7 @@ export class TypeOperations {
 				normalizeIndentation: (indent) => {
 					return config.normalizeIndentation(indent);
 				}
-			});
+			}, config.languageConfigurationService);
 
 			if (ir) {
 				let oldEndViewColumn = config.visibleColumnFromColumn(model, range.getEndPosition());
@@ -402,7 +402,7 @@ export class TypeOperations {
 			unshiftIndent: (indentation) => {
 				return TypeOperations.unshiftIndent(config, indentation);
 			},
-		});
+		}, config.languageConfigurationService);
 
 		if (actualIndentation === null) {
 			return null;
