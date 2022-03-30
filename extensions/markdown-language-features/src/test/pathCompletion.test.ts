@@ -8,14 +8,10 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { MdPathCompletionProvider } from '../languageFeatures/pathCompletions';
-import { createNewMarkdownEngine } from './engine';
 import { InMemoryDocument } from '../util/inMemoryDocument';
-import { CURSOR, getCursorPositions, joinLines, noopToken } from './util';
+import { createNewMarkdownEngine } from './engine';
+import { CURSOR, getCursorPositions, joinLines, noopToken, workspaceFile } from './util';
 
-
-function workspaceFile(...segments: string[]): vscode.Uri {
-	return vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, ...segments);
-}
 
 function getCompletionsAtCursor(resource: vscode.Uri, fileContents: string) {
 	const doc = new InMemoryDocument(resource, fileContents);
