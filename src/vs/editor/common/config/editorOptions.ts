@@ -2520,7 +2520,7 @@ export interface IEditorInlayHintsOptions {
 	 * Compact mode disables the borders and padding around the inlay hint.
 	 * Defaults to 'standard'.
 	 */
-	displayStyle: 'standard' | 'compact'
+	displayStyle: 'standard' | 'compact';
 }
 
 /**
@@ -2573,7 +2573,7 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			fontSize: EditorIntOption.clampedInt(input.fontSize, this.defaultValue.fontSize, 0, 100),
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
-			displayStyle: stringSet<'standard' | 'compact'>(input.displayStyle, this.defaultValue.displayStyle, ["standard", "compact"])
+			displayStyle: stringSet<'standard' | 'compact'>(input.displayStyle, this.defaultValue.displayStyle, ['standard', 'compact'])
 		};
 	}
 }
