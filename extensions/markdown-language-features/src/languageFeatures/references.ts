@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import * as uri from 'vscode-uri';
 import { MarkdownEngine } from '../markdownEngine';
+import { Slugifier } from '../slugify';
 import { TableOfContents, TocEntry } from '../tableOfContents';
 import { Disposable } from '../util/dispose';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
@@ -12,10 +13,10 @@ import { InternalLinkTarget, LinkData, LinkTarget, MdLinkProvider } from './docu
 import { MdWorkspaceCache } from './workspaceCache';
 
 
-function isLinkToHeader(target: LinkTarget, header: TocEntry, headerDocument: vscode.Uri): target is InternalLinkTarget {
+function isLinkToHeader(target: LinkTarget, header: TocEntry, headerDocument: vscode.Uri, slugifier: Slugifier): target is InternalLinkTarget {
 	return target.kind === 'internal'
 		&& target.path.fsPath === headerDocument.fsPath
-		&& target.fragment === header.slug.value;
+		&& slugifier.fromHeading(target.fragment).value === header.slug.value;
 }
 
 export class MdReferencesProvider extends Disposable implements vscode.ReferenceProvider {
@@ -26,6 +27,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		private readonly linkProvider: MdLinkProvider,
 		private readonly workspaceContents: MdWorkspaceContents,
 		private readonly engine: MarkdownEngine,
+		private readonly slugifier: Slugifier,
 	) {
 		super();
 
@@ -57,9 +59,9 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		}
 
 		for (const link of links) {
-			if (isLinkToHeader(link.target, header, document.uri)) {
+			if (isLinkToHeader(link.target, header, document.uri, this.slugifier)) {
 				references.push(new vscode.Location(link.target.fromResource, link.sourceRange));
-			} else if (link.target.kind === 'definition' && isLinkToHeader(link.target.target, header, document.uri)) {
+			} else if (link.target.kind === 'definition' && isLinkToHeader(link.target.target, header, document.uri, this.slugifier)) {
 				references.push(new vscode.Location(link.target.target.fromResource, link.sourceRange));
 			}
 		}
@@ -129,7 +131,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 			}
 
 			if (sourceLink.target.fragment) {
-				if (link.target.fragment === sourceLink.target.fragment) {
+				if (this.slugifier.fromHeading(link.target.fragment).equals(this.slugifier.fromHeading(sourceLink.target.fragment))) {
 					references.push(new vscode.Location(link.target.fromResource, link.sourceRange));
 				}
 			} else { // Triggered on a link without a fragment so we only require matching the file and ignore fragments

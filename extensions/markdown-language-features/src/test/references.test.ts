@@ -8,9 +8,10 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { MdReferencesProvider } from '../languageFeatures/references';
+import { githubSlugifier } from '../slugify';
+import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from '../util/inMemoryDocument';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
 import { joinLines, noopToken, workspaceFile } from './util';
 
@@ -18,7 +19,7 @@ import { joinLines, noopToken, workspaceFile } from './util';
 function getReferences(doc: InMemoryDocument, pos: vscode.Position, workspaceContents: MdWorkspaceContents) {
 	const engine = createNewMarkdownEngine();
 	const linkProvider = new MdLinkProvider(engine);
-	const provider = new MdReferencesProvider(linkProvider, workspaceContents, engine);
+	const provider = new MdReferencesProvider(linkProvider, workspaceContents, engine, githubSlugifier);
 	return provider.provideReferences(doc, pos, { includeDeclaration: true }, noopToken);
 }
 
@@ -64,6 +65,36 @@ suite('markdown: find all references', () => {
 		{
 			const ref = refs![2];
 			assert.deepStrictEqual(ref.range.start.line, 4);
+		}
+	});
+
+	test('Should find references using normalized slug', async () => {
+		const doc = new InMemoryDocument(workspaceFile('doc.md'), joinLines(
+			`# a B c`,
+			`[simple](#a-b-c)`,
+			`[start underscore](#_a-b-c)`,
+			`[different case](#a-B-C)`,
+		));
+
+		{
+			// Trigger header
+			const refs = await getReferences(doc, new vscode.Position(0, 0), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			assert.deepStrictEqual(refs!.length, 4);
+		}
+		{
+			// Trigger on line 1
+			const refs = await getReferences(doc, new vscode.Position(1, 12), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			assert.deepStrictEqual(refs!.length, 4);
+		}
+		{
+			// Trigger on line 2
+			const refs = await getReferences(doc, new vscode.Position(2, 24), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			assert.deepStrictEqual(refs!.length, 4);
+		}
+		{
+			// Trigger on line 3
+			const refs = await getReferences(doc, new vscode.Position(3, 20), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			assert.deepStrictEqual(refs!.length, 4);
 		}
 	});
 
