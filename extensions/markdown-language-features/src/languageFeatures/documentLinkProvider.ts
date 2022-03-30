@@ -15,6 +15,7 @@ const localize = nls.loadMessageBundle();
 
 export interface ExternalLinkTarget {
 	readonly kind: 'external';
+
 	readonly uri: vscode.Uri;
 }
 
@@ -30,12 +31,18 @@ export interface InternalLinkTarget {
 export interface ReferenceLinkTarget {
 	readonly kind: 'reference';
 
+	readonly fromResource: vscode.Uri;
+
+	readonly ref: string;
 	readonly position: vscode.Position;
 }
 
 export interface DefinitionLinkTarget {
 	readonly kind: 'definition';
 
+	readonly fromResource: vscode.Uri;
+
+	readonly ref: string;
 	readonly target: ExternalLinkTarget | InternalLinkTarget;
 }
 
@@ -271,23 +278,26 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 					sourceRange: new vscode.Range(linkStart, linkEnd),
 					target: {
 						kind: 'reference',
+						fromResource: document.uri,
+						ref: reference,
 						position: link.linkRange.start
 					}
 				};
-
 			}
 		}
 	}
 
 	public *getDefinitionLinks(document: SkinnyTextDocument): Iterable<LinkData> {
 		const definitions = this.getDefinitions(document);
-		for (const definition of definitions.values()) {
+		for (const [ref, definition] of definitions) {
 			try {
 				const target = parseLink(document, definition.link);
 				if (target) {
 					yield {
 						sourceRange: definition.linkRange,
 						target: {
+							fromResource: document.uri,
+							ref,
 							kind: 'definition',
 							target
 						}

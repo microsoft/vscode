@@ -68,15 +68,28 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 	}
 
 	private async getReferencesToLink(document: SkinnyTextDocument, position: vscode.Position, context: vscode.ReferenceContext): Promise<vscode.Location[] | undefined> {
-		const links = (await Promise.all(await this._linkCache.getAll())).flat();
+		const links = (await this._linkCache.getAll()).flat();
 
-		const docLinks = await this.linkProvider.getInlineLinks(document);
+		const docLinks = await this.linkProvider.getAllLinks(document);
 		const sourceLink = docLinks.find(link => link.sourceRange.contains(position));
+
+		if (sourceLink?.target.kind === 'reference') {
+			const references: vscode.Location[] = [];
+
+			for (const link of links) {
+				if (link.target.kind === 'reference' || link.target.kind === 'definition') {
+					if (link.target.ref === sourceLink.target.ref && link.target.fromResource.fsPath === document.uri.fsPath) {
+						references.push(new vscode.Location(document.uri, link.sourceRange));
+					}
+				}
+			}
+
+			return references;
+		}
 
 		if (sourceLink?.target.kind !== 'internal') {
 			return undefined;
 		}
-
 
 		let targetDoc = await this.workspaceContents.getMarkdownDocument(sourceLink.target.path);
 		if (!targetDoc) {
