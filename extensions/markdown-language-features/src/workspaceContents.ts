@@ -132,9 +132,14 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 			return matchingDocument;
 		}
 
-		const bytes = await vscode.workspace.fs.readFile(resource);
-		// // We assume that markdown is in UTF-8
-		const text = this.utf8Decoder.decode(bytes);
-		return new InMemoryDocument(resource, text, 0);
+		try {
+			const bytes = await vscode.workspace.fs.readFile(resource);
+
+			// We assume that markdown is in UTF-8
+			const text = this.utf8Decoder.decode(bytes);
+			return new InMemoryDocument(resource, text, 0);
+		} catch {
+			return undefined;
+		}
 	}
 }

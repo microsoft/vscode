@@ -215,7 +215,7 @@ suite('markdown references', () => {
 		}
 	});
 
-	test('Should find references from link across files when triggered on link without file extension ', async () => {
+	test('Should find references from link across files when triggered on link without file extension', async () => {
 		const docUri = workspaceFile('doc.md');
 		const other1Uri = workspaceFile('sub', 'other.md');
 
@@ -248,6 +248,43 @@ suite('markdown references', () => {
 			const ref = refs![2];
 			assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
 			assert.deepStrictEqual(ref.range.start.line, 1);
+		}
+	});
+
+	test('Should include header references when triggered on file link', async () => {
+		const docUri = workspaceFile('doc.md');
+		const otherUri = workspaceFile('sub', 'other.md');
+
+		const doc = new InMemoryDocument(docUri, joinLines(
+			`[with ext](./sub/other)`,
+			`[with ext](./sub/other#header)`,
+			`[without ext](./sub/other.md#no-such-header)`,
+		));
+		const refs = await getReferences(doc, new vscode.Position(0, 15), new InMemoryWorkspaceMarkdownDocuments([
+			doc,
+			new InMemoryDocument(otherUri, joinLines(
+				`pre`,
+				`# header`, // Definition should not be included since we triggered on a file link
+				`post`,
+			)),
+		]));
+
+		assert.deepStrictEqual(refs!.length, 3);
+
+		{
+			const ref = refs![0];
+			assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
+			assert.deepStrictEqual(ref.range.start.line, 0);
+		}
+		{
+			const ref = refs![1];
+			assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
+			assert.deepStrictEqual(ref.range.start.line, 1);
+		}
+		{
+			const ref = refs![2];
+			assert.deepStrictEqual(ref.uri.toString(), docUri.toString());
+			assert.deepStrictEqual(ref.range.start.line, 2);
 		}
 	});
 });

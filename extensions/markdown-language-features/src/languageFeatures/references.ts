@@ -94,21 +94,32 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		const references: vscode.Location[] = [];
 
 		if (context.includeDeclaration) {
-			const toc = await TableOfContents.create(this.engine, targetDoc);
-			const entry = toc.lookup(sourceLink.target.fragment);
-			if (entry) {
-				references.push(entry.location);
+			if (sourceLink.target.fragment) {
+				const toc = await TableOfContents.create(this.engine, targetDoc);
+				const entry = toc.lookup(sourceLink.target.fragment);
+				if (entry) {
+					references.push(entry.location);
+				}
 			}
 		}
 
 		for (const link of links) {
-			if (link.target.kind === 'internal'
-				&& link.target.fragment === sourceLink.target.fragment
-				&& (
-					link.target.path.fsPath === targetDoc.uri.fsPath
-					|| uri.Utils.extname(link.target.path) === '' && link.target.path.with({ path: link.target.path.path + '.md' }).fsPath === targetDoc.uri.fsPath
-				)
-			) {
+			if (link.target.kind !== 'internal') {
+				continue;
+			}
+
+			const matchesFilePart = link.target.path.fsPath === targetDoc.uri.fsPath
+				|| uri.Utils.extname(link.target.path) === '' && link.target.path.with({ path: link.target.path.path + '.md' }).fsPath === targetDoc.uri.fsPath;
+
+			if (!matchesFilePart) {
+				continue;
+			}
+
+			if (sourceLink.target.fragment) {
+				if (link.target.fragment === sourceLink.target.fragment) {
+					references.push(new vscode.Location(link.target.fromResource, link.sourceRange));
+				}
+			} else { // Triggered on a link without a fragment so we only require matching the file and ignore fragments
 				references.push(new vscode.Location(link.target.fromResource, link.sourceRange));
 			}
 		}
