@@ -181,7 +181,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get webviewExternalEndpoint(): string {
 		const endpoint = this.options.webviewEndpoint
 			|| this.productService.webviewContentExternalBaseUrlTemplate
-			|| 'https://{{uuid}}.vscode-webview.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/';
+			|| 'https://{{uuid}}.vscode-cdn.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/';
 
 		const webviewExternalEndpointCommit = this.payload?.get('webviewExternalEndpointCommit');
 		return endpoint

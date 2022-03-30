@@ -207,6 +207,11 @@ export class OneSnippet {
 		return this._snippet.placeholders.length > 0;
 	}
 
+	get isTrivialSnippet(): boolean {
+		return this._snippet.placeholders.length === 0
+			|| (this._snippet.placeholders.length === 1 && this._snippet.placeholders[0].isFinalTabstop);
+	}
+
 	computePossibleSelections() {
 		const result = new Map<number, Range[]>();
 		for (const placeholdersWithEqualIndex of this._placeholderGroups) {
@@ -561,18 +566,21 @@ export class SnippetSession {
 				snippets[idx].initialize(undoEdits[idx].textChange);
 			}
 
-			for (const snippet of this._snippets) {
-				snippet.merge(snippets);
+			// Trivial snippets have no placeholder or are just the final placeholder. That means they
+			// are just text insertions and we don't need to merge the nested snippet into the existing
+			// snippet
+			const isTrivialSnippet = snippets[0].isTrivialSnippet;
+			if (!isTrivialSnippet) {
+				for (const snippet of this._snippets) {
+					snippet.merge(snippets);
+				}
+				console.assert(snippets.length === 0);
 			}
-			console.assert(snippets.length === 0);
 
-			if (this._snippets[0].hasPlaceholder) {
+			if (this._snippets[0].hasPlaceholder && !isTrivialSnippet) {
 				return this._move(undefined);
 			} else {
-				return (
-					undoEdits
-						.map(edit => Selection.fromPositions(edit.range.getEndPosition()))
-				);
+				return undoEdits.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
 			}
 		});
 	}
