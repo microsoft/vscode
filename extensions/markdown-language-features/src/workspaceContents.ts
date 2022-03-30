@@ -22,8 +22,9 @@ export interface SkinnyTextDocument {
 	readonly version: number;
 	readonly lineCount: number;
 
-	lineAt(line: number): SkinnyTextLine;
 	getText(): string;
+	lineAt(line: number): SkinnyTextLine;
+	positionAt(offset: number): vscode.Position;
 }
 
 /**
@@ -150,6 +151,13 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 			},
 			getText: () => {
 				return text;
+			},
+			positionAt(offset: number): vscode.Position {
+				const before = text.slice(0, offset);
+				const newLines = before.match(/\r\n|\n/g);
+				const line = newLines ? newLines.length : 0;
+				const preCharacters = before.match(/(?<=\r\n|\n|^).*$/g);
+				return new vscode.Position(line, preCharacters ? preCharacters[0].length : 0);
 			}
 		};
 	}

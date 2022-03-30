@@ -11,6 +11,7 @@ import { MdDocumentSymbolProvider } from './languageFeatures/documentSymbolProvi
 import { registerDropIntoEditor } from './languageFeatures/dropIntoEditor';
 import { MdFoldingProvider } from './languageFeatures/foldingProvider';
 import { MdPathCompletionProvider } from './languageFeatures/pathCompletions';
+import { MdReferencesProvider } from './languageFeatures/references';
 import { MdSmartSelect } from './languageFeatures/smartSelect';
 import { MdWorkspaceSymbolProvider } from './languageFeatures/workspaceSymbolProvider';
 import { Logger } from './logger';
@@ -58,14 +59,15 @@ function registerMarkdownLanguageFeatures(
 	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
 
 	const linkProvider = new MdLinkProvider(engine);
-	const w = new VsCodeMdWorkspaceContents();
+	const workspaceContents = new VsCodeMdWorkspaceContents();
 
 	return vscode.Disposable.from(
 		vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
 		vscode.languages.registerDocumentLinkProvider(selector, linkProvider),
 		vscode.languages.registerFoldingRangeProvider(selector, new MdFoldingProvider(engine)),
 		vscode.languages.registerSelectionRangeProvider(selector, new MdSmartSelect(engine)),
-		vscode.languages.registerWorkspaceSymbolProvider(new MdWorkspaceSymbolProvider(symbolProvider, w)),
+		vscode.languages.registerWorkspaceSymbolProvider(new MdWorkspaceSymbolProvider(symbolProvider, workspaceContents)),
+		vscode.languages.registerReferenceProvider(selector, new MdReferencesProvider(linkProvider, workspaceContents, engine)),
 		MdPathCompletionProvider.register(selector, engine, linkProvider),
 	);
 }

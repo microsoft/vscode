@@ -31,3 +31,7 @@ export function getCursorPositions(contents: string, doc: InMemoryDocument): vsc
 	}
 	return positions;
 }
+
+export function workspaceFile(...segments: string[]): vscode.Uri {
+	return vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, ...segments);
+}
