@@ -45,11 +45,11 @@ suite('markdown: find all references', () => {
 
 		{
 			const refs = await getReferences(doc, new vscode.Position(1, 0), new InMemoryWorkspaceMarkdownDocuments([doc]));
-			assert.deepStrictEqual(refs, undefined);
+			assert.deepStrictEqual(refs, []);
 		}
 		{
 			const refs = await getReferences(doc, new vscode.Position(3, 2), new InMemoryWorkspaceMarkdownDocuments([doc]));
-			assert.deepStrictEqual(refs, undefined);
+			assert.deepStrictEqual(refs, []);
 		}
 	});
 
