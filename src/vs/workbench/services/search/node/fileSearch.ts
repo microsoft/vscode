@@ -429,7 +429,7 @@ export class FileWalker {
 
 				// Check exclude pattern
 				// If the user searches for the exact file name, we adjust the glob matching
-				// to ignore filtering by siblings because the user seems to know what she
+				// to ignore filtering by siblings because the user seems to know what they
 				// is searching for and we want to include the result in that case anyway
 				if (excludePattern.test(relativePath, basename, filePattern !== basename ? hasSibling : undefined)) {
 					continue;
@@ -479,7 +479,7 @@ export class FileWalker {
 
 			// Check exclude pattern
 			// If the user searches for the exact file name, we adjust the glob matching
-			// to ignore filtering by siblings because the user seems to know what she
+			// to ignore filtering by siblings because the user seems to know what they
 			// is searching for and we want to include the result in that case anyway
 			const currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(path.sep) : file;
 			if (this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.test(currentRelativePath, file, this.config.filePattern !== file ? hasSibling : undefined)) {

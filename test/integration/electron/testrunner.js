@@ -8,7 +8,7 @@
 const paths = require('path');
 const glob = require('glob');
 // Linux: prevent a weird NPE when mocha on Linux requires the window size from the TTY
-// Since we are not running in a tty environment, we just implementt he method statically
+// Since we are not running in a tty environment, we just implementt they method statically
 const tty = require('tty');
 if (!tty.getWindowSize) {
 	tty.getWindowSize = function () { return [80, 75]; };
