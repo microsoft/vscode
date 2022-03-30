@@ -20,8 +20,8 @@ export interface WebviewFindDelegate {
 }
 
 export class WebviewFindWidget extends SimpleFindWidget {
-	protected _getResultCount(): boolean | { resultIndex: number; resultCount: number } | undefined {
-		return false;
+	protected async _getResultCount(dataChanged?: boolean): Promise<boolean | { resultIndex: number; resultCount: number } | undefined> {
+		return undefined;
 	}
 	protected readonly _findWidgetFocused: IContextKey<boolean>;
 

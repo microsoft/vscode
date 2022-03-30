@@ -86,11 +86,13 @@ export class TerminalEditor extends EditorPane {
 			this.layout(this._lastDimension);
 		}
 		this._editorInput.terminalInstance?.setVisible(this.isVisible());
+
 		if (this._editorInput.terminalInstance) {
 			// since the editor does not monitor focus changes, for ex. between the terminal
 			// panel and the editors, this is needed so that the active instance gets set
 			// when focus changes between them.
 			this._register(this._editorInput.terminalInstance.onDidFocus(() => this._setActiveInstance()));
+			this._register(this._editorInput.terminalInstance?.onDidChangeFindResults(() => this._findWidget.updateResultCount(true)));
 			this._editorInput.setCopyLaunchConfig(this._editorInput.terminalInstance.shellLaunchConfig);
 		}
 	}
