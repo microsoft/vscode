@@ -609,6 +609,7 @@ suite('EditorGroupsService', () => {
 
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.DONT_SAVE);
+		let closeResult = false;
 
 		const group = part.activeGroup;
 
@@ -621,13 +622,15 @@ suite('EditorGroupsService', () => {
 		await group.openEditor(input2);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
-		await group.closeEditors([input1, input2]);
+		closeResult = await group.closeEditors([input1, input2]);
+		assert.strictEqual(closeResult, false);
 
 		assert.ok(!input1.gotDisposed);
 		assert.ok(!input2.gotDisposed);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.DONT_SAVE);
-		await group.closeEditors([input1, input2]);
+		closeResult = await group.closeEditors([input1, input2]);
+		assert.strictEqual(closeResult, true);
 
 		assert.ok(input1.gotDisposed);
 		assert.ok(input2.gotDisposed);

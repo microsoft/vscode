@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
 class File implements IStat {
 
@@ -82,7 +82,7 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 		throw new FileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
 	}
 
-	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 		let basename = resources.basename(resource);
 		let parent = this._lookupParentDirectory(resource);
 		let entry = parent.entries.get(basename);
@@ -109,7 +109,7 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 
 	// --- manage files/folders
 
-	async rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+	async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
 		if (!opts.overwrite && this._lookup(to, true)) {
 			throw new FileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
 		}
@@ -130,7 +130,7 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 		);
 	}
 
-	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
+	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
 		let dirname = resources.dirname(resource);
 		let basename = resources.basename(resource);
 		let parent = this._lookupAsDirectory(dirname, false);

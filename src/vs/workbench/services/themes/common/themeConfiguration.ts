@@ -14,7 +14,7 @@ import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry'
 import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ITokenColorCustomizations, IWorkbenchProductIconTheme, ISemanticTokenColorCustomizations, ThemeSettingTarget } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
+import { isWeb } from 'vs/base/common/platform';
 
 const DEFAULT_THEME_DARK_SETTING_VALUE = 'Default Dark+';
 const DEFAULT_THEME_LIGHT_SETTING_VALUE = 'Default Light+';
@@ -66,7 +66,6 @@ const preferredHCDarkThemeSettingSchema: IConfigurationPropertySchema = {
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
 	enumItemLabels: colorThemeSettingEnumItemLabels,
-	included: isWindows || isMacintosh,
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
 const preferredHCLightThemeSettingSchema: IConfigurationPropertySchema = {
@@ -76,7 +75,6 @@ const preferredHCLightThemeSettingSchema: IConfigurationPropertySchema = {
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
 	enumItemLabels: colorThemeSettingEnumItemLabels,
-	included: isWindows || isMacintosh,
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
 const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {

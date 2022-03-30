@@ -1710,9 +1710,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region closeEditors()
 
-	async closeEditors(args: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void> {
+	async closeEditors(args: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<boolean> {
 		if (this.isEmpty) {
-			return;
+			return true;
 		}
 
 		const editors = this.doGetEditorsToClose(args);
@@ -1720,11 +1720,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Check for dirty and veto
 		const veto = await this.handleDirtyClosing(editors.slice(0));
 		if (veto) {
-			return;
+			return false;
 		}
 
 		// Do close
 		this.doCloseEditors(editors, options);
+
+		return true;
 	}
 
 	private doGetEditorsToClose(args: EditorInput[] | ICloseEditorsFilter): EditorInput[] {

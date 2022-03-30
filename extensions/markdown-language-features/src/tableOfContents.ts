@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { MarkdownEngine } from './markdownEngine';
 import { githubSlugifier, Slug } from './slugify';
 import { isMarkdownFile } from './util/file';
+import { SkinnyTextDocument } from './workspaceContents';
 
 export interface TocEntry {
 	readonly slug: Slug;
@@ -14,19 +15,6 @@ export interface TocEntry {
 	readonly level: number;
 	readonly line: number;
 	readonly location: vscode.Location;
-}
-
-export interface SkinnyTextLine {
-	text: string;
-}
-
-export interface SkinnyTextDocument {
-	readonly uri: vscode.Uri;
-	readonly version: number;
-	readonly lineCount: number;
-
-	lineAt(line: number): SkinnyTextLine;
-	getText(): string;
 }
 
 export class TableOfContents {
@@ -55,15 +43,6 @@ export class TableOfContents {
 		}
 
 		return this.create(engine, document);
-	}
-
-	private constructor(
-		public readonly entries: readonly TocEntry[],
-	) { }
-
-	public lookup(fragment: string): TocEntry | undefined {
-		const slug = githubSlugifier.fromHeading(fragment);
-		return this.entries.find(entry => entry.slug.equals(slug));
 	}
 
 	private static async buildToc(engine: MarkdownEngine, document: SkinnyTextDocument): Promise<TocEntry[]> {
@@ -131,5 +110,14 @@ export class TableOfContents {
 
 	private static getHeaderText(header: string): string {
 		return header.replace(/^\s*#+\s*(.*?)(\s+#+)?$/, (_, word) => word.trim());
+	}
+
+	private constructor(
+		public readonly entries: readonly TocEntry[],
+	) { }
+
+	public lookup(fragment: string): TocEntry | undefined {
+		const slug = githubSlugifier.fromHeading(fragment);
+		return this.entries.find(entry => entry.slug.equals(slug));
 	}
 }

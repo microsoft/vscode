@@ -6,6 +6,7 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
+import { Schemas } from 'vs/base/common/network';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -15,12 +16,12 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { basename, basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { SaveSourceRegistry, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SaveSourceRegistry, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
+import { ActiveEditorContext, ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -28,6 +29,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_ICON_RESTORE, LOCAL_HISTORY_MENU_CONTEXT_KEY } from 'vs/workbench/contrib/localHistory/browser/localHistory';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 const LOCAL_HISTORY_CATEGORY = { value: localize('localHistory.category', "Local History"), original: 'Local History' };
 
@@ -311,6 +313,8 @@ registerAction2(class extends Action2 {
 		const languageService = accessor.get(ILanguageService);
 		const labelService = accessor.get(ILabelService);
 		const editorService = accessor.get(IEditorService);
+		const fileService = accessor.get(IFileService);
+		const commandService = accessor.get(ICommandService);
 
 		// Show all resources with associated history entries in picker
 		// with progress because this operation will take longer the more
@@ -371,12 +375,17 @@ registerAction2(class extends Action2 {
 		await Event.toPromise(entryPicker.onDidAccept);
 		entryPicker.dispose();
 
-		const entry = firstOrDefault(entryPicker.selectedItems);
-		if (!entry) {
+		const selectedItem = firstOrDefault(entryPicker.selectedItems);
+		if (!selectedItem) {
 			return;
 		}
 
-		return openEntry(entry.entry, editorService);
+		const resourceExists = await fileService.exists(selectedItem.entry.workingCopy.resource);
+		if (resourceExists) {
+			return commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(selectedItem.entry, selectedItem.entry.workingCopy.resource));
+		}
+
+		return openEntry(selectedItem.entry, editorService);
 	}
 });
 
@@ -496,6 +505,48 @@ registerAction2(class extends Action2 {
 
 		// Remove via service
 		await workingCopyHistoryService.removeAll(CancellationToken.None);
+	}
+});
+
+//#endregion
+
+//#region Create
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.localHistory.create',
+			title: { value: localize('localHistory.create', "Create Entry"), original: 'Create Entry' },
+			f1: true,
+			category: LOCAL_HISTORY_CATEGORY,
+			precondition: ActiveEditorContext
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const workingCopyHistoryService = accessor.get(IWorkingCopyHistoryService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const editorService = accessor.get(IEditorService);
+		const labelService = accessor.get(ILabelService);
+		const pathService = accessor.get(IPathService);
+
+		const resource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		if (resource?.scheme !== pathService.defaultUriScheme && resource?.scheme !== Schemas.vscodeUserData) {
+			return; // only enable for selected schemes
+		}
+
+		const inputBox = quickInputService.createInputBox();
+		inputBox.title = localize('createLocalHistoryEntryTitle', "Create Local History Entry");
+		inputBox.ignoreFocusOut = true;
+		inputBox.placeholder = localize('createLocalHistoryPlaceholder', "Enter the new name of the local history entry for '{0}'", labelService.getUriBasenameLabel(resource));
+		inputBox.show();
+		inputBox.onDidAccept(async () => {
+			let entrySource = inputBox.value;
+			inputBox.dispose();
+
+			if (entrySource) {
+				await workingCopyHistoryService.addEntry({ resource, source: inputBox.value }, CancellationToken.None);
+			}
+		});
 	}
 });
 

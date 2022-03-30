@@ -168,7 +168,7 @@ const ignoringReporter: ErrorReporter = {
 
 export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, errorReporter: ErrorReporter = ignoringReporter): T {
 	const alias: { [key: string]: string } = {};
-	const string: string[] = [];
+	const string: string[] = ['_'];
 	const boolean: string[] = [];
 	for (let optionId in options) {
 		const o = options[optionId];
@@ -212,7 +212,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 					if (!val) {
 						val = remainingArgs[deprecatedId];
 						if (val) {
-							errorReporter.onDeprecatedOption(deprecatedId, o.deprecationMessage || localize('deprecated.useInstead', 'Use {0} instead.'));
+							errorReporter.onDeprecatedOption(deprecatedId, o.deprecationMessage || localize('deprecated.useInstead', 'Use {0} instead.', optionId));
 						}
 					}
 					delete remainingArgs[deprecatedId];

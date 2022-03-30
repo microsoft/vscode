@@ -21,28 +21,32 @@ import { SnippetCompletion } from './snippetCompletionProvider';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/contrib/editorState/browser/editorState';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { CompletionItemProvider } from 'vs/editor/common/languages';
 
 export class TabCompletionController implements IEditorContribution {
 
-	public static readonly ID = 'editor.tabCompletionController';
+	static readonly ID = 'editor.tabCompletionController';
+
 	static readonly ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);
 
-	public static get(editor: ICodeEditor): TabCompletionController | null {
+	static get(editor: ICodeEditor): TabCompletionController | null {
 		return editor.getContribution<TabCompletionController>(TabCompletionController.ID);
 	}
 
-	private _hasSnippets: IContextKey<boolean>;
-	private _activeSnippets: Snippet[] = [];
+	private readonly _hasSnippets: IContextKey<boolean>;
+	private readonly _configListener: IDisposable;
 	private _enabled?: boolean;
 	private _selectionListener?: IDisposable;
-	private readonly _configListener: IDisposable;
+
+	private _activeSnippets: Snippet[] = [];
+	private _completionProvider?: IDisposable & CompletionItemProvider;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISnippetsService private readonly _snippetService: ISnippetsService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		this._hasSnippets = TabCompletionController.ContextKey.bindTo(contextKeyService);
@@ -78,6 +82,7 @@ export class TabCompletionController implements IEditorContribution {
 
 		// reset first
 		this._activeSnippets = [];
+		this._completionProvider?.dispose();
 
 		if (!this._editor.hasModel()) {
 			return;
@@ -119,7 +124,33 @@ export class TabCompletionController implements IEditorContribution {
 			}
 		}
 
-		this._hasSnippets.set(this._activeSnippets.length > 0);
+		const len = this._activeSnippets.length;
+		if (len === 0) {
+			this._hasSnippets.set(false);
+		} else if (len === 1) {
+			this._hasSnippets.set(true);
+		} else {
+			this._hasSnippets.set(true);
+			this._completionProvider = {
+				dispose: () => {
+					registration.dispose();
+				},
+				provideCompletionItems: (_model, position) => {
+					if (_model !== model || !selection.containsPosition(position)) {
+						return;
+					}
+					const suggestions = this._activeSnippets.map(snippet => {
+						const range = Range.fromPositions(position.delta(0, -snippet.prefix.length), position);
+						return new SnippetCompletion(snippet, range);
+					});
+					return { suggestions };
+				}
+			};
+			const registration = this._languageFeaturesService.completionProvider.register(
+				{ language: model.getLanguageId(), pattern: model.uri.path, scheme: model.uri.scheme },
+				this._completionProvider
+			);
+		}
 	}
 
 	async performSnippetCompletions() {
@@ -149,11 +180,9 @@ export class TabCompletionController implements IEditorContribution {
 
 		} else if (this._activeSnippets.length > 1) {
 			// two or more -> show IntelliSense box
-			const position = this._editor.getPosition();
-			this._instantiationService.invokeFunction(showSimpleSuggestions, this._editor, this._activeSnippets.map(snippet => {
-				const range = Range.fromPositions(position.delta(0, -snippet.prefix.length), position);
-				return new SnippetCompletion(snippet, range);
-			}));
+			if (this._completionProvider) {
+				showSimpleSuggestions(this._editor, this._completionProvider);
+			}
 		}
 	}
 }

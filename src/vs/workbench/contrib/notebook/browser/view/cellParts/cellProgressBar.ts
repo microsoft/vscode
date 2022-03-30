@@ -59,7 +59,7 @@ export class CellProgressBar extends CellPart {
 	private _updateForExecutionState(element: ICellViewModel, e?: ICellExecutionStateChangedEvent): void {
 		const exeState = e?.changed ?? this._notebookExecutionStateService.getCellExecution(element.uri);
 		const progressBar = element.isInputCollapsed ? this._collapsedProgressBar : this._progressBar;
-		if (element.isInputCollapsed || (exeState?.state === NotebookCellExecutionState.Executing && !exeState.didPause)) {
+		if (exeState?.state === NotebookCellExecutionState.Executing && (!exeState.didPause || element.isInputCollapsed)) {
 			showProgressBar(progressBar);
 		} else {
 			progressBar.hide();

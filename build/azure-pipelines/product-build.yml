@@ -9,6 +9,10 @@ schedules:
         - joao/web
 
 parameters:
+  - name: VSCODE_DISTRO_REF
+    displayName: Distro Ref (Private build)
+    type: string
+    default: " "
   - name: VSCODE_QUALITY
     displayName: Quality
     type: string
@@ -73,6 +77,10 @@ parameters:
     displayName: "Publish to builds.code.visualstudio.com"
     type: boolean
     default: true
+  - name: VSCODE_PUBLISH_TO_MOONCAKE
+    displayName: "Publish to Azure China"
+    type: boolean
+    default: true
   - name: VSCODE_RELEASE
     displayName: "Release build if successful"
     type: boolean
@@ -87,12 +95,12 @@ parameters:
     default: false
 
 variables:
+  - name: VSCODE_DISTRO_REF
+    value: ${{ parameters.VSCODE_DISTRO_REF }}
   - name: ENABLE_TERRAPIN
     value: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
   - name: VSCODE_QUALITY
     value: ${{ parameters.VSCODE_QUALITY }}
-  - name: VSCODE_RELEASE
-    value: ${{ parameters.VSCODE_RELEASE }}
   - name: VSCODE_BUILD_STAGE_WINDOWS
     value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_LINUX
@@ -103,6 +111,8 @@ variables:
     value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
   - name: VSCODE_PUBLISH
     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
+  - name: VSCODE_PUBLISH_TO_MOONCAKE
+    value: ${{ eq(parameters.VSCODE_PUBLISH_TO_MOONCAKE, true) }}
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
   - name: VSCODE_STEP_ON_IT
@@ -362,7 +372,7 @@ stages:
             steps:
               - template: product-publish.yml
 
-      - ${{ if or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
+      - ${{ if or(and(parameters.VSCODE_RELEASE, eq(parameters.VSCODE_DISTRO_REF, ' ')), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
           - stage: Release
             dependsOn:
               - Publish

@@ -10,6 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { Command } from 'vs/editor/common/languages';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 /**
  * A normalized inline completion is an inline completion with a defined range.
@@ -26,6 +27,8 @@ export interface NormalizedInlineCompletion {
 		range: Range;
 	}
 	| undefined;
+
+	readonly additionalTextEdits: readonly ISingleEditOperation[];
 }
 
 /**
@@ -53,6 +56,7 @@ export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: No
 		insertText: inlineCompletion.insertText.substr(commonPrefixLen, inlineCompletion.insertText.length - commonPrefixLen - commonSuffixLen),
 		snippetInfo: inlineCompletion.snippetInfo,
 		filterText: inlineCompletion.filterText,
+		additionalTextEdits: inlineCompletion.additionalTextEdits,
 	};
 }
 
@@ -117,6 +121,7 @@ export function inlineCompletionToGhostText(
 			command: inlineCompletion.command,
 			snippetInfo: undefined,
 			filterText: inlineCompletion.filterText,
+			additionalTextEdits: inlineCompletion.additionalTextEdits,
 		};
 	}
 

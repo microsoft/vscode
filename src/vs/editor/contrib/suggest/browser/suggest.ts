@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled, isCancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { CancellationError, isCancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { DisposableStore, IDisposable, isDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -24,7 +24,6 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { historyNavigationVisible } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { InternalQuickSuggestionsOptions, QuickSuggestionsValue } from 'vs/editor/common/config/editorOptions';
 
@@ -295,7 +294,7 @@ export async function provideSuggestionItems(
 
 	if (token.isCancellationRequested) {
 		disposables.dispose();
-		return Promise.reject<any>(canceled());
+		return Promise.reject<any>(new CancellationError());
 	}
 
 	return new CompletionItemModel(
@@ -401,32 +400,10 @@ interface SuggestController extends IEditorContribution {
 	triggerSuggest(onlyFrom?: Set<languages.CompletionItemProvider>): void;
 }
 
-
-let _onlyOnceProvider: languages.CompletionItemProvider | undefined;
-let _onlyOnceSuggestions: languages.CompletionItem[] = [];
-
-export function showSimpleSuggestions(accessor: ServicesAccessor, editor: ICodeEditor, suggestions: languages.CompletionItem[]) {
-
-	const { completionProvider } = accessor.get(ILanguageFeaturesService);
-
-	if (!_onlyOnceProvider) {
-		_onlyOnceProvider = new class implements languages.CompletionItemProvider {
-			provideCompletionItems(): languages.CompletionList {
-				let suggestions = _onlyOnceSuggestions.slice(0);
-				let result = { suggestions };
-				_onlyOnceSuggestions.length = 0;
-				return result;
-			}
-		};
-		completionProvider.register('*', _onlyOnceProvider);
-	}
-
-	setTimeout(() => {
-		_onlyOnceSuggestions.push(...suggestions);
-		editor.getContribution<SuggestController>('editor.contrib.suggestController')?.triggerSuggest(
-			new Set<languages.CompletionItemProvider>().add(_onlyOnceProvider!)
-		);
-	}, 0);
+export function showSimpleSuggestions(editor: ICodeEditor, provider: languages.CompletionItemProvider) {
+	editor.getContribution<SuggestController>('editor.contrib.suggestController')?.triggerSuggest(
+		new Set<languages.CompletionItemProvider>().add(provider)
+	);
 }
 
 export interface ISuggestItemPreselector {

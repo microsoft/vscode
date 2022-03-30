@@ -6,9 +6,9 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import LinkProvider from '../features/documentLinkProvider';
+import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from './inMemoryDocument';
+import { InMemoryDocument } from '../util/inMemoryDocument';
 import { joinLines, noopToken } from './util';
 
 
@@ -16,7 +16,7 @@ const testFile = vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 
 
 function getLinksForFile(fileContents: string) {
 	const doc = new InMemoryDocument(testFile, fileContents);
-	const provider = new LinkProvider(createNewMarkdownEngine());
+	const provider = new MdLinkProvider(createNewMarkdownEngine());
 	return provider.provideDocumentLinks(doc, noopToken);
 }
 
@@ -159,16 +159,16 @@ suite('markdown.DocumentLinkProvider', () => {
 		assert.strictEqual(links.length, 1);
 	});
 
-	test('Should find links for referenes with only one [] (#141285)', async () => {
+	test('Should find links for referees with only one [] (#141285)', async () => {
 		let links = await getLinksForFile([
-			'[Works]',
-			'[Works]: https://microsoft.com',
+			'[ref]',
+			'[ref]: https://microsoft.com',
 		].join('\n'));
 		assert.strictEqual(links.length, 2);
 
 		links = await getLinksForFile([
 			'[Does Not Work]',
-			'[Works]: https://microsoft.com',
+			'[def]: https://microsoft.com',
 		].join('\n'));
 		assert.strictEqual(links.length, 1);
 	});

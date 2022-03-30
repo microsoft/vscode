@@ -901,6 +901,11 @@ export interface IXtermTerminal {
 	 * Clears decorations - for example, when shell integration is disabled.
 	 */
 	clearDecorations(): void;
+
+	/**
+	 * Clears the search result decorations
+	 */
+	clearSearchDecorations(): void;
 }
 
 export interface IRequestAddInstanceToGroupEvent {
@@ -912,4 +917,8 @@ export const enum LinuxDistro {
 	Unknown = 1,
 	Fedora = 2,
 	Ubuntu = 3,
+}
+
+export const enum TerminalDataTransfers {
+	Terminals = 'Terminals'
 }

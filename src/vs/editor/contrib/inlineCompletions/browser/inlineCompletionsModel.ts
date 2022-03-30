@@ -30,6 +30,8 @@ import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { assertNever } from 'vs/base/common/types';
 import { matchesSubString } from 'vs/base/common/filters';
+import { getReadonlyEmptyArray } from 'vs/editor/contrib/inlineCompletions/browser/utils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -53,7 +55,8 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		@ICommandService private readonly commandService: ICommandService,
 		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@ILanguageFeatureDebounceService private readonly debounceService: ILanguageFeatureDebounceService
+		@ILanguageFeatureDebounceService private readonly debounceService: ILanguageFeatureDebounceService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -95,6 +98,10 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 
 		this._register(
 			this.editor.onDidBlurEditorWidget(() => {
+				// This is a hidden setting very useful for debugging
+				if (configurationService.getValue('editor.inlineSuggest.hideOnBlur')) {
+					return;
+				}
 				this.hide();
 			})
 		);
@@ -246,7 +253,9 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
 			// Ghost text depends on the cursor position
+			this.cache.value?.updateRanges();
 			if (this.cache.value) {
+				this.updateFilteredInlineCompletions();
 				this.onDidChangeEmitter.fire();
 			}
 		}));
@@ -274,19 +283,36 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}
 
 		const model = this.editor.getModel();
+		const cursorPosition = model.validatePosition(this.editor.getPosition());
 		this.filteredCompletions = this.cache.value.completions.filter(c => {
-			let originalValue = model.getValueInRange(c.synchronizedRange);
-			let filterText = c.inlineCompletion.filterText;
+			const originalValue = model.getValueInRange(c.synchronizedRange).toLowerCase();
+			const filterText = c.inlineCompletion.filterText.toLowerCase();
 
 			const indent = model.getLineIndentColumn(c.synchronizedRange.startLineNumber);
+
+
+			const cursorPosIndex = Math.max(0, cursorPosition.column - c.synchronizedRange.startColumn);
+
+			let filterTextBefore = filterText.substring(0, cursorPosIndex);
+			let filterTextAfter = filterText.substring(cursorPosIndex);
+
+			let originalValueBefore = originalValue.substring(0, cursorPosIndex);
+			let originalValueAfter = originalValue.substring(cursorPosIndex);
+
 			if (c.synchronizedRange.startColumn <= indent) {
 				// Remove indentation
-				originalValue = originalValue.trimStart();
-				filterText = filterText.trimStart();
+				originalValueBefore = originalValueBefore.trimStart();
+				if (originalValueBefore.length === 0) {
+					originalValueAfter = originalValueAfter.trimStart();
+				}
+				filterTextBefore = filterTextBefore.trimStart();
+				if (filterTextBefore.length === 0) {
+					filterTextAfter = filterTextAfter.trimStart();
+				}
 			}
 
-			const matches = matchesSubString(originalValue, filterText);
-			return matches;
+			return filterTextBefore.startsWith(originalValueBefore)
+				&& matchesSubString(originalValueAfter, filterTextAfter);
 		});
 	}
 
@@ -483,7 +509,8 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			this.editor.executeEdits(
 				'inlineSuggestion.accept',
 				[
-					EditOperation.replaceMove(completion.range, '')
+					EditOperation.replaceMove(completion.range, ''),
+					...completion.additionalTextEdits
 				]
 			);
 			this.editor.setPosition(completion.snippetInfo.range.getStartPosition());
@@ -492,10 +519,12 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			this.editor.executeEdits(
 				'inlineSuggestion.accept',
 				[
-					EditOperation.replaceMove(completion.range, completion.insertText)
+					EditOperation.replaceMove(completion.range, completion.insertText),
+					...completion.additionalTextEdits
 				]
 			);
 		}
+
 		if (completion.command) {
 			this.commandService
 				.executeCommand(completion.command.id, ...(completion.command.arguments || []))
@@ -608,6 +637,7 @@ class CachedInlineCompletion {
 			sourceInlineCompletion: this.inlineCompletion.sourceInlineCompletion,
 			snippetInfo: this.inlineCompletion.snippetInfo,
 			filterText: this.inlineCompletion.filterText,
+			additionalTextEdits: this.inlineCompletion.additionalTextEdits,
 		};
 	}
 }
@@ -696,6 +726,7 @@ export async function provideInlineCompletions(
 				sourceInlineCompletions: completions,
 				sourceInlineCompletion: item,
 				filterText: item.filterText || insertText,
+				additionalTextEdits: item.additionalTextEdits || getReadonlyEmptyArray()
 			});
 
 			itemsByHash.set(JSON.stringify({ insertText, range: item.range }), trackedItem);
@@ -715,7 +746,8 @@ export async function provideInlineCompletions(
 /**
  * Contains no duplicated items and can be disposed.
 */
-export interface TrackedInlineCompletions extends InlineCompletions<TrackedInlineCompletion> {
+export interface TrackedInlineCompletions {
+	readonly items: readonly TrackedInlineCompletion[];
 	dispose(): void;
 }
 

@@ -126,6 +126,7 @@ declare module 'vscode' {
 		 */
 		command?: Command;
 
+		// TODO@API insertText -> string | SnippetString
 		constructor(insertText: string, range?: Range, command?: Command);
 	}
 }

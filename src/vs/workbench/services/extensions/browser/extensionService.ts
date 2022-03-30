@@ -51,8 +51,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWebExtensionsScannerService webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILogService logService: ILogService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IUserDataInitializationService private readonly _userDataInitializationService: IUserDataInitializationService,
 	) {
@@ -69,7 +69,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			configurationService,
 			extensionManifestPropertiesService,
 			webExtensionsScannerService,
-			logService
+			logService,
+			remoteAgentService
 		);
 
 		// Initialize installed extensions first and do it only after workbench is ready
@@ -216,7 +217,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		const result = this._registry.deltaExtensions(remoteExtensions.concat(localExtensions), []);
 		if (result.removedDueToLooping.length > 0) {
-			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', '))
+			});
 		}
 
 		if (remoteEnv && remoteAgentConnection) {

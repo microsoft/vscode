@@ -6,9 +6,10 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { PathCompletionProvider } from '../features/pathCompletions';
+import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
+import { MdPathCompletionProvider } from '../languageFeatures/pathCompletions';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from './inMemoryDocument';
+import { InMemoryDocument } from '../util/inMemoryDocument';
 import { CURSOR, getCursorPositions, joinLines, noopToken } from './util';
 
 
@@ -18,7 +19,9 @@ function workspaceFile(...segments: string[]): vscode.Uri {
 
 function getCompletionsAtCursor(resource: vscode.Uri, fileContents: string) {
 	const doc = new InMemoryDocument(resource, fileContents);
-	const provider = new PathCompletionProvider(createNewMarkdownEngine());
+	const engine = createNewMarkdownEngine();
+	const linkProvider = new MdLinkProvider(engine);
+	const provider = new MdPathCompletionProvider(engine, linkProvider);
 	const cursorPositions = getCursorPositions(fileContents, doc);
 	return provider.provideCompletionItems(doc, cursorPositions[0], noopToken, {
 		triggerCharacter: undefined,
@@ -150,5 +153,21 @@ suite('Markdown path completion provider', () => {
 		));
 
 		assert.ok(completions.some(x => x.insertText === 'file%20with%20space.md'), 'Has encoded path completion');
+	});
+
+	test('Should complete paths for path with encoded spaces', async () => {
+		const completions = await getCompletionsAtCursor(workspaceFile('new.md'), joinLines(
+			`[](./sub%20with%20space/${CURSOR})`
+		));
+
+		assert.ok(completions.some(x => x.insertText === 'file.md'), 'Has file from space');
+	});
+
+	test('Should complete definition path for path with encoded spaces', async () => {
+		const completions = await getCompletionsAtCursor(workspaceFile('new.md'), joinLines(
+			`[def]: ./sub%20with%20space/${CURSOR}`
+		));
+
+		assert.ok(completions.some(x => x.insertText === 'file.md'), 'Has file from space');
 	});
 });

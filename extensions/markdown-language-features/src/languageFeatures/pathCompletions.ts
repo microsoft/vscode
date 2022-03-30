@@ -6,16 +6,20 @@
 import { dirname, resolve } from 'path';
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContents } from '../tableOfContentsProvider';
+import { TableOfContents } from '../tableOfContents';
 import { resolveUriToMarkdownFile } from '../util/openDocumentLink';
-import LinkProvider from './documentLinkProvider';
+import { SkinnyTextDocument } from '../workspaceContents';
+import { MdLinkProvider } from './documentLinkProvider';
 
 enum CompletionContextKind {
-	Link, // [...](|)
+	/** `[...](|)` */
+	Link,
 
-	ReferenceLink, // [...][|]
+	/** `[...][|]` */
+	ReferenceLink,
 
-	LinkDefinition, // []: | // TODO: not implemented
+	/** `[]: |` */
+	LinkDefinition,
 }
 
 interface AnchorContext {
@@ -25,6 +29,7 @@ interface AnchorContext {
 	 * For `[text](xy#z|abc)` this is `xy`.
 	 */
 	readonly beforeAnchor: string;
+
 	/**
 	 * Text of the anchor before the current position.
 	 *
@@ -63,17 +68,30 @@ interface CompletionContext {
 	readonly anchorInfo?: AnchorContext;
 }
 
-export class PathCompletionProvider implements vscode.CompletionItemProvider {
+function tryDecodeUriComponent(str: string): string {
+	try {
+		return decodeURIComponent(str);
+	} catch {
+		return str;
+	}
+}
 
-	public static register(selector: vscode.DocumentSelector, engine: MarkdownEngine): vscode.Disposable {
-		return vscode.languages.registerCompletionItemProvider(selector, new PathCompletionProvider(engine), '.', '/', '#');
+export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
+
+	public static register(
+		selector: vscode.DocumentSelector,
+		engine: MarkdownEngine,
+		linkProvider: MdLinkProvider,
+	): vscode.Disposable {
+		return vscode.languages.registerCompletionItemProvider(selector, new MdPathCompletionProvider(engine, linkProvider), '.', '/', '#');
 	}
 
 	constructor(
 		private readonly engine: MarkdownEngine,
+		private readonly linkProvider: MdLinkProvider,
 	) { }
 
-	public async provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, _token: vscode.CancellationToken, _context: vscode.CompletionContext): Promise<vscode.CompletionItem[]> {
+	public async provideCompletionItems(document: SkinnyTextDocument, position: vscode.Position, _token: vscode.CancellationToken, _context: vscode.CompletionContext): Promise<vscode.CompletionItem[]> {
 		if (!this.arePathSuggestionEnabled(document)) {
 			return [];
 		}
@@ -127,7 +145,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 		}
 	}
 
-	private arePathSuggestionEnabled(document: vscode.TextDocument): boolean {
+	private arePathSuggestionEnabled(document: SkinnyTextDocument): boolean {
 		const config = vscode.workspace.getConfiguration('markdown', document.uri);
 		return config.get('suggest.paths.enabled', true);
 	}
@@ -141,7 +159,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 	/// [id]: |
 	private readonly definitionPattern = /^\s*\[[\w\-]+\]:\s*([^\s]*)$/m;
 
-	private getPathCompletionContext(document: vscode.TextDocument, position: vscode.Position): CompletionContext | undefined {
+	private getPathCompletionContext(document: SkinnyTextDocument, position: vscode.Position): CompletionContext | undefined {
 		const line = document.lineAt(position.line).text;
 
 		const linePrefixText = line.slice(0, position.character);
@@ -157,7 +175,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 			const suffix = lineSuffixText.match(/^[^\)\s]*/);
 			return {
 				kind: CompletionContextKind.Link,
-				linkPrefix: prefix,
+				linkPrefix: tryDecodeUriComponent(prefix),
 				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
 				linkSuffix: suffix ? suffix[0] : '',
 				anchorInfo: this.getAnchorContext(prefix),
@@ -174,7 +192,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 			const suffix = lineSuffixText.match(/^[^\s]*/);
 			return {
 				kind: CompletionContextKind.LinkDefinition,
-				linkPrefix: prefix,
+				linkPrefix: tryDecodeUriComponent(prefix),
 				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
 				linkSuffix: suffix ? suffix[0] : '',
 				anchorInfo: this.getAnchorContext(prefix),
@@ -214,11 +232,11 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 		};
 	}
 
-	private *provideReferenceSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext): Iterable<vscode.CompletionItem> {
+	private *provideReferenceSuggestions(document: SkinnyTextDocument, position: vscode.Position, context: CompletionContext): Iterable<vscode.CompletionItem> {
 		const insertionRange = new vscode.Range(context.linkTextStartPosition, position);
 		const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
 
-		const definitions = LinkProvider.getDefinitions(document.getText(), document);
+		const definitions = this.linkProvider.getDefinitions(document.getText(), document);
 		for (const def of definitions) {
 			yield {
 				kind: vscode.CompletionItemKind.Reference,
@@ -231,7 +249,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 		}
 	}
 
-	private async *provideHeaderSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext, insertionRange: vscode.Range): AsyncIterable<vscode.CompletionItem> {
+	private async *provideHeaderSuggestions(document: SkinnyTextDocument, position: vscode.Position, context: CompletionContext, insertionRange: vscode.Range): AsyncIterable<vscode.CompletionItem> {
 		const toc = await TableOfContents.createForDocumentOrNotebook(this.engine, document);
 		for (const entry of toc.entries) {
 			const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
@@ -246,7 +264,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 		}
 	}
 
-	private async *providePathSuggestions(document: vscode.TextDocument, position: vscode.Position, context: CompletionContext): AsyncIterable<vscode.CompletionItem> {
+	private async *providePathSuggestions(document: SkinnyTextDocument, position: vscode.Position, context: CompletionContext): AsyncIterable<vscode.CompletionItem> {
 		const valueBeforeLastSlash = context.linkPrefix.substring(0, context.linkPrefix.lastIndexOf('/') + 1); // keep the last slash
 
 		const parentDir = this.resolveReference(document, valueBeforeLastSlash || '.');
@@ -287,7 +305,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 		}
 	}
 
-	private resolveReference(document: vscode.TextDocument, ref: string): vscode.Uri | undefined {
+	private resolveReference(document: SkinnyTextDocument, ref: string): vscode.Uri | undefined {
 		const docUri = this.getFileUriOfTextDocument(document);
 
 		if (ref.startsWith('/')) {
@@ -316,7 +334,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 		}
 	}
 
-	private getFileUriOfTextDocument(document: vscode.TextDocument) {
+	private getFileUriOfTextDocument(document: SkinnyTextDocument) {
 		if (document.uri.scheme === 'vscode-notebook-cell') {
 			const notebook = vscode.workspace.notebookDocuments
 				.find(notebook => notebook.getCells().some(cell => cell.document === document));

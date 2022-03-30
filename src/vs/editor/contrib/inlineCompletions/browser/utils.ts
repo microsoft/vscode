@@ -51,3 +51,8 @@ class PositionOffsetTransformer {
 		return this.lineStartOffsetByLineIdx[position.lineNumber - 1] + position.column - 1;
 	}
 }
+
+const array: ReadonlyArray<any> = [];
+export function getReadonlyEmptyArray<T>(): readonly T[] {
+	return array;
+}

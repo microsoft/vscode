@@ -5,36 +5,37 @@
 import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContents, TocEntry } from '../tableOfContentsProvider';
+import { TableOfContents, TocEntry } from '../tableOfContents';
+import { SkinnyTextDocument } from '../workspaceContents';
 
 interface MarkdownItTokenWithMap extends Token {
 	map: [number, number];
 }
 
-export default class MarkdownSmartSelect implements vscode.SelectionRangeProvider {
+export class MdSmartSelect implements vscode.SelectionRangeProvider {
 
 	constructor(
 		private readonly engine: MarkdownEngine
 	) { }
 
-	public async provideSelectionRanges(document: vscode.TextDocument, positions: vscode.Position[], _token: vscode.CancellationToken): Promise<vscode.SelectionRange[] | undefined> {
+	public async provideSelectionRanges(document: SkinnyTextDocument, positions: vscode.Position[], _token: vscode.CancellationToken): Promise<vscode.SelectionRange[] | undefined> {
 		const promises = await Promise.all(positions.map((position) => {
 			return this.provideSelectionRange(document, position, _token);
 		}));
 		return promises.filter(item => item !== undefined) as vscode.SelectionRange[];
 	}
 
-	private async provideSelectionRange(document: vscode.TextDocument, position: vscode.Position, _token: vscode.CancellationToken): Promise<vscode.SelectionRange | undefined> {
+	private async provideSelectionRange(document: SkinnyTextDocument, position: vscode.Position, _token: vscode.CancellationToken): Promise<vscode.SelectionRange | undefined> {
 		const headerRange = await this.getHeaderSelectionRange(document, position);
 		const blockRange = await this.getBlockSelectionRange(document, position, headerRange);
 		const inlineRange = await this.getInlineSelectionRange(document, position, blockRange);
 		return inlineRange || blockRange || headerRange;
 	}
-	private async getInlineSelectionRange(document: vscode.TextDocument, position: vscode.Position, blockRange?: vscode.SelectionRange): Promise<vscode.SelectionRange | undefined> {
+	private async getInlineSelectionRange(document: SkinnyTextDocument, position: vscode.Position, blockRange?: vscode.SelectionRange): Promise<vscode.SelectionRange | undefined> {
 		return createInlineRange(document, position, blockRange);
 	}
 
-	private async getBlockSelectionRange(document: vscode.TextDocument, position: vscode.Position, headerRange?: vscode.SelectionRange): Promise<vscode.SelectionRange | undefined> {
+	private async getBlockSelectionRange(document: SkinnyTextDocument, position: vscode.Position, headerRange?: vscode.SelectionRange): Promise<vscode.SelectionRange | undefined> {
 
 		const tokens = await this.engine.parse(document);
 
@@ -52,7 +53,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		return currentRange;
 	}
 
-	private async getHeaderSelectionRange(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.SelectionRange | undefined> {
+	private async getHeaderSelectionRange(document: SkinnyTextDocument, position: vscode.Position): Promise<vscode.SelectionRange | undefined> {
 		const toc = await TableOfContents.create(this.engine, document);
 
 		const headerInfo = getHeadersForPosition(toc.entries, position);
@@ -107,7 +108,7 @@ function getBlockTokensForPosition(tokens: Token[], position: vscode.Position, p
 	return sortedTokens;
 }
 
-function createBlockRange(block: MarkdownItTokenWithMap, document: vscode.TextDocument, cursorLine: number, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
+function createBlockRange(block: MarkdownItTokenWithMap, document: SkinnyTextDocument, cursorLine: number, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
 	if (block.type === 'fence') {
 		return createFencedRange(block, cursorLine, document, parent);
 	} else {
@@ -129,7 +130,7 @@ function createBlockRange(block: MarkdownItTokenWithMap, document: vscode.TextDo
 	}
 }
 
-function createInlineRange(document: vscode.TextDocument, cursorPosition: vscode.Position, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
+function createInlineRange(document: SkinnyTextDocument, cursorPosition: vscode.Position, parent?: vscode.SelectionRange): vscode.SelectionRange | undefined {
 	const lineText = document.lineAt(cursorPosition.line).text;
 	const boldSelection = createBoldRange(lineText, cursorPosition.character, cursorPosition.line, parent);
 	const italicSelection = createOtherInlineRange(lineText, cursorPosition.character, cursorPosition.line, true, parent);
@@ -146,7 +147,7 @@ function createInlineRange(document: vscode.TextDocument, cursorPosition: vscode
 	return inlineCodeBlockSelection || linkSelection || comboSelection || boldSelection || italicSelection;
 }
 
-function createFencedRange(token: MarkdownItTokenWithMap, cursorLine: number, document: vscode.TextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange {
+function createFencedRange(token: MarkdownItTokenWithMap, cursorLine: number, document: SkinnyTextDocument, parent?: vscode.SelectionRange): vscode.SelectionRange {
 	const startLine = token.map[0];
 	const endLine = token.map[1] - 1;
 	const onFenceLine = cursorLine === startLine || cursorLine === endLine;
@@ -236,7 +237,7 @@ function isBlockElement(token: Token): boolean {
 	return !['list_item_close', 'paragraph_close', 'bullet_list_close', 'inline', 'heading_close', 'heading_open'].includes(token.type);
 }
 
-function getFirstChildHeader(document: vscode.TextDocument, header?: TocEntry, toc?: readonly TocEntry[]): vscode.Position | undefined {
+function getFirstChildHeader(document: SkinnyTextDocument, header?: TocEntry, toc?: readonly TocEntry[]): vscode.Position | undefined {
 	let childRange: vscode.Position | undefined;
 	if (header && toc) {
 		let children = toc.filter(t => header.location.range.contains(t.location.range) && t.location.range.start.line > header.location.range.start.line).sort((t1, t2) => t1.line - t2.line);

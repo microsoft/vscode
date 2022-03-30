@@ -34,6 +34,7 @@ import { LanguageService } from 'vs/editor/common/services/languageService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -120,7 +121,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 					return Promise.resolve('clipboard_contents');
 				}
 			},
-			new TestPathService()
+			new TestPathService(),
+			new TestInstantiationService(),
 		);
 	});
 
