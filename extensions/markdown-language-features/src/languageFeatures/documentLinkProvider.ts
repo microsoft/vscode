@@ -36,13 +36,6 @@ export interface DefinitionLinkTarget {
 	readonly target: ExternalLinkTarget | InternalLinkTarget;
 }
 
-export interface DefinitionLinkTarget {
-	readonly kind: 'definition';
-
-	readonly ref: string;
-	readonly target: ExternalLinkTarget | InternalLinkTarget;
-}
-
 export type LinkTarget = ExternalLinkTarget | InternalLinkTarget | ReferenceLinkTarget | DefinitionLinkTarget;
 
 
