@@ -149,4 +149,62 @@ suite('markdown: rename', () => {
 			]
 		});
 	});
+
+	test('Rename on header should pick up links across files', async () => {
+		const uri = workspacePath('doc.md');
+		const otherUri = workspacePath('other.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`### A b C`, // rename here
+			`[text](#a-b-c)`,
+		));
+
+		const edit = await getRenameEdits(doc, new vscode.Position(0, 0), "New Header", new InMemoryWorkspaceMarkdownDocuments([
+			doc,
+			new InMemoryDocument(otherUri, joinLines(
+				`[text](#a-b-c)`, // Should not find this
+				`[text](./doc.md#a-b-c)`, // But should find this
+				`[text](./doc#a-b-c)`, // And this
+			))
+		]));
+		assertEditsEqual(edit!, {
+			uri: uri, edits: [
+				new vscode.TextEdit(new vscode.Range(0, 4, 0, 9), 'New Header'),
+				new vscode.TextEdit(new vscode.Range(1, 8, 1, 13), 'new-header'),
+			]
+		}, {
+			uri: otherUri, edits: [
+				new vscode.TextEdit(new vscode.Range(1, 16, 1, 21), 'new-header'),
+				new vscode.TextEdit(new vscode.Range(2, 13, 2, 18), 'new-header'),
+			]
+		});
+	});
+
+	test('Rename on link should pick up links across files', async () => {
+		const uri = workspacePath('doc.md');
+		const otherUri = workspacePath('other.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`### A b C`,
+			`[text](#a-b-c)`,  // rename here
+		));
+
+		const edit = await getRenameEdits(doc, new vscode.Position(1, 10), "New Header", new InMemoryWorkspaceMarkdownDocuments([
+			doc,
+			new InMemoryDocument(otherUri, joinLines(
+				`[text](#a-b-c)`, // Should not find this
+				`[text](./doc.md#a-b-c)`, // But should find this
+				`[text](./doc#a-b-c)`, // And this
+			))
+		]));
+		assertEditsEqual(edit!, {
+			uri: uri, edits: [
+				new vscode.TextEdit(new vscode.Range(0, 4, 0, 9), 'New Header'),
+				new vscode.TextEdit(new vscode.Range(1, 8, 1, 13), 'new-header'),
+			]
+		}, {
+			uri: otherUri, edits: [
+				new vscode.TextEdit(new vscode.Range(1, 16, 1, 21), 'new-header'),
+				new vscode.TextEdit(new vscode.Range(2, 13, 2, 18), 'new-header'),
+			]
+		});
+	});
 });

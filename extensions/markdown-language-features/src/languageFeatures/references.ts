@@ -9,15 +9,8 @@ import { Slugifier } from '../slugify';
 import { TableOfContents, TocEntry } from '../tableOfContents';
 import { Disposable } from '../util/dispose';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { InternalHref, LinkHref, MdLink, MdLinkProvider } from './documentLinkProvider';
+import { InternalHref, MdLink, MdLinkProvider } from './documentLinkProvider';
 import { MdWorkspaceCache } from './workspaceCache';
-
-
-function isLinkToHeader(target: LinkHref, header: TocEntry, headerDocument: vscode.Uri, slugifier: Slugifier): target is InternalHref {
-	return target.kind === 'internal'
-		&& target.path.fsPath === headerDocument.fsPath
-		&& slugifier.fromHeading(target.fragment).value === header.slug.value;
-}
 
 
 /**
@@ -121,15 +114,10 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		});
 
 		for (const link of links) {
-			if (isLinkToHeader(link.href, header, document.uri, this.slugifier)) {
-				references.push({
-					kind: 'link',
-					isTriggerLocation: false,
-					isDefinition: false,
-					location: new vscode.Location(link.sourceResource, link.sourceRange),
-					fragmentLocation: getFragmentLocation(link),
-				});
-			} else if (link.kind === 'definition' && isLinkToHeader(link.href, header, document.uri, this.slugifier)) {
+			if (link.href.kind === 'internal'
+				&& this.looksLikeLinkToDoc(link.href, document)
+				&& this.slugifier.fromHeading(link.href.fragment).value === header.slug.value
+			) {
 				references.push({
 					kind: 'link',
 					isTriggerLocation: false,
@@ -194,10 +182,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 				continue;
 			}
 
-			const matchesFilePart = link.href.path.fsPath === targetDoc.uri.fsPath
-				|| uri.Utils.extname(link.href.path) === '' && link.href.path.with({ path: link.href.path.path + '.md' }).fsPath === targetDoc.uri.fsPath;
-
-			if (!matchesFilePart) {
+			if (!this.looksLikeLinkToDoc(link.href, targetDoc)) {
 				continue;
 			}
 
@@ -229,6 +214,11 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		}
 
 		return references;
+	}
+
+	private looksLikeLinkToDoc(href: InternalHref, targetDoc: SkinnyTextDocument) {
+		return href.path.fsPath === targetDoc.uri.fsPath
+			|| uri.Utils.extname(href.path) === '' && href.path.with({ path: href.path.path + '.md' }).fsPath === targetDoc.uri.fsPath;
 	}
 
 	private * getReferencesToReferenceLink(allLinks: Iterable<MdLink>, sourceLink: MdLink): Iterable<MdReference> {

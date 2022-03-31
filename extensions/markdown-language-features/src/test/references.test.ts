@@ -215,6 +215,37 @@ suite('markdown: find all references', () => {
 		);
 	});
 
+	test('Should find references without requiring file extensions', async () => {
+		const docUri = workspacePath('doc.md');
+		const other1Uri = workspacePath('other.md');
+
+		const doc = new InMemoryDocument(docUri, joinLines(
+			`# a B c`,
+			``,
+			`[link 1](#a-b-c)`,
+		));
+		const refs = await getReferences(doc, new vscode.Position(2, 10), new InMemoryWorkspaceMarkdownDocuments([
+			doc,
+			new InMemoryDocument(other1Uri, joinLines(
+				`[not link](#a-b-c)`,
+				`[not link](/doc.md#a-b-z)`,
+				`[with ext](/doc.md#a-b-c)`,
+				`[without ext](/doc#a-b-c)`,
+				`[rel with ext](./doc.md#a-b-c)`,
+				`[rel without ext](./doc#a-b-c)`,
+			)),
+		]));
+
+		assertReferencesEqual(refs!,
+			{ uri: docUri, line: 0 }, // Header definition
+			{ uri: docUri, line: 2 },
+			{ uri: other1Uri, line: 2 }, // Other with ext
+			{ uri: other1Uri, line: 3 }, // Other without ext
+			{ uri: other1Uri, line: 4 }, // Other relative link with ext
+			{ uri: other1Uri, line: 5 }, // Other relative link without ext
+		);
+	});
+
 	test('Should find references from link across files when triggered on link without file extension', async () => {
 		const docUri = workspacePath('doc.md');
 		const other1Uri = workspacePath('sub', 'other.md');
