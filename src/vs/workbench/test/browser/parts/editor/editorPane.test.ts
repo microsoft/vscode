@@ -508,7 +508,7 @@ suite('EditorPane', () => {
 		assert.strictEqual(group.activeEditorPane?.getId(), WorkspaceTrustRequiredEditor.ID);
 
 		const getEditorPaneIdAsync = () => new Promise(resolve => {
-			disposables.add(editorService.onDidActiveEditorChange(event => {
+			disposables.add(editorService.onDidActiveEditorChange(() => {
 				resolve(group.activeEditorPane?.getId());
 			}));
 		});

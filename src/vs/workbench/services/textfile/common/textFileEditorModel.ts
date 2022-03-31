@@ -30,6 +30,8 @@ import { extUri } from 'vs/base/common/resources';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IModelLanguageChangedEvent } from 'vs/editor/common/textModelEvents';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -117,6 +119,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IPathService private readonly pathService: IPathService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(modelService, languageService, languageDetectionService, accessibilityService);
 
@@ -128,7 +131,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private registerListeners(): void {
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
-		this._register(this.filesConfigurationService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
+		this._register(this.filesConfigurationService.onFilesAssociationChange(() => this.onFilesAssociationChange()));
 	}
 
 	private async onDidFilesChange(e: FileChangesEvent): Promise<void> {
@@ -559,8 +562,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// This code has been extracted to a different method because it caused a memory leak
 		// where `value` was captured in the content change listener closure scope.
 
-		// Content Change
+		// Listen to text model events
 		this._register(model.onDidChangeContent(e => this.onModelContentChanged(model, e.isUndoing || e.isRedoing)));
+		this._register(model.onDidChangeLanguage(e => this.onMaybeDidChangeEncoding(e))); // detect possible encoding change via language specific settings
 	}
 
 	private onModelContentChanged(model: ITextModel, isUndoingOrRedoing: boolean): void {
@@ -613,19 +617,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.autoDetectLanguage();
 	}
 
-	private static _whenReadyToDetectLanguage: Promise<boolean> | undefined;
-	private whenReadyToDetectLanguage(): Promise<boolean> {
-		if (TextFileEditorModel._whenReadyToDetectLanguage === undefined) {
-			// We need to wait until installed extensions are registered because if the editor is created before that (like when restoring an editor)
-			// it could be created with a language of plaintext. This would trigger language detection even though the real issue is that the
-			// language extensions are not yet loaded to provide the actual language.
-			TextFileEditorModel._whenReadyToDetectLanguage = this.extensionService.whenInstalledExtensionsRegistered();
-		}
-		return TextFileEditorModel._whenReadyToDetectLanguage;
-	}
-
 	protected override async autoDetectLanguage(): Promise<void> {
-		await this.whenReadyToDetectLanguage();
+
+		// Wait to be ready to detect language
+		await this.extensionService?.whenInstalledExtensionsRegistered();
+
+		// Only perform language detection conditionally
 		const languageId = this.getLanguageId();
 		if (
 			this.resource.scheme === this.pathService.defaultUriScheme &&	// make sure to not detect language for non-user visible documents
@@ -985,6 +982,45 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	//#region Encoding
+
+	private async onMaybeDidChangeEncoding(e: IModelLanguageChangedEvent): Promise<void> {
+
+		// This is a bit of a hack but there is a narrow case where
+		// per-language configured encodings are not working:
+		//
+		// On startup we may not yet have all languages resolved so
+		// we pick a wrong encoding. We never used to re-apply the
+		// encoding when the language was then resolved, because that
+		// is an operation that is will have to fetch the contents
+		// again from disk.
+		//
+		// To mitigate this issue, when we detect the model language
+		// changes, we see if there is a specific encoding configured
+		// for the new language and apply it, only if the model is
+		// not dirty and has finished resolving.
+		//
+		// (see https://github.com/microsoft/vscode/issues/127936)
+
+		if (!this.configurationService.inspect('files.encoding').overrideIdentifiers?.includes(e.newLanguage)) {
+			return; // only when there is a language specific override for the new language
+		}
+
+		const { encoding } = await this.textFileService.encoding.getPreferredReadEncoding(this.resource);
+		if (typeof encoding !== 'string' || !this.isNewEncoding(encoding)) {
+			return; // return early if encoding is invalid or did not change
+		}
+
+		if (this.isDirty() || this.inConflictMode) {
+			return; // return early to prevent accident saves in this case
+		}
+
+		if (!this.isResolved()) {
+			return; // return early to prevent race with resolving
+		}
+
+		// Re-open with new encoding
+		await this.setEncoding(encoding, EncodingMode.Decode);
+	}
 
 	getEncoding(): string | undefined {
 		return this.preferredEncoding || this.contentEncoding;
