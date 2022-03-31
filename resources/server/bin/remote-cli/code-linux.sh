@@ -2,7 +2,7 @@
 #
 # Copyright (c) Microsoft Corporation. All rights reserved.
 #
-ROOT="$(dirname "$(dirname "$(readlink -f "$0")")")"
+ROOT="$(dirname "$(dirname "$(dirname "$(readlink -f "$0")")")")"
 
 APP_NAME="@@APPNAME@@"
 VERSION="@@VERSION@@"
