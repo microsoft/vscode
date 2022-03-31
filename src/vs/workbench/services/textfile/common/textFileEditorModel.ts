@@ -1004,6 +1004,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		//
 		// (see https://github.com/microsoft/vscode/issues/127936)
 
+		if (this.hasLanguageSetExplicitly) {
+			return; // return early when the language was changed by the user
+		}
+
 		if (!this.configurationService.inspect('files.encoding').overrideIdentifiers?.includes(e.newLanguage)) {
 			return; // only when there is a language specific override for the new language
 		}
