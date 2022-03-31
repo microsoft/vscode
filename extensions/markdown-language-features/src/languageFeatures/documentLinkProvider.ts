@@ -16,32 +16,22 @@ const localize = nls.loadMessageBundle();
 
 export interface ExternalLinkTarget {
 	readonly kind: 'external';
-
 	readonly uri: vscode.Uri;
 }
 
 export interface InternalLinkTarget {
 	readonly kind: 'internal';
-
-	readonly fromResource: vscode.Uri;
-
 	readonly path: vscode.Uri;
 	readonly fragment: string;
 }
 
 export interface ReferenceLinkTarget {
 	readonly kind: 'reference';
-
-	readonly fromResource: vscode.Uri;
-
 	readonly ref: string;
 }
 
 export interface DefinitionLinkTarget {
 	readonly kind: 'definition';
-
-	readonly fromResource: vscode.Uri;
-
 	readonly ref: string;
 	readonly target: ExternalLinkTarget | InternalLinkTarget;
 }
@@ -95,7 +85,6 @@ function parseLink(
 
 	return {
 		kind: 'internal',
-		fromResource: document.uri,
 		path: resourceUri,
 		fragment: tempUri.fragment,
 	};
@@ -108,6 +97,7 @@ function getWorkspaceFolder(document: SkinnyTextDocument) {
 
 export interface LinkData {
 	readonly target: LinkTarget;
+	readonly sourceResource: vscode.Uri;
 	readonly sourceRange: vscode.Range;
 }
 
@@ -127,6 +117,7 @@ function extractDocumentLink(
 		}
 		return {
 			target: linkTarget,
+			sourceResource: document.uri,
 			sourceRange: new vscode.Range(linkStart, linkEnd)
 		};
 	} catch {
@@ -192,32 +183,6 @@ function isLinkInsideCode(code: CodeInDocument, link: LinkData) {
 		code.inline.some(position => position.intersection(link.sourceRange));
 }
 
-function createDocumentLink(sourceRange: vscode.Range, target: LinkTarget, definitionSet: LinkDefinitionSet): vscode.DocumentLink | undefined {
-	switch (target.kind) {
-		case 'external': {
-			return new vscode.DocumentLink(sourceRange, target.uri);
-		}
-		case 'internal': {
-			const uri = OpenDocumentLinkCommand.createCommandUri(target.fromResource, target.path, target.fragment);
-			const documentLink = new vscode.DocumentLink(sourceRange, uri);
-			documentLink.tooltip = localize('documentLink.tooltip', 'Follow link');
-			return documentLink;
-		}
-		case 'reference': {
-			const def = definitionSet.lookup(target.ref);
-			if (def) {
-				return new vscode.DocumentLink(
-					sourceRange,
-					vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([def.sourceRange.start.line, def.sourceRange.start.character]))}`));
-			} else {
-				return undefined;
-			}
-		}
-		case 'definition':
-			return createDocumentLink(sourceRange, target.target, definitionSet);
-	}
-}
-
 export class MdLinkProvider implements vscode.DocumentLinkProvider {
 
 	constructor(
@@ -235,7 +200,33 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 
 		const definitionSet = new LinkDefinitionSet(allLinks);
 		return coalesce(allLinks
-			.map(data => createDocumentLink(data.sourceRange, data.target, definitionSet)));
+			.map(data => this.toValidDocumentLink(data, definitionSet)));
+	}
+
+	private toValidDocumentLink(link: LinkData, definitionSet: LinkDefinitionSet): vscode.DocumentLink | undefined {
+		switch (link.target.kind) {
+			case 'external': {
+				return new vscode.DocumentLink(link.sourceRange, link.target.uri);
+			}
+			case 'internal': {
+				const uri = OpenDocumentLinkCommand.createCommandUri(link.sourceResource, link.target.path, link.target.fragment);
+				const documentLink = new vscode.DocumentLink(link.sourceRange, uri);
+				documentLink.tooltip = localize('documentLink.tooltip', 'Follow link');
+				return documentLink;
+			}
+			case 'reference': {
+				const def = definitionSet.lookup(link.target.ref);
+				if (def) {
+					return new vscode.DocumentLink(
+						link.sourceRange,
+						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([def.sourceRange.start.line, def.sourceRange.start.character]))}`));
+				} else {
+					return undefined;
+				}
+			}
+			case 'definition':
+				return this.toValidDocumentLink({ sourceRange: link.sourceRange, sourceResource: link.sourceResource, target: link.target.target }, definitionSet);
+		}
 	}
 
 	public async getAllLinks(document: SkinnyTextDocument): Promise<LinkData[]> {
@@ -246,7 +237,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 		]);
 	}
 
-	public async getInlineLinks(document: SkinnyTextDocument): Promise<LinkData[]> {
+	private async getInlineLinks(document: SkinnyTextDocument): Promise<LinkData[]> {
 		const text = document.getText();
 
 		const results: LinkData[] = [];
@@ -264,7 +255,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 		return results;
 	}
 
-	public *getReferenceLinks(document: SkinnyTextDocument): Iterable<LinkData> {
+	private *getReferenceLinks(document: SkinnyTextDocument): Iterable<LinkData> {
 		const text = document.getText();
 		for (const match of text.matchAll(referenceLinkPattern)) {
 			let linkStart: vscode.Position;
@@ -286,9 +277,9 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 
 			yield {
 				sourceRange: new vscode.Range(linkStart, linkEnd),
+				sourceResource: document.uri,
 				target: {
 					kind: 'reference',
-					fromResource: document.uri,
 					ref: reference,
 				}
 			};
@@ -309,10 +300,10 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				const target = parseLink(document, link.substring(1, link.length - 1));
 				if (target) {
 					yield {
+						sourceResource: document.uri,
 						sourceRange: new vscode.Range(linkStart, linkEnd),
 						target: {
 							kind: 'definition',
-							fromResource: document.uri,
 							ref: reference,
 							target
 						}
@@ -324,10 +315,10 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				const target = parseLink(document, link);
 				if (target) {
 					yield {
+						sourceResource: document.uri,
 						sourceRange: new vscode.Range(linkStart, linkEnd),
 						target: {
 							kind: 'definition',
-							fromResource: document.uri,
 							ref: reference,
 							target,
 						}

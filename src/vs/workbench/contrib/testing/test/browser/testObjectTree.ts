@@ -10,7 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
-import { TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
 

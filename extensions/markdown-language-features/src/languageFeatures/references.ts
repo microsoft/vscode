@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import * as uri from 'vscode-uri';
 import { MarkdownEngine } from '../markdownEngine';
+import { Slugifier } from '../slugify';
 import { TableOfContents, TocEntry } from '../tableOfContents';
 import { Disposable } from '../util/dispose';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
@@ -12,10 +13,16 @@ import { InternalLinkTarget, LinkData, LinkTarget, MdLinkProvider } from './docu
 import { MdWorkspaceCache } from './workspaceCache';
 
 
-function isLinkToHeader(target: LinkTarget, header: TocEntry, headerDocument: vscode.Uri): target is InternalLinkTarget {
+function isLinkToHeader(target: LinkTarget, header: TocEntry, headerDocument: vscode.Uri, slugifier: Slugifier): target is InternalLinkTarget {
 	return target.kind === 'internal'
 		&& target.path.fsPath === headerDocument.fsPath
-		&& target.fragment === header.slug.value;
+		&& slugifier.fromHeading(target.fragment).value === header.slug.value;
+}
+
+
+export interface MdReference {
+	readonly isDefinition: boolean;
+	readonly location: vscode.Location;
 }
 
 export class MdReferencesProvider extends Disposable implements vscode.ReferenceProvider {
@@ -26,6 +33,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		private readonly linkProvider: MdLinkProvider,
 		private readonly workspaceContents: MdWorkspaceContents,
 		private readonly engine: MarkdownEngine,
+		private readonly slugifier: Slugifier,
 	) {
 		super();
 
@@ -39,56 +47,62 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		}
 
 		const header = toc.entries.find(entry => entry.line === position.line);
+
+		let allRefs: MdReference[];
 		if (header) {
-			return this.getReferencesToHeader(document, header, context);
+			allRefs = await this.getReferencesToHeader(document, header);
 		} else {
-			return this.getReferencesToLink(document, position, context);
+			allRefs = await this.getReferencesToLinkAtPosition(document, position);
 		}
+
+		return allRefs
+			.filter(ref => context.includeDeclaration || !ref.isDefinition)
+			.map(ref => ref.location);
 	}
 
-	private async getReferencesToHeader(document: SkinnyTextDocument, header: TocEntry, context: vscode.ReferenceContext,): Promise<vscode.Location[] | undefined> {
+	private async getReferencesToHeader(document: SkinnyTextDocument, header: TocEntry): Promise<MdReference[]> {
 		const links = (await this._linkCache.getAll()).flat();
 
-		const references: vscode.Location[] = [];
+		const references: MdReference[] = [];
 
-		if (context.includeDeclaration) {
-			const line = document.lineAt(header.line);
-			references.push(new vscode.Location(document.uri, new vscode.Range(header.line, 0, header.line, line.text.length)));
-		}
+		const line = document.lineAt(header.line);
+		references.push({
+			isDefinition: true,
+			location: new vscode.Location(document.uri, new vscode.Range(header.line, 0, header.line, line.text.length)),
+		});
 
 		for (const link of links) {
-			if (isLinkToHeader(link.target, header, document.uri)) {
-				references.push(new vscode.Location(link.target.fromResource, link.sourceRange));
-			} else if (link.target.kind === 'definition' && isLinkToHeader(link.target.target, header, document.uri)) {
-				references.push(new vscode.Location(link.target.target.fromResource, link.sourceRange));
+			if (isLinkToHeader(link.target, header, document.uri, this.slugifier)) {
+				references.push({
+					isDefinition: false,
+					location: new vscode.Location(link.sourceResource, link.sourceRange)
+				});
+			} else if (link.target.kind === 'definition' && isLinkToHeader(link.target.target, header, document.uri, this.slugifier)) {
+				references.push({
+					isDefinition: false,
+					location: new vscode.Location(link.sourceResource, link.sourceRange)
+				});
 			}
 		}
 
 		return references;
 	}
 
-	private async getReferencesToLink(document: SkinnyTextDocument, position: vscode.Position, context: vscode.ReferenceContext): Promise<vscode.Location[] | undefined> {
-		const links = (await this._linkCache.getAll()).flat();
-
+	private async getReferencesToLinkAtPosition(document: SkinnyTextDocument, position: vscode.Position): Promise<MdReference[]> {
 		const docLinks = await this.linkProvider.getAllLinks(document);
 		const sourceLink = docLinks.find(link => link.sourceRange.contains(position));
+		return sourceLink ? this.getReferencesToLink(sourceLink) : [];
+	}
 
-		if (sourceLink?.target.kind === 'reference') {
-			const references: vscode.Location[] = [];
+	private async getReferencesToLink(sourceLink: LinkData): Promise<MdReference[]> {
+		const allLinksInWorkspace = (await this._linkCache.getAll()).flat();
 
-			for (const link of links) {
-				if (link.target.kind === 'reference' || link.target.kind === 'definition') {
-					if (link.target.ref === sourceLink.target.ref && link.target.fromResource.fsPath === document.uri.fsPath) {
-						references.push(new vscode.Location(document.uri, link.sourceRange));
-					}
-				}
-			}
-
-			return references;
+		if (sourceLink.target.kind === 'reference') {
+			return Array.from(this.getReferencesToReferenceLink(allLinksInWorkspace, sourceLink));
 		}
 
-		if (sourceLink?.target.kind !== 'internal') {
-			return undefined;
+		if (sourceLink.target.kind !== 'internal') {
+			return [];
 		}
 
 		let targetDoc = await this.workspaceContents.getMarkdownDocument(sourceLink.target.path);
@@ -101,22 +115,20 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		}
 
 		if (!targetDoc) {
-			return undefined;
+			return [];
 		}
 
-		const references: vscode.Location[] = [];
+		const references: MdReference[] = [];
 
-		if (context.includeDeclaration) {
-			if (sourceLink.target.fragment) {
-				const toc = await TableOfContents.create(this.engine, targetDoc);
-				const entry = toc.lookup(sourceLink.target.fragment);
-				if (entry) {
-					references.push(entry.location);
-				}
+		if (sourceLink.target.fragment) {
+			const toc = await TableOfContents.create(this.engine, targetDoc);
+			const entry = toc.lookup(sourceLink.target.fragment);
+			if (entry) {
+				references.push({ isDefinition: true, location: entry.location });
 			}
 		}
 
-		for (const link of links) {
+		for (const link of allLinksInWorkspace) {
 			if (link.target.kind !== 'internal') {
 				continue;
 			}
@@ -129,14 +141,34 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 			}
 
 			if (sourceLink.target.fragment) {
-				if (link.target.fragment === sourceLink.target.fragment) {
-					references.push(new vscode.Location(link.target.fromResource, link.sourceRange));
+				if (this.slugifier.fromHeading(link.target.fragment).equals(this.slugifier.fromHeading(sourceLink.target.fragment))) {
+					references.push({ isDefinition: false, location: new vscode.Location(link.sourceResource, link.sourceRange) });
 				}
 			} else { // Triggered on a link without a fragment so we only require matching the file and ignore fragments
-				references.push(new vscode.Location(link.target.fromResource, link.sourceRange));
+
+				// But exclude cases where the file is referencing itself
+				if (link.sourceResource.fsPath !== targetDoc.uri.fsPath) {
+					references.push({ isDefinition: false, location: new vscode.Location(link.sourceResource, link.sourceRange) });
+				}
 			}
 		}
 
 		return references;
+	}
+
+	private *getReferencesToReferenceLink(allLinks: Iterable<LinkData>, sourceLink: LinkData): Iterable<MdReference> {
+		if (sourceLink.target.kind !== 'reference') {
+			return;
+		}
+		for (const link of allLinks) {
+			if (link.target.kind === 'reference' || link.target.kind === 'definition') {
+				if (link.target.ref === sourceLink.target.ref && link.sourceResource.fsPath === sourceLink.sourceResource.fsPath) {
+					yield {
+						isDefinition: false,
+						location: new vscode.Location(sourceLink.sourceResource, link.sourceRange)
+					};
+				}
+			}
+		}
 	}
 }

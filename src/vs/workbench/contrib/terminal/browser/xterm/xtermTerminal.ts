@@ -68,8 +68,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	private _webglAddon?: WebglAddonType;
 	private _serializeAddon?: SerializeAddonType;
 
+	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
+	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
+
 	private readonly _onDidRequestRunCommand = new Emitter<string>();
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
+
+	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number } | undefined>();
+	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
 
 	get commandTracker(): ICommandTracker { return this._commandNavigationAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
@@ -292,6 +298,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		const AddonCtor = await this._getSearchAddonConstructor();
 		this._searchAddon = new AddonCtor();
 		this.raw.loadAddon(this._searchAddon);
+		this._searchAddon.onDidChangeResults((results: { resultIndex: number; resultCount: number } | undefined) => {
+			this._lastFindResult = results;
+			this._onDidChangeFindResults.fire(results);
+		});
 		return this._searchAddon;
 	}
 
