@@ -2531,7 +2531,7 @@ export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions
 class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditorInlayHintsOptions, EditorInlayHintsOptions> {
 
 	constructor() {
-		const defaults: EditorInlayHintsOptions = { enabled: true, fontSize: 0, fontFamily: '', displayStyle: 'standard' };
+		const defaults: EditorInlayHintsOptions = { enabled: true, fontSize: 0, fontFamily: '', displayStyle: 'compact' };
 		super(
 			EditorOption.inlayHints, 'inlayHints', defaults,
 			{
@@ -2543,7 +2543,7 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 				'editor.inlayHints.fontSize': {
 					type: 'number',
 					default: defaults.fontSize,
-					markdownDescription: nls.localize('inlayHints.fontSize', "Controls font size of inlay hints in the editor. A default of 90% of `#editor.fontSize#` is used when the configured value is less than `5` or greater than the editor font size.")
+					markdownDescription: nls.localize('inlayHints.fontSize', "Controls font size of inlay hints in the editor. As default the `#editor.fontSize#` is used when the configured value is less than `5` or greater than the editor font size.")
 				},
 				'editor.inlayHints.fontFamily': {
 					type: 'string',
