@@ -44,7 +44,7 @@ export abstract class SimpleFindWidget extends Widget {
 	private _matchesCount: HTMLElement | undefined;
 
 	private _isVisible: boolean = false;
-	private foundMatch: boolean = false;
+	private _foundMatch: boolean = false;
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -65,8 +65,8 @@ export abstract class SimpleFindWidget extends Widget {
 					new RegExp(value);
 					return null;
 				} catch (e) {
-					this.foundMatch = false;
-					this.updateButtons(this.foundMatch);
+					this._foundMatch = false;
+					this.updateButtons(this._foundMatch);
 					return { content: e.message };
 				}
 			}
@@ -77,11 +77,11 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this._register(this._findInput.onInput(async (e) => {
 			if (!_options.checkImeCompletionState || !this._findInput.isImeSessionInProgress) {
-				this.foundMatch = this._onInputChanged();
+				this._foundMatch = this._onInputChanged();
 				if (this._options.showResultCount) {
 					await this.updateResultCount();
 				}
-				this.updateButtons(this.foundMatch);
+				this.updateButtons(this._foundMatch);
 				this.focusFindBox();
 				this._delayedUpdateHistory();
 			}
@@ -164,7 +164,10 @@ export abstract class SimpleFindWidget extends Widget {
 
 		if (_options?.showResultCount) {
 			this._domNode.classList.add('result-count');
-			this._register(this._findInput.onDidChange(() => this.updateResultCount()));
+			this._register(this._findInput.onDidChange(() => {
+				this.updateResultCount();
+				this.updateButtons(this._foundMatch);
+			}));
 		}
 	}
 
@@ -229,7 +232,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 
 		this._isVisible = true;
-		this.updateButtons(this.foundMatch);
+		this.updateButtons(this._foundMatch);
 
 		setTimeout(() => {
 			this._innerDomNode.classList.add('visible', 'visible-transition');
@@ -258,7 +261,7 @@ export abstract class SimpleFindWidget extends Widget {
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
-				this.updateButtons(this.foundMatch);
+				this.updateButtons(this._foundMatch);
 				this._innerDomNode.classList.remove('visible');
 			}, 200);
 		}
@@ -308,7 +311,7 @@ export abstract class SimpleFindWidget extends Widget {
 		this._matchesCount.appendChild(document.createTextNode(label));
 		this._matchesCount.classList.toggle('no-results', !count || count.resultCount === 0);
 		this._findInput?.domNode.insertAdjacentElement('afterend', this._matchesCount);
-		this.foundMatch = !!count && count.resultCount > 0;
+		this._foundMatch = !!count && count.resultCount > 0;
 	}
 }
 
