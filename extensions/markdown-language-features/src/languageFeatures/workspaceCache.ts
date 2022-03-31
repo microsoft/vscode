@@ -13,19 +13,19 @@ import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
  */
 export class MdWorkspaceCache<T> extends Disposable {
 
-	private readonly _cache = new Map<string, Lazy<T>>();
+	private readonly _cache = new Map<string, Lazy<Promise<T>>>();
 	private _hasPopulatedCache = false;
 
 	public constructor(
 		private readonly workspaceContents: MdWorkspaceContents,
-		private readonly getValue: (document: SkinnyTextDocument) => T,
+		private readonly getValue: (document: SkinnyTextDocument) => Promise<T>,
 	) {
 		super();
 	}
 
 	public async getAll(): Promise<T[]> {
 		if (!this._hasPopulatedCache) {
-			await this.populateSymbolCache();
+			await this.populateCache();
 			this._hasPopulatedCache = true;
 
 			this.workspaceContents.onDidChangeMarkdownDocument(this.onDidChangeDocument, this, this._disposables);
@@ -33,18 +33,22 @@ export class MdWorkspaceCache<T> extends Disposable {
 			this.workspaceContents.onDidDeleteMarkdownDocument(this.onDidDeleteDocument, this, this._disposables);
 		}
 
-		return Array.from(this._cache.values(), x => x.value);
+		return Promise.all(Array.from(this._cache.values(), x => x.value));
 	}
 
-	private async populateSymbolCache(): Promise<void> {
+	private async populateCache(): Promise<void> {
 		const markdownDocumentUris = await this.workspaceContents.getAllMarkdownDocuments();
 		for (const document of markdownDocumentUris) {
 			this.update(document);
 		}
 	}
 
+	private key(resource: vscode.Uri): string {
+		return resource.toString();
+	}
+
 	private update(document: SkinnyTextDocument): void {
-		this._cache.set(document.uri.toString(), lazy(() => this.getValue(document)));
+		this._cache.set(this.key(document.uri), lazy(() => this.getValue(document)));
 	}
 
 	private onDidChangeDocument(document: SkinnyTextDocument) {
@@ -52,6 +56,6 @@ export class MdWorkspaceCache<T> extends Disposable {
 	}
 
 	private onDidDeleteDocument(resource: vscode.Uri) {
-		this._cache.delete(resource.toString());
+		this._cache.delete(this.key(resource));
 	}
 }

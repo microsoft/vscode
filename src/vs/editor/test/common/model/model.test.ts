@@ -11,11 +11,12 @@ import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { InternalModelContentChangeEvent, ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
 import { EncodedTokenizationResult, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 
 // --------- utils
 
@@ -383,12 +384,13 @@ suite('Editor Model - Words', () => {
 
 	class OuterMode extends MockMode {
 		constructor(
-			@ILanguageService languageService: ILanguageService
+			@ILanguageService languageService: ILanguageService,
+			@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
 		) {
 			super(OUTER_LANGUAGE_ID);
 			const languageIdCodec = languageService.languageIdCodec;
 
-			this._register(LanguageConfigurationRegistry.register(this.languageId, {}));
+			this._register(languageConfigurationService.register(this.languageId, {}));
 
 			this._register(TokenizationRegistry.register(this.languageId, {
 				getInitialState: (): IState => NullState,
@@ -417,9 +419,11 @@ suite('Editor Model - Words', () => {
 	}
 
 	class InnerMode extends MockMode {
-		constructor() {
+		constructor(
+			@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
+		) {
 			super(INNER_LANGUAGE_ID);
-			this._register(LanguageConfigurationRegistry.register(this.languageId, {}));
+			this._register(languageConfigurationService.register(this.languageId, {}));
 		}
 	}
 
@@ -456,7 +460,7 @@ suite('Editor Model - Words', () => {
 		const disposables = new DisposableStore();
 		const instantiationService = createModelServices(disposables);
 		const outerMode = disposables.add(instantiationService.createInstance(OuterMode));
-		disposables.add(new InnerMode());
+		disposables.add(instantiationService.createInstance(InnerMode));
 
 		const model = disposables.add(instantiateTextModel(instantiationService, 'ab<xx>ab<x>', outerMode.languageId));
 
@@ -473,19 +477,16 @@ suite('Editor Model - Words', () => {
 
 	test('issue #61296: VS code freezes when editing CSS file with emoji', () => {
 		const MODE_ID = 'testMode';
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
+		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 
-		const mode = new class extends MockMode {
-			constructor() {
-				super(MODE_ID);
-				this._register(LanguageConfigurationRegistry.register(this.languageId, {
-					wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
-				}));
-			}
-		};
-		disposables.push(mode);
+		disposables.add(ModesRegistry.registerLanguage({ id: MODE_ID }));
+		disposables.add(languageConfigurationService.register(MODE_ID, {
+			wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
+		}));
 
-		const thisModel = createTextModel('.🐷-a-b', MODE_ID);
-		disposables.push(thisModel);
+		const thisModel = disposables.add(instantiateTextModel(instantiationService, '.🐷-a-b', MODE_ID));
 
 		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 1)), { word: '.', startColumn: 1, endColumn: 2 });
 		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 2)), { word: '.', startColumn: 1, endColumn: 2 });
@@ -495,5 +496,7 @@ suite('Editor Model - Words', () => {
 		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 6)), { word: '-a-b', startColumn: 4, endColumn: 8 });
 		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 7)), { word: '-a-b', startColumn: 4, endColumn: 8 });
 		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 8)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+
+		disposables.dispose();
 	});
 });
