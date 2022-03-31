@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 import * as editorRange from 'vs/editor/common/core/range';
 import { createPrivateApiFor, getPrivateApiFor, IExtHostTestItemApi } from 'vs/workbench/api/common/extHostTestingPrivateApi';
-import { TestIdPathParts } from 'vs/workbench/contrib/testing/common/testId';
+import { TestId, TestIdPathParts } from 'vs/workbench/contrib/testing/common/testId';
 import { createTestItemChildren, ExtHostTestItemEvent, ITestChildrenLike, ITestItemApi, ITestItemChildren, TestItemCollection, TestItemEventOp } from 'vs/workbench/contrib/testing/common/testItemCollection';
-import { ITestItem } from 'vs/workbench/contrib/testing/common/testTypes';
+import { denamespaceTestTag, ITestItem, ITestItemContext } from 'vs/workbench/contrib/testing/common/testTypes';
 import type * as vscode from 'vscode';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
+import { URI } from 'vs/base/common/uri';
 
 const testItemPropAccessor = <K extends keyof vscode.TestItem>(
 	api: IExtHostTestItemApi,
@@ -82,6 +83,27 @@ const makePropDescriptors = (api: IExtHostTestItemApi, label: string): { [K in k
 		old: previous.map(Convert.TestTag.from),
 	})),
 });
+
+const toItemFromPlain = (item: ITestItem.Serialized): TestItemImpl => {
+	const testId = TestId.fromString(item.extId);
+	const testItem = new TestItemImpl(testId.controllerId, testId.localId, item.label, URI.revive(item.uri) || undefined);
+	testItem.range = Convert.Range.to(item.range || undefined);
+	testItem.description = item.description || undefined;
+	testItem.sortText = item.sortText || undefined;
+	testItem.tags = item.tags.map(t => Convert.TestTag.to({ id: denamespaceTestTag(t).tagId }));
+	return testItem;
+};
+
+export const toItemFromContext = (context: ITestItemContext): TestItemImpl => {
+	let node: TestItemImpl | undefined;
+	for (const test of context.tests) {
+		const next = toItemFromPlain(test.item);
+		getPrivateApiFor(next).parent = node;
+		node = next;
+	}
+
+	return node!;
+};
 
 export class TestItemImpl implements vscode.TestItem {
 	public readonly id!: string;
