@@ -11,6 +11,11 @@ interface IDisposable {
 	dispose(): void;
 }
 
+function clearContainer(container: HTMLElement) {
+	while (container.firstChild) {
+		container.removeChild(container.firstChild);
+	}
+}
 
 
 function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable {
@@ -61,6 +66,7 @@ const domEval = (container: Element) => {
 };
 
 function renderHTML(outputInfo: OutputItem, container: HTMLElement): void {
+	clearContainer(container);
 	const htmlContent = outputInfo.text();
 	const element = document.createElement('div');
 	const trustedHtml = ttPolicy?.createHTML(htmlContent) ?? htmlContent;
@@ -149,6 +155,7 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 }
 
 function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
+	clearContainer(container);
 	const contentNode = document.createElement('div');
 	contentNode.classList.add('output-plaintext');
 	const text = outputInfo.text();
