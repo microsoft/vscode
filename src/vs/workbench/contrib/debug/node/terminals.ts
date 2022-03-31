@@ -33,7 +33,7 @@ export async function hasChildProcesses(processId: number | undefined): Promise<
 		if (platform.isWindows) {
 			const windowsProcessTree = await import('windows-process-tree');
 			return new Promise<boolean>(resolve => {
-				windowsProcessTree.getProcessTree(processId, (processTree: any /* IProcessTreeNode | undefined */) => {
+				windowsProcessTree.getProcessTree(processId, processTree => {
 					resolve(!!processTree && processTree.children.length > 0);
 				});
 			});
