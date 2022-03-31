@@ -33,6 +33,7 @@ import { IDataTransfer, IDataTransferItem } from 'vs/workbench/common/dnd';
 import { extractEditorsDropData } from 'vs/workbench/browser/dnd';
 import { Mimes } from 'vs/base/common/mime';
 import { distinct } from 'vs/base/common/arrays';
+import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -88,7 +89,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		this._registeredDecorationTypes = Object.create(null);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		Object.keys(this._textEditorsListenersMap).forEach((editorId) => {
 			dispose(this._textEditorsListenersMap[editorId]);
 		});
@@ -139,13 +140,15 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	private async onDropIntoEditor(editor: ICodeEditor, position: IPosition, dragEvent: DragEvent) {
-		if (!dragEvent.dataTransfer) {
+		if (!dragEvent.dataTransfer || !editor.hasModel()) {
 			return;
 		}
 		const id = this._editorLocator.getIdOfCodeEditor(editor);
 		if (typeof id !== 'string') {
 			return;
 		}
+
+		const modelVersionNow = editor.getModel().getVersionId();
 
 		const textEditorDataTransfer: IDataTransfer = new Map<string, IDataTransferItem>();
 		for (const item of dragEvent.dataTransfer.items) {
@@ -173,9 +176,19 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			}
 		}
 
-		if (textEditorDataTransfer.size > 0) {
-			const dataTransferDto = await DataTransferConverter.toDataTransferDTO(textEditorDataTransfer);
-			return this._proxy.$textEditorHandleDrop(id, position, dataTransferDto);
+		if (textEditorDataTransfer.size === 0) {
+			return;
+		}
+
+		const dataTransferDto = await DataTransferConverter.toDataTransferDTO(textEditorDataTransfer);
+		const edits = await this._proxy.$textEditorHandleDrop(id, position, dataTransferDto);
+		if (edits.length === 0) {
+			return;
+		}
+
+		if (editor.getModel().getVersionId() === modelVersionNow) {
+			const [first] = edits; // TODO@jrieken define how to pick the "one snippet edit";
+			performSnippetEdit(editor, first);
 		}
 	}
 

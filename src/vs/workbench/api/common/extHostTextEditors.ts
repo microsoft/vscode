@@ -9,12 +9,14 @@ import { ExtHostEditorsShape, IEditorPropertiesChangeData, IMainContext, ITextDo
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { ExtHostTextEditor, TextEditorDecorationType } from 'vs/workbench/api/common/extHostTextEditor';
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { TextEditorSelectionChangeKind } from 'vs/workbench/api/common/extHostTypes';
+import { SnippetTextEdit, TextEditorSelectionChangeKind } from 'vs/workbench/api/common/extHostTypes';
 import * as vscode from 'vscode';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { DataTransferConverter, DataTransferDTO } from 'vs/workbench/api/common/shared/dataTransfer';
 import { IPosition } from 'vs/editor/common/core/position';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import * as languages from 'vs/editor/common/languages';
 
 export class ExtHostEditors implements ExtHostEditorsShape {
 
@@ -167,7 +169,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 
 	// --- Text editor drag and drop
 
-	async $textEditorHandleDrop(id: string, position: IPosition, dataTransferDto: DataTransferDTO): Promise<void> {
+	async $textEditorHandleDrop(id: string, position: IPosition, dataTransferDto: DataTransferDTO): Promise<Dto<languages.SnippetTextEdit[]>> {
 		const textEditor = this._extHostDocumentsAndEditors.getEditor(id);
 		if (!textEditor) {
 			throw new Error('Unknown text editor');
@@ -182,6 +184,15 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			dataTransfer: dataTransfer
 		});
 
-		await this._onWillDropOnTextEditor.fireAsync(event, CancellationToken.None);
+		const edits: SnippetTextEdit[] = [];
+
+		await this._onWillDropOnTextEditor.fireAsync(event, CancellationToken.None, async p => {
+			const value = await p;
+			if (value instanceof SnippetTextEdit) {
+				edits.push(value);
+			}
+		});
+
+		return edits.map(TypeConverters.SnippetTextEdit.from);
 	}
 }

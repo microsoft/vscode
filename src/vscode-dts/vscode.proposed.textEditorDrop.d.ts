@@ -7,6 +7,13 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/142990
 
+	export class SnippetTextEdit {
+		snippet: SnippetString;
+		range: Range;
+		constructor(range: Range, snippet: SnippetString);
+	}
+
+
 	export interface TextEditorDropEvent {
 		/**
 		 * The {@link TextEditor} the resource was dropped onto.
@@ -42,6 +49,9 @@ declare module 'vscode' {
 		 * @param thenable A thenable that delays saving.
 		 */
 		waitUntil(thenable: Thenable<any>): void;
+
+		//
+		waitUntil(thenable: Thenable<SnippetTextEdit>): void;
 
 		token: CancellationToken;
 	}
