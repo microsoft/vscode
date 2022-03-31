@@ -81,11 +81,9 @@ function parseLink(
 		return undefined;
 	}
 
-	resourceUri = resourceUri.with({ fragment: tempUri.fragment });
-
 	return {
 		kind: 'internal',
-		path: resourceUri,
+		path: resourceUri.with({ fragment: '' }),
 		fragment: tempUri.fragment,
 	};
 }
