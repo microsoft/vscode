@@ -4,31 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Barrier, isThenable, RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { assertNever } from 'vs/base/common/types';
-// eslint-disable-next-line code-import-patterns
-import { diffTestItems, ExtHostTestItemEvent, ExtHostTestItemEventOp, getPrivateApiFor, TestItemImpl, TestItemRootImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
-// eslint-disable-next-line code-import-patterns
-import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { applyTestItemUpdate, ITestTag, namespaceTestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
+import { applyTestItemUpdate, ITestItem, ITestTag, namespaceTestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import * as editorRange from 'vs/editor/common/core/range';
-
-type TestItemRaw = Convert.TestItem.Raw;
-
-export interface IHierarchyProvider {
-	getChildren(node: TestItemRaw, token: CancellationToken): Iterable<TestItemRaw> | AsyncIterable<TestItemRaw> | undefined | null;
-}
 
 /**
  * @private
  */
-export interface OwnedCollectionTestItem {
+interface CollectionItem<T> {
 	readonly fullId: TestId;
 	readonly parent: TestId | null;
-	actual: TestItemImpl;
+	actual: T;
 	expand: TestItemExpandState;
 	/**
 	 * Number of levels of items below this one that are expanded. May be infinite.
@@ -37,23 +25,144 @@ export interface OwnedCollectionTestItem {
 	resolveBarrier?: Barrier;
 }
 
+export const enum TestItemEventOp {
+	Upsert,
+	SetTags,
+	UpdateCanResolveChildren,
+	RemoveChild,
+	SetProp,
+	Bulk,
+}
+
+export interface ITestItemUpsertChild {
+	op: TestItemEventOp.Upsert;
+	item: ITestItemLike;
+}
+
+export interface ITestItemUpdateCanResolveChildren {
+	op: TestItemEventOp.UpdateCanResolveChildren;
+	state: boolean;
+}
+
+export interface ITestItemSetTags {
+	op: TestItemEventOp.SetTags;
+	new: ITestTag[];
+	old: ITestTag[];
+}
+
+export interface ITestItemRemoveChild {
+	op: TestItemEventOp.RemoveChild;
+	id: string;
+}
+
+export interface ITestItemSetProp {
+	op: TestItemEventOp.SetProp;
+	update: Partial<ITestItem>;
+}
+export interface ITestItemBulkReplace {
+	op: TestItemEventOp.Bulk;
+	ops: (ITestItemUpsertChild | ITestItemRemoveChild)[];
+}
+
+export type ExtHostTestItemEvent =
+	| ITestItemSetTags
+	| ITestItemUpsertChild
+	| ITestItemRemoveChild
+	| ITestItemUpdateCanResolveChildren
+	| ITestItemSetProp
+	| ITestItemBulkReplace;
+
+export interface ITestItemApi<T> {
+	controllerId: string;
+	parent?: T;
+	listener?: (evt: ExtHostTestItemEvent) => void;
+}
+
+export interface ITestItemCollectionOptions<T> {
+	/** Controller ID to use to prefix these test items. */
+	controllerId: string;
+
+	/** Gets API for the given test item, used to listen for events and set parents. */
+	getApiFor(item: T): ITestItemApi<T>;
+
+	/** Converts the full test item to the common interface. */
+	toITestItem(item: T): ITestItem;
+
+	/** Gets children for the item. */
+	getChildren(item: T): ITestChildrenLike<T>;
+
+	/** Root to use for the new test collection. */
+	root: T;
+}
+
+const strictEqualComparator = <T>(a: T, b: T) => a === b;
+const diffableProps: { [K in keyof ITestItem]?: (a: ITestItem[K], b: ITestItem[K]) => boolean } = {
+	range: (a, b) => {
+		if (a === b) { return true; }
+		if (!a || !b) { return false; }
+		return a.equalsRange(b);
+	},
+	busy: strictEqualComparator,
+	label: strictEqualComparator,
+	description: strictEqualComparator,
+	error: strictEqualComparator,
+	tags: (a, b) => {
+		if (a.length !== b.length) {
+			return false;
+		}
+
+		if (a.some(t1 => !b.includes(t1))) {
+			return false;
+		}
+
+		return true;
+	},
+};
+
+const diffTestItems = (a: ITestItem, b: ITestItem) => {
+	let output: Record<string, unknown> | undefined;
+	for (const [key, cmp] of Object.entries(diffableProps) as [keyof ITestItem, (a: any, b: any) => boolean][]) {
+		if (!cmp(a[key], b[key])) {
+			if (output) {
+				output[key] = b[key];
+			} else {
+				output = { [key]: b[key] };
+			}
+		}
+	}
+
+	return output as Partial<ITestItem> | undefined;
+};
+
+export interface ITestChildrenLike<T> extends Iterable<T> {
+	get(id: string): T | undefined;
+	delete(id: string): void;
+}
+
+export interface ITestItemLike {
+	id: string;
+	tags: readonly ITestTag[];
+	canResolveChildren: boolean;
+}
+
 /**
- * Maintains tests created and registered for a single set of hierarchies
- * for a workspace or document.
- * @private
+ * Maintains a collection of test items for a single controller.
  */
-export class SingleUseTestCollection extends Disposable {
+export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 	private readonly debounceSendDiff = this._register(new RunOnceScheduler(() => this.flushDiff(), 200));
 	private readonly diffOpEmitter = this._register(new Emitter<TestsDiff>());
-	private _resolveHandler?: (item: TestItemRaw | undefined) => Promise<void> | void;
+	private _resolveHandler?: (item: T | undefined) => Promise<void> | void;
 
-	public readonly root = new TestItemRootImpl(this.controllerId, this.controllerId);
-	public readonly tree = new Map</* full test id */string, OwnedCollectionTestItem>();
+	public get root() {
+		return this.options.root;
+	}
+
+	public readonly tree = new Map</* full test id */string, CollectionItem<T>>();
 	private readonly tags = new Map<string, { label?: string; refCount: number }>();
 
 	protected diff: TestsDiff = [];
 
-	constructor(private readonly controllerId: string) {
+	constructor(private readonly options: ITestItemCollectionOptions<T>) {
 		super();
 		this.root.canResolveChildren = true;
 		this.upsertItem(this.root, undefined);
@@ -62,7 +171,7 @@ export class SingleUseTestCollection extends Disposable {
 	/**
 	 * Handler used for expanding test items.
 	 */
-	public set resolveHandler(handler: undefined | ((item: TestItemRaw | undefined) => void)) {
+	public set resolveHandler(handler: undefined | ((item: T | undefined) => void)) {
 		this._resolveHandler = handler;
 		for (const test of this.tree.values()) {
 			this.updateExpandability(test);
@@ -139,7 +248,7 @@ export class SingleUseTestCollection extends Disposable {
 
 	public override dispose() {
 		for (const item of this.tree.values()) {
-			getPrivateApiFor(item.actual).listener = undefined;
+			this.options.getApiFor(item.actual).listener = undefined;
 		}
 
 		this.tree.clear();
@@ -147,64 +256,49 @@ export class SingleUseTestCollection extends Disposable {
 		super.dispose();
 	}
 
-	private onTestItemEvent(internal: OwnedCollectionTestItem, evt: ExtHostTestItemEvent) {
+	private onTestItemEvent(internal: CollectionItem<T>, evt: ExtHostTestItemEvent) {
 		switch (evt.op) {
-			case ExtHostTestItemEventOp.RemoveChild:
+			case TestItemEventOp.RemoveChild:
 				this.removeItem(TestId.joinToString(internal.fullId, evt.id));
 				break;
 
-			case ExtHostTestItemEventOp.Upsert:
-				this.upsertItem(evt.item, internal);
+			case TestItemEventOp.Upsert:
+				this.upsertItem(evt.item as T, internal);
 				break;
 
-			case ExtHostTestItemEventOp.Bulk:
+			case TestItemEventOp.Bulk:
 				for (const op of evt.ops) {
 					this.onTestItemEvent(internal, op);
 				}
 				break;
 
-			case ExtHostTestItemEventOp.SetProp: {
-				const { key, value, previous } = evt;
-				const extId = internal.fullId.toString();
-				switch (key) {
-					case 'canResolveChildren':
-						this.updateExpandability(internal);
-						break;
-					case 'tags':
-						this.diffTagRefs(value, previous, extId);
-						break;
-					case 'range':
-						this.pushDiff({
-							op: TestDiffOpType.Update,
-							item: { extId, item: { range: editorRange.Range.lift(Convert.Range.from(value)) } },
-						});
-						break;
-					case 'error':
-						this.pushDiff({ op: TestDiffOpType.Update, item: { extId, item: { error: Convert.MarkdownString.fromStrict(value) || null }, } });
-						break;
-					default:
-						this.pushDiff({ op: TestDiffOpType.Update, item: { extId, item: { [key]: value ?? null } } });
-						break;
-				}
+			case TestItemEventOp.SetTags:
+				this.diffTagRefs(evt.new, evt.old, internal.fullId.toString());
 				break;
-			}
+
+			case TestItemEventOp.UpdateCanResolveChildren:
+				this.updateExpandability(internal);
+				break;
+
+			case TestItemEventOp.SetProp:
+				this.pushDiff({
+					op: TestDiffOpType.Update,
+					item: { extId: internal.fullId.toString(), item: evt.update }
+				});
+				break;
 			default:
 				assertNever(evt);
 		}
 	}
 
-	private upsertItem(actual: TestItemRaw, parent: OwnedCollectionTestItem | undefined) {
-		if (!(actual instanceof TestItemImpl)) {
-			throw new Error(`TestItems provided to the VS Code API must extend \`vscode.TestItem\`, but ${actual.id} did not`);
-		}
-
+	private upsertItem(actual: T, parent: CollectionItem<T> | undefined) {
 		const fullId = TestId.fromExtHostTestItem(actual, this.root.id, parent?.actual);
 
 		// If this test item exists elsewhere in the tree already (exists at an
 		// old ID with an existing parent), remove that old item.
-		const privateApi = getPrivateApiFor(actual);
+		const privateApi = this.options.getApiFor(actual);
 		if (privateApi.parent && privateApi.parent !== parent?.actual) {
-			privateApi.parent.children.delete(actual.id);
+			this.options.getChildren(privateApi.parent).delete(actual.id);
 		}
 
 		let internal = this.tree.get(fullId.toString());
@@ -225,9 +319,9 @@ export class SingleUseTestCollection extends Disposable {
 				op: TestDiffOpType.Add,
 				item: {
 					parent: internal.parent && internal.parent.toString(),
-					controllerId: this.controllerId,
+					controllerId: this.options.controllerId,
 					expand: internal.expand,
-					item: Convert.TestItem.from(actual),
+					item: this.options.toITestItem(actual),
 				},
 			});
 
@@ -242,28 +336,34 @@ export class SingleUseTestCollection extends Disposable {
 		}
 
 		// Case 3: upsert of an existing item by ID, with a new instance
-		const oldChildren = internal.actual.children;
+		const oldChildren = this.options.getChildren(internal.actual);
 		const oldActual = internal.actual;
-		const changedProps = diffTestItems(oldActual, actual);
-		getPrivateApiFor(oldActual).listener = undefined;
+		const update = diffTestItems(this.options.toITestItem(oldActual), this.options.toITestItem(actual));
+		this.options.getApiFor(oldActual).listener = undefined;
 
 		internal.actual = actual;
 		internal.expand = TestItemExpandState.NotExpandable; // updated by `connectItemAndChildren`
-		for (const [key, value] of changedProps) {
-			this.onTestItemEvent(internal, { op: ExtHostTestItemEventOp.SetProp, key, value, previous: oldActual[key] });
+
+		if (update) {
+			// tags are handled in a special way
+			if (update.hasOwnProperty('tags')) {
+				this.diffTagRefs(actual.tags, oldActual.tags, fullId.toString());
+				delete update.tags;
+			}
+			this.onTestItemEvent(internal, { op: TestItemEventOp.SetProp, update });
 		}
 
 		this.connectItemAndChildren(actual, internal, parent);
 
 		// Remove any orphaned children.
 		for (const child of oldChildren) {
-			if (!actual.children.get(child.id)) {
+			if (!this.options.getChildren(actual).get(child.id)) {
 				this.removeItem(TestId.joinToString(fullId, child.id));
 			}
 		}
 	}
 
-	private diffTagRefs(newTags: ITestTag[], oldTags: ITestTag[], extId: string) {
+	private diffTagRefs(newTags: readonly ITestTag[], oldTags: readonly ITestTag[], extId: string) {
 		const toDelete = new Set(oldTags.map(t => t.id));
 		for (const tag of newTags) {
 			if (!toDelete.delete(tag.id)) {
@@ -273,7 +373,7 @@ export class SingleUseTestCollection extends Disposable {
 
 		this.pushDiff({
 			op: TestDiffOpType.Update,
-			item: { extId, item: { tags: newTags.map(v => Convert.TestTag.namespace(this.controllerId, v.id)) } }
+			item: { extId, item: { tags: newTags.map(v => namespaceTestTag(this.options.controllerId, v.id)) } }
 		});
 
 		toDelete.forEach(this.decrementTagRefs, this);
@@ -287,8 +387,7 @@ export class SingleUseTestCollection extends Disposable {
 			this.tags.set(tag.id, { refCount: 1 });
 			this.pushDiff({
 				op: TestDiffOpType.AddTag, tag: {
-					id: Convert.TestTag.namespace(this.controllerId, tag.id),
-					ctrlLabel: this.root.label,
+					id: namespaceTestTag(this.options.controllerId, tag.id),
 				}
 			});
 		}
@@ -298,27 +397,27 @@ export class SingleUseTestCollection extends Disposable {
 		const existing = this.tags.get(tagId);
 		if (existing && !--existing.refCount) {
 			this.tags.delete(tagId);
-			this.pushDiff({ op: TestDiffOpType.RemoveTag, id: namespaceTestTag(this.controllerId, tagId) });
+			this.pushDiff({ op: TestDiffOpType.RemoveTag, id: namespaceTestTag(this.options.controllerId, tagId) });
 		}
 	}
 
-	private setItemParent(actual: TestItemImpl, parent: OwnedCollectionTestItem | undefined) {
-		getPrivateApiFor(actual).parent = parent && parent.actual !== this.root ? parent.actual : undefined;
+	private setItemParent(actual: T, parent: CollectionItem<T> | undefined) {
+		this.options.getApiFor(actual).parent = parent && parent.actual !== this.root ? parent.actual : undefined;
 	}
 
-	private connectItem(actual: TestItemImpl, internal: OwnedCollectionTestItem, parent: OwnedCollectionTestItem | undefined) {
+	private connectItem(actual: T, internal: CollectionItem<T>, parent: CollectionItem<T> | undefined) {
 		this.setItemParent(actual, parent);
-		const api = getPrivateApiFor(actual);
+		const api = this.options.getApiFor(actual);
 		api.parent = parent?.actual;
 		api.listener = evt => this.onTestItemEvent(internal, evt);
 		this.updateExpandability(internal);
 	}
 
-	private connectItemAndChildren(actual: TestItemImpl, internal: OwnedCollectionTestItem, parent: OwnedCollectionTestItem | undefined) {
+	private connectItemAndChildren(actual: T, internal: CollectionItem<T>, parent: CollectionItem<T> | undefined) {
 		this.connectItem(actual, internal, parent);
 
 		// Discover any existing children that might have already been added
-		for (const child of actual.children) {
+		for (const child of this.options.getChildren(actual)) {
 			this.upsertItem(child, internal);
 		}
 	}
@@ -328,7 +427,7 @@ export class SingleUseTestCollection extends Disposable {
 	 * resolved state of the item changes. Can automatically expand the item
 	 * if requested by a consumer.
 	 */
-	private updateExpandability(internal: OwnedCollectionTestItem) {
+	private updateExpandability(internal: CollectionItem<T>) {
 		let newState: TestItemExpandState;
 		if (!this._resolveHandler) {
 			newState = TestItemExpandState.NotExpandable;
@@ -359,13 +458,13 @@ export class SingleUseTestCollection extends Disposable {
 	 * the children will be expanded. If it's 1, the children and their children
 	 * will be expanded. If it's <0, it's a no-op.
 	 */
-	private expandChildren(internal: OwnedCollectionTestItem, levels: number): Promise<void> | void {
+	private expandChildren(internal: CollectionItem<T>, levels: number): Promise<void> | void {
 		if (levels < 0) {
 			return;
 		}
 
 		const expandRequests: Promise<void>[] = [];
-		for (const child of internal.actual.children) {
+		for (const child of this.options.getChildren(internal.actual)) {
 			const promise = this.expand(TestId.joinToString(internal.fullId, child.id), levels);
 			if (isThenable(promise)) {
 				expandRequests.push(promise);
@@ -380,7 +479,7 @@ export class SingleUseTestCollection extends Disposable {
 	/**
 	 * Calls `discoverChildren` on the item, refreshing all its tests.
 	 */
-	private resolveChildren(internal: OwnedCollectionTestItem) {
+	private resolveChildren(internal: CollectionItem<T>) {
 		if (internal.resolveBarrier) {
 			return internal.resolveBarrier;
 		}
@@ -396,10 +495,7 @@ export class SingleUseTestCollection extends Disposable {
 
 		const barrier = internal.resolveBarrier = new Barrier();
 		const applyError = (err: Error) => {
-			console.error(`Unhandled error in resolveHandler of test controller "${this.controllerId}"`);
-			if (internal.actual !== this.root) {
-				internal.actual.error = err.stack || err.message || String(err);
-			}
+			console.error(`Unhandled error in resolveHandler of test controller "${this.options.controllerId}"`, err);
 		};
 
 		let r: Thenable<void> | void;
@@ -422,7 +518,7 @@ export class SingleUseTestCollection extends Disposable {
 		return internal.resolveBarrier;
 	}
 
-	private pushExpandStateUpdate(internal: OwnedCollectionTestItem) {
+	private pushExpandStateUpdate(internal: CollectionItem<T>) {
 		this.pushDiff({ op: TestDiffOpType.Update, item: { extId: internal.fullId.toString(), expand: internal.expand } });
 	}
 
@@ -434,21 +530,21 @@ export class SingleUseTestCollection extends Disposable {
 
 		this.pushDiff({ op: TestDiffOpType.Remove, itemId: childId });
 
-		const queue: (OwnedCollectionTestItem | undefined)[] = [childItem];
+		const queue: (CollectionItem<T> | undefined)[] = [childItem];
 		while (queue.length) {
 			const item = queue.pop();
 			if (!item) {
 				continue;
 			}
 
-			getPrivateApiFor(item.actual).listener = undefined;
+			this.options.getApiFor(item.actual).listener = undefined;
 
 			for (const tag of item.actual.tags) {
 				this.decrementTagRefs(tag.id);
 			}
 
 			this.tree.delete(item.fullId.toString());
-			for (const child of item.actual.children) {
+			for (const child of this.options.getChildren(item.actual)) {
 				queue.push(this.tree.get(TestId.joinToString(item.fullId, child.id)));
 			}
 		}
@@ -464,3 +560,120 @@ export class SingleUseTestCollection extends Disposable {
 		}
 	}
 }
+
+/** Implementation os vscode.TestItemCollection */
+export interface ITestItemChildren<T extends ITestItemLike> extends Iterable<T> {
+	readonly size: number;
+	replace(items: readonly T[]): void;
+	forEach(callback: (item: T, collection: this) => unknown, thisArg?: unknown): void;
+	add(item: T): void;
+	delete(itemId: string): void;
+	get(itemId: string): T | undefined;
+
+	toJSON(): readonly T[];
+}
+
+export class DuplicateTestItemError extends Error {
+	constructor(id: string) {
+		super(`Attempted to insert a duplicate test item ID ${id}`);
+	}
+}
+
+export class InvalidTestItemError extends Error {
+	constructor(id: string) {
+		super(`TestItem with ID "${id}" is invalid. Make sure to create it from the createTestItem method.`);
+	}
+}
+
+export class MixedTestItemController extends Error {
+	constructor(id: string, ctrlA: string, ctrlB: string) {
+		super(`TestItem with ID "${id}" is from controller "${ctrlA}" and cannot be added as a child of an item from controller "${ctrlB}".`);
+	}
+}
+
+export const createTestItemChildren = <T extends ITestItemLike>(api: ITestItemApi<T>, getApi: (item: T) => ITestItemApi<T>, checkCtor: Function): ITestItemChildren<T> => {
+	let mapped = new Map<string, T>();
+
+	return {
+		/** @inheritdoc */
+		get size() {
+			return mapped.size;
+		},
+
+		/** @inheritdoc */
+		forEach(callback: (item: T, collection: ITestItemChildren<T>) => unknown, thisArg?: unknown) {
+			for (const item of mapped.values()) {
+				callback.call(thisArg, item, this);
+			}
+		},
+
+		/** @inheritdoc */
+		replace(items: Iterable<T>) {
+			const newMapped = new Map<string, T>();
+			const toDelete = new Set(mapped.keys());
+			const bulk: ITestItemBulkReplace = { op: TestItemEventOp.Bulk, ops: [] };
+
+			for (const item of items) {
+				if (!(item instanceof checkCtor)) {
+					throw new InvalidTestItemError(item.id);
+				}
+
+				const itemController = getApi(item).controllerId;
+				if (itemController !== api.controllerId) {
+					throw new MixedTestItemController(item.id, itemController, api.controllerId);
+				}
+
+				if (newMapped.has(item.id)) {
+					throw new DuplicateTestItemError(item.id);
+				}
+
+				newMapped.set(item.id, item);
+				toDelete.delete(item.id);
+				bulk.ops.push({ op: TestItemEventOp.Upsert, item });
+			}
+
+			for (const id of toDelete.keys()) {
+				bulk.ops.push({ op: TestItemEventOp.RemoveChild, id });
+			}
+
+			api.listener?.(bulk);
+
+			// important mutations come after firing, so if an error happens no
+			// changes will be "saved":
+			mapped = newMapped;
+		},
+
+
+		/** @inheritdoc */
+		add(item: T) {
+			if (!(item instanceof checkCtor)) {
+				throw new InvalidTestItemError(item.id);
+			}
+
+			mapped.set(item.id, item);
+			api.listener?.({ op: TestItemEventOp.Upsert, item });
+		},
+
+		/** @inheritdoc */
+		delete(id: string) {
+			if (mapped.delete(id)) {
+				api.listener?.({ op: TestItemEventOp.RemoveChild, id });
+			}
+		},
+
+		/** @inheritdoc */
+		get(itemId: string) {
+			return mapped.get(itemId);
+		},
+
+		/** JSON serialization function. */
+		toJSON() {
+			return Array.from(mapped.values());
+		},
+
+		/** @inheritdoc */
+		[Symbol.iterator]() {
+			return mapped.values();
+		},
+	};
+};

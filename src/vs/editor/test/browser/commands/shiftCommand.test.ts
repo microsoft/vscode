@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { getEditOperation, testCommand } from 'vs/editor/test/browser/testCommand';
 import { withEditorModel } from 'vs/editor/test/common/testTextModel';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
@@ -31,9 +31,11 @@ class DocBlockCommentMode extends MockMode {
 
 	private static readonly _id = 'commentMode';
 
-	constructor() {
+	constructor(
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
+	) {
 		super(DocBlockCommentMode._id);
-		this._register(LanguageConfigurationRegistry.register(this.languageId, {
+		this._register(languageConfigurationService.register(this.languageId, {
 			brackets: [
 				['(', ')'],
 				['{', '}'],
@@ -46,7 +48,7 @@ class DocBlockCommentMode extends MockMode {
 }
 
 function testShiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService = new TestLanguageConfigurationService()): void {
-	testCommand(lines, languageId, selection, (sel) => new ShiftCommand(sel, {
+	testCommand(lines, languageId, selection, (accessor, sel) => new ShiftCommand(sel, {
 		isUnshift: false,
 		tabSize: 4,
 		indentSize: 4,
@@ -57,7 +59,7 @@ function testShiftCommand(lines: string[], languageId: string | null, useTabStop
 }
 
 function testUnshiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService = new TestLanguageConfigurationService()): void {
-	testCommand(lines, languageId, selection, (sel) => new ShiftCommand(sel, {
+	testCommand(lines, languageId, selection, (accessor, sel) => new ShiftCommand(sel, {
 		isUnshift: true,
 		tabSize: 4,
 		indentSize: 4,
@@ -69,7 +71,7 @@ function testUnshiftCommand(lines: string[], languageId: string | null, useTabSt
 
 function withDockBlockCommentMode(callback: (mode: DocBlockCommentMode, languageConfigurationService: TestLanguageConfigurationService) => void): void {
 	const languageConfigurationService = new TestLanguageConfigurationService();
-	let mode = new DocBlockCommentMode();
+	let mode = new DocBlockCommentMode(languageConfigurationService);
 	callback(mode, languageConfigurationService);
 	mode.dispose();
 }
@@ -676,7 +678,7 @@ suite('Editor Commands - ShiftCommand', () => {
 			],
 			null,
 			new Selection(1, 1, 13, 1),
-			(sel) => new ShiftCommand(sel, {
+			(accessor, sel) => new ShiftCommand(sel, {
 				isUnshift: false,
 				tabSize: 4,
 				indentSize: 4,
@@ -722,7 +724,7 @@ suite('Editor Commands - ShiftCommand', () => {
 			],
 			null,
 			new Selection(1, 1, 13, 1),
-			(sel) => new ShiftCommand(sel, {
+			(accessor, sel) => new ShiftCommand(sel, {
 				isUnshift: true,
 				tabSize: 4,
 				indentSize: 4,
@@ -768,7 +770,7 @@ suite('Editor Commands - ShiftCommand', () => {
 			],
 			null,
 			new Selection(1, 1, 13, 1),
-			(sel) => new ShiftCommand(sel, {
+			(accessor, sel) => new ShiftCommand(sel, {
 				isUnshift: true,
 				tabSize: 4,
 				indentSize: 4,
@@ -814,7 +816,7 @@ suite('Editor Commands - ShiftCommand', () => {
 			],
 			null,
 			new Selection(1, 1, 13, 1),
-			(sel) => new ShiftCommand(sel, {
+			(accessor, sel) => new ShiftCommand(sel, {
 				isUnshift: true,
 				tabSize: 4,
 				indentSize: 4,
@@ -849,7 +851,7 @@ suite('Editor Commands - ShiftCommand', () => {
 			],
 			null,
 			new Selection(1, 1, 1, 13),
-			(sel) => new ShiftCommand(sel, {
+			(accessor, sel) => new ShiftCommand(sel, {
 				isUnshift: false,
 				tabSize: 4,
 				indentSize: 4,

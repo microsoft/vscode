@@ -27,7 +27,7 @@ export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selec
 	light: '#00000040',
 	dark: '#FFFFFF40',
 	hcDark: '#FFFFFF80',
-	hcLight: '#F2F2F2'
+	hcLight: '#0F4A85'
 }, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
 export const TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR = registerColor('terminalCommandDecoration.defaultBackground', {
 	light: '#00000040',

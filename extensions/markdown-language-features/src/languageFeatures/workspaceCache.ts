@@ -25,7 +25,7 @@ export class MdWorkspaceCache<T> extends Disposable {
 
 	public async getAll(): Promise<T[]> {
 		if (!this._hasPopulatedCache) {
-			await this.populateSymbolCache();
+			await this.populateCache();
 			this._hasPopulatedCache = true;
 
 			this.workspaceContents.onDidChangeMarkdownDocument(this.onDidChangeDocument, this, this._disposables);
@@ -36,15 +36,19 @@ export class MdWorkspaceCache<T> extends Disposable {
 		return Promise.all(Array.from(this._cache.values(), x => x.value));
 	}
 
-	private async populateSymbolCache(): Promise<void> {
+	private async populateCache(): Promise<void> {
 		const markdownDocumentUris = await this.workspaceContents.getAllMarkdownDocuments();
 		for (const document of markdownDocumentUris) {
 			this.update(document);
 		}
 	}
 
+	private key(resource: vscode.Uri): string {
+		return resource.toString();
+	}
+
 	private update(document: SkinnyTextDocument): void {
-		this._cache.set(document.uri.toString(), lazy(() => this.getValue(document)));
+		this._cache.set(this.key(document.uri), lazy(() => this.getValue(document)));
 	}
 
 	private onDidChangeDocument(document: SkinnyTextDocument) {
@@ -52,6 +56,6 @@ export class MdWorkspaceCache<T> extends Disposable {
 	}
 
 	private onDidDeleteDocument(resource: vscode.Uri) {
-		this._cache.delete(resource.toString());
+		this._cache.delete(this.key(resource));
 	}
 }

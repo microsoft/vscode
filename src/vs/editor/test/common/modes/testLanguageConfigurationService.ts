@@ -5,6 +5,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
 import { ILanguageConfigurationService, LanguageConfigurationRegistry, LanguageConfigurationServiceChangeEvent, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 export class TestLanguageConfigurationService implements ILanguageConfigurationService {
@@ -24,6 +25,10 @@ export class TestLanguageConfigurationService implements ILanguageConfigurationS
 		}
 	});
 	public readonly onDidChange = this.onDidChangeEmitter.event;
+
+	register(languageId: string, configuration: LanguageConfiguration, priority?: number): IDisposable {
+		return LanguageConfigurationRegistry.register(languageId, configuration, priority);
+	}
 
 	getLanguageConfiguration(languageId: string, resource?: URI): ResolvedLanguageConfiguration {
 		return LanguageConfigurationRegistry.getLanguageConfiguration(languageId) ??
