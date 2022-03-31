@@ -554,6 +554,8 @@ export interface ITerminalInstance {
 	 */
 	onExit: Event<number | ITerminalLaunchError | undefined>;
 
+	onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number } | undefined>;
+
 	readonly exitCode: number | undefined;
 
 	readonly areLinksReady: boolean;
@@ -863,6 +865,8 @@ export interface IXtermTerminal {
 	 * The position of the terminal.
 	 */
 	target?: TerminalLocation;
+
+	findResult?: { resultIndex: number; resultCount: number };
 
 	/**
 	 * Find the next instance of the term

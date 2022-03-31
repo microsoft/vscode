@@ -91,6 +91,7 @@ export class TerminalEditor extends EditorPane {
 			// panel and the editors, this is needed so that the active instance gets set
 			// when focus changes between them.
 			this._register(this._editorInput.terminalInstance.onDidFocus(() => this._setActiveInstance()));
+			this._register(this._editorInput.terminalInstance.onDidChangeFindResults(() => this._findWidget.updateResultCount()));
 			this._editorInput.setCopyLaunchConfig(this._editorInput.terminalInstance.shellLaunchConfig);
 		}
 	}
