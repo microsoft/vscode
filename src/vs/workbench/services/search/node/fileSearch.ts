@@ -430,7 +430,7 @@ export class FileWalker {
 				// Check exclude pattern
 				// If the user searches for the exact file name, we adjust the glob matching
 				// to ignore filtering by siblings because the user seems to know what they
-				// is searching for and we want to include the result in that case anyway
+				// are searching for and we want to include the result in that case anyway
 				if (excludePattern.test(relativePath, basename, filePattern !== basename ? hasSibling : undefined)) {
 					continue;
 				}
