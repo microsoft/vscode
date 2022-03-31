@@ -9,7 +9,7 @@ import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensio
 import { ExtHostContext } from '../common/extHost.protocol';
 import { localize } from 'vs/nls';
 import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair, IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { reviveWorkspaceEditDto2 } from 'vs/workbench/api/browser/mainThreadEditors';
+import { reviveWorkspaceEditDto2 } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { raceCancellation } from 'vs/base/common/async';
