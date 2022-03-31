@@ -169,9 +169,9 @@ export interface ServerParsedArgs {
 	'extensions-dir'?: string;
 	'extensions-download-dir'?: string;
 	'builtin-extensions-dir'?: string;
-	'install-extension'?: string[];
+	'install-extension'?: string[] | '';
 	'install-builtin-extension'?: string[];
-	'uninstall-extension'?: string[];
+	'uninstall-extension'?: string[] | '';
 	'list-extensions'?: boolean;
 	'locate-extension'?: string[];
 	'show-versions'?: boolean;

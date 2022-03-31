@@ -201,8 +201,8 @@ export function main(desc: ProductDescription, args: string[]): void {
 	if (cliCommand) {
 		if (parsedArgs['install-extension'] !== undefined || parsedArgs['uninstall-extension'] !== undefined || parsedArgs['list-extensions']) {
 			const cmdLine: string[] = [];
-			parsedArgs['install-extension']?.forEach(id => cmdLine.push('--install-extension', id));
-			parsedArgs['uninstall-extension']?.forEach(id => cmdLine.push('--uninstall-extension', id));
+			if (parsedArgs['install-extension']) { parsedArgs['install-extension']?.forEach(id => cmdLine.push('--install-extension', id)); }
+			if (parsedArgs['uninstall-extension']) { parsedArgs['uninstall-extension']?.forEach(id => cmdLine.push('--uninstall-extension', id)); }
 			['list-extensions', 'force', 'show-versions', 'category'].forEach(opt => {
 				const value = parsedArgs[<keyof NativeParsedArgs>opt];
 				if (value !== undefined) {
@@ -268,6 +268,10 @@ export function main(desc: ProductDescription, args: string[]): void {
 		}
 
 		if (parsedArgs['install-extension'] !== undefined || parsedArgs['uninstall-extension'] !== undefined || parsedArgs['list-extensions']) {
+			if (parsedArgs['install-extension'] === '' || parsedArgs['uninstall-extension'] === '') {
+				console.error('Please provide 1 or more extension IDs');
+				return;
+			}
 			sendToPipe({
 				type: 'extensionManagement',
 				list: parsedArgs['list-extensions'] ? { showVersions: parsedArgs['show-versions'], category: parsedArgs['category'] } : undefined,

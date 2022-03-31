@@ -57,10 +57,10 @@ export interface NativeParsedArgs {
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
 	'category'?: string;
-	'install-extension'?: string[]; // undefined or array of 1 or more
+	'install-extension'?: string[] | ''; // undefined, array of 1 or more, or empty string if not provided
 	'pre-release'?: boolean;
 	'install-builtin-extension'?: string[]; // undefined or array of 1 or more
-	'uninstall-extension'?: string[]; // undefined or array of 1 or more
+	'uninstall-extension'?: string[] | ''; // undefined, array of 1 or more, or empty string if not provided
 	'locate-extension'?: string[]; // undefined or array of 1 or more
 	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
 	'open-url'?: boolean;
