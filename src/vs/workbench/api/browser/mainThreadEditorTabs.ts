@@ -20,6 +20,7 @@ import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewE
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { isEqual } from 'vs/base/common/resources';
 
 
 interface TabInfo {
@@ -99,10 +100,10 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		if (editor instanceof SideBySideEditorInput && !(editor instanceof DiffEditorInput)) {
 			const primaryResource = editor.primary.resource;
 			const secondaryResource = editor.secondary.resource;
-			// If side by side editor with same resource on both sinds treat it as a singular tab kind
+			// If side by side editor with same resource on both sides treat it as a singular tab kind
 			if (editor.primary instanceof AbstractTextResourceEditorInput
 				&& editor.secondary instanceof AbstractTextResourceEditorInput
-				&& primaryResource?.toString() === secondaryResource?.toString()
+				&& isEqual(primaryResource, secondaryResource)
 				&& primaryResource
 				&& secondaryResource
 			) {
