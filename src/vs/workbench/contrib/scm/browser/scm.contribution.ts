@@ -240,6 +240,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('alwaysShowRepository', "Controls whether repositories should always be visible in the SCM view."),
 			default: false
 		},
+		'scm.repositories.sortOrder': {
+			type: 'string',
+			enum: ['discovery time', 'name', 'path'],
+			enumDescriptions: [
+				localize('scm.repositoriesSortOrder.discoveryTime', "Sort the repository by repository discovery time."),
+				localize('scm.repositoriesSortOrder.name', "Sort the repository by repository name."),
+				localize('scm.repositoriesSortOrder.path', "Sort the repository by repository path.")
+			],
+			description: localize('repositoriesSortOrder', "Controls the sort order of the repositories in the source control repositories view."),
+			default: 'name'
+		},
 		'scm.repositories.visible': {
 			type: 'number',
 			description: localize('providersVisible', "Controls how many repositories are visible in the Source Control Repositories section. Set to `0` to be able to manually resize the view."),

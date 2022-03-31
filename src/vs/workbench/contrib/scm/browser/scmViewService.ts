@@ -15,6 +15,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { compareFileNames, comparePaths } from 'vs/base/common/comparers';
 import { basename } from 'vs/base/common/resources';
 import { binarySearch } from 'vs/base/common/arrays';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
@@ -82,7 +83,8 @@ export class SCMViewService implements ISCMViewService {
 			return;
 		}
 
-		this._visibleRepositories = visibleRepositories.sort(this._compareRepositories);
+		this._visibleRepositories = this._repositoriesSortKey === 'discovery time' ?
+			visibleRepositories : visibleRepositories.sort(this._compareRepositories);
 		this._visibleRepositoriesSet = set;
 		this._onDidSetVisibleRepositories.fire({ added, removed });
 
@@ -117,17 +119,26 @@ export class SCMViewService implements ISCMViewService {
 	private _onDidFocusRepository = new Emitter<ISCMRepository | undefined>();
 	readonly onDidFocusRepository = this._onDidFocusRepository.event;
 
+	private _repositoriesSortKey: 'discovery time' | 'name' | 'path';
 	private _compareRepositories: (op1: ISCMRepository, op2: ISCMRepository) => number;
 
 	constructor(
 		@ISCMService private readonly scmService: ISCMService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		this.menus = instantiationService.createInstance(SCMMenus);
+		this._repositoriesSortKey = configurationService.getValue('scm.repositories.sortOrder');
 
 		this._compareRepositories = (op1: ISCMRepository, op2: ISCMRepository): number => {
+			// Sort by path
+			if (this._repositoriesSortKey === 'path' && op1.provider.rootUri && op2.provider.rootUri) {
+				return comparePaths(op1.provider.rootUri.fsPath, op2.provider.rootUri.fsPath);
+			}
+
+			// Sort by name and path
 			const name1 = getRepositoryName(workspaceContextService, op1);
 			const name2 = getRepositoryName(workspaceContextService, op2);
 
@@ -279,6 +290,13 @@ export class SCMViewService implements ISCMViewService {
 	}
 
 	private insertRepository(repositories: ISCMRepository[], repository: ISCMRepository): void {
+		// Sort by discovery time
+		if (this._repositoriesSortKey === 'discovery time') {
+			repositories.splice(repositories.length, 0, repository);
+			return;
+		}
+
+		// Sort by name or full path
 		const index = binarySearch(repositories, repository, this._compareRepositories);
 		repositories.splice(index < 0 ? ~index : index, 0, repository);
 	}
