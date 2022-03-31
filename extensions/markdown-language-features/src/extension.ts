@@ -67,7 +67,7 @@ function registerMarkdownLanguageFeatures(
 		vscode.languages.registerFoldingRangeProvider(selector, new MdFoldingProvider(engine)),
 		vscode.languages.registerSelectionRangeProvider(selector, new MdSmartSelect(engine)),
 		vscode.languages.registerWorkspaceSymbolProvider(new MdWorkspaceSymbolProvider(symbolProvider, workspaceContents)),
-		vscode.languages.registerReferenceProvider(selector, new MdReferencesProvider(linkProvider, workspaceContents, engine)),
+		vscode.languages.registerReferenceProvider(selector, new MdReferencesProvider(linkProvider, workspaceContents, engine, githubSlugifier)),
 		MdPathCompletionProvider.register(selector, engine, linkProvider),
 	);
 }

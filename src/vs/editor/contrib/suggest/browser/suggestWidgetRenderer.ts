@@ -7,7 +7,6 @@ import { isSafari } from 'vs/base/browser/browser';
 import { $, append, hide, show } from 'vs/base/browser/dom';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { flatten } from 'vs/base/common/arrays';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches } from 'vs/base/common/filters';
@@ -190,10 +189,10 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			// special logic for 'folder' completion items
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'icon hide';
-			labelOptions.extraClasses = flatten([
+			labelOptions.extraClasses = [
 				getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FOLDER),
 				getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FOLDER)
-			]);
+			].flat();
 		} else {
 			// normal icon
 			data.icon.className = 'icon hide';

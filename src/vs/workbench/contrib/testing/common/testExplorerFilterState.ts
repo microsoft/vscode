@@ -6,7 +6,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { splitGlobAware } from 'vs/base/common/glob';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { namespaceTestTag } from 'vs/workbench/contrib/testing/common/testCollection';
+import { namespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export interface ITestExplorerFilterState {
 	_serviceBrand: undefined;

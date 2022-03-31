@@ -81,12 +81,26 @@
 	z-index: 31;
 }
 
-.monaco-workbench .simple-find-part-wrapper {
-	z-index: 33 !important;
-}
-
 .xterm .xterm-screen {
 	cursor: text;
+}
+
+.monaco-workbench .simple-find-part-wrapper.result-count {
+	z-index: 33 !important;
+	padding-right: 80px;
+}
+
+.result-count .simple-find-part {
+	width: 280px;
+	max-width: 280px;
+	min-width: 280px;
+}
+
+.result-count .matchesCount {
+	width: 68px;
+	max-width: 68px;
+	min-width: 68px;
+	padding-left: 5px;
 }
 
 .xterm .xterm-accessibility {

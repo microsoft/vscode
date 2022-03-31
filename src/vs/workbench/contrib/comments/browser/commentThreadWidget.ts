@@ -311,7 +311,6 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		content.push(`.review-widget .body code {
 			font-family: var(${fontFamilyVar});
 			font-weight: var(${fontWeightVar});
-			font-size: var(${fontSizeVar});
 		}`);
 
 		this._styleElement.textContent = content.join('\n');

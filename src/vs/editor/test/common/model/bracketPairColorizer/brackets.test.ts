@@ -8,7 +8,6 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { LanguageAgnosticBracketTokens } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/brackets';
 import { SmallImmutableSet, DenseKeyProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/smallImmutableSet';
 import { Token, TokenKind } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('Bracket Pair Colorizer - Brackets', () => {
@@ -25,7 +24,8 @@ suite('Bracket Pair Colorizer - Brackets', () => {
 		};
 
 		const disposableStore = new DisposableStore();
-		disposableStore.add(LanguageConfigurationRegistry.register(languageId, {
+		const languageConfigService = new TestLanguageConfigurationService();
+		disposableStore.add(languageConfigService.register(languageId, {
 			brackets: [
 				['{', '}'], ['[', ']'], ['(', ')'],
 				['begin', 'end'], ['case', 'endcase'], ['casez', 'endcase'],					// Verilog
@@ -34,7 +34,6 @@ suite('Bracket Pair Colorizer - Brackets', () => {
 			]
 		}));
 
-		const languageConfigService = new TestLanguageConfigurationService();
 		const brackets = new LanguageAgnosticBracketTokens(denseKeyProvider, l => languageConfigService.getLanguageConfiguration(l, undefined));
 		const bracketsExpected = [
 			{ text: '{', length: 1, kind: 'OpeningBracket', bracketId: getKey('{'), bracketIds: getImmutableSet(['{']) },

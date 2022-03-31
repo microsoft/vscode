@@ -11,7 +11,6 @@ import { LanguageService } from 'vs/editor/common/services/languageService';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { CompletionContext, CompletionItemLabel, CompletionItemRanges, CompletionTriggerKind } from 'vs/editor/common/languages';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
@@ -403,7 +402,8 @@ suite('SnippetsService', function () {
 	});
 
 	test('issue #61296: VS code freezes when editing CSS file with emoji', async function () {
-		disposableStore.add(LanguageConfigurationRegistry.register('fooLang'!, {
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposableStore.add(languageConfigurationService.register('fooLang', {
 			wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
 		}));
 
@@ -417,7 +417,7 @@ suite('SnippetsService', function () {
 			SnippetSource.User
 		)]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, languageConfigurationService);
 
 		let model = disposables.add(createTextModel('.🐷-a-b', 'fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 8), context)!;
@@ -548,7 +548,8 @@ suite('SnippetsService', function () {
 	});
 
 	test('Snippet will replace auto-closing pair if specified in prefix', async function () {
-		disposableStore.add(LanguageConfigurationRegistry.register('fooLang'!, {
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposableStore.add(languageConfigurationService.register('fooLang', {
 			brackets: [
 				['{', '}'],
 				['[', ']'],
@@ -566,7 +567,7 @@ suite('SnippetsService', function () {
 			SnippetSource.User
 		)]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, languageConfigurationService);
 
 		let model = createTextModel('[psc]', 'fooLang');
 		let result = await provider.provideCompletionItems(model, new Position(1, 5), context)!;
