@@ -7,10 +7,10 @@ import { localize } from 'vs/nls';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { toAction } from 'vs/base/common/actions';
-import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, BINARY_TEXT_FILE_MODE } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { IEditorOpenContext, EditorInputCapabilities, isTextEditorViewState } from 'vs/workbench/common/editor';
+import { IEditorOpenContext, EditorInputCapabilities, isTextEditorViewState, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -213,7 +213,7 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 	private openAsBinary(input: FileEditorInput, options: ITextEditorOptions | undefined): void {
 		const defaultBinaryEditor = this.configurationService.getValue<string | undefined>('workbench.editor.defaultBinaryEditor');
 		const groupToOpen = this.group ?? this.editorGroupService.activeGroup;
-		const editorOptions = {
+		let editorOptions = {
 			...options,
 			// Make sure to not steal away the currently active group
 			// because we are triggering another openEditor() call
@@ -223,19 +223,25 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 		};
 
 		// If we the user setting specifies a default binary editor we use that
-		if (defaultBinaryEditor && defaultBinaryEditor !== '') {
+		if (defaultBinaryEditor && defaultBinaryEditor !== '' && defaultBinaryEditor !== DEFAULT_EDITOR_ASSOCIATION.id) {
 			this.editorService.replaceEditors([{
 				editor: input,
 				replacement: { resource: input.resource, options: { ...editorOptions, override: defaultBinaryEditor } }
 			}], groupToOpen);
-		}
-
-		// Otherwise we mark file input for forced binary opening and reopen the file
-		else {
+			// Replace is completed, don't do any further text input options as it's no longer text.
+			return;
+		} else if (defaultBinaryEditor === DEFAULT_EDITOR_ASSOCIATION.id) {
+			input.setForceOpenAsText();
+			// Distinguish between plain text and plain text binary
+			input.setPreferredLanguageId(BINARY_TEXT_FILE_MODE);
+			// Same pane and same input, must force reload to clear cached state
+			editorOptions = { ...editorOptions, forceReload: true };
+		} else {
 			input.setForceOpenAsBinary();
-
-			groupToOpen.openEditor(input, editorOptions);
 		}
+
+		// Resolver wasn't needed proceed to oepn the editor as normal
+		groupToOpen.openEditor(input, editorOptions);
 	}
 
 	private async openAsFolder(input: FileEditorInput): Promise<void> {
