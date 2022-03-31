@@ -446,10 +446,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xtermReadyPromise.then(async () => {
 			// Wait for a period to allow a container to be ready
 			await this._containerReadyBarrier.wait();
-			if (this._configHelper.config.shellIntegration?.enabled && !this.shellLaunchConfig.executable) {
+
+			// Resolve the executable ahead of time if shell integration is enabled, this should not
+			// be done for custom PTYs as that would cause extension Pseudoterminal-based terminals
+			// to hang in resolver extensions
+			if (!this.shellLaunchConfig.customPtyImplementation && this._configHelper.config.shellIntegration?.enabled && !this.shellLaunchConfig.executable) {
 				const os = await this._processManager.getBackendOS();
 				this.shellLaunchConfig.executable = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os })).path;
 			}
+
 			await this._createProcess();
 
 			// Re-establish the title after reconnect
