@@ -100,8 +100,9 @@ export class DynamicEditorResolverConfigurations extends Disposable implements I
 			properties: {
 				'workbench.editor.defaultBinaryEditor': {
 					type: 'string',
+					default: '',
 					// This allows for intellisense autocompletion
-					enum: binaryEditorCandidates,
+					enum: [...binaryEditorCandidates, ''],
 					description: localize('workbench.editor.defaultBinaryEditor', "The default editor for files detected as binary. If undefined the user will be presented with a picker."),
 				}
 			}

@@ -10,7 +10,21 @@ import { IndentAction } from 'vs/editor/common/languages/languageConfiguration';
 import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { IndentConsts, IndentRulesSupport } from 'vs/editor/common/languages/supports/indentRules';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { getScopedLineTokens, IIndentConverter, ILanguageConfigurationService, IVirtualModel } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { getScopedLineTokens, ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+
+export interface IVirtualModel {
+	getLineTokens(lineNumber: number): LineTokens;
+	getLanguageId(): string;
+	getLanguageIdAtPosition(lineNumber: number, column: number): string;
+	getLineContent(lineNumber: number): string;
+}
+
+export interface IIndentConverter {
+	shiftIndent(indentation: string): string;
+	unshiftIndent(indentation: string): string;
+	normalizeIndentation?(indentation: string): string;
+}
 
 /**
  * Get nearest preceding line which doesn't match unIndentPattern or contains all whitespace.

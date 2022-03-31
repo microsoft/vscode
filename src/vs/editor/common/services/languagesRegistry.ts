@@ -14,12 +14,9 @@ import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages
 import { ILanguageExtensionPoint, ILanguageNameIdPair, ILanguageIcon } from 'vs/editor/common/languages/language';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 const NULL_LANGUAGE_ID = 'vs.editor.nullLanguage';
-
-LanguageConfigurationRegistry.register(NULL_LANGUAGE_ID, {});
 
 export interface IResolvedLanguage {
 	identifier: string;

@@ -529,7 +529,7 @@ export class InlayHintsController implements IEditorContribution {
 		const editorFontSize = this._editor.getOption(EditorOption.fontSize);
 		let fontSize = options.fontSize;
 		if (!fontSize || fontSize < 5 || fontSize > editorFontSize) {
-			fontSize = (editorFontSize * .9) | 0;
+			fontSize = editorFontSize;
 		}
 		const fontFamily = options.fontFamily || this._editor.getOption(EditorOption.fontFamily);
 		return { fontSize, fontFamily, displayStyle: options.displayStyle };

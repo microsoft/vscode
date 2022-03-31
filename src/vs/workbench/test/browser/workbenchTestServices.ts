@@ -211,6 +211,9 @@ export interface ITestInstantiationService extends IInstantiationService {
 
 export function workbenchInstantiationService(
 	overrides?: {
+		environmentService?: (instantiationService: IInstantiationService) => IEnvironmentService;
+		fileService?: (instantiationService: IInstantiationService) => IFileService;
+		configurationService?: (instantiationService: IInstantiationService) => TestConfigurationService;
 		textFileService?: (instantiationService: IInstantiationService) => ITextFileService;
 		pathService?: (instantiationService: IInstantiationService) => IPathService;
 		editorService?: (instantiationService: IInstantiationService) => IEditorService;
@@ -218,19 +221,20 @@ export function workbenchInstantiationService(
 		textEditorService?: (instantiationService: IInstantiationService) => ITextEditorService;
 	},
 	disposables: DisposableStore = new DisposableStore()
-): ITestInstantiationService {
+): TestInstantiationService {
 	const instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 
 	instantiationService.stub(IEditorWorkerService, new TestEditorWorkerService());
 	instantiationService.stub(IWorkingCopyService, disposables.add(new WorkingCopyService()));
-	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
+	const environmentService = overrides?.environmentService ? overrides.environmentService(instantiationService) : TestEnvironmentService;
+	instantiationService.stub(IEnvironmentService, environmentService);
+	instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 	const contextKeyService = overrides?.contextKeyService ? overrides.contextKeyService(instantiationService) : instantiationService.createInstance(MockContextKeyService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
 	instantiationService.stub(IProgressService, new TestProgressService());
 	const workspaceContextService = new TestContextService(TestWorkspace);
 	instantiationService.stub(IWorkspaceContextService, workspaceContextService);
-	const configService = new TestConfigurationService({
+	const configService = overrides?.configurationService ? overrides.configurationService(instantiationService) : new TestConfigurationService({
 		files: {
 			participants: {
 				timeout: 60000
@@ -259,7 +263,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IThemeService, themeService);
 	instantiationService.stub(ILanguageConfigurationService, new TestLanguageConfigurationService());
 	instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelService)));
-	const fileService = new TestFileService();
+	const fileService = overrides?.fileService ? overrides.fileService(instantiationService) : new TestFileService();
 	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
 	instantiationService.stub(IWorkingCopyBackupService, new TestWorkingCopyBackupService());

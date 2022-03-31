@@ -13,7 +13,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
 import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, ILocationLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto, IdentifiableInlineCompletions, IdentifiableInlineCompletion, ITypeHierarchyItemDto, IInlayHintDto } from '../common/extHost.protocol';
-import { ILanguageConfigurationService, LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -32,23 +32,21 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
 
 	private readonly _proxy: ExtHostLanguageFeaturesShape;
-	private readonly _languageService: ILanguageService;
 	private readonly _registrations = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ILanguageService languageService: ILanguageService,
-		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageFeatures);
-		this._languageService = languageService;
 
 		if (this._languageService) {
 			const updateAllWordDefinitions = () => {
 				let wordDefinitionDtos: ILanguageWordDefinitionDto[] = [];
-				for (const languageId of languageService.getRegisteredLanguageIds()) {
-					const wordDefinition = languageConfigurationService.getLanguageConfiguration(languageId).getWordDefinition();
+				for (const languageId of _languageService.getRegisteredLanguageIds()) {
+					const wordDefinition = this._languageConfigurationService.getLanguageConfiguration(languageId).getWordDefinition();
 					wordDefinitionDtos.push({
 						languageId: languageId,
 						regexSource: wordDefinition.source,
@@ -57,11 +55,11 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				}
 				this._proxy.$setWordDefinitions(wordDefinitionDtos);
 			};
-			languageConfigurationService.onDidChange((e) => {
+			this._languageConfigurationService.onDidChange((e) => {
 				if (!e.languageId) {
 					updateAllWordDefinitions();
 				} else {
-					const wordDefinition = languageConfigurationService.getLanguageConfiguration(e.languageId).getWordDefinition();
+					const wordDefinition = this._languageConfigurationService.getLanguageConfiguration(e.languageId).getWordDefinition();
 					this._proxy.$setWordDefinitions([{
 						languageId: e.languageId,
 						regexSource: wordDefinition.source,
@@ -811,7 +809,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 
 		if (this._languageService.isRegisteredLanguageId(languageId)) {
-			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageId, configuration, 100));
+			this._registrations.set(handle, this._languageConfigurationService.register(languageId, configuration, 100));
 		}
 	}
 

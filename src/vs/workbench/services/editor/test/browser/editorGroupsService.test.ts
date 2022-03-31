@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, ITestInstantiationService, TestServiceAccessor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities, GroupModelChangeKind, SideBySideEditor } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
@@ -16,6 +16,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IGroupModelChangeEvent, IGroupEditorMoveEvent, IGroupEditorOpenEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 suite('EditorGroupsService', () => {
 
@@ -32,7 +33,7 @@ suite('EditorGroupsService', () => {
 		disposables.clear();
 	});
 
-	async function createPart(instantiationService = workbenchInstantiationService(undefined, disposables)): Promise<[TestEditorPart, ITestInstantiationService]> {
+	async function createPart(instantiationService = workbenchInstantiationService(undefined, disposables)): Promise<[TestEditorPart, TestInstantiationService]> {
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
