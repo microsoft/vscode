@@ -8,6 +8,7 @@ import * as nls from 'vscode-nls';
 import * as uri from 'vscode-uri';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
 import { MarkdownEngine } from '../markdownEngine';
+import { coalesce } from '../util/arrays';
 import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/schemes';
 import { SkinnyTextDocument } from '../workspaceContents';
 
@@ -20,19 +21,28 @@ export interface ExternalLinkTarget {
 
 export interface InternalLinkTarget {
 	readonly kind: 'internal';
-
-	readonly fromResource: vscode.Uri;
 	readonly path: vscode.Uri;
 	readonly fragment: string;
 }
 
-export type LinkTarget = ExternalLinkTarget | InternalLinkTarget;
+export interface ReferenceLinkTarget {
+	readonly kind: 'reference';
+	readonly ref: string;
+}
+
+export interface DefinitionLinkTarget {
+	readonly kind: 'definition';
+	readonly ref: string;
+	readonly target: ExternalLinkTarget | InternalLinkTarget;
+}
+
+export type LinkTarget = ExternalLinkTarget | InternalLinkTarget | ReferenceLinkTarget | DefinitionLinkTarget;
 
 
 function parseLink(
 	document: SkinnyTextDocument,
 	link: string,
-): LinkTarget | undefined {
+): ExternalLinkTarget | InternalLinkTarget | undefined {
 	const cleanLink = stripAngleBrackets(link);
 	const externalSchemeUri = getUriForLinkWithKnownExternalScheme(cleanLink);
 	if (externalSchemeUri) {
@@ -75,7 +85,6 @@ function parseLink(
 
 	return {
 		kind: 'internal',
-		fromResource: document.uri,
 		path: resourceUri,
 		fragment: tempUri.fragment,
 	};
@@ -88,6 +97,7 @@ function getWorkspaceFolder(document: SkinnyTextDocument) {
 
 export interface LinkData {
 	readonly target: LinkTarget;
+	readonly sourceResource: vscode.Uri;
 	readonly sourceRange: vscode.Range;
 }
 
@@ -107,6 +117,7 @@ function extractDocumentLink(
 		}
 		return {
 			target: linkTarget,
+			sourceResource: document.uri,
 			sourceRange: new vscode.Range(linkStart, linkEnd)
 		};
 	} catch {
@@ -172,36 +183,63 @@ function isLinkInsideCode(code: CodeInDocument, link: LinkData) {
 		code.inline.some(position => position.intersection(link.sourceRange));
 }
 
-function createDocumentLink(sourceRange: vscode.Range, target: LinkTarget) {
-	if (target.kind === 'external') {
-		return new vscode.DocumentLink(sourceRange, target.uri);
-	} else {
-
-		const uri = OpenDocumentLinkCommand.createCommandUri(target.fromResource, target.path, target.fragment);
-		const documentLink = new vscode.DocumentLink(sourceRange, uri);
-		documentLink.tooltip = localize('documentLink.tooltip', 'Follow link');
-		return documentLink;
-	}
-}
-
 export class MdLinkProvider implements vscode.DocumentLinkProvider {
+
 	constructor(
 		private readonly engine: MarkdownEngine
 	) { }
 
 	public async provideDocumentLinks(
 		document: SkinnyTextDocument,
-		_token: vscode.CancellationToken
+		token: vscode.CancellationToken
 	): Promise<vscode.DocumentLink[]> {
-		const text = document.getText();
-		const inlineLinks = await this.getInlineLinks(text, document);
-		return [
-			...inlineLinks.map(data => createDocumentLink(data.sourceRange, data.target)),
-			...this.getReferenceLinks(text, document)
-		];
+		const allLinks = await this.getAllLinks(document);
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
+		const definitionSet = new LinkDefinitionSet(allLinks);
+		return coalesce(allLinks
+			.map(data => this.toValidDocumentLink(data, definitionSet)));
 	}
 
-	public async getInlineLinks(text: string, document: SkinnyTextDocument): Promise<LinkData[]> {
+	private toValidDocumentLink(link: LinkData, definitionSet: LinkDefinitionSet): vscode.DocumentLink | undefined {
+		switch (link.target.kind) {
+			case 'external': {
+				return new vscode.DocumentLink(link.sourceRange, link.target.uri);
+			}
+			case 'internal': {
+				const uri = OpenDocumentLinkCommand.createCommandUri(link.sourceResource, link.target.path, link.target.fragment);
+				const documentLink = new vscode.DocumentLink(link.sourceRange, uri);
+				documentLink.tooltip = localize('documentLink.tooltip', 'Follow link');
+				return documentLink;
+			}
+			case 'reference': {
+				const def = definitionSet.lookup(link.target.ref);
+				if (def) {
+					return new vscode.DocumentLink(
+						link.sourceRange,
+						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([def.sourceRange.start.line, def.sourceRange.start.character]))}`));
+				} else {
+					return undefined;
+				}
+			}
+			case 'definition':
+				return this.toValidDocumentLink({ sourceRange: link.sourceRange, sourceResource: link.sourceResource, target: link.target.target }, definitionSet);
+		}
+	}
+
+	public async getAllLinks(document: SkinnyTextDocument): Promise<LinkData[]> {
+		return Array.from([
+			...(await this.getInlineLinks(document)),
+			...this.getReferenceLinks(document),
+			...this.getDefinitionLinks(document),
+		]);
+	}
+
+	private async getInlineLinks(document: SkinnyTextDocument): Promise<LinkData[]> {
+		const text = document.getText();
+
 		const results: LinkData[] = [];
 		const codeInDocument = await findCode(document, this.engine);
 		for (const match of text.matchAll(linkPattern)) {
@@ -217,8 +255,8 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 		return results;
 	}
 
-	public *getReferenceLinks(text: string, document: SkinnyTextDocument): Iterable<vscode.DocumentLink> {
-		const definitions = this.getDefinitions(text, document);
+	private *getReferenceLinks(document: SkinnyTextDocument): Iterable<LinkData> {
+		const text = document.getText();
 		for (const match of text.matchAll(referenceLinkPattern)) {
 			let linkStart: vscode.Position;
 			let linkEnd: vscode.Position;
@@ -237,32 +275,19 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				continue;
 			}
 
-			try {
-				const link = definitions.get(reference);
-				if (link) {
-					yield new vscode.DocumentLink(
-						new vscode.Range(linkStart, linkEnd),
-						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([link.linkRange.start.line, link.linkRange.start.character]))}`));
+			yield {
+				sourceRange: new vscode.Range(linkStart, linkEnd),
+				sourceResource: document.uri,
+				target: {
+					kind: 'reference',
+					ref: reference,
 				}
-			} catch (e) {
-				// noop
-			}
-		}
-
-		for (const definition of definitions.values()) {
-			try {
-				const target = parseLink(document, definition.link);
-				if (target) {
-					yield createDocumentLink(definition.linkRange, target);
-				}
-			} catch (e) {
-				// noop
-			}
+			};
 		}
 	}
 
-	public getDefinitions(text: string, document: SkinnyTextDocument): Map<string, { readonly link: string; readonly linkRange: vscode.Range }> {
-		const out = new Map<string, { link: string; linkRange: vscode.Range }>();
+	public *getDefinitionLinks(document: SkinnyTextDocument): Iterable<LinkData> {
+		const text = document.getText();
 		for (const match of text.matchAll(definitionPattern)) {
 			const pre = match[1];
 			const reference = match[2];
@@ -272,19 +297,50 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 			if (angleBracketLinkRe.test(link)) {
 				const linkStart = document.positionAt(offset + 1);
 				const linkEnd = document.positionAt(offset + link.length - 1);
-				out.set(reference, {
-					link: link.substring(1, link.length - 1),
-					linkRange: new vscode.Range(linkStart, linkEnd)
-				});
+				const target = parseLink(document, link.substring(1, link.length - 1));
+				if (target) {
+					yield {
+						sourceResource: document.uri,
+						sourceRange: new vscode.Range(linkStart, linkEnd),
+						target: {
+							kind: 'definition',
+							ref: reference,
+							target
+						}
+					};
+				}
 			} else {
 				const linkStart = document.positionAt(offset);
 				const linkEnd = document.positionAt(offset + link.length);
-				out.set(reference, {
-					link: link,
-					linkRange: new vscode.Range(linkStart, linkEnd)
-				});
+				const target = parseLink(document, link);
+				if (target) {
+					yield {
+						sourceResource: document.uri,
+						sourceRange: new vscode.Range(linkStart, linkEnd),
+						target: {
+							kind: 'definition',
+							ref: reference,
+							target,
+						}
+					};
+				}
 			}
 		}
-		return out;
+	}
+}
+
+export class LinkDefinitionSet {
+	private readonly _map = new Map<string, LinkData>();
+
+	constructor(links: Iterable<LinkData>) {
+		for (const link of links) {
+			if (link.target.kind === 'definition') {
+				this._map.set(link.target.ref, link);
+			}
+		}
+	}
+
+	public lookup(ref: string): LinkData | undefined {
+		return this._map.get(ref);
 	}
 }

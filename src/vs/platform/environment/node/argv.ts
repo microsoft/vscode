@@ -212,7 +212,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 					if (!val) {
 						val = remainingArgs[deprecatedId];
 						if (val) {
-							errorReporter.onDeprecatedOption(deprecatedId, o.deprecationMessage || localize('deprecated.useInstead', 'Use {0} instead.'));
+							errorReporter.onDeprecatedOption(deprecatedId, o.deprecationMessage || localize('deprecated.useInstead', 'Use {0} instead.', optionId));
 						}
 					}
 					delete remainingArgs[deprecatedId];

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.66.0",
-  "distro": "d8a2548202ac4d5c7846f4c7ee4aac9a0c339217",
+  "version": "1.67.0",
+  "distro": "7ee3b198b317d29648533b3713783234658d7968",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -84,12 +84,12 @@
     "vscode-proxy-agent": "^0.12.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "6.0.0",
-    "xterm": "4.19.0-beta.15",
-    "xterm-addon-search": "0.9.0-beta.16",
+    "xterm": "4.19.0-beta.17",
+    "xterm-addon-search": "0.9.0-beta.17",
     "xterm-addon-serialize": "0.7.0-beta.11",
     "xterm-addon-unicode11": "0.4.0-beta.3",
-    "xterm-addon-webgl": "0.12.0-beta.24",
-    "xterm-headless": "4.19.0-beta.15",
+    "xterm-addon-webgl": "0.12.0-beta.25",
+    "xterm-headless": "4.19.0-beta.17",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
@@ -225,7 +225,7 @@
     "@vscode/windows-registry": "1.0.6",
     "windows-foreground-love": "0.4.0",
     "windows-mutex": "0.4.1",
-    "windows-process-tree": "^0.3.2"
+    "windows-process-tree": "0.3.3"
   },
   "resolutions": {
     "elliptic": "^6.5.3",

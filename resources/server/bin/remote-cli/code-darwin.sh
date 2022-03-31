@@ -2,7 +2,17 @@
 #
 # Copyright (c) Microsoft Corporation. All rights reserved.
 #
-ROOT=$(dirname "$(dirname "$(dirname "$0")")")
+realdir() {
+	SOURCE=$1
+	while [ -h "$SOURCE" ]; do
+		DIR=$(dirname "$SOURCE")
+		SOURCE=$(readlink "$SOURCE")
+		[[ $SOURCE != /* ]] && SOURCE=$DIR/$SOURCE
+	done
+	echo "$( cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd )"
+}
+
+ROOT=$(dirname "$(realdir "$0")")
 
 APP_NAME="@@APPNAME@@"
 VERSION="@@VERSION@@"
