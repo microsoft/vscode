@@ -143,7 +143,7 @@ export function removeMarkdownEscapes(text: string): string {
 	if (!text) {
 		return text;
 	}
-	return text.replace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
+	return text.replace(/\\([\\`*_{}[\]()#+\-.!~])/g, '$1');
 }
 
 export function parseHrefAndDimensions(href: string): { href: string; dimensions: string[] } {
