@@ -9,7 +9,7 @@ import { Slugifier } from '../slugify';
 import { TableOfContents, TocEntry } from '../tableOfContents';
 import { Disposable } from '../util/dispose';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { DefinitionLinkTarget, InternalLinkTarget, LinkData, LinkTarget, MdLinkProvider } from './documentLinkProvider';
+import { InternalLinkTarget, MdLink, LinkTarget, MdLinkProvider, MdLinkDefinition } from './documentLinkProvider';
 import { MdWorkspaceCache } from './workspaceCache';
 
 
@@ -59,7 +59,7 @@ interface MdHeaderReference {
 export type MdReference = MdLinkReference | MdHeaderReference;
 
 
-function getFragmentLocation(link: LinkData): vscode.Location | undefined {
+function getFragmentLocation(link: MdLink): vscode.Location | undefined {
 	const index = link.sourceText.indexOf('#');
 	if (index < 0) {
 		return undefined;
@@ -71,7 +71,7 @@ function getFragmentLocation(link: LinkData): vscode.Location | undefined {
 
 export class MdReferencesProvider extends Disposable implements vscode.ReferenceProvider {
 
-	private readonly _linkCache: MdWorkspaceCache<LinkData[]>;
+	private readonly _linkCache: MdWorkspaceCache<MdLink[]>;
 
 	public constructor(
 		private readonly linkProvider: MdLinkProvider,
@@ -129,7 +129,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 					location: new vscode.Location(link.sourceResource, link.sourceRange),
 					fragmentLocation: getFragmentLocation(link),
 				});
-			} else if (link.target.kind === 'definition' && isLinkToHeader(link.target.target, header, document.uri, this.slugifier)) {
+			} else if (link.kind === 'definition' && isLinkToHeader(link.target, header, document.uri, this.slugifier)) {
 				references.push({
 					kind: 'link',
 					isTriggerLocation: false,
@@ -149,9 +149,9 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		return sourceLink ? this.getReferencesToLink(sourceLink) : [];
 	}
 
-	private async getReferencesToLink(sourceLink: LinkData): Promise<MdReference[]> {
-		if (sourceLink.target.kind === 'definition') {
-			return this.getReferencesToLink(this.getInnerLink(sourceLink, sourceLink.target));
+	private async getReferencesToLink(sourceLink: MdLink): Promise<MdReference[]> {
+		if (sourceLink.kind === 'definition') {
+			return this.getReferencesToLink(this.getInnerLink(sourceLink));
 		}
 
 		const allLinksInWorkspace = (await this._linkCache.getAll()).flat();
@@ -194,8 +194,8 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		}
 
 		for (let link of allLinksInWorkspace) {
-			if (link.target.kind === 'definition') {
-				link = this.getInnerLink(link, link.target);
+			if (link.kind === 'definition') {
+				link = this.getInnerLink(link);
 			}
 
 			if (link.target.kind !== 'internal') {
@@ -239,28 +239,40 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		return references;
 	}
 
-	private getInnerLink(sourceLink: LinkData, target: DefinitionLinkTarget): LinkData {
+	private getInnerLink(sourceLink: MdLinkDefinition): MdLink {
 		return {
+			kind: 'link',
 			sourceText: sourceLink.sourceText, // This is not correct
 			sourceResource: sourceLink.sourceResource,
 			sourceRange: sourceLink.sourceRange,
-			target: target.target,
+			target: sourceLink.target,
 		};
 	}
 
-	private * getReferencesToReferenceLink(allLinks: Iterable<LinkData>, sourceLink: LinkData): Iterable<MdReference> {
+	private * getReferencesToReferenceLink(allLinks: Iterable<MdLink>, sourceLink: MdLink): Iterable<MdReference> {
 		if (sourceLink.target.kind !== 'reference') {
 			return;
 		}
 
 		for (const link of allLinks) {
-			if (link.target.kind === 'reference' || link.target.kind === 'definition') {
+			if (link.kind === 'definition') {
+				if (link.ref === sourceLink.target.ref && link.sourceResource.fsPath === sourceLink.sourceResource.fsPath) {
+					const isTriggerLocation = sourceLink.sourceResource.fsPath === link.sourceResource.fsPath && sourceLink.sourceRange.isEqual(link.sourceRange);
+					yield {
+						kind: 'link',
+						isTriggerLocation,
+						isDefinition: true,
+						location: new vscode.Location(sourceLink.sourceResource, link.sourceRange),
+						fragmentLocation: getFragmentLocation(link),
+					};
+				}
+			} else if (link.target.kind === 'reference') {
 				if (link.target.ref === sourceLink.target.ref && link.sourceResource.fsPath === sourceLink.sourceResource.fsPath) {
 					const isTriggerLocation = sourceLink.sourceResource.fsPath === link.sourceResource.fsPath && sourceLink.sourceRange.isEqual(link.sourceRange);
 					yield {
 						kind: 'link',
 						isTriggerLocation,
-						isDefinition: link.target.kind === 'definition',
+						isDefinition: false,
 						location: new vscode.Location(sourceLink.sourceResource, link.sourceRange),
 						fragmentLocation: getFragmentLocation(link),
 					};

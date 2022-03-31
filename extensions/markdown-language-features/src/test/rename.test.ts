@@ -59,7 +59,7 @@ function assertEditsEqual(actualEdit: vscode.WorkspaceEdit, ...expectedEdits: { 
 	}
 }
 
-suite.only('markdown: rename', () => {
+suite('markdown: rename', () => {
 
 	setup(async () => {
 		// the tests make the assumption that link providers are already registered
