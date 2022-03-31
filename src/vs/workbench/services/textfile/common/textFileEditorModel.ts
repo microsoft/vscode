@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, TextFileResolveReason, ITextFileEditorModelSaveEvent } from 'vs/workbench/services/textfile/common/textfiles';
-import { IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
+import { IRevertOptions, SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
@@ -45,6 +46,8 @@ interface IBackupMetaData extends IWorkingCopyBackupMeta {
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
  */
 export class TextFileEditorModel extends BaseTextEditorModel implements ITextFileEditorModel {
+
+	private static readonly TEXTFILE_SAVE_ENCODING_SOURCE = SaveSourceRegistry.registerSource('textFileEncoding.source', localize('textFileCreate.source', "File Encoding Changed"));
 
 	//#region Events
 
@@ -1010,12 +1013,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return; // return early if encoding is invalid or did not change
 		}
 
-		if (this.isDirty() || this.inConflictMode) {
+		if (this.isDirty()) {
 			return; // return early to prevent accident saves in this case
-		}
-
-		if (!this.isResolved()) {
-			return; // return early to prevent race with resolving
 		}
 
 		// Re-open with new encoding
@@ -1027,9 +1026,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	async setEncoding(encoding: string, mode: EncodingMode): Promise<void> {
-		if (!this.isNewEncoding(encoding)) {
-			return; // return early if the encoding is already the same
-		}
 
 		// Encode: Save with encoding
 		if (mode === EncodingMode.Encode) {
@@ -1042,13 +1038,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 
 			if (!this.inConflictMode) {
-				await this.save();
+				await this.save({ source: TextFileEditorModel.TEXTFILE_SAVE_ENCODING_SOURCE });
 			}
 		}
 
 		// Decode: Resolve with encoding
 		else {
-			if (this.isDirty()) {
+			if (!this.isNewEncoding(encoding)) {
+				return; // return early if the encoding is already the same
+			}
+
+			if (this.isDirty() && !this.inConflictMode) {
 				await this.save();
 			}
 
