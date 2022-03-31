@@ -148,6 +148,21 @@ suite('markdown: find all references', () => {
 		);
 	});
 
+	test('Should find references from link definition', async () => {
+		const uri = workspacePath('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`# A b C`,
+			`[text][bla]`,
+			`[bla]: #a-b-c`, // trigger here
+		));
+
+		const refs = await getReferences(doc, new vscode.Position(2, 9), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assertReferencesEqual(refs!,
+			{ uri, line: 0 }, // Header definition
+			{ uri, line: 2 },
+		);
+	});
+
 	test('Should find references from link within same file', async () => {
 		const uri = workspacePath('doc.md');
 		const doc = new InMemoryDocument(uri, joinLines(

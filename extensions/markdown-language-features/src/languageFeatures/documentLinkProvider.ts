@@ -95,6 +95,8 @@ function getWorkspaceFolder(document: SkinnyTextDocument) {
 
 export interface LinkData {
 	readonly target: LinkTarget;
+
+	readonly sourceText: string;
 	readonly sourceResource: vscode.Uri;
 	readonly sourceRange: vscode.Range;
 }
@@ -115,6 +117,7 @@ function extractDocumentLink(
 		}
 		return {
 			target: linkTarget,
+			sourceText: link,
 			sourceResource: document.uri,
 			sourceRange: new vscode.Range(linkStart, linkEnd)
 		};
@@ -223,7 +226,12 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				}
 			}
 			case 'definition':
-				return this.toValidDocumentLink({ sourceRange: link.sourceRange, sourceResource: link.sourceResource, target: link.target.target }, definitionSet);
+				return this.toValidDocumentLink({
+					sourceText: link.sourceText,
+					sourceRange: link.sourceRange,
+					sourceResource: link.sourceResource,
+					target: link.target.target
+				}, definitionSet);
 		}
 	}
 
@@ -274,6 +282,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 			}
 
 			yield {
+				sourceText: reference,
 				sourceRange: new vscode.Range(linkStart, linkEnd),
 				sourceResource: document.uri,
 				target: {
@@ -295,9 +304,11 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 			if (angleBracketLinkRe.test(link)) {
 				const linkStart = document.positionAt(offset + 1);
 				const linkEnd = document.positionAt(offset + link.length - 1);
-				const target = parseLink(document, link.substring(1, link.length - 1));
+				const text = link.substring(1, link.length - 1);
+				const target = parseLink(document, text);
 				if (target) {
 					yield {
+						sourceText: link,
 						sourceResource: document.uri,
 						sourceRange: new vscode.Range(linkStart, linkEnd),
 						target: {
@@ -313,6 +324,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				const target = parseLink(document, link);
 				if (target) {
 					yield {
+						sourceText: link,
 						sourceResource: document.uri,
 						sourceRange: new vscode.Range(linkStart, linkEnd),
 						target: {

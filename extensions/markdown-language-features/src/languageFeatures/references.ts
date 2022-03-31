@@ -9,7 +9,7 @@ import { Slugifier } from '../slugify';
 import { TableOfContents, TocEntry } from '../tableOfContents';
 import { Disposable } from '../util/dispose';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { InternalLinkTarget, LinkData, LinkTarget, MdLinkProvider } from './documentLinkProvider';
+import { DefinitionLinkTarget, InternalLinkTarget, LinkData, LinkTarget, MdLinkProvider } from './documentLinkProvider';
 import { MdWorkspaceCache } from './workspaceCache';
 
 
@@ -20,10 +20,53 @@ function isLinkToHeader(target: LinkTarget, header: TocEntry, headerDocument: vs
 }
 
 
-export interface MdReference {
+/**
+ * A link in a markdown file.
+ */
+interface MdLinkReference {
+	readonly kind: 'link';
 	readonly isTriggerLocation: boolean;
 	readonly isDefinition: boolean;
 	readonly location: vscode.Location;
+
+	readonly fragmentLocation: vscode.Location | undefined;
+}
+
+/**
+ * A header in a markdown file.
+ */
+interface MdHeaderReference {
+	readonly kind: 'header';
+
+	readonly isTriggerLocation: boolean;
+	readonly isDefinition: boolean;
+
+	/**
+	 * The range of the header.
+	 *
+	 * In `# a b c #` this would be the range of `# a b c #`
+	 */
+	readonly location: vscode.Location;
+
+	/**
+	 * The range of the header text itself.
+	 *
+	 * In `# a b c #` this would be the range of `a b c`
+	 */
+	readonly headerTextLocation: vscode.Location;
+}
+
+export type MdReference = MdLinkReference | MdHeaderReference;
+
+
+function getFragmentLocation(link: LinkData): vscode.Location | undefined {
+	const index = link.sourceText.indexOf('#');
+	if (index < 0) {
+		return undefined;
+	}
+	return new vscode.Location(link.sourceResource, link.sourceRange.with({
+		start: link.sourceRange.start.translate({ characterDelta: index + 1 }),
+	}));
 }
 
 export class MdReferencesProvider extends Disposable implements vscode.ReferenceProvider {
@@ -70,23 +113,29 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 
 		const line = document.lineAt(header.line);
 		references.push({
+			kind: 'header',
 			isTriggerLocation: true,
 			isDefinition: true,
 			location: new vscode.Location(document.uri, new vscode.Range(header.line, 0, header.line, line.text.length)),
+			headerTextLocation: header.headerTextLocation
 		});
 
 		for (const link of links) {
 			if (isLinkToHeader(link.target, header, document.uri, this.slugifier)) {
 				references.push({
+					kind: 'link',
 					isTriggerLocation: false,
 					isDefinition: false,
-					location: new vscode.Location(link.sourceResource, link.sourceRange)
+					location: new vscode.Location(link.sourceResource, link.sourceRange),
+					fragmentLocation: getFragmentLocation(link),
 				});
 			} else if (link.target.kind === 'definition' && isLinkToHeader(link.target.target, header, document.uri, this.slugifier)) {
 				references.push({
+					kind: 'link',
 					isTriggerLocation: false,
 					isDefinition: false,
-					location: new vscode.Location(link.sourceResource, link.sourceRange)
+					location: new vscode.Location(link.sourceResource, link.sourceRange),
+					fragmentLocation: getFragmentLocation(link),
 				});
 			}
 		}
@@ -101,6 +150,10 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 	}
 
 	private async getReferencesToLink(sourceLink: LinkData): Promise<MdReference[]> {
+		if (sourceLink.target.kind === 'definition') {
+			return this.getReferencesToLink(this.getInnerLink(sourceLink, sourceLink.target));
+		}
+
 		const allLinksInWorkspace = (await this._linkCache.getAll()).flat();
 
 		if (sourceLink.target.kind === 'reference') {
@@ -131,14 +184,20 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 			const entry = toc.lookup(sourceLink.target.fragment);
 			if (entry) {
 				references.push({
+					kind: 'header',
 					isTriggerLocation: false,
 					isDefinition: true,
 					location: entry.headerLocation,
+					headerTextLocation: entry.headerTextLocation
 				});
 			}
 		}
 
-		for (const link of allLinksInWorkspace) {
+		for (let link of allLinksInWorkspace) {
+			if (link.target.kind === 'definition') {
+				link = this.getInnerLink(link, link.target);
+			}
+
 			if (link.target.kind !== 'internal') {
 				continue;
 			}
@@ -155,9 +214,11 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 			if (sourceLink.target.fragment) {
 				if (this.slugifier.fromHeading(link.target.fragment).equals(this.slugifier.fromHeading(sourceLink.target.fragment))) {
 					references.push({
+						kind: 'link',
 						isTriggerLocation,
 						isDefinition: false,
 						location: new vscode.Location(link.sourceResource, link.sourceRange),
+						fragmentLocation: getFragmentLocation(link),
 					});
 				}
 			} else { // Triggered on a link without a fragment so we only require matching the file and ignore fragments
@@ -165,15 +226,26 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 				// But exclude cases where the file is referencing itself
 				if (link.sourceResource.fsPath !== targetDoc.uri.fsPath) {
 					references.push({
+						kind: 'link',
 						isTriggerLocation,
 						isDefinition: false,
 						location: new vscode.Location(link.sourceResource, link.sourceRange),
+						fragmentLocation: getFragmentLocation(link),
 					});
 				}
 			}
 		}
 
 		return references;
+	}
+
+	private getInnerLink(sourceLink: LinkData, target: DefinitionLinkTarget): LinkData {
+		return {
+			sourceText: sourceLink.sourceText, // This is not correct
+			sourceResource: sourceLink.sourceResource,
+			sourceRange: sourceLink.sourceRange,
+			target: target.target,
+		};
 	}
 
 	private * getReferencesToReferenceLink(allLinks: Iterable<LinkData>, sourceLink: LinkData): Iterable<MdReference> {
@@ -186,9 +258,11 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 				if (link.target.ref === sourceLink.target.ref && link.sourceResource.fsPath === sourceLink.sourceResource.fsPath) {
 					const isTriggerLocation = sourceLink.sourceResource.fsPath === link.sourceResource.fsPath && sourceLink.sourceRange.isEqual(link.sourceRange);
 					yield {
+						kind: 'link',
 						isTriggerLocation,
-						isDefinition: false,
-						location: new vscode.Location(sourceLink.sourceResource, link.sourceRange)
+						isDefinition: link.target.kind === 'definition',
+						location: new vscode.Location(sourceLink.sourceResource, link.sourceRange),
+						fragmentLocation: getFragmentLocation(link),
 					};
 				}
 			}
