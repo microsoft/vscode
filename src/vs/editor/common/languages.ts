@@ -1293,6 +1293,11 @@ export interface DocumentSymbolProvider {
 
 export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence };
 
+export interface SnippetTextEdit {
+	range: IRange;
+	snippet: string;
+}
+
 /**
  * Interface used to format a model
  */

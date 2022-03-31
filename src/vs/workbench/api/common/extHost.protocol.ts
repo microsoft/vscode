@@ -1329,7 +1329,7 @@ export interface ISelectionChangeEvent {
 export interface ExtHostEditorsShape {
 	$acceptEditorPropertiesChanged(id: string, props: IEditorPropertiesChangeData): void;
 	$acceptEditorPositionData(data: ITextEditorPositionData): void;
-	$textEditorHandleDrop(id: string, position: IPosition, dataTransferDto: DataTransferDTO): Promise<void>;
+	$textEditorHandleDrop(id: string, position: IPosition, dataTransferDto: DataTransferDTO): Promise<Dto<languages.SnippetTextEdit[]>>;
 }
 
 export interface IDocumentsAndEditorsDelta {

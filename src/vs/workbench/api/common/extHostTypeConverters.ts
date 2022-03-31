@@ -32,7 +32,7 @@ import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon'
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { CoverageDetails, denamespaceTestTag, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestItemContext, ITestTag, namespaceTestTag, TestMessageType, TestResultItem } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, denamespaceTestTag, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestTag, namespaceTestTag, TestMessageType, TestResultItem } from 'vs/workbench/contrib/testing/common/testTypes';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import type * as vscode from 'vscode';
@@ -555,6 +555,15 @@ export namespace TextEdit {
 		const result = new types.TextEdit(Range.to(edit.range), edit.text);
 		result.newEol = (typeof edit.eol === 'undefined' ? undefined : EndOfLine.to(edit.eol))!;
 		return result;
+	}
+}
+
+export namespace SnippetTextEdit {
+	export function from(edit: vscode.SnippetTextEdit): languages.SnippetTextEdit {
+		return {
+			range: Range.from(edit.range),
+			snippet: edit.snippet.value
+		};
 	}
 }
 
@@ -1776,25 +1785,6 @@ export namespace TestItem {
 			description: item.description || undefined,
 			sortText: item.sortText || undefined,
 		};
-	}
-
-	export function toItemFromContext(context: ITestItemContext): vscode.TestItem {
-		let node: vscode.TestItem | undefined;
-		for (const test of context.tests) {
-			const next = toPlain(test.item);
-			(node as any).children = {
-				add: () => { },
-				delete: () => { },
-				forEach(fn) { fn(next, this); },
-				get: id => id === test.item.extId ? test.item : undefined,
-				replace: () => { },
-				size: 1,
-			} as vscode.TestItemCollection;
-			(next as any).parent = node;
-			node = next;
-		}
-
-		return node!;
 	}
 }
 
