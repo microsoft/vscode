@@ -9,7 +9,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -89,7 +89,8 @@ export class LanguageConfigurationFileHandler extends Disposable {
 		@ITextMateService textMateService: ITextMateService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
-		@IExtensionService private readonly _extensionService: IExtensionService
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
 
@@ -414,7 +415,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 			__electricCharacterSupport: undefined,
 		};
 
-		LanguageConfigurationRegistry.register(languageId, richEditConfig, 50);
+		this._languageConfigurationService.register(languageId, richEditConfig, 50);
 	}
 
 	private _parseRegex(languageId: string, confPath: string, value: string | IRegExp): RegExp | undefined {

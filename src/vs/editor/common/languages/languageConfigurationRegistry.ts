@@ -6,7 +6,6 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/core/wordHelper';
 import { EnterAction, FoldingRules, IAutoClosingPair, IndentationRule, LanguageConfiguration, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
@@ -21,6 +20,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 /**
  * Interface used to support insertion of mode specific comments.
@@ -29,19 +29,6 @@ export interface ICommentsConfiguration {
 	lineCommentToken?: string;
 	blockCommentStartToken?: string;
 	blockCommentEndToken?: string;
-}
-
-export interface IVirtualModel {
-	getLineTokens(lineNumber: number): LineTokens;
-	getLanguageId(): string;
-	getLanguageIdAtPosition(lineNumber: number, column: number): string;
-	getLineContent(lineNumber: number): string;
-}
-
-export interface IIndentConverter {
-	shiftIndent(indentation: string): string;
-	unshiftIndent(indentation: string): string;
-	normalizeIndentation?(indentation: string): string;
 }
 
 export interface ILanguageConfigurationService {
@@ -70,6 +57,8 @@ export const ILanguageConfigurationService = createDecorator<ILanguageConfigurat
 
 export class LanguageConfigurationService extends Disposable implements ILanguageConfigurationService {
 	_serviceBrand: undefined;
+
+	private readonly _registry = this._register(new LanguageConfigurationRegistry());
 
 	private readonly onDidChangeEmitter = this._register(new Emitter<LanguageConfigurationServiceChangeEvent>());
 	public readonly onDidChange = this.onDidChangeEmitter.event;
@@ -107,20 +96,20 @@ export class LanguageConfigurationService extends Disposable implements ILanguag
 			}
 		}));
 
-		this._register(LanguageConfigurationRegistry.onDidChange((e) => {
+		this._register(this._registry.onDidChange((e) => {
 			this.configurations.delete(e.languageId);
 			this.onDidChangeEmitter.fire(new LanguageConfigurationServiceChangeEvent(e.languageId));
 		}));
 	}
 
 	public register(languageId: string, configuration: LanguageConfiguration, priority?: number): IDisposable {
-		return LanguageConfigurationRegistry.register(languageId, configuration, priority);
+		return this._registry.register(languageId, configuration, priority);
 	}
 
 	public getLanguageConfiguration(languageId: string): ResolvedLanguageConfiguration {
 		let result = this.configurations.get(languageId);
 		if (!result) {
-			result = computeConfig(languageId, this.configurationService, this.languageService);
+			result = computeConfig(languageId, this._registry, this.configurationService, this.languageService);
 			this.configurations.set(languageId, result);
 		}
 		return result;
@@ -129,10 +118,11 @@ export class LanguageConfigurationService extends Disposable implements ILanguag
 
 function computeConfig(
 	languageId: string,
+	registry: LanguageConfigurationRegistry,
 	configurationService: IConfigurationService,
 	languageService: ILanguageService,
 ): ResolvedLanguageConfiguration {
-	let languageConfig = LanguageConfigurationRegistry.getLanguageConfiguration(languageId);
+	let languageConfig = registry.getLanguageConfiguration(languageId);
 
 	if (!languageConfig) {
 		if (!languageService.isRegisteredLanguageId(languageId)) {
@@ -179,41 +169,6 @@ function validateBracketPairs(data: unknown): CharacterPair[] | undefined {
 	}).filter((p): p is CharacterPair => !!p);
 }
 
-export class LanguageConfigurationChangeEvent {
-	constructor(public readonly languageId: string) { }
-}
-
-export class LanguageConfigurationRegistryImpl {
-	private readonly _entries = new Map<string, ComposedLanguageConfiguration>();
-
-	private readonly _onDidChange = new Emitter<LanguageConfigurationChangeEvent>();
-	public readonly onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
-
-	/**
-	 * @param priority Use a higher number for higher priority
-	 */
-	public register(languageId: string, configuration: LanguageConfiguration, priority: number = 0): IDisposable {
-		let entries = this._entries.get(languageId);
-		if (!entries) {
-			entries = new ComposedLanguageConfiguration(languageId);
-			this._entries.set(languageId, entries);
-		}
-
-		const disposable = entries.register(configuration, priority);
-		this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageId));
-
-		return toDisposable(() => {
-			disposable.dispose();
-			this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageId));
-		});
-	}
-
-	public getLanguageConfiguration(languageId: string): ResolvedLanguageConfiguration | null {
-		const entries = this._entries.get(languageId);
-		return entries?.getResolvedConfiguration() || null;
-	}
-}
-
 export function getIndentationAtPosition(model: ITextModel, lineNumber: number, column: number): string {
 	const lineText = model.getLineContent(lineNumber);
 	let indentation = strings.getLeadingWhitespace(lineText);
@@ -229,11 +184,6 @@ export function getScopedLineTokens(model: ITextModel, lineNumber: number, colum
 	const column = (typeof columnNumber === 'undefined' ? model.getLineMaxColumn(lineNumber) - 1 : columnNumber - 1);
 	return createScopedLineTokens(lineTokens, column);
 }
-
-/**
- * @deprecated Use ILanguageConfigurationService instead.
-*/
-export const LanguageConfigurationRegistry = new LanguageConfigurationRegistryImpl();
 
 class ComposedLanguageConfiguration {
 	private readonly _entries: LanguageConfigurationContribution[];
@@ -337,6 +287,65 @@ class LanguageConfigurationContribution {
 		}
 		// higher priority last
 		return a.priority - b.priority;
+	}
+}
+
+export class LanguageConfigurationChangeEvent {
+	constructor(public readonly languageId: string) { }
+}
+
+export class LanguageConfigurationRegistry extends Disposable {
+	private readonly _entries = new Map<string, ComposedLanguageConfiguration>();
+
+	private readonly _onDidChange = this._register(new Emitter<LanguageConfigurationChangeEvent>());
+	public readonly onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
+
+	constructor() {
+		super();
+		this._register(this.register(PLAINTEXT_LANGUAGE_ID, {
+			brackets: [
+				['(', ')'],
+				['[', ']'],
+				['{', '}'],
+			],
+			surroundingPairs: [
+				{ open: '{', close: '}' },
+				{ open: '[', close: ']' },
+				{ open: '(', close: ')' },
+				{ open: '<', close: '>' },
+				{ open: '\"', close: '\"' },
+				{ open: '\'', close: '\'' },
+				{ open: '`', close: '`' },
+			],
+			colorizedBracketPairs: [],
+			folding: {
+				offSide: true
+			}
+		}, 0));
+	}
+
+	/**
+	 * @param priority Use a higher number for higher priority
+	 */
+	public register(languageId: string, configuration: LanguageConfiguration, priority: number = 0): IDisposable {
+		let entries = this._entries.get(languageId);
+		if (!entries) {
+			entries = new ComposedLanguageConfiguration(languageId);
+			this._entries.set(languageId, entries);
+		}
+
+		const disposable = entries.register(configuration, priority);
+		this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageId));
+
+		return toDisposable(() => {
+			disposable.dispose();
+			this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageId));
+		});
+	}
+
+	public getLanguageConfiguration(languageId: string): ResolvedLanguageConfiguration | null {
+		const entries = this._entries.get(languageId);
+		return entries?.getResolvedConfiguration() || null;
 	}
 }
 

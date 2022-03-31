@@ -11,10 +11,10 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { CompleteEnterAction, IndentAction } from 'vs/editor/common/languages/languageConfiguration';
-import { IIndentConverter, ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IndentConsts } from 'vs/editor/common/languages/supports/indentRules';
 import * as indentUtils from 'vs/editor/contrib/indentation/browser/indentUtils';
-import { getGoodIndentForLine, getIndentMetadata } from 'vs/editor/common/languages/autoIndent';
+import { getGoodIndentForLine, getIndentMetadata, IIndentConverter } from 'vs/editor/common/languages/autoIndent';
 import { getEnterAction } from 'vs/editor/common/languages/enterAction';
 
 export class MoveLinesCommand implements ICommand {

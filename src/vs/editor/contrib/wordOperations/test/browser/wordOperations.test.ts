@@ -13,12 +13,11 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/browser/wordTestUtils';
 import { CursorWordAccessibilityLeft, CursorWordAccessibilityLeftSelect, CursorWordAccessibilityRight, CursorWordAccessibilityRightSelect, CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteInsideWord, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight } from 'vs/editor/contrib/wordOperations/browser/wordOperations';
-import { StaticServiceAccessor } from 'vs/editor/contrib/wordPartOperations/test/browser/utils';
 import { createCodeEditorServices, instantiateTestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 suite('WordOperations', () => {
 
@@ -46,13 +45,24 @@ suite('WordOperations', () => {
 	const _deleteWordEndRight = new DeleteWordEndRight();
 	const _deleteInsideWord = new DeleteInsideWord();
 
-	const serviceAccessor = new StaticServiceAccessor().withService(
-		ILanguageConfigurationService,
-		new TestLanguageConfigurationService()
-	);
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+	let languageConfigurationService: ILanguageConfigurationService;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		instantiationService = createCodeEditorServices(disposables);
+		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
 
 	function runEditorCommand(editor: ICodeEditor, command: EditorCommand): void {
-		command.runEditorCommand(serviceAccessor, editor, null);
+		instantiationService.invokeFunction((accessor) => {
+			command.runEditorCommand(accessor, editor, null);
+		});
 	}
 	function cursorWordLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
 		runEditorCommand(editor, inSelectionMode ? _cursorWordLeftSelect : _cursorWordLeft);
@@ -739,9 +749,6 @@ suite('WordOperations', () => {
 
 	test('deleteWordLeft - issue #91855: Matching (quote, bracket, paren) doesn\'t get deleted when hitting Ctrl+Backspace', () => {
 		const languageId = 'myTestMode';
-		const disposables = new DisposableStore();
-		const instantiationService = createCodeEditorServices(disposables);
-		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 
 		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
@@ -756,8 +763,6 @@ suite('WordOperations', () => {
 		editor.setPosition(new Position(1, 4));
 		deleteWordLeft(editor);
 		assert.strictEqual(model.getLineContent(1), 'a ');
-
-		disposables.dispose();
 	});
 
 	test('deleteInsideWord - empty line', () => {
