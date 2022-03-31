@@ -80,6 +80,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 		this._toDispose.add(_codeEditorService.onCodeEditorRemove(editor => {
 			this._dropIntoEditorListeners.get(editor)?.dispose();
+			this._dropIntoEditorListeners.delete(editor);
 		}));
 
 		for (const editor of this._codeEditorService.listCodeEditors()) {
