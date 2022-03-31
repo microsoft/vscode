@@ -32,7 +32,7 @@ import { Color } from 'vs/base/common/color';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
-import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
@@ -71,7 +71,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
 
-	private readonly _onDidRequestRunCommand = new Emitter<string>();
+	private readonly _onDidRequestRunCommand = new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean }>();
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
 
 	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number } | undefined>();
@@ -175,17 +175,29 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	}
 	private _createDecorationAddon(): void {
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
-		this._decorationAddon.onDidRequestRunCommand(command => this._onDidRequestRunCommand.fire(command));
+		this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e));
 		this.raw.loadAddon(this._decorationAddon);
 	}
 
-	async getSelectionAsHtml(): Promise<string> {
+	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
 		if (!this._serializeAddon) {
 			const Addon = await this._getSerializeAddonConstructor();
 			this._serializeAddon = new Addon();
 			this.raw.loadAddon(this._serializeAddon);
 		}
-		return this._serializeAddon.serializeAsHTML({ onlySelection: true });
+		if (command) {
+			const length = command.getOutput()?.length;
+			const row = command.marker?.line;
+			if (!length || !row) {
+				throw new Error(`No row ${row} or output length ${length} for command ${command}`);
+			}
+			await this.raw.select(0, row + 1, length - Math.floor(length / this.raw.cols));
+		}
+		const result = this._serializeAddon.serializeAsHTML({ onlySelection: true });
+		if (command) {
+			this.raw.clearSelection();
+		}
+		return result;
 	}
 
 	attachToElement(container: HTMLElement): HTMLElement {
