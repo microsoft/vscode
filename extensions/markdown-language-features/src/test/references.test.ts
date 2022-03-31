@@ -30,7 +30,8 @@ function assertReferencesEqual(actualRefs: readonly vscode.Location[], ...expect
 		const actual = actualRefs[i];
 		const expected = expectedRefs[i];
 		assert.strictEqual(actual.uri.toString(), expected.uri.toString(), `Ref '${i}' has expected document`);
-		assert.strictEqual(actual.range.start.line, expected.line, `Ref '${i}' has expected line`);
+		assert.strictEqual(actual.range.start.line, expected.line, `Ref '${i}' has expected start line`);
+		assert.strictEqual(actual.range.end.line, expected.line, `Ref '${i}' has expected end line`);
 	}
 }
 

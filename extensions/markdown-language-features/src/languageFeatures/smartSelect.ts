@@ -70,7 +70,7 @@ export class MdSmartSelect implements vscode.SelectionRangeProvider {
 }
 
 function getHeadersForPosition(toc: readonly TocEntry[], position: vscode.Position): { headers: TocEntry[]; headerOnThisLine: boolean } {
-	const enclosingHeaders = toc.filter(header => header.location.range.start.line <= position.line && header.location.range.end.line >= position.line);
+	const enclosingHeaders = toc.filter(header => header.sectionLocation.range.start.line <= position.line && header.sectionLocation.range.end.line >= position.line);
 	const sortedHeaders = enclosingHeaders.sort((header1, header2) => (header1.line - position.line) - (header2.line - position.line));
 	const onThisLine = toc.find(header => header.line === position.line) !== undefined;
 	return {
@@ -80,7 +80,7 @@ function getHeadersForPosition(toc: readonly TocEntry[], position: vscode.Positi
 }
 
 function createHeaderRange(header: TocEntry, isClosestHeaderToPosition: boolean, onHeaderLine: boolean, parent?: vscode.SelectionRange, startOfChildRange?: vscode.Position): vscode.SelectionRange | undefined {
-	const range = header.location.range;
+	const range = header.sectionLocation.range;
 	const contentRange = new vscode.Range(range.start.translate(1), range.end);
 	if (onHeaderLine && isClosestHeaderToPosition && startOfChildRange) {
 		// selection was made on this header line, so select header and its content until the start of its first child
@@ -240,9 +240,9 @@ function isBlockElement(token: Token): boolean {
 function getFirstChildHeader(document: SkinnyTextDocument, header?: TocEntry, toc?: readonly TocEntry[]): vscode.Position | undefined {
 	let childRange: vscode.Position | undefined;
 	if (header && toc) {
-		let children = toc.filter(t => header.location.range.contains(t.location.range) && t.location.range.start.line > header.location.range.start.line).sort((t1, t2) => t1.line - t2.line);
+		let children = toc.filter(t => header.sectionLocation.range.contains(t.sectionLocation.range) && t.sectionLocation.range.start.line > header.sectionLocation.range.start.line).sort((t1, t2) => t1.line - t2.line);
 		if (children.length > 0) {
-			childRange = children[0].location.range.start;
+			childRange = children[0].sectionLocation.range.start;
 			const lineText = document.lineAt(childRange.line - 1).text;
 			return childRange ? childRange.translate(-1, lineText.length) : undefined;
 		}

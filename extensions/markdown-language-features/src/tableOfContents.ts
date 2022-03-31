@@ -14,7 +14,16 @@ export interface TocEntry {
 	readonly text: string;
 	readonly level: number;
 	readonly line: number;
-	readonly location: vscode.Location;
+
+	/**
+	 * The entire range of the header section
+	 */
+	readonly sectionLocation: vscode.Location;
+
+	/**
+	 * The range of the header itself
+	 */
+	readonly headerLocation: vscode.Location;
 }
 
 export class TableOfContents {
@@ -68,13 +77,16 @@ export class TableOfContents {
 				existingSlugEntries.set(slug.value, { count: 0 });
 			}
 
+			const headerLocation = new vscode.Location(document.uri,
+				new vscode.Range(lineNumber, 0, lineNumber, line.text.length));
+
 			toc.push({
 				slug,
 				text: TableOfContents.getHeaderText(line.text),
 				level: TableOfContents.getHeaderLevel(heading.markup),
 				line: lineNumber,
-				location: new vscode.Location(document.uri,
-					new vscode.Range(lineNumber, 0, lineNumber, line.text.length))
+				sectionLocation: headerLocation, // Populated in next steps
+				headerLocation,
 			});
 		}
 
@@ -90,9 +102,9 @@ export class TableOfContents {
 			const endLine = end ?? document.lineCount - 1;
 			return {
 				...entry,
-				location: new vscode.Location(document.uri,
+				sectionLocation: new vscode.Location(document.uri,
 					new vscode.Range(
-						entry.location.range.start,
+						entry.sectionLocation.range.start,
 						new vscode.Position(endLine, document.lineAt(endLine).text.length)))
 			};
 		});
