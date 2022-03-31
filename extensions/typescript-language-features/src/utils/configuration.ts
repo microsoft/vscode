@@ -169,7 +169,8 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 	}
 
 	protected extractLocale(configuration: vscode.WorkspaceConfiguration): string | null {
-		return configuration.get<string | null>('typescript.locale', null);
+		const value = configuration.get<string>('typescript.locale', 'auto');
+		return !value || value === 'auto' ? null : value;
 	}
 
 	protected readUseSyntaxServer(configuration: vscode.WorkspaceConfiguration): SyntaxServerConfiguration {
