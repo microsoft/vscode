@@ -424,7 +424,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 					: element.tooltip,
 				extraClasses: element.menuId === MenuId.TunnelLocalAddressInline ? ['ports-view-actionbar-cell-localaddress'] : undefined
 			});
-		const tunnelContext: ITunnelItem = {
+		const tunnelContext: ITunnelItem = element.tunnel instanceof TunnelItem ? element.tunnel.strip() : {
 			tunnelType: element.tunnel.tunnelType,
 			remoteHost: element.tunnel.remoteHost,
 			remotePort: element.tunnel.remotePort,
@@ -579,6 +579,25 @@ class TunnelItem implements ITunnelItem {
 			tunnel.privacy,
 			remoteExplorerService,
 			tunnelService);
+	}
+
+	public strip(): TunnelItem {
+		return new TunnelItem(
+			this.tunnelType,
+			this.remoteHost,
+			this.remotePort,
+			this.source,
+			this.hasRunningProcess,
+			this.protocol,
+			this.localUri,
+			this.localAddress,
+			this.localPort,
+			this.closeable,
+			this.name,
+			this.runningProcess,
+			this.pid,
+			this._privacy
+		);
 	}
 
 	constructor(
