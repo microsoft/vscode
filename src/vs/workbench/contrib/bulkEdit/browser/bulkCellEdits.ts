@@ -37,8 +37,8 @@ export class BulkCellEdits {
 		@INotebookEditorModelResolverService private readonly _notebookModelService: INotebookEditorModelResolverService,
 	) { }
 
-	async apply(): Promise<void> {
-
+	async apply(): Promise<readonly URI[]> {
+		const resources: URI[] = [];
 		const editsByNotebook = groupBy(this._edits, (a, b) => compare(a.resource.toString(), b.resource.toString()));
 
 		for (let group of editsByNotebook) {
@@ -60,6 +60,10 @@ export class BulkCellEdits {
 			ref.dispose();
 
 			this._progress.report(undefined);
+
+			resources.push(first.resource);
 		}
+
+		return resources;
 	}
 }

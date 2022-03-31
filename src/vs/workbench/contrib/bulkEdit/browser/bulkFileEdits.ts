@@ -16,7 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { flatten, tail } from 'vs/base/common/arrays';
+import { tail } from 'vs/base/common/arrays';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 interface IFileOperation {
@@ -51,7 +51,7 @@ class RenameOperation implements IFileOperation {
 	) { }
 
 	get uris() {
-		return flatten(this._edits.map(edit => [edit.newUri, edit.oldUri]));
+		return this._edits.map(edit => [edit.newUri, edit.oldUri]).flat();
 	}
 
 	async perform(token: CancellationToken): Promise<IFileOperation> {
@@ -105,7 +105,7 @@ class CopyOperation implements IFileOperation {
 	) { }
 
 	get uris() {
-		return flatten(this._edits.map(edit => [edit.newUri, edit.oldUri]));
+		return this._edits.map(edit => [edit.newUri, edit.oldUri]).flat();
 	}
 
 	async perform(token: CancellationToken): Promise<IFileOperation> {
@@ -293,7 +293,7 @@ class FileUndoRedoElement implements IWorkspaceUndoRedoElement {
 		readonly operations: IFileOperation[],
 		readonly confirmBeforeUndo: boolean
 	) {
-		this.resources = (<URI[]>[]).concat(...operations.map(op => op.uris));
+		this.resources = operations.map(op => op.uris).flat();
 	}
 
 	async undo(): Promise<void> {
@@ -332,7 +332,7 @@ export class BulkFileEdits {
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 	) { }
 
-	async apply(): Promise<void> {
+	async apply(): Promise<readonly URI[]> {
 		const undoOperations: IFileOperation[] = [];
 		const undoRedoInfo = { undoRedoGroupId: this._undoRedoGroup.id };
 
@@ -350,7 +350,7 @@ export class BulkFileEdits {
 		}
 
 		if (edits.length === 0) {
-			return;
+			return [];
 		}
 
 		const groups: Array<RenameEdit | CopyEdit | DeleteEdit | CreateEdit>[] = [];
@@ -395,6 +395,8 @@ export class BulkFileEdits {
 			this._progress.report(undefined);
 		}
 
-		this._undoRedoService.pushElement(new FileUndoRedoElement(this._label, this._code, undoOperations, this._confirmBeforeUndo), this._undoRedoGroup, this._undoRedoSource);
+		const undoRedoElement = new FileUndoRedoElement(this._label, this._code, undoOperations, this._confirmBeforeUndo);
+		this._undoRedoService.pushElement(undoRedoElement, this._undoRedoGroup, this._undoRedoSource);
+		return undoRedoElement.resources;
 	}
 }
