@@ -71,7 +71,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	static PREFIX = '';
 
 	private static readonly NO_RESULTS_PICK: IAnythingQuickPickItem = {
-		label: localize('noAnythingResults', "No matching results")
+		label: localize('noAnythingResults', "No matching results found")
 	};
 
 	private static readonly MAX_RESULTS = 512;
