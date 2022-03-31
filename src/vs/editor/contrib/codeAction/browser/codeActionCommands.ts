@@ -173,7 +173,7 @@ export async function applyCodeAction(
 			label: item.action.title,
 			quotableLabel: item.action.title,
 			code: 'undoredo.codeAction',
-			saveWhenDone: true // TODO@jrieken make this configurable
+			respectAutoSaveConfig: true
 		});
 	}
 

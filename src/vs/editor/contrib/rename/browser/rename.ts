@@ -239,7 +239,7 @@ class RenameController implements IEditorContribution {
 				label: nls.localize('label', "Renaming '{0}' to '{1}'", loc?.text, inputFieldResult.newName),
 				code: 'undoredo.rename',
 				quotableLabel: nls.localize('quotableLabel', "Renaming {0} to {1}", loc?.text, inputFieldResult.newName),
-				saveWhenDone: true // TODO@jrieken make this configurable
+				respectAutoSaveConfig: true
 			}).then(result => {
 				if (result.ariaSummary) {
 					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, inputFieldResult.newName, result.ariaSummary));

@@ -24,6 +24,9 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { URI } from 'vs/base/common/uri';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class BulkEdit {
 
@@ -145,6 +148,7 @@ export class BulkEditService implements IBulkEditService {
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 	) { }
 
 	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable {
@@ -218,18 +222,13 @@ export class BulkEditService implements IBulkEditService {
 
 		let listener: IDisposable | undefined;
 		try {
-			listener = this._lifecycleService.onBeforeShutdown(e => e.veto(this.shouldVeto(label, e.reason), 'veto.blukEditService'));
-			const resources = new ResourceSet(await bulkEdit.perform());
+			listener = this._lifecycleService.onBeforeShutdown(e => e.veto(this._shouldVeto(label, e.reason), 'veto.blukEditService'));
+			const resources = await bulkEdit.perform();
 
-			if (options?.saveWhenDone) {
-				// with `saveWhenDone` enabled loop over all dirty working copies and trigger save
-				// for those that were involved in this bulk edit operation.
-				const saves = this._workingCopyService.dirtyWorkingCopies.map(async copy => {
-					if (resources.has(copy.resource)) {
-						await copy.save();
-					}
-				});
-				await Promise.allSettled(saves);
+			// when enabled (option AND setting) loop over all dirty working copies and trigger save
+			// for those that were involved in this bulk edit operation.
+			if (options?.respectAutoSaveConfig && this._configService.getValue(autoSaveSetting) === true && resources.length > 1) {
+				await this._saveAll(resources);
 			}
 
 			return { ariaSummary: bulkEdit.ariaMessage() };
@@ -244,7 +243,23 @@ export class BulkEditService implements IBulkEditService {
 		}
 	}
 
-	private async shouldVeto(label: string | undefined, reason: ShutdownReason): Promise<boolean> {
+	private async _saveAll(resources: readonly URI[]) {
+		const set = new ResourceSet(resources);
+		const saves = this._workingCopyService.dirtyWorkingCopies.map(async (copy) => {
+			if (set.has(copy.resource)) {
+				await copy.save();
+			}
+		});
+
+		const result = await Promise.allSettled(saves);
+		for (const item of result) {
+			if (item.status === 'rejected') {
+				this._logService.warn(item.reason);
+			}
+		}
+	}
+
+	private async _shouldVeto(label: string | undefined, reason: ShutdownReason): Promise<boolean> {
 		label = label || localize('fileOperation', "File operation");
 		const reasonLabel = reason === ShutdownReason.CLOSE ? localize('closeTheWindow', "Close Window") : reason === ShutdownReason.LOAD ? localize('changeWorkspace', "Change Workspace") :
 			reason === ShutdownReason.RELOAD ? localize('reloadTheWindow', "Reload Window") : localize('quit', "Quit");
@@ -258,3 +273,16 @@ export class BulkEditService implements IBulkEditService {
 }
 
 registerSingleton(IBulkEditService, BulkEditService, true);
+
+const autoSaveSetting = 'files.refactoring.autoSave';
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	id: 'files',
+	properties: {
+		[autoSaveSetting]: {
+			description: localize('refactoring.autoSave', "Controls if files that were part of a refactoring are saved automatically"),
+			default: true,
+			type: 'boolean'
+		}
+	}
+});
