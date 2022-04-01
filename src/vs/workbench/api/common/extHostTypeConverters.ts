@@ -10,7 +10,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { isDefined, isEmptyObject, isNumber, isString, withNullAsUndefined } from 'vs/base/common/types';
+import { isDefined, isEmptyObject, isNumber, isString, isUndefinedOrNull, withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -1665,8 +1665,7 @@ export namespace NotebookExclusiveDocumentPattern {
 		if (!ep) {
 			return false;
 		}
-
-		return !!ep.include && !!ep.exclude;
+		return !isUndefinedOrNull(ep.include) && !isUndefinedOrNull(ep.exclude);
 	}
 }
 

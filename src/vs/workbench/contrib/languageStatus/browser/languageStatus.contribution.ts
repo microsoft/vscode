@@ -41,6 +41,21 @@ class LanguageStatusViewModel {
 	}
 }
 
+class StoredCounter {
+
+	constructor(@IStorageService private readonly _storageService: IStorageService, private readonly _key: string) { }
+
+	get value() {
+		return this._storageService.getNumber(this._key, StorageScope.GLOBAL, 0);
+	}
+
+	increment(): number {
+		const n = this.value + 1;
+		this._storageService.store(this._key, n, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		return n;
+	}
+}
+
 class EditorStatusContribution implements IWorkbenchContribution {
 
 	private static readonly _id = 'status.languageStatus';
@@ -48,6 +63,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 	private static readonly _keyDedicatedItems = 'languageStatus.dedicated';
 
 	private readonly _disposables = new DisposableStore();
+	private readonly _interactionCounter: StoredCounter;
 
 	private _dedicated = new Set<string>();
 
@@ -65,6 +81,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 	) {
 		_storageService.onDidChangeValue(this._handleStorageChange, this, this._disposables);
 		this._restoreState();
+		this._interactionCounter = new StoredCounter(_storageService, 'languageStatus.interactCount');
 
 		_languageStatusService.onDidChange(this._update, this, this._disposables);
 		_editorService.onDidActiveEditorChange(this._update, this, this._disposables);
@@ -180,6 +197,37 @@ class EditorStatusContribution implements IWorkbenchContribution {
 				this._combinedEntry = this._statusBarService.addEntry(props, EditorStatusContribution._id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.LEFT, compact: true });
 			} else {
 				this._combinedEntry.update(props);
+			}
+
+			// animate the status bar icon whenever language status changes, repeat animation
+			// when severity is warning or error, don't show animation when showing progress/busy
+			const userHasInteractedWithStatus = this._interactionCounter.value >= 3;
+			const node = document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus span.codicon');
+			if (node instanceof HTMLElement) {
+				const _wiggle = 'wiggle';
+				const _repeat = 'repeat';
+				if (!isOneBusy) {
+					node.classList.toggle(_wiggle, showSeverity || !userHasInteractedWithStatus);
+					node.classList.toggle(_repeat, showSeverity);
+					this._renderDisposables.add(dom.addDisposableListener(node, 'animationend', _e => node.classList.remove(_wiggle, _repeat)));
+				} else {
+					node.classList.remove(_wiggle, _repeat);
+				}
+			}
+
+			// track when the hover shows (this is automagic and DOM mutation spying is needed...)
+			//  use that as signal that the user has interacted/learned language status items work
+			if (!userHasInteractedWithStatus) {
+				const hoverTarget = document.querySelector('.monaco-workbench .context-view');
+				if (hoverTarget instanceof HTMLElement) {
+					const observer = new MutationObserver(() => {
+						if (document.contains(element)) {
+							this._interactionCounter.increment();
+							observer.disconnect();
+						}
+					});
+					observer.observe(document.body, { childList: true, subtree: true });
+				}
 			}
 		}
 

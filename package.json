@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.67.0",
-  "distro": "7ee3b198b317d29648533b3713783234658d7968",
+  "distro": "044c89b614724e7c07260fbfd36f607ebce52c99",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -145,7 +145,7 @@
     "file-loader": "^4.2.0",
     "glob": "^5.0.13",
     "gulp": "^4.0.0",
-    "gulp-atom-electron": "^1.32.1",
+    "gulp-atom-electron": "^1.32.3",
     "gulp-azure-storage": "^0.12.1",
     "gulp-bom": "^3.0.0",
     "gulp-buffer": "0.0.2",
@@ -158,7 +158,7 @@
     "gulp-json-editor": "^2.5.0",
     "gulp-plumber": "^1.2.0",
     "gulp-postcss": "^9.0.0",
-    "gulp-remote-retry-src": "^0.6.0",
+    "gulp-remote-retry-src": "^0.8.0",
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.6.5",

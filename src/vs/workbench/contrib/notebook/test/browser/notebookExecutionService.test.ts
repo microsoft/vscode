@@ -68,7 +68,7 @@ suite('NotebookExecutionService', () => {
 			async (viewModel) => {
 				const executionService = instantiationService.createInstance(NotebookExecutionService);
 
-				const cell = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
+				const cell = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
 				await assertThrowsAsync(async () => await executionService.executeNotebookCell(cell));
 			});
 	});
@@ -80,7 +80,7 @@ suite('NotebookExecutionService', () => {
 
 				kernelService.registerKernel(new TestNotebookKernel({ languages: ['testlang'] }));
 				const executionService = instantiationService.createInstance(NotebookExecutionService);
-				const cell = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
+				const cell = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
 				await assertThrowsAsync(async () => await executionService.executeNotebookCell(cell));
 
 			});
@@ -96,7 +96,7 @@ suite('NotebookExecutionService', () => {
 				const executeSpy = sinon.spy();
 				kernel.executeNotebookCellsRequest = executeSpy;
 
-				const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
+				const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
 				await executionService.executeNotebookCells(viewModel.notebookDocument, [cell]);
 				assert.strictEqual(executeSpy.calledOnce, true);
 			});

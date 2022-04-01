@@ -24,7 +24,6 @@ import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModelEventDispatcher';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { URI } from 'vs/base/common/uri';
@@ -1370,7 +1369,7 @@ suite('Editor Controller', () => {
 		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 		languageService = instantiationService.get(ILanguageService);
 
-		disposables.add(ModesRegistry.registerLanguage({ id: surroundingLanguageId }));
+		disposables.add(languageService.registerLanguage({ id: surroundingLanguageId }));
 		disposables.add(languageConfigurationService.register(surroundingLanguageId, {
 			autoClosingPairs: [{ open: '(', close: ')' }]
 		}));
@@ -1382,7 +1381,7 @@ suite('Editor Controller', () => {
 			unIndentedLinePattern: /^(?!.*([;{}]|\S:)\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!.*(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$))/
 		});
 
-		disposables.add(ModesRegistry.registerLanguage({ id: electricCharLanguageId }));
+		disposables.add(languageService.registerLanguage({ id: electricCharLanguageId }));
 		disposables.add(languageConfigurationService.register(electricCharLanguageId, {
 			__electricCharacterSupport: {
 				docComment: { open: '/**', close: ' */' }
@@ -1404,7 +1403,7 @@ suite('Editor Controller', () => {
 	function setupOnEnterLanguage(indentAction: IndentAction): string {
 		const onEnterLanguageId = 'onEnterMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: onEnterLanguageId }));
+		disposables.add(languageService.registerLanguage({ id: onEnterLanguageId }));
 		disposables.add(languageConfigurationService.register(onEnterLanguageId, {
 			onEnterRules: [{
 				beforeText: /.*/,
@@ -1417,7 +1416,7 @@ suite('Editor Controller', () => {
 	}
 
 	function setupIndentRulesLanguage(languageId: string, indentationRules: IndentationRule): string {
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			indentationRules: indentationRules
 		}));
@@ -1425,7 +1424,7 @@ suite('Editor Controller', () => {
 	}
 
 	function setupAutoClosingLanguage() {
-		disposables.add(ModesRegistry.registerLanguage({ id: autoClosingLanguageId }));
+		disposables.add(languageService.registerLanguage({ id: autoClosingLanguageId }));
 		disposables.add(languageConfigurationService.register(autoClosingLanguageId, {
 			autoClosingPairs: [
 				{ open: '{', close: '}' },
@@ -1751,7 +1750,7 @@ suite('Editor Controller', () => {
 	test('issue #47733: Undo mangles unicode characters', () => {
 		const languageId = 'myMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			surroundingPairs: [{ open: '%', close: '%' }]
 		}));
@@ -3271,7 +3270,7 @@ suite('Editor Controller', () => {
 	test('issue #115033: indent and appendText', () => {
 		const languageId = 'onEnterMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			onEnterRules: [{
 				beforeText: /.*/,
@@ -3335,7 +3334,7 @@ suite('Editor Controller', () => {
 
 	test('removeAutoWhitespace on: removes only whitespace the cursor added 2', () => {
 		const languageId = 'testLang';
-		const registration = ModesRegistry.registerLanguage({ id: languageId });
+		const registration = languageService.registerLanguage({ id: languageId });
 		const model = createTextModel(
 			[
 				'    if (a) {',
@@ -4456,7 +4455,7 @@ suite('Editor Controller', () => {
 	test('issue #36090: JS: editor.autoIndent seems to be broken', () => {
 		const languageId = 'jsMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			brackets: [
 				['{', '}'],
@@ -4511,7 +4510,7 @@ suite('Editor Controller', () => {
 	test('issue #115304: OnEnter broken for TS', () => {
 		const languageId = 'jsMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			onEnterRules: javascriptOnEnterRules
 		}));
@@ -4544,7 +4543,7 @@ suite('Editor Controller', () => {
 	test('issue #38261: TAB key results in bizarre indentation in C++ mode ', () => {
 		const languageId = 'indentRulesMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			brackets: [
 				['{', '}'],
@@ -4629,7 +4628,7 @@ suite('Editor Controller', () => {
 	test('typing in json', () => {
 		const languageId = 'indentRulesMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			brackets: [
 				['{', '}'],
@@ -5347,7 +5346,7 @@ suite('Editor Controller', () => {
 	test('issue #72177: multi-character autoclose with conflicting patterns', () => {
 		const languageId = 'autoClosingModeMultiChar';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			autoClosingPairs: [
 				{ open: '(', close: ')' },
@@ -5386,7 +5385,7 @@ suite('Editor Controller', () => {
 	test('issue #55314: Do not auto-close when ending with open', () => {
 		const languageId = 'myElectricMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			autoClosingPairs: [
 				{ open: '{', close: '}' },
@@ -5652,7 +5651,7 @@ suite('Editor Controller', () => {
 	test('issue #85983 - editor.autoClosingBrackets: beforeWhitespace is incorrect for Python', () => {
 		const languageId = 'pythonMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			autoClosingPairs: [
 				{ open: '{', close: '}' },
@@ -6005,7 +6004,7 @@ suite('Editor Controller', () => {
 	test('issue #41825: Special handling of quotes in surrounding pairs', () => {
 		const languageId = 'myMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			surroundingPairs: [
 				{ open: '"', close: '"' },

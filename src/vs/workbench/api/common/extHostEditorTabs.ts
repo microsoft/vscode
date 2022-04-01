@@ -36,9 +36,9 @@ class ExtHostEditorTab {
 	}
 
 	get apiObject(): vscode.Tab {
-		// Don't want to lose reference to parent `this` in the getters
-		const that = this;
 		if (!this._apiObject) {
+			// Don't want to lose reference to parent `this` in the getters
+			const that = this;
 			const obj: vscode.Tab = {
 				get isActive() {
 					// We use a getter function here to always ensure at most 1 active tab per group and prevent iteration for being required
@@ -120,9 +120,9 @@ class ExtHostEditorTabGroup {
 	}
 
 	get apiObject(): vscode.TabGroup {
-		// Don't want to lose reference to parent `this` in the getters
-		const that = this;
 		if (!this._apiObject) {
+			// Don't want to lose reference to parent `this` in the getters
+			const that = this;
 			const obj: vscode.TabGroup = {
 				get isActive() {
 					// We use a getter function here to always ensure at most 1 active group and prevent iteration for being required

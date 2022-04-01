@@ -12,7 +12,6 @@ import { TextBufferTokenizer, Token, Tokenizer, TokenKind } from 'vs/editor/comm
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { EncodedTokenizationResult, IState, ITokenizationSupport, LanguageId, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 
@@ -23,7 +22,7 @@ suite('Bracket Pair Colorizer - Tokenizer', () => {
 		const instantiationService = createModelServices(disposableStore);
 		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 		const languageService = instantiationService.get(ILanguageService);
-		disposableStore.add(ModesRegistry.registerLanguage({ id: mode1 }));
+		disposableStore.add(languageService.registerLanguage({ id: mode1 }));
 		const encodedMode1 = languageService.languageIdCodec.encodeLanguageId(mode1);
 
 		const denseKeyProvider = new DenseKeyProvider<string>();

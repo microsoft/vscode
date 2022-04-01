@@ -17,7 +17,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Cache } from 'vs/workbench/api/common/cache';
 import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatusBarListDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape, NotebookDataDto } from 'vs/workbench/api/common/extHost.protocol';
-import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { ApiCommand, ApiCommandArgument, ApiCommandResult, CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
@@ -98,6 +98,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				return arg;
 			}
 		});
+
+		ExtHostNotebookController._registerApiCommands(commands);
 	}
 
 	getEditorById(editorId: string): ExtHostNotebookEditor {
@@ -512,5 +514,25 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		if (delta.value.newActiveEditor !== undefined) {
 			this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor?.apiEditor);
 		}
+	}
+
+	private static _registerApiCommands(extHostCommands: ExtHostCommands) {
+
+		const notebookTypeArg = ApiCommandArgument.String.with('notebookType', 'A notebook type');
+
+		const commandDataToNotebook = new ApiCommand(
+			'vscode.executeDataToNotebook', '_executeDataToNotebook', 'Invoke notebook serializer',
+			[notebookTypeArg, new ApiCommandArgument<Uint8Array, VSBuffer>('data', 'Bytes to convert to data', v => v instanceof Uint8Array, v => VSBuffer.wrap(v))],
+			new ApiCommandResult<NotebookDataDto, vscode.NotebookData>('Notebook Data', dto => typeConverters.NotebookData.to(dto))
+		);
+
+		const commandNotebookToData = new ApiCommand(
+			'vscode.executeNotebookToData', '_executeNotebookToData', 'Invoke notebook serializer',
+			[notebookTypeArg, new ApiCommandArgument<vscode.NotebookData, NotebookDataDto>('NotebookData', 'Notebook data to convert to bytes', v => true, v => typeConverters.NotebookData.from(v))],
+			new ApiCommandResult<VSBuffer, Uint8Array>('Bytes', dto => dto.buffer)
+		);
+
+		extHostCommands.registerApiCommand(commandDataToNotebook);
+		extHostCommands.registerApiCommand(commandNotebookToData);
 	}
 }

@@ -58,13 +58,19 @@ export class TestConfigurationService implements IConfigurationService {
 		return Promise.resolve(undefined);
 	}
 
+	private overrideIdentifiers: Map<string, string[]> = new Map();
+	public setOverrideIdentifiers(key: string, identifiers: string[]): void {
+		this.overrideIdentifiers.set(key, identifiers);
+	}
+
 	public inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
 		const config = this.getValue(undefined, overrides);
 
 		return {
 			value: getConfigurationValue<T>(config, key),
 			defaultValue: getConfigurationValue<T>(config, key),
-			userValue: getConfigurationValue<T>(config, key)
+			userValue: getConfigurationValue<T>(config, key),
+			overrideIdentifiers: this.overrideIdentifiers.get(key)
 		};
 	}
 

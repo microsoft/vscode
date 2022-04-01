@@ -45,6 +45,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
 	private _body: HTMLElement;
 	private _md: HTMLElement | undefined;
+	private _plainText: HTMLElement | undefined;
 	private _clearTimeout: any;
 
 	private _editAction: Action | null = null;
@@ -125,8 +126,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private updateCommentBody(body: string | IMarkdownString) {
 		this._body.innerText = '';
 		this._md = undefined;
+		this._plainText = undefined;
 		if (typeof body === 'string') {
-			this._body.innerText = body;
+			this._plainText = dom.append(this._body, dom.$('.comment-body-plainstring'));
+			this._plainText.innerText = body;
 		} else {
 			this._md = this.markdownRenderer.render(body).element;
 			this._body.appendChild(this._md);
