@@ -1371,7 +1371,8 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 	private setViewState(state: IViewState): void {
 		this.viewState = state;
 		this.stylesheet.textContent = `
-			.monaco-editor .dirty-diff-modified,.monaco-editor .dirty-diff-added{border-left-width:${state.width}px;}
+			.monaco-editor .dirty-diff-modified { background-size: ${state.width}px 4.5px; }
+			.monaco-editor .dirty-diff-modified, .monaco-editor .dirty-diff-added{border-left-width:${state.width}px;}
 			.monaco-editor .dirty-diff-modified, .monaco-editor .dirty-diff-added, .monaco-editor .dirty-diff-deleted {
 				opacity: ${state.visibility === 'always' ? 1 : 0};
 			}
