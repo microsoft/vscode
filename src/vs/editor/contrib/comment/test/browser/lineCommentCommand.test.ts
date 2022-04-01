@@ -17,14 +17,14 @@ import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 
 function createTestCommandHelper(commentsConfig: CommentRule, commandFactory: (accessor: ServicesAccessor, selection: Selection) => ICommand): (lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection) => void {
 	return (lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection) => {
 		const languageId = 'commentMode';
 		const prepare = (accessor: ServicesAccessor, disposables: DisposableStore) => {
 			const languageConfigurationService = accessor.get(ILanguageConfigurationService);
-			disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+			const languageService = accessor.get(ILanguageService);
+			disposables.add(languageService.registerLanguage({ id: languageId }));
 			disposables.add(languageConfigurationService.register(languageId, {
 				comments: commentsConfig
 			}));
