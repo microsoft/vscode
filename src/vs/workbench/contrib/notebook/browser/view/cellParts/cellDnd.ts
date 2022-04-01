@@ -499,6 +499,6 @@ export function performCellDropEdits(editor: INotebookEditorDelegate, draggedCel
 		true,
 		{ kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() },
 		() => ({ kind: SelectionStateType.Index, focus: finalFocus, selections: [finalSelection] }),
-		undefined);
+		undefined, true);
 	editor.revealCellRangeInView(finalSelection);
 }
