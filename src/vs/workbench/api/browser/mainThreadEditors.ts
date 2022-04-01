@@ -14,7 +14,7 @@ import { IDecorationOptions, IDecorationRenderOptions } from 'vs/editor/common/e
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions, IResourceEditorInput, EditorActivation, EditorResolution } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
 import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToColumn, columnToEditorGroup, EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -27,13 +27,6 @@ import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IEditorControl } from 'vs/workbench/common/editor';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { DataTransferConverter } from 'vs/workbench/api/common/shared/dataTransfer';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IDataTransfer, IDataTransferItem } from 'vs/workbench/common/dnd';
-import { extractEditorsDropData } from 'vs/workbench/browser/dnd';
-import { Mimes } from 'vs/base/common/mime';
-import { distinct } from 'vs/base/common/arrays';
-import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -51,7 +44,6 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	private _textEditorsListenersMap: { [editorId: string]: IDisposable[] };
 	private _editorPositionData: ITextEditorPositionData | null;
 	private _registeredDecorationTypes: { [decorationType: string]: boolean };
-	private readonly _dropIntoEditorListeners = new Map<ICodeEditor, IDisposable>();
 
 	constructor(
 		private readonly _editorLocator: IMainThreadEditorLocator,
@@ -59,7 +51,6 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._instanceId = String(++MainThreadTextEditors.INSTANCE_COUNT);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
@@ -70,22 +61,6 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		this._toDispose.add(this._editorService.onDidVisibleEditorsChange(() => this._updateActiveAndVisibleTextEditors()));
 		this._toDispose.add(this._editorGroupService.onDidRemoveGroup(() => this._updateActiveAndVisibleTextEditors()));
 		this._toDispose.add(this._editorGroupService.onDidMoveGroup(() => this._updateActiveAndVisibleTextEditors()));
-
-		const registerDropListenerOnEditor = (editor: ICodeEditor) => {
-			this._dropIntoEditorListeners.get(editor)?.dispose();
-			this._dropIntoEditorListeners.set(editor, editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event)));
-		};
-
-		this._toDispose.add(_codeEditorService.onCodeEditorAdd(registerDropListenerOnEditor));
-
-		this._toDispose.add(_codeEditorService.onCodeEditorRemove(editor => {
-			this._dropIntoEditorListeners.get(editor)?.dispose();
-			this._dropIntoEditorListeners.delete(editor);
-		}));
-
-		for (const editor of this._codeEditorService.listCodeEditors()) {
-			registerDropListenerOnEditor(editor);
-		}
 
 		this._registeredDecorationTypes = Object.create(null);
 	}
@@ -99,8 +74,6 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		for (let decorationType in this._registeredDecorationTypes) {
 			this._codeEditorService.removeDecorationType(decorationType);
 		}
-		dispose(this._dropIntoEditorListeners.values());
-		this._dropIntoEditorListeners.clear();
 		this._registeredDecorationTypes = Object.create(null);
 	}
 
@@ -138,59 +111,6 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			}
 		}
 		return result;
-	}
-
-	private async onDropIntoEditor(editor: ICodeEditor, position: IPosition, dragEvent: DragEvent) {
-		if (!dragEvent.dataTransfer || !editor.hasModel()) {
-			return;
-		}
-		const id = this._editorLocator.getIdOfCodeEditor(editor);
-		if (typeof id !== 'string') {
-			return;
-		}
-
-		const modelVersionNow = editor.getModel().getVersionId();
-
-		const textEditorDataTransfer: IDataTransfer = new Map<string, IDataTransferItem>();
-		for (const item of dragEvent.dataTransfer.items) {
-			if (item.kind === 'string') {
-				const type = item.type;
-				const asStringValue = new Promise<string>(resolve => item.getAsString(resolve));
-				textEditorDataTransfer.set(type, {
-					asString: () => asStringValue,
-					value: undefined
-				});
-			}
-		}
-
-		if (!textEditorDataTransfer.has(Mimes.uriList.toLowerCase())) {
-			const editorData = (await this._instantiationService.invokeFunction(extractEditorsDropData, dragEvent))
-				.filter(input => input.resource)
-				.map(input => input.resource!.toString());
-
-			if (editorData.length) {
-				const str = distinct(editorData).join('\n');
-				textEditorDataTransfer.set(Mimes.uriList.toLowerCase(), {
-					asString: () => Promise.resolve(str),
-					value: undefined
-				});
-			}
-		}
-
-		if (textEditorDataTransfer.size === 0) {
-			return;
-		}
-
-		const dataTransferDto = await DataTransferConverter.toDataTransferDTO(textEditorDataTransfer);
-		const edits = await this._proxy.$textEditorHandleDrop(id, position, dataTransferDto);
-		if (edits.length === 0) {
-			return;
-		}
-
-		if (editor.getModel().getVersionId() === modelVersionNow) {
-			const [first] = edits; // TODO@jrieken define how to pick the "one snippet edit";
-			performSnippetEdit(editor, first);
-		}
 	}
 
 	// --- from extension host process

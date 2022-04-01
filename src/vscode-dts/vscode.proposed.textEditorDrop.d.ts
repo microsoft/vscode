@@ -13,50 +13,11 @@ declare module 'vscode' {
 		constructor(range: Range, snippet: SnippetString);
 	}
 
-
-	export interface TextEditorDropEvent {
-		/**
-		 * The {@link TextEditor} the resource was dropped onto.
-		 */
-		readonly editor: TextEditor;
-
-		/**
-		 * The position in the file where the drop occurred
-		 */
-		readonly position: Position;
-
-		/**
-		 *  The {@link DataTransfer data transfer} associated with this drop.
-		 */
-		readonly dataTransfer: DataTransfer;
-
-		/**
-		 * Allows to pause the event to delay apply the drop.
-		 *
-		 * *Note:* This function can only be called during event dispatch and not
-		 * in an asynchronous manner:
-		 *
-		 * ```ts
-		 * workspace.onWillDropOnTextEditor(event => {
-		 * 	// async, will *throw* an error
-		 * 	setTimeout(() => event.waitUntil(promise));
-		 *
-		 * 	// sync, OK
-		 * 	event.waitUntil(promise);
-		 * })
-		 * ```
-		 *
-		 * @param thenable A thenable that delays saving.
-		 */
-		waitUntil(thenable: Thenable<SnippetTextEdit | undefined>): void;
-
-		token: CancellationToken;
+	export interface DocumentOnDropProvider {
+		provideDocumentOnDropEdits(document: TextDocument, position: Position, dataTransfer: DataTransfer, token: CancellationToken): ProviderResult<SnippetTextEdit>;
 	}
 
-	export namespace workspace {
-		/**
-		 * Event fired when the user drops a resource into a text editor.
-		 */
-		export const onWillDropOnTextEditor: Event<TextEditorDropEvent>;
+	export namespace languages {
+		export function registerDocumentOnDropProvider(selector: DocumentSelector, provider: DocumentOnDropProvider): Disposable;
 	}
 }
