@@ -181,6 +181,21 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			} else {
 				this._combinedEntry.update(props);
 			}
+
+			// animate the status bar icon whenever language status changes, repeat animation
+			// when severity is warning or error, don't show animation when showing progress/busy
+			const node = document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus span.codicon');
+			if (node instanceof HTMLElement) {
+				const _wiggle = 'wiggle';
+				const _repeat = 'repeat';
+				if (!isOneBusy) {
+					node.classList.add(_wiggle);
+					node.classList.toggle(_repeat, showSeverity);
+					this._renderDisposables.add(dom.addDisposableListener(node, 'animationend', _e => node.classList.remove(_wiggle, _repeat)));
+				} else {
+					node.classList.remove(_wiggle, _repeat);
+				}
+			}
 		}
 
 		// dedicated status bar items are shows as-is in the status bar
