@@ -61,7 +61,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 
 	protected async createReferencedObject(key: string, viewType: string, hasAssociatedFilePath: boolean): Promise<IResolvedNotebookEditorModel> {
 		const uri = URI.parse(key);
-		const info = await this._notebookService.withNotebookDataProvider(uri, viewType);
+		const info = await this._notebookService.withNotebookDataProvider(viewType);
 
 		let result: IResolvedNotebookEditorModel;
 

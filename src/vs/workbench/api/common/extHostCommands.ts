@@ -189,6 +189,9 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				} else if (value instanceof Uint8Array) {
 					hasBuffers = true;
 					return VSBuffer.wrap(value);
+				} else if (value instanceof VSBuffer) {
+					hasBuffers = true;
+					return value;
 				}
 				if (!Array.isArray(value)) {
 					return value;
