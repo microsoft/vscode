@@ -91,6 +91,18 @@
         "title": "%command.compare%",
         "original": "Compare Current Conflict",
         "command": "merge-conflict.compare"
+      },
+      {
+        "category": "%command.category%",
+        "title": "%command.compare-current-original%",
+        "original": "Compare Current Against Original",
+        "command": "merge-conflict.compare-current-original"
+      },
+      {
+        "category": "%command.category%",
+        "title": "%command.compare-original-incoming%",
+        "original": "Compare Original Against Incoming",
+        "command": "merge-conflict.compare-original-incoming"
       }
     ],
     "menus": {
