@@ -101,7 +101,8 @@ export class TunnelViewModel implements ITunnelViewModel {
 			id: TunnelPrivacyId.Private,
 			themeIcon: privatePortIcon.id,
 			label: nls.localize('tunnelPrivacy.private', "Private")
-		}
+		},
+		strip: () => undefined
 	};
 
 	constructor(
@@ -415,6 +416,31 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		}));
 	}
 
+	private tunnelContext(tunnel: ITunnelItem): ITunnelItem {
+		let context: ITunnelItem | undefined;
+		if (tunnel instanceof TunnelItem) {
+			context = tunnel.strip();
+		}
+		if (!context) {
+			context = {
+				tunnelType: tunnel.tunnelType,
+				remoteHost: tunnel.remoteHost,
+				remotePort: tunnel.remotePort,
+				localAddress: tunnel.localAddress,
+				protocol: tunnel.protocol,
+				localUri: tunnel.localUri,
+				localPort: tunnel.localPort,
+				name: tunnel.name,
+				closeable: tunnel.closeable,
+				source: tunnel.source,
+				privacy: tunnel.privacy,
+				processDescription: tunnel.processDescription,
+				label: tunnel.label
+			};
+		}
+		return context;
+	}
+
 	renderActionBarItem(element: ActionBarCell, templateData: IActionBarTemplateData): void {
 		templateData.label.element.style.display = 'flex';
 		templateData.label.setLabel(element.label, undefined,
@@ -424,22 +450,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 					: element.tooltip,
 				extraClasses: element.menuId === MenuId.TunnelLocalAddressInline ? ['ports-view-actionbar-cell-localaddress'] : undefined
 			});
-		const tunnelContext: ITunnelItem = {
-			tunnelType: element.tunnel.tunnelType,
-			remoteHost: element.tunnel.remoteHost,
-			remotePort: element.tunnel.remotePort,
-			localAddress: element.tunnel.localAddress,
-			protocol: element.tunnel.protocol,
-			localUri: element.tunnel.localUri,
-			localPort: element.tunnel.localPort,
-			name: element.tunnel.name,
-			closeable: element.tunnel.closeable,
-			source: element.tunnel.source,
-			privacy: element.tunnel.privacy,
-			processDescription: element.tunnel.processDescription,
-			label: element.tunnel.label
-		};
-		templateData.actionBar.context = tunnelContext;
+		templateData.actionBar.context = this.tunnelContext(element.tunnel);
 		templateData.container.style.paddingLeft = '10px';
 		const context: [string, any][] =
 			[
@@ -579,6 +590,29 @@ class TunnelItem implements ITunnelItem {
 			tunnel.privacy,
 			remoteExplorerService,
 			tunnelService);
+	}
+
+	/**
+	 * Removes all non-serializable properties from the tunnel
+	 * @returns A new TunnelItem without any services
+	 */
+	public strip(): TunnelItem | undefined {
+		return new TunnelItem(
+			this.tunnelType,
+			this.remoteHost,
+			this.remotePort,
+			this.source,
+			this.hasRunningProcess,
+			this.protocol,
+			this.localUri,
+			this.localAddress,
+			this.localPort,
+			this.closeable,
+			this.name,
+			this.runningProcess,
+			this.pid,
+			this._privacy
+		);
 	}
 
 	constructor(
