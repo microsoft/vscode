@@ -21,7 +21,7 @@ else
 fi
 
 if [[ "$PROMPT_COMMAND" =~ .*(' '.*\;)|(\;.*' ').* ]]; then
-	echo -e "\033[1;33mShell integration cannot be activated due to complex PROMPT_COMMAND: $PROMPT_COMMAND\033[0m"
+	builtin echo -e "\033[1;33mShell integration cannot be activated due to complex PROMPT_COMMAND: $PROMPT_COMMAND\033[0m"
 	VSCODE_SHELL_HIDE_WELCOME=""
 	return;
 fi
@@ -34,35 +34,35 @@ __vsc_in_command_execution="1"
 __vsc_last_history_id=$(history 1 | awk '{print $1;}')
 
 __vsc_prompt_start() {
-	printf "\033]633;A\007"
+	builtin printf "\033]633;A\007"
 }
 
 __vsc_prompt_end() {
-	printf "\033]633;B\007"
+	builtin printf "\033]633;B\007"
 }
 
 __vsc_update_cwd() {
-	printf "\033]633;P;Cwd=%s\007" "$PWD"
+	builtin printf "\033]633;P;Cwd=%s\007" "$PWD"
 }
 
 __vsc_command_output_start() {
-	printf "\033]633;C\007"
+	builtin printf "\033]633;C\007"
 }
 
 __vsc_continuation_start() {
-	printf "\033]633;F\007"
+	builtin printf "\033]633;F\007"
 }
 
 __vsc_continuation_end() {
-	printf "\033]633;G\007"
+	builtin printf "\033]633;G\007"
 }
 
 __vsc_command_complete() {
 	local __vsc_history_id=$(builtin history 1 | awk '{print $1;}')
 	if [[ "$__vsc_history_id" == "$__vsc_last_history_id" ]]; then
-		printf "\033]633;D\007"
+		builtin printf "\033]633;D\007"
 	else
-		printf "\033]633;D;%s\007" "$__vsc_status"
+		builtin printf "\033]633;D;%s\007" "$__vsc_status"
 		__vsc_last_history_id=$__vsc_history_id
 	fi
 	__vsc_update_cwd
@@ -130,7 +130,7 @@ fi
 
 trap '__vsc_preexec' DEBUG
 if [ -z "$VSCODE_SHELL_HIDE_WELCOME" ]; then
-	echo -e "\033[1;32mShell integration activated\033[0m"
+	builtin echo -e "\033[1;32mShell integration activated\033[0m"
 else
 	VSCODE_SHELL_HIDE_WELCOME=""
 fi
