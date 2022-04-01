@@ -94,7 +94,7 @@ export interface MdInlineLink {
 
 	readonly sourceText: string;
 	readonly sourceResource: vscode.Uri;
-	readonly sourceRange: vscode.Range;
+	readonly sourceHrefRange: vscode.Range;
 }
 
 export interface MdLinkDefinition {
@@ -102,7 +102,9 @@ export interface MdLinkDefinition {
 
 	readonly sourceText: string;
 	readonly sourceResource: vscode.Uri;
-	readonly sourceRange: vscode.Range;
+	readonly sourceHrefRange: vscode.Range;
+
+	readonly refRange: vscode.Range;
 
 	readonly ref: string;
 	readonly href: ExternalHref | InternalHref;
@@ -129,7 +131,7 @@ function extractDocumentLink(
 			href: linkTarget,
 			sourceText: link,
 			sourceResource: document.uri,
-			sourceRange: new vscode.Range(linkStart, linkEnd)
+			sourceHrefRange: new vscode.Range(linkStart, linkEnd)
 		};
 	} catch {
 		return undefined;
@@ -190,8 +192,8 @@ async function findCode(document: SkinnyTextDocument, engine: MarkdownEngine): P
 }
 
 function isLinkInsideCode(code: CodeInDocument, link: MdLink) {
-	return code.multiline.some(interval => link.sourceRange.start.line >= interval[0] && link.sourceRange.start.line < interval[1]) ||
-		code.inline.some(position => position.intersection(link.sourceRange));
+	return code.multiline.some(interval => link.sourceHrefRange.start.line >= interval[0] && link.sourceHrefRange.start.line < interval[1]) ||
+		code.inline.some(position => position.intersection(link.sourceHrefRange));
 }
 
 export class MdLinkProvider implements vscode.DocumentLinkProvider {
@@ -217,11 +219,11 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 	private toValidDocumentLink(link: MdLink, definitionSet: LinkDefinitionSet): vscode.DocumentLink | undefined {
 		switch (link.href.kind) {
 			case 'external': {
-				return new vscode.DocumentLink(link.sourceRange, link.href.uri);
+				return new vscode.DocumentLink(link.sourceHrefRange, link.href.uri);
 			}
 			case 'internal': {
 				const uri = OpenDocumentLinkCommand.createCommandUri(link.sourceResource, link.href.path, link.href.fragment);
-				const documentLink = new vscode.DocumentLink(link.sourceRange, uri);
+				const documentLink = new vscode.DocumentLink(link.sourceHrefRange, uri);
 				documentLink.tooltip = localize('documentLink.tooltip', 'Follow link');
 				return documentLink;
 			}
@@ -229,8 +231,8 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				const def = definitionSet.lookup(link.href.ref);
 				if (def) {
 					return new vscode.DocumentLink(
-						link.sourceRange,
-						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([def.sourceRange.start.line, def.sourceRange.start.character]))}`));
+						link.sourceHrefRange,
+						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([def.sourceHrefRange.start.line, def.sourceHrefRange.start.character]))}`));
 				} else {
 					return undefined;
 				}
@@ -287,7 +289,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 			yield {
 				kind: 'link',
 				sourceText: reference,
-				sourceRange: new vscode.Range(linkStart, linkEnd),
+				sourceHrefRange: new vscode.Range(linkStart, linkEnd),
 				sourceResource: document.uri,
 				href: {
 					kind: 'reference',
@@ -305,6 +307,9 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 			const link = match[3].trim();
 			const offset = (match.index || 0) + pre.length;
 
+			const refStart = document.positionAt((match.index ?? 0) + 1);
+			const refRange = new vscode.Range(refStart, refStart.translate({ characterDelta: reference.length }));
+
 			if (angleBracketLinkRe.test(link)) {
 				const linkStart = document.positionAt(offset + 1);
 				const linkEnd = document.positionAt(offset + link.length - 1);
@@ -315,7 +320,8 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 						kind: 'definition',
 						sourceText: link,
 						sourceResource: document.uri,
-						sourceRange: new vscode.Range(linkStart, linkEnd),
+						sourceHrefRange: new vscode.Range(linkStart, linkEnd),
+						refRange,
 						ref: reference,
 						href: target,
 					};
@@ -329,7 +335,8 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 						kind: 'definition',
 						sourceText: link,
 						sourceResource: document.uri,
-						sourceRange: new vscode.Range(linkStart, linkEnd),
+						sourceHrefRange: new vscode.Range(linkStart, linkEnd),
+						refRange,
 						ref: reference,
 						href: target,
 					};
