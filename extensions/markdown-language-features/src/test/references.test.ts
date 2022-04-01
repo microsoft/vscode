@@ -71,6 +71,16 @@ suite('markdown: find all references', () => {
 		);
 	});
 
+	test('Should not return references when on link text', async () => {
+		const doc = new InMemoryDocument(workspacePath('doc.md'), joinLines(
+			`[ref](#abc)`,
+			`[ref]: http://example.com`,
+		));
+
+		const refs = await getReferences(doc, new vscode.Position(0, 1), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assert.deepStrictEqual(refs, []);
+	});
+
 	test('Should find references using normalized slug', async () => {
 		const doc = new InMemoryDocument(workspacePath('doc.md'), joinLines(
 			`# a B c`,

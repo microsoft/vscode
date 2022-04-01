@@ -245,4 +245,15 @@ suite('markdown: rename', () => {
 			]
 		});
 	});
+
+
+	test('Rename should not be supported on link text', async () => {
+		const uri = workspacePath('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`# Header`,
+			`[text](#header)`,
+		));
+
+		await assert.rejects(getRenameRange(doc, new vscode.Position(1, 2), new InMemoryWorkspaceMarkdownDocuments([doc])));
+	});
 });

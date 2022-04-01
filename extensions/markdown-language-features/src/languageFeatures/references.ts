@@ -106,12 +106,11 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 
 		const references: MdReference[] = [];
 
-		const line = document.lineAt(header.line);
 		references.push({
 			kind: 'header',
 			isTriggerLocation: true,
 			isDefinition: true,
-			location: new vscode.Location(document.uri, new vscode.Range(header.line, 0, header.line, line.text.length)),
+			location: header.headerLocation,
 			headerTextLocation: header.headerTextLocation
 		});
 
