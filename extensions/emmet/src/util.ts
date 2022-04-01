@@ -226,15 +226,11 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	}
 
 	function consumeBlockCommentBackwards() {
-		if (stream.peek() === slash) {
-			switch (stream.backUp(1)) {
-				case star:
-					stream.pos = findOpeningCommentBeforePosition(stream.pos) ?? startOffset;
-					break;
-				case slash:
-					break;
-				default:
-					stream.next();
+		if (!stream.sof() && stream.peek() === slash) {
+			if (stream.backUp(1) === star) {
+				stream.pos = findOpeningCommentBeforePosition(stream.pos) ?? startOffset;
+			} else {
+				stream.next();
 			}
 		}
 	}
