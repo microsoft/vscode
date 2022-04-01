@@ -2670,7 +2670,7 @@ export class CommandCenter {
 		else if (item.previousRef === 'HEAD' && item.ref === '~') {
 			title = localize('git.title.index', '{0} (Index)', basename);
 		} else {
-			title = localize('git.title.diffRefs', '{0} ({1}) ⟷ {0} ({2})', basename, item.shortPreviousRef, item.shortRef);
+			title = localize('git.title.diffRefs', '{0} ({1}) ↔ {0} ({2})', basename, item.shortPreviousRef, item.shortRef);
 		}
 
 		return {
@@ -2740,7 +2740,7 @@ export class CommandCenter {
 		}
 
 
-		const title = localize('git.title.diff', '{0} ⟷ {1}', leftTitle, rightTitle);
+		const title = localize('git.title.diff', '{0} ↔ {1}', leftTitle, rightTitle);
 		await commands.executeCommand('vscode.diff', selected.ref === '' ? uri : toGitUri(uri, selected.ref), item.ref === '' ? uri : toGitUri(uri, item.ref), title);
 	}
 
