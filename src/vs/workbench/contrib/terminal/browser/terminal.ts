@@ -139,7 +139,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	onDidChangeInstanceDimensions: Event<ITerminalInstance>;
 	onDidMaximumDimensionsChange: Event<ITerminalInstance>;
 	onDidRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
-	onDidRequestClearDecorations: Event<void>;
 	onDidChangeInstanceTitle: Event<ITerminalInstance | undefined>;
 	onDidChangeInstanceIcon: Event<ITerminalInstance | undefined>;
 	onDidChangeInstanceColor: Event<ITerminalInstance | undefined>;
@@ -908,9 +907,10 @@ export interface IXtermTerminal {
 	clearDecorations(): void;
 
 	/**
-	 * Clears the search result decorations
+	 * Clears the search result decorations with the option to refresh
+	 * the results
 	 */
-	clearSearchDecorations(): void;
+	clearSearchDecorations(refresh?: boolean): void;
 }
 
 export interface IRequestAddInstanceToGroupEvent {
