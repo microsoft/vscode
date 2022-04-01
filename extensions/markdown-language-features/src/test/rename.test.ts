@@ -207,4 +207,53 @@ suite('markdown: rename', () => {
 			]
 		});
 	});
+
+	test('Rename on ref should rename refs and def', async () => {
+		const uri = workspacePath('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`[text][ref]`, // rename here
+			`[other][ref]`,
+			``,
+			`[ref]: https://example.com`,
+		));
+
+		const edit = await getRenameEdits(doc, new vscode.Position(0, 8), "new ref", new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assertEditsEqual(edit!, {
+			uri, edits: [
+				new vscode.TextEdit(new vscode.Range(0, 7, 0, 10), 'new ref'),
+				new vscode.TextEdit(new vscode.Range(1, 8, 1, 11), 'new ref'),
+				new vscode.TextEdit(new vscode.Range(3, 1, 3, 4), 'new ref'),
+			]
+		});
+	});
+
+	test('Rename on def should rename refs and def', async () => {
+		const uri = workspacePath('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`[text][ref]`,
+			`[other][ref]`,
+			``,
+			`[ref]: https://example.com`, // rename here
+		));
+
+		const edit = await getRenameEdits(doc, new vscode.Position(3, 3), "new ref", new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assertEditsEqual(edit!, {
+			uri, edits: [
+				new vscode.TextEdit(new vscode.Range(0, 7, 0, 10), 'new ref'),
+				new vscode.TextEdit(new vscode.Range(1, 8, 1, 11), 'new ref'),
+				new vscode.TextEdit(new vscode.Range(3, 1, 3, 4), 'new ref'),
+			]
+		});
+	});
+
+
+	test('Rename should not be supported on link text', async () => {
+		const uri = workspacePath('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`# Header`,
+			`[text](#header)`,
+		));
+
+		await assert.rejects(getRenameRange(doc, new vscode.Position(1, 2), new InMemoryWorkspaceMarkdownDocuments([doc])));
+	});
 });

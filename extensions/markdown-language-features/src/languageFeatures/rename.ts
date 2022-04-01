@@ -43,10 +43,21 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 			return undefined;
 		}
 
-		if (triggerRef.kind === 'header') {
-			return triggerRef.headerTextLocation.range;
-		} else {
-			return triggerRef.fragmentLocation?.range ?? triggerRef.location.range;
+		switch (triggerRef.kind) {
+			case 'header':
+				return triggerRef.headerTextLocation.range;
+
+			case 'link':
+				if (triggerRef.link.kind === 'definition') {
+					// We may have been triggered on the ref or the definition itself
+					if (triggerRef.link.refRange.contains(position)) {
+						return triggerRef.link.refRange;
+					} else {
+						return triggerRef.link.sourceHrefRange;
+					}
+				} else {
+					return triggerRef.fragmentLocation?.range ?? triggerRef.location.range;
+				}
 		}
 	}
 
@@ -56,15 +67,35 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 			return undefined;
 		}
 
+		const triggerRef = references.find(ref => ref.isTriggerLocation);
+		if (!triggerRef) {
+			return undefined;
+		}
+
+		const isRefRename = triggerRef.kind === 'link' && (
+			(triggerRef.link.kind === 'definition' && triggerRef.link.refRange.contains(position)) || triggerRef.link.href.kind === 'reference'
+		);
+		const slug = this.slugifier.fromHeading(newName).value;
+
 		const edit = new vscode.WorkspaceEdit();
-
-		const slug = this.slugifier.fromHeading(newName);
-
 		for (const ref of references) {
-			if (ref.kind === 'header') {
-				edit.replace(ref.location.uri, ref.headerTextLocation.range, newName);
-			} else {
-				edit.replace(ref.location.uri, ref.fragmentLocation?.range ?? ref.location.range, slug.value);
+			switch (ref.kind) {
+				case 'header':
+					edit.replace(ref.location.uri, ref.headerTextLocation.range, newName);
+					break;
+
+				case 'link':
+					if (ref.link.kind === 'definition') {
+						// We may be renaming either the reference or the definition itself
+						if (isRefRename) {
+							edit.replace(ref.link.sourceResource, ref.link.refRange, newName);
+						} else {
+							edit.replace(ref.link.sourceResource, ref.fragmentLocation?.range ?? ref.link.sourceHrefRange, ref.fragmentLocation ? slug : newName);
+						}
+					} else {
+						edit.replace(ref.location.uri, ref.fragmentLocation?.range ?? ref.location.range, ref.link.href.kind === 'reference' ? newName : slug);
+					}
+					break;
 			}
 		}
 
