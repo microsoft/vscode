@@ -564,7 +564,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Listen to text model events
 		this._register(model.onDidChangeContent(e => this.onModelContentChanged(model, e.isUndoing || e.isRedoing)));
-		this._register(model.onDidChangeLanguage(e => this.onMaybeDidChangeEncoding())); // detect possible encoding change via language specific settings
+		this._register(model.onDidChangeLanguage(e => this.onMaybeShouldChangeEncoding())); // detect possible encoding change via language specific settings
 	}
 
 	private onModelContentChanged(model: ITextModel, isUndoingOrRedoing: boolean): void {
@@ -1000,7 +1000,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	//#region Encoding
 
-	private async onMaybeDidChangeEncoding(): Promise<void> {
+	private async onMaybeShouldChangeEncoding(): Promise<void> {
 
 		// This is a bit of a hack but there is a narrow case where
 		// per-language configured encodings are not working:
@@ -1014,9 +1014,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// To mitigate this issue, when we detect the model language
 		// changes, we see if there is a specific encoding configured
 		// for the new language and apply it, only if the model is
-		// not dirty.
+		// not dirty and only if the encoding was not explicitly set.
 		//
 		// (see https://github.com/microsoft/vscode/issues/127936)
+
+		if (this.hasEncodingSetExplicitly) {
+			return; // never change the user's choice of encoding
+		}
 
 		const { encoding } = await this.textFileService.encoding.getPreferredReadEncoding(this.resource);
 		if (typeof encoding !== 'string' || !this.isNewEncoding(encoding)) {
@@ -1030,14 +1034,20 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.logService.info(`Adjusting encoding based on configured language override to '${encoding}' for ${this.resource.toString(true)}.`);
 
 		// Re-open with new encoding
-		await this.setEncoding(encoding, EncodingMode.Decode);
+		return this.setEncodingInternal(encoding, EncodingMode.Decode);
 	}
 
-	getEncoding(): string | undefined {
-		return this.preferredEncoding || this.contentEncoding;
+	private hasEncodingSetExplicitly: boolean = false;
+
+	setEncoding(encoding: string, mode: EncodingMode): Promise<void> {
+
+		// Remember that an explicit encoding was set
+		this.hasEncodingSetExplicitly = true;
+
+		return this.setEncodingInternal(encoding, mode);
 	}
 
-	async setEncoding(encoding: string, mode: EncodingMode): Promise<void> {
+	private async setEncodingInternal(encoding: string, mode: EncodingMode): Promise<void> {
 
 		// Encode: Save with encoding
 		if (mode === EncodingMode.Encode) {
@@ -1091,6 +1101,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		return true;
+	}
+
+	getEncoding(): string | undefined {
+		return this.preferredEncoding || this.contentEncoding;
 	}
 
 	//#endregion
