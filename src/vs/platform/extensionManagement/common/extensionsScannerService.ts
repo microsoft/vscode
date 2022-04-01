@@ -18,13 +18,12 @@ import Severity from 'vs/base/common/severity';
 import { isArray, isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { computeTargetPlatform, ExtensionKey, getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, ExtensionIdentifier, IExtensionManifest, TargetPlatform, IExtensionIdentifier, IRelaxedExtensionManifest, UNDEFINED_PUBLISHER, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { validateExtensionManifest } from 'vs/platform/extensions/common/extensionValidator';
 import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -107,8 +106,8 @@ export type ScanOptions = {
 	readonly checkControlFile?: boolean;
 };
 
-export const INativeExtensionsScannerService = createDecorator<INativeExtensionsScannerService>('INativeExtensionsScannerService');
-export interface INativeExtensionsScannerService {
+export const IExtensionsScannerService = createDecorator<IExtensionsScannerService>('IExtensionsScannerService');
+export interface IExtensionsScannerService {
 	readonly _serviceBrand: undefined;
 
 	readonly systemExtensionsLocation: URI;
@@ -126,22 +125,21 @@ export interface INativeExtensionsScannerService {
 	updateMetadata(extensionLocation: URI, metadata: Partial<Metadata>): Promise<void>;
 }
 
-export class NativeExtensionsScannerService extends Disposable implements INativeExtensionsScannerService {
+export abstract class AbstractExtensionsScannerService extends Disposable implements IExtensionsScannerService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly systemExtensionsLocation: URI;
-	readonly userExtensionsLocation: URI;
+	abstract readonly systemExtensionsLocation: URI;
+	abstract readonly userExtensionsLocation: URI;
+	protected abstract readonly extensionsControlLocation: URI;
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@INativeEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IProductService private readonly productService: IProductService,
 	) {
 		super();
-		this.systemExtensionsLocation = URI.file(environmentService.builtinExtensionsPath);
-		this.userExtensionsLocation = URI.file(environmentService.extensionsPath);
 	}
 
 	private _targetPlatformPromise: Promise<TargetPlatform> | undefined;
@@ -310,7 +308,7 @@ export class NativeExtensionsScannerService extends Disposable implements INativ
 
 	private async getBuiltInExtensionControl(): Promise<IBuiltInExtensionControl> {
 		try {
-			const content = await this.fileService.readFile(joinPath(this.environmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json'));
+			const content = await this.fileService.readFile(this.extensionsControlLocation);
 			return JSON.parse(content.value.toString());
 		} catch (error) {
 			return {};
@@ -658,5 +656,3 @@ export function toExtensionDescription(extension: IScannedExtension, isUnderDeve
 		...extension.manifest,
 	};
 }
-
-registerSingleton(INativeExtensionsScannerService, NativeExtensionsScannerService);

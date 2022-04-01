@@ -20,7 +20,7 @@ import { extract, ExtractError } from 'vs/base/node/zip';
 import { localize } from 'vs/nls';
 import { ExtensionManagementError, ExtensionManagementErrorCode, Metadata, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionKey, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { INativeExtensionsScannerService, IScannedExtension, ScanOptions } from 'vs/platform/extensionManagement/common/extensionsScannerService';
+import { IExtensionsScannerService, IScannedExtension, ScanOptions } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -33,7 +33,7 @@ export class ExtensionsScanner extends Disposable {
 	constructor(
 		private readonly beforeRemovingExtension: (e: ILocalExtension) => Promise<void>,
 		@IFileService private readonly fileService: IFileService,
-		@INativeExtensionsScannerService private readonly extensionsScannerService: INativeExtensionsScannerService,
+		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();

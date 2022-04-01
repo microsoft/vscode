@@ -28,7 +28,7 @@ import { cwd } from 'vs/base/common/process';
 import * as pfs from 'vs/base/node/pfs';
 import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
 import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
-import { INativeExtensionsScannerService, NlsConfiguration, toExtensionDescription, Translations } from 'vs/platform/extensionManagement/common/extensionsScannerService';
+import { IExtensionsScannerService, NlsConfiguration, toExtensionDescription, Translations } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 
 export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
@@ -42,7 +42,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		extensionManagementCLIService: IExtensionManagementCLIService,
 		private readonly _logService: ILogService,
 		private readonly _extensionHostStatusService: IExtensionHostStatusService,
-		private readonly _extensionsScannerService: INativeExtensionsScannerService,
+		private readonly _extensionsScannerService: IExtensionsScannerService,
 	) {
 		if (_environmentService.args['install-builtin-extension']) {
 			const installOptions: InstallOptions = { isMachineScoped: !!_environmentService.args['do-not-sync'], installPreReleaseVersion: !!_environmentService.args['pre-release'] };

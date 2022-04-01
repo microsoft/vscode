@@ -17,7 +17,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { INativeExtensionsScannerService, IScannedExtension, NlsConfiguration, toExtensionDescription, Translations } from 'vs/platform/extensionManagement/common/extensionsScannerService';
+import { IExtensionsScannerService, IScannedExtension, NlsConfiguration, toExtensionDescription, Translations } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ILogService } from 'vs/platform/log/common/log';
 
 interface IExtensionCacheData {
@@ -81,7 +81,7 @@ export class CachedExtensionScanner {
 		@IHostService private readonly _hostService: IHostService,
 		@IProductService private readonly _productService: IProductService,
 		@IFileService private readonly _fileService: IFileService,
-		@INativeExtensionsScannerService private readonly _extensionsScannerService: INativeExtensionsScannerService,
+		@IExtensionsScannerService private readonly _extensionsScannerService: IExtensionsScannerService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		this.scannedExtensions = new Promise<IExtensionDescription[]>((resolve, reject) => {
