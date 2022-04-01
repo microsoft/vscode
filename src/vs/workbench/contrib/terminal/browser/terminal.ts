@@ -908,10 +908,9 @@ export interface IXtermTerminal {
 	clearDecorations(): void;
 
 	/**
-	 * Clears the search result decorations with the option to refresh
-	 * the results
+	 * Clears the search result decorations
 	 */
-	clearSearchDecorations(refresh?: boolean): void;
+	clearSearchDecorations(): void;
 }
 
 export interface IRequestAddInstanceToGroupEvent {
