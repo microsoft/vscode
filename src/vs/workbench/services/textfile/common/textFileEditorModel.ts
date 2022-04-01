@@ -31,8 +31,6 @@ import { extUri } from 'vs/base/common/resources';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IModelLanguageChangedEvent } from 'vs/editor/common/textModelEvents';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -121,8 +119,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IPathService private readonly pathService: IPathService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super(modelService, languageService, languageDetectionService, accessibilityService);
 
@@ -567,7 +564,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Listen to text model events
 		this._register(model.onDidChangeContent(e => this.onModelContentChanged(model, e.isUndoing || e.isRedoing)));
-		this._register(model.onDidChangeLanguage(e => this.onMaybeDidChangeEncoding(e))); // detect possible encoding change via language specific settings
+		this._register(model.onDidChangeLanguage(e => this.onMaybeDidChangeEncoding())); // detect possible encoding change via language specific settings
 	}
 
 	private onModelContentChanged(model: ITextModel, isUndoingOrRedoing: boolean): void {
@@ -1003,7 +1000,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	//#region Encoding
 
-	private async onMaybeDidChangeEncoding(e: IModelLanguageChangedEvent): Promise<void> {
+	private async onMaybeDidChangeEncoding(): Promise<void> {
 
 		// This is a bit of a hack but there is a narrow case where
 		// per-language configured encodings are not working:
@@ -1017,13 +1014,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// To mitigate this issue, when we detect the model language
 		// changes, we see if there is a specific encoding configured
 		// for the new language and apply it, only if the model is
-		// not dirty and has finished resolving.
+		// not dirty.
 		//
 		// (see https://github.com/microsoft/vscode/issues/127936)
-
-		if (!this.configurationService.inspect('files.encoding').overrideIdentifiers?.includes(e.newLanguage)) {
-			return; // only when there is a language specific override for the new language
-		}
 
 		const { encoding } = await this.textFileService.encoding.getPreferredReadEncoding(this.resource);
 		if (typeof encoding !== 'string' || !this.isNewEncoding(encoding)) {
