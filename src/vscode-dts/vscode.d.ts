@@ -3249,7 +3249,7 @@ declare module 'vscode' {
 		/**
 		 * Include the declaration of the current symbol.
 		 */
-		includeDeclaration: boolean;
+		readonly includeDeclaration: boolean;
 	}
 
 	/**
@@ -11412,6 +11412,9 @@ declare module 'vscode' {
 		 * otherwise will be watched non-recursively (i.e. only changes to the first level of the path
 		 * will be reported).
 		 *
+		 * If possible, keep the use of recursive watchers to a minimum because recursive file watching
+		 * is quite resource intense.
+		 *
 		 * Providing a `string` as `globPattern` acts as convenience method for watching file events in
 		 * all opened workspace folders. It cannot be used to add more folders for file watching, nor will
 		 * it report any file events from folders that are not part of the opened workspace folders.
@@ -11420,10 +11423,11 @@ declare module 'vscode' {
 		 *
 		 * To stop listening to events the watcher must be disposed.
 		 *
-		 * *Note* that file events from file watchers may be excluded based on user configuration.
+		 * *Note* that file events from recursive file watchers may be excluded based on user configuration.
 		 * The setting `files.watcherExclude` helps to reduce the overhead of file events from folders
 		 * that are known to produce many file changes at once (such as `node_modules` folders). As such,
-		 * it is highly recommended to watch with simple patterns that do not require recursive watchers.
+		 * it is highly recommended to watch with simple patterns that do not require recursive watchers
+		 * where the exclude settings are ignored and you have full control over the events.
 		 *
 		 * *Note* that symbolic links are not automatically followed for file watching unless the path to
 		 * watch itself is a symbolic link.
@@ -13029,7 +13033,7 @@ declare module 'vscode' {
 		 * _Note_ that controller selection is persisted (by the controllers {@link NotebookController.id id}) and restored as soon as a
 		 * controller is re-created or as a notebook is {@link workspace.onDidOpenNotebookDocument opened}.
 		 */
-		readonly onDidChangeSelectedNotebooks: Event<{ notebook: NotebookDocument; selected: boolean }>;
+		readonly onDidChangeSelectedNotebooks: Event<{ readonly notebook: NotebookDocument; readonly selected: boolean }>;
 
 		/**
 		 * A controller can set affinities for specific notebook documents. This allows a controller

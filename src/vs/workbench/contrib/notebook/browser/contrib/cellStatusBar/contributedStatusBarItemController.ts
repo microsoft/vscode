@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
 import { disposableTimeout, Throttler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -119,7 +118,7 @@ class CellStatusBarHelper extends Disposable {
 			return;
 		}
 
-		const items = flatten(itemLists.map(itemList => itemList.items));
+		const items = itemLists.map(itemList => itemList.items).flat();
 		const newIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items }]);
 
 		this._currentItemLists.forEach(itemList => itemList.dispose && itemList.dispose());

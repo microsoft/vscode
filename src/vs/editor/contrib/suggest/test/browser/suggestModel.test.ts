@@ -16,7 +16,7 @@ import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionTriggerKind, EncodedTokenizationResult, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
@@ -70,10 +70,11 @@ suite('SuggestModel - Context', function () {
 
 	class OuterMode extends MockMode {
 		constructor(
-			@ILanguageService languageService: ILanguageService
+			@ILanguageService languageService: ILanguageService,
+			@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 		) {
 			super(OUTER_LANGUAGE_ID);
-			this._register(LanguageConfigurationRegistry.register(this.languageId, {}));
+			this._register(languageConfigurationService.register(this.languageId, {}));
 
 			this._register(TokenizationRegistry.register(this.languageId, {
 				getInitialState: (): IState => NullState,
@@ -102,9 +103,11 @@ suite('SuggestModel - Context', function () {
 	}
 
 	class InnerMode extends MockMode {
-		constructor() {
+		constructor(
+			@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
+		) {
 			super(INNER_LANGUAGE_ID);
-			this._register(LanguageConfigurationRegistry.register(this.languageId, {}));
+			this._register(languageConfigurationService.register(this.languageId, {}));
 		}
 	}
 

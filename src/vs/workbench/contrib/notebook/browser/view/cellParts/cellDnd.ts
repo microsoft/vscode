@@ -68,7 +68,7 @@ export class CellDragAndDropController extends Disposable {
 	private readonly listOnWillScrollListener = this._register(new MutableDisposable());
 
 	constructor(
-		private readonly notebookEditor: INotebookEditorDelegate,
+		private notebookEditor: INotebookEditorDelegate,
 		private readonly notebookListContainer: HTMLElement
 	) {
 		super();
@@ -406,6 +406,11 @@ export class CellDragAndDropController extends Disposable {
 
 		return this.getDropInsertDirection(dragPosRatio);
 	}
+
+	override dispose() {
+		this.notebookEditor = null!;
+		super.dispose();
+	}
 }
 
 export function performCellDropEdits(editor: INotebookEditorDelegate, draggedCell: ICellViewModel, dropDirection: 'above' | 'below', draggedOverCell: ICellViewModel): void {
@@ -494,6 +499,6 @@ export function performCellDropEdits(editor: INotebookEditorDelegate, draggedCel
 		true,
 		{ kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() },
 		() => ({ kind: SelectionStateType.Index, focus: finalFocus, selections: [finalSelection] }),
-		undefined);
+		undefined, true);
 	editor.revealCellRangeInView(finalSelection);
 }

@@ -6,19 +6,18 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { PathCompletionProvider } from '../features/pathCompletions';
+import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
+import { MdPathCompletionProvider } from '../languageFeatures/pathCompletions';
+import { InMemoryDocument } from '../util/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from './inMemoryDocument';
-import { CURSOR, getCursorPositions, joinLines, noopToken } from './util';
+import { CURSOR, getCursorPositions, joinLines, noopToken, workspacePath } from './util';
 
-
-function workspaceFile(...segments: string[]): vscode.Uri {
-	return vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, ...segments);
-}
 
 function getCompletionsAtCursor(resource: vscode.Uri, fileContents: string) {
 	const doc = new InMemoryDocument(resource, fileContents);
-	const provider = new PathCompletionProvider(createNewMarkdownEngine());
+	const engine = createNewMarkdownEngine();
+	const linkProvider = new MdLinkProvider(engine);
+	const provider = new MdPathCompletionProvider(engine, linkProvider);
 	const cursorPositions = getCursorPositions(fileContents, doc);
 	return provider.provideCompletionItems(doc, cursorPositions[0], noopToken, {
 		triggerCharacter: undefined,
@@ -34,12 +33,12 @@ suite('Markdown path completion provider', () => {
 	});
 
 	test('Should not return anything when triggered in empty doc', async () => {
-		const completions = await getCompletionsAtCursor(workspaceFile('new.md'), `${CURSOR}`);
+		const completions = await getCompletionsAtCursor(workspacePath('new.md'), `${CURSOR}`);
 		assert.strictEqual(completions.length, 0);
 	});
 
 	test('Should return anchor completions', async () => {
-		const completions = await getCompletionsAtCursor(workspaceFile('new.md'), joinLines(
+		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](#${CURSOR}`,
 			``,
 			`# A b C`,
@@ -52,7 +51,7 @@ suite('Markdown path completion provider', () => {
 	});
 
 	test('Should not return suggestions for http links', async () => {
-		const completions = await getCompletionsAtCursor(workspaceFile('new.md'), joinLines(
+		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](http:${CURSOR}`,
 			``,
 			`# http`,
@@ -64,7 +63,7 @@ suite('Markdown path completion provider', () => {
 	});
 
 	test('Should return relative path suggestions', async () => {
-		const completions = await getCompletionsAtCursor(workspaceFile('new.md'), joinLines(
+		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](${CURSOR}`,
 			``,
 			`# A b C`,
@@ -76,7 +75,7 @@ suite('Markdown path completion provider', () => {
 	});
 
 	test('Should return relative path suggestions using ./', async () => {
-		const completions = await getCompletionsAtCursor(workspaceFile('new.md'), joinLines(
+		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](./${CURSOR}`,
 			``,
 			`# A b C`,
@@ -88,7 +87,7 @@ suite('Markdown path completion provider', () => {
 	});
 
 	test('Should return absolute path suggestions using /', async () => {
-		const completions = await getCompletionsAtCursor(workspaceFile('sub', 'new.md'), joinLines(
+		const completions = await getCompletionsAtCursor(workspacePath('sub', 'new.md'), joinLines(
 			`[](/${CURSOR}`,
 			``,
 			`# A b C`,
@@ -101,7 +100,7 @@ suite('Markdown path completion provider', () => {
 	});
 
 	test('Should return anchor suggestions in other file', async () => {
-		const completions = await getCompletionsAtCursor(workspaceFile('sub', 'new.md'), joinLines(
+		const completions = await getCompletionsAtCursor(workspacePath('sub', 'new.md'), joinLines(
 			`[](/b.md#${CURSOR}`,
 		));
 
@@ -110,7 +109,7 @@ suite('Markdown path completion provider', () => {
 	});
 
 	test('Should reference links for current file', async () => {
-		const completions = await getCompletionsAtCursor(workspaceFile('sub', 'new.md'), joinLines(
+		const completions = await getCompletionsAtCursor(workspacePath('sub', 'new.md'), joinLines(
 			`[][${CURSOR}`,
 			``,
 			`[ref-1]: bla`,
@@ -123,7 +122,7 @@ suite('Markdown path completion provider', () => {
 	});
 
 	test('Should complete headers in link definitions', async () => {
-		const completions = await getCompletionsAtCursor(workspaceFile('sub', 'new.md'), joinLines(
+		const completions = await getCompletionsAtCursor(workspacePath('sub', 'new.md'), joinLines(
 			`# a B c`,
 			`# x y    Z`,
 			`[ref-1]: ${CURSOR}`,
@@ -134,7 +133,7 @@ suite('Markdown path completion provider', () => {
 	});
 
 	test('Should complete relative paths in link definitions', async () => {
-		const completions = await getCompletionsAtCursor(workspaceFile('new.md'), joinLines(
+		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`# a B c`,
 			`[ref-1]: ${CURSOR}`,
 		));
@@ -145,7 +144,7 @@ suite('Markdown path completion provider', () => {
 	});
 
 	test('Should escape spaces in path names', async () => {
-		const completions = await getCompletionsAtCursor(workspaceFile('new.md'), joinLines(
+		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](./sub/${CURSOR})`
 		));
 
@@ -153,7 +152,7 @@ suite('Markdown path completion provider', () => {
 	});
 
 	test('Should complete paths for path with encoded spaces', async () => {
-		const completions = await getCompletionsAtCursor(workspaceFile('new.md'), joinLines(
+		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[](./sub%20with%20space/${CURSOR})`
 		));
 
@@ -161,7 +160,7 @@ suite('Markdown path completion provider', () => {
 	});
 
 	test('Should complete definition path for path with encoded spaces', async () => {
-		const completions = await getCompletionsAtCursor(workspaceFile('new.md'), joinLines(
+		const completions = await getCompletionsAtCursor(workspacePath('new.md'), joinLines(
 			`[def]: ./sub%20with%20space/${CURSOR}`
 		));
 

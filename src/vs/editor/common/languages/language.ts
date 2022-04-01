@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -57,6 +58,11 @@ export interface ILanguageService {
 	 * An event emitted when languages have changed.
 	 */
 	onDidChange: Event<void>;
+
+	/**
+	 * Register a language.
+	 */
+	registerLanguage(def: ILanguageExtensionPoint): IDisposable;
 
 	/**
 	 * Check if `languageId` is registered.

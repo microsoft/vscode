@@ -602,6 +602,17 @@ export class NotebookEditorToolbar extends Disposable {
 		}
 		this._computeSizes();
 	}
+
+	override dispose() {
+		this._notebookLeftToolbar.context = undefined;
+		this._notebookRightToolbar.context = undefined;
+		this._notebookLeftToolbar.dispose();
+		this._notebookRightToolbar.dispose();
+		this._notebookLeftToolbar = null!;
+		this._notebookRightToolbar = null!;
+
+		super.dispose();
+	}
 }
 
 registerThemingParticipant((theme, collector) => {

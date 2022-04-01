@@ -99,7 +99,9 @@ suite('StoredFileWorkingCopy', function () {
 	let workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>;
 
 	function createWorkingCopy(uri: URI = resource) {
-		return new StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>('testStoredFileWorkingCopyType', uri, basename(uri), factory, accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService);
+		const workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModel> = new StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>('testStoredFileWorkingCopyType', uri, basename(uri), factory, options => workingCopy.resolve(options), accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService);
+
+		return workingCopy;
 	}
 
 	setup(() => {

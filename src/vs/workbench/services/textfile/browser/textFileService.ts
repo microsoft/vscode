@@ -42,6 +42,7 @@ import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/w
 import { Emitter } from 'vs/base/common/event';
 import { Codicon } from 'vs/base/common/codicons';
 import { listErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -305,7 +306,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return toDecodeStream(stream, {
 			acceptTextOnly: options?.acceptTextOnly ?? false,
 			guessEncoding: options?.autoGuessEncoding || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
-			overwriteEncoding: detectedEncoding => this.encoding.getReadEncoding(resource, options, detectedEncoding)
+			overwriteEncoding: async detectedEncoding => {
+				const { encoding } = await this.encoding.getPreferredReadEncoding(resource, options, withNullAsUndefined(detectedEncoding));
+
+				return encoding;
+			}
 		});
 	}
 
@@ -731,7 +736,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		};
 	}
 
-	getReadEncoding(resource: URI, options: IReadTextFileEncodingOptions | undefined, detectedEncoding: string | null): Promise<string> {
+	async getPreferredReadEncoding(resource: URI, options?: IReadTextFileEncodingOptions, detectedEncoding?: string): Promise<IResourceEncoding> {
 		let preferredEncoding: string | undefined;
 
 		// Encoding passed in as option
@@ -744,7 +749,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		}
 
 		// Encoding detected
-		else if (detectedEncoding) {
+		else if (typeof detectedEncoding === 'string') {
 			preferredEncoding = detectedEncoding;
 		}
 
@@ -753,7 +758,12 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 			preferredEncoding = UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
 		}
 
-		return this.getEncodingForResource(resource, preferredEncoding);
+		const encoding = await this.getEncodingForResource(resource, preferredEncoding);
+
+		return {
+			encoding,
+			hasBOM: encoding === UTF16be || encoding === UTF16le || encoding === UTF8_with_bom // enforce BOM for certain encodings
+		};
 	}
 
 	private async getEncodingForResource(resource: URI, preferredEncoding?: string): Promise<string> {

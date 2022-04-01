@@ -61,7 +61,7 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		if (!query) {
 			const user = await octokit.users.getAuthenticated({});
 			const username = user.data.login;
-			const res = await octokit.repos.listForUser({ username, sort: 'updated', per_page: 100 });
+			const res = await octokit.repos.listForAuthenticatedUser({ username, sort: 'updated', per_page: 100 });
 			this.userReposCache = res.data.map(asRemoteSource);
 		}
 

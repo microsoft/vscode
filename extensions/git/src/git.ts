@@ -531,7 +531,16 @@ export class Git {
 
 	stream(cwd: string, args: string[], options: SpawnOptions = {}): cp.ChildProcess {
 		options = assign({ cwd }, options || {});
-		return this.spawn(args, options);
+		const child = this.spawn(args, options);
+
+		if (options.log !== false) {
+			const startTime = Date.now();
+			child.on('exit', (_) => {
+				this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]\n`);
+			});
+		}
+
+		return child;
 	}
 
 	private async _exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
@@ -1849,11 +1858,17 @@ export class Repository {
 		}
 	}
 
-	getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
+	getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden' }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
 		return new Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }>((c, e) => {
 			const parser = new GitStatusParser();
 			const env = { GIT_OPTIONAL_LOCKS: '0' };
-			const args = ['status', '-z', '-u'];
+			const args = ['status', '-z'];
+
+			if (opts?.untrackedChanges === 'hidden') {
+				args.push('-uno');
+			} else {
+				args.push('-uall');
+			}
 
 			if (opts?.ignoreSubmodules) {
 				args.push('--ignore-submodules');

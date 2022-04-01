@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController } from 'vs/workbench/common/views';
+import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge } from 'vs/workbench/common/views';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -99,6 +99,15 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		if (viewer) {
 			viewer.title = title;
 			viewer.description = description;
+		}
+	}
+
+	$setBadge(treeViewId: string, badge: IViewBadge | undefined): void {
+		this.logService.trace('MainThreadTreeViews#$setBadge', treeViewId, badge?.value, badge?.tooltip);
+
+		const viewer = this.getTreeView(treeViewId);
+		if (viewer) {
+			viewer.badge = badge;
 		}
 	}
 

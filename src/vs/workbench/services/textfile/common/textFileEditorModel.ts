@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, TextFileResolveReason, ITextFileEditorModelSaveEvent } from 'vs/workbench/services/textfile/common/textfiles';
-import { IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
+import { IRevertOptions, SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
@@ -43,6 +44,8 @@ interface IBackupMetaData extends IWorkingCopyBackupMeta {
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
  */
 export class TextFileEditorModel extends BaseTextEditorModel implements ITextFileEditorModel {
+
+	private static readonly TEXTFILE_SAVE_ENCODING_SOURCE = SaveSourceRegistry.registerSource('textFileEncoding.source', localize('textFileCreate.source', "File Encoding Changed"));
 
 	//#region Events
 
@@ -116,7 +119,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IPathService private readonly pathService: IPathService,
-		@IExtensionService private readonly extensionService: IExtensionService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super(modelService, languageService, languageDetectionService, accessibilityService);
 
@@ -128,7 +131,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private registerListeners(): void {
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
-		this._register(this.filesConfigurationService.onFilesAssociationChange(e => this.onFilesAssociationChange()));
+		this._register(this.filesConfigurationService.onFilesAssociationChange(() => this.onFilesAssociationChange()));
 	}
 
 	private async onDidFilesChange(e: FileChangesEvent): Promise<void> {
@@ -241,7 +244,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const softUndo = options?.soft;
 		if (!softUndo) {
 			try {
-				await this.resolve({ forceReadFromFile: true });
+				await this.forceResolveFromFile();
 			} catch (error) {
 
 				// FileNotFound means the file got deleted meanwhile, so ignore it
@@ -559,8 +562,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// This code has been extracted to a different method because it caused a memory leak
 		// where `value` was captured in the content change listener closure scope.
 
-		// Content Change
+		// Listen to text model events
 		this._register(model.onDidChangeContent(e => this.onModelContentChanged(model, e.isUndoing || e.isRedoing)));
+		this._register(model.onDidChangeLanguage(e => this.onMaybeShouldChangeEncoding())); // detect possible encoding change via language specific settings
 	}
 
 	private onModelContentChanged(model: ITextModel, isUndoingOrRedoing: boolean): void {
@@ -613,19 +617,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.autoDetectLanguage();
 	}
 
-	private static _whenReadyToDetectLanguage: Promise<boolean> | undefined;
-	private whenReadyToDetectLanguage(): Promise<boolean> {
-		if (TextFileEditorModel._whenReadyToDetectLanguage === undefined) {
-			// We need to wait until installed extensions are registered because if the editor is created before that (like when restoring an editor)
-			// it could be created with a language of plaintext. This would trigger language detection even though the real issue is that the
-			// language extensions are not yet loaded to provide the actual language.
-			TextFileEditorModel._whenReadyToDetectLanguage = this.extensionService.whenInstalledExtensionsRegistered();
-		}
-		return TextFileEditorModel._whenReadyToDetectLanguage;
-	}
-
 	protected override async autoDetectLanguage(): Promise<void> {
-		await this.whenReadyToDetectLanguage();
+
+		// Wait to be ready to detect language
+		await this.extensionService?.whenInstalledExtensionsRegistered();
+
+		// Only perform language detection conditionally
 		const languageId = this.getLanguageId();
 		if (
 			this.resource.scheme === this.pathService.defaultUriScheme &&	// make sure to not detect language for non-user visible documents
@@ -634,6 +631,23 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		) {
 			return super.autoDetectLanguage();
 		}
+	}
+
+	private async forceResolveFromFile(): Promise<void> {
+		if (this.isDisposed()) {
+			return; // return early when the model is invalid
+		}
+
+		// We go through the text file service to make
+		// sure this kind of `resolve` is properly
+		// running in sequence with any other running
+		// `resolve` if any, including subsequent runs
+		// that are triggered right after.
+
+		await this.textFileService.files.resolve(this.resource, {
+			reload: { async: false },
+			forceReadFromFile: true
+		});
 	}
 
 	//#endregion
@@ -986,14 +1000,54 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	//#region Encoding
 
-	getEncoding(): string | undefined {
-		return this.preferredEncoding || this.contentEncoding;
+	private async onMaybeShouldChangeEncoding(): Promise<void> {
+
+		// This is a bit of a hack but there is a narrow case where
+		// per-language configured encodings are not working:
+		//
+		// On startup we may not yet have all languages resolved so
+		// we pick a wrong encoding. We never used to re-apply the
+		// encoding when the language was then resolved, because that
+		// is an operation that is will have to fetch the contents
+		// again from disk.
+		//
+		// To mitigate this issue, when we detect the model language
+		// changes, we see if there is a specific encoding configured
+		// for the new language and apply it, only if the model is
+		// not dirty and only if the encoding was not explicitly set.
+		//
+		// (see https://github.com/microsoft/vscode/issues/127936)
+
+		if (this.hasEncodingSetExplicitly) {
+			return; // never change the user's choice of encoding
+		}
+
+		const { encoding } = await this.textFileService.encoding.getPreferredReadEncoding(this.resource);
+		if (typeof encoding !== 'string' || !this.isNewEncoding(encoding)) {
+			return; // return early if encoding is invalid or did not change
+		}
+
+		if (this.isDirty()) {
+			return; // return early to prevent accident saves in this case
+		}
+
+		this.logService.info(`Adjusting encoding based on configured language override to '${encoding}' for ${this.resource.toString(true)}.`);
+
+		// Re-open with new encoding
+		return this.setEncodingInternal(encoding, EncodingMode.Decode);
 	}
 
-	async setEncoding(encoding: string, mode: EncodingMode): Promise<void> {
-		if (!this.isNewEncoding(encoding)) {
-			return; // return early if the encoding is already the same
-		}
+	private hasEncodingSetExplicitly: boolean = false;
+
+	setEncoding(encoding: string, mode: EncodingMode): Promise<void> {
+
+		// Remember that an explicit encoding was set
+		this.hasEncodingSetExplicitly = true;
+
+		return this.setEncodingInternal(encoding, mode);
+	}
+
+	private async setEncodingInternal(encoding: string, mode: EncodingMode): Promise<void> {
 
 		// Encode: Save with encoding
 		if (mode === EncodingMode.Encode) {
@@ -1006,21 +1060,23 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 
 			if (!this.inConflictMode) {
-				await this.save();
+				await this.save({ source: TextFileEditorModel.TEXTFILE_SAVE_ENCODING_SOURCE });
 			}
 		}
 
 		// Decode: Resolve with encoding
 		else {
-			if (this.isDirty()) {
+			if (!this.isNewEncoding(encoding)) {
+				return; // return early if the encoding is already the same
+			}
+
+			if (this.isDirty() && !this.inConflictMode) {
 				await this.save();
 			}
 
 			this.updatePreferredEncoding(encoding);
 
-			await this.resolve({
-				forceReadFromFile: true	// because encoding has changed
-			});
+			await this.forceResolveFromFile();
 		}
 	}
 
@@ -1045,6 +1101,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		return true;
+	}
+
+	getEncoding(): string | undefined {
+		return this.preferredEncoding || this.contentEncoding;
 	}
 
 	//#endregion
