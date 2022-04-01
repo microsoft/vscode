@@ -133,14 +133,14 @@ export class InlayHintsFragments {
 
 	private static _getRangeAtPosition(model: ITextModel, position: IPosition): Range {
 		const line = position.lineNumber;
-		const word = model.getWordAtPosition(position);
+		const word = model.tokenization.getWordAtPosition(position);
 		if (word) {
 			// always prefer the word range
 			return new Range(line, word.startColumn, line, word.endColumn);
 		}
 
-		model.tokenizeIfCheap(line);
-		const tokens = model.getLineTokens(line);
+		model.tokenization.tokenizeIfCheap(line);
+		const tokens = model.tokenization.getLineTokens(line);
 		const offset = position.column - 1;
 		const idx = tokens.findTokenIndexAtOffset(offset);
 

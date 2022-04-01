@@ -2751,7 +2751,7 @@ suite('Editor Controller', () => {
 			withTestCodeEditor(model, {}, (editor2, cursor2) => {
 
 				editor1.onDidChangeCursorPosition(() => {
-					model.tokenizeIfCheap(1);
+					model.tokenization.tokenizeIfCheap(1);
 				});
 
 				model.applyEdits([{ range: new Range(1, 1, 1, 1), text: '-' }]);
@@ -3680,7 +3680,7 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(1, 12, 1, 12));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(2, 2, 2, 2));
 
 			moveTo(editor, viewModel, 3, 13, false);
@@ -3743,7 +3743,7 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(2, 14, 2, 14));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(3, 1, 3, 1));
 
 			moveTo(editor, viewModel, 5, 16, false);
@@ -3771,7 +3771,7 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(2, 11, 2, 11));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(3, 3, 3, 3));
 
 			viewModel.type('console.log();', 'keyboard');
@@ -3856,7 +3856,7 @@ suite('Editor Controller', () => {
 			viewModel.type('\n', 'keyboard');
 			assertCursor(viewModel, new Selection(2, 5, 2, 5));
 
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 
 			moveTo(editor, viewModel, 3, 13, false);
 			assertCursor(viewModel, new Selection(3, 13, 3, 13));
@@ -3878,7 +3878,7 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(1, 12, 1, 12));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(2, 5, 2, 5));
 
 			moveTo(editor, viewModel, 3, 16, false);
@@ -3903,7 +3903,7 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(1, 12, 1, 12));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(2, 2, 2, 2));
 
 			moveTo(editor, viewModel, 3, 16, false);
@@ -4614,13 +4614,13 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(1, 9, 1, 9));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(2, 2, 2, 2));
 
 			moveTo(editor, viewModel, 1, 9, false);
 			assertCursor(viewModel, new Selection(1, 9, 1, 9));
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(2, 2, 2, 2));
 		});
 	});
@@ -4931,7 +4931,7 @@ suite('Editor Controller', () => {
 			text: ['const markup = highlight'],
 			languageId: autoClosingLanguageId
 		}, (editor, model, viewModel) => {
-			model.forceTokenization(1);
+			model.tokenization.forceTokenization(1);
 			assertType(editor, model, viewModel, 1, 25, '`', '``', `auto closes \` @ (1, 25)`);
 		});
 	});
@@ -4944,7 +4944,7 @@ suite('Editor Controller', () => {
 			{},
 			(editor, viewModel) => {
 				const model = viewModel.model;
-				model.forceTokenization(1);
+				model.tokenization.forceTokenization(1);
 				assertType(editor, model, viewModel, 1, 28, '`', '`', `does not auto close \` @ (1, 28)`);
 			}
 		);
@@ -4980,7 +4980,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -5024,7 +5024,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -5055,7 +5055,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -5085,7 +5085,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -5131,7 +5131,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -5176,7 +5176,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 						assertType(editor, model, viewModel, lineNumber, column, '"', '""', `auto closes @ (${lineNumber}, ${column})`);
@@ -5310,7 +5310,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
 					} else if (autoCloseColumns[column] === AutoClosingColumnType.Special2) {
@@ -5408,15 +5408,15 @@ suite('Editor Controller', () => {
 			],
 			languageId: languageId
 		}, (editor, model, viewModel) => {
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertType(editor, model, viewModel, 1, 4, '"', '"', `does not double quote when ending with open`);
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertType(editor, model, viewModel, 2, 4, '"', '"', `does not double quote when ending with open`);
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertType(editor, model, viewModel, 3, 4, '"', '"', `does not double quote when ending with open`);
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertType(editor, model, viewModel, 4, 2, '"', '"', `does not double quote when ending with open`);
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertType(editor, model, viewModel, 4, 3, '"', '"', `does not double quote when ending with open`);
 		});
 	});
@@ -5447,50 +5447,50 @@ suite('Editor Controller', () => {
 			}
 
 			// First gif
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste1 = teste\' ok');
 			assert.strictEqual(model.getLineContent(1), 'teste1 = teste\' ok');
 
 			viewModel.setSelections('test', [new Selection(1, 1000, 1, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste2 = teste \'ok');
 			assert.strictEqual(model.getLineContent(2), 'teste2 = teste \'ok\'');
 
 			viewModel.setSelections('test', [new Selection(2, 1000, 2, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste3 = teste" ok');
 			assert.strictEqual(model.getLineContent(3), 'teste3 = teste" ok');
 
 			viewModel.setSelections('test', [new Selection(3, 1000, 3, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste4 = teste "ok');
 			assert.strictEqual(model.getLineContent(4), 'teste4 = teste "ok"');
 
 			// Second gif
 			viewModel.setSelections('test', [new Selection(4, 1000, 4, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste \'');
 			assert.strictEqual(model.getLineContent(5), 'teste \'\'');
 
 			viewModel.setSelections('test', [new Selection(5, 1000, 5, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste "');
 			assert.strictEqual(model.getLineContent(6), 'teste ""');
 
 			viewModel.setSelections('test', [new Selection(6, 1000, 6, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste\'');
 			assert.strictEqual(model.getLineContent(7), 'teste\'');
 
 			viewModel.setSelections('test', [new Selection(7, 1000, 7, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste"');
 			assert.strictEqual(model.getLineContent(8), 'teste"');
 		});

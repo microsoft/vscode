@@ -178,7 +178,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 
 	private _matchBracket(position: Position, continueSearchPredicate: ContinueBracketSearchPredicate): [Range, Range] | null {
 		const lineNumber = position.lineNumber;
-		const lineTokens = this.textModel.getLineTokens(lineNumber);
+		const lineTokens = this.textModel.tokenization.getLineTokens(lineNumber);
 		const lineText = this.textModel.getLineContent(lineNumber);
 
 		const tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
@@ -309,7 +309,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 		};
 
 		for (let lineNumber = position.lineNumber; lineNumber >= 1; lineNumber--) {
-			const lineTokens = this.textModel.getLineTokens(lineNumber);
+			const lineTokens = this.textModel.tokenization.getLineTokens(lineNumber);
 			const tokenCount = lineTokens.getCount();
 			const lineText = this.textModel.getLineContent(lineNumber);
 
@@ -397,7 +397,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 
 		const lineCount = this.textModel.getLineCount();
 		for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
-			const lineTokens = this.textModel.getLineTokens(lineNumber);
+			const lineTokens = this.textModel.tokenization.getLineTokens(lineNumber);
 			const tokenCount = lineTokens.getCount();
 			const lineText = this.textModel.getLineContent(lineNumber);
 
@@ -454,7 +454,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 		let languageId: string | null = null;
 		let modeBrackets: RichEditBrackets | null = null;
 		for (let lineNumber = position.lineNumber; lineNumber >= 1; lineNumber--) {
-			const lineTokens = this.textModel.getLineTokens(lineNumber);
+			const lineTokens = this.textModel.tokenization.getLineTokens(lineNumber);
 			const tokenCount = lineTokens.getCount();
 			const lineText = this.textModel.getLineContent(lineNumber);
 
@@ -532,7 +532,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 		let languageId: string | null = null;
 		let modeBrackets: RichEditBrackets | null = null;
 		for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
-			const lineTokens = this.textModel.getLineTokens(lineNumber);
+			const lineTokens = this.textModel.tokenization.getLineTokens(lineNumber);
 			const tokenCount = lineTokens.getCount();
 			const lineText = this.textModel.getLineContent(lineNumber);
 
@@ -653,7 +653,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 		let languageId: string | null = null;
 		let modeBrackets: RichEditBrackets | null = null;
 		for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
-			const lineTokens = this.textModel.getLineTokens(lineNumber);
+			const lineTokens = this.textModel.tokenization.getLineTokens(lineNumber);
 			const tokenCount = lineTokens.getCount();
 			const lineText = this.textModel.getLineContent(lineNumber);
 

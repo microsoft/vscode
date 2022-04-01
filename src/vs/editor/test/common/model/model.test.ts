@@ -442,17 +442,17 @@ suite('Editor Model - Words', () => {
 		const thisModel = createTextModel(text.join('\n'));
 		disposables.push(thisModel);
 
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 1)), { word: 'This', startColumn: 1, endColumn: 5 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 2)), { word: 'This', startColumn: 1, endColumn: 5 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 4)), { word: 'This', startColumn: 1, endColumn: 5 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 5)), { word: 'This', startColumn: 1, endColumn: 5 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 6)), { word: 'text', startColumn: 6, endColumn: 10 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 19)), { word: 'some', startColumn: 15, endColumn: 19 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 20)), null);
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 21)), { word: 'words', startColumn: 21, endColumn: 26 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 26)), { word: 'words', startColumn: 21, endColumn: 26 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 27)), null);
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 28)), null);
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 1)), { word: 'This', startColumn: 1, endColumn: 5 });
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 2)), { word: 'This', startColumn: 1, endColumn: 5 });
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 4)), { word: 'This', startColumn: 1, endColumn: 5 });
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 5)), { word: 'This', startColumn: 1, endColumn: 5 });
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 6)), { word: 'text', startColumn: 6, endColumn: 10 });
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 19)), { word: 'some', startColumn: 15, endColumn: 19 });
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 20)), null);
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 21)), { word: 'words', startColumn: 21, endColumn: 26 });
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 26)), { word: 'words', startColumn: 21, endColumn: 26 });
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 27)), null);
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 28)), null);
 	});
 
 	test('getWordAtPosition at embedded language boundaries', () => {
@@ -463,13 +463,13 @@ suite('Editor Model - Words', () => {
 
 		const model = disposables.add(instantiateTextModel(instantiationService, 'ab<xx>ab<x>', outerMode.languageId));
 
-		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 1)), { word: 'ab', startColumn: 1, endColumn: 3 });
-		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 2)), { word: 'ab', startColumn: 1, endColumn: 3 });
-		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 3)), { word: 'ab', startColumn: 1, endColumn: 3 });
-		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 4)), { word: 'xx', startColumn: 4, endColumn: 6 });
-		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 5)), { word: 'xx', startColumn: 4, endColumn: 6 });
-		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 6)), { word: 'xx', startColumn: 4, endColumn: 6 });
-		assert.deepStrictEqual(model.getWordAtPosition(new Position(1, 7)), { word: 'ab', startColumn: 7, endColumn: 9 });
+		assert.deepStrictEqual(model.tokenization.getWordAtPosition(new Position(1, 1)), { word: 'ab', startColumn: 1, endColumn: 3 });
+		assert.deepStrictEqual(model.tokenization.getWordAtPosition(new Position(1, 2)), { word: 'ab', startColumn: 1, endColumn: 3 });
+		assert.deepStrictEqual(model.tokenization.getWordAtPosition(new Position(1, 3)), { word: 'ab', startColumn: 1, endColumn: 3 });
+		assert.deepStrictEqual(model.tokenization.getWordAtPosition(new Position(1, 4)), { word: 'xx', startColumn: 4, endColumn: 6 });
+		assert.deepStrictEqual(model.tokenization.getWordAtPosition(new Position(1, 5)), { word: 'xx', startColumn: 4, endColumn: 6 });
+		assert.deepStrictEqual(model.tokenization.getWordAtPosition(new Position(1, 6)), { word: 'xx', startColumn: 4, endColumn: 6 });
+		assert.deepStrictEqual(model.tokenization.getWordAtPosition(new Position(1, 7)), { word: 'ab', startColumn: 7, endColumn: 9 });
 
 		disposables.dispose();
 	});
@@ -488,14 +488,14 @@ suite('Editor Model - Words', () => {
 
 		const thisModel = disposables.add(instantiateTextModel(instantiationService, '.🐷-a-b', MODE_ID));
 
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 1)), { word: '.', startColumn: 1, endColumn: 2 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 2)), { word: '.', startColumn: 1, endColumn: 2 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 3)), null);
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 4)), { word: '-a-b', startColumn: 4, endColumn: 8 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 5)), { word: '-a-b', startColumn: 4, endColumn: 8 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 6)), { word: '-a-b', startColumn: 4, endColumn: 8 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 7)), { word: '-a-b', startColumn: 4, endColumn: 8 });
-		assert.deepStrictEqual(thisModel.getWordAtPosition(new Position(1, 8)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 1)), { word: '.', startColumn: 1, endColumn: 2 });
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 2)), { word: '.', startColumn: 1, endColumn: 2 });
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 3)), null);
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 4)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 5)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 6)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 7)), { word: '-a-b', startColumn: 4, endColumn: 8 });
+		assert.deepStrictEqual(thisModel.tokenization.getWordAtPosition(new Position(1, 8)), { word: '-a-b', startColumn: 4, endColumn: 8 });
 
 		disposables.dispose();
 	});

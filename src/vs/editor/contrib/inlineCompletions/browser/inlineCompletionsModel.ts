@@ -771,7 +771,7 @@ export interface TrackedInlineCompletion extends NormalizedInlineCompletion {
 }
 
 function getDefaultRange(position: Position, model: ITextModel): Range {
-	const word = model.getWordAtPosition(position);
+	const word = model.tokenization.getWordAtPosition(position);
 	const maxColumn = model.getLineMaxColumn(position.lineNumber);
 	// By default, always replace up until the end of the current line.
 	// This default might be subject to change!
@@ -784,7 +784,7 @@ function closeBrackets(text: string, position: Position, model: ITextModel, lang
 	const lineStart = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
 	const newLine = lineStart + text;
 
-	const newTokens = model.tokenizeLineWithEdit(position, newLine.length - (position.column - 1), text);
+	const newTokens = model.tokenization.tokenizeLineWithEdit(position, newLine.length - (position.column - 1), text);
 	const slicedTokens = newTokens?.sliceAndInflate(position.column - 1, newLine.length, 0);
 	if (!slicedTokens) {
 		return text;

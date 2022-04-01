@@ -50,7 +50,7 @@ export class WordContextKey {
 				}
 				const model = this._editor.getModel();
 				const selection = this._editor.getSelection();
-				const word = model.getWordAtPosition(selection.getStartPosition());
+				const word = model.tokenization.getWordAtPosition(selection.getStartPosition());
 				if (!word) {
 					this._ckAtEnd.set(false);
 					return;

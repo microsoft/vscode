@@ -179,8 +179,8 @@ function getWordToLineNumbersMap(model: ITextModel | null): Map<string, number[]
 			continue;
 		}
 
-		model.forceTokenization(lineNumber);
-		const lineTokens = model.getLineTokens(lineNumber);
+		model.tokenization.forceTokenization(lineNumber);
+		const lineTokens = model.tokenization.getLineTokens(lineNumber);
 		for (let tokenIndex = 0, tokenCount = lineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
 			const tokenType = lineTokens.getStandardTokenType(tokenIndex);
 

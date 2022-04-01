@@ -15,6 +15,12 @@ export enum AccessibilitySupport {
 	Enabled = 2
 }
 
+export enum BackgroundTokenizationState {
+	Uninitialized = 0,
+	InProgress = 1,
+	Completed = 2
+}
+
 export enum CompletionItemInsertTextRule {
 	/**
 	 * Adjust whitespace/indentation of multiline insert texts to

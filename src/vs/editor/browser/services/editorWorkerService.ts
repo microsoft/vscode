@@ -193,7 +193,7 @@ class WordBasedCompletionItemProvider implements languages.CompletionItemProvide
 		}
 
 		const wordDefRegExp = this.languageConfigurationService.getLanguageConfiguration(model.getLanguageId()).getWordDefinition();
-		const word = model.getWordAtPosition(position);
+		const word = model.tokenization.getWordAtPosition(position);
 		const replace = !word ? Range.fromPositions(position) : new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 		const insert = replace.setEndPosition(position.lineNumber, position.column);
 

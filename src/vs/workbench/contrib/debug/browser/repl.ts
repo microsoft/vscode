@@ -238,7 +238,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 						const model = this.replInput.getModel();
 						if (model) {
-							const word = model.getWordAtPosition(position);
+							const word = model.tokenization.getWordAtPosition(position);
 							const overwriteBefore = word ? word.word.length : 0;
 							const text = model.getValue();
 							const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;

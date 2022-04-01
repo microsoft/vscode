@@ -94,15 +94,15 @@ class SuggestInlineCompletions implements InlineCompletionsProvider<InlineComple
 			return;
 		}
 
-		model.tokenizeIfCheap(position.lineNumber);
-		const lineTokens = model.getLineTokens(position.lineNumber);
+		model.tokenization.tokenizeIfCheap(position.lineNumber);
+		const lineTokens = model.tokenization.getLineTokens(position.lineNumber);
 		const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(position.column - 1 - 1, 0)));
 		if (QuickSuggestionsOptions.valueFor(config, tokenType) !== 'inline') {
 			// quick suggest is off (for this token)
 			return undefined;
 		}
 
-		const wordInfo = model.getWordAtPosition(position);
+		const wordInfo = model.tokenization.getWordAtPosition(position);
 		if (!wordInfo || wordInfo.word.length === 0 || wordInfo.endColumn !== position.column) {
 			// not without true prefix, not inside word
 			return;

@@ -207,7 +207,7 @@ export async function provideSuggestionItems(
 	const sw = new StopWatch(true);
 	position = position.clone();
 
-	const word = model.getWordAtPosition(position);
+	const word = model.tokenization.getWordAtPosition(position);
 	const defaultReplaceRange = word ? new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn) : Range.fromPositions(position);
 	const defaultRange = { replace: defaultReplaceRange, insert: defaultReplaceRange.setEndPosition(position.lineNumber, position.column) };
 

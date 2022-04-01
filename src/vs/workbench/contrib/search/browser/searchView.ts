@@ -1160,7 +1160,7 @@ export class SearchView extends ViewPane {
 		}
 
 		if (range.isEmpty() && this.searchConfig.seedWithNearestWord && allowUnselectedWord) {
-			const wordAtPosition = editor.getModel().getWordAtPosition(range.getStartPosition());
+			const wordAtPosition = editor.getModel().tokenization.getWordAtPosition(range.getStartPosition());
 			if (wordAtPosition) {
 				return wordAtPosition.word;
 			}

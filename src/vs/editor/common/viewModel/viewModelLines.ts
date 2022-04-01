@@ -1200,7 +1200,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	}
 
 	public getViewLineData(viewLineNumber: number): ViewLineData {
-		const lineTokens = this.model.getLineTokens(viewLineNumber);
+		const lineTokens = this.model.tokenization.getLineTokens(viewLineNumber);
 		const lineContent = lineTokens.getLineContent();
 		return new ViewLineData(
 			lineContent,

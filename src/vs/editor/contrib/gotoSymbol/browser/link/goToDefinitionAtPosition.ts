@@ -136,7 +136,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		this.toUnhookForKeyboard.clear();
 
 		// Find word at mouse position
-		const word = position ? this.editor.getModel()?.getWordAtPosition(position) : null;
+		const word = position ? this.editor.getModel()?.tokenization.getWordAtPosition(position) : null;
 		if (!word) {
 			this.currentWordAtPosition = null;
 			this.removeLinkDecorations();

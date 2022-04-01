@@ -73,7 +73,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		const snippets = new Set(await this._snippets.getSnippets(languageId));
 
 		const lineContentLow = model.getLineContent(position.lineNumber).toLowerCase();
-		const wordUntil = model.getWordUntilPosition(position).word.toLowerCase();
+		const wordUntil = model.tokenization.getWordUntilPosition(position).word.toLowerCase();
 
 		const suggestions: SnippetCompletion[] = [];
 		const columnOffset = position.column - 1;
@@ -182,7 +182,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		// validate the `languageId` to ensure this is a user
 		// facing language with a name and the chance to have
 		// snippets, else fall back to the outer language
-		model.tokenizeIfCheap(position.lineNumber);
+		model.tokenization.tokenizeIfCheap(position.lineNumber);
 		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
 		if (!this._languageService.getLanguageName(languageId)) {
 			languageId = model.getLanguageId();

@@ -442,7 +442,7 @@ export function registerHoverProvider(languageSelector: LanguageSelector, provid
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
 	return languageFeaturesService.hoverProvider.register(languageSelector, {
 		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken): Promise<languages.Hover | undefined> => {
-			const word = model.getWordAtPosition(position);
+			const word = model.tokenization.getWordAtPosition(position);
 
 			return Promise.resolve<languages.Hover | null | undefined>(provider.provideHover(model, position, token)).then((value): languages.Hover | undefined => {
 				if (!value) {

@@ -156,7 +156,7 @@ export class PrefixMemory extends Memory {
 	private _seq = 0;
 
 	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void {
-		const { word } = model.getWordUntilPosition(pos);
+		const { word } = model.tokenization.getWordUntilPosition(pos);
 		const key = `${model.getLanguageId()}/${word}`;
 		this._trie.set(key, {
 			type: item.completion.kind,
@@ -166,7 +166,7 @@ export class PrefixMemory extends Memory {
 	}
 
 	override select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number {
-		let { word } = model.getWordUntilPosition(pos);
+		let { word } = model.tokenization.getWordUntilPosition(pos);
 		if (!word) {
 			return super.select(model, pos, items);
 		}

@@ -74,7 +74,7 @@ class RenameSkeleton {
 			return res;
 		}
 
-		const word = this.model.getWordAtPosition(this.position);
+		const word = this.model.tokenization.getWordAtPosition(this.position);
 		if (!word) {
 			return {
 				range: Range.fromPositions(this.position),

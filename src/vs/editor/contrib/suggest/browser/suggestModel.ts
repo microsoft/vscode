@@ -61,9 +61,9 @@ export class LineContext {
 		}
 		const model = editor.getModel();
 		const pos = editor.getPosition();
-		model.tokenizeIfCheap(pos.lineNumber);
+		model.tokenization.tokenizeIfCheap(pos.lineNumber);
 
-		const word = model.getWordAtPosition(pos);
+		const word = model.tokenization.getWordAtPosition(pos);
 		if (!word) {
 			return false;
 		}
@@ -85,7 +85,7 @@ export class LineContext {
 
 	constructor(model: ITextModel, position: Position, auto: boolean, shy: boolean) {
 		this.leadingLineContent = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
-		this.leadingWord = model.getWordUntilPosition(position);
+		this.leadingWord = model.tokenization.getWordUntilPosition(position);
 		this.lineNumber = position.lineNumber;
 		this.column = position.column;
 		this.auto = auto;
@@ -408,8 +408,8 @@ export class SuggestModel implements IDisposable {
 
 			if (!QuickSuggestionsOptions.isAllOn(config)) {
 				// Check the type of the token that triggered this
-				model.tokenizeIfCheap(pos.lineNumber);
-				const lineTokens = model.getLineTokens(pos.lineNumber);
+				model.tokenization.tokenizeIfCheap(pos.lineNumber);
+				const lineTokens = model.tokenization.getLineTokens(pos.lineNumber);
 				const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
 				if (QuickSuggestionsOptions.valueFor(config, tokenType) !== 'on') {
 					return;

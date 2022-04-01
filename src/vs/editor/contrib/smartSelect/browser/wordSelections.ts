@@ -26,7 +26,7 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 	}
 
 	private _addInWordRanges(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
-		const obj = model.getWordAtPosition(pos);
+		const obj = model.tokenization.getWordAtPosition(pos);
 		if (!obj) {
 			return;
 		}
@@ -70,7 +70,7 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 	}
 
 	private _addWordRanges(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
-		const word = model.getWordAtPosition(pos);
+		const word = model.tokenization.getWordAtPosition(pos);
 		if (word) {
 			bucket.push({ range: new Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn) });
 		}

@@ -6,23 +6,20 @@
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/textModelEvents';
-import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
-import { FormattingOptions, StandardTokenType } from 'vs/editor/common/languages';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
-import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 import { TextChange } from 'vs/editor/common/core/textChange';
-import { equals } from 'vs/base/common/objects';
+import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
+import { FormattingOptions } from 'vs/editor/common/languages';
+import { ITokenizationTextModelPart } from 'vs/editor/common/model/tokenizationTextModelPart';
 import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -780,11 +777,6 @@ export interface ITextModel {
 	isDisposed(): boolean;
 
 	/**
-	 * @internal
-	 */
-	tokenizeViewport(startLineNumber: number, endLineNumber: number): void;
-
-	/**
 	 * This model is so large that it would not be a good idea to sync it over
 	 * to web workers or other places.
 	 * @internal
@@ -844,63 +836,6 @@ export interface ITextModel {
 	 */
 	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch | null;
 
-	/**
-	 * @internal
-	 */
-	setTokens(tokens: ContiguousMultilineTokens[]): void;
-
-	/**
-	 * @internal
-	 */
-	setSemanticTokens(tokens: SparseMultilineTokens[] | null, isComplete: boolean): void;
-
-	/**
-	 * @internal
-	 */
-	setPartialSemanticTokens(range: Range, tokens: SparseMultilineTokens[] | null): void;
-
-	/**
-	 * @internal
-	 */
-	hasCompleteSemanticTokens(): boolean;
-
-	/**
-	 * @internal
-	 */
-	hasSomeSemanticTokens(): boolean;
-
-	/**
-	 * Flush all tokenization state.
-	 * @internal
-	 */
-	resetTokenization(): void;
-
-	/**
-	 * Force tokenization information for `lineNumber` to be accurate.
-	 * @internal
-	 */
-	forceTokenization(lineNumber: number): void;
-
-	/**
-	 * If it is cheap, force tokenization information for `lineNumber` to be accurate.
-	 * This is based on a heuristic.
-	 * @internal
-	 */
-	tokenizeIfCheap(lineNumber: number): void;
-
-	/**
-	 * Check if calling `forceTokenization` for this `lineNumber` will be cheap (time-wise).
-	 * This is based on a heuristic.
-	 * @internal
-	 */
-	isCheapToTokenize(lineNumber: number): boolean;
-
-	/**
-	 * Get the tokens for the line `lineNumber`.
-	 * The tokens might be inaccurate. Use `forceTokenization` to ensure accurate tokens.
-	 * @internal
-	 */
-	getLineTokens(lineNumber: number): LineTokens;
 
 	/**
 	 * Get the language associated with this model.
@@ -920,31 +855,6 @@ export interface ITextModel {
 	 */
 	getLanguageIdAtPosition(lineNumber: number, column: number): string;
 
-	/**
-	 * Returns the standard token type for a character if the character were to be inserted at
-	 * the given position. If the result cannot be accurate, it returns null.
-	 * @internal
-	 */
-	getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType;
-
-	/**
-	 * @internal
-	*/
-	tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null;
-
-	/**
-	 * Get the word under or besides `position`.
-	 * @param position The position to look for a word.
-	 * @return The word under or besides `position`. Might be null.
-	 */
-	getWordAtPosition(position: IPosition): IWordAtPosition | null;
-
-	/**
-	 * Get the word under or besides `position` trimmed to `position`.column
-	 * @param position The position to look for a word.
-	 * @return The word under or besides `position`. Will never be null.
-	 */
-	getWordUntilPosition(position: IPosition): IWordAtPosition;
 
 	/**
 	 * Change the decorations. The callback will be called with a change accessor
@@ -1253,6 +1163,8 @@ export interface ITextModel {
 	 * @internal
 	*/
 	readonly guides: IGuidesTextModelPart;
+
+	readonly tokenization: ITokenizationTextModelPart;
 }
 
 export const enum PositionAffinity {

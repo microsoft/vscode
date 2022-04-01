@@ -164,7 +164,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 
 	function getDefaultSuggestRange(model: ITextModel, position: Position) {
-		const wordUntil = model.getWordUntilPosition(position);
+		const wordUntil = model.tokenization.getWordUntilPosition(position);
 		return new Range(position.lineNumber, wordUntil.startColumn, position.lineNumber, wordUntil.endColumn);
 	}
 
@@ -182,7 +182,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			return {
 				incomplete: false,
 				suggestions: [{
-					label: doc.getWordUntilPosition(pos).word,
+					label: doc.tokenization.getWordUntilPosition(pos).word,
 					kind: CompletionItemKind.Property,
 					insertText: 'foofoo',
 					range: getDefaultSuggestRange(doc, pos)
@@ -824,7 +824,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		disposables.add(registry.register({ scheme: 'test' }, {
 			provideCompletionItems(doc, pos) {
 				countB += 1;
-				if (!doc.getWordUntilPosition(pos).word.startsWith('a')) {
+				if (!doc.tokenization.getWordUntilPosition(pos).word.startsWith('a')) {
 					return;
 				}
 				return {

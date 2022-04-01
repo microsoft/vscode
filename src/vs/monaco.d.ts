@@ -1396,6 +1396,32 @@ declare namespace monaco.editor {
 		readonly endColumn: number;
 	}
 
+	export interface ITokenizationTextModelPart {
+		/**
+		 * Get the word under or besides `position`.
+		 * @param position The position to look for a word.
+		 * @return The word under or besides `position`. Might be null.
+		 */
+		getWordAtPosition(position: IPosition): IWordAtPosition | null;
+		/**
+		 * Get the word under or besides `position` trimmed to `position`.column
+		 * @param position The position to look for a word.
+		 * @return The word under or besides `position`. Will never be null.
+		 */
+		getWordUntilPosition(position: IPosition): IWordAtPosition;
+		getLanguageId(): string;
+		getLanguageIdAtPosition(lineNumber: number, column: number): string;
+		setLanguageId(languageId: string): void;
+		readonly backgroundTokenizationState: BackgroundTokenizationState;
+		readonly onBackgroundTokenizationStateChanged: IEvent<void>;
+	}
+
+	export enum BackgroundTokenizationState {
+		Uninitialized = 0,
+		InProgress = 1,
+		Completed = 2
+	}
+
 	/**
 	 * Vertical Lane in the overview ruler of the editor.
 	 */
@@ -1912,18 +1938,6 @@ declare namespace monaco.editor {
 		 */
 		getLanguageId(): string;
 		/**
-		 * Get the word under or besides `position`.
-		 * @param position The position to look for a word.
-		 * @return The word under or besides `position`. Might be null.
-		 */
-		getWordAtPosition(position: IPosition): IWordAtPosition | null;
-		/**
-		 * Get the word under or besides `position` trimmed to `position`.column
-		 * @param position The position to look for a word.
-		 * @return The word under or besides `position`. Will never be null.
-		 */
-		getWordUntilPosition(position: IPosition): IWordAtPosition;
-		/**
 		 * Perform a minimum amount of operations, in order to transform the decorations
 		 * identified by `oldDecorations` to the decorations described by `newDecorations`
 		 * and returns the new identifiers associated with the resulting decorations.
@@ -2082,6 +2096,7 @@ declare namespace monaco.editor {
 		 * Returns if this model is attached to an editor or not.
 		 */
 		isAttachedToEditor(): boolean;
+		readonly tokenization: ITokenizationTextModelPart;
 	}
 
 	export enum PositionAffinity {

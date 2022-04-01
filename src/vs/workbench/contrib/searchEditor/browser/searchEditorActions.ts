@@ -127,7 +127,7 @@ export const openNewSearchEditor =
 			selected = (selection && activeModel?.getModel()?.getValueInRange(selection)) ?? '';
 
 			if (selection?.isEmpty() && configurationService.getValue<ISearchConfigurationProperties>('search').seedWithNearestWord) {
-				const wordAtPosition = activeModel.getModel()?.getWordAtPosition(selection.getStartPosition());
+				const wordAtPosition = activeModel.getModel()?.tokenization.getWordAtPosition(selection.getStartPosition());
 				if (wordAtPosition) {
 					selected = wordAtPosition.word;
 				}

@@ -129,7 +129,7 @@ export abstract class SymbolNavigationAction extends EditorAction {
 			if (referenceCount === 0) {
 				// no result -> show message
 				if (!this.configuration.muteMessage) {
-					const info = model.getWordAtPosition(position);
+					const info = model.tokenization.getWordAtPosition(position);
 					MessageController.get(editor)?.showMessage(this._getNoResultFoundMessage(info), position);
 				}
 			} else if (referenceCount === 1 && altAction) {

@@ -81,7 +81,7 @@ abstract class OccurenceAtPositionRequest implements IOccurenceAtPositionRequest
 	protected abstract _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<DocumentHighlight[]>;
 
 	private _getCurrentWordRange(model: ITextModel, selection: Selection): Range | null {
-		const word = model.getWordAtPosition(selection.getPosition());
+		const word = model.tokenization.getWordAtPosition(selection.getPosition());
 		if (word) {
 			return new Range(selection.startLineNumber, word.startColumn, selection.startLineNumber, word.endColumn);
 		}
@@ -145,7 +145,7 @@ class TextualOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
 				return [];
 			}
 
-			const word = model.getWordAtPosition(selection.getPosition());
+			const word = model.tokenization.getWordAtPosition(selection.getPosition());
 
 			if (!word || word.word.length > 1000) {
 				return [];
@@ -353,7 +353,7 @@ class WordHighlighter {
 		let lineNumber = editorSelection.startLineNumber;
 		let startColumn = editorSelection.startColumn;
 
-		return this.model.getWordAtPosition({
+		return this.model.tokenization.getWordAtPosition({
 			lineNumber: lineNumber,
 			column: startColumn
 		});
