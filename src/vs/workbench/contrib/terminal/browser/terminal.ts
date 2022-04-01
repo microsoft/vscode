@@ -139,6 +139,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	onDidChangeInstanceDimensions: Event<ITerminalInstance>;
 	onDidMaximumDimensionsChange: Event<ITerminalInstance>;
 	onDidRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
+	onDidRequestClearDecorations: Event<void>;
 	onDidChangeInstanceTitle: Event<ITerminalInstance | undefined>;
 	onDidChangeInstanceIcon: Event<ITerminalInstance | undefined>;
 	onDidChangeInstanceColor: Event<ITerminalInstance | undefined>;

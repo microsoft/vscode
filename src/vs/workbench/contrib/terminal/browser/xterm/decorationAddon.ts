@@ -23,6 +23,7 @@ import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -58,10 +59,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@ITerminalService _terminalService: ITerminalService
 	) {
 		super();
 		this._register(toDisposable(() => this.clearDecorations(true)));
+		this._register(_terminalService.onDidRequestClearDecorations(() => this.clearDecorations(true)));
 		this._register(this._contextMenuService.onDidShowContextMenu(() => this._contextMenuVisible = true));
 		this._register(this._contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
