@@ -29,7 +29,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 
-type IScannedExtensionManifest = IRelaxedExtensionManifest & { __metadata?: Metadata };
+export type IScannedExtensionManifest = IRelaxedExtensionManifest & { __metadata?: Metadata };
 
 interface IRelaxedScannedExtension {
 	type: ExtensionType;
@@ -165,12 +165,8 @@ export class NativeExtensionsScannerService extends Disposable implements INativ
 		const promises: Promise<IRelaxedScannedExtension[]>[] = [];
 		promises.push(this.scanDefaultSystemExtensions());
 		promises.push(this.scanDevSystemExtensions(scanOptions));
-		try {
-			const [defaultSystemExtensions, devSystemExtensions] = await Promise.all(promises);
-			return this.applyScanOptions([...defaultSystemExtensions, ...devSystemExtensions], scanOptions, false);
-		} catch (error) {
-			throw this.joinErrors(error);
-		}
+		const [defaultSystemExtensions, devSystemExtensions] = await Promise.all(promises);
+		return this.applyScanOptions([...defaultSystemExtensions, ...devSystemExtensions], scanOptions, false);
 	}
 
 	async scanUserExtensions(scanOptions: ScanOptions): Promise<IScannedExtension[]> {
@@ -353,16 +349,6 @@ export class NativeExtensionsScannerService extends Disposable implements INativ
 			result.set(extensionKey, extension);
 		}
 		return [...result.values()];
-	}
-
-	private joinErrors(errorOrErrors: (Error | string) | (Array<Error | string>)): Error {
-		const errors = Array.isArray(errorOrErrors) ? errorOrErrors : [errorOrErrors];
-		if (errors.length === 1) {
-			return errors[0] instanceof Error ? <Error>errors[0] : new Error(<string>errors[0]);
-		}
-		return errors.reduce<Error>((previousValue: Error, currentValue: Error | string) => {
-			return new Error(`${previousValue.message}${previousValue.message ? ',' : ''}${currentValue instanceof Error ? currentValue.message : currentValue}`);
-		}, new Error(''));
 	}
 
 	private _devSystemExtensionsLocation: URI | null = null;
