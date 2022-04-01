@@ -322,7 +322,7 @@ export interface IExtension {
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
 	readonly isValid: boolean;
-	readonly validations: readonly { readonly severity: Severity; readonly message: string }[];
+	readonly validations: readonly [Severity, string][];
 }
 
 /**

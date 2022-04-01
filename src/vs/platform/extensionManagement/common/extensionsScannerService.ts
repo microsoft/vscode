@@ -39,7 +39,7 @@ interface IRelaxedScannedExtension {
 	targetPlatform: TargetPlatform;
 	metadata: Metadata | undefined;
 	isValid: boolean;
-	validations: readonly { readonly severity: Severity; readonly message: string }[];
+	validations: readonly [Severity, string][];
 }
 
 export type IScannedExtension = Readonly<IRelaxedScannedExtension> & { manifest: IExtensionManifest };
@@ -382,10 +382,10 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 				const isBuiltin = type === ExtensionType.System || !!metadata?.isBuiltin;
 				const validations = validateExtensionManifest(this.productService.version, this.productService.date, extensionLocation, manifest, isBuiltin);
 				let isValid = true;
-				for (const validation of validations) {
-					if (validation.severity === Severity.Error) {
+				for (const [severity, message] of validations) {
+					if (severity === Severity.Error) {
 						isValid = false;
-						this.logService.error(this.formatMessage(extensionLocation, validation.message));
+						this.logService.error(this.formatMessage(extensionLocation, message));
 					}
 				}
 				return {

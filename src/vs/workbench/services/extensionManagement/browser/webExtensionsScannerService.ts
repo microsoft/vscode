@@ -577,10 +577,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 		const validations = validateExtensionManifest(this.productService.version, this.productService.date, webExtension.location, manifest, false);
 		let isValid = true;
-		for (const validation of validations) {
-			if (validation.severity === Severity.Error) {
+		for (const [severity, message] of validations) {
+			if (severity === Severity.Error) {
 				isValid = false;
-				this.logService.error(validation.message);
+				this.logService.error(message);
 			}
 		}
 
