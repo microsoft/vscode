@@ -133,6 +133,7 @@ export class TerminalTabbedView extends Disposable {
 		this._register(this._terminalGroupService.onDidChangeInstances(() => this._refreshShowTabs()));
 		this._register(this._terminalGroupService.onDidChangeGroups(() => this._refreshShowTabs()));
 		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
+		this._register(this._terminalService.onDidRequestHideFindWidget(() => this.hideFindWidget()));
 		this._updateTheme();
 
 		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer.classList.add(CssClass.FindFocus));
