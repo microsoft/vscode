@@ -85,20 +85,22 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			updateAllWordDefinitions();
 		}
 
-		const registerDropListenerOnEditor = (editor: ICodeEditor) => {
-			this._dropIntoEditorListeners.get(editor)?.dispose();
-			this._dropIntoEditorListeners.set(editor, editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event)));
-		};
+		if (this._codeEditorService) {
+			const registerDropListenerOnEditor = (editor: ICodeEditor) => {
+				this._dropIntoEditorListeners.get(editor)?.dispose();
+				this._dropIntoEditorListeners.set(editor, editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event)));
+			};
 
-		this._register(_codeEditorService.onCodeEditorAdd(registerDropListenerOnEditor));
+			this._register(this._codeEditorService.onCodeEditorAdd(registerDropListenerOnEditor));
 
-		this._register(_codeEditorService.onCodeEditorRemove(editor => {
-			this._dropIntoEditorListeners.get(editor)?.dispose();
-			this._dropIntoEditorListeners.delete(editor);
-		}));
+			this._register(this._codeEditorService.onCodeEditorRemove(editor => {
+				this._dropIntoEditorListeners.get(editor)?.dispose();
+				this._dropIntoEditorListeners.delete(editor);
+			}));
 
-		for (const editor of this._codeEditorService.listCodeEditors()) {
-			registerDropListenerOnEditor(editor);
+			for (const editor of this._codeEditorService.listCodeEditors()) {
+				registerDropListenerOnEditor(editor);
+			}
 		}
 	}
 
