@@ -58,7 +58,7 @@ __vsc_continuation_end() {
 }
 
 __vsc_command_complete() {
-	local __vsc_history_id=$(history 1 | awk '{print $1;}')
+	local __vsc_history_id=$(builtin history 1 | awk '{print $1;}')
 	if [[ "$__vsc_history_id" == "$__vsc_last_history_id" ]]; then
 		printf "\033]633;D\007"
 	else
@@ -101,9 +101,9 @@ __vsc_prompt_cmd_original() {
 	else
 		IFS=' '
 	fi
-	read -ra ADDR <<<"$__vsc_original_prompt_command"
+	builtin read -ra ADDR <<<"$__vsc_original_prompt_command"
 	for ((i = 0; i < ${#ADDR[@]}; i++)); do
-		eval ${ADDR[i]}
+		builtin eval ${ADDR[i]}
 	done
 	IFS=''
 	__vsc_precmd
