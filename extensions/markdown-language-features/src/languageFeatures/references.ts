@@ -218,8 +218,8 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 				}
 			} else { // Triggered on a link without a fragment so we only require matching the file and ignore fragments
 
-				// But exclude cases where the file is referencing itself
-				if (link.sourceResource.fsPath !== targetDoc.uri.fsPath) {
+				// But exclude cases where the file is implicitly referencing itself
+				if (!link.sourceText.startsWith('#') || link.sourceResource.fsPath !== targetDoc.uri.fsPath) {
 					references.push({
 						kind: 'link',
 						isTriggerLocation,

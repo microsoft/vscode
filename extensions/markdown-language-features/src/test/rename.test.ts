@@ -208,6 +208,52 @@ suite('markdown: rename', () => {
 		});
 	});
 
+	test('Rename on link in other file should pick up all refs', async () => {
+		const uri = workspacePath('doc.md');
+		const otherUri = workspacePath('other.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`### A b C`,
+			`[text](#a-b-c)`,
+		));
+
+		const otherDoc = new InMemoryDocument(otherUri, joinLines(
+			`[text](#a-b-c)`,
+			`[text](./doc.md#a-b-c)`,
+			`[text](./doc#a-b-c)`
+		));
+
+		const expectedEdits = [
+			{
+				uri: uri, edits: [
+					new vscode.TextEdit(new vscode.Range(0, 4, 0, 9), 'New Header'),
+					new vscode.TextEdit(new vscode.Range(1, 8, 1, 13), 'new-header'),
+				]
+			}, {
+				uri: otherUri, edits: [
+					new vscode.TextEdit(new vscode.Range(1, 16, 1, 21), 'new-header'),
+					new vscode.TextEdit(new vscode.Range(2, 13, 2, 18), 'new-header'),
+				]
+			}
+		];
+
+		{
+			// Rename on header with file extension
+			const edit = await getRenameEdits(otherDoc, new vscode.Position(1, 17), "New Header", new InMemoryWorkspaceMarkdownDocuments([
+				doc,
+				otherDoc
+			]));
+			assertEditsEqual(edit!, ...expectedEdits);
+		}
+		{
+			// Rename on header without extension
+			const edit = await getRenameEdits(otherDoc, new vscode.Position(2, 15), "New Header", new InMemoryWorkspaceMarkdownDocuments([
+				doc,
+				otherDoc
+			]));
+			assertEditsEqual(edit!, ...expectedEdits);
+		}
+	});
+
 	test('Rename on ref should rename refs and def', async () => {
 		const uri = workspacePath('doc.md');
 		const doc = new InMemoryDocument(uri, joinLines(
@@ -246,7 +292,6 @@ suite('markdown: rename', () => {
 		});
 	});
 
-
 	test('Rename should not be supported on link text', async () => {
 		const uri = workspacePath('doc.md');
 		const doc = new InMemoryDocument(uri, joinLines(
@@ -255,5 +300,15 @@ suite('markdown: rename', () => {
 		));
 
 		await assert.rejects(getRenameRange(doc, new vscode.Position(1, 2), new InMemoryWorkspaceMarkdownDocuments([doc])));
+	});
+
+	test('Rename should not be supported on bare file references', async () => {
+		const uri = workspacePath('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`[text](./doc.md)`,
+			`[other](./doc.md)`,
+		));
+
+		await assert.rejects(getRenameRange(doc, new vscode.Position(0, 10), new InMemoryWorkspaceMarkdownDocuments([doc])));
 	});
 });

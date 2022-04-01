@@ -56,7 +56,10 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 						return triggerRef.link.sourceHrefRange;
 					}
 				} else {
-					return triggerRef.fragmentLocation?.range ?? triggerRef.location.range;
+					if (triggerRef.fragmentLocation) {
+						return triggerRef.fragmentLocation.range;
+					}
+					throw new Error(localize('renameNoFiles', "Renaming files is currently not supported"));
 				}
 		}
 	}
