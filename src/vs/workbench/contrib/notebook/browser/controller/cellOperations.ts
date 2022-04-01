@@ -624,10 +624,10 @@ export function insertCell(
 	const insertIndex = cell ?
 		(direction === 'above' ? index : nextIndex) :
 		index;
-	return insertCellAtIndex(viewModel, insertIndex, initialText, language, type, undefined, [], true);
+	return insertCellAtIndex(viewModel, insertIndex, initialText, language, type, undefined, [], true, true);
 }
 
-export function insertCellAtIndex(viewModel: NotebookViewModel, index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, outputs: IOutputDto[], synchronous: boolean, pushUndoStop: boolean = true): CellViewModel {
+export function insertCellAtIndex(viewModel: NotebookViewModel, index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, outputs: IOutputDto[], synchronous: boolean, pushUndoStop: boolean): CellViewModel {
 	const endSelections: ISelectionState = { kind: SelectionStateType.Index, focus: { start: index, end: index + 1 }, selections: [{ start: index, end: index + 1 }] };
 	viewModel.notebookDocument.applyEdits([
 		{
@@ -647,30 +647,4 @@ export function insertCellAtIndex(viewModel: NotebookViewModel, index: number, s
 		}
 	], synchronous, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => endSelections, undefined, pushUndoStop);
 	return viewModel.cellAt(index)!;
-}
-
-
-/**
- *
- * @param index
- * @param length
- * @param newIdx in an index scheme for the state of the tree after the current cell has been "removed"
- * @param synchronous
- * @param pushedToUndoStack
- */
-export function moveCellToIdx(editor: IActiveNotebookEditor, index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean = true): boolean {
-	const viewCell = editor.cellAt(index) as CellViewModel | undefined;
-	if (!viewCell) {
-		return false;
-	}
-
-	editor.textModel.applyEdits([
-		{
-			editType: CellEditType.Move,
-			index,
-			length,
-			newIdx
-		}
-	], synchronous, { kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() }, () => ({ kind: SelectionStateType.Index, focus: { start: newIdx, end: newIdx + 1 }, selections: [{ start: newIdx, end: newIdx + 1 }] }), undefined);
-	return true;
 }
