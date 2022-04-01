@@ -118,7 +118,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			value.decoration.dispose();
 			dispose(value.disposables);
 		}
-		console.log('disposed');
 		this._decorations.clear();
 	}
 
