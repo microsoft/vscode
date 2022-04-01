@@ -9,10 +9,10 @@ import * as URI from 'vscode-uri';
 
 export function registerDropIntoEditor() {
 	return vscode.workspace.onWillDropOnTextEditor(e => {
-		e.waitUntil((async () => {
+		e.waitUntil((async (): Promise<vscode.SnippetTextEdit | undefined> => {
 			const urlList = await e.dataTransfer.get('text/uri-list')?.asString();
 			if (!urlList) {
-				return;
+				return undefined;
 			}
 
 			const uris: vscode.Uri[] = [];
@@ -41,7 +41,7 @@ export function registerDropIntoEditor() {
 				}
 			});
 
-			return e.editor.insertSnippet(snippet, e.position);
+			return new vscode.SnippetTextEdit(new vscode.Range(e.position, e.position), snippet);
 		})());
 	});
 }
