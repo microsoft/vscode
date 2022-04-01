@@ -62,7 +62,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
-		this._register(toDisposable(() => this.clearDecorations(true)));
+		this._register(toDisposable(() => this._dispose()));
 		this._register(this._contextMenuService.onDidShowContextMenu(() => this._contextMenuVisible = true));
 		this._register(this._contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
@@ -108,18 +108,17 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	public clearDecorations(disableDecorations?: boolean): void {
-		if (disableDecorations) {
-			this._commandStartedListener?.dispose();
-			this._commandFinishedListener?.dispose();
-			this._commandClearedListener?.dispose();
-		}
+	private _dispose(): void {
+		this._commandStartedListener?.dispose();
+		this._commandFinishedListener?.dispose();
+		this._commandClearedListener?.dispose();
 		this._placeholderDecoration?.dispose();
 		this._placeholderDecoration?.marker.dispose();
 		for (const value of this._decorations.values()) {
 			value.decoration.dispose();
 			dispose(value.disposables);
 		}
+		console.log('disposed');
 		this._decorations.clear();
 	}
 
