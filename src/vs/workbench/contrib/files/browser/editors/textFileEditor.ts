@@ -24,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IErrorWithActions } from 'vs/base/common/errorMessage';
 import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -212,7 +212,8 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 
 	private openAsBinary(input: FileEditorInput, options: ITextEditorOptions | undefined): void {
 		const defaultBinaryEditor = this.configurationService.getValue<string | undefined>('workbench.editor.defaultBinaryEditor');
-		const groupToOpen = this.group ?? this.editorGroupService.activeGroup;
+		const group = this.group ?? this.editorGroupService.activeGroup;
+
 		let editorOptions = {
 			...options,
 			// Make sure to not steal away the currently active group
@@ -222,26 +223,43 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 			activation: EditorActivation.PRESERVE
 		};
 
-		// If we the user setting specifies a default binary editor we use that
+		// Check configuration and determine whether we open the binary
+		// file input in a different editor or going through the same
+		// editor.
+		// Going through the same editor is debt, and a better solution
+		// would be to introduce a real editor for the binary case
+		// and avoid enforcing binary or text on the file editor input.
+
 		if (defaultBinaryEditor && defaultBinaryEditor !== '' && defaultBinaryEditor !== DEFAULT_EDITOR_ASSOCIATION.id) {
-			this.editorService.replaceEditors([{
-				editor: input,
-				replacement: { resource: input.resource, options: { ...editorOptions, override: defaultBinaryEditor } }
-			}], groupToOpen);
-			// Replace is completed, don't do any further text input options as it's no longer text.
-			return;
-		} else if (defaultBinaryEditor === DEFAULT_EDITOR_ASSOCIATION.id) {
-			input.setForceOpenAsText();
-			// Distinguish between plain text and plain text binary
-			input.setPreferredLanguageId(BINARY_TEXT_FILE_MODE);
-			// Same pane and same input, must force reload to clear cached state
-			editorOptions = { ...editorOptions, forceReload: true };
+			this.doOpenAsBinaryInDifferentEditor(group, defaultBinaryEditor, input, editorOptions);
 		} else {
-			input.setForceOpenAsBinary();
+			this.doOpenAsBinaryInSameEditor(group, defaultBinaryEditor, input, editorOptions);
+		}
+	}
+
+	private doOpenAsBinaryInDifferentEditor(group: IEditorGroup, editorId: string | undefined, editor: FileEditorInput, editorOptions: ITextEditorOptions): void {
+		this.editorService.replaceEditors([{
+			editor,
+			replacement: { resource: editor.resource, options: { ...editorOptions, override: editorId } }
+		}], group);
+	}
+
+	private doOpenAsBinaryInSameEditor(group: IEditorGroup, editorId: string | undefined, editor: FileEditorInput, editorOptions: ITextEditorOptions): void {
+
+		// Open binary as text
+		if (editorId === DEFAULT_EDITOR_ASSOCIATION.id) {
+			editor.setForceOpenAsText();
+			editor.setPreferredLanguageId(BINARY_TEXT_FILE_MODE); // https://github.com/microsoft/vscode/issues/131076
+
+			editorOptions = { ...editorOptions, forceReload: true }; // Same pane and same input, must force reload to clear cached state
 		}
 
-		// Resolver wasn't needed proceed to oepn the editor as normal
-		groupToOpen.openEditor(input, editorOptions);
+		// Open as binary
+		else {
+			editor.setForceOpenAsBinary();
+		}
+
+		group.openEditor(editor, editorOptions);
 	}
 
 	private async openAsFolder(input: FileEditorInput): Promise<void> {

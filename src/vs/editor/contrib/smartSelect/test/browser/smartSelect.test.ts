@@ -18,7 +18,7 @@ import { createModelServices } from 'vs/editor/test/common/testTextModel';
 import { StaticLanguageSelector } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 suite('SmartSelect', () => {
 
@@ -42,7 +42,8 @@ suite('SmartSelect', () => {
 		const instantiationService = createModelServices(disposables);
 		modelService = instantiationService.get(IModelService);
 		const languagConfigurationService = instantiationService.get(ILanguageConfigurationService);
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		const languageService = instantiationService.get(ILanguageService);
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languagConfigurationService.register(languageId, {
 			brackets: [
 				['(', ')'],

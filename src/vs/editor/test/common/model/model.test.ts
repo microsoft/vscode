@@ -16,7 +16,6 @@ import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 
 // --------- utils
 
@@ -480,8 +479,9 @@ suite('Editor Model - Words', () => {
 		const disposables = new DisposableStore();
 		const instantiationService = createModelServices(disposables);
 		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		const languageService = instantiationService.get(ILanguageService);
 
-		disposables.add(ModesRegistry.registerLanguage({ id: MODE_ID }));
+		disposables.add(languageService.registerLanguage({ id: MODE_ID }));
 		disposables.add(languageConfigurationService.register(MODE_ID, {
 			wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
 		}));
