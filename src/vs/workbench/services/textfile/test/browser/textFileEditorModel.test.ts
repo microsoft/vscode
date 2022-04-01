@@ -49,6 +49,7 @@ suite('Files - TextFileEditorModel', () => {
 
 	test('basic events', async function () {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		accessor.workingCopyService.unregisterWorkingCopy(model); // causes issues with subsequent resolves otherwise
 
 		let onDidResolveCounter = 0;
 		model.onDidResolve(() => onDidResolveCounter++);
@@ -300,9 +301,15 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	test('setEncoding - decode', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		let model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		accessor.workingCopyService.unregisterWorkingCopy(model); // causes issues with subsequent resolves otherwise
 
 		await model.setEncoding('utf16', EncodingMode.Decode);
+
+		// we have to get the model again from working copy service
+		// because `setEncoding` will resolve it again through the
+		// text file service which is outside our scope
+		model = accessor.workingCopyService.get(model) as TextFileEditorModel;
 
 		assert.ok(model.isResolved()); // model got resolved due to decoding
 		model.dispose();
@@ -310,6 +317,8 @@ suite('Files - TextFileEditorModel', () => {
 
 	test('setEncoding - decode dirty file saves first', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		accessor.workingCopyService.unregisterWorkingCopy(model); // causes issues with subsequent resolves otherwise
+
 		await model.resolve();
 
 		model.updateTextEditorModel(createTextBufferFactory('bar'));
@@ -397,7 +406,7 @@ suite('Files - TextFileEditorModel', () => {
 	test('Revert', async function () {
 		let eventCounter = 0;
 
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		let model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
 		model.onDidRevert(() => eventCounter++);
 
@@ -415,9 +424,16 @@ suite('Files - TextFileEditorModel', () => {
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
 
+		accessor.workingCopyService.unregisterWorkingCopy(model); // causes issues with subsequent resolves otherwise
+
 		await model.revert();
+
+		// we have to get the model again from working copy service
+		// because `setEncoding` will resolve it again through the
+		// text file service which is outside our scope
+		model = accessor.workingCopyService.get(model) as TextFileEditorModel;
+
 		assert.strictEqual(model.isDirty(), false);
-		assert.strictEqual(model.textEditorModel!.getValue(), 'Hello Html');
 		assert.strictEqual(eventCounter, 1);
 
 		assert.ok(workingCopyEvent);

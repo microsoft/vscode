@@ -247,7 +247,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const softUndo = options?.soft;
 		if (!softUndo) {
 			try {
-				await this.resolve({ forceReadFromFile: true });
+				await this.forceResolveFromFile();
 			} catch (error) {
 
 				// FileNotFound means the file got deleted meanwhile, so ignore it
@@ -636,6 +636,23 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
+	private async forceResolveFromFile(): Promise<void> {
+		if (this.isDisposed()) {
+			return; // return early when the model is invalid
+		}
+
+		// We go through the text file service to make
+		// sure this kind of `resolve` is properly
+		// running in sequence with any other running
+		// `resolve` if any, including subsequent runs
+		// that are triggered right after.
+
+		await this.textFileService.files.resolve(this.resource, {
+			reload: { async: false },
+			forceReadFromFile: true
+		});
+	}
+
 	//#endregion
 
 	//#region Dirty
@@ -1004,10 +1021,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		//
 		// (see https://github.com/microsoft/vscode/issues/127936)
 
-		if (this.hasLanguageSetExplicitly) {
-			return; // return early when the language was changed by the user
-		}
-
 		if (!this.configurationService.inspect('files.encoding').overrideIdentifiers?.includes(e.newLanguage)) {
 			return; // only when there is a language specific override for the new language
 		}
@@ -1020,6 +1033,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (this.isDirty()) {
 			return; // return early to prevent accident saves in this case
 		}
+
+		this.logService.info(`Adjusting encoding based on configured language override to '${encoding}' for ${this.resource.toString(true)}.`);
 
 		// Re-open with new encoding
 		await this.setEncoding(encoding, EncodingMode.Decode);
@@ -1058,9 +1073,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			this.updatePreferredEncoding(encoding);
 
-			await this.resolve({
-				forceReadFromFile: true	// because encoding has changed
-			});
+			await this.forceResolveFromFile();
 		}
 	}
 
