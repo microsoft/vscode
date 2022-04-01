@@ -24,13 +24,13 @@
 	}
 }
 
-.monaco-workbench .statusbar DIV#status\.languageStatus span.codicon.wiggle {
+.monaco-workbench.enable-motion .statusbar DIV#status\.languageStatus span.codicon.wiggle {
 	animation-duration: .8s;
 	animation-iteration-count: 1;
 	animation-name: wiggle;
 }
 
-.monaco-workbench .statusbar DIV#status\.languageStatus span.codicon.wiggle.repeat {
+.monaco-workbench.enable-motion .statusbar DIV#status\.languageStatus span.codicon.wiggle.repeat {
 	animation-iteration-count: 3;
 }
 
