@@ -72,6 +72,7 @@ abstract class BaseZoomAction extends Action2 {
 
 	protected async setConfiguredZoomLevel(accessor: ServicesAccessor, level: number): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
+		const independentZoom = configurationService.getValue('window.independentZoom');
 
 		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
 
@@ -79,7 +80,9 @@ abstract class BaseZoomAction extends Action2 {
 			return; // https://github.com/microsoft/vscode/issues/48357
 		}
 
-		await configurationService.updateValue(BaseZoomAction.SETTING_KEY, level);
+		if (!independentZoom) {
+			await configurationService.updateValue(BaseZoomAction.SETTING_KEY, level);
+		}
 
 		applyZoom(level);
 	}
