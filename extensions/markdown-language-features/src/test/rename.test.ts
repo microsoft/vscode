@@ -302,7 +302,7 @@ suite('markdown: rename', () => {
 		await assert.rejects(getRenameRange(doc, new vscode.Position(1, 2), new InMemoryWorkspaceMarkdownDocuments([doc])));
 	});
 
-	test('Rename should not be supported on bare file references', async () => {
+	test('Rename should not be supported on bare file link', async () => {
 		const uri = workspacePath('doc.md');
 		const doc = new InMemoryDocument(uri, joinLines(
 			`[text](./doc.md)`,
@@ -310,5 +310,15 @@ suite('markdown: rename', () => {
 		));
 
 		await assert.rejects(getRenameRange(doc, new vscode.Position(0, 10), new InMemoryWorkspaceMarkdownDocuments([doc])));
+	});
+
+	test('Rename should not be supported on bare file link in definition', async () => {
+		const uri = workspacePath('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`[text](./doc.md)`,
+			`[ref]: ./doc.md`,
+		));
+
+		await assert.rejects(getRenameRange(doc, new vscode.Position(1, 10), new InMemoryWorkspaceMarkdownDocuments([doc])));
 	});
 });
