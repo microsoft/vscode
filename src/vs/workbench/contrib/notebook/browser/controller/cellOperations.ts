@@ -143,7 +143,7 @@ export function runDeleteAction(editor: IActiveNotebookEditor, cell: ICellViewMo
 					return { kind: SelectionStateType.Index, focus: { start: 0, end: 0 }, selections: [{ start: 0, end: 0 }] };
 				}
 			}
-		}, undefined);
+		}, undefined, true);
 	} else {
 		const focus = editor.getFocus();
 		const edits: ICellReplaceEdit[] = [{
@@ -169,14 +169,14 @@ export function runDeleteAction(editor: IActiveNotebookEditor, cell: ICellViewMo
 
 			textModel.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() }, () => ({
 				kind: SelectionStateType.Index, focus: newFocus, selections: finalSelections
-			}), undefined);
+			}), undefined, true);
 		} else {
 			// users decide to delete a cell out of current focus/selection
 			const newFocus = focus.start > targetCellIndex ? { start: focus.start - 1, end: focus.end - 1 } : focus;
 
 			textModel.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() }, () => ({
 				kind: SelectionStateType.Index, focus: newFocus, selections: finalSelections
-			}), undefined);
+			}), undefined, true);
 		}
 	}
 }
@@ -222,7 +222,8 @@ export async function moveCellRange(context: INotebookCellActionContext, directi
 				selections: editor.getSelections()
 			},
 			() => ({ kind: SelectionStateType.Index, focus: newFocus, selections: [finalSelection] }),
-			undefined
+			undefined,
+			true
 		);
 		const focusRange = editor.getSelections()[0] ?? editor.getFocus();
 		editor.revealCellRangeInView(focusRange);
@@ -250,7 +251,8 @@ export async function moveCellRange(context: INotebookCellActionContext, directi
 				selections: editor.getSelections()
 			},
 			() => ({ kind: SelectionStateType.Index, focus: newFocus, selections: [finalSelection] }),
-			undefined
+			undefined,
+			true
 		);
 
 		const focusRange = editor.getSelections()[0] ?? editor.getFocus();
@@ -304,7 +306,8 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 				selections: selections
 			},
 			() => ({ kind: SelectionStateType.Index, focus: focus, selections: selections }),
-			undefined
+			undefined,
+			true
 		);
 	} else {
 		// insert down, move selections
@@ -328,7 +331,8 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 				selections: selections
 			},
 			() => ({ kind: SelectionStateType.Index, focus: newFocus, selections: newSelections }),
-			undefined
+			undefined,
+			true
 		);
 
 		const focusRange = editor.getSelections()[0] ?? editor.getFocus();
