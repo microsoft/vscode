@@ -11,7 +11,7 @@ import { createFileEditorInput, workbenchInstantiationService, TestServiceAccess
 import { toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
-import { timeout } from 'vs/base/common/async';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { assertIsDefined } from 'vs/base/common/types';
 import { createTextBufferFactory, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
@@ -20,6 +20,8 @@ import { URI } from 'vs/base/common/uri';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
+import { isEqual } from 'vs/base/common/resources';
+import { UTF16be } from 'vs/workbench/services/textfile/common/encoding';
 
 suite('Files - TextFileEditorModel', () => {
 
@@ -328,6 +330,41 @@ suite('Files - TextFileEditorModel', () => {
 
 		assert.strictEqual(model.isDirty(), false);
 		model.dispose();
+	});
+
+	test('encoding updates with language based configuration', async function () {
+		const languageId = 'text-file-model-test';
+		ModesRegistry.registerLanguage({
+			id: languageId,
+		});
+
+		accessor.testConfigurationService.setOverrideIdentifiers('files.encoding', [languageId]);
+
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		accessor.workingCopyService.unregisterWorkingCopy(model); // causes issues with subsequent resolves otherwise
+
+		await model.resolve();
+
+		const deferredPromise = new DeferredPromise<TextFileEditorModel>();
+
+		// We use this listener as a way to figure out that the working
+		// copy was resolved again as part of the language change
+		const listener = accessor.workingCopyService.onDidRegister(e => {
+			if (isEqual(e.resource, model.resource)) {
+				deferredPromise.complete(model as TextFileEditorModel);
+			}
+		});
+
+		accessor.testConfigurationService.setUserConfiguration('files.encoding', UTF16be);
+
+		model.setLanguageId(languageId);
+
+		await deferredPromise.p;
+
+		assert.strictEqual(model.getEncoding(), UTF16be);
+
+		model.dispose();
+		listener.dispose();
 	});
 
 	test('create with language', async function () {
