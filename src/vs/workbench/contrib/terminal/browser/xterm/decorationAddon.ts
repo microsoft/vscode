@@ -45,6 +45,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _hoverDelayer: Delayer<void>;
 	private _commandStartedListener: IDisposable | undefined;
 	private _commandFinishedListener: IDisposable | undefined;
+	private _commandClearedListener: IDisposable | undefined;
 	private _contextMenuVisible: boolean = false;
 	private _decorations: Map<number, IDisposableDecoration> = new Map();
 	private _placeholderDecoration: IDecoration | undefined;
@@ -111,6 +112,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (disableDecorations) {
 			this._commandStartedListener?.dispose();
 			this._commandFinishedListener?.dispose();
+			this._commandClearedListener?.dispose();
 		}
 		this._placeholderDecoration?.dispose();
 		this._placeholderDecoration?.marker.dispose();
@@ -125,6 +127,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
 			this._addCommandFinishedListener();
 			this._addCommandStartedListener();
+			this._addCommandClearedListener();
 		} else {
 			this._register(this._capabilities.onDidAddCapability(c => {
 				if (c === TerminalCapability.CommandDetection) {
@@ -167,12 +170,25 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		for (const command of capability.commands) {
 			this.registerCommandDecoration(command);
 		}
-		this._commandFinishedListener = capability.onCommandFinished(command => {
-			if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
-				this.clearDecorations();
-				return;
+		this._commandFinishedListener = capability.onCommandFinished(command => this.registerCommandDecoration(command));
+	}
+
+	private _addCommandClearedListener(): void {
+		if (this._commandStartedListener) {
+			return;
+		}
+		const capability = this._capabilities.get(TerminalCapability.CommandDetection);
+		if (!capability) {
+			return;
+		}
+
+		this._commandClearedListener = capability.onCommandCleared(commands => {
+			for (const value of this._decorations.values()) {
+				if (commands.find(c => value.decoration.marker === c.marker)) {
+					value.decoration.dispose();
+					dispose(value.disposables);
+				}
 			}
-			this.registerCommandDecoration(command);
 		});
 	}
 

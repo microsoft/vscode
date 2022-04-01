@@ -69,6 +69,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	readonly onCommandStarted = this._onCommandStarted.event;
 	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();
 	readonly onCommandFinished = this._onCommandFinished.event;
+	private readonly _onCommandCleared = new Emitter<ITerminalCommand[]>();
+	readonly onCommandCleared = this._onCommandCleared.event;
 
 	constructor(
 		private readonly _terminal: Terminal,
@@ -79,6 +81,13 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			rows: this._terminal.rows
 		};
 		this._terminal.onResize(e => this._handleResize(e));
+		this._terminal.parser.registerCsiHandler({ final: 'J' }, params => {
+			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
+				this._clearCommandsInViewport();
+			}
+			// We don't want to override xterm.js' default behavior, just augment it
+			return false;
+		});
 	}
 
 	private _handleResize(e: { cols: number; rows: number }) {
@@ -136,6 +145,20 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				}
 			});
 		}
+	}
+
+	private _clearCommandsInViewport(): void {
+		// Find the number of commands on the tail end of the array that are within the viewport
+		let count = 0;
+		for (let i = this._commands.length - 1; i >= 0; i--) {
+			const line = this._commands[i].marker?.line;
+			if (line && line < this._terminal.buffer.active.baseY) {
+				break;
+			}
+			count++;
+		}
+		// Remove them
+		this._onCommandCleared.fire(this._commands.splice(this._commands.length - count, count));
 	}
 
 	private _waitForCursorMove(): Promise<void> {
