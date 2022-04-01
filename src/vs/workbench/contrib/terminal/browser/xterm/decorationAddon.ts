@@ -182,12 +182,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 
 		this._commandClearedListener = capability.onCommandCleared(commands => {
-			for (const value of this._decorations.values()) {
-				if (commands.find(c => value.decoration.marker === c.marker)) {
-					value.decoration.dispose();
-					dispose(value.disposables);
-				}
+		for (const command of commands) {
+			const match = this._decorations.get(command.marker.id);
+			if (match) {
+				match.decoration.dispose();
+				dispose(match.disposables);
 			}
+		}
 		});
 	}
 
