@@ -69,8 +69,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	readonly onCommandStarted = this._onCommandStarted.event;
 	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();
 	readonly onCommandFinished = this._onCommandFinished.event;
-	private readonly _onCommandCleared = new Emitter<ITerminalCommand[]>();
-	readonly onCommandCleared = this._onCommandCleared.event;
+	private readonly _onCommandInvalidated = new Emitter<ITerminalCommand[]>();
+	readonly onCommandInvalidated = this._onCommandInvalidated.event;
 
 	constructor(
 		private readonly _terminal: Terminal,
@@ -158,7 +158,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			count++;
 		}
 		// Remove them
-		this._onCommandCleared.fire(this._commands.splice(this._commands.length - count, count));
+		this._onCommandInvalidated.fire(this._commands.splice(this._commands.length - count, count));
 	}
 
 	private _waitForCursorMove(): Promise<void> {
