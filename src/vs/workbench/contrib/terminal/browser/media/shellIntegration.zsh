@@ -2,11 +2,11 @@
 #   Copyright (c) Microsoft Corporation. All rights reserved.
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
-autoload -Uz add-zsh-hook
+builtin autoload -Uz add-zsh-hook
 
 # Now that the init script is running, unset ZDOTDIR to ensure ~/.zlogout runs as expected as well
 # as prevent problems that may occur if the user's init scripts depend on ZDOTDIR not being set.
-unset ZDOTDIR
+builtin unset ZDOTDIR
 
 # This variable allows the shell to both detect that VS Code's shell integration is enabled as well
 # as disable it by unsetting the variable.
@@ -25,50 +25,50 @@ fi
 # Shell integration was disabled by the shell, exit without warning assuming either the shell has
 # explicitly disabled shell integration as it's incompatible or it implements the protocol.
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
-	return
+	builtin return
 fi
 
 __vsc_in_command_execution="1"
 __vsc_last_history_id=0
 
 __vsc_prompt_start() {
-	printf "\033]633;A\007"
+	builtin printf "\033]633;A\007"
 }
 
 __vsc_prompt_end() {
-	printf "\033]633;B\007"
+	builtin printf "\033]633;B\007"
 }
 
 __vsc_update_cwd() {
-	printf "\033]633;P;Cwd=%s\007" "$PWD"
+	builtin printf "\033]633;P;Cwd=%s\007" "$PWD"
 }
 
 __vsc_command_output_start() {
-	printf "\033]633;C\007"
+	builtin printf "\033]633;C\007"
 }
 
 __vsc_continuation_start() {
-	printf "\033]633;F\007"
+	builtin printf "\033]633;F\007"
 }
 
 __vsc_continuation_end() {
-	printf "\033]633;G\007"
+	builtin printf "\033]633;G\007"
 }
 
 __vsc_right_prompt_start() {
-	printf "\033]633;H\007"
+	builtin printf "\033]633;H\007"
 }
 
 __vsc_right_prompt_end() {
-	printf "\033]633;I\007"
+	builtin printf "\033]633;I\007"
 }
 
 __vsc_command_complete() {
-	local __vsc_history_id=$(history | tail -n1 | awk '{print $1;}')
+	builtin local __vsc_history_id=$(builtin history | tail -n1 | awk '{print $1;}')
 	if [[ "$__vsc_history_id" == "$__vsc_last_history_id" ]]; then
-		printf "\033]633;D\007"
+		builtin printf "\033]633;D\007"
 	else
-		printf "\033]633;D;%s\007" "$__vsc_status"
+		builtin printf "\033]633;D;%s\007" "$__vsc_status"
 		__vsc_last_history_id=$__vsc_history_id
 	fi
 	__vsc_update_cwd
@@ -114,7 +114,7 @@ add-zsh-hook preexec __vsc_preexec
 
 # Show the welcome message
 if [ -z "${VSCODE_SHELL_HIDE_WELCOME-}" ]; then
-	echo "\033[1;32mShell integration activated\033[0m"
+	builtin echo "\033[1;32mShell integration activated\033[0m"
 else
 	VSCODE_SHELL_HIDE_WELCOME=""
 fi
