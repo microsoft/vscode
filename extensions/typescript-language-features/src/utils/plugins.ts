@@ -68,6 +68,15 @@ export class PluginManager extends Disposable {
 
 	private readPlugins() {
 		const pluginMap = new Map<string, ReadonlyArray<TypeScriptServerPlugin>>();
+		pluginMap.set('builtin:inline-values', [
+			{
+				name: 'ts-plugin-inline-values',
+				enableForWorkspaceTypeScriptVersions: true,
+				uri: vscode.Uri.parse('builtin://ts-plugin-inline-values'),
+				languages: []
+			}
+		]);
+
 		for (const extension of vscode.extensions.all) {
 			const pack = extension.packageJSON;
 			if (pack.contributes && Array.isArray(pack.contributes.typescriptServerPlugins)) {
