@@ -474,8 +474,21 @@ StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, codeE
 	}
 
 	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
+
+	// Get the search string result, following the same logic in StartFindAction.addImplementation function in 'vs/editor/contrib/find/browser/findController'
+	const searchString = getSearchString(codeEditor, {
+		forceRevealReplace: false,
+		seedSearchStringFromSelection: codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
+		seedSearchStringFromNonEmptySelection: codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
+		seedSearchStringFromGlobalClipboard: codeEditor.getOption(EditorOption.find).globalFindClipboard,
+		shouldFocus: FindStartFocusAction.FocusFindInput,
+		shouldAnimate: true,
+		updateSearchScope: false,
+		loop: codeEditor.getOption(EditorOption.find).loop
+	});
+
 	if (controller) {
-		controller.replace();
+		controller.replace(searchString);
 		return true;
 	}
 
