@@ -10,7 +10,7 @@ import { isDocumentExcludePattern, TransientCellMetadata, TransientDocumentMetad
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
-CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor, args): {
+CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor): {
 	viewType: string;
 	displayName: string;
 	options: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata };

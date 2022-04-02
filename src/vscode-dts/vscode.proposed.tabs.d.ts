@@ -132,30 +132,18 @@ declare module 'vscode' {
 		/**
 		 * The currently active group
 		 */
+		// TOD@API name: maybe `activeGroup` to align with `groups` (which isn't tabGroups)
 		readonly activeTabGroup: TabGroup;
 
 		/**
-		 * An {@link Event} which fires when a group changes.
+		 * An {@link Event event} which fires when {@link TabGroup tab groups} has changed.
 		 */
 		readonly onDidChangeTabGroups: Event<TabGroup[]>;
 
 		/**
-		 * An {@link Event} which fires when a tab changes.
+		 * An {@link Event event} which fires when a {@link Tab tabs} have changed.
 		 */
 		readonly onDidChangeTabs: Event<Tab[]>;
-
-		/**
-		 * An {@link Event} which fires when an active tab changes.
-		 * Similar to {@link TabGroup.onDidChangeTabs} but only on tabs
-		 * with isActive equal to true.
-		 */
-		readonly onDidChangeActiveTab: Event<Tab>;
-
-		/**
-		 * An {@link Event} which fires when the active group changes.
-		 * This does not fire when the properties within the group change.
-		 */
-		readonly onDidChangeActiveTabGroup: Event<TabGroup>;
 
 		/**
 		 * Closes the tab. This makes the tab object invalid and the tab

@@ -7,13 +7,14 @@ import * as assert from 'assert';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { getEditOperation, testCommand } from 'vs/editor/test/browser/testCommand';
 import { withEditorModel } from 'vs/editor/test/common/testTextModel';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 /**
  * Create single edit operation
@@ -30,9 +31,11 @@ class DocBlockCommentMode extends MockMode {
 
 	private static readonly _id = 'commentMode';
 
-	constructor() {
+	constructor(
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
+	) {
 		super(DocBlockCommentMode._id);
-		this._register(LanguageConfigurationRegistry.register(this.languageId, {
+		this._register(languageConfigurationService.register(this.languageId, {
 			brackets: [
 				['(', ')'],
 				['{', '}'],
@@ -44,31 +47,32 @@ class DocBlockCommentMode extends MockMode {
 	}
 }
 
-function testShiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, languageId, selection, (sel) => new ShiftCommand(sel, {
+function testShiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService = new TestLanguageConfigurationService()): void {
+	testCommand(lines, languageId, selection, (accessor, sel) => new ShiftCommand(sel, {
 		isUnshift: false,
 		tabSize: 4,
 		indentSize: 4,
 		insertSpaces: false,
 		useTabStops: useTabStops,
 		autoIndent: EditorAutoIndentStrategy.Full,
-	}), expectedLines, expectedSelection);
+	}, languageConfigurationService), expectedLines, expectedSelection);
 }
 
-function testUnshiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, languageId, selection, (sel) => new ShiftCommand(sel, {
+function testUnshiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService = new TestLanguageConfigurationService()): void {
+	testCommand(lines, languageId, selection, (accessor, sel) => new ShiftCommand(sel, {
 		isUnshift: true,
 		tabSize: 4,
 		indentSize: 4,
 		insertSpaces: false,
 		useTabStops: useTabStops,
 		autoIndent: EditorAutoIndentStrategy.Full,
-	}), expectedLines, expectedSelection);
+	}, languageConfigurationService), expectedLines, expectedSelection);
 }
 
-function withDockBlockCommentMode(callback: (mode: DocBlockCommentMode) => void): void {
-	let mode = new DocBlockCommentMode();
-	callback(mode);
+function withDockBlockCommentMode(callback: (mode: DocBlockCommentMode, languageConfigurationService: TestLanguageConfigurationService) => void): void {
+	const languageConfigurationService = new TestLanguageConfigurationService();
+	let mode = new DocBlockCommentMode(languageConfigurationService);
+	callback(mode, languageConfigurationService);
 	mode.dispose();
 }
 
@@ -554,7 +558,7 @@ suite('Editor Commands - ShiftCommand', () => {
 	});
 
 	test('issue #348: indenting around doc block comments', () => {
-		withDockBlockCommentMode((mode) => {
+		withDockBlockCommentMode((mode, languageConfigurationService) => {
 
 			testShiftCommand(
 				[
@@ -574,7 +578,8 @@ suite('Editor Commands - ShiftCommand', () => {
 					'\t */',
 					'\tfunction hello() {}'
 				],
-				new Selection(1, 1, 5, 21)
+				new Selection(1, 1, 5, 21),
+				languageConfigurationService
 			);
 
 			testUnshiftCommand(
@@ -595,7 +600,8 @@ suite('Editor Commands - ShiftCommand', () => {
 					' */',
 					'function hello() {}'
 				],
-				new Selection(1, 1, 5, 20)
+				new Selection(1, 1, 5, 20),
+				languageConfigurationService
 			);
 
 			testUnshiftCommand(
@@ -616,14 +622,15 @@ suite('Editor Commands - ShiftCommand', () => {
 					' */',
 					'function hello() {}'
 				],
-				new Selection(1, 1, 5, 20)
+				new Selection(1, 1, 5, 20),
+				languageConfigurationService
 			);
 
 		});
 	});
 
 	test('issue #1609: Wrong indentation of block comments', () => {
-		withDockBlockCommentMode((mode) => {
+		withDockBlockCommentMode((mode, languageConfigurationService) => {
 			testShiftCommand(
 				[
 					'',
@@ -646,7 +653,8 @@ suite('Editor Commands - ShiftCommand', () => {
 					'\t */',
 					'\tvar foo = 0;'
 				],
-				new Selection(1, 1, 7, 14)
+				new Selection(1, 1, 7, 14),
+				languageConfigurationService
 			);
 		});
 	});
@@ -670,14 +678,14 @@ suite('Editor Commands - ShiftCommand', () => {
 			],
 			null,
 			new Selection(1, 1, 13, 1),
-			(sel) => new ShiftCommand(sel, {
+			(accessor, sel) => new ShiftCommand(sel, {
 				isUnshift: false,
 				tabSize: 4,
 				indentSize: 4,
 				insertSpaces: true,
 				useTabStops: false,
 				autoIndent: EditorAutoIndentStrategy.Full,
-			}),
+			}, new TestLanguageConfigurationService()),
 			[
 				'       Written | Numeric',
 				'           one | 1',
@@ -716,14 +724,14 @@ suite('Editor Commands - ShiftCommand', () => {
 			],
 			null,
 			new Selection(1, 1, 13, 1),
-			(sel) => new ShiftCommand(sel, {
+			(accessor, sel) => new ShiftCommand(sel, {
 				isUnshift: true,
 				tabSize: 4,
 				indentSize: 4,
 				insertSpaces: true,
 				useTabStops: false,
 				autoIndent: EditorAutoIndentStrategy.Full,
-			}),
+			}, new TestLanguageConfigurationService()),
 			[
 				'   Written | Numeric',
 				'       one | 1',
@@ -762,14 +770,14 @@ suite('Editor Commands - ShiftCommand', () => {
 			],
 			null,
 			new Selection(1, 1, 13, 1),
-			(sel) => new ShiftCommand(sel, {
+			(accessor, sel) => new ShiftCommand(sel, {
 				isUnshift: true,
 				tabSize: 4,
 				indentSize: 4,
 				insertSpaces: false,
 				useTabStops: false,
 				autoIndent: EditorAutoIndentStrategy.Full,
-			}),
+			}, new TestLanguageConfigurationService()),
 			[
 				'   Written | Numeric',
 				'       one | 1',
@@ -808,14 +816,14 @@ suite('Editor Commands - ShiftCommand', () => {
 			],
 			null,
 			new Selection(1, 1, 13, 1),
-			(sel) => new ShiftCommand(sel, {
+			(accessor, sel) => new ShiftCommand(sel, {
 				isUnshift: true,
 				tabSize: 4,
 				indentSize: 4,
 				insertSpaces: true,
 				useTabStops: false,
 				autoIndent: EditorAutoIndentStrategy.Full,
-			}),
+			}, new TestLanguageConfigurationService()),
 			[
 				'   Written | Numeric',
 				'       one | 1',
@@ -843,14 +851,14 @@ suite('Editor Commands - ShiftCommand', () => {
 			],
 			null,
 			new Selection(1, 1, 1, 13),
-			(sel) => new ShiftCommand(sel, {
+			(accessor, sel) => new ShiftCommand(sel, {
 				isUnshift: false,
 				tabSize: 4,
 				indentSize: 4,
 				insertSpaces: false,
 				useTabStops: true,
 				autoIndent: EditorAutoIndentStrategy.Full,
-			}),
+			}, new TestLanguageConfigurationService()),
 			[
 				'\tHello world!',
 				'another line'
@@ -961,7 +969,7 @@ suite('Editor Commands - ShiftCommand', () => {
 					insertSpaces: insertSpaces,
 					useTabStops: true,
 					autoIndent: EditorAutoIndentStrategy.Full,
-				});
+				}, new TestLanguageConfigurationService());
 				let actual = getEditOperation(model, op);
 				assert.deepStrictEqual(actual, expected);
 			});
@@ -976,7 +984,7 @@ suite('Editor Commands - ShiftCommand', () => {
 					insertSpaces: insertSpaces,
 					useTabStops: true,
 					autoIndent: EditorAutoIndentStrategy.Full,
-				});
+				}, new TestLanguageConfigurationService());
 				let actual = getEditOperation(model, op);
 				assert.deepStrictEqual(actual, expected);
 			});

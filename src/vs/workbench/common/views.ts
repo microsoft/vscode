@@ -652,6 +652,8 @@ export interface ITreeView extends IDisposable {
 
 	description: string | undefined;
 
+	badge: IViewBadge | undefined;
+
 	readonly visible: boolean;
 
 	readonly onDidExpandItem: Event<ITreeItem>;
@@ -854,4 +856,9 @@ export interface IViewPaneContainer {
 	getView(viewId: string): IView | undefined;
 	toggleViewVisibility(viewId: string): void;
 	saveState(): void;
+}
+
+export interface IViewBadge {
+	readonly tooltip: string;
+	readonly value: number;
 }

@@ -3732,6 +3732,12 @@ declare namespace monaco.editor {
 		 * Defaults to editor font family.
 		 */
 		fontFamily?: string;
+		/**
+		 * The display style to render inlay hints with.
+		 * Compact mode disables the borders and padding around the inlay hint.
+		 * Defaults to 'standard'.
+		 */
+		displayStyle: 'standard' | 'compact';
 	}
 
 	/**
@@ -6687,6 +6693,11 @@ declare namespace monaco.languages {
 		text: string;
 		eol?: editor.EndOfLineSequence;
 	};
+
+	export interface SnippetTextEdit {
+		range: IRange;
+		snippet: string;
+	}
 
 	/**
 	 * Interface used to format a model

@@ -4,16 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
-import { SingleProxyRPCProtocol, TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
+import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelService } from 'vs/editor/common/services/modelService';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape, IWorkspaceTextEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
+import { IWorkspaceTextEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
 import { mock } from 'vs/base/test/common/mock';
 import { Event } from 'vs/base/common/event';
-import { MainThreadTextEditors } from 'vs/workbench/api/browser/mainThreadEditors';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
@@ -57,6 +55,7 @@ import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/te
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { MainThreadBulkEdits } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 
 suite('MainThreadEditors', () => {
 
@@ -64,7 +63,8 @@ suite('MainThreadEditors', () => {
 	const resource = URI.parse('foo:bar');
 
 	let modelService: IModelService;
-	let editors: MainThreadTextEditors;
+
+	let bulkEdits: MainThreadBulkEdits;
 
 	const movedResources = new Map<URI, URI>();
 	const copiedResources = new Map<URI, URI>();
@@ -185,19 +185,7 @@ suite('MainThreadEditors', () => {
 
 		const instaService = new InstantiationService(services);
 
-		const rpcProtocol = new TestRPCProtocol();
-		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
-			override $acceptModelChanged(): void {
-			}
-		});
-		rpcProtocol.set(ExtHostContext.ExtHostDocumentsAndEditors, new class extends mock<ExtHostDocumentsAndEditorsShape>() {
-			override $acceptDocumentsAndEditorsDelta(): void {
-			}
-		});
-
-		const documentAndEditor = instaService.createInstance(MainThreadDocumentsAndEditors, rpcProtocol);
-
-		editors = instaService.createInstance(MainThreadTextEditors, documentAndEditor, SingleProxyRPCProtocol(null));
+		bulkEdits = instaService.createInstance(MainThreadBulkEdits, SingleProxyRPCProtocol(null));
 	});
 
 	teardown(() => {
@@ -221,7 +209,7 @@ suite('MainThreadEditors', () => {
 		// Act as if the user edited the model
 		model.applyEdits([EditOperation.insert(new Position(0, 0), 'something')]);
 
-		return editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit] }).then((result) => {
+		return bulkEdits.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit] }).then((result) => {
 			assert.strictEqual(result, false);
 		});
 	});
@@ -249,11 +237,11 @@ suite('MainThreadEditors', () => {
 			}
 		};
 
-		let p1 = editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit1] }).then((result) => {
+		let p1 = bulkEdits.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit1] }).then((result) => {
 			// first edit request succeeds
 			assert.strictEqual(result, true);
 		});
-		let p2 = editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit2] }).then((result) => {
+		let p2 = bulkEdits.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit2] }).then((result) => {
 			// second edit request fails
 			assert.strictEqual(result, false);
 		});
@@ -261,7 +249,7 @@ suite('MainThreadEditors', () => {
 	});
 
 	test(`applyWorkspaceEdit with only resource edit`, () => {
-		return editors.$tryApplyWorkspaceEdit({
+		return bulkEdits.$tryApplyWorkspaceEdit({
 			edits: [
 				{ _type: WorkspaceEditType.File, oldUri: resource, newUri: resource, options: undefined },
 				{ _type: WorkspaceEditType.File, oldUri: undefined, newUri: resource, options: undefined },

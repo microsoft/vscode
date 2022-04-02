@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -400,11 +399,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			],
 			true,
 			undefined, () => undefined,
-			undefined
+			undefined,
+			true
 		);
 	}
 
-	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean = true): boolean {
+	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean): boolean {
 		this._pauseableEmitter.pause();
 		this.pushStackElement('edit', beginSelectionState, undoRedoGroup);
 
@@ -502,7 +502,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				return [...otherEdits.reverse(), ...replaceEdits];
 			});
 
-		const flattenEdits = flatten(edits);
+		const flattenEdits = edits.flat();
 
 		for (const { edit, cellIndex } of flattenEdits) {
 			switch (edit.editType) {

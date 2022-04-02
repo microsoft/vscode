@@ -23,7 +23,8 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService
 	) {
-		super(_contextViewService, _contextKeyService, findState, true);
+		super(_contextViewService, _contextKeyService, findState, { showOptionButtons: true, showResultCount: true });
+
 		this._register(findState.onFindReplaceStateChange(() => {
 			this.show();
 		}));
@@ -80,6 +81,14 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		} else {
 			instance?.xterm?.clearSearchDecorations();
 		}
+	}
+
+	protected async _getResultCount(): Promise<{ resultIndex: number; resultCount: number } | undefined> {
+		const instance = this._terminalService.activeInstance;
+		if (instance) {
+			return instance.xterm?.findResult;
+		}
+		return undefined;
 	}
 
 	protected _onInputChanged() {

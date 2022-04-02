@@ -236,9 +236,10 @@ class RenameController implements IEditorContribution {
 			this._bulkEditService.apply(ResourceEdit.convert(renameResult), {
 				editor: this.editor,
 				showPreview: inputFieldResult.wantsPreview,
-				label: nls.localize('label', "Renaming '{0}'", loc?.text),
+				label: nls.localize('label', "Renaming '{0}' to '{1}'", loc?.text, inputFieldResult.newName),
 				code: 'undoredo.rename',
-				quotableLabel: nls.localize('quotableLabel', "Renaming {0}", loc?.text),
+				quotableLabel: nls.localize('quotableLabel', "Renaming {0} to {1}", loc?.text, inputFieldResult.newName),
+				respectAutoSaveConfig: true
 			}).then(result => {
 				if (result.ariaSummary) {
 					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, inputFieldResult.newName, result.ariaSummary));

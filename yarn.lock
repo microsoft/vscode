@@ -4297,10 +4297,10 @@ electron-to-chromium@^1.4.17:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.45.tgz#cf1144091d6683cbd45a231954a745f02fb24598"
   integrity sha512-czF9eYVuOmlY/vxyMQz2rGlNSjZpxNQYBe1gmQv7al171qOIhgyO9k7D5AKlgeTCSPKk+LHhj5ZyIdmEub9oNg==
 
-electron@17.2.0:
-  version "17.2.0"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-17.2.0.tgz#a5c42c16352ea968fcb5d1ce256bec51e7d140fe"
-  integrity sha512-eNXhPVEUofkgAeqRFvTizzYecoCMyS0Rar08WZHSAw9wjfZXawYMvTpjjjk9GiX9W/+Cjxua4YtGn5bOTabc0A==
+electron@17.3.0:
+  version "17.3.0"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-17.3.0.tgz#cdcc46a7a3cd0b6f2a1757fbeb807f6b2fce847e"
+  integrity sha512-KuYHCOw1a+CE9thZlWRqTScf6M81KLd6n5qpdBGb0rl62+50RUuau9CnYpBb3EJxrjsXLaiQCBBSdPsozf/XUg==
   dependencies:
     "@electron/get" "^1.13.0"
     "@types/node" "^14.6.2"
@@ -5768,10 +5768,10 @@ growl@1.10.5:
   resolved "https://registry.yarnpkg.com/growl/-/growl-1.10.5.tgz#f2735dc2283674fa67478b10181059355c369e5e"
   integrity sha512-qBr4OuELkhPenW6goKVXiv47US3clb3/IbuWF9KNKEijAy9oeHxU9IgzjvJhHkUzhaj7rOUD7+YGWqUjLp5oSA==
 
-gulp-atom-electron@^1.32.1:
-  version "1.32.1"
-  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.32.1.tgz#5a7ae8b79338d0f9c55f2714048111c5fff17ad7"
-  integrity sha512-hsuj0y50QCFR+SrDsmOOPE7gEPRx5PpVbi4lEl5OySNEuGmUAUdTboN1LTM2UwvUQtxdDOIEUZ6WhuFDnzUWYw==
+gulp-atom-electron@^1.32.3:
+  version "1.32.3"
+  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.32.3.tgz#941145473f1b128778f474fc77bd085c01afc73d"
+  integrity sha512-GhFtz0O64ohr8sqWtWoR4V8+smgBzkt6aMyF6/KYJVUkv7tKRYH0dq1M+jtShqjvRz67NjzL65EWbqOPdLZjSQ==
   dependencies:
     "@electron/get" "^1.12.4"
     "@octokit/rest" "^18.0.14"
@@ -5931,15 +5931,15 @@ gulp-postcss@^9.0.0:
     postcss-load-config "^2.1.1"
     vinyl-sourcemaps-apply "^0.2.1"
 
-gulp-remote-retry-src@^0.6.0:
-  version "0.6.0"
-  resolved "https://registry.yarnpkg.com/gulp-remote-retry-src/-/gulp-remote-retry-src-0.6.0.tgz#fdcb5d5c9e67c31ae378a2a886ddad3d47913bb1"
-  integrity sha512-lFxpwwbM/GEIdYiNumxiUcPHZUROFJaF1zTBne1H8b3Pwx6Te6O9uEYp++JZPP62jdheOWcHUTBREiMkpdbm4Q==
+gulp-remote-retry-src@^0.8.0:
+  version "0.8.0"
+  resolved "https://registry.yarnpkg.com/gulp-remote-retry-src/-/gulp-remote-retry-src-0.8.0.tgz#223ab0fbf117549088c89f4a6b89f827eb5dc465"
+  integrity sha512-pyfehK32n209zYVfvgx8AArwOk3EuhwCgiFsGRNKW25N0XQ+710ix8rKPUvt1Vi2w0zEFPng55caJMa5e4b0mw==
   dependencies:
     event-stream "3.3.4"
     node.extend "~1.1.2"
-    request "^2.88.0"
-    requestretry "^4.0.0"
+    request "^2.88.2"
+    requestretry "^7.0.2"
     through2 "~2.0.3"
     vinyl "~2.0.1"
 
@@ -9920,7 +9920,7 @@ replacestream@^4.0.0:
     object-assign "^4.0.1"
     readable-stream "^2.0.2"
 
-request@^2.85.0, request@^2.88.0:
+request@^2.85.0, request@^2.88.2:
   version "2.88.2"
   resolved "https://registry.yarnpkg.com/request/-/request-2.88.2.tgz#d73c918731cb5a87da047e207234146f664d12b3"
   integrity sha512-MsvtOrfG9ZcrOwAW+Qi+F6HbD0CWXEh9ou77uOb7FM2WPhwT7smM833PzanhJLsgXjN89Ir6V2PczXNnMpwKhw==
@@ -9946,14 +9946,13 @@ request@^2.85.0, request@^2.88.0:
     tunnel-agent "^0.6.0"
     uuid "^3.3.2"
 
-requestretry@^4.0.0:
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/requestretry/-/requestretry-4.0.0.tgz#4e9e7280a7d8561bf33e9925264cf026e2be3e89"
-  integrity sha512-ST8m0+5FQH2FA+gbzUQyOQjUwHf22kbPQnd6TexveR0p+2UV1YYBg+Roe7BnKQ1Bb/+LtJwwm0QzxK2NA20Cug==
+requestretry@^7.0.2:
+  version "7.0.2"
+  resolved "https://registry.yarnpkg.com/requestretry/-/requestretry-7.0.2.tgz#22a169e5d3aaadd95d00401d7347511f3695faf4"
+  integrity sha512-Zz8z7G2OuVs4F0wR0shKMEMm7lNvPNHM0UIHNns9qfyuBDKSExoTsZGtSjKst6nPEwlMrbA9G+m/yC0AbGj+8w==
   dependencies:
     extend "^3.0.2"
-    lodash "^4.17.10"
-    when "^3.7.7"
+    lodash "^4.17.15"
 
 require-directory@^2.1.1:
   version "2.1.1"
@@ -12113,11 +12112,6 @@ whatwg-url@^5.0.0:
     tr46 "~0.0.3"
     webidl-conversions "^3.0.0"
 
-when@^3.7.7:
-  version "3.7.8"
-  resolved "https://registry.yarnpkg.com/when/-/when-3.7.8.tgz#c7130b6a7ea04693e842cdc9e7a1f2aa39a39f82"
-  integrity sha1-xxMLan6gRpPoQs3J56Hyqjmjn4I=
-
 which-boxed-primitive@^1.0.2:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/which-boxed-primitive/-/which-boxed-primitive-1.0.2.tgz#13757bc89b209b049fe5d86430e21cf40a89a8e6"
@@ -12191,10 +12185,10 @@ windows-mutex@0.4.1:
     bindings "^1.2.1"
     nan "^2.14.0"
 
-windows-process-tree@^0.3.2:
-  version "0.3.2"
-  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.3.2.tgz#8c39f39e7707e09fd74638a7ef644b5f389096d3"
-  integrity sha512-x8Y4KOV8tUhhPiO0TH7wOMTZ677rw7VEwq+dTuHHiLTClkrNXWSY3XzP6ez3fs2Cab4FajrtmiqRs0jTMZHfyw==
+windows-process-tree@0.3.3:
+  version "0.3.3"
+  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.3.3.tgz#7c178815f02bf4cfbcac1f93b2f3a3cc10bc9245"
+  integrity sha512-rkiAMP0AS27xikFyn7i4gPbOK16UdjY8X/C6eo37CnfNLqTvK2eEaT+Dh0e5xnvmlsi0lEKd60O+4ajzfDkq7A==
   dependencies:
     nan "^2.13.2"
 
@@ -12330,35 +12324,35 @@ xtend@~2.1.1:
   dependencies:
     object-keys "~0.4.0"
 
-xterm-addon-search@0.9.0-beta.16:
-  version "0.9.0-beta.16"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.9.0-beta.16.tgz#b83dab17afa7d8d4b8a81419228c3303af097b9e"
-  integrity sha512-JmKBXZkFeodyoMt5qruK6zO/mzEN+RSoxnvfdmpqt/eBSylzQlNR3JgwLZe0vC4LnH6jQ/1FmNCmVVNc2IX21g==
+xterm-addon-search@0.9.0-beta.18:
+  version "0.9.0-beta.18"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.9.0-beta.18.tgz#5317aed1dc747f468ccb7ecd151fb00d82a8a19d"
+  integrity sha512-SAeA3thc2WJNYXwjOEJFLpZ1ZVOs22RLmz9a6WcrzXkvCjLZRvbRGwX25Ms+Dd7dVDQNbKVUzUJohspP/vYr0Q==
 
-xterm-addon-serialize@0.7.0-beta.11:
-  version "0.7.0-beta.11"
-  resolved "https://registry.yarnpkg.com/xterm-addon-serialize/-/xterm-addon-serialize-0.7.0-beta.11.tgz#d9d6a862b3d70fc6160e39bc235a2a9ef45e20d6"
-  integrity sha512-okirLeH8VpOxlnZkER2lN0emaTgWe/DHVGpY9ByfLIoYw506Ci2LRcOjyYwJBRTJcfLp3TGnwQSYfooCZHDndw==
+xterm-addon-serialize@0.7.0-beta.12:
+  version "0.7.0-beta.12"
+  resolved "https://registry.yarnpkg.com/xterm-addon-serialize/-/xterm-addon-serialize-0.7.0-beta.12.tgz#4f845d8b1a9f9b7ae3f910455ce8c58b041babc7"
+  integrity sha512-b4Ug0B/RSJMux+KAcp+PXVqubVyXjN1yCQw1FOkgVYTpmd9AH/X+EcxKml5Lz8DsKmsXqfD9AlV3WpEeT+OtMw==
 
 xterm-addon-unicode11@0.4.0-beta.3:
   version "0.4.0-beta.3"
   resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.4.0-beta.3.tgz#f350184155fafd5ad0d6fbf31d13e6ca7dea1efa"
   integrity sha512-FryZAVwbUjKTmwXnm1trch/2XO60F5JsDvOkZhzobV1hm10sFLVuZpFyHXiUx7TFeeFsvNP+S77LAtWoeT5z+Q==
 
-xterm-addon-webgl@0.12.0-beta.24:
-  version "0.12.0-beta.24"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.12.0-beta.24.tgz#5c17256933991856554c95c9bd1eaab42e9727a0"
-  integrity sha512-+wZxKReEOlfN9JRHyikoffA6Do61/THR7QY35ajkQo0lLutKr6hTd/TLTuZh0PhFVelgTgudpXqlP++Lc0WFIA==
+xterm-addon-webgl@0.12.0-beta.27:
+  version "0.12.0-beta.27"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.12.0-beta.27.tgz#afc5bc01d1ef3af9005fb9f6325a4db9c92aa8d9"
+  integrity sha512-P948trotU8FMHtaA7C2x97VpLq6QLSjO53kWNvONS0/XwEKQBIYCI7Jfri2wcLgfQg6Cn4OQGLoj2YBK3MMyww==
 
-xterm-headless@4.19.0-beta.15:
-  version "4.19.0-beta.15"
-  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-4.19.0-beta.15.tgz#33afc7b1340f44287221bfea23848f6bbbeb7095"
-  integrity sha512-FXJuauakfwdCZ/e82IEF/oZI2GEVLqLDUmtorbg2cG86aCvrXkyPYNEN/Ac2tdSE3IsWZiGJ89eyq1EspuCbWw==
+xterm-headless@4.19.0-beta.20:
+  version "4.19.0-beta.20"
+  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-4.19.0-beta.20.tgz#9e401920fcc24c2474e0bd45df932c62413594da"
+  integrity sha512-twp0vCyfdI4wVgDrwxaHk1FtC4UhTNNgbIPT6yVPjICOUkUTOvFjrQCNKHv2uMOJo9uAH2gyOsIqHdEP549rJA==
 
-xterm@4.19.0-beta.15:
-  version "4.19.0-beta.15"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.19.0-beta.15.tgz#620735474a36e49ee384062dc3d42b941a51a8bd"
-  integrity sha512-fycX7gDj0SrJiSMzRzal2qp4aGPc4RnRyKIUuRV5L0eR75+UCLnZf4wODltDsq1Sb9iEUFA5eMLhD/Ow05JXcA==
+xterm@4.19.0-beta.20:
+  version "4.19.0-beta.20"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.19.0-beta.20.tgz#d8e970d8a8460c1d1a5ec9866f78f607a44c1349"
+  integrity sha512-IYI4ngSWzpV4sJXLWGEDF7vgLuUHn0CUQ42+TGv4H/hCGo4uru4s/D3Yws0ETb3a9VwRpZEPsigULaWTnhFusg==
 
 y18n@^3.2.1:
   version "3.2.2"

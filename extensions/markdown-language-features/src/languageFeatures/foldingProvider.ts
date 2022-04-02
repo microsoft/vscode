@@ -57,7 +57,7 @@ export class MdFoldingProvider implements vscode.FoldingRangeProvider {
 	private async getHeaderFoldingRanges(document: SkinnyTextDocument) {
 		const toc = await TableOfContents.create(this.engine, document);
 		return toc.entries.map(entry => {
-			let endLine = entry.location.range.end.line;
+			let endLine = entry.sectionLocation.range.end.line;
 			if (document.lineAt(endLine).isEmptyOrWhitespace && endLine >= entry.line + 1) {
 				endLine = endLine - 1;
 			}

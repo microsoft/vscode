@@ -41,6 +41,7 @@ import { isEqual } from 'vs/base/common/resources';
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';
 let MAX_MATCHES_COUNT_WIDTH = 69;
+const PROGRESS_BAR_DELAY = 200; // show progress for at least 200ms
 
 export class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.find';
@@ -76,9 +77,9 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 
 			if (e.isSearching) {
 				if (this._state.isSearching) {
-					this._progressBar.infinite().show();
+					this._progressBar.infinite().show(PROGRESS_BAR_DELAY);
 				} else {
-					this._progressBar.stop();
+					this._progressBar.stop().hide();
 				}
 			}
 
@@ -148,7 +149,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		if (currentMatch.isModelMatch) {
 			const match = currentMatch.match as FindMatch;
 
-			this._progressBar.infinite().show();
+			this._progressBar.infinite().show(PROGRESS_BAR_DELAY);
 
 			const replacePattern = this.replacePattern;
 			const replaceString = replacePattern.buildReplaceString(match.matches, this._state.preserveCase);
@@ -168,7 +169,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			return;
 		}
 
-		this._progressBar.infinite().show();
+		this._progressBar.infinite().show(PROGRESS_BAR_DELAY);
 
 		const replacePattern = this.replacePattern;
 

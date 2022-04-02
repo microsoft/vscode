@@ -83,7 +83,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 
 		snippet: for (const snippet of snippets) {
 
-			if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && !snippet.prefixLow.includes(triggerCharacterLow)) {
+			if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && !snippet.prefixLow.startsWith(triggerCharacterLow)) {
 				// strict -> when having trigger characters they must prefix-match
 				continue snippet;
 			}

@@ -21,7 +21,12 @@ import { LinkedList } from 'vs/base/common/linkedList';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ResourceMap } from 'vs/base/common/map';
+import { ResourceMap, ResourceSet } from 'vs/base/common/map';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { URI } from 'vs/base/common/uri';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class BulkEdit {
 
@@ -67,10 +72,10 @@ class BulkEdit {
 		}
 	}
 
-	async perform(): Promise<void> {
+	async perform(): Promise<readonly URI[]> {
 
 		if (this._edits.length === 0) {
-			return;
+			return [];
 		}
 
 		const ranges: number[] = [1];
@@ -88,6 +93,7 @@ class BulkEdit {
 		// Increment by percentage points since progress API expects that
 		const progress: IProgress<void> = { report: _ => this._progress.report({ increment: 100 / this._edits.length }) };
 
+		const resources: (readonly URI[])[] = [];
 		let index = 0;
 		for (let range of ranges) {
 			if (this._token.isCancellationRequested) {
@@ -95,34 +101,36 @@ class BulkEdit {
 			}
 			const group = this._edits.slice(index, index + range);
 			if (group[0] instanceof ResourceFileEdit) {
-				await this._performFileEdits(<ResourceFileEdit[]>group, this._undoRedoGroup, this._undoRedoSource, this._confirmBeforeUndo, progress);
+				resources.push(await this._performFileEdits(<ResourceFileEdit[]>group, this._undoRedoGroup, this._undoRedoSource, this._confirmBeforeUndo, progress));
 			} else if (group[0] instanceof ResourceTextEdit) {
-				await this._performTextEdits(<ResourceTextEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress);
+				resources.push(await this._performTextEdits(<ResourceTextEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress));
 			} else if (group[0] instanceof ResourceNotebookCellEdit) {
-				await this._performCellEdits(<ResourceNotebookCellEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress);
+				resources.push(await this._performCellEdits(<ResourceNotebookCellEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress));
 			} else {
 				console.log('UNKNOWN EDIT');
 			}
 			index = index + range;
 		}
+
+		return resources.flat();
 	}
 
-	private async _performFileEdits(edits: ResourceFileEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, confirmBeforeUndo: boolean, progress: IProgress<void>) {
+	private async _performFileEdits(edits: ResourceFileEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, confirmBeforeUndo: boolean, progress: IProgress<void>): Promise<readonly URI[]> {
 		this._logService.debug('_performFileEdits', JSON.stringify(edits));
 		const model = this._instaService.createInstance(BulkFileEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._code || 'undoredo.workspaceEdit', undoRedoGroup, undoRedoSource, confirmBeforeUndo, progress, this._token, edits);
-		await model.apply();
+		return await model.apply();
 	}
 
-	private async _performTextEdits(edits: ResourceTextEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>): Promise<void> {
+	private async _performTextEdits(edits: ResourceTextEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>): Promise<readonly URI[]> {
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
 		const model = this._instaService.createInstance(BulkTextEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._code || 'undoredo.workspaceEdit', this._editor, undoRedoGroup, undoRedoSource, progress, this._token, edits);
-		await model.apply();
+		return await model.apply();
 	}
 
-	private async _performCellEdits(edits: ResourceNotebookCellEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>): Promise<void> {
+	private async _performCellEdits(edits: ResourceNotebookCellEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>): Promise<readonly URI[]> {
 		this._logService.debug('_performCellEdits', JSON.stringify(edits));
 		const model = this._instaService.createInstance(BulkCellEdits, undoRedoGroup, undoRedoSource, progress, this._token, edits);
-		await model.apply();
+		return await model.apply();
 	}
 }
 
@@ -138,7 +146,9 @@ export class BulkEditService implements IBulkEditService {
 		@ILogService private readonly _logService: ILogService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IDialogService private readonly _dialogService: IDialogService
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 	) { }
 
 	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable {
@@ -212,8 +222,15 @@ export class BulkEditService implements IBulkEditService {
 
 		let listener: IDisposable | undefined;
 		try {
-			listener = this._lifecycleService.onBeforeShutdown(e => e.veto(this.shouldVeto(label, e.reason), 'veto.blukEditService'));
-			await bulkEdit.perform();
+			listener = this._lifecycleService.onBeforeShutdown(e => e.veto(this._shouldVeto(label, e.reason), 'veto.blukEditService'));
+			const resources = await bulkEdit.perform();
+
+			// when enabled (option AND setting) loop over all dirty working copies and trigger save
+			// for those that were involved in this bulk edit operation.
+			if (options?.respectAutoSaveConfig && this._configService.getValue(autoSaveSetting) === true && resources.length > 1) {
+				await this._saveAll(resources);
+			}
+
 			return { ariaSummary: bulkEdit.ariaMessage() };
 		} catch (err) {
 			// console.log('apply FAILED');
@@ -226,7 +243,23 @@ export class BulkEditService implements IBulkEditService {
 		}
 	}
 
-	private async shouldVeto(label: string | undefined, reason: ShutdownReason): Promise<boolean> {
+	private async _saveAll(resources: readonly URI[]) {
+		const set = new ResourceSet(resources);
+		const saves = this._workingCopyService.dirtyWorkingCopies.map(async (copy) => {
+			if (set.has(copy.resource)) {
+				await copy.save();
+			}
+		});
+
+		const result = await Promise.allSettled(saves);
+		for (const item of result) {
+			if (item.status === 'rejected') {
+				this._logService.warn(item.reason);
+			}
+		}
+	}
+
+	private async _shouldVeto(label: string | undefined, reason: ShutdownReason): Promise<boolean> {
 		label = label || localize('fileOperation', "File operation");
 		const reasonLabel = reason === ShutdownReason.CLOSE ? localize('closeTheWindow', "Close Window") : reason === ShutdownReason.LOAD ? localize('changeWorkspace', "Change Workspace") :
 			reason === ShutdownReason.RELOAD ? localize('reloadTheWindow', "Reload Window") : localize('quit', "Quit");
@@ -240,3 +273,16 @@ export class BulkEditService implements IBulkEditService {
 }
 
 registerSingleton(IBulkEditService, BulkEditService, true);
+
+const autoSaveSetting = 'files.refactoring.autoSave';
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	id: 'files',
+	properties: {
+		[autoSaveSetting]: {
+			description: localize('refactoring.autoSave', "Controls if files that were part of a refactoring are saved automatically"),
+			default: true,
+			type: 'boolean'
+		}
+	}
+});

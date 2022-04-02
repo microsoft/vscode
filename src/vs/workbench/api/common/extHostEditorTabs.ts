@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext, MainThreadEditorTabsShape, TabInputKind } from 'vs/workbench/api/common/extHost.protocol';
+import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TabOperation } from 'vs/workbench/api/common/extHost.protocol';
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -36,9 +36,9 @@ class ExtHostEditorTab {
 	}
 
 	get apiObject(): vscode.Tab {
-		// Don't want to lose reference to parent `this` in the getters
-		const that = this;
 		if (!this._apiObject) {
+			// Don't want to lose reference to parent `this` in the getters
+			const that = this;
 			const obj: vscode.Tab = {
 				get isActive() {
 					// We use a getter function here to always ensure at most 1 active tab per group and prevent iteration for being required
@@ -120,9 +120,9 @@ class ExtHostEditorTabGroup {
 	}
 
 	get apiObject(): vscode.TabGroup {
-		// Don't want to lose reference to parent `this` in the getters
-		const that = this;
 		if (!this._apiObject) {
+			// Don't want to lose reference to parent `this` in the getters
+			const that = this;
 			const obj: vscode.TabGroup = {
 				get isActive() {
 					// We use a getter function here to always ensure at most 1 active group and prevent iteration for being required
@@ -155,20 +155,39 @@ class ExtHostEditorTabGroup {
 		this._dto = dto;
 	}
 
-	acceptTabDtoUpdate(dto: IEditorTabDto) {
-		const tab = this._tabs.find(extHostTab => extHostTab.tabId === dto.id);
+	acceptTabOperation(operation: TabOperation): ExtHostEditorTab {
+		// In the open case we add the tab to the group
+		if (operation.kind === TabModelOperationKind.TAB_OPEN) {
+			const tab = new ExtHostEditorTab(operation.tabDto, this, () => this.activeTabId());
+			// Insert tab at editor index
+			this._tabs.splice(operation.index, 0, tab);
+			if (operation.tabDto.isActive) {
+				this._activeTabId = tab.tabId;
+			}
+			return tab;
+		} else if (operation.kind === TabModelOperationKind.TAB_CLOSE) {
+			const tab = this._tabs.splice(operation.index, 1)[0];
+			if (!tab) {
+				throw new Error(`Tab close updated received for index ${operation.index} which does not exist`);
+			}
+			if (tab.tabId === this._activeTabId) {
+				this._activeTabId = '';
+			}
+			return tab;
+		}
+		const tab = this._tabs.find(extHostTab => extHostTab.tabId === operation.tabDto.id);
 		if (!tab) {
 			throw new Error('INVALID tab');
 		}
-		if (dto.isActive) {
-			this._activeTabId = dto.id;
-		} else if (this._activeTabId === dto.id && !dto.isActive) {
+		if (operation.tabDto.isActive) {
+			this._activeTabId = operation.tabDto.id;
+		} else if (this._activeTabId === operation.tabDto.id && !operation.tabDto.isActive) {
 			// Events aren't guaranteed to be in order so if we receive a dto that matches the active tab id
 			// but isn't active we mark the active tab id as empty. This prevent onDidActiveTabChange frorm
 			// firing incorrectly
 			this._activeTabId = '';
 		}
-		tab.acceptDtoUpdate(dto);
+		tab.acceptDtoUpdate(operation.tabDto);
 		return tab;
 	}
 
@@ -183,9 +202,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 
 	private readonly _proxy: MainThreadEditorTabsShape;
 	private readonly _onDidChangeTabs = new Emitter<vscode.Tab[]>();
-	private readonly _onDidChangeActiveTab = new Emitter<vscode.Tab>();
 	private readonly _onDidChangeTabGroups = new Emitter<vscode.TabGroup[]>();
-	private readonly _onDidChangeActiveTabGroup = new Emitter<vscode.TabGroup>();
 
 	// Have to use ! because this gets initialized via an RPC proxy
 	private _activeGroupId!: number;
@@ -204,9 +221,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			const obj: vscode.TabGroups = {
 				// never changes -> simple value
 				onDidChangeTabGroups: that._onDidChangeTabGroups.event,
-				onDidChangeActiveTabGroup: that._onDidChangeActiveTabGroup.event,
 				onDidChangeTabs: that._onDidChangeTabs.event,
-				onDidChangeActiveTab: that._onDidChangeActiveTab.event,
 				// dynamic -> getters
 				get groups() {
 					return Object.freeze(that._extHostTabGroups.map(group => group.apiObject));
@@ -264,7 +279,6 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 		const activeTabGroupId = assertIsDefined(tabGroups.find(group => group.isActive === true)?.groupId);
 		if (activeTabGroupId !== undefined && this._activeGroupId !== activeTabGroupId) {
 			this._activeGroupId = activeTabGroupId;
-			this._onDidChangeActiveTabGroup.fire(this.tabGroups.activeTabGroup);
 		}
 		this._onDidChangeTabGroups.fire(this._extHostTabGroups.map(g => g.apiObject));
 	}
@@ -276,24 +290,20 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 		}
 		group.acceptGroupDtoUpdate(groupDto);
 		if (groupDto.isActive) {
-			const oldActiveGroupId = this._activeGroupId;
 			this._activeGroupId = groupDto.groupId;
-			if (oldActiveGroupId !== this._activeGroupId) {
-				this._onDidChangeActiveTabGroup.fire(group.apiObject);
-			}
 		}
 		this._onDidChangeTabGroups.fire([group.apiObject]);
 	}
 
-	$acceptTabUpdate(groupId: number, tabDto: IEditorTabDto) {
-		const group = this._extHostTabGroups.find(group => group.groupId === groupId);
+	$acceptTabOperation(operation: TabOperation) {
+		const group = this._extHostTabGroups.find(group => group.groupId === operation.groupId);
 		if (!group) {
 			throw new Error('Update Tabs IPC call received before group creation.');
 		}
-		const tab = group.acceptTabDtoUpdate(tabDto);
-		this._onDidChangeTabs.fire([tab.apiObject]);
-		if (tab.apiObject.isActive) {
-			this._onDidChangeActiveTab.fire(tab.apiObject);
+		const tab = group.acceptTabOperation(operation);
+		// We don't want to fire a change event with a closed tab to prevent an invalid tabs from being received
+		if (operation.kind !== TabModelOperationKind.TAB_CLOSE) {
+			this._onDidChangeTabs.fire([tab.apiObject]);
 		}
 	}
 }

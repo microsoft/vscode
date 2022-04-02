@@ -10,7 +10,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { MenuId, IMenuService, registerAction2, Action2, IMenu } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ITreeView, ITreeViewDescriptor, IViewsRegistry, Extensions, IViewDescriptorService, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeItemLabel, ViewContainer, ViewContainerLocation, ResolvableTreeItem, ITreeViewDragAndDropController } from 'vs/workbench/common/views';
+import { ITreeView, ITreeViewDescriptor, IViewsRegistry, Extensions, IViewDescriptorService, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeItemLabel, ViewContainer, ViewContainerLocation, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge } from 'vs/workbench/common/views';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IThemeService, FileThemeIcon, FolderThemeIcon, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -63,6 +63,7 @@ import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViews
 import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Mimes } from 'vs/base/common/mime';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IDataTransfer } from 'vs/workbench/common/dnd';
 
 export class TreeViewPane extends ViewPane {
@@ -222,7 +223,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IActivityService private readonly activityService: IActivityService
 	) {
 		super();
 		this.root = new Root();
@@ -347,6 +349,35 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	set description(description: string | undefined) {
 		this._description = description;
 		this._onDidChangeDescription.fire(this._description);
+	}
+
+	private _badge: IViewBadge | undefined;
+	private _badgeActivity: IDisposable | undefined;
+	get badge(): IViewBadge | undefined {
+		return this._badge;
+	}
+
+	set badge(badge: IViewBadge | undefined) {
+
+		if (this._badge?.value === badge?.value &&
+			this._badge?.tooltip === badge?.tooltip) {
+			return;
+		}
+
+		if (this._badgeActivity) {
+			this._badgeActivity.dispose();
+			this._badgeActivity = undefined;
+		}
+
+		this._badge = badge;
+
+		if (badge) {
+			const activity = {
+				badge: new NumberBadge(badge.value, () => badge.tooltip),
+				priority: 150
+			};
+			this._badgeActivity = this.activityService.showViewActivity(this.id, activity);
+		}
 	}
 
 	get canSelectMany(): boolean {
@@ -993,7 +1024,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			templateData.resourceLabel.setResource({ name: label, description, resource: labelResource }, {
 				fileKind: this.getFileKind(node),
 				title,
-				hideIcon: !!iconUrl || (!!node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)),
+				hideIcon: !!iconUrl || !!node.themeIcon,
 				fileDecorations,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
@@ -1014,7 +1045,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			templateData.icon.style.backgroundImage = DOM.asCSSUrl(iconUrl);
 		} else {
 			let iconClass: string | undefined;
-			if (node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)) {
+			// If there is a resource for this tree item then we should respect the file icon theme's choice about
+			// whether to show a folder icon.
+			if (node.themeIcon && (!resource || !this.isFolderThemeIcon(node.themeIcon) || this.themeService.getFileIconTheme().hasFolderIcons)) {
 				iconClass = ThemeIcon.asClassName(node.themeIcon);
 				if (node.themeIcon.color) {
 					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.themeIcon.color.id)?.toString() ?? '';
@@ -1047,9 +1080,13 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		container.parentElement!.classList.toggle('align-icon-with-twisty', this.aligner.alignIconWithTwisty(treeItem));
 	}
 
+	private isFolderThemeIcon(icon: ThemeIcon | undefined): boolean {
+		return icon?.id === FolderThemeIcon.id;
+	}
+
 	private isFileKindThemeIcon(icon: ThemeIcon | undefined): boolean {
 		if (icon) {
-			return icon.id === FileThemeIcon.id || icon.id === FolderThemeIcon.id;
+			return icon.id === FileThemeIcon.id || this.isFolderThemeIcon(icon);
 		} else {
 			return false;
 		}
@@ -1228,8 +1265,9 @@ export class CustomTreeView extends AbstractTreeView {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHoverService hoverService: IHoverService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IActivityService activityService: IActivityService
 	) {
-		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, hoverService, contextKeyService);
+		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, hoverService, contextKeyService, activityService);
 	}
 
 	protected activate() {

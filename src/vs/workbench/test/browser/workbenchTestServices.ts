@@ -71,7 +71,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkingCopyService, WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
@@ -209,8 +209,17 @@ export interface ITestInstantiationService extends IInstantiationService {
 	stub<T>(service: ServiceIdentifier<T>, ctor: any): T;
 }
 
+export class TestWorkingCopyService extends WorkingCopyService {
+	override unregisterWorkingCopy(workingCopy: IWorkingCopy): void {
+		return super.unregisterWorkingCopy(workingCopy);
+	}
+}
+
 export function workbenchInstantiationService(
 	overrides?: {
+		environmentService?: (instantiationService: IInstantiationService) => IEnvironmentService;
+		fileService?: (instantiationService: IInstantiationService) => IFileService;
+		configurationService?: (instantiationService: IInstantiationService) => TestConfigurationService;
 		textFileService?: (instantiationService: IInstantiationService) => ITextFileService;
 		pathService?: (instantiationService: IInstantiationService) => IPathService;
 		editorService?: (instantiationService: IInstantiationService) => IEditorService;
@@ -218,19 +227,20 @@ export function workbenchInstantiationService(
 		textEditorService?: (instantiationService: IInstantiationService) => ITextEditorService;
 	},
 	disposables: DisposableStore = new DisposableStore()
-): ITestInstantiationService {
+): TestInstantiationService {
 	const instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 
 	instantiationService.stub(IEditorWorkerService, new TestEditorWorkerService());
-	instantiationService.stub(IWorkingCopyService, disposables.add(new WorkingCopyService()));
-	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
+	instantiationService.stub(IWorkingCopyService, disposables.add(new TestWorkingCopyService()));
+	const environmentService = overrides?.environmentService ? overrides.environmentService(instantiationService) : TestEnvironmentService;
+	instantiationService.stub(IEnvironmentService, environmentService);
+	instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 	const contextKeyService = overrides?.contextKeyService ? overrides.contextKeyService(instantiationService) : instantiationService.createInstance(MockContextKeyService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
 	instantiationService.stub(IProgressService, new TestProgressService());
 	const workspaceContextService = new TestContextService(TestWorkspace);
 	instantiationService.stub(IWorkspaceContextService, workspaceContextService);
-	const configService = new TestConfigurationService({
+	const configService = overrides?.configurationService ? overrides.configurationService(instantiationService) : new TestConfigurationService({
 		files: {
 			participants: {
 				timeout: 60000
@@ -259,7 +269,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IThemeService, themeService);
 	instantiationService.stub(ILanguageConfigurationService, new TestLanguageConfigurationService());
 	instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelService)));
-	const fileService = new TestFileService();
+	const fileService = overrides?.fileService ? overrides.fileService(instantiationService) : new TestFileService();
 	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
 	instantiationService.stub(IWorkingCopyBackupService, new TestWorkingCopyBackupService());
@@ -309,7 +319,7 @@ export class TestServiceAccessor {
 		@IFileService public fileService: TestFileService,
 		@IFileDialogService public fileDialogService: TestFileDialogService,
 		@IDialogService public dialogService: TestDialogService,
-		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
+		@IWorkingCopyService public workingCopyService: TestWorkingCopyService,
 		@IEditorService public editorService: TestEditorService,
 		@IWorkbenchEnvironmentService public environmentService: IWorkbenchEnvironmentService,
 		@IPathService public pathService: IPathService,

@@ -3,9 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .statusbar DIV#status\.languageStatus .codicon-circle-large-filled::before {
-	font-size: 12px;
-	line-height: 18px;
+
+@keyframes wiggle {
+	0% {
+		transform: rotate(0) scale(1)
+	}
+
+	15%,
+	45% {
+		transform: rotate(.04turn) scale(1.1)
+	}
+
+	30%,
+	60% {
+		transform: rotate(-.04turn) scale(1.2)
+	}
+
+	100% {
+		transform: rotate(0) scale(1)
+	}
+}
+
+.monaco-workbench.enable-motion .statusbar DIV#status\.languageStatus span.codicon.wiggle {
+	animation-duration: .8s;
+	animation-iteration-count: 1;
+	animation-name: wiggle;
+}
+
+.monaco-workbench.enable-motion .statusbar DIV#status\.languageStatus span.codicon.wiggle.repeat {
+	animation-iteration-count: 3;
 }
 
 .monaco-workbench .hover-language-status {
@@ -17,61 +43,61 @@
 	border-bottom: 1px solid var(--vscode-notifications-border);
 }
 
-.monaco-workbench .hover-language-status > .severity {
+.monaco-workbench .hover-language-status>.severity {
 	padding-right: 8px;
 	flex: 1;
 	margin: auto;
 	display: none;
 }
 
-.monaco-workbench .hover-language-status > .severity.sev3 {
+.monaco-workbench .hover-language-status>.severity.sev3 {
 	color: var(--vscode-notificationsErrorIcon-foreground)
 }
 
-.monaco-workbench .hover-language-status > .severity.sev2 {
+.monaco-workbench .hover-language-status>.severity.sev2 {
 	color: var(--vscode-notificationsInfoIcon-foreground)
 }
 
-.monaco-workbench .hover-language-status > .severity.show {
+.monaco-workbench .hover-language-status>.severity.show {
 	display: inherit;
 }
 
-.monaco-workbench .hover-language-status > .element {
+.monaco-workbench .hover-language-status>.element {
 	display: flex;
 	justify-content: space-between;
 	vertical-align: middle;
 	flex-grow: 100;
 }
 
-.monaco-workbench .hover-language-status > .element > .left > .detail:not(:empty)::before {
+.monaco-workbench .hover-language-status>.element>.left>.detail:not(:empty)::before {
 	/* allow-any-unicode-next-line */
 	content: '–';
 	padding: 0 4px;
 	opacity: 0.6;
 }
 
-.monaco-workbench .hover-language-status > .element > .left > .label:empty {
+.monaco-workbench .hover-language-status>.element>.left>.label:empty {
 	display: none;
 }
 
-.monaco-workbench .hover-language-status > .element .left {
+.monaco-workbench .hover-language-status>.element .left {
 	margin: auto 0;
 }
 
-.monaco-workbench .hover-language-status > .element .right {
+.monaco-workbench .hover-language-status>.element .right {
 	margin: auto 0;
 	display: flex;
 }
 
-.monaco-workbench .hover-language-status > .element .right:not(:empty) {
+.monaco-workbench .hover-language-status>.element .right:not(:empty) {
 	padding-left: 16px;
 }
 
-.monaco-workbench .hover-language-status > .element .right .monaco-link {
+.monaco-workbench .hover-language-status>.element .right .monaco-link {
 	margin: auto 0;
 	white-space: nowrap;
 }
 
-.monaco-workbench .hover-language-status > .element .right .monaco-action-bar:not(:first-child) {
+.monaco-workbench .hover-language-status>.element .right .monaco-action-bar:not(:first-child) {
 	padding-left: 8px;
 }

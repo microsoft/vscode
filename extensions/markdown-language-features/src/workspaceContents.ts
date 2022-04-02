@@ -38,6 +38,8 @@ export interface MdWorkspaceContents {
 	 */
 	getAllMarkdownDocuments(): Promise<Iterable<SkinnyTextDocument>>;
 
+	getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined>;
+
 	readonly onDidChangeMarkdownDocument: vscode.Event<SkinnyTextDocument>;
 	readonly onDidCreateMarkdownDocument: vscode.Event<SkinnyTextDocument>;
 	readonly onDidDeleteMarkdownDocument: vscode.Event<vscode.Uri>;
@@ -124,15 +126,20 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 		}));
 	}
 
-	private async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
+	public async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
 		const matchingDocument = vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === resource.toString());
 		if (matchingDocument) {
 			return matchingDocument;
 		}
 
-		const bytes = await vscode.workspace.fs.readFile(resource);
-		// // We assume that markdown is in UTF-8
-		const text = this.utf8Decoder.decode(bytes);
-		return new InMemoryDocument(resource, text, 0);
+		try {
+			const bytes = await vscode.workspace.fs.readFile(resource);
+
+			// We assume that markdown is in UTF-8
+			const text = this.utf8Decoder.decode(bytes);
+			return new InMemoryDocument(resource, text, 0);
+		} catch {
+			return undefined;
+		}
 	}
 }
