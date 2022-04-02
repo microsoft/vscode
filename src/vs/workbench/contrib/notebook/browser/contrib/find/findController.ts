@@ -24,7 +24,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/browser/findController';
+import { StartFindAction, StartFindReplaceAction, getSelectionSearchString, IFindStartOptions, FindStartFocusAction } from 'vs/editor/contrib/find/browser/findController';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from 'vs/editor/contrib/find/browser/findWidget';
 import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
@@ -37,6 +37,7 @@ import { Schemas } from 'vs/base/common/network';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';
@@ -410,6 +411,23 @@ function notebookContainsTextModel(uri: URI, textModel: ITextModel) {
 	return false;
 }
 
+function getSearchString(editor: ICodeEditor, opts: IFindStartOptions) {
+	// Get the search string result, following the same logic in _start function in 'vs/editor/contrib/find/browser/findController'
+	let searchString = '';
+	if (opts.seedSearchStringFromSelection === 'single') {
+		let selectionSearchString = getSelectionSearchString(editor, opts.seedSearchStringFromSelection, opts.seedSearchStringFromNonEmptySelection);
+		if (selectionSearchString) {
+			searchString = selectionSearchString;
+		}
+	} else if (opts.seedSearchStringFromSelection === 'multiple' && !opts.updateSearchScope) {
+		let selectionSearchString = getSelectionSearchString(editor, opts.seedSearchStringFromSelection);
+		if (selectionSearchString) {
+			searchString = selectionSearchString;
+		}
+	}
+	return searchString;
+}
+
 StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: ICodeEditor, args: any) => {
 	const editorService = accessor.get(IEditorService);
 	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
@@ -430,7 +448,20 @@ StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: 
 	}
 
 	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
-	controller.show();
+
+	// Get the search string result, following the same logic in StartFindAction.addImplementation function in 'vs/editor/contrib/find/browser/findController'
+	const searchString = getSearchString(codeEditor, {
+		forceRevealReplace: false,
+		seedSearchStringFromSelection: codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
+		seedSearchStringFromNonEmptySelection: codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
+		seedSearchStringFromGlobalClipboard: codeEditor.getOption(EditorOption.find).globalFindClipboard,
+		shouldFocus: FindStartFocusAction.FocusFindInput,
+		shouldAnimate: true,
+		updateSearchScope: false,
+		loop: codeEditor.getOption(EditorOption.find).loop
+	});
+
+	controller.show(searchString);
 	return true;
 });
 
