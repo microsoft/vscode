@@ -4,6 +4,14 @@
 # ---------------------------------------------------------------------------------------------
 autoload -Uz add-zsh-hook
 
+# Now that the init script is running, unset ZDOTDIR to ensure ~/.zlogout runs as expected as well
+# as prevent problems that may occur if the user's init scripts depend on ZDOTDIR not being set.
+unset ZDOTDIR
+
+# This variable allows the shell to both detect that VS Code's shell integration is enabled as well
+# as disable it by unsetting the variable.
+VSCODE_SHELL_INTEGRATION=1
+
 if [ -f ~/.zshenv ]; then
 	. ~/.zshenv
 fi
@@ -13,91 +21,96 @@ fi
 if [ -f ~/.zshrc ]; then
 	. ~/.zshrc
 fi
-unset ZDOTDIR # ensure ~/.zlogout runs as expected
 
-IN_COMMAND_EXECUTION="1"
-LAST_HISTORY_ID=0
+# Shell integration was disabled by the shell, exit without warning assuming either the shell has
+# explicitly disabled shell integration as it's incompatible or it implements the protocol.
+if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
+	return
+fi
 
-prompt_start() {
+__vsc_in_command_execution="1"
+__vsc_last_history_id=0
+
+__vsc_prompt_start() {
 	printf "\033]633;A\007"
 }
 
-prompt_end() {
+__vsc_prompt_end() {
 	printf "\033]633;B\007"
 }
 
-update_cwd() {
+__vsc_update_cwd() {
 	printf "\033]633;P;Cwd=%s\007" "$PWD"
 }
 
-command_output_start() {
+__vsc_command_output_start() {
 	printf "\033]633;C\007"
 }
 
-continuation_start() {
+__vsc_continuation_start() {
 	printf "\033]633;F\007"
 }
 
-continuation_end() {
+__vsc_continuation_end() {
 	printf "\033]633;G\007"
 }
 
-right_prompt_start() {
+__vsc_right_prompt_start() {
 	printf "\033]633;H\007"
 }
 
-right_prompt_end() {
+__vsc_right_prompt_end() {
 	printf "\033]633;I\007"
 }
 
-command_complete() {
-	local HISTORY_ID=$(history | tail -n1 | awk '{print $1;}')
-	if [[ "$HISTORY_ID" == "$LAST_HISTORY_ID" ]]; then
+__vsc_command_complete() {
+	local __vsc_history_id=$(history | tail -n1 | awk '{print $1;}')
+	if [[ "$__vsc_history_id" == "$__vsc_last_history_id" ]]; then
 		printf "\033]633;D\007"
 	else
-		printf "\033]633;D;%s\007" "$STATUS"
-		LAST_HISTORY_ID=$HISTORY_ID
+		printf "\033]633;D;%s\007" "$__vsc_status"
+		__vsc_last_history_id=$__vsc_history_id
 	fi
-	update_cwd
+	__vsc_update_cwd
 }
 
-update_prompt() {
-	PRIOR_PROMPT="$PS1"
-	IN_COMMAND_EXECUTION=""
-	PS1="%{$(prompt_start)%}$PREFIX$PS1%{$(prompt_end)%}"
-	PS2="%{$(continuation_start)%}$PS2%{$(continuation_end)%}"
+__vsc_update_prompt() {
+	__vsc_prior_prompt="$PS1"
+	__vsc_in_command_execution=""
+	PS1="%{$(__vsc_prompt_start)%}$PREFIX$PS1%{$(__vsc_prompt_end)%}"
+	PS2="%{$(__vsc_continuation_start)%}$PS2%{$(__vsc_continuation_end)%}"
 	if [ -n "$RPROMPT" ]; then
-		PRIOR_RPROMPT="$RPROMPT"
-		RPROMPT="%{$(right_prompt_start)%}$RPROMPT%{$(right_prompt_end)%}"
+		__vsc_prior_rprompt="$RPROMPT"
+		RPROMPT="%{$(__vsc_right_prompt_start)%}$RPROMPT%{$(__vsc_right_prompt_end)%}"
 	fi
 }
 
-precmd() {
-	local STATUS="$?"
-	if [ -z "${IN_COMMAND_EXECUTION-}" ]; then
+__vsc_precmd() {
+	local __vsc_status="$?"
+	if [ -z "${__vsc_in_command_execution-}" ]; then
 		# not in command execution
-		command_output_start
+		__vsc_command_output_start
 	fi
 
-	command_complete "$STATUS"
+	__vsc_command_complete "$__vsc_status"
 
 	# in command execution
-	if [ -n "$IN_COMMAND_EXECUTION" ]; then
+	if [ -n "$__vsc_in_command_execution" ]; then
 		# non null
-		update_prompt
+		__vsc_update_prompt
 	fi
 }
 
-preexec() {
-	PS1="$PRIOR_PROMPT"
+__vsc_preexec() {
+	PS1="$__vsc_prior_prompt"
 	if [ -n "$RPROMPT" ]; then
-		RPROMPT="$PRIOR_RPROMPT"
+		RPROMPT="$__vsc_prior_rprompt"
 	fi
-	IN_COMMAND_EXECUTION="1"
-	command_output_start
+	__vsc_in_command_execution="1"
+	__vsc_command_output_start
 }
-add-zsh-hook precmd precmd
-add-zsh-hook preexec preexec
+add-zsh-hook precmd __vsc_precmd
+add-zsh-hook preexec __vsc_preexec
 
 # Show the welcome message
 if [ -z "${VSCODE_SHELL_HIDE_WELCOME-}" ]; then

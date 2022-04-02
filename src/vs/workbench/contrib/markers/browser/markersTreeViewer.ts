@@ -276,7 +276,6 @@ class MarkerWidget extends Disposable {
 
 	private readonly actionBar: ActionBar;
 	private readonly icon: HTMLElement;
-	private readonly multilineActionbar: ActionBar;
 	private readonly messageAndDetailsContainer: HTMLElement;
 	private readonly disposables = this._register(new DisposableStore());
 
@@ -291,26 +290,16 @@ class MarkerWidget extends Disposable {
 			actionViewItemProvider: (action: IAction) => action.id === QuickFixAction.ID ? _instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action) : undefined
 		}));
 		this.icon = dom.append(parent, dom.$(''));
-		this.multilineActionbar = this._register(new ActionBar(dom.append(parent, dom.$('.multiline-actions')), {
-			actionViewItemProvider: (action) => {
-				if (action.id === toggleMultilineAction) {
-					return new ToggleMultilineActionViewItem(undefined, action, { icon: true });
-				}
-				return undefined;
-			}
-		}));
 		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details-container'));
 	}
 
 	render(element: Marker, filterData: MarkerFilterData | undefined): void {
 		this.actionBar.clear();
-		this.multilineActionbar.clear();
 		this.disposables.clear();
 		dom.clearNode(this.messageAndDetailsContainer);
 
 		this.icon.className = `marker-icon codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(element.marker.severity))}`;
 		this.renderQuickfixActionbar(element);
-		this.renderMultilineActionbar(element);
 
 		this.renderMessageAndDetails(element, filterData);
 		this.disposables.add(dom.addDisposableListener(this.parent, dom.EventType.MOUSE_OVER, () => this.markersViewModel.onMarkerMouseHover(element)));
@@ -337,7 +326,17 @@ class MarkerWidget extends Disposable {
 		}
 	}
 
-	private renderMultilineActionbar(marker: Marker): void {
+	private renderMultilineActionbar(marker: Marker, parent: HTMLElement): void {
+		const multilineActionbar = this.disposables.add(new ActionBar(dom.append(parent, dom.$('.multiline-actions')), {
+			actionViewItemProvider: (action) => {
+				if (action.id === toggleMultilineAction) {
+					return new ToggleMultilineActionViewItem(undefined, action, { icon: true });
+				}
+				return undefined;
+			}
+		}));
+		this.disposables.add(toDisposable(() => multilineActionbar.dispose()));
+
 		const viewModel = this.markersViewModel.getViewModel(marker);
 		const multiline = viewModel && viewModel.multiline;
 		const action = new Action(toggleMultilineAction);
@@ -345,27 +344,29 @@ class MarkerWidget extends Disposable {
 		action.tooltip = multiline ? localize('single line', "Show message in single line") : localize('multi line', "Show message in multiple lines");
 		action.class = ThemeIcon.asClassName(multiline ? expandedIcon : collapsedIcon);
 		action.run = () => { if (viewModel) { viewModel.multiline = !viewModel.multiline; } return Promise.resolve(); };
-		this.multilineActionbar.push([action], { icon: true, label: false });
+		multilineActionbar.push([action], { icon: true, label: false });
 	}
 
-	private renderMessageAndDetails(element: Marker, filterData: MarkerFilterData | undefined) {
+	private renderMessageAndDetails(element: Marker, filterData: MarkerFilterData | undefined): void {
 		const { marker, lines } = element;
 		const viewState = this.markersViewModel.getViewModel(element);
 		const multiline = !viewState || viewState.multiline;
 		const lineMatches = filterData && filterData.lineMatches || [];
-
-		let lastLineElement: HTMLElement | undefined = undefined;
 		this.messageAndDetailsContainer.title = element.marker.message;
+
+		const lineElements: HTMLElement[] = [];
 		for (let index = 0; index < (multiline ? lines.length : 1); index++) {
-			lastLineElement = dom.append(this.messageAndDetailsContainer, dom.$('.marker-message-line'));
-			const messageElement = dom.append(lastLineElement, dom.$('.marker-message'));
+			const lineElement = dom.append(this.messageAndDetailsContainer, dom.$('.marker-message-line'));
+			const messageElement = dom.append(lineElement, dom.$('.marker-message'));
 			const highlightedLabel = new HighlightedLabel(messageElement);
 			highlightedLabel.set(lines[index].length > 1000 ? `${lines[index].substring(0, 1000)}...` : lines[index], lineMatches[index]);
 			if (lines[index] === '') {
-				lastLineElement.style.height = `${VirtualDelegate.LINE_HEIGHT}px`;
+				lineElement.style.height = `${VirtualDelegate.LINE_HEIGHT}px`;
 			}
+			lineElements.push(lineElement);
 		}
-		this.renderDetails(marker, filterData, lastLineElement || dom.append(this.messageAndDetailsContainer, dom.$('.marker-message-line')));
+		this.renderDetails(marker, filterData, lineElements[0]);
+		this.renderMultilineActionbar(element, lineElements[0]);
 	}
 
 	private renderDetails(marker: IMarker, filterData: MarkerFilterData | undefined, parent: HTMLElement): void {

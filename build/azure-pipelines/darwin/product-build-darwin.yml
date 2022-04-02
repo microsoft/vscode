@@ -39,6 +39,14 @@ steps:
 
   - script: |
       set -e
+      git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
+      echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
+      git checkout FETCH_HEAD
+    condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
+    displayName: Checkout override commit
+
+  - script: |
+      set -e
       git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
     displayName: Merge distro
 
@@ -296,10 +304,10 @@ steps:
       set -e
 
       # package Remote Extension Host
-      pushd .. && mv vscode-reh-darwin-$(VSCODE_ARCH) vscode-server-darwin && zip -Xry vscode-server-darwin-$(VSCODE_ARCH).zip vscode-server-darwin && popd
+      pushd .. && mv vscode-reh-darwin-$(VSCODE_ARCH) vscode-server-darwin-$(VSCODE_ARCH) && zip -Xry vscode-server-darwin-$(VSCODE_ARCH).zip vscode-server-darwin-$(VSCODE_ARCH) && popd
 
       # package Remote Extension Host (Web)
-      pushd .. && mv vscode-reh-web-darwin-$(VSCODE_ARCH) vscode-server-darwin-web && zip -Xry vscode-server-darwin-$(VSCODE_ARCH)-web.zip vscode-server-darwin-web && popd
+      pushd .. && mv vscode-reh-web-darwin-$(VSCODE_ARCH) vscode-server-darwin-$(VSCODE_ARCH)-web && zip -Xry vscode-server-darwin-$(VSCODE_ARCH)-web.zip vscode-server-darwin-$(VSCODE_ARCH)-web && popd
     displayName: Prepare to publish servers
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
 
@@ -356,11 +364,11 @@ steps:
   - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
     displayName: Generate SBOM (server)
     inputs:
-      BuildDropPath: $(agent.builddirectory)/vscode-server-darwin
+      BuildDropPath: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
       PackageName: Visual Studio Code Server
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
 
-  - publish: $(agent.builddirectory)/vscode-server-darwin/_manifest
+  - publish: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)/_manifest
     displayName: Publish SBOM (server)
     artifact: vscode_server_darwin_$(VSCODE_ARCH)_sbom
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))

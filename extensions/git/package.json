@@ -2189,6 +2189,11 @@
           "default": false,
           "description": "%config.useCommitInputAsStashMessage%"
         },
+        "git.useIntegratedAskPass": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.useIntegratedAskPass%"
+        },
         "git.githubAuthentication": {
           "deprecationMessage": "This setting is now deprecated, please use `github.gitAuthentication` instead."
         },
@@ -2411,7 +2416,7 @@
       },
       {
         "view": "scm",
-        "contents": "%view.workbench.scm.missing.guide.windows%",
+        "contents": "%view.workbench.scm.missing.guide.linux%",
         "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download && isLinux"
       },
       {

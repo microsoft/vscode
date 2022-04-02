@@ -11,6 +11,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { matchesScheme } from 'vs/platform/opener/common/opener';
 
 
 export const ILanguageFeatureDebounceService = createDecorator<ILanguageFeatureDebounceService>('ILanguageFeatureDebounceService');
@@ -74,7 +75,9 @@ class FeatureDebounceInformation implements IFeatureDebounceInformation {
 			this._cache.set(key, avg);
 		}
 		const newValue = clamp(avg.update(value), this._min, this._max);
-		this._logService.trace(`[DEBOUNCE: ${this._name}] for ${model.uri.toString()} is ${newValue}ms`);
+		if (!matchesScheme(model.uri, 'output')) {
+			this._logService.trace(`[DEBOUNCE: ${this._name}] for ${model.uri.toString()} is ${newValue}ms`);
+		}
 		return newValue;
 	}
 

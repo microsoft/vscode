@@ -56,6 +56,11 @@ export class CellFocusIndicator extends CellPart {
 				return;
 			}
 
+			if (e.target !== this.left.domNode) {
+				// Don't allow dblclick on the codeFocusIndicator/outputFocusIndicator
+				return;
+			}
+
 			const clickedOnInput = e.offsetY < (this.currentCell.layoutInfo as CodeCellLayoutInfo).outputContainerOffset;
 			if (clickedOnInput) {
 				this.currentCell.isInputCollapsed = !this.currentCell.isInputCollapsed;

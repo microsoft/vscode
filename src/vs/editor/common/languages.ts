@@ -799,6 +799,13 @@ export interface InlineCompletion {
 	readonly filterText?: string;
 
 	/**
+	 * An optional array of additional text edits that are applied when
+	 * selecting this completion. Edits must not overlap with the main edit
+	 * nor with themselves.
+	 */
+	readonly additionalTextEdits?: ISingleEditOperation[];
+
+	/**
 	 * The range to replace.
 	 * Must begin and end on the same line.
 	*/
@@ -1285,6 +1292,11 @@ export interface DocumentSymbolProvider {
 }
 
 export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence };
+
+export interface SnippetTextEdit {
+	range: IRange;
+	snippet: string;
+}
 
 /**
  * Interface used to format a model
@@ -1955,4 +1967,24 @@ export enum ExternalUriOpenerPriority {
 	Option = 1,
 	Default = 2,
 	Preferred = 3,
+}
+
+/**
+ * @internal
+ */
+export interface IDataTransferItem {
+	asString(): Thenable<string>;
+	value: any;
+}
+
+/**
+ * @internal
+ */
+export type IDataTransfer = Map<string, IDataTransferItem>;
+
+/**
+ * @internal
+ */
+export interface DocumentOnDropEditProvider {
+	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IDataTransfer, token: CancellationToken): ProviderResult<SnippetTextEdit>;
 }

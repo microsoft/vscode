@@ -9,6 +9,7 @@
 **/extensions/markdown-language-features/media/**
 **/extensions/markdown-language-features/notebook-out/**
 **/extensions/markdown-math/notebook-out/**
+**/extensions/notebook-renderers/renderer-out/index.js
 **/extensions/simple-browser/media/index.js
 **/extensions/typescript-language-features/test-workspace/**
 **/extensions/vscode-api-tests/testWorkspace/**

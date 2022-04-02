@@ -32,11 +32,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
+import { ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { ApiProposalName, allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { forEach } from 'vs/base/common/collections';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IExtensionHostExitInfo, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -165,6 +166,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private _lastExtensionHostId: number = 0;
 	private _maxLocalProcessAffinity: number = 0;
 
+	private readonly _remoteCrashTracker = new ExtensionHostCrashTracker();
+
 	// --- Members used per extension host process
 	private _extensionHostManagers: IExtensionHostManager[];
 	protected _extensionHostActiveExtensions: Map<string, ExtensionIdentifier>;
@@ -185,6 +188,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IExtensionManifestPropertiesService protected readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWebExtensionsScannerService protected readonly _webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILogService protected readonly _logService: ILogService,
+		@IRemoteAgentService protected readonly _remoteAgentService: IRemoteAgentService,
 	) {
 		super();
 
@@ -586,7 +590,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		toRemove = toRemove.concat(result.removedDueToLooping);
 		if (result.removedDueToLooping.length > 0) {
-			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', '))
+			});
 		}
 
 		// enable or disable proposed API per extension
@@ -881,6 +888,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
 			this.stopExtensionHosts();
 		} else if (extensionHost.kind === ExtensionHostKind.Remote) {
+			if (signal) {
+				this._onRemoteExtensionHostCrashed(extensionHost, signal);
+			}
 			for (let i = 0; i < this._extensionHostManagers.length; i++) {
 				if (this._extensionHostManagers[i] === extensionHost) {
 					this._extensionHostManagers[i].dispose();
@@ -888,6 +898,59 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 					break;
 				}
 			}
+		}
+	}
+
+	private _getExtensionHostExitInfoWithTimeout(reconnectionToken: string): Promise<IExtensionHostExitInfo | null> {
+		return new Promise((resolve, reject) => {
+			const timeoutHandle = setTimeout(() => {
+				reject(new Error('getExtensionHostExitInfo timed out'));
+			}, 2000);
+			this._remoteAgentService.getExtensionHostExitInfo(reconnectionToken).then(
+				(r) => {
+					clearTimeout(timeoutHandle);
+					resolve(r);
+				},
+				reject
+			);
+		});
+	}
+
+	private async _onRemoteExtensionHostCrashed(extensionHost: IExtensionHostManager, reconnectionToken: string): Promise<void> {
+		try {
+			const info = await this._getExtensionHostExitInfoWithTimeout(reconnectionToken);
+			if (info) {
+				this._logService.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) terminated unexpectedly with code ${info.code}.`);
+			}
+
+			this._logExtensionHostCrash(extensionHost);
+			this._remoteCrashTracker.registerCrash();
+
+			if (this._remoteCrashTracker.shouldAutomaticallyRestart()) {
+				this._logService.info(`Automatically restarting the remote extension host.`);
+				this._notificationService.status(nls.localize('extensionService.autoRestart', "The remote extension host terminated unexpectedly. Restarting..."), { hideAfter: 5000 });
+				this._startExtensionHostsIfNecessary(false, Array.from(this._allRequestedActivateEvents.keys()));
+			} else {
+				this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Remote Extension host terminated unexpectedly 3 times within the last 5 minutes."),
+					[{
+						label: nls.localize('restart', "Restart Remote Extension Host"),
+						run: () => {
+							this._startExtensionHostsIfNecessary(false, Array.from(this._allRequestedActivateEvents.keys()));
+						}
+					}]
+				);
+			}
+		} catch (err) {
+			// maybe this wasn't an extension host crash and it was a permanent disconnection
+		}
+	}
+
+	protected _logExtensionHostCrash(extensionHost: IExtensionHostManager): void {
+		const activatedExtensions = Array.from(this._extensionHostActiveExtensions.values()).filter(extensionId => extensionHost.containsExtension(extensionId));
+		if (activatedExtensions.length > 0) {
+			this._logService.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) terminated unexpectedly. The following extensions were running: ${activatedExtensions.map(id => id.value).join(', ')}`);
+		} else {
+			this._logService.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) terminated unexpectedly. No extensions were activated.`);
 		}
 	}
 
@@ -1129,11 +1192,21 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		const extension = this._registry.getExtensionDescription(msg.extensionId);
 		const strMsg = `[${msg.extensionId.value}]: ${msg.message}`;
-		if (extension && extension.isUnderDevelopment) {
-			// This message is about the extension currently being developed
-			this._showMessageToUser(msg.type, strMsg);
+
+		if (msg.type === Severity.Error) {
+			if (extension && extension.isUnderDevelopment) {
+				// This message is about the extension currently being developed
+				this._notificationService.notify({ severity: Severity.Error, message: strMsg });
+			}
+			this._logService.error(strMsg);
+		} else if (msg.type === Severity.Warning) {
+			if (extension && extension.isUnderDevelopment) {
+				// This message is about the extension currently being developed
+				this._notificationService.notify({ severity: Severity.Warning, message: strMsg });
+			}
+			this._logService.warn(strMsg);
 		} else {
-			this._logMessageInConsole(msg.type, strMsg);
+			this._logService.info(strMsg);
 		}
 
 		if (!this._isDev && msg.extensionId) {
@@ -1170,41 +1243,26 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		extensionPoint.acceptUsers(users);
 	}
 
-	private _showMessageToUser(severity: Severity, msg: string): void {
-		if (severity === Severity.Error || severity === Severity.Warning) {
-			this._notificationService.notify({ severity, message: msg });
-		} else {
-			this._logMessageInConsole(severity, msg);
-		}
-	}
-
-	private _logMessageInConsole(severity: Severity, msg: string): void {
-		if (severity === Severity.Error) {
-			console.error(msg);
-		} else if (severity === Severity.Warning) {
-			console.warn(msg);
-		} else {
-			console.log(msg);
-		}
-	}
-
 	//#region Called by extension host
 
-	protected createLogger(): Logger {
-		return new Logger((severity, source, message) => {
-			if (source) {
-				this._logOrShowMessage(severity, `[${source}]: ${message}`);
-			} else {
-				this._logOrShowMessage(severity, message);
+	protected _createLogger(): ILog {
+		return {
+			error: (message: string | Error): void => {
+				if (this._isDev) {
+					this._notificationService.notify({ severity: Severity.Error, message });
+				}
+				this._logService.error(message);
+			},
+			warn: (message: string): void => {
+				if (this._isDev) {
+					this._notificationService.notify({ severity: Severity.Warning, message });
+				}
+				this._logService.warn(message);
+			},
+			info: (message: string): void => {
+				this._logService.info(message);
 			}
-		});
-	}
-
-	protected _logOrShowMessage(severity: Severity, msg: string): void {
-		if (this._isDev) {
-			this._showMessageToUser(severity, msg);
-		}
-		this._logMessageInConsole(severity, msg);
+		};
 	}
 
 	private _acquireInternalAPI(): IInternalExtensionService {
@@ -1271,16 +1329,16 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	protected async _scanWebExtensions(): Promise<IExtensionDescription[]> {
-		const log = this.createLogger();
+		const log = this._createLogger();
 		const system: IExtensionDescription[] = [], user: IExtensionDescription[] = [], development: IExtensionDescription[] = [];
 		try {
 			await Promise.all([
 				this._webExtensionsScannerService.scanSystemExtensions().then(extensions => system.push(...extensions.map(e => toExtensionDescription(e)))),
-				this._webExtensionsScannerService.scanUserExtensions().then(extensions => user.push(...extensions.map(e => toExtensionDescription(e)))),
+				this._webExtensionsScannerService.scanUserExtensions({ skipInvalidExtensions: true }).then(extensions => user.push(...extensions.map(e => toExtensionDescription(e)))),
 				this._webExtensionsScannerService.scanExtensionsUnderDevelopment().then(extensions => development.push(...extensions.map(e => toExtensionDescription(e, true))))
 			]);
 		} catch (error) {
-			log.error('', error);
+			log.error(error);
 		}
 		return dedupExtensions(system, user, development, log);
 	}
@@ -1491,6 +1549,35 @@ class ProposedApiController {
 			this._logService.critical(`Extension '${extension.identifier.value} CANNOT USE these API proposals '${extension.enabledApiProposals?.join(', ') || '*'}'. You MUST start in extension development mode or use the --enable-proposed-api command line flag`);
 			extension.enabledApiProposals = [];
 		}
+	}
+}
+
+interface IExtensionHostCrashInfo {
+	timestamp: number;
+}
+
+export class ExtensionHostCrashTracker {
+
+	private static _TIME_LIMIT = 5 * 60 * 1000; // 5 minutes
+	private static _CRASH_LIMIT = 3;
+
+	private readonly _recentCrashes: IExtensionHostCrashInfo[] = [];
+
+	private _removeOldCrashes(): void {
+		const limit = Date.now() - ExtensionHostCrashTracker._TIME_LIMIT;
+		while (this._recentCrashes.length > 0 && this._recentCrashes[0].timestamp < limit) {
+			this._recentCrashes.shift();
+		}
+	}
+
+	public registerCrash(): void {
+		this._removeOldCrashes();
+		this._recentCrashes.push({ timestamp: Date.now() });
+	}
+
+	public shouldAutomaticallyRestart(): boolean {
+		this._removeOldCrashes();
+		return (this._recentCrashes.length < ExtensionHostCrashTracker._CRASH_LIMIT);
 	}
 }
 

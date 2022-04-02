@@ -1555,7 +1555,7 @@ suite('EditorService', () => {
 	});
 
 	test('openEditors() extracts proper resources from untyped editors for workspace trust', async () => {
-		const [part, service, accessor] = await createEditorService();
+		const [, service, accessor] = await createEditorService();
 
 		const input = { resource: URI.parse('my://resource-openEditors') };
 		const otherInput: IResourceDiffEditorInput = {
@@ -1573,7 +1573,6 @@ suite('EditorService', () => {
 			};
 
 			await service.openEditors([input, otherInput], undefined, { validateTrust: true });
-			assert.strictEqual(part.activeGroup.count, 0);
 			assert.strictEqual(trustEditorUris.length, 3);
 			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input.resource.toString()), true);
 			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === otherInput.original.resource?.toString()), true);
@@ -1999,22 +1998,27 @@ suite('EditorService', () => {
 		assert.strictEqual(service.activeTextEditorLanguageId, PLAINTEXT_LANGUAGE_ID);
 	});
 
-	test('openEditor returns NULL when opening fails or is inactive', async function () {
+	test('openEditor returns undefined when inactive', async function () {
 		const [, service] = await createEditorService();
 
 		const input = new TestFileEditorInput(URI.parse('my://resource-active'), TEST_EDITOR_INPUT_ID);
 		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-inactive'), TEST_EDITOR_INPUT_ID);
-		const failingInput = new TestFileEditorInput(URI.parse('my://resource3-failing'), TEST_EDITOR_INPUT_ID);
-		failingInput.setFailToOpen();
 
 		let editor = await service.openEditor(input, { pinned: true });
 		assert.ok(editor);
 
 		let otherEditor = await service.openEditor(otherInput, { inactive: true });
 		assert.ok(!otherEditor);
+	});
+
+	test('openEditor shows placeholder when opening fails', async function () {
+		const [, service] = await createEditorService();
+
+		const failingInput = new TestFileEditorInput(URI.parse('my://resource-failing'), TEST_EDITOR_INPUT_ID);
+		failingInput.setFailToOpen();
 
 		let failingEditor = await service.openEditor(failingInput);
-		assert.ok(!failingEditor);
+		assert.ok(failingEditor instanceof UnknownErrorEditor);
 	});
 
 	test('openEditor shows placeholder when restoring fails', async function () {

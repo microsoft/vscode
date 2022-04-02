@@ -7,7 +7,7 @@ import { ILocalProcessExtensionHostDataProvider, LocalProcessExtensionHost } fro
 
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-sandbox/cachedExtensionScanner';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { AbstractExtensionService, ExtensionRunningPreference, extensionRunningPreferenceToString, filterByRunningLocation } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { AbstractExtensionService, ExtensionHostCrashTracker, ExtensionRunningPreference, extensionRunningPreferenceToString, filterByRunningLocation } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import * as nls from 'vs/nls';
 import { runWhenIdle } from 'vs/base/common/async';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -57,7 +57,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	private readonly _lazyLocalWebWorker: boolean;
 	private readonly _remoteInitData: Map<string, IRemoteExtensionHostInitData>;
 	private readonly _extensionScanner: CachedExtensionScanner;
-	private readonly _crashTracker = new ExtensionHostCrashTracker();
+	private readonly _localCrashTracker = new ExtensionHostCrashTracker();
 	private _resolveAuthorityAttempt: number = 0;
 
 	constructor(
@@ -74,7 +74,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWebExtensionsScannerService webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILogService logService: ILogService,
-		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
@@ -96,7 +96,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			configurationService,
 			extensionManifestPropertiesService,
 			webExtensionsScannerService,
-			logService
+			logService,
+			remoteAgentService
 		);
 
 		[this._enableLocalWebWorker, this._lazyLocalWebWorker] = this._isLocalWebWorkerEnabled();
@@ -144,7 +145,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			return this._remoteAgentService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
 		}
 
-		return this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System, this.createLogger());
+		return this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System, this._createLogger());
 	}
 
 	private async _scanAllLocalExtensions(): Promise<IExtensionDescription[]> {
@@ -256,7 +257,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	}
 
 	protected override _onExtensionHostCrashed(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
-		const activatedExtensions = Array.from(this._extensionHostActiveExtensions.values());
+		const activatedExtensions = Array.from(this._extensionHostActiveExtensions.values()).filter(extensionId => extensionHost.containsExtension(extensionId));
 		super._onExtensionHostCrashed(extensionHost, code, signal);
 
 		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
@@ -277,17 +278,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				return;
 			}
 
-			if (activatedExtensions.length > 0) {
-				this._logService.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) terminated unexpectedly. The following extensions were running: ${activatedExtensions.map(id => id.value).join(', ')}`);
-			} else {
-				this._logService.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) terminated unexpectedly. No extensions were activated.`);
-			}
-
+			this._logExtensionHostCrash(extensionHost);
 			this._sendExtensionHostCrashTelemetry(code, signal, activatedExtensions);
 
-			this._crashTracker.registerCrash();
+			this._localCrashTracker.registerCrash();
 
-			if (this._crashTracker.shouldAutomaticallyRestart()) {
+			if (this._localCrashTracker.shouldAutomaticallyRestart()) {
 				this._logService.info(`Automatically restarting the extension host.`);
 				this._notificationService.status(nls.localize('extensionService.autoRestart', "The extension host terminated unexpectedly. Restarting..."), { hideAfter: 5000 });
 				this.startExtensionHosts();
@@ -435,7 +431,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	}
 
 	protected async _scanAndHandleExtensions(): Promise<void> {
-		this._extensionScanner.startScanningExtensions(this.createLogger());
+		this._extensionScanner.startScanningExtensions(this._createLogger());
 
 		const remoteAuthority = this._environmentService.remoteAuthority;
 
@@ -551,7 +547,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		const result = this._registry.deltaExtensions(remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions), []);
 		if (result.removedDueToLooping.length > 0) {
-			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', '))
+			});
 		}
 
 		if (remoteAuthority && remoteEnv) {
@@ -660,35 +659,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		}
 		return true;
-	}
-}
-
-export interface IExtensionHostCrashInfo {
-	timestamp: number;
-}
-
-class ExtensionHostCrashTracker {
-
-	private static _TIME_LIMIT = 5 * 60 * 1000; // 5 minutes
-	private static _CRASH_LIMIT = 3;
-
-	private readonly _recentCrashes: IExtensionHostCrashInfo[] = [];
-
-	private _removeOldCrashes(): void {
-		const limit = Date.now() - ExtensionHostCrashTracker._TIME_LIMIT;
-		while (this._recentCrashes.length > 0 && this._recentCrashes[0].timestamp < limit) {
-			this._recentCrashes.shift();
-		}
-	}
-
-	public registerCrash(): void {
-		this._removeOldCrashes();
-		this._recentCrashes.push({ timestamp: Date.now() });
-	}
-
-	public shouldAutomaticallyRestart(): boolean {
-		this._removeOldCrashes();
-		return (this._recentCrashes.length < ExtensionHostCrashTracker._CRASH_LIMIT);
 	}
 }
 

@@ -62,7 +62,9 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 			result.push({
 				range,
 				filterText: item.filterTextLow ?? item.labelLow,
-				insertText
+				insertText,
+				command: item.completion.command,
+				additionalTextEdits: item.completion.additionalTextEdits
 			});
 		}
 		return result;
@@ -100,9 +102,9 @@ class SuggestInlineCompletions implements InlineCompletionsProvider<InlineComple
 			return undefined;
 		}
 
-		const wordInfo = model.getWordUntilPosition(position);
-		if (wordInfo.word.length === 0) {
-			// not without true prefix
+		const wordInfo = model.getWordAtPosition(position);
+		if (!wordInfo || wordInfo.word.length === 0 || wordInfo.endColumn !== position.column) {
+			// not without true prefix, not inside word
 			return;
 		}
 

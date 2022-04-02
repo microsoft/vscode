@@ -17,7 +17,7 @@ export default () => `
 		${escape(localize('dark', "Dark"))}
 	</checkbox>
 	<checkbox when-checked="setTheme:Default High Contrast" checked-on="config.workbench.colorTheme == 'Default High Contrast'">
-		<img width="150" src="./monokai.png"/>
+		<img width="150" src="./dark-hc.png"/>
 		${escape(localize('HighContrast', "Dark High Contrast"))}
 	</checkbox>
 	<checkbox when-checked="setTheme:Default High Contrast Light" checked-on="config.workbench.colorTheme == 'Default High Contrast Light'">

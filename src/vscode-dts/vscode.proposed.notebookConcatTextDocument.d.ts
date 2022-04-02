@@ -9,11 +9,7 @@ declare module 'vscode' {
 
 	export namespace notebooks {
 		/**
-		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
-		 * but a selector can be provided to narrow to down the set of cells.
-		 *
-		 * @param notebook
-		 * @param selector
+		 * @deprecated
 		 */
 		// todo@API really needed? we didn't find a user here
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;

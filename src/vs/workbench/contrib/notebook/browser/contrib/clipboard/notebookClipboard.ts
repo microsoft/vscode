@@ -131,7 +131,7 @@ export function runPasteCells(editor: INotebookEditor, activeCell: ICellViewMode
 			kind: SelectionStateType.Index,
 			focus: { start: newFocusIndex, end: newFocusIndex + 1 },
 			selections: [{ start: newFocusIndex, end: newFocusIndex + pasteCells.items.length }]
-		}), undefined);
+		}), undefined, true);
 	} else {
 		if (editor.getLength() !== 0) {
 			return false;
@@ -148,7 +148,7 @@ export function runPasteCells(editor: INotebookEditor, activeCell: ICellViewMode
 			kind: SelectionStateType.Index,
 			focus: { start: 0, end: 1 },
 			selections: [{ start: 1, end: pasteCells.items.length + 1 }]
-		}), undefined);
+		}), undefined, true);
 	}
 
 	return true;

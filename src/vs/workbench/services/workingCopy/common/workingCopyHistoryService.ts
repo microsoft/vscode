@@ -12,11 +12,11 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { WorkingCopyHistoryTracker } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryTracker';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor, IWorkingCopyHistoryEvent, IWorkingCopyHistoryService, MAX_PARALLEL_HISTORY_IO_OPS } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
-import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { URI } from 'vs/base/common/uri';
 import { DeferredPromise, Limiter } from 'vs/base/common/async';
-import { extname, isEqual, joinPath } from 'vs/base/common/resources';
+import { dirname, extname, isEqual, joinPath } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { hash } from 'vs/base/common/hash';
 import { indexOfPath, randomPath } from 'vs/base/common/extpath';
@@ -47,11 +47,10 @@ export class WorkingCopyHistoryModel {
 	static readonly ENTRIES_FILE = 'entries.json';
 
 	private static readonly FILE_SAVED_SOURCE = SaveSourceRegistry.registerSource('default.source', localize('default.source', "File Saved"));
-	private static readonly FILE_MOVED_SOURCE = SaveSourceRegistry.registerSource('moved.source', localize('moved.source', "File Moved"));
 
 	private static readonly SETTINGS = {
 		MAX_ENTRIES: 'workbench.localHistory.maxFileEntries',
-		MERGE_PERIOD: 'workbench.localHistory.mergePeriod'
+		MERGE_PERIOD: 'workbench.localHistory.mergeWindow'
 	};
 
 	private entries: IWorkingCopyHistoryEntry[] = [];
@@ -323,7 +322,7 @@ export class WorkingCopyHistoryModel {
 		return entries;
 	}
 
-	async moveEntries(targetWorkingCopyResource: URI, token: CancellationToken): Promise<void> {
+	async moveEntries(targetWorkingCopyResource: URI, source: SaveSource, token: CancellationToken): Promise<void> {
 
 		// Ensure model stored so that any pending data is flushed
 		await this.store(token);
@@ -347,7 +346,7 @@ export class WorkingCopyHistoryModel {
 		this.setWorkingCopy(targetWorkingCopyResource);
 
 		// Add entry for the move
-		await this.addEntry(WorkingCopyHistoryModel.FILE_MOVED_SOURCE, undefined, token);
+		await this.addEntry(source, undefined, token);
 
 		// Store model again to updated location
 		await this.store(token);
@@ -487,6 +486,9 @@ export class WorkingCopyHistoryModel {
 
 export abstract class WorkingCopyHistoryService extends Disposable implements IWorkingCopyHistoryService {
 
+	private static readonly FILE_MOVED_SOURCE = SaveSourceRegistry.registerSource('moved.source', localize('moved.source', "File Moved"));
+	private static readonly FILE_RENAMED_SOURCE = SaveSourceRegistry.registerSource('renamed.source', localize('renamed.source', "File Renamed"));
+
 	declare readonly _serviceBrand: undefined;
 
 	protected readonly _onDidAddEntry = this._register(new Emitter<IWorkingCopyHistoryEvent>());
@@ -523,8 +525,6 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		super();
 
 		this.resolveLocalHistoryHome();
-
-		this._register(this.fileService.onDidRunOperation(e => this.onDidRunFileOperation(e)));
 	}
 
 	private async resolveLocalHistoryHome(): Promise<void> {
@@ -548,16 +548,9 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		this.localHistoryHome.complete(historyHome);
 	}
 
-	private async onDidRunFileOperation(e: FileOperationEvent): Promise<void> {
-		if (!e.isOperation(FileOperation.MOVE)) {
-			return; // only interested in move operations
-		}
-
-		const source = e.resource;
-		const target = e.target.resource;
-
-		const limiter = new Limiter(MAX_PARALLEL_HISTORY_IO_OPS);
-		const promises = [];
+	async moveEntries(source: URI, target: URI): Promise<URI[]> {
+		const limiter = new Limiter<URI>(MAX_PARALLEL_HISTORY_IO_OPS);
+		const promises: Promise<URI>[] = [];
 
 		for (const [resource, model] of this.models) {
 			if (!this.uriIdentityService.extUri.isEqualOrParent(resource, source)) {
@@ -566,36 +559,48 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 
 			// Determine new resulting target resource
 			let targetResource: URI;
-			if (isEqual(source, resource)) {
+			if (this.uriIdentityService.extUri.isEqual(source, resource)) {
 				targetResource = target; // file got moved
 			} else {
 				const index = indexOfPath(resource.path, source.path);
 				targetResource = joinPath(target, resource.path.substr(index + source.path.length + 1)); // parent folder got moved
 			}
 
+			// Figure out save source
+			let saveSource: SaveSource;
+			if (this.uriIdentityService.extUri.isEqual(dirname(resource), dirname(targetResource))) {
+				saveSource = WorkingCopyHistoryService.FILE_RENAMED_SOURCE;
+			} else {
+				saveSource = WorkingCopyHistoryService.FILE_MOVED_SOURCE;
+			}
+
 			// Move entries to target queued
-			promises.push(limiter.queue(() => this.moveEntries(model, resource, targetResource)));
+			promises.push(limiter.queue(() => this.doMoveEntries(model, saveSource, resource, targetResource)));
 		}
 
 		if (!promises.length) {
-			return;
+			return [];
 		}
 
 		// Await move operations
-		await Promise.all(promises);
+		const resources = await Promise.all(promises);
 
 		// Events
 		this._onDidMoveEntries.fire();
+
+		return resources;
 	}
 
-	private async moveEntries(model: WorkingCopyHistoryModel, sourceWorkingCopyResource: URI, targetWorkingCopyResource: URI): Promise<void> {
+	private async doMoveEntries(model: WorkingCopyHistoryModel, source: SaveSource, sourceWorkingCopyResource: URI, targetWorkingCopyResource: URI): Promise<URI> {
 
 		// Move to target via model
-		await model.moveEntries(targetWorkingCopyResource, CancellationToken.None);
+		await model.moveEntries(targetWorkingCopyResource, source, CancellationToken.None);
 
 		// Update model in our map
 		this.models.delete(sourceWorkingCopyResource);
 		this.models.set(targetWorkingCopyResource, model);
+
+		return targetWorkingCopyResource;
 	}
 
 	async addEntry({ resource, source, timestamp }: IWorkingCopyHistoryEntryDescriptor, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined> {

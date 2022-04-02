@@ -161,9 +161,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			case VSCodeOscPt.CommandLine: {
 				let commandLine: string;
 				if (args.length === 1) {
-					commandLine = (args[0]
-						.replace(/<LF>/g, '\n')
-						.replace(/<CL>/g, ';'));
+					commandLine = this._deserializeMessage(args[0]);
 				} else {
 					commandLine = '';
 				}
@@ -187,7 +185,11 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.Property: {
-				const [key, value] = args[0].split('=');
+				const [key, rawValue] = args[0].split('=');
+				if (rawValue === undefined) {
+					return true;
+				}
+				const value = this._deserializeMessage(rawValue);
 				switch (key) {
 					case 'Cwd': {
 						this._createOrGetCwdDetection().updateCwd(value);
@@ -243,5 +245,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			this.capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		}
 		return commandDetection;
+	}
+
+	private _deserializeMessage(message: string): string {
+		return message
+			.replace(/<LF>/g, '\n')
+			.replace(/<CL>/g, ';')
+			.replace(/<ST>/g, '\x07');
 	}
 }

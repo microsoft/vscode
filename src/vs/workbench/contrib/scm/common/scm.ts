@@ -180,6 +180,9 @@ export interface ISCMViewService {
 
 	readonly menus: ISCMMenus;
 
+	repositories: ISCMRepository[];
+	readonly onDidChangeRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
+
 	visibleRepositories: ISCMRepository[];
 	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
 

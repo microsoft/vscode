@@ -409,7 +409,7 @@ export class InlayHintsController implements IEditorContribution {
 
 
 		//
-		const { fontSize, fontFamily } = this._getLayoutInfo();
+		const { fontSize, fontFamily, displayStyle } = this._getLayoutInfo();
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
@@ -434,7 +434,6 @@ export class InlayHintsController implements IEditorContribution {
 				const cssProperties: CssProperties = {
 					fontSize: `${fontSize}px`,
 					fontFamily: `var(${fontFamilyVar}), ${EDITOR_FONT_DEFAULTS.fontFamily}`,
-					verticalAlign: 'middle',
 				};
 
 				if (isNonEmptyArray(item.hint.textEdits)) {
@@ -452,20 +451,24 @@ export class InlayHintsController implements IEditorContribution {
 					}
 				}
 
-				if (isFirst && isLast) {
-					// only element
-					cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px`;
-					cssProperties.borderRadius = `${(fontSize / 4) | 0}px`;
-				} else if (isFirst) {
-					// first element
-					cssProperties.padding = `1px 0 1px ${Math.max(1, fontSize / 4) | 0}px`;
-					cssProperties.borderRadius = `${(fontSize / 4) | 0}px 0 0 ${(fontSize / 4) | 0}px`;
-				} else if (isLast) {
-					// last element
-					cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px 1px 0`;
-					cssProperties.borderRadius = `0 ${(fontSize / 4) | 0}px ${(fontSize / 4) | 0}px 0`;
-				} else {
-					cssProperties.padding = `1px 0 1px 0`;
+				if (displayStyle === 'standard') {
+					cssProperties.verticalAlign = 'middle';
+
+					if (isFirst && isLast) {
+						// only element
+						cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px`;
+						cssProperties.borderRadius = `${(fontSize / 4) | 0}px`;
+					} else if (isFirst) {
+						// first element
+						cssProperties.padding = `1px 0 1px ${Math.max(1, fontSize / 4) | 0}px`;
+						cssProperties.borderRadius = `${(fontSize / 4) | 0}px 0 0 ${(fontSize / 4) | 0}px`;
+					} else if (isLast) {
+						// last element
+						cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px 1px 0`;
+						cssProperties.borderRadius = `0 ${(fontSize / 4) | 0}px ${(fontSize / 4) | 0}px 0`;
+					} else {
+						cssProperties.padding = `1px 0 1px 0`;
+					}
 				}
 
 				addInjectedText(
@@ -526,10 +529,10 @@ export class InlayHintsController implements IEditorContribution {
 		const editorFontSize = this._editor.getOption(EditorOption.fontSize);
 		let fontSize = options.fontSize;
 		if (!fontSize || fontSize < 5 || fontSize > editorFontSize) {
-			fontSize = (editorFontSize * .9) | 0;
+			fontSize = editorFontSize;
 		}
 		const fontFamily = options.fontFamily || this._editor.getOption(EditorOption.fontFamily);
-		return { fontSize, fontFamily };
+		return { fontSize, fontFamily, displayStyle: options.displayStyle };
 	}
 
 	private _removeAllDecorations(): void {

@@ -11,8 +11,7 @@ import { createFileEditorInput, workbenchInstantiationService, TestServiceAccess
 import { toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
-import { timeout } from 'vs/base/common/async';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { assertIsDefined } from 'vs/base/common/types';
 import { createTextBufferFactory, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -20,6 +19,8 @@ import { URI } from 'vs/base/common/uri';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
+import { isEqual } from 'vs/base/common/resources';
+import { UTF16be } from 'vs/workbench/services/textfile/common/encoding';
 
 suite('Files - TextFileEditorModel', () => {
 
@@ -49,6 +50,7 @@ suite('Files - TextFileEditorModel', () => {
 
 	test('basic events', async function () {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		accessor.workingCopyService.unregisterWorkingCopy(model); // causes issues with subsequent resolves otherwise
 
 		let onDidResolveCounter = 0;
 		model.onDidResolve(() => onDidResolveCounter++);
@@ -300,9 +302,15 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	test('setEncoding - decode', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		let model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		accessor.workingCopyService.unregisterWorkingCopy(model); // causes issues with subsequent resolves otherwise
 
 		await model.setEncoding('utf16', EncodingMode.Decode);
+
+		// we have to get the model again from working copy service
+		// because `setEncoding` will resolve it again through the
+		// text file service which is outside our scope
+		model = accessor.workingCopyService.get(model) as TextFileEditorModel;
 
 		assert.ok(model.isResolved()); // model got resolved due to decoding
 		model.dispose();
@@ -310,6 +318,8 @@ suite('Files - TextFileEditorModel', () => {
 
 	test('setEncoding - decode dirty file saves first', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		accessor.workingCopyService.unregisterWorkingCopy(model); // causes issues with subsequent resolves otherwise
+
 		await model.resolve();
 
 		model.updateTextEditorModel(createTextBufferFactory('bar'));
@@ -321,9 +331,45 @@ suite('Files - TextFileEditorModel', () => {
 		model.dispose();
 	});
 
+	test('encoding updates with language based configuration', async function () {
+		const languageId = 'text-file-model-test';
+		const registration = accessor.languageService.registerLanguage({
+			id: languageId,
+		});
+
+		accessor.testConfigurationService.setOverrideIdentifiers('files.encoding', [languageId]);
+
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		accessor.workingCopyService.unregisterWorkingCopy(model); // causes issues with subsequent resolves otherwise
+
+		await model.resolve();
+
+		const deferredPromise = new DeferredPromise<TextFileEditorModel>();
+
+		// We use this listener as a way to figure out that the working
+		// copy was resolved again as part of the language change
+		const listener = accessor.workingCopyService.onDidRegister(e => {
+			if (isEqual(e.resource, model.resource)) {
+				deferredPromise.complete(model as TextFileEditorModel);
+			}
+		});
+
+		accessor.testConfigurationService.setUserConfiguration('files.encoding', UTF16be);
+
+		model.setLanguageId(languageId);
+
+		await deferredPromise.p;
+
+		assert.strictEqual(model.getEncoding(), UTF16be);
+
+		model.dispose();
+		listener.dispose();
+		registration.dispose();
+	});
+
 	test('create with language', async function () {
 		const languageId = 'text-file-model-test';
-		ModesRegistry.registerLanguage({
+		const registration = accessor.languageService.registerLanguage({
 			id: languageId,
 		});
 
@@ -335,6 +381,8 @@ suite('Files - TextFileEditorModel', () => {
 
 		model.dispose();
 		assert.ok(!accessor.modelService.getModel(model.resource));
+
+		registration.dispose();
 	});
 
 	test('disposes when underlying model is destroyed', async function () {
@@ -397,7 +445,7 @@ suite('Files - TextFileEditorModel', () => {
 	test('Revert', async function () {
 		let eventCounter = 0;
 
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		let model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
 		model.onDidRevert(() => eventCounter++);
 
@@ -415,9 +463,16 @@ suite('Files - TextFileEditorModel', () => {
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
 
+		accessor.workingCopyService.unregisterWorkingCopy(model); // causes issues with subsequent resolves otherwise
+
 		await model.revert();
+
+		// we have to get the model again from working copy service
+		// because `setEncoding` will resolve it again through the
+		// text file service which is outside our scope
+		model = accessor.workingCopyService.get(model) as TextFileEditorModel;
+
 		assert.strictEqual(model.isDirty(), false);
-		assert.strictEqual(model.textEditorModel!.getValue(), 'Hello Html');
 		assert.strictEqual(eventCounter, 1);
 
 		assert.ok(workingCopyEvent);

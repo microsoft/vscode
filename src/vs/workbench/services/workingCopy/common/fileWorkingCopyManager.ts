@@ -494,7 +494,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		// 3.) Pick the working copy name if valid joined with default path
 		if (workingCopy) {
 			const candidatePath = joinPath(defaultFilePath, workingCopy.name);
-			if (await this.pathService.hasValidBasename(candidatePath)) {
+			if (await this.pathService.hasValidBasename(candidatePath, workingCopy.name)) {
 				return candidatePath;
 			}
 		}

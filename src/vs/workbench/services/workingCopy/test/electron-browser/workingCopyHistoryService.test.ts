@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { TestNativePathService, TestNativeWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestContextService, TestProductService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
@@ -638,7 +637,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 
 		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
 
-		service._configurationService.setUserConfiguration('workbench.localHistory.mergePeriod', 1);
+		service._configurationService.setUserConfiguration('workbench.localHistory.mergeWindow', 1);
 
 		const entry1 = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
 		assert.strictEqual(replaced, undefined);
@@ -653,7 +652,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(entries.length, 1);
 		assertEntryEqual(entries[0], entry3);
 
-		service._configurationService.setUserConfiguration('workbench.localHistory.mergePeriod', undefined);
+		service._configurationService.setUserConfiguration('workbench.localHistory.mergeWindow', undefined);
 
 		await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
 		await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
@@ -662,9 +661,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(entries.length, 3);
 	});
 
-	test('entries moved (file rename)', async () => {
-		const entriesMoved = Event.toPromise(service.onDidMoveEntries);
-
+	test('move entries (file rename)', async () => {
 		const workingCopy = new TestWorkingCopy(URI.file(testFile1Path));
 
 		const entry1 = await addEntry({ resource: workingCopy.resource, source: 'test-source' }, CancellationToken.None);
@@ -677,7 +674,10 @@ flakySuite('WorkingCopyHistoryService', () => {
 		const renamedWorkingCopyResource = joinPath(resourcesDirname(workingCopy.resource), 'renamed.txt');
 		await service._fileService.move(workingCopy.resource, renamedWorkingCopyResource);
 
-		await entriesMoved;
+		const result = await service.moveEntries(workingCopy.resource, renamedWorkingCopyResource);
+
+		assert.strictEqual(result.length, 1);
+		assert.strictEqual(result[0].toString(), renamedWorkingCopyResource.toString());
 
 		entries = await service.getEntries(workingCopy.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 0);
@@ -709,8 +709,6 @@ flakySuite('WorkingCopyHistoryService', () => {
 	});
 
 	test('entries moved (folder rename)', async () => {
-		const entriesMoved = Event.toPromise(service.onDidMoveEntries);
-
 		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
 		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
 
@@ -731,10 +729,17 @@ flakySuite('WorkingCopyHistoryService', () => {
 		const renamedWorkHome = joinPath(resourcesDirname(URI.file(workHome)), 'renamed');
 		await service._fileService.move(URI.file(workHome), renamedWorkHome);
 
+		const resources = await service.moveEntries(URI.file(workHome), renamedWorkHome);
+
 		const renamedWorkingCopy1Resource = joinPath(renamedWorkHome, basename(workingCopy1.resource));
 		const renamedWorkingCopy2Resource = joinPath(renamedWorkHome, basename(workingCopy2.resource));
 
-		await entriesMoved;
+		assert.strictEqual(resources.length, 2);
+		for (const resource of resources) {
+			if (resource.toString() !== renamedWorkingCopy1Resource.toString() && resource.toString() !== renamedWorkingCopy2Resource.toString()) {
+				assert.fail(`Unexpected history resource: ${resource.toString()}`);
+			}
+		}
 
 		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 0);

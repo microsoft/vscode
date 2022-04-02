@@ -595,8 +595,8 @@ export class Limiter<T> implements ILimiter<T>{
 
 	private _size = 0;
 	private runningPromises: number;
-	private maxDegreeOfParalellism: number;
-	private outstandingPromises: ILimitedTaskFactory<T>[];
+	private readonly maxDegreeOfParalellism: number;
+	private readonly outstandingPromises: ILimitedTaskFactory<T>[];
 	private readonly _onDrained: Emitter<void>;
 
 	constructor(maxDegreeOfParalellism: number) {

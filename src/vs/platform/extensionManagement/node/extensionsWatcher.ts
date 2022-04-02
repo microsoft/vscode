@@ -45,6 +45,11 @@ export class ExtensionsWatcher extends Disposable {
 	}
 
 	private doesChangeAffects(change: IFileChange, extensionsResource: URI): boolean {
+		// Only interested in added/deleted changes
+		if (change.type !== FileChangeType.ADDED && change.type !== FileChangeType.DELETED) {
+			return false;
+		}
+
 		// Is not immediate child of extensions resource
 		if (!this.uriIdentityService.extUri.isEqual(this.uriIdentityService.extUri.dirname(change.resource), extensionsResource)) {
 			return false;
@@ -53,11 +58,6 @@ export class ExtensionsWatcher extends Disposable {
 		// .obsolete file changed
 		if (this.uriIdentityService.extUri.isEqual(change.resource, this.uriIdentityService.extUri.joinPath(extensionsResource, '.obsolete'))) {
 			return true;
-		}
-
-		// Only interested in added/deleted changes
-		if (change.type !== FileChangeType.ADDED && change.type !== FileChangeType.DELETED) {
-			return false;
 		}
 
 		// Ingore changes to files starting with `.`

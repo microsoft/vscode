@@ -22,6 +22,8 @@ import { COMPARE_WITH_FILE_LABEL, toDiffEditorArguments } from 'vs/workbench/con
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_ICON_ENTRY, LOCAL_HISTORY_MENU_CONTEXT_VALUE } from 'vs/workbench/contrib/localHistory/browser/localHistory';
 import { Schemas } from 'vs/base/common/network';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { getVirtualWorkspaceAuthority } from 'vs/platform/workspace/common/virtualWorkspace';
 
 export class LocalHistoryTimeline extends Disposable implements IWorkbenchContribution, TimelineProvider {
 
@@ -46,7 +48,8 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		@IPathService private readonly pathService: IPathService,
 		@IFileService private readonly fileService: IFileService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super();
 
@@ -74,12 +77,12 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 	private registerListeners(): void {
 
 		// History changes
-		this._register(this.workingCopyHistoryService.onDidAddEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, false /* entry added */)));
-		this._register(this.workingCopyHistoryService.onDidChangeEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, false /* entry changed */)));
-		this._register(this.workingCopyHistoryService.onDidReplaceEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, true /* entry replaced */)));
-		this._register(this.workingCopyHistoryService.onDidRemoveEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, true /* entry removed */)));
-		this._register(this.workingCopyHistoryService.onDidRemoveEntries(() => this.onDidChangeWorkingCopyHistoryEntry(undefined /* all entries */, true /* entry removed */)));
-		this._register(this.workingCopyHistoryService.onDidMoveEntries(() => this.onDidChangeWorkingCopyHistoryEntry(undefined /* all entries */, true /* entry moved */)));
+		this._register(this.workingCopyHistoryService.onDidAddEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry)));
+		this._register(this.workingCopyHistoryService.onDidChangeEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry)));
+		this._register(this.workingCopyHistoryService.onDidReplaceEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry)));
+		this._register(this.workingCopyHistoryService.onDidRemoveEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry)));
+		this._register(this.workingCopyHistoryService.onDidRemoveEntries(() => this.onDidChangeWorkingCopyHistoryEntry(undefined /* all entries */)));
+		this._register(this.workingCopyHistoryService.onDidMoveEntries(() => this.onDidChangeWorkingCopyHistoryEntry(undefined /* all entries */)));
 
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -89,13 +92,13 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		}));
 	}
 
-	private onDidChangeWorkingCopyHistoryEntry(entry: IWorkingCopyHistoryEntry | undefined, reset: boolean): void {
+	private onDidChangeWorkingCopyHistoryEntry(entry: IWorkingCopyHistoryEntry | undefined): void {
 
 		// Re-emit as timeline change event
 		this._onDidChange.fire({
 			id: LocalHistoryTimeline.ID,
 			uri: entry?.workingCopy.resource,
-			reset
+			reset: true // there is no other way to indicate that items might have been replaced/removed
 		});
 	}
 
@@ -103,17 +106,28 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		const items: TimelineItem[] = [];
 
 		// Try to convert the provided `uri` into a form that is likely
-		// for the provider to find entries for:
-		// - `vscode-local-history`: convert back to the associated resource
-		// - default-scheme / settings: keep as is
-		// - anything that is backed by a file system provider: convert
+		// for the provider to find entries for so that we can ensure
+		// the timeline is always providing local history entries
+
 		let resource: URI | undefined = undefined;
 		if (uri.scheme === LocalHistoryFileSystemProvider.SCHEMA) {
+			// `vscode-local-history`: convert back to the associated resource
 			resource = LocalHistoryFileSystemProvider.fromLocalHistoryFileSystem(uri).associatedResource;
 		} else if (uri.scheme === this.pathService.defaultUriScheme || uri.scheme === Schemas.vscodeUserData) {
+			// default-scheme / settings: keep as is
 			resource = uri;
 		} else if (this.fileService.hasProvider(uri)) {
-			resource = URI.from({ scheme: this.pathService.defaultUriScheme, authority: this.environmentService.remoteAuthority, path: uri.path });
+			// anything that is backed by a file system provider:
+			// try best to convert the URI back into a form that is
+			// likely to match the workspace URIs. That means:
+			// - change to the default URI scheme
+			// - change to the remote authority or virtual workspace authority
+			// - preserve the path
+			resource = URI.from({
+				scheme: this.pathService.defaultUriScheme,
+				authority: this.environmentService.remoteAuthority ?? getVirtualWorkspaceAuthority(this.contextService.getWorkspace()),
+				path: uri.path
+			});
 		}
 
 		if (resource) {

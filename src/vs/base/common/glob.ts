@@ -357,7 +357,7 @@ function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | 
 		return parsedPattern;
 	}
 
-	return function (path, basename) {
+	const wrappedPattern: ParsedStringPattern = function (path, basename) {
 		if (!isEqualOrParent(path, arg2.base, !isLinux)) {
 			// skip glob matching if `base` is not a parent of `path`
 			return null;
@@ -368,6 +368,14 @@ function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | 
 		// and only match on the remaining path components
 		return parsedPattern(path.substr(arg2.base.length + 1), basename);
 	};
+
+	// Make sure to preserve associated metadata
+	wrappedPattern.allBasenames = parsedPattern.allBasenames;
+	wrappedPattern.allPaths = parsedPattern.allPaths;
+	wrappedPattern.basenames = parsedPattern.basenames;
+	wrappedPattern.patterns = parsedPattern.patterns;
+
+	return wrappedPattern;
 }
 
 function trimForExclusions(pattern: string, options: IGlobOptions): string {

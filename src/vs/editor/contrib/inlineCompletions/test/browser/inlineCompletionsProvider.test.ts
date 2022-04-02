@@ -36,7 +36,7 @@ suite('Inline Completions', () => {
 			const result = {} as any;
 			for (const option of options) {
 				result[option] = inlineCompletionToGhostText(
-					{ insertText: suggestion, filterText: suggestion, snippetInfo: undefined, range },
+					{ insertText: suggestion, filterText: suggestion, snippetInfo: undefined, range, additionalTextEdits: [], },
 					tempModel,
 					option
 				)?.render(cleanedText, true);
@@ -546,6 +546,38 @@ suite('Inline Completions', () => {
 					'hello\nhello[world]',
 				]);
 			});
+	});
+
+	test('Additional Text Edits', async function () {
+		const provider = new MockInlineCompletionsProvider();
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider },
+			async ({ editor, editorViewModel, model, context }) => {
+				model.setActive(true);
+
+				context.keyboardType('buzz\nbaz');
+				provider.setReturnValue({
+					insertText: 'bazz',
+					range: new Range(2, 1, 2, 4),
+					additionalTextEdits: [{
+						range: new Range(1, 1, 1, 5),
+						text: 'bla'
+					}],
+				});
+				model.trigger(InlineCompletionTriggerKind.Explicit);
+				await timeout(1000);
+
+				model.commitCurrentSuggestion();
+
+				assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: "(2,4)", triggerKind: 1, text: "buzz\nbaz" }]));
+
+				assert.deepStrictEqual(context.getAndClearViewStates(), [
+					'',
+					'buzz\nbaz[z]',
+					'bla\nbazz',
+				]);
+			}
+		);
 	});
 });
 

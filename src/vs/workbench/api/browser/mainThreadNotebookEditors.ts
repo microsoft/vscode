@@ -112,7 +112,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 			return false;
 		}
 		//todo@jrieken use proper selection logic!
-		return editor.textModel.applyEdits(cellEdits.map(NotebookDto.fromCellEditOperationDto), true, undefined, () => undefined, undefined);
+		return editor.textModel.applyEdits(cellEdits.map(NotebookDto.fromCellEditOperationDto), true, undefined, () => undefined, undefined, true);
 	}
 
 	async $tryShowNotebookDocument(resource: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string> {
