@@ -390,6 +390,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerSelectionRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerTypeHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
+	$registerDocumentOnDropProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
 }
 
@@ -1329,7 +1330,6 @@ export interface ISelectionChangeEvent {
 export interface ExtHostEditorsShape {
 	$acceptEditorPropertiesChanged(id: string, props: IEditorPropertiesChangeData): void;
 	$acceptEditorPositionData(data: ITextEditorPositionData): void;
-	$textEditorHandleDrop(id: string, position: IPosition, dataTransferDto: DataTransferDTO): Promise<Dto<languages.SnippetTextEdit[]>>;
 }
 
 export interface IDocumentsAndEditorsDelta {
@@ -1734,6 +1734,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideTypeHierarchySupertypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$provideTypeHierarchySubtypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$releaseTypeHierarchy(handle: number, sessionId: string): void;
+	$provideDocumentOnDropEdits(handle: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined>;
 }
 
 export interface ExtHostQuickOpenShape {

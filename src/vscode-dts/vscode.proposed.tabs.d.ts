@@ -146,19 +146,6 @@ declare module 'vscode' {
 		readonly onDidChangeTabs: Event<Tab[]>;
 
 		/**
-		 * An {@link Event} which fires when an active tab changes.
-		 * Similar to {@link TabGroup.onDidChangeTabs} but only on tabs
-		 * with isActive equal to true.
-		 */
-		readonly onDidChangeActiveTab: Event<Tab>;
-
-		/**
-		 * An {@link Event} which fires when the active group changes.
-		 * This does not fire when the properties within the group change.
-		 */
-		readonly onDidChangeActiveTabGroup: Event<TabGroup>;
-
-		/**
 		 * Closes the tab. This makes the tab object invalid and the tab
 		 * should no longer be used for further actions.
 		 * Note: In the case of a dirty tab, a confirmation dialog will be shown which may be cancelled. If cancelled the tab is still valid

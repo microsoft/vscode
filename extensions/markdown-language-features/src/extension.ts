@@ -49,8 +49,6 @@ export function activate(context: vscode.ExtensionContext) {
 		logger.updateConfiguration();
 		previewManager.updateConfiguration();
 	}));
-
-	context.subscriptions.push(registerDropIntoEditor());
 }
 
 function registerMarkdownLanguageFeatures(
@@ -72,6 +70,7 @@ function registerMarkdownLanguageFeatures(
 		vscode.languages.registerReferenceProvider(selector, referencesProvider),
 		vscode.languages.registerRenameProvider(selector, new MdRenameProvider(referencesProvider, githubSlugifier)),
 		MdPathCompletionProvider.register(selector, engine, linkProvider),
+		registerDropIntoEditor(selector),
 	);
 }
 

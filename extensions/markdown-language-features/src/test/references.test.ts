@@ -312,7 +312,7 @@ suite('markdown: find all references', () => {
 		const otherUri = workspacePath('sub', 'other.md');
 
 		const doc = new InMemoryDocument(docUri, joinLines(
-			`[other](./sub/other)`,
+			`[other](./sub/other)`, // trigger here
 		));
 
 		const refs = await getReferences(doc, new vscode.Position(0, 15), new InMemoryWorkspaceMarkdownDocuments([
@@ -325,6 +325,22 @@ suite('markdown: find all references', () => {
 
 		assertReferencesEqual(refs!,
 			{ uri: docUri, line: 0 },
+		);
+	});
+
+	test('Should find explicit references to own file ', async () => {
+		const uri = workspacePath('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`[bare](doc.md)`, // trigger here
+			`[rel](./doc.md)`,
+			`[abs](/doc.md)`,
+		));
+
+		const refs = await getReferences(doc, new vscode.Position(0, 12), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assertReferencesEqual(refs!,
+			{ uri, line: 0 },
+			{ uri, line: 1 },
+			{ uri, line: 2 },
 		);
 	});
 

@@ -149,12 +149,12 @@
 		],
 		"description": "Set Interval Function"
 	},
-	"Import external module.": {
-		"prefix": "import statement",
+	"Import Statement": {
+		"prefix": "import",
 		"body": [
 			"import { $0 } from \"${1:module}\";"
 		],
-		"description": "Import external module."
+		"description": "Import external module"
 	},
 	"Region Start": {
 		"prefix": "#region",
