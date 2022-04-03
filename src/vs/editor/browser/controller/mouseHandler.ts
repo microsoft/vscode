@@ -133,7 +133,7 @@ export class MouseHandler extends ViewEventHandler {
 			);
 			if (doMouseWheelZoom) {
 				const zoomLevel: number = EditorZoom.getZoomLevel();
-				const delta = e.deltaY > 0 ? 1 : -1;
+				const delta = e.deltaY > 0 ? EditorOption.mouseWheelZoomSensitivity : -EditorOption.mouseWheelZoomSensitivity;
 				EditorZoom.setZoomLevel(zoomLevel + delta);
 				e.preventDefault();
 				e.stopPropagation();

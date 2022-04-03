@@ -203,6 +203,11 @@ export interface IEditorOptions {
 	 */
 	mouseWheelZoom?: boolean;
 	/**
+	 * Control the mouse wheel zoom sensitivity.
+	 * Defaults to 1
+	 */
+	mouseWheelZoomSensitivity?: number;
+	/**
 	 * Control the mouse pointer style, either 'text' or 'default' or 'copy'
 	 * Defaults to 'text'
 	 */
@@ -4457,6 +4462,7 @@ export const enum EditorOption {
 	mouseStyle,
 	mouseWheelScrollSensitivity,
 	mouseWheelZoom,
+	mouseWheelZoomSensitivity,
 	multiCursorMergeOverlapping,
 	multiCursorModifier,
 	multiCursorPaste,
@@ -4843,6 +4849,10 @@ export const EditorOptions = {
 	mouseWheelZoom: register(new EditorBooleanOption(
 		EditorOption.mouseWheelZoom, 'mouseWheelZoom', false,
 		{ markdownDescription: nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding `Ctrl`.") }
+	)),
+	mouseWheelZoomSensitivity: register(new EditorBooleanOption(
+		EditorOption.mouseWheelZoomSensitivity, 'mouseWheelZoomSensitivity', 1,
+		{ markdownDescription: nls.localize('mouseWheelZoomSensitivity', "Control the sensitivity of the zoom using the mouse wheel.") }
 	)),
 	multiCursorMergeOverlapping: register(new EditorBooleanOption(
 		EditorOption.multiCursorMergeOverlapping, 'multiCursorMergeOverlapping', true,
