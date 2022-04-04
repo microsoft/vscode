@@ -140,12 +140,12 @@ declare module 'vscode' {
 		/**
 		 * An {@link Event event} which fires when {@link TabGroup tab groups} has changed.
 		 */
-		readonly onDidChangeTabGroups: Event<TabGroup[]>;
+		readonly onDidChangeTabGroups: Event<readonly TabGroup[]>;
 
 		/**
 		 * An {@link Event event} which fires when a {@link Tab tabs} have changed.
 		 */
-		readonly onDidChangeTabs: Event<Tab[]>;
+		readonly onDidChangeTabs: Event<readonly Tab[]>;
 
 		/**
 		 * Closes the tab. This makes the tab object invalid and the tab
