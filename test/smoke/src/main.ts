@@ -373,12 +373,12 @@ after(async function () {
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : opts.legacy ? 'Electron (legacy)' : 'Electron'})`, () => {
 	if (!opts.web) { setupDataLossTests(() => opts['stable-build'] /* Do not change, deferred for a reason! */, logger); }
-	if (!opts.web) { setupPreferencesTests(logger); }
+	setupPreferencesTests(logger);
 	setupSearchTests(logger);
 	setupNotebookTests(logger);
 	setupLanguagesTests(logger);
 	setupTerminalTests(logger);
-	setupStatusbarTests(!!opts.web, logger);
+	setupStatusbarTests(logger);
 	if (quality !== Quality.Dev) { setupExtensionTests(logger); }
 	if (!opts.web) { setupMultirootTests(logger); }
 	if (!opts.web && !opts.remote && quality !== Quality.Dev) { setupLocalizationTests(logger); }
