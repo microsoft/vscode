@@ -101,10 +101,12 @@ export function createLanguageStatusItem(documentSelector: string[], statusReque
 				const schemas = (await statusRequest(document.uri.toString())).schemas;
 				statusItem.detail = undefined;
 				if (schemas.length === 0) {
-					statusItem.text = localize('status.noSchema', 'Validated without JSON schema');
+					statusItem.text = localize('status.noSchema.short', "No Schema Validation");
+					statusItem.detail = localize('status.noSchema', 'No JSON schema configured.');
 				} else if (schemas.length === 1) {
 					const item = renderShowSchemasItem(schemas[0]);
-					statusItem.text = localize('status.singleSchema', 'Validated with JSON schema');
+					statusItem.text = localize('status.withSchema.short', "Schema Validated");
+					statusItem.detail = localize('status.singleSchema', 'JSON schema configured.');
 					statusItem.command = {
 						command: 'vscode.open',
 						title: localize('status.openSchemaLink', 'Open Schema'),
@@ -112,7 +114,8 @@ export function createLanguageStatusItem(documentSelector: string[], statusReque
 						arguments: [item.uri]
 					};
 				} else {
-					statusItem.text = localize('status.multipleSchema', 'Validated with multiple JSON schemas');
+					statusItem.text = localize('status.withSchemas.short', "Schema Validated");
+					statusItem.detail = localize('status.multipleSchema', 'Multiple JSON schemas configured.');
 					statusItem.command = {
 						command: '_json.showAssociatedSchemaList',
 						title: localize('status.openSchemasLink', 'Show Schemas'),
