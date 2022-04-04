@@ -1475,7 +1475,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (editorGutterModifiedBackgroundColor) {
 		collector.addRule(`
 			.monaco-editor .dirty-diff-modified {
-				background-repeat-x: no-repeat;
+				background-repeat: repeat-y;
 				background-image: linear-gradient(${linearGradient});
 				transition: opacity 0.5s;
 			}
