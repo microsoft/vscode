@@ -361,7 +361,7 @@ suite('ExtHostEditorTabs', function () {
 
 		const tab = extHostEditorTabs.tabGroups.groups[0].tabs[0];
 
-		const p = new Promise<vscode.Tab[]>(resolve => extHostEditorTabs.tabGroups.onDidChangeTabs(resolve));
+		const p = new Promise<readonly vscode.Tab[]>(resolve => extHostEditorTabs.tabGroups.onDidChangeTabs(resolve));
 
 		extHostEditorTabs.$acceptTabOperation({
 			groupId: 12,
