@@ -18,6 +18,7 @@ import {
 import { FileSystemProvider, serveFileSystemRequests } from './requests';
 import { getCustomDataSource } from './customData';
 import { activateAutoInsertion } from './autoInsertion';
+import { getHtmlLanguageContributions, getSupportedLanguagesAutoInsert, getDocumentSelector, HtmlLanguageContribution } from './htmlLanguageContribution';
 
 namespace CustomDataChangedNotification {
 	export const type: NotificationType<string[]> = new NotificationType('html/customDataChanged');
@@ -87,8 +88,8 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 
 	let toDispose = context.subscriptions;
 
-
-	let documentSelector = ['html', 'handlebars'];
+	const htmlContributions: HtmlLanguageContribution[] = getHtmlLanguageContributions(toDispose);
+	let documentSelector = getDocumentSelector(htmlContributions);
 	let embeddedLanguages = { css: true, javascript: true };
 
 	let rangeFormatting: Disposable | undefined = undefined;
@@ -158,7 +159,8 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			};
 			return client.sendRequest(AutoInsertRequest.type, param);
 		};
-		let disposable = activateAutoInsertion(insertRequestor, { html: true, handlebars: true }, runtime);
+		const supportedLanguages = getSupportedLanguagesAutoInsert(htmlContributions);
+		let disposable = activateAutoInsertion(insertRequestor, supportedLanguages, runtime);
 		toDispose.push(disposable);
 
 		disposable = client.onTelemetry(e => {
@@ -299,5 +301,4 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			toDispose.push(activeEditorListener);
 		}
 	}
-
 }
