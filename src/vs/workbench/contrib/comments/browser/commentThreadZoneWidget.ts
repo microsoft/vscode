@@ -193,7 +193,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._scopedInstatiationService,
 			this._commentThread as unknown as languages.CommentThread<IRange | ICellRange>,
 			this._pendingComment,
-			{ editor: this.editor, codeBlockFontSize: '' },
+			{ editor: this.editor, additionalClasses: ['comment-markdown'] },
 			this._commentOptions,
 			{
 				actionRunner: () => {
