@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { workspace } from 'vscode';
 import { RemoteSourceProvider, RemoteSource } from './typings/git-base';
-import { getOctokit, getRemoteUrl } from './auth';
+import { getOctokit } from './auth';
 import { Octokit } from '@octokit/rest';
 
 function parse(url: string): { owner: string; repo: string } | undefined {
@@ -14,10 +15,14 @@ function parse(url: string): { owner: string; repo: string } | undefined {
 }
 
 function asRemoteSource(raw: any): RemoteSource {
+	const config = workspace.getConfiguration('github');
+	const gitProtocol = config.get<'https' | 'ssh'>('gitProtocol');
+	const { clone_url, ssh_url } = raw;
+	const remoteUrl = gitProtocol === 'https' ? clone_url : ssh_url;
 	return {
 		name: `$(github) ${raw.full_name}`,
 		description: raw.description || undefined,
-		url: getRemoteUrl(raw)
+		url: remoteUrl
 	};
 }
 

@@ -1852,15 +1852,6 @@
           "description": "%config.ignoreRebaseWarning%",
           "default": false
         },
-        "git.remoteUrlType": {
-          "type": "string",
-          "enum": [
-            "https",
-            "ssh"
-          ],
-          "default": "https",
-          "description": "%config.remoteUrlType%"
-        },
         "git.defaultCloneDirectory": {
           "type": [
             "string",

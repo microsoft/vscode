@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, env, ProgressLocation, Uri, window } from 'vscode';
+import { commands, env, ProgressLocation, Uri, window, workspace } from 'vscode';
 import * as nls from 'vscode-nls';
-import { getOctokit, getRemoteUrl } from './auth';
+import { getOctokit } from './auth';
 import { GitErrorCodes, PushErrorHandler, Remote, Repository } from './typings/git';
 
 const localize = nls.loadMessageBundle();
@@ -71,7 +71,11 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 		await repository.renameRemote(remote.name, 'upstream');
 
 		// Issue: what if there's already another `origin` repo?
-		await repository.addRemote('origin', getRemoteUrl(ghRepository));
+		const config = workspace.getConfiguration('github');
+		const gitProtocol = config.get<'https' | 'ssh'>('gitProtocol');
+		const { clone_url, ssh_url } = ghRepository;
+		const remoteUrl = gitProtocol === 'https' ? clone_url : ssh_url;
+		await repository.addRemote('origin', remoteUrl);
 
 		try {
 			await repository.fetch('origin', remoteName);
