@@ -18,6 +18,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 		readonly resource: vscode.Uri;
 		readonly version: number;
 		readonly position: vscode.Position;
+		readonly triggerRef: MdReference;
 		readonly references: MdReference[];
 	} | undefined;
 
@@ -29,20 +30,16 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 	}
 
 	public async prepareRename(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<undefined | { readonly range: vscode.Range; readonly placeholder: string }> {
-		const references = await this.referencesProvider.getAllReferences(document, position, token);
+		const allRefsInfo = await this.getAllReferences(document, position, token);
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
 
-		if (!references?.length) {
+		if (!allRefsInfo || !allRefsInfo.references.length) {
 			throw new Error(localize('invalidRenameLocation', "Rename not supported at location"));
 		}
 
-		const triggerRef = references.find(ref => ref.isTriggerLocation);
-		if (!triggerRef) {
-			return undefined;
-		}
-
+		const triggerRef = allRefsInfo.triggerRef;
 		switch (triggerRef.kind) {
 			case 'header':
 				return { range: triggerRef.headerTextLocation.range, placeholder: triggerRef.headerText };
@@ -56,7 +53,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 				}
 
 				if (triggerRef.fragmentLocation) {
-					const declaration = this.findHeaderDeclaration(references);
+					const declaration = this.findHeaderDeclaration(allRefsInfo.references);
 					if (declaration) {
 						return { range: triggerRef.fragmentLocation.range, placeholder: declaration.headerText };
 					}
@@ -72,15 +69,12 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 	}
 
 	public async provideRenameEdits(document: SkinnyTextDocument, position: vscode.Position, newName: string, token: vscode.CancellationToken): Promise<vscode.WorkspaceEdit | undefined> {
-		const references = await this.getAllReferences(document, position, token);
-		if (token.isCancellationRequested || !references?.length) {
+		const allRefsInfo = await this.getAllReferences(document, position, token);
+		if (token.isCancellationRequested || !allRefsInfo || !allRefsInfo.references.length) {
 			return undefined;
 		}
 
-		const triggerRef = references.find(ref => ref.isTriggerLocation);
-		if (!triggerRef) {
-			return undefined;
-		}
+		const triggerRef = allRefsInfo.triggerRef;
 
 		const isRefRename = triggerRef.kind === 'link' && (
 			(triggerRef.link.kind === 'definition' && triggerRef.link.ref.range.contains(position)) || triggerRef.link.href.kind === 'reference'
@@ -88,7 +82,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 		const slug = this.slugifier.fromHeading(newName).value;
 
 		const edit = new vscode.WorkspaceEdit();
-		for (const ref of references) {
+		for (const ref of allRefsInfo.references) {
 			switch (ref.kind) {
 				case 'header':
 					edit.replace(ref.location.uri, ref.headerTextLocation.range, newName);
@@ -112,7 +106,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 		return edit;
 	}
 
-	private async getAllReferences(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken) {
+	private async getAllReferences(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<{ references: MdReference[]; triggerRef: MdReference } | undefined> {
 		const version = document.version;
 
 		if (this.cachedRefs
@@ -120,16 +114,22 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 			&& this.cachedRefs.version === document.version
 			&& this.cachedRefs.position.isEqual(position)
 		) {
-			return this.cachedRefs.references;
+			return this.cachedRefs;
 		}
 
 		const references = await this.referencesProvider.getAllReferences(document, position, token);
+		const triggerRef = references.find(ref => ref.isTriggerLocation);
+		if (!triggerRef) {
+			return undefined;
+		}
+
 		this.cachedRefs = {
 			resource: document.uri,
 			version,
 			position,
-			references
+			references,
+			triggerRef
 		};
-		return references;
+		return this.cachedRefs;
 	}
 }
