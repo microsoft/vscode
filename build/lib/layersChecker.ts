@@ -71,7 +71,17 @@ const CORE_TYPES = [
 	'atob',
 	'AbortSignal',
 	'MessageChannel',
-	'MessagePort'
+	'MessagePort',
+	'URLSearchParams',
+	'URL',
+	'protocol',
+	'hostname',
+	'port',
+	'pathname',
+	'search',
+	'username',
+	'password',
+	'origin'
 ];
 
 // Types that are defined in a common layer but are known to be only
@@ -196,18 +206,7 @@ const RULES = [
 	{
 		target: '**/vs/**/node/**',
 		allowedTypes: [
-			...CORE_TYPES,
-
-			// --> types from node.d.ts that duplicate from lib.dom.d.ts
-			'URL',
-			'protocol',
-			'hostname',
-			'port',
-			'pathname',
-			'search',
-			'username',
-			'password',
-			'origin'
+			...CORE_TYPES
 		],
 		disallowedDefinitions: [
 			'lib.dom.d.ts'	// no DOM
