@@ -876,12 +876,19 @@ export class CodeApplication extends Disposable {
 					return true;
 				}
 
-				// We should handle the URI in a new window
-				const shouldOpenInNewWindow =
-					// if no window is open (macOS only)
-					(isMacintosh && windowsMainService.getWindowCount() === 0)
-					// or if the URL contains `windowId=_blank`
-					|| /\bwindowId=_blank\b/.test(uri.query);
+				// We should handle the URI in a new window if no window is open (macOS only)
+				let shouldOpenInNewWindow = isMacintosh && windowsMainService.getWindowCount() === 0;
+
+				// or if the URL contains `windowId=_blank`
+				if (!shouldOpenInNewWindow) {
+					const params = new URLSearchParams(uri.query);
+
+					if (params.get('windowId') === '_blank') {
+						params.delete('windowId');
+						uri = uri.with({ query: params.toString() });
+						shouldOpenInNewWindow = true;
+					}
+				}
 
 				if (shouldOpenInNewWindow) {
 					const [window] = windowsMainService.open({
