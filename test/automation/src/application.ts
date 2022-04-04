@@ -52,6 +52,10 @@ export class Application {
 		return !!this.options.web;
 	}
 
+	get legacy(): boolean {
+		return !!this.options.legacy;
+	}
+
 	private _workspacePathOrFolder: string;
 	get workspacePathOrFolder(): string {
 		return this._workspacePathOrFolder;
@@ -115,11 +119,11 @@ export class Application {
 	}
 
 	private async takeScreenshot(name: string): Promise<void> {
-		if (this.web) {
-			return; // supported only on desktop
+		if (this.web || !this.legacy) {
+			return; // supported only on desktop (legacy)
 		}
 
-		// Desktop: call `stopTracing` to take a screenshot
+		// Desktop (legacy): call `stopTracing` to take a screenshot
 		return this._code?.stopTracing(name, true);
 	}
 

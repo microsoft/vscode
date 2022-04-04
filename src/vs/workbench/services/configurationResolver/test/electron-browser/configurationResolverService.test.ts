@@ -19,7 +19,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { IWorkspace, IWorkspaceFolder, IWorkspaceIdentifier, Workspace } from 'vs/platform/workspace/common/workspace';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
+import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/baseConfigurationResolverService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
