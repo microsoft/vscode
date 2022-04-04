@@ -348,6 +348,7 @@ export class ExtensionsScanner extends Disposable {
 		local.isBuiltin = local.type === ExtensionType.System || !!metadata?.isBuiltin;
 		local.installedTimestamp = metadata?.installedTimestamp;
 		local.targetPlatform = metadata?.targetPlatform ?? TargetPlatform.UNDEFINED;
+		local.updated = !!metadata?.updated;
 	}
 
 	private async removeUninstalledExtensions(): Promise<void> {

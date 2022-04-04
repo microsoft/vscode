@@ -23,7 +23,7 @@ import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbe
 import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { FileOperationEvent, IFileService, IFileStat, IFileStatResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IFileStat, IFileStatResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileWriteOptions, IFileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ModelService } from 'vs/editor/common/services/modelService';
@@ -71,7 +71,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkingCopyService, WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
@@ -209,8 +209,17 @@ export interface ITestInstantiationService extends IInstantiationService {
 	stub<T>(service: ServiceIdentifier<T>, ctor: any): T;
 }
 
+export class TestWorkingCopyService extends WorkingCopyService {
+	override unregisterWorkingCopy(workingCopy: IWorkingCopy): void {
+		return super.unregisterWorkingCopy(workingCopy);
+	}
+}
+
 export function workbenchInstantiationService(
 	overrides?: {
+		environmentService?: (instantiationService: IInstantiationService) => IEnvironmentService;
+		fileService?: (instantiationService: IInstantiationService) => IFileService;
+		configurationService?: (instantiationService: IInstantiationService) => TestConfigurationService;
 		textFileService?: (instantiationService: IInstantiationService) => ITextFileService;
 		pathService?: (instantiationService: IInstantiationService) => IPathService;
 		editorService?: (instantiationService: IInstantiationService) => IEditorService;
@@ -218,19 +227,20 @@ export function workbenchInstantiationService(
 		textEditorService?: (instantiationService: IInstantiationService) => ITextEditorService;
 	},
 	disposables: DisposableStore = new DisposableStore()
-): ITestInstantiationService {
+): TestInstantiationService {
 	const instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 
 	instantiationService.stub(IEditorWorkerService, new TestEditorWorkerService());
-	instantiationService.stub(IWorkingCopyService, disposables.add(new WorkingCopyService()));
-	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
+	instantiationService.stub(IWorkingCopyService, disposables.add(new TestWorkingCopyService()));
+	const environmentService = overrides?.environmentService ? overrides.environmentService(instantiationService) : TestEnvironmentService;
+	instantiationService.stub(IEnvironmentService, environmentService);
+	instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 	const contextKeyService = overrides?.contextKeyService ? overrides.contextKeyService(instantiationService) : instantiationService.createInstance(MockContextKeyService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
 	instantiationService.stub(IProgressService, new TestProgressService());
 	const workspaceContextService = new TestContextService(TestWorkspace);
 	instantiationService.stub(IWorkspaceContextService, workspaceContextService);
-	const configService = new TestConfigurationService({
+	const configService = overrides?.configurationService ? overrides.configurationService(instantiationService) : new TestConfigurationService({
 		files: {
 			participants: {
 				timeout: 60000
@@ -259,7 +269,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IThemeService, themeService);
 	instantiationService.stub(ILanguageConfigurationService, new TestLanguageConfigurationService());
 	instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelService)));
-	const fileService = new TestFileService();
+	const fileService = overrides?.fileService ? overrides.fileService(instantiationService) : new TestFileService();
 	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
 	instantiationService.stub(IWorkingCopyBackupService, new TestWorkingCopyBackupService());
@@ -309,7 +319,7 @@ export class TestServiceAccessor {
 		@IFileService public fileService: TestFileService,
 		@IFileDialogService public fileDialogService: TestFileDialogService,
 		@IDialogService public dialogService: TestDialogService,
-		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
+		@IWorkingCopyService public workingCopyService: TestWorkingCopyService,
 		@IEditorService public editorService: TestEditorService,
 		@IWorkbenchEnvironmentService public environmentService: IWorkbenchEnvironmentService,
 		@IPathService public pathService: IPathService,
@@ -854,8 +864,8 @@ export class TestEditorGroupView implements IEditorGroupView {
 	copyEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
 	copyEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): void { }
 	async closeEditor(_editor?: EditorInput, options?: ICloseEditorOptions): Promise<boolean> { return true; }
-	async closeEditors(_editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void> { }
-	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void> { }
+	async closeEditors(_editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<boolean> { return true; }
+	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean> { return true; }
 	async replaceEditors(_editors: IEditorReplacement[]): Promise<void> { }
 	pinEditor(_editor?: EditorInput): void { }
 	stickEditor(editor?: EditorInput | undefined): void { }
@@ -1300,20 +1310,20 @@ export class RemoteFileSystemProvider implements IFileSystemProvider {
 	stat(resource: URI): Promise<IStat> { return this.wrappedFsp.stat(this.toFileResource(resource)); }
 	mkdir(resource: URI): Promise<void> { return this.wrappedFsp.mkdir(this.toFileResource(resource)); }
 	readdir(resource: URI): Promise<[string, FileType][]> { return this.wrappedFsp.readdir(this.toFileResource(resource)); }
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> { return this.wrappedFsp.delete(this.toFileResource(resource), opts); }
+	delete(resource: URI, opts: IFileDeleteOptions): Promise<void> { return this.wrappedFsp.delete(this.toFileResource(resource), opts); }
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return this.wrappedFsp.rename(this.toFileResource(from), this.toFileResource(to), opts); }
-	copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return this.wrappedFsp.copy!(this.toFileResource(from), this.toFileResource(to), opts); }
+	rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> { return this.wrappedFsp.rename(this.toFileResource(from), this.toFileResource(to), opts); }
+	copy(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> { return this.wrappedFsp.copy!(this.toFileResource(from), this.toFileResource(to), opts); }
 
 	readFile(resource: URI): Promise<Uint8Array> { return this.wrappedFsp.readFile!(this.toFileResource(resource)); }
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> { return this.wrappedFsp.writeFile!(this.toFileResource(resource), content, opts); }
+	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> { return this.wrappedFsp.writeFile!(this.toFileResource(resource), content, opts); }
 
-	open(resource: URI, opts: FileOpenOptions): Promise<number> { return this.wrappedFsp.open!(this.toFileResource(resource), opts); }
+	open(resource: URI, opts: IFileOpenOptions): Promise<number> { return this.wrappedFsp.open!(this.toFileResource(resource), opts); }
 	close(fd: number): Promise<void> { return this.wrappedFsp.close!(fd); }
 	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return this.wrappedFsp.read!(fd, pos, data, offset, length); }
 	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return this.wrappedFsp.write!(fd, pos, data, offset, length); }
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> { return this.wrappedFsp.readFileStream!(this.toFileResource(resource), opts, token); }
+	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> { return this.wrappedFsp.readFileStream!(this.toFileResource(resource), opts, token); }
 
 	private toFileResource(resource: URI): URI { return resource.with({ scheme: Schemas.file, authority: '' }); }
 }

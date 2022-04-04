@@ -9,12 +9,14 @@ import 'vs/css!./media/terminal';
 import 'vs/css!./media/widgets';
 import 'vs/css!./media/xterm';
 import * as nls from 'vs/nls';
+import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight, KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
+import { Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry, IDraggedResourceEditorInput } from 'vs/workbench/browser/dnd';
 import { registerTerminalActions, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { TERMINAL_VIEW_ID, TerminalCommandId, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -22,7 +24,7 @@ import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalCol
 import { setupTerminalCommands } from 'vs/workbench/contrib/terminal/browser/terminalCommands';
 import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService, TerminalDataTransfers, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
@@ -49,6 +51,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { RemoteTerminalBackendContribution } from 'vs/workbench/contrib/terminal/browser/remoteTerminalBackend';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TerminalMainContribution } from 'vs/workbench/contrib/terminal/browser/terminalMainContribution';
+import { Schemas } from 'vs/base/common/network';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
@@ -81,6 +84,7 @@ workbenchRegistry.registerWorkbenchContribution(RemoteTerminalBackendContributio
 registerTerminalPlatformConfiguration();
 registerTerminalConfiguration();
 
+// Register editor/dnd contributions
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(TerminalEditorInput.ID, TerminalInputSerializer);
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -92,6 +96,27 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 		new SyncDescriptor(TerminalEditorInput)
 	]
 );
+Registry.as<IDragAndDropContributionRegistry>(DragAndDropExtensions.DragAndDropContribution).register({
+	dataFormatKey: TerminalDataTransfers.Terminals,
+	getEditorInputs(data) {
+		const editors: IDraggedResourceEditorInput[] = [];
+		try {
+			const terminalEditors: string[] = JSON.parse(data);
+			for (const terminalEditor of terminalEditors) {
+				editors.push({ resource: URI.parse(terminalEditor) });
+			}
+		} catch (error) {
+			// Invalid transfer
+		}
+		return editors;
+	},
+	setData(resources, event) {
+		const terminalResources = resources.filter(({ resource }) => resource.scheme === Schemas.vscodeTerminal);
+		if (terminalResources.length) {
+			event.dataTransfer?.setData(TerminalDataTransfers.Terminals, JSON.stringify(terminalResources.map(({ resource }) => resource.toString())));
+		}
+	}
+});
 
 // Register views
 const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({

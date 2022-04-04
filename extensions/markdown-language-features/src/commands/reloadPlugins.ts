@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Command } from '../commandManager';
-import { MarkdownPreviewManager } from '../features/previewManager';
 import { MarkdownEngine } from '../markdownEngine';
+import { MarkdownPreviewManager } from '../preview/previewManager';
 
 export class ReloadPlugins implements Command {
 	public readonly id = 'markdown.api.reloadPlugins';

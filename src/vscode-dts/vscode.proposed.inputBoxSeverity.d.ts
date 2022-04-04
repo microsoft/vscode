@@ -17,6 +17,7 @@ declare module 'vscode' {
 		/**
 		 * The validation message to display. This will become the new {@link InputBoxOptions#validateInput} upon finalization.
 		 */
+		// TODO@API consider to extract InputBoxValidationMessage
 		validateInput2?(value: string): string | { content: string; severity: InputBoxValidationSeverity } | undefined | null |
 			Thenable<string | { content: string; severity: InputBoxValidationSeverity } | undefined | null>;
 	}

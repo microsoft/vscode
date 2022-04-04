@@ -7,7 +7,7 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class EncryptionService implements IEncryptionService {
@@ -16,11 +16,11 @@ export class EncryptionService implements IEncryptionService {
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 		@ILogService logService: ILogService
 	) {
 		// This allows the remote side to handle any encryption requests
-		if (environmentService.remoteAuthority) {
+		if (environmentService.remoteAuthority && !environmentService.options?.credentialsProvider) {
 			logService.trace('EncryptionService#constructor - Detected remote environment, registering proxy for encryption instead');
 			return ProxyChannel.toService<IEncryptionService>(remoteAgentService.getConnection()!.getChannel('encryption'));
 		}

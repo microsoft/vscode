@@ -142,6 +142,7 @@ export class MenuId {
 	static readonly TimelineItemContext = new MenuId('TimelineItemContext');
 	static readonly TimelineTitle = new MenuId('TimelineTitle');
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
+	static readonly TimelineFilterSubMenu = new MenuId('TimelineFilterSubMenu');
 	static readonly AccountsContext = new MenuId('AccountsContext');
 	static readonly PanelTitle = new MenuId('PanelTitle');
 	static readonly AuxiliaryBarTitle = new MenuId('AuxiliaryBarTitle');

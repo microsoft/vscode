@@ -16,13 +16,14 @@ import { ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorContr
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { StandardTokenType, TextEdit } from 'vs/editor/common/languages';
-import { ILanguageConfigurationService, LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IndentConsts } from 'vs/editor/common/languages/supports/indentRules';
 import { IModelService } from 'vs/editor/common/services/model';
 import * as indentUtils from 'vs/editor/contrib/indentation/browser/indentUtils';
 import * as nls from 'vs/nls';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { normalizeIndentation } from 'vs/editor/common/core/indentation';
+import { getGoodIndentForLine, getIndentMetadata } from 'vs/editor/common/languages/autoIndent';
 
 export function getReindentEditOperations(model: ITextModel, languageConfigurationService: ILanguageConfigurationService, startLineNumber: number, endLineNumber: number, inheritedIndent?: string): ISingleEditOperation[] {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
@@ -428,12 +429,13 @@ export class AutoIndentOnPasteCommand implements ICommand {
 export class AutoIndentOnPaste implements IEditorContribution {
 	public static readonly ID = 'editor.contrib.autoIndentOnPaste';
 
-	private readonly editor: ICodeEditor;
 	private readonly callOnDispose = new DisposableStore();
 	private readonly callOnModel = new DisposableStore();
 
-	constructor(editor: ICodeEditor) {
-		this.editor = editor;
+	constructor(
+		private readonly editor: ICodeEditor,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
+	) {
 
 		this.callOnDispose.add(editor.onDidChangeConfiguration(() => this.update()));
 		this.callOnDispose.add(editor.onDidChangeModel(() => this.update()));
@@ -503,7 +505,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 		let firstLineText = model.getLineContent(startLineNumber);
 		if (!/\S/.test(firstLineText.substring(0, range.startColumn - 1))) {
-			const indentOfFirstLine = LanguageConfigurationRegistry.getGoodIndentForLine(autoIndent, model, model.getLanguageId(), startLineNumber, indentConverter);
+			const indentOfFirstLine = getGoodIndentForLine(autoIndent, model, model.getLanguageId(), startLineNumber, indentConverter, this._languageConfigurationService);
 
 			if (indentOfFirstLine !== null) {
 				let oldIndentation = strings.getLeadingWhitespace(firstLineText);
@@ -518,7 +520,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 					});
 					firstLineText = newIndent + firstLineText.substr(oldIndentation.length);
 				} else {
-					let indentMetadata = LanguageConfigurationRegistry.getIndentMetadata(model, startLineNumber);
+					let indentMetadata = getIndentMetadata(model, startLineNumber, this._languageConfigurationService);
 
 					if (indentMetadata === 0 || indentMetadata === IndentConsts.UNINDENT_MASK) {
 						// we paste content into a line where only contains whitespaces
@@ -561,7 +563,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 					}
 				}
 			};
-			let indentOfSecondLine = LanguageConfigurationRegistry.getGoodIndentForLine(autoIndent, virtualModel, model.getLanguageId(), startLineNumber + 1, indentConverter);
+			let indentOfSecondLine = getGoodIndentForLine(autoIndent, virtualModel, model.getLanguageId(), startLineNumber + 1, indentConverter, this._languageConfigurationService);
 			if (indentOfSecondLine !== null) {
 				let newSpaceCntOfSecondLine = indentUtils.getSpaceCnt(indentOfSecondLine, tabSize);
 				let oldSpaceCntOfSecondLine = indentUtils.getSpaceCnt(strings.getLeadingWhitespace(model.getLineContent(startLineNumber + 1)), tabSize);

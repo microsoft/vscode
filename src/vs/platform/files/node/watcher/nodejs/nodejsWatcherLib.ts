@@ -48,6 +48,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	private fileChangesBuffer: IDiskFileChange[] = [];
 
 	private readonly excludes = this.request.excludes.map(exclude => parse(exclude));
+	private readonly includes = this.request.includes?.map(include => parse(include));
 
 	private readonly cts = new CancellationTokenSource();
 
@@ -317,14 +318,14 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 							// File still exists, so emit as change event and reapply the watcher
 							if (fileExists) {
-								this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED }, true /* skip excludes (file is explicitly watched) */);
+								this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED }, true /* skip excludes/includes (file is explicitly watched) */);
 
 								disposables.add(await this.doWatch(path, false));
 							}
 
 							// File seems to be really gone, so emit a deleted event and dispose
 							else {
-								const eventPromise = this.onFileChange({ path: this.request.path, type: FileChangeType.DELETED }, true /* skip excludes (file is explicitly watched) */);
+								const eventPromise = this.onFileChange({ path: this.request.path, type: FileChangeType.DELETED }, true /* skip excludes/includes (file is explicitly watched) */);
 
 								// Important to await the event delivery
 								// before disposing the watcher, otherwise
@@ -342,7 +343,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 					// File changed
 					else {
-						this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED }, true /* skip excludes (file is explicitly watched) */);
+						this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED }, true /* skip excludes/includes (file is explicitly watched) */);
 					}
 				}
 			});
@@ -358,7 +359,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		});
 	}
 
-	private async onFileChange(event: IDiskFileChange, skipExcludes = false): Promise<void> {
+	private async onFileChange(event: IDiskFileChange, skipIncludeExcludeChecks = false): Promise<void> {
 		if (this.cts.token.isCancellationRequested) {
 			return;
 		}
@@ -368,10 +369,14 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			this.trace(`${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
 		}
 
-		// Add to buffer unless ignored (not if explicitly disabled)
-		if (!skipExcludes && this.excludes.some(exclude => exclude(event.path))) {
+		// Add to buffer unless excluded or not included (not if explicitly disabled)
+		if (!skipIncludeExcludeChecks && this.excludes.some(exclude => exclude(event.path))) {
 			if (this.verboseLogging) {
-				this.trace(` >> ignored ${event.path}`);
+				this.trace(` >> ignored (excluded) ${event.path}`);
+			}
+		} else if (!skipIncludeExcludeChecks && this.includes && this.includes.length > 0 && !this.includes.some(include => include(event.path))) {
+			if (this.verboseLogging) {
+				this.trace(` >> ignored (not included) ${event.path}`);
 			}
 		} else {
 			this.fileChangesBuffer.push(event);

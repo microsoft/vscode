@@ -1135,7 +1135,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private async doHandleOpenEditorError(error: Error, editor: EditorInput, options?: IEditorOptions): Promise<void> {
 
 		// Report error only if we are not told to ignore errors that occur from opening an editor
-		if (!isCancellationError(error) && (!options || !options.ignoreError)) {
+		if (!isCancellationError(error) && !options?.ignoreError) {
 
 			// Always log the error to figure out what is going on
 			this.logService.error(error);
@@ -1710,9 +1710,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region closeEditors()
 
-	async closeEditors(args: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void> {
+	async closeEditors(args: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<boolean> {
 		if (this.isEmpty) {
-			return;
+			return true;
 		}
 
 		const editors = this.doGetEditorsToClose(args);
@@ -1720,11 +1720,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Check for dirty and veto
 		const veto = await this.handleDirtyClosing(editors.slice(0));
 		if (veto) {
-			return;
+			return false;
 		}
 
 		// Do close
 		this.doCloseEditors(editors, options);
+
+		return true;
 	}
 
 	private doGetEditorsToClose(args: EditorInput[] | ICloseEditorsFilter): EditorInput[] {
@@ -1784,7 +1786,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region closeAllEditors()
 
-	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void> {
+	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean> {
 		if (this.isEmpty) {
 
 			// If the group is empty and the request is to close all editors, we still close
@@ -1794,17 +1796,19 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				this.accessor.removeGroup(this);
 			}
 
-			return;
+			return true;
 		}
 
 		// Check for dirty and veto
 		const veto = await this.handleDirtyClosing(this.model.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, options));
 		if (veto) {
-			return;
+			return false;
 		}
 
 		// Do close
 		this.doCloseAllEditors(options);
+
+		return true;
 	}
 
 	private doCloseAllEditors(options?: ICloseAllEditorsOptions): void {

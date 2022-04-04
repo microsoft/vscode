@@ -56,6 +56,13 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
+	// TODO: as is unsafe here and it duplicates behavor of executingCommand
+	get executingCommandObject(): ITerminalCommand | undefined {
+		if (this._currentCommand.commandStartMarker) {
+			return { marker: this._currentCommand.commandStartMarker } as ITerminalCommand;
+		}
+		return undefined;
+	}
 	get cwd(): string | undefined { return this._cwd; }
 
 	private readonly _onCommandStarted = new Emitter<ITerminalCommand>();

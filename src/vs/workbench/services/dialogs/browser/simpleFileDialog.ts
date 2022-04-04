@@ -608,7 +608,7 @@ export class SimpleFileDialog {
 
 	private tryUpdateTrailing(value: URI) {
 		const ext = resources.extname(value);
-		if (ext) {
+		if (this.trailing && ext) {
 			this.trailing = resources.basename(value);
 		}
 	}

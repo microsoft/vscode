@@ -52,7 +52,7 @@ import { CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
-import { IRequestAddInstanceToGroupEvent, ITerminalExternalLinkProvider, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRequestAddInstanceToGroupEvent, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -329,6 +329,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onRequestAddInstanceToGroup = this._onRequestAddInstanceToGroup.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
+	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number } | undefined>();
+	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
 
 	constructor(
 		private readonly _terminalFocusContextKey: IContextKey<boolean>,
@@ -444,10 +446,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xtermReadyPromise.then(async () => {
 			// Wait for a period to allow a container to be ready
 			await this._containerReadyBarrier.wait();
-			if (this._configHelper.config.shellIntegration?.enabled && !this.shellLaunchConfig.executable) {
+
+			// Resolve the executable ahead of time if shell integration is enabled, this should not
+			// be done for custom PTYs as that would cause extension Pseudoterminal-based terminals
+			// to hang in resolver extensions
+			if (!this.shellLaunchConfig.customPtyImplementation && this._configHelper.config.shellIntegration?.enabled && !this.shellLaunchConfig.executable) {
 				const os = await this._processManager.getBackendOS();
 				this.shellLaunchConfig.executable = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os })).path;
 			}
+
 			await this._createProcess();
 
 			// Re-establish the title after reconnect
@@ -494,10 +501,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				e.affectsConfiguration(TerminalSettingId.TerminalTitleSeparator) ||
 				e.affectsConfiguration(TerminalSettingId.TerminalDescription)) {
 				this._labelComputer?.refreshLabel();
-			}
-			if ((e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) && !this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)) ||
-				(e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled) && !this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled))) {
-				this.xterm?.clearDecorations();
 			}
 		}));
 		this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._labelComputer?.refreshLabel());
@@ -651,7 +654,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);
 		this.updateAccessibilitySupport();
-		this.xterm.onDidRequestRunCommand(command => this.sendText(command, true));
+		this.xterm.onDidRequestRunCommand(e => {
+			if (e.copyAsHtml) {
+				this.copySelection(true, e.command);
+			} else {
+				this.sendText(e.command.command, true);
+			}
+		});
 		// Write initial text, deferring onLineFeed listener when applicable to avoid firing
 		// onLineData events containing initialText
 		if (this._shellLaunchConfig.initialText) {
@@ -979,6 +988,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		const screenElement = xterm.attachToElement(xtermElement);
 
+		xterm.onDidChangeFindResults((results) => this._onDidChangeFindResults.fire(results));
+
 		if (!xterm.raw.element || !xterm.raw.textarea) {
 			throw new Error('xterm elements not set after open');
 		}
@@ -1140,13 +1151,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this.xterm ? this.xterm.raw.hasSelection() : false;
 	}
 
-	async copySelection(asHtml?: boolean): Promise<void> {
+	async copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void> {
 		const xterm = await this._xtermReadyPromise;
-		if (this.hasSelection()) {
+		if (this.hasSelection() || (asHtml && command)) {
 			if (asHtml) {
-				const selectionAsHtml = await xterm.getSelectionAsHtml();
+				const textAsHtml = await xterm.getSelectionAsHtml(command);
 				function listener(e: any) {
-					e.clipboardData.setData('text/html', selectionAsHtml);
+					e.clipboardData.setData('text/html', textAsHtml);
 					e.preventDefault();
 				}
 				document.addEventListener('copy', listener);
@@ -1741,7 +1752,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	@debounce(2000)
 	private async _updateProcessCwd(): Promise<void> {
-		if (this._isDisposed) {
+		if (this._isDisposed || this.shellLaunchConfig.customPtyImplementation) {
 			return;
 		}
 		// reset cwd if it has changed, so file based url paths can be resolved
@@ -2286,7 +2297,7 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 	}
 
 	onDragEnter(e: DragEvent) {
-		if (!containsDragType(e, DataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.TERMINALS, CodeDataTransfers.FILES)) {
+		if (!containsDragType(e, DataTransfers.FILES, DataTransfers.RESOURCES, TerminalDataTransfers.Terminals, CodeDataTransfers.FILES)) {
 			return;
 		}
 
@@ -2296,7 +2307,7 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 		}
 
 		// Dragging terminals
-		if (containsDragType(e, DataTransfers.TERMINALS)) {
+		if (containsDragType(e, TerminalDataTransfers.Terminals)) {
 			const side = this._getDropSide(e);
 			this._dropOverlay.classList.toggle('drop-before', side === 'before');
 			this._dropOverlay.classList.toggle('drop-after', side === 'after');
@@ -2320,7 +2331,7 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 		}
 
 		// Dragging terminals
-		if (containsDragType(e, DataTransfers.TERMINALS)) {
+		if (containsDragType(e, TerminalDataTransfers.Terminals)) {
 			const side = this._getDropSide(e);
 			this._dropOverlay.classList.toggle('drop-before', side === 'before');
 			this._dropOverlay.classList.toggle('drop-after', side === 'after');

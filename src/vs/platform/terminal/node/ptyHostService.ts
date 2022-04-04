@@ -343,8 +343,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._heartbeatFirstTimeout = setTimeout(() => this._handleHeartbeatFirstTimeout(), HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier);
 		if (!this._isResponsive) {
 			this._isResponsive = true;
+			this._onPtyHostResponsive.fire();
 		}
-		this._onPtyHostResponsive.fire();
 	}
 
 	private _handleHeartbeatFirstTimeout() {
@@ -358,14 +358,17 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._heartbeatSecondTimeout = undefined;
 		if (this._isResponsive) {
 			this._isResponsive = false;
+			this._onPtyHostUnresponsive.fire();
 		}
-		this._onPtyHostUnresponsive.fire();
 	}
 
 	private _handleUnresponsiveCreateProcess() {
 		this._clearHeartbeatTimeouts();
 		this._logService.error(`No ptyHost response to createProcess after ${HeartbeatConstants.CreateProcessTimeout / 1000} seconds`);
-		this._onPtyHostUnresponsive.fire();
+		if (this._isResponsive) {
+			this._isResponsive = false;
+			this._onPtyHostUnresponsive.fire();
+		}
 	}
 
 	private _clearHeartbeatTimeouts() {

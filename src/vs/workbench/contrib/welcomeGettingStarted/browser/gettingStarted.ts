@@ -650,7 +650,11 @@ export class GettingStartedPage extends EditorPane {
 			let stepElement = this.container.querySelector<HTMLDivElement>(`[data-step-id="${id}"]`);
 			if (!stepElement) {
 				// Selected an element that is not in-context, just fallback to whatever.
-				stepElement = assertIsDefined(this.container.querySelector<HTMLDivElement>(`[data-step-id]`));
+				stepElement = this.container.querySelector<HTMLDivElement>(`[data-step-id]`);
+				if (!stepElement) {
+					// No steps around... just ignore.
+					return;
+				}
 				id = assertIsDefined(stepElement.getAttribute('data-step-id'));
 			}
 			stepElement.parentElement?.querySelectorAll<HTMLElement>('.expanded').forEach(node => {

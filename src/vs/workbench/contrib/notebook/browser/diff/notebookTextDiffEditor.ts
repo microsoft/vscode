@@ -8,11 +8,11 @@ import * as DOM from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { cellEditorBackground, getDefaultNotebookCreationOptions, notebookCellBorder, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection } from 'vs/workbench/common/editor';
+import { cellEditorBackground, focusedEditorBorderColor, getDefaultNotebookCreationOptions, notebookCellBorder, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookDiffEditorInput } from '../notebookDiffEditorInput';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellDiffSideBySideRenderer, CellDiffSingleSideRenderer, NotebookCellTextDiffListDelegate, NotebookTextDiffList } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffList';
@@ -42,10 +42,46 @@ import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { cellIndexesToRanges, cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 const $ = DOM.$;
 
-export class NotebookTextDiffEditor extends EditorPane implements INotebookTextDiffEditor, INotebookDelegateForWebview {
+class NotebookDiffEditorSelection implements IEditorPaneSelection {
+
+	constructor(
+		private readonly selections: number[]
+	) { }
+
+	compare(other: IEditorPaneSelection): EditorPaneSelectionCompareResult {
+		if (!(other instanceof NotebookDiffEditorSelection)) {
+			return EditorPaneSelectionCompareResult.DIFFERENT;
+		}
+
+		if (this.selections.length !== other.selections.length) {
+			return EditorPaneSelectionCompareResult.DIFFERENT;
+		}
+
+		for (let i = 0; i < this.selections.length; i++) {
+			if (this.selections[i] !== other.selections[i]) {
+				return EditorPaneSelectionCompareResult.DIFFERENT;
+			}
+		}
+
+		return EditorPaneSelectionCompareResult.IDENTICAL;
+	}
+
+	restore(options: IEditorOptions): INotebookEditorOptions {
+		const notebookOptions: INotebookEditorOptions = {
+			cellSelections: cellIndexesToRanges(this.selections)
+		};
+
+		Object.assign(notebookOptions, options);
+		return notebookOptions;
+	}
+}
+
+export class NotebookTextDiffEditor extends EditorPane implements INotebookTextDiffEditor, INotebookDelegateForWebview, IEditorPaneWithSelection {
 	creationOptions: INotebookEditorCreationOptions = getDefaultNotebookCreationOptions();
 	static readonly ID: string = NOTEBOOK_DIFF_EDITOR_ID;
 
@@ -84,6 +120,11 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	private readonly _localStore = this._register(new DisposableStore());
 
+	private _layoutCancellationTokenSource?: CancellationTokenSource;
+
+	private readonly _onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
+	readonly onDidChangeSelection = this._onDidChangeSelection.event;
+
 	private _isDisposed: boolean = false;
 
 	get isDisposed() {
@@ -106,6 +147,11 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const editorOptions = this.configurationService.getValue<ICodeEditorOptions>('editor');
 		this._fontInfo = FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value));
 		this._revealFirst = true;
+	}
+
+	getSelection(): IEditorPaneSelection | undefined {
+		const selections = this._list.getFocus();
+		return new NotebookDiffEditorSelection(selections);
 	}
 
 	toggleNotebookCellSelection(cell: IGenericCellViewModel) {
@@ -225,6 +271,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			}
 		}));
 
+		this._register(this._list.onDidChangeFocus(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.USER })));
+
 		// transparent cover
 		this._webviewTransparentCover = DOM.append(this._list.rowsContainer, $('.webview-cover'));
 		this._webviewTransparentCover.style.display = 'none';
@@ -312,9 +360,13 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		this._modifiedResourceDisposableStore.clear();
 
+		this._layoutCancellationTokenSource = new CancellationTokenSource();
+
 		this._modifiedResourceDisposableStore.add(Event.any(this._model.original.notebook.onDidChangeContent, this._model.modified.notebook.onDidChangeContent)(e => {
 			if (this._model !== null) {
-				this.updateLayout();
+				this._layoutCancellationTokenSource?.dispose();
+				this._layoutCancellationTokenSource = new CancellationTokenSource();
+				this.updateLayout(this._layoutCancellationTokenSource.token);
 			}
 		}));
 
@@ -327,7 +379,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._modifiedResourceDisposableStore.add(this._modifiedWebview);
 		}
 
-		await this.updateLayout();
+		await this.updateLayout(this._layoutCancellationTokenSource.token, options?.cellSelections ? cellRangesToIndexes(options.cellSelections) : undefined);
 	}
 
 	private _detachModel() {
@@ -409,12 +461,25 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._originalWebview.element.style.left = `16px`;
 	}
 
-	async updateLayout() {
+	override setOptions(options: INotebookEditorOptions | undefined): void {
+		const selections = options?.cellSelections ? cellRangesToIndexes(options.cellSelections) : undefined;
+		if (selections) {
+			this._list.setFocus(selections);
+		}
+	}
+
+	async updateLayout(token: CancellationToken, selections?: number[]) {
 		if (!this._model) {
 			return;
 		}
 
 		const diffResult = await this.notebookEditorWorkerService.computeDiff(this._model.original.resource, this._model.modified.resource);
+
+		if (token.isCancellationRequested) {
+			// after await the editor might be disposed.
+			return;
+		}
+
 		NotebookTextDiffEditor.prettyChanges(this._model, diffResult.cellsDiff);
 		const { viewModels, firstChangeIndex } = NotebookTextDiffEditor.computeDiff(this.instantiationService, this.configurationService, this._model, this._eventDispatcher!, diffResult);
 		const isSame = this._isViewModelTheSame(viewModels);
@@ -432,6 +497,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._revealFirst = false;
 			this._list.setFocus([firstChangeIndex]);
 			this._list.reveal(firstChangeIndex, 0.3);
+		}
+
+		if (selections) {
+			this._list.setFocus(selections);
 		}
 	}
 
@@ -899,6 +968,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	override dispose() {
 		this._isDisposed = true;
+		this._layoutCancellationTokenSource?.dispose();
 		super.dispose();
 	}
 }
@@ -914,6 +984,15 @@ registerThemingParticipant((theme, collector) => {
 		.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
 			border-top: 1px solid ${cellBorderColor};
 		}`);
+	}
+
+	const focusCellBackgroundColor = theme.getColor(focusedEditorBorderColor);
+
+	if (focusCellBackgroundColor) {
+		collector.addRule(`.notebook-text-diff-editor .monaco-list-row.focused .cell-body .border-container .top-border { border-top: 1px solid ${focusCellBackgroundColor};}`);
+		collector.addRule(`.notebook-text-diff-editor .monaco-list-row.focused .cell-body .border-container .bottom-border { border-top: 1px solid ${focusCellBackgroundColor};}`);
+		collector.addRule(`.notebook-text-diff-editor .monaco-list-row.focused .cell-body .border-container .left-border { border-left: 1px solid ${focusCellBackgroundColor};}`);
+		collector.addRule(`.notebook-text-diff-editor .monaco-list-row.focused .cell-body .border-container .right-border { border-right: 1px solid ${focusCellBackgroundColor};}`);
 	}
 
 	const diffDiagonalFillColor = theme.getColor(diffDiagonalFill);

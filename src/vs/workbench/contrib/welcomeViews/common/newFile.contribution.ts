@@ -170,7 +170,7 @@ class NewFileTemplatesManager extends Disposable {
 
 		disposables.add(qp.onDidTriggerItemButton(e => {
 			qp.hide();
-			this.commandService.executeCommand('workbench.action.openGlobalKeybindings', (e.item as any).action.runCommand);
+			this.commandService.executeCommand('workbench.action.openGlobalKeybindings', (e.item as (IQuickPickItem & NewFileItem)).commandID);
 		}));
 
 		qp.show();

@@ -168,7 +168,13 @@ export async function applyCodeAction(
 	await item.resolve(CancellationToken.None);
 
 	if (item.action.edit) {
-		await bulkEditService.apply(ResourceEdit.convert(item.action.edit), { editor, label: item.action.title, code: 'undoredo.codeAction' });
+		await bulkEditService.apply(ResourceEdit.convert(item.action.edit), {
+			editor,
+			label: item.action.title,
+			quotableLabel: item.action.title,
+			code: 'undoredo.codeAction',
+			respectAutoSaveConfig: true
+		});
 	}
 
 	if (item.action.command) {

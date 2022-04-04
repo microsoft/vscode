@@ -788,7 +788,9 @@
         },
         "typescript.locale": {
           "type": "string",
+          "default": "auto",
           "enum": [
+            "auto",
             "de",
             "es",
             "en",
@@ -1177,6 +1179,12 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.suggest.classMemberSnippets.enabled%",
+          "scope": "resource"
+        },
+        "typescript.suggest.objectLiteralMethodSnippets.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.objectLiteralMethodSnippets.enabled%",
           "scope": "resource"
         }
       }

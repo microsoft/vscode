@@ -108,6 +108,10 @@ export class ApiRepository implements Repository {
 		return this._repository.add(paths.map(p => Uri.file(p)));
 	}
 
+	revert(paths: string[]) {
+		return this._repository.revert(paths.map(p => Uri.file(p)));
+	}
+
 	clean(paths: string[]) {
 		return this._repository.clean(paths.map(p => Uri.file(p)));
 	}

@@ -502,7 +502,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession);
 		this.exceptionWidget.show({ lineNumber, column }, 0);
 		this.exceptionWidget.focus();
-		this.editor.revealLine(lineNumber);
+		this.editor.revealRangeInCenter({
+			startLineNumber: lineNumber,
+			startColumn: column,
+			endLineNumber: lineNumber,
+			endColumn: column,
+		});
 		this.exceptionWidgetVisible.set(true);
 	}
 
@@ -622,7 +627,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		const model = this.editor.getModel();
 		const inlineValuesSetting = this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues;
-		const inlineValuesTurnedOn = inlineValuesSetting === true || (inlineValuesSetting === 'auto' && model && this.languageFeaturesService.inlineValuesProvider.has(model));
+		const inlineValuesTurnedOn = inlineValuesSetting === true || inlineValuesSetting === 'on' || (inlineValuesSetting === 'auto' && model && this.languageFeaturesService.inlineValuesProvider.has(model));
 		if (!inlineValuesTurnedOn || !model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
 			if (!this.removeInlineValuesScheduler.isScheduled()) {
 				this.removeInlineValuesScheduler.schedule();

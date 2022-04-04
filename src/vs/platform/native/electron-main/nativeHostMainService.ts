@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, nativeTheme, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell } from 'electron';
+import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from 'vs/base/common/decorators';
@@ -59,16 +59,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
 	) {
 		super();
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-
-		// Color Scheme changes
-		nativeTheme.on('updated', () => {
-			this._onDidChangeColorScheme.fire(this.osColorScheme);
-		});
 	}
 
 
@@ -94,8 +84,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	readonly onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
 
-	private readonly _onDidChangeColorScheme = this._register(new Emitter<IColorScheme>());
-	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
+	readonly onDidChangeColorScheme = this.themeMainService.onDidChangeColorScheme;
 
 	private readonly _onDidChangePassword = this._register(new Emitter<{ account: string; service: string }>());
 	readonly onDidChangePassword = this._onDidChangePassword.event;
@@ -573,15 +562,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return virtualMachineHint.value();
 	}
 
-	private get osColorScheme(): IColorScheme {
-		return {
-			highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors,
-			dark: nativeTheme.shouldUseDarkColors
-		};
-	}
-
 	public async getOSColorScheme(): Promise<IColorScheme> {
-		return this.osColorScheme;
+		return this.themeMainService.getColorScheme();
 	}
 
 

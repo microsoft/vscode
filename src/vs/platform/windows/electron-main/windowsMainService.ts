@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, MessageBoxOptions, nativeTheme, WebContents } from 'electron';
+import { app, BrowserWindow, MessageBoxOptions, WebContents } from 'electron';
 import { statSync } from 'fs';
 import { hostname, release } from 'os';
 import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
@@ -49,6 +49,7 @@ import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/p
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { ICodeWindow, UnloadReason } from 'vs/platform/window/electron-main/window';
+import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 
 //#region Helper Interfaces
 
@@ -190,7 +191,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
-		@IProtocolMainService private readonly protocolMainService: IProtocolMainService
+		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
+		@IThemeMainService private readonly themeMainService: IThemeMainService
 	) {
 		super();
 
@@ -1297,11 +1299,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			zoomLevel: typeof windowConfig?.zoomLevel === 'number' ? windowConfig.zoomLevel : undefined,
 
 			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,
+			autoDetectColorScheme: windowConfig?.autoDetectColorScheme ?? false,
 			accessibilitySupport: app.accessibilitySupportEnabled,
-			colorScheme: {
-				dark: nativeTheme.shouldUseDarkColors,
-				highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors
-			}
+			colorScheme: this.themeMainService.getColorScheme()
 		};
 
 		let window: ICodeWindow | undefined;
