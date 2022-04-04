@@ -20,6 +20,7 @@ const commentThreadStateColors = new Map([
 
 export const commentThreadStateColorVar = '--comment-thread-state-color';
 export const commentViewThreadStateColorVar = '--comment-view-thread-state-color';
+export const commentThreadStateBackgroundColorVar = '--comment-thread-state-background-color';
 
 export function getCommentThreadStateColor(state: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
 	const colorId = (state !== undefined) ? commentThreadStateColors.get(state) : undefined;
