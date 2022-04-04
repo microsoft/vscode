@@ -894,6 +894,7 @@ suite('EditorGroupsService', () => {
 
 	test('closeAllEditors - dirty editor handling', async () => {
 		const [part, instantiationService] = await createPart();
+		let closeResult = true;
 
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.DONT_SAVE);
@@ -909,14 +910,16 @@ suite('EditorGroupsService', () => {
 		await group.openEditor(input2);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
-		await group.closeAllEditors();
+		closeResult = await group.closeAllEditors();
 
+		assert.strictEqual(closeResult, false);
 		assert.ok(!input1.gotDisposed);
 		assert.ok(!input2.gotDisposed);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.DONT_SAVE);
-		await group.closeAllEditors();
+		closeResult = await group.closeAllEditors();
 
+		assert.strictEqual(closeResult, true);
 		assert.ok(input1.gotDisposed);
 		assert.ok(input2.gotDisposed);
 	});
