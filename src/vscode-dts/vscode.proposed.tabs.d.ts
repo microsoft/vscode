@@ -50,7 +50,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a tab within the window
+	 * Represents a tab within a {@link TabGroup group of tabs}.
+	 *
+	 * TODO@API explain the tab is a button, not editor concept
 	 */
 	export interface Tab {
 
@@ -132,7 +134,7 @@ declare module 'vscode' {
 		/**
 		 * The currently active group
 		 */
-		// TOD@API name: maybe `activeGroup` to align with `groups` (which isn't tabGroups)
+		// TODO@API name: maybe `activeGroup` to align with `groups` (which isn't tabGroups)
 		readonly activeTabGroup: TabGroup;
 
 		/**
@@ -149,10 +151,10 @@ declare module 'vscode' {
 		 * Closes the tab. This makes the tab object invalid and the tab
 		 * should no longer be used for further actions.
 		 * Note: In the case of a dirty tab, a confirmation dialog will be shown which may be cancelled. If cancelled the tab is still valid
-		 * @param tab The tab to close, must be reference equal to a tab given by the API
+		 *
+		 * @param tab The tab to close.
 		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
-		 * @returns A promise that resolves true when then tab is closed. Otherwise it will return false.
-		 * If false is returned the tab is still valid.
+		 * @returns A promise that resolves to `true` when all tabs have been closed
 		 */
 		close(tab: Tab | Tab[], preserveFocus?: boolean): Thenable<boolean>;
 		// TODO@API support to close "all"
@@ -169,7 +171,7 @@ declare module 'vscode' {
 		 */
 		// TODO@API support TabGroup in addition to ViewColumn
 		// TODO@API support just index for moving inside current group
-		// TODO@API move a tag group
+		// TODO@API move a tab group
 		move(tab: Tab, viewColumn: ViewColumn, index: number, preserveFocus?: boolean): Thenable<void>;
 	}
 }
