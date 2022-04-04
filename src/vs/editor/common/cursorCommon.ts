@@ -107,7 +107,7 @@ export class CursorConfiguration {
 		languageId: string,
 		modelOptions: TextModelResolvedOptions,
 		configuration: IEditorConfiguration,
-		private readonly languageConfigurationService: ILanguageConfigurationService
+		public readonly languageConfigurationService: ILanguageConfigurationService
 	) {
 		this._languageId = languageId;
 

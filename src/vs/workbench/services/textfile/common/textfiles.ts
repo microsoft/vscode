@@ -178,6 +178,7 @@ export class TextFileOperationError extends FileOperationError {
 }
 
 export interface IResourceEncodings {
+	getPreferredReadEncoding(resource: URI): Promise<IResourceEncoding>;
 	getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): Promise<IResourceEncoding>;
 }
 
@@ -265,12 +266,7 @@ export interface ITextFileStreamContent extends IBaseTextFileContent {
 	readonly value: ITextBufferFactory;
 }
 
-export interface ITextFileEditorModelResolveOrCreateOptions {
-
-	/**
-	 * Context why the model is being resolved or created.
-	 */
-	readonly reason?: TextFileResolveReason;
+export interface ITextFileEditorModelResolveOrCreateOptions extends ITextFileResolveOptions {
 
 	/**
 	 * The language id to use for the model text content.
@@ -281,13 +277,6 @@ export interface ITextFileEditorModelResolveOrCreateOptions {
 	 * The encoding to use when resolving the model text content.
 	 */
 	readonly encoding?: string;
-
-	/**
-	 * The contents to use for the model if known. If not
-	 * provided, the contents will be retrieved from the
-	 * underlying resource or backup if present.
-	 */
-	readonly contents?: ITextBufferFactory;
 
 	/**
 	 * If the model was already resolved before, allows to trigger
@@ -301,11 +290,6 @@ export interface ITextFileEditorModelResolveOrCreateOptions {
 		 */
 		readonly async: boolean;
 	};
-
-	/**
-	 * Allow to resolve a model even if we think it is a binary file.
-	 */
-	readonly allowBinary?: boolean;
 }
 
 export interface ITextFileSaveEvent extends ITextFileEditorModelSaveEvent {

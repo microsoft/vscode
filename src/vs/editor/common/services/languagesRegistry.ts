@@ -5,7 +5,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { compareIgnoreCase, regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { clearPlatformLanguageAssociations, getLanguageIds, registerPlatformLanguageAssociation } from 'vs/editor/common/services/languagesAssociations';
 import { URI } from 'vs/base/common/uri';
@@ -14,12 +14,9 @@ import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages
 import { ILanguageExtensionPoint, ILanguageNameIdPair, ILanguageIcon } from 'vs/editor/common/languages/language';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 const NULL_LANGUAGE_ID = 'vs.editor.nullLanguage';
-
-LanguageConfigurationRegistry.register(NULL_LANGUAGE_ID, {});
 
 export interface IResolvedLanguage {
 	identifier: string;
@@ -120,6 +117,10 @@ export class LanguagesRegistry extends Disposable {
 		clearPlatformLanguageAssociations();
 		const desc = (<ILanguageExtensionPoint[]>[]).concat(ModesRegistry.getLanguages()).concat(this._dynamicLanguages);
 		this._registerLanguages(desc);
+	}
+
+	registerLanguage(desc: ILanguageExtensionPoint): IDisposable {
+		return ModesRegistry.registerLanguage(desc);
 	}
 
 	_registerLanguages(desc: ILanguageExtensionPoint[]): void {

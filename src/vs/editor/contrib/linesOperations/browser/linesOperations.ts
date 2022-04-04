@@ -24,6 +24,7 @@ import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/browser/sort
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 // copy lines
 
@@ -170,14 +171,15 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 		this.down = down;
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
 
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections() || [];
 		const autoIndent = editor.getOption(EditorOption.autoIndent);
 
 		for (const selection of selections) {
-			commands.push(new MoveLinesCommand(selection, this.down, autoIndent));
+			commands.push(new MoveLinesCommand(selection, this.down, autoIndent, languageConfigurationService));
 		}
 
 		editor.pushUndoStop();

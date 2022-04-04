@@ -10,7 +10,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { InternalTestItem, ITestItemContext, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, ITestItemContext, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
 /**
  * Describes a rendering of tests in the explorer view. Different
@@ -120,11 +120,6 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 	}
 
 	/**
-	 * Whether the node's test result is 'retired' -- from an outdated test run.
-	 */
-	public retired = false;
-
-	/**
 	 * @inheritdoc
 	 */
 	public state = TestResultState.Unset;
@@ -163,11 +158,11 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 
 		const context: ITestItemContext = {
 			$mid: MarshalledId.TestItemContext,
-			tests: [this.test],
+			tests: [InternalTestItem.serialize(this.test)],
 		};
 
 		for (let p = this.parent; p && p.depth > 0; p = p.parent) {
-			context.tests.unshift(p.test);
+			context.tests.unshift(InternalTestItem.serialize(p.test));
 		}
 
 		return context;

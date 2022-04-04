@@ -15,7 +15,7 @@ import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBo
 import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon } from 'vs/editor/contrib/find/browser/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground, errorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
@@ -26,6 +26,12 @@ const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "
 const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 
+interface IFindOptions {
+	showOptionButtons?: boolean;
+	checkImeCompletionState?: boolean;
+	showResultCount?: boolean;
+}
+
 export abstract class SimpleFindWidget extends Widget {
 	private readonly _findInput: FindInput;
 	private readonly _domNode: HTMLElement;
@@ -35,16 +41,16 @@ export abstract class SimpleFindWidget extends Widget {
 	private readonly _updateHistoryDelayer: Delayer<void>;
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
+	private _matchesCount: HTMLElement | undefined;
 
 	private _isVisible: boolean = false;
-	private foundMatch: boolean = false;
+	private _foundMatch: boolean = false;
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		private readonly _state: FindReplaceState = new FindReplaceState(),
-		showOptionButtons?: boolean,
-		checkImeCompletionState?: boolean
+		private readonly _options: IFindOptions
 	) {
 		super();
 
@@ -59,20 +65,23 @@ export abstract class SimpleFindWidget extends Widget {
 					new RegExp(value);
 					return null;
 				} catch (e) {
-					this.foundMatch = false;
-					this.updateButtons(this.foundMatch);
+					this._foundMatch = false;
+					this.updateButtons(this._foundMatch);
 					return { content: e.message };
 				}
 			}
-		}, contextKeyService, showOptionButtons));
+		}, contextKeyService, _options.showOptionButtons));
 
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);
 
-		this._register(this._findInput.onInput((e) => {
-			if (!checkImeCompletionState || !this._findInput.isImeSessionInProgress) {
-				this.foundMatch = this._onInputChanged();
-				this.updateButtons(this.foundMatch);
+		this._register(this._findInput.onInput(async (e) => {
+			if (!_options.checkImeCompletionState || !this._findInput.isImeSessionInProgress) {
+				this._foundMatch = this._onInputChanged();
+				if (this._options.showResultCount) {
+					await this.updateResultCount();
+				}
+				this.updateButtons(this._foundMatch);
 				this.focusFindBox();
 				this._delayedUpdateHistory();
 			}
@@ -152,6 +161,14 @@ export abstract class SimpleFindWidget extends Widget {
 		this._register(dom.addDisposableListener(this._innerDomNode, 'click', (event) => {
 			event.stopPropagation();
 		}));
+
+		if (_options?.showResultCount) {
+			this._domNode.classList.add('result-count');
+			this._register(this._findInput.onDidChange(() => {
+				this.updateResultCount();
+				this.updateButtons(this._foundMatch);
+			}));
+		}
 	}
 
 	protected abstract _onInputChanged(): boolean;
@@ -161,6 +178,7 @@ export abstract class SimpleFindWidget extends Widget {
 	protected abstract _onFocusTrackerBlur(): void;
 	protected abstract _onFindInputFocusTrackerFocus(): void;
 	protected abstract _onFindInputFocusTrackerBlur(): void;
+	protected abstract _getResultCount(): Promise<{ resultIndex: number; resultCount: number } | undefined>;
 
 	protected get inputValue() {
 		return this._findInput.getValue();
@@ -214,7 +232,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 
 		this._isVisible = true;
-		this.updateButtons(this.foundMatch);
+		this.updateButtons(this._foundMatch);
 
 		setTimeout(() => {
 			this._innerDomNode.classList.add('visible', 'visible-transition');
@@ -243,7 +261,7 @@ export abstract class SimpleFindWidget extends Widget {
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
-				this.updateButtons(this.foundMatch);
+				this.updateButtons(this._foundMatch);
 				this._innerDomNode.classList.remove('visible');
 			}, 200);
 		}
@@ -281,6 +299,20 @@ export abstract class SimpleFindWidget extends Widget {
 		this.nextBtn.focus();
 		this._findInput.inputBox.focus();
 	}
+
+	async updateResultCount(): Promise<void> {
+		const count = await this._getResultCount();
+		if (!this._matchesCount) {
+			this._matchesCount = document.createElement('div');
+			this._matchesCount.className = 'matchesCount';
+		}
+		this._matchesCount.innerText = '';
+		const label = count === undefined || count.resultCount === 0 ? `No Results` : `${count.resultIndex + 1} of ${count.resultCount}`;
+		this._matchesCount.appendChild(document.createTextNode(label));
+		this._matchesCount.classList.toggle('no-results', !count || count.resultCount === 0);
+		this._findInput?.domNode.insertAdjacentElement('afterend', this._matchesCount);
+		this._foundMatch = !!count && count.resultCount > 0;
+	}
 }
 
 // theming
@@ -298,5 +330,10 @@ registerThemingParticipant((theme, collector) => {
 	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
 		collector.addRule(`.monaco-workbench .simple-find-part { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
+	}
+
+	const error = theme.getColor(errorForeground);
+	if (error) {
+		collector.addRule(`.no-results.matchesCount { color: ${error}; }`);
 	}
 });

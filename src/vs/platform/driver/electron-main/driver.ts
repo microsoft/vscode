@@ -12,7 +12,7 @@ import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import { IPCServer, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { IDriver, IDriverOptions, IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
+import { IDriver, IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
 import { WindowDriverChannelClient } from 'vs/platform/driver/common/driverIpc';
 import { DriverChannel, WindowDriverRegistryChannel } from 'vs/platform/driver/node/driver';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -40,7 +40,6 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 
 	constructor(
 		private windowServer: IPCServer,
-		private options: IDriverOptions,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IFileService private readonly fileService: IFileService,
@@ -48,13 +47,12 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		@ILogService private readonly logService: ILogService
 	) { }
 
-	async registerWindowDriver(windowId: number): Promise<IDriverOptions> {
+	async registerWindowDriver(windowId: number): Promise<void> {
 		this.logService.info(`[driver] registerWindowDriver(${windowId})`);
 
 		this.registeredWindowIds.add(windowId);
 		this.reloadingWindowIds.delete(windowId);
 		this.onDidReloadingChange.fire();
-		return this.options;
 	}
 
 	async reloadWindowDriver(windowId: number): Promise<void> {
@@ -111,10 +109,12 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		this.lifecycleMainService.reload(window);
 	}
 
-	exitApplication(): Promise<boolean> {
+	async exitApplication(): Promise<number> {
 		this.logService.info(`[driver] exitApplication()`);
 
-		return this.lifecycleMainService.quit();
+		this.lifecycleMainService.quit();
+
+		return process.pid;
 	}
 
 	async dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {
@@ -173,11 +173,6 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	async click(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<void> {
 		const windowDriver = await this.getWindowDriver(windowId);
 		await windowDriver.click(selector, xoffset, yoffset);
-	}
-
-	async doubleClick(windowId: number, selector: string): Promise<void> {
-		const windowDriver = await this.getWindowDriver(windowId);
-		await windowDriver.doubleClick(selector);
 	}
 
 	async setValue(windowId: number, selector: string, text: string): Promise<void> {
@@ -249,11 +244,9 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 export async function serve(
 	windowServer: IPCServer,
 	handle: string,
-	environmentMainService: IEnvironmentMainService,
 	instantiationService: IInstantiationService
 ): Promise<IDisposable> {
-	const verbose = environmentMainService.driverVerbose;
-	const driver = instantiationService.createInstance(Driver, windowServer, { verbose });
+	const driver = instantiationService.createInstance(Driver, windowServer);
 
 	const windowDriverRegistryChannel = new WindowDriverRegistryChannel(driver);
 	windowServer.registerChannel('windowDriverRegistry', windowDriverRegistryChannel);

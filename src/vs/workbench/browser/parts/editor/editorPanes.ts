@@ -117,27 +117,26 @@ export class EditorPanes extends Disposable {
 		try {
 			return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, context);
 		} catch (error) {
-			if (!context.newInGroup) {
-				const isUnavailableResource = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
-				const editorPlaceholder = isUnavailableResource ? UnavailableResourceErrorEditor.DESCRIPTOR : UnknownErrorEditor.DESCRIPTOR;
 
-				// The editor is restored (as opposed to being newly opened) and as
-				// such we want to preserve the fact that an editor was opened here
-				// before by falling back to a editor placeholder that allows the
-				// user to retry the operation.
-				//
-				// This is especially important when an editor is dirty and fails to
-				// restore after a restart to prevent the impression that any user
-				// data is lost.
-				//
-				// Related: https://github.com/microsoft/vscode/issues/110062
-				return {
-					...(await this.doOpenEditor(editorPlaceholder, editor, options, context)),
-					error
-				};
-			}
+			// We failed to open an editor and thus fallback to show a generic
+			// editor in error state as a way for the user to be aware.
+			// Previously we would immediately close the editor and show a
+			// error notification which was easy to not see.
+			//
+			// Besides, we want to preserve the users editor UI state as much
+			// as possible, so closing editors is never really an option.
+			//
+			// Related issues:
+			// - https://github.com/microsoft/vscode/issues/110062
+			// - https://github.com/microsoft/vscode/issues/142875
 
-			return { error };
+			const isUnavailableResource = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
+			const editorPlaceholder = isUnavailableResource ? UnavailableResourceErrorEditor.DESCRIPTOR : UnknownErrorEditor.DESCRIPTOR;
+
+			return {
+				...(await this.doOpenEditor(editorPlaceholder, editor, options, context)),
+				error
+			};
 		}
 	}
 

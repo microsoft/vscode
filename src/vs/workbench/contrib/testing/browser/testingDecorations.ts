@@ -40,7 +40,7 @@ import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/work
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
 import { DefaultGutterClickAction, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestDecoration as IPublicTestDecoration, ITestingDecorationsService, TestDecorations } from 'vs/workbench/contrib/testing/common/testingDecorations';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState, maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -439,7 +439,6 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 	let computedState = TestResultState.Unset;
 	let hoverMessageParts: string[] = [];
 	let testIdWithMessages: string | undefined;
-	let retired = false;
 	for (let i = 0; i < tests.length; i++) {
 		const test = tests[i];
 		const resultItem = states[i];
@@ -448,7 +447,6 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 			hoverMessageParts.push(labelForTestInState(test.item.label, state));
 		}
 		computedState = maxPriority(computedState, state);
-		retired = retired || !!resultItem?.retired;
 		if (!testIdWithMessages && resultItem?.tasks.some(t => t.messages.length)) {
 			testIdWithMessages = test.item.extId;
 		}
@@ -462,9 +460,6 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 	let hoverMessage: IMarkdownString | undefined;
 
 	let glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
-	if (retired) {
-		glyphMarginClassName += ' retired';
-	}
 
 	return {
 		range: firstLineRange(range),

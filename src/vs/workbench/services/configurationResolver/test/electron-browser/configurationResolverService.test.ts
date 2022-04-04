@@ -631,6 +631,16 @@ suite('Configuration Resolver Service', () => {
 			});
 		});
 	});
+
+	test('resolveWithEnvironment', () => {
+		const env = {
+			'VAR_1': 'VAL_1',
+			'VAR_2': 'VAL_2'
+		};
+		const configuration = 'echo ${env:VAR_1}${env:VAR_2}';
+		const resolvedResult = configurationResolverService!.resolveWithEnvironment({ ...env }, undefined, configuration);
+		assert.deepStrictEqual(resolvedResult, 'echo VAL_1VAL_2');
+	});
 });
 
 

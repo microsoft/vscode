@@ -472,6 +472,14 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		);
 	}
 
+	private getMaxColumnOfViewLine(viewLineInfo: ViewLineInfo): number {
+		return this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewLineMaxColumn(
+			this.model,
+			viewLineInfo.modelLineNumber,
+			viewLineInfo.modelLineWrappedLineIdx
+		);
+	}
+
 	private getModelStartPositionOfViewLine(viewLineInfo: ViewLineInfo): Position {
 		const line = this.modelLineProjections[viewLineInfo.modelLineNumber - 1];
 		const minViewColumn = line.getViewLineMinColumn(
@@ -569,17 +577,71 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 					// Don't add indent guides when the wrapped line continuation has no wrapping-indentation.
 					resultPerViewLine.push([]);
 				} else {
-					let bracketGuides = bracketGuidesPerModelLine[viewLineInfo.modelLineNumber - modelRangeStartLineNumber];
+					const bracketGuides = bracketGuidesPerModelLine[viewLineInfo.modelLineNumber - modelRangeStartLineNumber];
 
 					// visibleColumns stay as they are (this is a bug and needs to be fixed, but it is not a regression)
 					// model-columns must be converted to view-model columns.
-					bracketGuides = bracketGuides.map(g => g.horizontalLine ?
-						new IndentGuide(g.visibleColumn, g.className,
-							new IndentGuideHorizontalLine(g.horizontalLine.top,
-								this.convertModelPositionToViewPosition(viewLineInfo.modelLineNumber, g.horizontalLine.endColumn).column
-							)
-						) : g);
-					resultPerViewLine.push(bracketGuides);
+					const result = bracketGuides.map(g => {
+						/*if (g.onlyForWrappedLines && !viewLineInfo.isWrappedLineContinuation) {
+							return undefined;
+						}*/
+
+						if (g.forWrappedLinesAfterColumn !== -1) {
+							const p = this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewPositionOfModelPosition(0, g.forWrappedLinesAfterColumn);
+							if (p.lineNumber >= viewLineInfo.modelLineWrappedLineIdx) {
+								return undefined;
+							}
+						}
+
+						if (g.forWrappedLinesBeforeColumn !== -1) {
+							const p = this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewPositionOfModelPosition(0, g.forWrappedLinesBeforeColumn);
+							if (p.lineNumber <= viewLineInfo.modelLineWrappedLineIdx) {
+								return undefined;
+							}
+						}
+
+						if (!g.horizontalLine) {
+							return g;
+						}
+
+						let column = -1;
+						if (g.column !== -1) {
+							const p = this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewPositionOfModelPosition(0, g.column);
+							if (p.lineNumber === viewLineInfo.modelLineWrappedLineIdx) {
+								column = p.column;
+							} else if (p.lineNumber < viewLineInfo.modelLineWrappedLineIdx) {
+								column = this.getMinColumnOfViewLine(viewLineInfo);
+							} else if (p.lineNumber > viewLineInfo.modelLineWrappedLineIdx) {
+								return undefined;
+							}
+						}
+
+						const viewPosition = this.convertModelPositionToViewPosition(viewLineInfo.modelLineNumber, g.horizontalLine.endColumn);
+						const p = this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewPositionOfModelPosition(0, g.horizontalLine.endColumn);
+						if (p.lineNumber === viewLineInfo.modelLineWrappedLineIdx) {
+							return new IndentGuide(g.visibleColumn, column, g.className,
+								new IndentGuideHorizontalLine(g.horizontalLine.top,
+									viewPosition.column),
+								- 1,
+								-1,
+							);
+						} else if (p.lineNumber < viewLineInfo.modelLineWrappedLineIdx) {
+							return undefined;
+						} else {
+							if (g.visibleColumn !== -1) {
+								// Don't repeat horizontal lines that use visibleColumn for unrelated lines.
+								return undefined;
+							}
+							return new IndentGuide(g.visibleColumn, column, g.className,
+								new IndentGuideHorizontalLine(g.horizontalLine.top,
+									this.getMaxColumnOfViewLine(viewLineInfo)
+								),
+								-1,
+								-1,
+							);
+						}
+					});
+					resultPerViewLine.push(result.filter((r): r is IndentGuide => !!r));
 				}
 			}
 		}
