@@ -88,8 +88,12 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 	//#region vscode-file://
 
-	private static crossOriginRoots = new Set([
-		'workbench.html',
+	private static coopRoots = new Set([
+		'workbench.html'
+	]);
+
+	private static coepRoots = new Set([
+		...ProtocolMainService.coopRoots,
 		'webWorkerExtensionHostIframe.html',
 		'workerMain.js',
 	]);
@@ -99,15 +103,18 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 		// first check by validRoots
 		if (this.validRoots.findSubstr(path)) {
-
 			let headers: Record<string, string> | undefined;
-			if (ProtocolMainService.crossOriginRoots.has(basename(path))) {
+			if (ProtocolMainService.coepRoots.has(basename(path))) {
 				headers = {
-					'Cross-Origin-Opener-Policy': 'same-origin',
 					'Cross-Origin-Embedder-Policy': 'require-corp'
 				};
 			}
-
+			if (ProtocolMainService.coopRoots.has(basename(path))) {
+				headers = {
+					...headers,
+					'Cross-Origin-Opener-Policy': 'same-origin'
+				};
+			}
 			return callback({ path, headers });
 		}
 

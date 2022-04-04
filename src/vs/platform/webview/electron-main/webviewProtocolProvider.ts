@@ -39,9 +39,8 @@ export class WebviewProtocolProvider extends Disposable {
 				return callback({
 					path: decodeURIComponent(url.fsPath),
 					headers: {
-						'Cross-Origin-Opener-Policy': 'same-origin',
-						'Cross-Origin-Embedder-Policy': 'require-corp',
-						'Cross-Origin-Resource-Policy': 'cross-origin'
+						'Cross-Origin-Resource-Policy': 'cross-origin',
+						'Cross-Origin-Embedder-Policy': 'credentialless'
 					}
 				});
 			} else {

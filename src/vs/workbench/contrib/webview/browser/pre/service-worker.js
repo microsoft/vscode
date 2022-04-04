@@ -270,6 +270,7 @@ async function processResourceRequest(event, requestUrlComponents) {
 			'Content-Type': entry.mime,
 			'Content-Length': entry.data.byteLength.toString(),
 			'Access-Control-Allow-Origin': '*',
+			'Cross-Origin-Resource-Policy': 'cross-origin'
 		};
 		if (entry.etag) {
 			headers['ETag'] = entry.etag;
