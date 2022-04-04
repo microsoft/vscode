@@ -4,17 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from 'vs/base/common/arrays';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
+import { relativePath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IPosition } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IDataTransferItem } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { extractEditorsDropData } from 'vs/workbench/browser/dnd';
 import { IDataTransfer } from 'vs/workbench/common/dnd';
 
@@ -27,6 +31,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -92,7 +97,53 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 			}
 		}
 
-		// TODO: default drop behavior
+		return this.doDefaultDrop(editor, position, textEditorDataTransfer, cts.token);
+	}
+
+	private async doDefaultDrop(editor: ICodeEditor, position: IPosition, textEditorDataTransfer: IDataTransfer, token: CancellationToken): Promise<void> {
+		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+
+		const urlListEntry = textEditorDataTransfer.get('text/uri-list');
+		if (urlListEntry) {
+			const urlList = await urlListEntry.asString();
+			return this.doUriListDrop(editor, range, urlList, token);
+		}
+
+		const textEntry = textEditorDataTransfer.get('text') ?? textEditorDataTransfer.get(Mimes.text);
+		if (textEntry) {
+			const text = await textEntry.asString();
+			performSnippetEdit(editor, { range, snippet: text });
+		}
+	}
+
+	private async doUriListDrop(editor: ICodeEditor, range: Range, urlList: string, token: CancellationToken): Promise<void> {
+		const uris: URI[] = [];
+		for (const resource of urlList.split('\n')) {
+			try {
+				uris.push(URI.parse(resource));
+			} catch {
+				// noop
+			}
+		}
+
+		if (!uris.length) {
+			return;
+		}
+
+		const snippet = uris
+			.map(uri => {
+				const root = this._workspaceContextService.getWorkspaceFolder(uri);
+				if (root) {
+					const rel = relativePath(root.uri, uri);
+					if (rel) {
+						return rel;
+					}
+				}
+				return uri.fsPath;
+			})
+			.join(' ');
+
+		performSnippetEdit(editor, { range, snippet });
 	}
 }
 
