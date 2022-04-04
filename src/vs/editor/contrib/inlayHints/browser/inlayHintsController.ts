@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -19,7 +20,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
-import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, InjectedTextCursorStops, InjectedTextOptions, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -80,6 +81,11 @@ class ActiveInlayHintInfo {
 	constructor(readonly part: RenderedInlayHintLabelPart, readonly hasTriggerModifier: boolean) { }
 }
 
+const enum InlayHintRenderMode {
+	InjectedText,
+	TrackingOnly
+}
+
 // --- controller
 
 export class InlayHintsController implements IEditorContribution {
@@ -98,6 +104,7 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _decorationsMetadata = new Map<string, { item: InlayHintItem; classNameRef: IDisposable }>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
 
+	private _renderMode = InlayHintRenderMode.InjectedText;
 	private _activeInlayHintPart?: ActiveInlayHintInfo;
 
 	constructor(
@@ -131,7 +138,8 @@ export class InlayHintsController implements IEditorContribution {
 		this._sessionDisposables.clear();
 		this._removeAllDecorations();
 
-		if (!this._editor.getOption(EditorOption.inlayHints).enabled) {
+		const options = this._editor.getOption(EditorOption.inlayHints);
+		if (!options.enabled) {
 			return;
 		}
 
@@ -215,6 +223,26 @@ export class InlayHintsController implements IEditorContribution {
 			scheduler.schedule(delay);
 		}));
 
+		if (!options.toggle) {
+			this._renderMode = InlayHintRenderMode.InjectedText;
+		} else {
+			let defaultMode: InlayHintRenderMode;
+			let altMode: InlayHintRenderMode;
+			if (options.toggle === 'show') {
+				defaultMode = InlayHintRenderMode.TrackingOnly;
+				altMode = InlayHintRenderMode.InjectedText;
+			} else {
+				defaultMode = InlayHintRenderMode.InjectedText;
+				altMode = InlayHintRenderMode.TrackingOnly;
+			}
+			this._renderMode = defaultMode;
+			this._sessionDisposables.add(ModifierKeyEmitter.getInstance().event(e => {
+				this._renderMode = e.altKey && e.ctrlKey ? altMode : defaultMode;
+				const ranges = this._getHintsRanges();
+				this._updateHintsDecorators(ranges, ranges.map(this._getInlineHintsForRange, this).flat());
+			}));
+		}
+
 		// mouse gestures
 		this._sessionDisposables.add(this._installLinkGesture());
 		this._sessionDisposables.add(this._installDblClickGesture());
@@ -253,16 +281,11 @@ export class InlayHintsController implements IEditorContribution {
 
 			const lineNumber = labelPart.item.hint.position.lineNumber;
 			const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
-			const lineHints = new Set<InlayHintItem>();
-			for (const data of this._decorationsMetadata.values()) {
-				if (range.containsRange(data.item.anchor.range)) {
-					lineHints.add(data.item);
-				}
-			}
-			this._updateHintsDecorators([range], Array.from(lineHints));
+			const lineHints = this._getInlineHintsForRange(range);
+			this._updateHintsDecorators([range], lineHints);
 			sessionStore.add(toDisposable(() => {
 				this._activeInlayHintPart = undefined;
-				this._updateHintsDecorators([range], Array.from(lineHints));
+				this._updateHintsDecorators([range], lineHints);
 			}));
 		}));
 		store.add(gesture.onCancel(() => sessionStore.clear()));
@@ -280,6 +303,16 @@ export class InlayHintsController implements IEditorContribution {
 			}
 		}));
 		return store;
+	}
+
+	private _getInlineHintsForRange(range: Range) {
+		const lineHints = new Set<InlayHintItem>();
+		for (const data of this._decorationsMetadata.values()) {
+			if (range.containsRange(data.item.anchor.range)) {
+				lineHints.add(data.item);
+			}
+		}
+		return Array.from(lineHints);
 	}
 
 	private _installDblClickGesture(): IDisposable {
@@ -376,6 +409,13 @@ export class InlayHintsController implements IEditorContribution {
 		// utils to collect/create injected text decorations
 		const newDecorationsData: { item: InlayHintItem; decoration: IModelDeltaDecoration; classNameRef: IDisposable }[] = [];
 		const addInjectedText = (item: InlayHintItem, ref: ClassNameReference, content: string, cursorStops: InjectedTextCursorStops, attachedData?: RenderedInlayHintLabelPart): void => {
+			const opts: InjectedTextOptions = {
+				content,
+				inlineClassNameAffectsLetterSpacing: true,
+				inlineClassName: ref.className,
+				cursorStops,
+				attachedData
+			};
 			newDecorationsData.push({
 				item,
 				classNameRef: ref,
@@ -387,13 +427,7 @@ export class InlayHintsController implements IEditorContribution {
 						showIfCollapsed: item.anchor.range.isEmpty(), // "original" range is empty
 						collapseOnReplaceEdit: !item.anchor.range.isEmpty(),
 						stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
-						[item.anchor.direction]: {
-							content,
-							inlineClassNameAffectsLetterSpacing: true,
-							inlineClassName: ref.className,
-							cursorStops,
-							attachedData
-						}
+						[item.anchor.direction]: this._renderMode === InlayHintRenderMode.InjectedText ? opts : undefined
 					}
 				}
 			});
