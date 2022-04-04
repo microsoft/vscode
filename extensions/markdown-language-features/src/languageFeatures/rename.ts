@@ -7,7 +7,7 @@ import * as nls from 'vscode-nls';
 import { Slugifier } from '../slugify';
 import { Disposable } from '../util/dispose';
 import { SkinnyTextDocument } from '../workspaceContents';
-import { MdReference, MdReferencesProvider } from './references';
+import { MdHeaderReference, MdReference, MdReferencesProvider } from './references';
 
 const localize = nls.loadMessageBundle();
 
@@ -28,7 +28,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 		super();
 	}
 
-	public async prepareRename(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<undefined | vscode.Range> {
+	public async prepareRename(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<undefined | { readonly range: vscode.Range; readonly placeholder: string }> {
 		const references = await this.referencesProvider.getAllReferences(document, position, token);
 		if (token.isCancellationRequested) {
 			return undefined;
@@ -45,26 +45,30 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 
 		switch (triggerRef.kind) {
 			case 'header':
-				return triggerRef.headerTextLocation.range;
+				return { range: triggerRef.headerTextLocation.range, placeholder: triggerRef.headerText };
 
 			case 'link':
 				if (triggerRef.link.kind === 'definition') {
 					// We may have been triggered on the ref or the definition itself
-					if (triggerRef.link.refRange.contains(position)) {
-						return triggerRef.link.refRange;
-					} else {
-						if (triggerRef.fragmentLocation) {
-							return triggerRef.fragmentLocation.range;
-						}
-						throw new Error(localize('renameNoFiles', "Renaming files is currently not supported"));
+					if (triggerRef.link.ref.range.contains(position)) {
+						return { range: triggerRef.link.ref.range, placeholder: triggerRef.link.ref.text };
 					}
-				} else {
-					if (triggerRef.fragmentLocation) {
-						return triggerRef.fragmentLocation.range;
-					}
-					throw new Error(localize('renameNoFiles', "Renaming files is currently not supported"));
 				}
+
+				if (triggerRef.fragmentLocation) {
+					const declaration = this.findHeaderDeclaration(references);
+					if (declaration) {
+						return { range: triggerRef.fragmentLocation.range, placeholder: declaration.headerText };
+					}
+					return { range: triggerRef.fragmentLocation.range, placeholder: document.getText(triggerRef.fragmentLocation.range) };
+				}
+
+				throw new Error(localize('renameNoFiles', "Renaming files is currently not supported"));
 		}
+	}
+
+	private findHeaderDeclaration(references: readonly MdReference[]): MdHeaderReference | undefined {
+		return references.find(ref => ref.isDefinition && ref.kind === 'header') as MdHeaderReference | undefined;
 	}
 
 	public async provideRenameEdits(document: SkinnyTextDocument, position: vscode.Position, newName: string, token: vscode.CancellationToken): Promise<vscode.WorkspaceEdit | undefined> {
@@ -79,7 +83,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 		}
 
 		const isRefRename = triggerRef.kind === 'link' && (
-			(triggerRef.link.kind === 'definition' && triggerRef.link.refRange.contains(position)) || triggerRef.link.href.kind === 'reference'
+			(triggerRef.link.kind === 'definition' && triggerRef.link.ref.range.contains(position)) || triggerRef.link.href.kind === 'reference'
 		);
 		const slug = this.slugifier.fromHeading(newName).value;
 
@@ -94,9 +98,9 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 					if (ref.link.kind === 'definition') {
 						// We may be renaming either the reference or the definition itself
 						if (isRefRename) {
-							edit.replace(ref.link.sourceResource, ref.link.refRange, newName);
+							edit.replace(ref.link.source.resource, ref.link.ref.range, newName);
 						} else {
-							edit.replace(ref.link.sourceResource, ref.fragmentLocation?.range ?? ref.link.sourceHrefRange, ref.fragmentLocation ? slug : newName);
+							edit.replace(ref.link.source.resource, ref.fragmentLocation?.range ?? ref.link.source.hrefRange, ref.fragmentLocation ? slug : newName);
 						}
 					} else {
 						edit.replace(ref.location.uri, ref.fragmentLocation?.range ?? ref.location.range, ref.link.href.kind === 'reference' ? newName : slug);

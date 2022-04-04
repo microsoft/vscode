@@ -18,9 +18,9 @@ import { assertRangeEqual, joinLines, noopToken, workspacePath } from './util';
 
 
 /**
- * Get the range that the rename should happen on.
+ * Get prepare rename info.
  */
-function getRenameRange(doc: InMemoryDocument, pos: vscode.Position, workspaceContents: MdWorkspaceContents) {
+function prepareRename(doc: InMemoryDocument, pos: vscode.Position, workspaceContents: MdWorkspaceContents): Promise<undefined | { readonly range: vscode.Range; readonly placeholder: string }> {
 	const engine = createNewMarkdownEngine();
 	const linkProvider = new MdLinkProvider(engine);
 	const referencesProvider = new MdReferencesProvider(linkProvider, workspaceContents, engine, githubSlugifier);
@@ -72,8 +72,8 @@ suite('markdown: rename', () => {
 			`# abc`
 		));
 
-		const range = await getRenameRange(doc, new vscode.Position(0, 0), new InMemoryWorkspaceMarkdownDocuments([doc]));
-		assertRangeEqual(range!, new vscode.Range(0, 2, 0, 5));
+		const info = await prepareRename(doc, new vscode.Position(0, 0), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assertRangeEqual(info!.range, new vscode.Range(0, 2, 0, 5));
 
 		const edit = await getRenameEdits(doc, new vscode.Position(0, 0), "New Header", new InMemoryWorkspaceMarkdownDocuments([doc]));
 		assertEditsEqual(edit!, {
@@ -89,8 +89,8 @@ suite('markdown: rename', () => {
 			`### abc ###`
 		));
 
-		const range = await getRenameRange(doc, new vscode.Position(0, 0), new InMemoryWorkspaceMarkdownDocuments([doc]));
-		assertRangeEqual(range!, new vscode.Range(0, 4, 0, 7));
+		const info = await prepareRename(doc, new vscode.Position(0, 0), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assertRangeEqual(info!.range, new vscode.Range(0, 4, 0, 7));
 
 		const edit = await getRenameEdits(doc, new vscode.Position(0, 0), "New Header", new InMemoryWorkspaceMarkdownDocuments([doc]));
 		assertEditsEqual(edit!, {
@@ -299,7 +299,7 @@ suite('markdown: rename', () => {
 			`[text](#header)`,
 		));
 
-		await assert.rejects(getRenameRange(doc, new vscode.Position(1, 2), new InMemoryWorkspaceMarkdownDocuments([doc])));
+		await assert.rejects(prepareRename(doc, new vscode.Position(1, 2), new InMemoryWorkspaceMarkdownDocuments([doc])));
 	});
 
 	test('Rename should not be supported on bare file link', async () => {
@@ -309,7 +309,7 @@ suite('markdown: rename', () => {
 			`[other](./doc.md)`,
 		));
 
-		await assert.rejects(getRenameRange(doc, new vscode.Position(0, 10), new InMemoryWorkspaceMarkdownDocuments([doc])));
+		await assert.rejects(prepareRename(doc, new vscode.Position(0, 10), new InMemoryWorkspaceMarkdownDocuments([doc])));
 	});
 
 	test('Rename should not be supported on bare file link in definition', async () => {
@@ -319,6 +319,18 @@ suite('markdown: rename', () => {
 			`[ref]: ./doc.md`,
 		));
 
-		await assert.rejects(getRenameRange(doc, new vscode.Position(1, 10), new InMemoryWorkspaceMarkdownDocuments([doc])));
+		await assert.rejects(prepareRename(doc, new vscode.Position(1, 10), new InMemoryWorkspaceMarkdownDocuments([doc])));
+	});
+
+	test('Rename on link should use header text as placeholder', async () => {
+		const uri = workspacePath('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`### a B c ###`,
+			`[text](#a-b-c)`,
+		));
+
+		const info = await prepareRename(doc, new vscode.Position(1, 10), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assert.strictEqual(info!.placeholder, 'a B c');
+		assertRangeEqual(info!.range, new vscode.Range(1, 8, 1, 13));
 	});
 });
