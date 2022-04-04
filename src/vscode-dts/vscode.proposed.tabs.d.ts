@@ -7,6 +7,8 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
+	// TODO@API name alternatives for TabKind: TabInput, TabOptions,
+
 	export class TabKindText {
 		readonly uri: Uri;
 		constructor(uri: Uri);
@@ -140,6 +142,7 @@ declare module 'vscode' {
 		/**
 		 * An {@link Event event} which fires when {@link TabGroup tab groups} has changed.
 		 */
+		// TODO@API maybe `onDidChangeGroups`
 		readonly onDidChangeTabGroups: Event<readonly TabGroup[]>;
 
 		/**
