@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { TextDecoder } from 'util';
+import { TextDecoder, TextEncoder } from 'util';
 import * as vscode from 'vscode';
 import { asPromise, assertNoRpc, closeAllEditors, createRandomFile, disposeAll, revertAllDirty, saveAllEditors } from '../utils';
 
@@ -984,5 +984,59 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		assert.strictEqual(editor.document.metadata.custom?.testMetadata, false);
 		assert.strictEqual(getFocusedCell(editor)?.metadata.custom?.testCellMetadata, 123);
 		assert.strictEqual(getFocusedCell(editor)?.document.languageId, 'typescript');
+	});
+});
+
+suite('Notebook & LiveShare', function () {
+
+	const suiteDisposables: vscode.Disposable[] = [];
+	const notebookType = 'vsls-testing';
+
+	suiteTeardown(() => {
+		vscode.Disposable.from(...suiteDisposables).dispose();
+	});
+
+	suiteSetup(function () {
+
+		suiteDisposables.push(vscode.workspace.registerNotebookSerializer(notebookType, new class implements vscode.NotebookSerializer {
+			deserializeNotebook(content: Uint8Array, _token: vscode.CancellationToken): vscode.NotebookData | Thenable<vscode.NotebookData> {
+				const value = new TextDecoder().decode(content);
+				return new vscode.NotebookData([new vscode.NotebookCellData(vscode.NotebookCellKind.Code, value, 'fooLang')]);
+			}
+			serializeNotebook(data: vscode.NotebookData, _token: vscode.CancellationToken): Uint8Array | Thenable<Uint8Array> {
+				return new TextEncoder().encode(data.cells[0].value);
+			}
+		}, {}, {
+			displayName: 'LS',
+			filenamePattern: ['*'],
+		}));
+	});
+
+	test('command: vscode.resolveNotebookContentProviders', async function () {
+
+		type Info = { viewType: string; displayName: string; filenamePattern: string[] };
+
+		const info = await vscode.commands.executeCommand<Info[]>('vscode.resolveNotebookContentProviders');
+		assert.strictEqual(Array.isArray(info), true);
+
+		const item = info.find(item => item.viewType === notebookType);
+		assert.ok(item);
+		assert.strictEqual(item?.viewType, notebookType);
+	});
+
+	test('command: vscode.executeDataToNotebook', async function () {
+		const value = 'dataToNotebook';
+		const data = await vscode.commands.executeCommand<vscode.NotebookData>('vscode.executeDataToNotebook', notebookType, new TextEncoder().encode(value));
+		assert.ok(data instanceof vscode.NotebookData);
+		assert.strictEqual(data.cells.length, 1);
+		assert.strictEqual(data.cells[0].value, value);
+	});
+
+	test('command: vscode.executeNotebookToData', async function () {
+		const value = 'notebookToData';
+		const notebook = new vscode.NotebookData([new vscode.NotebookCellData(vscode.NotebookCellKind.Code, value, 'fooLang')]);
+		const data = await vscode.commands.executeCommand<Uint8Array>('vscode.executeNotebookToData', notebookType, notebook);
+		assert.ok(data instanceof Uint8Array);
+		assert.deepStrictEqual(new TextDecoder().decode(data), value);
 	});
 });

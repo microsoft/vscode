@@ -12,6 +12,7 @@ import { registerDropIntoEditor } from './languageFeatures/dropIntoEditor';
 import { MdFoldingProvider } from './languageFeatures/foldingProvider';
 import { MdPathCompletionProvider } from './languageFeatures/pathCompletions';
 import { MdReferencesProvider } from './languageFeatures/references';
+import { MdRenameProvider } from './languageFeatures/rename';
 import { MdSmartSelect } from './languageFeatures/smartSelect';
 import { MdWorkspaceSymbolProvider } from './languageFeatures/workspaceSymbolProvider';
 import { Logger } from './logger';
@@ -48,8 +49,6 @@ export function activate(context: vscode.ExtensionContext) {
 		logger.updateConfiguration();
 		previewManager.updateConfiguration();
 	}));
-
-	context.subscriptions.push(registerDropIntoEditor());
 }
 
 function registerMarkdownLanguageFeatures(
@@ -61,14 +60,17 @@ function registerMarkdownLanguageFeatures(
 	const linkProvider = new MdLinkProvider(engine);
 	const workspaceContents = new VsCodeMdWorkspaceContents();
 
+	const referencesProvider = new MdReferencesProvider(linkProvider, workspaceContents, engine, githubSlugifier);
 	return vscode.Disposable.from(
 		vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
 		vscode.languages.registerDocumentLinkProvider(selector, linkProvider),
 		vscode.languages.registerFoldingRangeProvider(selector, new MdFoldingProvider(engine)),
 		vscode.languages.registerSelectionRangeProvider(selector, new MdSmartSelect(engine)),
 		vscode.languages.registerWorkspaceSymbolProvider(new MdWorkspaceSymbolProvider(symbolProvider, workspaceContents)),
-		vscode.languages.registerReferenceProvider(selector, new MdReferencesProvider(linkProvider, workspaceContents, engine, githubSlugifier)),
+		vscode.languages.registerReferenceProvider(selector, referencesProvider),
+		vscode.languages.registerRenameProvider(selector, new MdRenameProvider(referencesProvider, githubSlugifier)),
 		MdPathCompletionProvider.register(selector, engine, linkProvider),
+		registerDropIntoEditor(selector),
 	);
 }
 

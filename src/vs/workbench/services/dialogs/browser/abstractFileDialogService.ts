@@ -29,6 +29,7 @@ import { PLAINTEXT_EXTENSION } from 'vs/editor/common/languages/modesRegistry';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EditorOpenSource } from 'vs/platform/editor/common/editor';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
@@ -172,7 +173,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			if (stat.isDirectory || options.forceNewWindow || preferNewWindow) {
 				await this.hostService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
 			} else {
-				await this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
+				await this.editorService.openEditors([{ resource: uri, options: { source: EditorOpenSource.USER, pinned: true } }], undefined, { validateTrust: true });
 			}
 		}
 	}
@@ -188,7 +189,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			if (options.forceNewWindow || preferNewWindow) {
 				await this.hostService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
 			} else {
-				await this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
+				await this.editorService.openEditors([{ resource: uri, options: { source: EditorOpenSource.USER, pinned: true } }], undefined, { validateTrust: true });
 			}
 		}
 	}

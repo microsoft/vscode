@@ -238,7 +238,7 @@ export interface IFileService {
 	 * Note: recursive file watching is not supported from this method. Only events from files
 	 * that are direct children of the provided resource will be reported.
 	 */
-	watch(resource: URI): IDisposable;
+	watch(resource: URI, options?: IWatchOptions): IDisposable;
 
 	/**
 	 * Frees up any resources occupied by this service.

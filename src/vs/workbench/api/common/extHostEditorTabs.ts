@@ -36,9 +36,9 @@ class ExtHostEditorTab {
 	}
 
 	get apiObject(): vscode.Tab {
-		// Don't want to lose reference to parent `this` in the getters
-		const that = this;
 		if (!this._apiObject) {
+			// Don't want to lose reference to parent `this` in the getters
+			const that = this;
 			const obj: vscode.Tab = {
 				get isActive() {
 					// We use a getter function here to always ensure at most 1 active tab per group and prevent iteration for being required
@@ -120,9 +120,9 @@ class ExtHostEditorTabGroup {
 	}
 
 	get apiObject(): vscode.TabGroup {
-		// Don't want to lose reference to parent `this` in the getters
-		const that = this;
 		if (!this._apiObject) {
+			// Don't want to lose reference to parent `this` in the getters
+			const that = this;
 			const obj: vscode.TabGroup = {
 				get isActive() {
 					// We use a getter function here to always ensure at most 1 active group and prevent iteration for being required
@@ -202,9 +202,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 
 	private readonly _proxy: MainThreadEditorTabsShape;
 	private readonly _onDidChangeTabs = new Emitter<vscode.Tab[]>();
-	private readonly _onDidChangeActiveTab = new Emitter<vscode.Tab>();
 	private readonly _onDidChangeTabGroups = new Emitter<vscode.TabGroup[]>();
-	private readonly _onDidChangeActiveTabGroup = new Emitter<vscode.TabGroup>();
 
 	// Have to use ! because this gets initialized via an RPC proxy
 	private _activeGroupId!: number;
@@ -223,9 +221,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			const obj: vscode.TabGroups = {
 				// never changes -> simple value
 				onDidChangeTabGroups: that._onDidChangeTabGroups.event,
-				onDidChangeActiveTabGroup: that._onDidChangeActiveTabGroup.event,
 				onDidChangeTabs: that._onDidChangeTabs.event,
-				onDidChangeActiveTab: that._onDidChangeActiveTab.event,
 				// dynamic -> getters
 				get groups() {
 					return Object.freeze(that._extHostTabGroups.map(group => group.apiObject));
@@ -283,7 +279,6 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 		const activeTabGroupId = assertIsDefined(tabGroups.find(group => group.isActive === true)?.groupId);
 		if (activeTabGroupId !== undefined && this._activeGroupId !== activeTabGroupId) {
 			this._activeGroupId = activeTabGroupId;
-			this._onDidChangeActiveTabGroup.fire(this.tabGroups.activeTabGroup);
 		}
 		this._onDidChangeTabGroups.fire(this._extHostTabGroups.map(g => g.apiObject));
 	}
@@ -295,11 +290,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 		}
 		group.acceptGroupDtoUpdate(groupDto);
 		if (groupDto.isActive) {
-			const oldActiveGroupId = this._activeGroupId;
 			this._activeGroupId = groupDto.groupId;
-			if (oldActiveGroupId !== this._activeGroupId) {
-				this._onDidChangeActiveTabGroup.fire(group.apiObject);
-			}
 		}
 		this._onDidChangeTabGroups.fire([group.apiObject]);
 	}
@@ -313,9 +304,6 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 		// We don't want to fire a change event with a closed tab to prevent an invalid tabs from being received
 		if (operation.kind !== TabModelOperationKind.TAB_CLOSE) {
 			this._onDidChangeTabs.fire([tab.apiObject]);
-			if (tab.apiObject.isActive) {
-				this._onDidChangeActiveTab.fire(tab.apiObject);
-			}
 		}
 	}
 }

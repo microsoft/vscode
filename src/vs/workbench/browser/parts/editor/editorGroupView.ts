@@ -1135,7 +1135,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private async doHandleOpenEditorError(error: Error, editor: EditorInput, options?: IEditorOptions): Promise<void> {
 
 		// Report error only if we are not told to ignore errors that occur from opening an editor
-		if (!isCancellationError(error) && (!options || !options.ignoreError)) {
+		if (!isCancellationError(error) && !options?.ignoreError) {
 
 			// Always log the error to figure out what is going on
 			this.logService.error(error);

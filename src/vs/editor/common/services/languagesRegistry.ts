@@ -5,7 +5,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { compareIgnoreCase, regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { clearPlatformLanguageAssociations, getLanguageIds, registerPlatformLanguageAssociation } from 'vs/editor/common/services/languagesAssociations';
 import { URI } from 'vs/base/common/uri';
@@ -117,6 +117,10 @@ export class LanguagesRegistry extends Disposable {
 		clearPlatformLanguageAssociations();
 		const desc = (<ILanguageExtensionPoint[]>[]).concat(ModesRegistry.getLanguages()).concat(this._dynamicLanguages);
 		this._registerLanguages(desc);
+	}
+
+	registerLanguage(desc: ILanguageExtensionPoint): IDisposable {
+		return ModesRegistry.registerLanguage(desc);
 	}
 
 	_registerLanguages(desc: ILanguageExtensionPoint[]): void {

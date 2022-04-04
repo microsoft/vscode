@@ -1968,3 +1968,23 @@ export enum ExternalUriOpenerPriority {
 	Default = 2,
 	Preferred = 3,
 }
+
+/**
+ * @internal
+ */
+export interface IDataTransferItem {
+	asString(): Thenable<string>;
+	value: any;
+}
+
+/**
+ * @internal
+ */
+export type IDataTransfer = Map<string, IDataTransferItem>;
+
+/**
+ * @internal
+ */
+export interface DocumentOnDropEditProvider {
+	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IDataTransfer, token: CancellationToken): ProviderResult<SnippetTextEdit>;
+}

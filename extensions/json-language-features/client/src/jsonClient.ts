@@ -68,7 +68,7 @@ interface Settings {
 	};
 }
 
-interface JSONSchemaSettings {
+export interface JSONSchemaSettings {
 	fileMatch?: string[];
 	url?: string;
 	schema?: any;

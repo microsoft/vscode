@@ -16,14 +16,47 @@ export interface TocEntry {
 	readonly line: number;
 
 	/**
-	 * The entire range of the header section
+	 * The entire range of the header section.
+	 *
+	* For the doc:
+	 *
+	 * ```md
+	 * # Head #
+	 * text
+	 * # Next head #
+	 * ```
+	 *
+	 * This is the range from `# Head #` to `# Next head #`
 	 */
 	readonly sectionLocation: vscode.Location;
 
 	/**
-	 * The range of the header itself
+	 * The range of the header declaration.
+	 *
+	 * For the doc:
+	 *
+	 * ```md
+	 * # Head #
+	 * text
+	 * ```
+	 *
+	 * This is the range of `# Head #`
 	 */
 	readonly headerLocation: vscode.Location;
+
+	/**
+	 * The range of the header text.
+	 *
+	 * For the doc:
+	 *
+	 * ```md
+	 * # Head #
+	 * text
+	 * ```
+	 *
+	 * This is the range of `Head`
+	 */
+	readonly headerTextLocation: vscode.Location;
 }
 
 export class TableOfContents {
@@ -80,6 +113,9 @@ export class TableOfContents {
 			const headerLocation = new vscode.Location(document.uri,
 				new vscode.Range(lineNumber, 0, lineNumber, line.text.length));
 
+			const headerTextLocation = new vscode.Location(document.uri,
+				new vscode.Range(lineNumber, line.text.match(/^#+\s*/)?.[0].length ?? 0, lineNumber, line.text.length - (line.text.match(/\s*#*$/)?.[0].length ?? 0)));
+
 			toc.push({
 				slug,
 				text: TableOfContents.getHeaderText(line.text),
@@ -87,6 +123,7 @@ export class TableOfContents {
 				line: lineNumber,
 				sectionLocation: headerLocation, // Populated in next steps
 				headerLocation,
+				headerTextLocation
 			});
 		}
 

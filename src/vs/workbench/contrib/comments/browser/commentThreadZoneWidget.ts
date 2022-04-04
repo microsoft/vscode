@@ -85,7 +85,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private readonly _globalToDispose = new DisposableStore();
 	private _commentThreadDisposables: IDisposable[] = [];
 	private _contextKeyService: IContextKeyService;
-	private _scopedInstatiationService: IInstantiationService;
+	private _scopedInstantiationService: IInstantiationService;
 
 	public get owner(): string {
 		return this._owner;
@@ -109,7 +109,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		super(editor, { keepEditorSelection: true });
 		this._contextKeyService = contextKeyService.createScoped(this.domNode);
 
-		this._scopedInstatiationService = instantiationService.createChild(new ServiceCollection(
+		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, this._contextKeyService]
 		));
 
@@ -184,13 +184,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('review-widget');
-		this._commentThreadWidget = this._scopedInstatiationService.createInstance(
+		this._commentThreadWidget = this._scopedInstantiationService.createInstance(
 			CommentThreadWidget,
 			container,
 			this._owner,
 			this.editor.getModel()!.uri,
 			this._contextKeyService,
-			this._scopedInstatiationService,
+			this._scopedInstantiationService,
 			this._commentThread as unknown as languages.CommentThread<IRange | ICellRange>,
 			this._pendingComment,
 			{ editor: this.editor },
