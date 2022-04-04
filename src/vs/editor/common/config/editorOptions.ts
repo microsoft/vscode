@@ -2526,7 +2526,7 @@ export interface IEditorInlayHintsOptions {
 	 */
 	typingDebounceDelay?: number;
 
-  /**
+	/**
 	 * The display style to render inlay hints with.
 	 * Compact mode disables the borders and padding around the inlay hint.
 	 * Defaults to 'standard'.
@@ -2542,7 +2542,7 @@ export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions
 class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditorInlayHintsOptions, EditorInlayHintsOptions> {
 
 	constructor() {
-		const defaults: EditorInlayHintsOptions = { enabled: true, fontSize: 0, fontFamily: '', displayStyle: 'compact', typingDebounceDelay: 1250 };
+		const defaults: EditorInlayHintsOptions = { enabled: true, toggle: null, fontSize: 0, fontFamily: '', displayStyle: 'compact', typingDebounceDelay: 1250 };
 
 		super(
 			EditorOption.inlayHints, 'inlayHints', defaults,
@@ -2578,7 +2578,7 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					maximum: 3000,
 					default: defaults.typingDebounceDelay,
 					markdownDescription: nls.localize('inlayHints.typingDebounceDelay', "Debounce delay in milliseconds for when inlay hints will update after you stop typing.")
-        },
+				},
 				'editor.inlayHints.displayStyle': {
 					type: 'string',
 					enum: ['standard', 'compact'],

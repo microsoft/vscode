@@ -3741,7 +3741,7 @@ declare namespace monaco.editor {
 		 * Defaults to 1250ms.
 		 */
 		typingDebounceDelay?: number;
-    /**
+		/**
 		 * The display style to render inlay hints with.
 		 * Compact mode disables the borders and padding around the inlay hint.
 		 * Defaults to 'standard'.
