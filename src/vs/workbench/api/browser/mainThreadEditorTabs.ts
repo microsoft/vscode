@@ -570,7 +570,10 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				// TODO @lramos15 change this to use group.closeAllEditors once it
 				// is enriched to return a boolean
 				groupCloseResults.push(await group.closeEditors([...group.editors], { preserveFocus }));
-				this._editorGroupsService.removeGroup(group);
+				// Make sure group is empty but still there before removing it
+				if (group.count === 0 && this._editorGroupsService.getGroup(group.id)) {
+					this._editorGroupsService.removeGroup(group);
+				}
 			}
 		}
 		return groupCloseResults.every(result => result);
