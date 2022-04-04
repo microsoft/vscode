@@ -876,9 +876,14 @@ export class CodeApplication extends Disposable {
 					return true;
 				}
 
-				// If we have not yet handled the URI and we have no window opened (macOS only)
-				// we first open a window and then try to open that URI within that window
-				if (isMacintosh && windowsMainService.getWindowCount() === 0) {
+				// We should handle the URI in a new window
+				const shouldOpenInNewWindow =
+					// if no window is open (macOS only)
+					(isMacintosh && windowsMainService.getWindowCount() === 0)
+					// or if the URL contains `windowId=_blank`
+					|| /\bwindowId=_blank\b/.test(uri.query);
+
+				if (shouldOpenInNewWindow) {
 					const [window] = windowsMainService.open({
 						context: OpenContext.API,
 						cli: { ...environmentService.args },
