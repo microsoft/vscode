@@ -377,10 +377,10 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : opts.legacy ? 'Electron (lega
 	setupSearchTests(logger);
 	setupNotebookTests(logger);
 	setupLanguagesTests(logger);
-	setupTerminalTests(logger);
+	if (!opts.legacy) { setupTerminalTests(logger); }
 	setupStatusbarTests(logger);
 	if (quality !== Quality.Dev) { setupExtensionTests(logger); }
-	if (!opts.web) { setupMultirootTests(logger); }
+	setupMultirootTests(logger);
 	if (!opts.web && !opts.remote && quality !== Quality.Dev) { setupLocalizationTests(logger); }
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
 });
