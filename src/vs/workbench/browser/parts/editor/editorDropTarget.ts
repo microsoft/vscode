@@ -29,7 +29,7 @@ interface IDropOperation {
 }
 
 function isDragIntoEditorEvent(configurationService: IConfigurationService, e: DragEvent): boolean {
-	if (!configurationService.getValue<boolean>('workbench.experimental.editor.dragAndDropIntoEditor.enabled')) {
+	if (!configurationService.getValue<boolean>('workbench.editor.dropIntoEditor.enabled')) {
 		return false;
 	}
 	return e.shiftKey;
