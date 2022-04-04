@@ -6,6 +6,7 @@
 import { Workbench } from './workbench';
 import { Code, launch, LaunchOptions } from './code';
 import { Logger } from './logger';
+import { PlaywrightDriver } from './playwrightBrowserDriver';
 
 export const enum Quality {
 	Dev,
@@ -142,7 +143,13 @@ export class Application {
 		this.logger.log('checkWindowReady: begin');
 
 		await code.waitForWindowIds(ids => ids.length > 0);
-		await code.waitForElement('.monaco-workbench');
+
+		// TODO@bpasero productize this hack
+		if (code.driver instanceof PlaywrightDriver) {
+			await code.driver.page.locator('.monaco-workbench').waitFor({ timeout: 40000 });
+		} else {
+			await code.waitForElement('.monaco-workbench');
+		}
 
 		// Remote but not web: wait for a remote connection state change
 		if (this.remote) {

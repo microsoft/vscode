@@ -38,7 +38,7 @@ export class PlaywrightDriver implements IDriver {
 	constructor(
 		private readonly application: playwright.Browser | playwright.ElectronApplication,
 		private readonly context: playwright.BrowserContext,
-		private readonly page: playwright.Page,
+		readonly page: playwright.Page, // TODO@bpasero make private again
 		private readonly serverPid: number | undefined,
 		private readonly options: LaunchOptions
 	) {
