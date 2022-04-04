@@ -306,6 +306,14 @@
 							}
 						}
 					]
+				},
+				"customizations": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "object",
+						"additionalProperties": true
+					},
+					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations."
 				}
 			}
 		},

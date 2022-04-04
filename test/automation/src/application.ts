@@ -6,6 +6,7 @@
 import { Workbench } from './workbench';
 import { Code, launch, LaunchOptions } from './code';
 import { Logger } from './logger';
+import { PlaywrightDriver } from './playwrightBrowserDriver';
 
 export const enum Quality {
 	Dev,
@@ -50,6 +51,10 @@ export class Application {
 
 	get web(): boolean {
 		return !!this.options.web;
+	}
+
+	get legacy(): boolean {
+		return !!this.options.legacy;
 	}
 
 	private _workspacePathOrFolder: string;
@@ -115,11 +120,11 @@ export class Application {
 	}
 
 	private async takeScreenshot(name: string): Promise<void> {
-		if (this.web) {
-			return; // supported only on desktop
+		if (this.web || !this.legacy) {
+			return; // supported only on desktop (legacy)
 		}
 
-		// Desktop: call `stopTracing` to take a screenshot
+		// Desktop (legacy): call `stopTracing` to take a screenshot
 		return this._code?.stopTracing(name, true);
 	}
 
@@ -138,7 +143,13 @@ export class Application {
 		this.logger.log('checkWindowReady: begin');
 
 		await code.waitForWindowIds(ids => ids.length > 0);
-		await code.waitForElement('.monaco-workbench');
+
+		// TODO@bpasero productize this hack
+		if (code.driver instanceof PlaywrightDriver) {
+			await code.driver.page.locator('.monaco-workbench').waitFor({ timeout: 40000 });
+		} else {
+			await code.waitForElement('.monaco-workbench');
+		}
 
 		// Remote but not web: wait for a remote connection state change
 		if (this.remote) {

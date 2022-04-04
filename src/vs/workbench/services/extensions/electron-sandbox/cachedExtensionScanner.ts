@@ -279,7 +279,8 @@ export class CachedExtensionScanner {
 			const development = extensionDescriptions[2];
 			return { system, user, development };
 		}).then(undefined, err => {
-			log.error('', err);
+			log.error(`Error scanning installed extensions:`);
+			log.error(err);
 			return { system: [], user: [], development: [] };
 		});
 	}
@@ -330,24 +331,27 @@ class CounterLogger implements ILog {
 	constructor(private readonly _actual: ILog) {
 	}
 
-	public error(source: string, message: string): void {
-		this._actual.error(source, message);
+	public error(message: string | Error): void {
+		this.errorCnt++;
+		this._actual.error(message);
 	}
 
-	public warn(source: string, message: string): void {
-		this._actual.warn(source, message);
+	public warn(message: string): void {
+		this.warnCnt++;
+		this._actual.warn(message);
 	}
 
-	public info(source: string, message: string): void {
-		this._actual.info(source, message);
+	public info(message: string): void {
+		this.infoCnt++;
+		this._actual.info(message);
 	}
 }
 
 class NullLogger implements ILog {
-	public error(source: string, message: string): void {
+	public error(message: string | Error): void {
 	}
-	public warn(source: string, message: string): void {
+	public warn(message: string): void {
 	}
-	public info(source: string, message: string): void {
+	public info(message: string): void {
 	}
 }

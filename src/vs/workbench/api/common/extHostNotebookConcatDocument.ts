@@ -6,7 +6,6 @@
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -14,6 +13,7 @@ import { score } from 'vs/editor/common/languageSelector';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
 
 export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextDocument {
 
@@ -32,7 +32,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 	readonly uri = URI.from({ scheme: 'vscode-concat-doc', path: generateUuid() });
 
 	constructor(
-		extHostNotebooks: ExtHostNotebookController,
+		extHostNotebooks: ExtHostNotebookDocuments,
 		extHostDocuments: ExtHostDocuments,
 		private readonly _notebook: vscode.NotebookDocument,
 		private readonly _selector: vscode.DocumentSelector | undefined,
@@ -56,7 +56,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 			}
 		};
 
-		this._disposables.add(extHostNotebooks.onDidChangeNotebookCells(e => documentChange(e.document)));
+		this._disposables.add(extHostNotebooks.onDidChangeNotebookDocument(e => documentChange(e.notebook)));
 	}
 
 	dispose(): void {

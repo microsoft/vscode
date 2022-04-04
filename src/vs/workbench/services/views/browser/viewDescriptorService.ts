@@ -585,10 +585,12 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 				}
 			});
 
-			this.cachedViewContainerInfo = this.getCachedViewContainerLocations();
+			// Execute View Container Movement
 			for (const [container, location] of viewContainersToMove) {
 				this.moveViewContainerToLocation(container, location);
 			}
+
+			this.cachedViewContainerInfo = this.getCachedViewContainerLocations();
 		}
 	}
 

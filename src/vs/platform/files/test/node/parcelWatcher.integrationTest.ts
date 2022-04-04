@@ -155,7 +155,7 @@ import { ltrim } from 'vs/base/common/strings';
 	}
 
 	test('basics', async function () {
-		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]);
+		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]); //
 
 		// New file
 		const newFilePath = join(testDir, 'deep', 'newFile.txt');
@@ -433,6 +433,19 @@ import { ltrim } from 'vs/base/common/strings';
 	test('subsequent watch updates watchers (excludes)', async function () {
 		await watcher.watch([{ path: testDir, excludes: [realpathSync(testDir)], recursive: true }]);
 		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]);
+
+		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
+	});
+
+	test('subsequent watch updates watchers (includes)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['nothing'], recursive: true }]);
+		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]);
+
+		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
+	});
+
+	test('includes are supported', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['**/deep/**'], recursive: true }]);
 
 		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
 	});

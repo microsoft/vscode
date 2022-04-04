@@ -1072,7 +1072,7 @@ ${formatRule(Codicon.menuSubmenu)}
 
 .monaco-menu .monaco-action-bar .action-item.disabled .action-label,
 .monaco-menu .monaco-action-bar .action-item.disabled .action-label:hover {
-	opacity: 0.4;
+	color: var(--vscode-disabledForeground);
 }
 
 /* Vertical actions */

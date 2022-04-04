@@ -232,16 +232,17 @@ export class BulkTextEdits {
 		return { canApply: true };
 	}
 
-	async apply(): Promise<void> {
+	async apply(): Promise<readonly URI[]> {
 
 		this._validateBeforePrepare();
 		const tasks = await this._createEditsTasks();
 
-		if (this._token.isCancellationRequested) {
-			return;
-		}
 		try {
+			if (this._token.isCancellationRequested) {
+				return [];
+			}
 
+			const resources: URI[] = [];
 			const validation = this._validateTasks(tasks);
 			if (!validation.canApply) {
 				throw new Error(`${validation.reason.toString()} has changed in the meantime`);
@@ -254,6 +255,7 @@ export class BulkTextEdits {
 					this._undoRedoService.pushElement(singleModelEditStackElement, this._undoRedoGroup, this._undoRedoSource);
 					task.apply();
 					singleModelEditStackElement.close();
+					resources.push(task.model.uri);
 				}
 				this._progress.report(undefined);
 			} else {
@@ -267,9 +269,12 @@ export class BulkTextEdits {
 				for (const task of tasks) {
 					task.apply();
 					this._progress.report(undefined);
+					resources.push(task.model.uri);
 				}
 				multiModelEditStackElement.close();
 			}
+
+			return resources;
 
 		} finally {
 			dispose(tasks);

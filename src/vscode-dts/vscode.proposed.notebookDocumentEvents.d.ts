@@ -20,6 +20,14 @@ declare module 'vscode' {
 		readonly cell: NotebookCell;
 
 		/**
+		 * The document of the cell or `undefined` when it did not change.
+		 *
+		 * *Note* that you should use the {@link workspace.onDidChangeTextDocument onDidChangeTextDocument}-event
+		 * for detailed change information, like what edits have been performed.
+		 */
+		readonly document: TextDocument | undefined;
+
+		/**
 		 * The new metadata of the cell or `undefined` when it did not change.
 		 */
 		readonly metadata: { [key: string]: any } | undefined;

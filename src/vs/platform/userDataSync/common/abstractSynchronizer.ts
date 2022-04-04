@@ -483,7 +483,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 
 	async hasPreviouslySynced(): Promise<boolean> {
 		const lastSyncData = await this.getLastSyncUserData();
-		return !!lastSyncData;
+		return !!lastSyncData && lastSyncData.syncData !== null /* `null` sync data implies resource is not synced */;
 	}
 
 	async getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]> {

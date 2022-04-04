@@ -99,6 +99,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'export-default-configuration': { type: 'string' },
 	'install-source': { type: 'string' },
 	'driver': { type: 'string' },
+	'enable-smoke-test-driver': { type: 'boolean' },
 	'logExtensionHostCommunication': { type: 'boolean' },
 	'skip-release-notes': { type: 'boolean' },
 	'skip-welcome': { type: 'boolean' },
@@ -114,7 +115,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'open-url': { type: 'boolean' },
 	'file-write': { type: 'boolean' },
 	'file-chmod': { type: 'boolean' },
-	'driver-verbose': { type: 'boolean' },
 	'install-builtin-extension': { type: 'string[]' },
 	'force': { type: 'boolean' },
 	'do-not-sync': { type: 'boolean' },
@@ -168,7 +168,7 @@ const ignoringReporter: ErrorReporter = {
 
 export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, errorReporter: ErrorReporter = ignoringReporter): T {
 	const alias: { [key: string]: string } = {};
-	const string: string[] = [];
+	const string: string[] = ['_'];
 	const boolean: string[] = [];
 	for (let optionId in options) {
 		const o = options[optionId];
@@ -212,7 +212,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 					if (!val) {
 						val = remainingArgs[deprecatedId];
 						if (val) {
-							errorReporter.onDeprecatedOption(deprecatedId, o.deprecationMessage || localize('deprecated.useInstead', 'Use {0} instead.'));
+							errorReporter.onDeprecatedOption(deprecatedId, o.deprecationMessage || localize('deprecated.useInstead', 'Use {0} instead.', optionId));
 						}
 					}
 					delete remainingArgs[deprecatedId];

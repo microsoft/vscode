@@ -29,12 +29,15 @@ interface FormatterRegistration {
 }
 
 interface CSSFormatSettings {
-	selectorSeparatorNewline?: boolean;
+	newlineBetweenSelectors?: boolean;
 	newlineBetweenRules?: boolean;
 	spaceAroundSelectorSeparator?: boolean;
+	braceStyle?: 'collapse' | 'expand';
+	preserveNewLines?: boolean;
+	maxPreserveNewLines?: number | null;
 }
 
-const cssFormatSettingKeys: (keyof CSSFormatSettings)[] = ['selectorSeparatorNewline', 'newlineBetweenRules', 'spaceAroundSelectorSeparator'];
+const cssFormatSettingKeys: (keyof CSSFormatSettings)[] = ['newlineBetweenSelectors', 'newlineBetweenRules', 'spaceAroundSelectorSeparator', 'braceStyle', 'preserveNewLines', 'maxPreserveNewLines'];
 
 export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {
 
@@ -196,7 +199,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 					if (formatterSettings) {
 						for (const key of cssFormatSettingKeys) {
 							const val = formatterSettings[key];
-							if (val !== undefined) {
+							if (val !== undefined && val !== null) {
 								params.options[key] = val;
 							}
 						}

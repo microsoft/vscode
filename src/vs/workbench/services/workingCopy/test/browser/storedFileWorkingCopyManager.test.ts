@@ -273,7 +273,7 @@ suite('StoredFileWorkingCopyManager', () => {
 		let savedCounter = 0;
 		let saveErrorCounter = 0;
 
-		manager.onDidCreate(workingCopy => {
+		manager.onDidCreate(() => {
 			createdCounter++;
 		});
 

@@ -31,7 +31,7 @@ const panelIcon = registerIcon('panel-layout-icon', Codicon.layoutPanel, localiz
 export class TogglePanelAction extends Action {
 
 	static readonly ID = 'workbench.action.togglePanel';
-	static readonly LABEL = localize('togglePanel', "Toggle Panel");
+	static readonly LABEL = localize('togglePanelVisibility', "Toggle Panel Visibility");
 
 	constructor(
 		id: string,
@@ -323,7 +323,7 @@ export class NextPanelViewAction extends SwitchPanelViewAction {
 }
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TogglePanelAction, { primary: KeyMod.CtrlCmd | KeyCode.KeyJ }), 'View: Toggle Panel', CATEGORIES.View.value);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TogglePanelAction, { primary: KeyMod.CtrlCmd | KeyCode.KeyJ }), 'View: Toggle Panel Visibility', CATEGORIES.View.value);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPanelAction), 'View: Focus into Panel', CATEGORIES.View.value);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(PreviousPanelViewAction), 'View: Previous Panel View', CATEGORIES.View.value);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NextPanelViewAction), 'View: Next Panel View', CATEGORIES.View.value);
@@ -447,7 +447,7 @@ MenuRegistry.appendMenuItems([
 				icon: panelIcon,
 				toggled: PanelVisibleContext
 			},
-			when: ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'both')),
+			when: ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
 			order: 1
 		}
 	}, {
@@ -502,7 +502,7 @@ class MovePanelToSidePanelAction extends MoveViewsBetweenPanelsAction {
 				original: 'Move Panel Views To Secondary Side Bar'
 			},
 			category: CATEGORIES.View,
-			f1: true
+			f1: false
 		});
 	}
 }
@@ -538,7 +538,7 @@ class MoveSidePanelToPanelAction extends MoveViewsBetweenPanelsAction {
 				original: 'Move Secondary Side Bar Views To Panel'
 			},
 			category: CATEGORIES.View,
-			f1: true
+			f1: false
 		});
 	}
 }

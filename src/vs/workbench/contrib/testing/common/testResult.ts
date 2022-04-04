@@ -12,7 +12,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { maxPriority, statesInOrder, terminalStatePriorities } from 'vs/workbench/contrib/testing/common/testingStates';
 
@@ -230,18 +230,15 @@ const itemToNode = (controllerId: string, item: ITestItem, parent: string | null
 	tasks: [],
 	ownComputedState: TestResultState.Unset,
 	computedState: TestResultState.Unset,
-	retired: false,
 });
 
 export const enum TestResultItemChangeReason {
-	Retired,
-	ParentRetired,
 	ComputedStateChange,
 	OwnStateChange,
 }
 
 export type TestResultItemChange = { item: TestResultItem; result: ITestResult } & (
-	| { reason: TestResultItemChangeReason.Retired | TestResultItemChangeReason.ParentRetired | TestResultItemChangeReason.ComputedStateChange }
+	| { reason: TestResultItemChangeReason.ComputedStateChange }
 	| { reason: TestResultItemChangeReason.OwnStateChange; previousState: TestResultState; previousOwnDuration: number | undefined }
 );
 
@@ -417,33 +414,6 @@ export class LiveTestResult implements ITestResult {
 	 */
 	public getOutput() {
 		return this.output.read();
-	}
-
-	/**
-	 * Marks a test as retired. This can trigger it to be rerun in live mode.
-	 */
-	public retire(testId: string) {
-		const root = this.testById.get(testId);
-		if (!root || root.retired) {
-			return;
-		}
-
-		const queue = [[root]];
-		while (queue.length) {
-			for (const entry of queue.pop()!) {
-				if (!entry.retired) {
-					entry.retired = true;
-					queue.push(entry.children);
-					this.changeEmitter.fire({
-						result: this,
-						item: entry,
-						reason: entry === root
-							? TestResultItemChangeReason.Retired
-							: TestResultItemChangeReason.ParentRetired
-					});
-				}
-			}
-		}
 	}
 
 	/**
@@ -638,7 +608,7 @@ export class HydratedTestResult implements ITestResult {
 		this.request = serialized.request;
 
 		for (const item of serialized.items) {
-			const cast: TestResultItem = { ...item, retired: true } as any;
+			const cast: TestResultItem = { ...item } as any;
 			cast.item.uri = URI.revive(cast.item.uri);
 
 			for (const task of cast.tasks) {

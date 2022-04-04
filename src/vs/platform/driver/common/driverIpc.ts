@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IDriverOptions, IElement, ILocaleInfo, ILocalizedStrings as ILocalizedStrings, IWindowDriver, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
+import { IElement, ILocaleInfo, ILocalizedStrings as ILocalizedStrings, IWindowDriver, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
 
 export class WindowDriverChannel implements IServerChannel {
 
@@ -18,7 +18,6 @@ export class WindowDriverChannel implements IServerChannel {
 	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'click': return this.driver.click(arg[0], arg[1], arg[2]);
-			case 'doubleClick': return this.driver.doubleClick(arg);
 			case 'setValue': return this.driver.setValue(arg[0], arg[1]);
 			case 'getTitle': return this.driver.getTitle();
 			case 'isActiveElement': return this.driver.isActiveElement(arg);
@@ -43,10 +42,6 @@ export class WindowDriverChannelClient implements IWindowDriver {
 
 	click(selector: string, xoffset?: number, yoffset?: number): Promise<void> {
 		return this.channel.call('click', [selector, xoffset, yoffset]);
-	}
-
-	doubleClick(selector: string): Promise<void> {
-		return this.channel.call('doubleClick', selector);
 	}
 
 	setValue(selector: string, text: string): Promise<void> {
@@ -96,7 +91,7 @@ export class WindowDriverRegistryChannelClient implements IWindowDriverRegistry 
 
 	constructor(private channel: IChannel) { }
 
-	registerWindowDriver(windowId: number): Promise<IDriverOptions> {
+	registerWindowDriver(windowId: number): Promise<void> {
 		return this.channel.call('registerWindowDriver', windowId);
 	}
 

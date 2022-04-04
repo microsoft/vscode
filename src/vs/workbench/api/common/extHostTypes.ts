@@ -598,6 +598,17 @@ export class TextEdit {
 	}
 }
 
+export class SnippetTextEdit implements vscode.SnippetTextEdit {
+
+	range: vscode.Range;
+	snippet: vscode.SnippetString;
+
+	constructor(range: Range, snippet: SnippetString) {
+		this.range = range;
+		this.snippet = snippet;
+	}
+}
+
 export interface IFileOperationOptions {
 	overwrite?: boolean;
 	ignoreIfExists?: boolean;
@@ -1826,7 +1837,7 @@ export class TerminalProfile implements vscode.TerminalProfile {
 		public options: vscode.TerminalOptions | vscode.ExtensionTerminalOptions
 	) {
 		if (typeof options !== 'object') {
-			illegalArgument('options');
+			throw illegalArgument('options');
 		}
 	}
 }
@@ -2380,15 +2391,15 @@ export class DataTransferItem {
 }
 
 @es5ClassCompat
-export class DataTransfer<T extends DataTransferItem = DataTransferItem> {
-	private readonly _items: Map<string, T> = new Map();
-	get(mimeType: string): T | undefined {
+export class DataTransfer {
+	private readonly _items: Map<string, DataTransferItem> = new Map();
+	get(mimeType: string): DataTransferItem | undefined {
 		return this._items.get(mimeType);
 	}
-	set(mimeType: string, value: T): void {
+	set(mimeType: string, value: DataTransferItem): void {
 		this._items.set(mimeType, value);
 	}
-	forEach(callbackfn: (value: T, key: string) => void): void {
+	forEach(callbackfn: (value: DataTransferItem, key: string) => void): void {
 		this._items.forEach(callbackfn);
 	}
 }
@@ -3616,11 +3627,19 @@ export class CustomEditorTabInput {
 	constructor(readonly uri: URI, readonly viewType: string) { }
 }
 
+export class WebviewEditorTabInput {
+	constructor(readonly viewType: string) { }
+}
+
 export class NotebookEditorTabInput {
 	constructor(readonly uri: URI, readonly notebookType: string) { }
 }
 
 export class NotebookDiffEditorTabInput {
 	constructor(readonly original: URI, readonly modified: URI, readonly notebookType: string) { }
+}
+
+export class TerminalEditorTabInput {
+	constructor() { }
 }
 //#endregion

@@ -11,7 +11,7 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelInjectedTextChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/textModelEvents';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/textModelEvents';
 import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
 import { FormattingOptions, StandardTokenType } from 'vs/editor/common/languages';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -1153,7 +1153,7 @@ export interface ITextModel {
 	 * @internal
 	 * @event
 	 */
-	readonly onDidChangeContentOrInjectedText: Event<ModelRawContentChangedEvent | ModelInjectedTextChangedEvent>;
+	readonly onDidChangeContentOrInjectedText: Event<InternalModelContentChangeEvent | ModelInjectedTextChangedEvent>;
 	/**
 	 * An event emitted when the contents of the model have changed.
 	 * @event
@@ -1270,6 +1270,16 @@ export const enum PositionAffinity {
 	 * No preference.
 	*/
 	None = 2,
+
+	/**
+	 * If the given position is on injected text, prefers the position left of it.
+	*/
+	LeftOfInjectedText = 3,
+
+	/**
+	 * If the given position is on injected text, prefers the position right of it.
+	*/
+	RightOfInjectedText = 4,
 }
 
 /**
@@ -1311,6 +1321,8 @@ export class ValidAnnotatedEditOperation implements IIdentifiedSingleEditOperati
 
 /**
  * @internal
+ *
+ * `lineNumber` is 1 based.
  */
 export interface IReadonlyTextBuffer {
 	onDidChangeContent: Event<void>;

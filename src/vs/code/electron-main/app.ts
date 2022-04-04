@@ -524,7 +524,7 @@ export class CodeApplication extends Disposable {
 
 		// Create driver
 		if (this.environmentMainService.driverHandle) {
-			const server = await serveDriver(mainProcessElectronServer, this.environmentMainService.driverHandle, this.environmentMainService, appInstantiationService);
+			const server = await serveDriver(mainProcessElectronServer, this.environmentMainService.driverHandle, appInstantiationService);
 
 			this.logService.info('Driver started at:', this.environmentMainService.driverHandle);
 			this._register(server);
@@ -876,9 +876,21 @@ export class CodeApplication extends Disposable {
 					return true;
 				}
 
-				// If we have not yet handled the URI and we have no window opened (macOS only)
-				// we first open a window and then try to open that URI within that window
-				if (isMacintosh && windowsMainService.getWindowCount() === 0) {
+				// We should handle the URI in a new window if no window is open (macOS only)
+				let shouldOpenInNewWindow = isMacintosh && windowsMainService.getWindowCount() === 0;
+
+				// or if the URL contains `windowId=_blank`
+				if (!shouldOpenInNewWindow) {
+					const params = new URLSearchParams(uri.query);
+
+					if (params.get('windowId') === '_blank') {
+						params.delete('windowId');
+						uri = uri.with({ query: params.toString() });
+						shouldOpenInNewWindow = true;
+					}
+				}
+
+				if (shouldOpenInNewWindow) {
 					const [window] = windowsMainService.open({
 						context: OpenContext.API,
 						cli: { ...environmentService.args },

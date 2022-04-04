@@ -122,7 +122,7 @@ class MirrorNotebookDocument {
 			} else if (e.kind === NotebookCellsChangeType.Output) {
 				const cell = this.cells[e.index];
 				cell.outputs = e.outputs;
-			} else if (e.kind === NotebookCellsChangeType.ChangeLanguage) {
+			} else if (e.kind === NotebookCellsChangeType.ChangeCellLanguage) {
 				const cell = this.cells[e.index];
 				cell.language = e.language;
 			} else if (e.kind === NotebookCellsChangeType.ChangeCellMetadata) {

@@ -81,7 +81,7 @@ export class CLIServerBase {
 	private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
 		const sendResponse = (statusCode: number, returnObj: any) => {
 			res.writeHead(statusCode, { 'content-type': 'application/json' });
-			res.end(JSON.stringify(returnObj), (err?: any) => err && this.logService.error(err));
+			res.end(JSON.stringify(returnObj || null), (err?: any) => err && this.logService.error(err));
 		};
 
 		const chunks: string[] = [];

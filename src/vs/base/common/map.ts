@@ -845,6 +845,67 @@ export class ResourceMap<T> implements Map<URI, T> {
 	}
 }
 
+export class ResourceSet implements Set<URI> {
+
+	readonly [Symbol.toStringTag]: string = 'ResourceSet';
+
+	private readonly _map: ResourceMap<URI>;
+
+	constructor(toKey?: ResourceMapKeyFn);
+	constructor(entries: readonly URI[], toKey?: ResourceMapKeyFn);
+	constructor(entriesOrKey?: readonly URI[] | ResourceMapKeyFn, toKey?: ResourceMapKeyFn) {
+		if (!entriesOrKey || typeof entriesOrKey === 'function') {
+			this._map = new ResourceMap(entriesOrKey);
+		} else {
+			this._map = new ResourceMap(toKey);
+			entriesOrKey.forEach(this.add, this);
+		}
+	}
+
+
+	get size(): number {
+		return this._map.size;
+	}
+
+	add(value: URI): this {
+		this._map.set(value, value);
+		return this;
+	}
+
+	clear(): void {
+		this._map.clear();
+	}
+
+	delete(value: URI): boolean {
+		return this._map.delete(value);
+	}
+
+	forEach(callbackfn: (value: URI, value2: URI, set: Set<URI>) => void, thisArg?: any): void {
+		this._map.forEach((_value, key) => callbackfn.call(thisArg, key, key, this));
+	}
+
+	has(value: URI): boolean {
+		return this._map.has(value);
+	}
+
+	entries(): IterableIterator<[URI, URI]> {
+		return this._map.entries();
+	}
+
+	keys(): IterableIterator<URI> {
+		return this._map.keys();
+	}
+
+	values(): IterableIterator<URI> {
+		return this._map.keys();
+	}
+
+	[Symbol.iterator](): IterableIterator<URI> {
+		return this.keys();
+	}
+}
+
+
 interface Item<K, V> {
 	previous: Item<K, V> | undefined;
 	next: Item<K, V> | undefined;

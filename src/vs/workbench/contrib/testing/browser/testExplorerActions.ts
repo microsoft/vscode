@@ -30,8 +30,7 @@ import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import type { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { InternalTestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
+import { InternalTestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -649,47 +648,6 @@ export class GoToTest extends Action2 {
 		}
 	}
 }
-
-abstract class ToggleAutoRun extends Action2 {
-
-	constructor(title: string, whenToggleIs: boolean) {
-		super({
-			id: TestCommandId.ToggleAutoRun,
-			title,
-			icon: icons.testingAutorunIcon,
-			toggled: whenToggleIs === true ? ContextKeyExpr.true() : ContextKeyExpr.false(),
-			menu: {
-				id: MenuId.ViewTitle,
-				order: ActionOrder.AutoRun,
-				group: 'navigation',
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('view', Testing.ExplorerViewId),
-					TestingContextKeys.autoRun.isEqualTo(whenToggleIs)
-				)
-			}
-		});
-	}
-
-	/**
-	 * @override
-	 */
-	public run(accessor: ServicesAccessor) {
-		accessor.get(ITestingAutoRun).toggle();
-	}
-}
-
-export class AutoRunOnAction extends ToggleAutoRun {
-	constructor() {
-		super(localize('testing.turnOnAutoRun', "Turn On Auto Run"), false);
-	}
-}
-
-export class AutoRunOffAction extends ToggleAutoRun {
-	constructor() {
-		super(localize('testing.turnOffAutoRun', "Turn Off Auto Run"), true);
-	}
-}
-
 
 abstract class ExecuteTestAtCursor extends Action2 {
 	constructor(options: IAction2Options, protected readonly group: TestRunProfileBitset) {

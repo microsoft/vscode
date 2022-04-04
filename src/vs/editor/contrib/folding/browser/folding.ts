@@ -472,7 +472,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	}
 
 	private onEditorMouseUp(e: IEditorMouseEvent): void {
-		const foldingModel = this.getFoldingModel();
+		const foldingModel = this.foldingModel;
 		if (!foldingModel || !this.mouseDownInfo || !e.target) {
 			return;
 		}
@@ -495,47 +495,43 @@ export class FoldingController extends Disposable implements IEditorContribution
 			}
 		}
 
-		foldingModel.then(foldingModel => {
-			if (foldingModel) {
-				let region = foldingModel.getRegionAtLine(lineNumber);
-				if (region && region.startLineNumber === lineNumber) {
-					let isCollapsed = region.isCollapsed;
-					if (iconClicked || isCollapsed) {
-						let surrounding = e.event.altKey;
-						let toToggle = [];
-						if (surrounding) {
-							let filter = (otherRegion: FoldingRegion) => !otherRegion.containedBy(region!) && !region!.containedBy(otherRegion);
-							let toMaybeToggle = foldingModel.getRegionsInside(null, filter);
-							for (const r of toMaybeToggle) {
-								if (r.isCollapsed) {
-									toToggle.push(r);
-								}
-							}
-							// if any surrounding regions are folded, unfold those. Otherwise, fold all surrounding
-							if (toToggle.length === 0) {
-								toToggle = toMaybeToggle;
-							}
+		let region = foldingModel.getRegionAtLine(lineNumber);
+		if (region && region.startLineNumber === lineNumber) {
+			let isCollapsed = region.isCollapsed;
+			if (iconClicked || isCollapsed) {
+				let surrounding = e.event.altKey;
+				let toToggle = [];
+				if (surrounding) {
+					let filter = (otherRegion: FoldingRegion) => !otherRegion.containedBy(region!) && !region!.containedBy(otherRegion);
+					let toMaybeToggle = foldingModel.getRegionsInside(null, filter);
+					for (const r of toMaybeToggle) {
+						if (r.isCollapsed) {
+							toToggle.push(r);
 						}
-						else {
-							let recursive = e.event.middleButton || e.event.shiftKey;
-							if (recursive) {
-								for (const r of foldingModel.getRegionsInside(region)) {
-									if (r.isCollapsed === isCollapsed) {
-										toToggle.push(r);
-									}
-								}
-							}
-							// when recursive, first only collapse all children. If all are already folded or there are no children, also fold parent.
-							if (isCollapsed || !recursive || toToggle.length === 0) {
-								toToggle.push(region);
-							}
-						}
-						foldingModel.toggleCollapseState(toToggle);
-						this.reveal({ lineNumber, column: 1 });
+					}
+					// if any surrounding regions are folded, unfold those. Otherwise, fold all surrounding
+					if (toToggle.length === 0) {
+						toToggle = toMaybeToggle;
 					}
 				}
+				else {
+					let recursive = e.event.middleButton || e.event.shiftKey;
+					if (recursive) {
+						for (const r of foldingModel.getRegionsInside(region)) {
+							if (r.isCollapsed === isCollapsed) {
+								toToggle.push(r);
+							}
+						}
+					}
+					// when recursive, first only collapse all children. If all are already folded or there are no children, also fold parent.
+					if (isCollapsed || !recursive || toToggle.length === 0) {
+						toToggle.push(region);
+					}
+				}
+				foldingModel.toggleCollapseState(toToggle);
+				this.reveal({ lineNumber, column: 1 });
 			}
-		}).then(undefined, onUnexpectedError);
+		}
 	}
 
 	public reveal(position: IPosition): void {

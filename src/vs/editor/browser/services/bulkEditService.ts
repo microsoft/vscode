@@ -75,6 +75,7 @@ export interface IBulkEditOptions {
 	undoRedoSource?: UndoRedoSource;
 	undoRedoGroupId?: number;
 	confirmBeforeUndo?: boolean;
+	respectAutoSaveConfig?: boolean;
 }
 
 export interface IBulkEditResult {

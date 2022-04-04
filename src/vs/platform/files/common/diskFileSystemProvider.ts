@@ -69,7 +69,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 	private watchUniversal(resource: URI, opts: IWatchOptions): IDisposable {
 
 		// Add to list of paths to watch universally
-		const pathToWatch: IUniversalWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, recursive: opts.recursive };
+		const pathToWatch: IUniversalWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, includes: opts.includes, recursive: opts.recursive };
 		const remove = insert(this.universalPathsToWatch, pathToWatch);
 
 		// Trigger update
@@ -150,7 +150,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 	private watchNonRecursive(resource: URI, opts: IWatchOptions): IDisposable {
 
 		// Add to list of paths to watch non-recursively
-		const pathToWatch: INonRecursiveWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, recursive: false };
+		const pathToWatch: INonRecursiveWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, includes: opts.includes, recursive: false };
 		const remove = insert(this.nonRecursivePathsToWatch, pathToWatch);
 
 		// Trigger update

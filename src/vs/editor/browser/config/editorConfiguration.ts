@@ -30,6 +30,12 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 	 * Defaults to an internal DOM node.
 	 */
 	overflowWidgetsDomNode?: HTMLElement;
+	/**
+	 * Enables dropping into the editor.
+	 *
+	 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
+	 */
+	enableDropIntoEditor?: boolean;
 }
 
 export class EditorConfiguration extends Disposable implements IEditorConfiguration {
@@ -285,7 +291,7 @@ class EditorOptionsUtil {
 		if (Array.isArray(a) || Array.isArray(b)) {
 			return (Array.isArray(a) && Array.isArray(b) ? arrays.equals(a, b) : false);
 		}
-		if (Object.keys(a).length !== Object.keys(b).length) {
+		if (Object.keys(a as unknown as object).length !== Object.keys(b as unknown as object).length) {
 			return false;
 		}
 		for (const key in a) {
