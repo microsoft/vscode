@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
+'use strict';
 
 process.env.MOCHA_COLORS = '1'; // Force colors (note that this must come before any mocha imports)
 

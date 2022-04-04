@@ -95,7 +95,7 @@
   },
   "devDependencies": {
     "7zip": "0.0.6",
-    "@playwright/test": "1.18.0",
+    "@playwright/test": "1.20.2",
     "@types/applicationinsights": "0.20.0",
     "@types/cookie": "^0.3.3",
     "@types/copy-webpack-plugin": "^6.0.3",

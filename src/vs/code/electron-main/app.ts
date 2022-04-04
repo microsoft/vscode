@@ -524,7 +524,7 @@ export class CodeApplication extends Disposable {
 
 		// Create driver
 		if (this.environmentMainService.driverHandle) {
-			const server = await serveDriver(mainProcessElectronServer, this.environmentMainService.driverHandle, this.environmentMainService, appInstantiationService);
+			const server = await serveDriver(mainProcessElectronServer, this.environmentMainService.driverHandle, appInstantiationService);
 
 			this.logService.info('Driver started at:', this.environmentMainService.driverHandle);
 			this._register(server);
