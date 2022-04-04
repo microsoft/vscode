@@ -590,11 +590,9 @@ declare module DebugProtocol {
 	}
 
 	/** Disconnect request; value of command field is 'disconnect'.
-		The 'disconnect' request is sent from the client to the debug adapter in order to stop debugging.
-		It asks the debug adapter to disconnect from the debuggee and to terminate the debug adapter.
-		If the debuggee has been started with the 'launch' request, the 'disconnect' request terminates the debuggee.
-		If the 'attach' request was used to connect to the debuggee, 'disconnect' does not terminate the debuggee.
-		This behavior can be controlled with the 'terminateDebuggee' argument (if supported by the debug adapter).
+		The 'disconnect' request asks the debug adapter to disconnect from the debuggee (thus ending the debug session) and then to shut down itself (the debug adapter).
+		In addition, the debug adapter must terminate the debuggee if it was started with the 'launch' request. If an 'attach' request was used to connect to the debuggee, then the debug adapter must not terminate the debuggee.
+		This implicit behavior of when to terminate the debuggee can be overridden with the optional argument 'terminateDebuggee' (which is only supported by a debug adapter if the corresponding capability 'supportTerminateDebuggee' is true).
 	*/
 	interface DisconnectRequest extends Request {
 		// command: 'disconnect';
@@ -622,8 +620,10 @@ declare module DebugProtocol {
 	}
 
 	/** Terminate request; value of command field is 'terminate'.
-		The 'terminate' request is sent from the client to the debug adapter in order to give the debuggee a chance for terminating itself.
-		Clients should only call this request if the capability 'supportsTerminateRequest' is true.
+		The 'terminate' request is sent from the client to the debug adapter in order to shut down the debuggee gracefully. Clients should only call this request if the capability 'supportsTerminateRequest' is true.
+		Typically a debug adapter implements 'terminate' by sending a software signal which the debuggee intercepts in order to clean things up properly before terminating itself.
+		Please note that this request does not directly affect the state of the debug session: if the debuggee decides to veto the graceful shutdown for any reason by not terminating itself, then the debug session will just continue.
+		Clients can surface the 'terminate' request as an explicit command or they can integrate it into a two stage Stop command that first sends 'terminate' to request a graceful shutdown, and if that fails uses 'disconnect' for a forceful shutdown.
 	*/
 	interface TerminateRequest extends Request {
 		// command: 'terminate';

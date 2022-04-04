@@ -35,6 +35,8 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { raceCancellationError } from 'vs/base/common/async';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { DataTransferConverter, DataTransferDTO } from 'vs/workbench/api/common/shared/dataTransfer';
+import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 // --- adapter
 
@@ -1024,7 +1026,13 @@ class SuggestAdapter {
 	}
 }
 
-class InlineCompletionAdapter {
+class InlineCompletionAdapterBase {
+	public async provideInlineCompletions(resource: URI, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
+		return undefined;
+	}
+}
+
+class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 	private readonly _cache = new Cache<vscode.InlineCompletionItem>('InlineCompletionItem');
 	private readonly _disposables = new Map<number, DisposableStore>();
 
@@ -1032,9 +1040,11 @@ class InlineCompletionAdapter {
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.InlineCompletionItemProvider,
 		private readonly _commands: CommandsConverter,
-	) { }
+	) {
+		super();
+	}
 
-	public async provideInlineCompletions(resource: URI, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
+	public override async provideInlineCompletions(resource: URI, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
@@ -1113,7 +1123,7 @@ class InlineCompletionAdapter {
 	}
 }
 
-class InlineCompletionAdapterNew {
+class InlineCompletionAdapterNew extends InlineCompletionAdapterBase {
 	private readonly _cache = new Cache<vscode.InlineCompletionItemNew>('InlineCompletionItemNew');
 	private readonly _disposables = new Map<number, DisposableStore>();
 
@@ -1124,14 +1134,16 @@ class InlineCompletionAdapterNew {
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.InlineCompletionItemProviderNew,
 		private readonly _commands: CommandsConverter,
-	) { }
+	) {
+		super();
+	}
 
 	private readonly languageTriggerKindToVSCodeTriggerKind: Record<languages.InlineCompletionTriggerKind, vscode.InlineCompletionTriggerKindNew> = {
 		[languages.InlineCompletionTriggerKind.Automatic]: InlineCompletionTriggerKindNew.Automatic,
 		[languages.InlineCompletionTriggerKind.Explicit]: InlineCompletionTriggerKindNew.Invoke,
 	};
 
-	public async provideInlineCompletions(resource: URI, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
+	public override async provideInlineCompletions(resource: URI, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
@@ -1702,6 +1714,27 @@ class TypeHierarchyAdapter {
 		return map?.get(itemId);
 	}
 }
+
+class DocumentOnDropAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.DocumentOnDropProvider
+	) { }
+
+	async provideDocumentOnDropEdits(uri: URI, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
+		const doc = this._documents.getDocument(uri);
+		const pos = typeConvert.Position.to(position);
+		const dataTransfer = DataTransferConverter.toDataTransfer(dataTransferDto);
+
+		const edit = await this._provider.provideDocumentOnDropEdits(doc, pos, dataTransfer, token);
+		if (!edit) {
+			return undefined;
+		}
+		return typeConvert.SnippetTextEdit.from(edit);
+	}
+}
+
 type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
@@ -1710,7 +1743,8 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| SelectionRangeAdapter | CallHierarchyAdapter | TypeHierarchyAdapter
 	| DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
-	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter | InlineCompletionAdapterNew;
+	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter | InlineCompletionAdapterNew
+	| DocumentOnDropAdapter;
 
 class AdapterData {
 	constructor(
@@ -1770,7 +1804,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		ctor: { new(...args: any[]): A },
 		callback: (adapter: A, extension: IExtensionDescription) => Promise<R>,
 		fallbackValue: R,
-		tokenToRaceAgainst: CancellationToken | undefined
+		tokenToRaceAgainst: CancellationToken | undefined,
+		doNotLog: boolean = false
 	): Promise<R> {
 		const data = this._adapter.get(handle);
 		if (!data || !(data.adapter instanceof ctor)) {
@@ -1778,7 +1813,9 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		}
 
 		const t1: number = Date.now();
-		this._logService.trace(`[${data.extension.identifier.value}] INVOKE provider '${callback.toString().replace(/[\r\n]/g, '')}'`);
+		if (!doNotLog) {
+			this._logService.trace(`[${data.extension.identifier.value}] INVOKE provider '${callback.toString().replace(/[\r\n]/g, '')}'`);
+		}
 
 		const result = callback(data.adapter, data.extension);
 
@@ -1789,7 +1826,9 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 				this._logService.error(err);
 			}
 		}).finally(() => {
-			this._logService.trace(`[${data.extension.identifier.value}] provider DONE after ${Date.now() - t1}ms`);
+			if (!doNotLog) {
+				this._logService.trace(`[${data.extension.identifier.value}] provider DONE after ${Date.now() - t1}ms`);
+			}
 		});
 
 		if (CancellationToken.isCancellationToken(tokenToRaceAgainst)) {
@@ -2151,7 +2190,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	}
 
 	$provideInlineCompletions(handle: number, resource: UriComponents, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
-		return this._withAdapter(handle, InlineCompletionAdapter, adapter => adapter.provideInlineCompletions(URI.revive(resource), position, context, token), undefined, token);
+		return this._withAdapter(handle, InlineCompletionAdapterBase, adapter => adapter.provideInlineCompletions(URI.revive(resource), position, context, token), undefined, token);
 	}
 
 	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number): void {
@@ -2222,15 +2261,15 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	}
 
 	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Promise<extHostProtocol.ILinksListDto | undefined> {
-		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.provideLinks(URI.revive(resource), token), undefined, token);
+		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.provideLinks(URI.revive(resource), token), undefined, token, resource.scheme === 'output');
 	}
 
 	$resolveDocumentLink(handle: number, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.ILinkDto | undefined> {
-		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.resolveLink(id, token), undefined, undefined);
+		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.resolveLink(id, token), undefined, undefined, true);
 	}
 
 	$releaseDocumentLinks(handle: number, id: number): void {
-		this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.releaseLinks(id), undefined, undefined);
+		this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.releaseLinks(id), undefined, undefined, true);
 	}
 
 	registerColorProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
@@ -2324,6 +2363,18 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$releaseTypeHierarchy(handle: number, sessionId: string): void {
 		this._withAdapter(handle, TypeHierarchyAdapter, adapter => Promise.resolve(adapter.releaseSession(sessionId)), undefined, undefined);
+	}
+
+	// --- Document on drop
+
+	registerDocumentOnDropProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentOnDropProvider) {
+		const handle = this._addNewAdapter(new DocumentOnDropAdapter(this._documents, provider), extension);
+		this._proxy.$registerDocumentOnDropProvider(handle, this._transformDocumentSelector(selector));
+		return this._createDisposable(handle);
+	}
+
+	$provideDocumentOnDropEdits(handle: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
+		return this._withAdapter(handle, DocumentOnDropAdapter, adapter => Promise.resolve(adapter.provideDocumentOnDropEdits(URI.revive(resource), position, dataTransferDto, token)), undefined, undefined);
 	}
 
 	// --- configuration

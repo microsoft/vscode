@@ -9,7 +9,6 @@ import { toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { FileOperation } from 'vs/platform/files/common/files';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Files - TextFileService', () => {
@@ -139,17 +138,18 @@ suite('Files - TextFileService', () => {
 	});
 
 	test('Filename Suggestion - Suggest prefix only when there are no relevant extensions', () => {
-		ModesRegistry.registerLanguage({
+		const registration = accessor.languageService.registerLanguage({
 			id: 'plumbus0',
 			extensions: ['.one', '.two']
 		});
 
 		let suggested = accessor.textFileService.suggestFilename('shleem', 'Untitled-1');
 		assert.strictEqual(suggested, 'Untitled-1');
+		registration.dispose();
 	});
 
 	test('Filename Suggestion - Suggest prefix with first extension', () => {
-		ModesRegistry.registerLanguage({
+		const registration = accessor.languageService.registerLanguage({
 			id: 'plumbus1',
 			extensions: ['.shleem', '.gazorpazorp'],
 			filenames: ['plumbus']
@@ -157,15 +157,17 @@ suite('Files - TextFileService', () => {
 
 		let suggested = accessor.textFileService.suggestFilename('plumbus1', 'Untitled-1');
 		assert.strictEqual(suggested, 'Untitled-1.shleem');
+		registration.dispose();
 	});
 
 	test('Filename Suggestion - Suggest filename if there are no extensions', () => {
-		ModesRegistry.registerLanguage({
+		const registration = accessor.languageService.registerLanguage({
 			id: 'plumbus2',
 			filenames: ['plumbus', 'shleem', 'gazorpazorp']
 		});
 
 		let suggested = accessor.textFileService.suggestFilename('plumbus2', 'Untitled-1');
 		assert.strictEqual(suggested, 'plumbus');
+		registration.dispose();
 	});
 });

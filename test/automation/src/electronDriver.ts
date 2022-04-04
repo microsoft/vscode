@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as os from 'os';
+import { join } from 'path';
+import { platform } from 'os';
 import { tmpName } from 'tmp';
 import { connect as connectElectronDriver, IDisposable, IDriver } from './driver';
 import { ChildProcess, spawn, SpawnOptions } from 'child_process';
@@ -16,15 +16,17 @@ import { URI } from 'vscode-uri';
 import { Logger, measureAndLog } from './logger';
 import type { LaunchOptions } from './code';
 
-const repoPath = path.join(__dirname, '../../..');
+const root = join(__dirname, '..', '..', '..');
 
-export async function launch(options: LaunchOptions): Promise<{ electronProcess: ChildProcess; client: IDisposable; driver: IDriver; kill: () => Promise<void> }> {
-	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, verbose, extraArgs } = options;
+export interface IElectronConfiguration {
+	readonly electronPath: string;
+	readonly args: string[];
+	readonly env?: NodeJS.ProcessEnv;
+}
+
+export async function resolveElectronConfiguration(options: LaunchOptions): Promise<IElectronConfiguration> {
+	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, extraArgs } = options;
 	const env = { ...process.env };
-	const logsPath = path.join(repoPath, '.build', 'logs', remote ? 'smoke-tests-remote' : 'smoke-tests');
-	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
-
-	const driverIPCHandle = await measureAndLog(createDriverHandle(), 'createDriverHandle', logger);
 
 	const args = [
 		workspacePath,
@@ -38,8 +40,7 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 		'--disable-workspace-trust',
 		`--extensions-dir=${extensionsPath}`,
 		`--user-data-dir=${userDataDir}`,
-		`--logsPath=${logsPath}`,
-		'--driver', driverIPCHandle
+		`--logsPath=${logsPath}`
 	];
 
 	if (process.platform === 'linux') {
@@ -52,7 +53,7 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 
 		if (codePath) {
 			// running against a build: copy the test resolver extension
-			await measureAndLog(copyExtension(repoPath, extensionsPath, 'vscode-test-resolver'), 'copyExtension(vscode-test-resolver)', logger);
+			await measureAndLog(copyExtension(root, extensionsPath, 'vscode-test-resolver'), 'copyExtension(vscode-test-resolver)', logger);
 		}
 		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
 		const remoteDataDir = `${userDataDir}-server`;
@@ -60,26 +61,19 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 
 		if (codePath) {
 			// running against a build: copy the test resolver extension into remote extensions dir
-			const remoteExtensionsDir = path.join(remoteDataDir, 'extensions');
+			const remoteExtensionsDir = join(remoteDataDir, 'extensions');
 			mkdirp.sync(remoteExtensionsDir);
-			await measureAndLog(copyExtension(repoPath, remoteExtensionsDir, 'vscode-notebook-tests'), 'copyExtension(vscode-notebook-tests)', logger);
+			await measureAndLog(copyExtension(root, remoteExtensionsDir, 'vscode-notebook-tests'), 'copyExtension(vscode-notebook-tests)', logger);
 		}
 
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
-		env['TESTRESOLVER_LOGS_FOLDER'] = path.join(logsPath, 'server');
+		env['TESTRESOLVER_LOGS_FOLDER'] = join(logsPath, 'server');
 	}
-
-	const spawnOptions: SpawnOptions = { env };
 
 	args.push('--enable-proposed-api=vscode.vscode-notebook-tests');
 
 	if (!codePath) {
-		args.unshift(repoPath);
-	}
-
-	if (verbose) {
-		args.push('--driver-verbose');
-		spawnOptions.stdio = ['ignore', 'inherit', 'inherit'];
+		args.unshift(root);
 	}
 
 	if (extraArgs) {
@@ -87,6 +81,32 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 	}
 
 	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
+
+	return {
+		env,
+		args,
+		electronPath
+	};
+}
+
+/**
+ * @deprecated should use the playwright based electron support instead
+ */
+export async function launch(options: LaunchOptions): Promise<{ electronProcess: ChildProcess; client: IDisposable; driver: IDriver; kill: () => Promise<void> }> {
+	const { codePath, logger, verbose } = options;
+	const { env, args, electronPath } = await resolveElectronConfiguration(options);
+
+	const driverIPCHandle = await measureAndLog(createDriverHandle(), 'createDriverHandle', logger);
+	args.push('--driver', driverIPCHandle);
+
+	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
+
+	const spawnOptions: SpawnOptions = { env };
+
+	if (verbose) {
+		spawnOptions.stdio = ['ignore', 'inherit', 'inherit'];
+	}
+
 	const electronProcess = spawn(electronPath, args, spawnOptions);
 
 	logger.log(`Started electron for desktop smoke tests on pid ${electronProcess.pid}`);
@@ -150,56 +170,65 @@ async function teardown(electronProcess: ChildProcess, logger: Logger): Promise<
 	logger.log(`Gave up tearing down electron client after ${retries} attempts...`);
 }
 
-function getDevElectronPath(): string {
-	const buildPath = path.join(repoPath, '.build');
-	const product = require(path.join(repoPath, 'product.json'));
+export function getDevElectronPath(): string {
+	const buildPath = join(root, '.build');
+	const product = require(join(root, 'product.json'));
 
 	switch (process.platform) {
 		case 'darwin':
-			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
+			return join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
 		case 'linux':
-			return path.join(buildPath, 'electron', `${product.applicationName}`);
+			return join(buildPath, 'electron', `${product.applicationName}`);
 		case 'win32':
-			return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
+			return join(buildPath, 'electron', `${product.nameShort}.exe`);
 		default:
 			throw new Error('Unsupported platform.');
 	}
 }
 
-function getBuildElectronPath(root: string): string {
+export function getBuildElectronPath(root: string): string {
 	switch (process.platform) {
 		case 'darwin':
-			return path.join(root, 'Contents', 'MacOS', 'Electron');
+			return join(root, 'Contents', 'MacOS', 'Electron');
 		case 'linux': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, product.applicationName);
+			const product = require(join(root, 'resources', 'app', 'product.json'));
+			return join(root, product.applicationName);
 		}
 		case 'win32': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, `${product.nameShort}.exe`);
+			const product = require(join(root, 'resources', 'app', 'product.json'));
+			return join(root, `${product.nameShort}.exe`);
 		}
 		default:
 			throw new Error('Unsupported platform.');
+	}
+}
+
+export function getBuildVersion(root: string): string {
+	switch (process.platform) {
+		case 'darwin':
+			return require(join(root, 'Contents', 'Resources', 'app', 'package.json')).version;
+		default:
+			return require(join(root, 'resources', 'app', 'package.json')).version;
 	}
 }
 
 function getDevOutPath(): string {
-	return path.join(repoPath, 'out');
+	return join(root, 'out');
 }
 
 function getBuildOutPath(root: string): string {
 	switch (process.platform) {
 		case 'darwin':
-			return path.join(root, 'Contents', 'Resources', 'app', 'out');
+			return join(root, 'Contents', 'Resources', 'app', 'out');
 		default:
-			return path.join(root, 'resources', 'app', 'out');
+			return join(root, 'resources', 'app', 'out');
 	}
 }
 
 async function createDriverHandle(): Promise<string> {
 
 	// Windows
-	if ('win32' === os.platform()) {
+	if ('win32' === platform()) {
 		const name = [...Array(15)].map(() => Math.random().toString(36)[3]).join('');
 		return `\\\\.\\pipe\\${name}`;
 	}

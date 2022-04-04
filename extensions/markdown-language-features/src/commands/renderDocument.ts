@@ -5,7 +5,7 @@
 
 import { Command } from '../commandManager';
 import { MarkdownEngine } from '../markdownEngine';
-import { SkinnyTextDocument } from '../tableOfContentsProvider';
+import { SkinnyTextDocument } from '../workspaceContents';
 
 export class RenderDocument implements Command {
 	public readonly id = 'markdown.api.render';

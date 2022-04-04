@@ -65,7 +65,7 @@ import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -349,11 +349,20 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	 * Gets the first failed message that can be displayed from the result.
 	 */
 	private getFailedCandidateMessage(test: TestResultItem) {
-		return mapFindTestMessage(test, (task, message, messageIndex, taskId) =>
-			isFailedState(task.state) && message.location
-				? { taskId, index: messageIndex, message }
-				: undefined
-		);
+		let best: { taskId: number; index: number; message: ITestMessage } | undefined;
+		mapFindTestMessage(test, (task, message, messageIndex, taskId) => {
+			if (!isFailedState(task.state) || !message.location) {
+				return;
+			}
+
+			if (best && message.type !== TestMessageType.Error) {
+				return;
+			}
+
+			best = { taskId, index: messageIndex, message };
+		});
+
+		return best;
 	}
 }
 

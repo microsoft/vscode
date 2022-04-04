@@ -14,7 +14,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer, PositionAffinity } from 'vs/editor/common/model';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/textModelEvents';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
@@ -531,6 +531,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @event
 	 */
 	readonly onDidChangeModelDecorations: Event<IModelDecorationsChangedEvent>;
+	/**
+	 * An event emitted when the tokens of the current model have changed.
+	 * @internal
+	 */
+	readonly onDidChangeModelTokens: Event<IModelTokensChangedEvent>;
 	/**
 	 * An event emitted when the text inside this editor gained focus (i.e. cursor starts blinking).
 	 * @event

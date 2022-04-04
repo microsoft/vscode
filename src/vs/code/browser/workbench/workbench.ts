@@ -341,8 +341,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		});
 
 		// If no workspace is provided through the URL, check for config
-		// attribute from server and fallback to last opened workspace
-		// from storage
+		// attribute from server
 		if (!foundWorkspace) {
 			if (config.folderUri) {
 				workspace = { folderUri: URI.revive(config.folderUri) };

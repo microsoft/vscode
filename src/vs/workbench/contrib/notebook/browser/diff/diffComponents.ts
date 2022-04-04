@@ -517,7 +517,7 @@ abstract class AbstractElementRenderer extends Disposable {
 
 			this.notebookEditor.textModel!.applyEdits([
 				{ editType: CellEditType.Metadata, index, metadata: result }
-			], true, undefined, () => undefined, undefined);
+			], true, undefined, () => undefined, undefined, true);
 		} catch {
 		}
 	}

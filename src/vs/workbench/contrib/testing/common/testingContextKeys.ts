@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TestExplorerViewMode, TestExplorerViewSorting } from 'vs/workbench/contrib/testing/common/constants';
-import { TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export namespace TestingContextKeys {
 	export const providerCount = new RawContextKey('testing.providerCount', 0);

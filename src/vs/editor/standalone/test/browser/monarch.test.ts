@@ -10,7 +10,7 @@ import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLex
 import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
 import { Token, TokenizationRegistry } from 'vs/editor/common/languages';
 import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Monarch', () => {
 
@@ -30,17 +30,16 @@ suite('Monarch', () => {
 	}
 
 	test('Ensure @rematch and nextEmbedded can be used together in Monarch grammar', () => {
-		const languageService = new LanguageService();
-		const innerModeRegistration = ModesRegistry.registerLanguage({
-			id: 'sql'
-		});
-		const innerModeTokenizationRegistration = TokenizationRegistry.register('sql', createMonarchTokenizer(languageService, 'sql', {
+		const disposables = new DisposableStore();
+		const languageService = disposables.add(new LanguageService());
+		disposables.add(languageService.registerLanguage({ id: 'sql' }));
+		disposables.add(TokenizationRegistry.register('sql', createMonarchTokenizer(languageService, 'sql', {
 			tokenizer: {
 				root: [
 					[/./, 'token']
 				]
 			}
-		}));
+		})));
 		const SQL_QUERY_START = '(SELECT|INSERT|UPDATE|DELETE|CREATE|REPLACE|ALTER|WITH)';
 		const tokenizer = createMonarchTokenizer(languageService, 'test1', {
 			tokenizer: {
@@ -103,9 +102,7 @@ suite('Monarch', () => {
 				new Token(3, 'source.test1', 'test1')
 			]
 		]);
-		innerModeTokenizationRegistration.dispose();
-		innerModeRegistration.dispose();
-		languageService.dispose();
+		disposables.dispose();
 	});
 
 	test('microsoft/monaco-editor#1235: Empty Line Handling', () => {

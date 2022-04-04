@@ -103,7 +103,6 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 				enabled: boolean;
 				operateAsGroup: boolean;
 				expand: boolean;
-				hideIconsToMatchFolders: boolean;
 				patterns: { [parent: string]: string };
 			};
 		};

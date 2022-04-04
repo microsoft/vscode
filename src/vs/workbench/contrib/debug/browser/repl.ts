@@ -77,6 +77,7 @@ const FILTER_ACTION_ID = `workbench.actions.treeView.repl.filter`;
 
 function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
 	tree.scrollTop = tree.scrollHeight - tree.renderHeight;
+	// tree.scrollTop = 1e6;
 }
 
 const sessionsToIgnore = new Set<IDebugSession>();
@@ -90,6 +91,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	private history: HistoryNavigator<string>;
 	private tree!: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
+	private previousTreeScrollHeight: number = 0;
 	private replDelegate!: ReplDelegate;
 	private container!: HTMLElement;
 	private treeContainer!: HTMLElement;
@@ -531,7 +533,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				return;
 			}
 
-			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 			await this.tree.updateChildren(undefined, true, false, { diffIdentityProvider: identityProvider });
 
 			const session = this.tree.getInput();
@@ -552,11 +553,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 					}
 				};
 				await autoExpandElements(session.getReplElements());
-			}
-
-			if (lastElementVisible) {
-				// Only scroll if we were scrolled all the way down before tree refreshed #10486
-				revealLastElement(this.tree);
 			}
 			// Repl elements count changed, need to update filter stats on the badge
 			this.filterState.updateFilterStats();
@@ -606,6 +602,21 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 					listBackground: this.getBackgroundColor()
 				}
 			});
+
+		this._register(this.tree.onDidChangeContentHeight(() => {
+			if (this.tree.scrollHeight !== this.previousTreeScrollHeight) {
+				const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight;
+				if (lastElementWasVisible) {
+					setTimeout(() => {
+						// Can't set scrollTop during this event listener, the list might overwrite the change
+						revealLastElement(this.tree);
+					}, 0);
+				}
+			}
+
+			this.previousTreeScrollHeight = this.tree.scrollHeight;
+		}));
+
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		let lastSelectedString: string;
 		this._register(this.tree.onMouseClick(() => {

@@ -92,6 +92,7 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 	private container: HTMLElement;
 	private searchModel: SearchModel;
 	private ongoingOperations: number = 0;
+	private updatingModelForSearch: boolean = false;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -252,8 +253,11 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 				}
 			}
 		});
-
-		this._register(this.searchResultEditor.onDidChangeModelContent(() => this.getInput()?.setDirty(true)));
+		this._register(this.searchResultEditor.onDidChangeModelContent(() => {
+			if (!this.updatingModelForSearch) {
+				this.getInput()?.setDirty(true);
+			}
+		}));
 	}
 
 	override getControl() {
@@ -528,7 +532,7 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 		this.searchOperation.start(500);
 		this.ongoingOperations++;
 
-		const { configurationModel } = await startInput.getModels();
+		const { configurationModel } = await startInput.resolveModels();
 		configurationModel.updateConfig(config);
 
 		startInput.ongoingSearchOperation = this.searchModel.search(query).finally(() => {
@@ -561,8 +565,10 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 		controller?.closeWidget(false);
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
 		const results = serializeSearchResultForEditor(this.searchModel.searchResult, startConfig.filesToInclude, startConfig.filesToExclude, startConfig.contextLines, labelFormatter, sortOrder, searchOperation?.limitHit);
-		const { resultsModel } = await input.getModels();
+		const { resultsModel } = await input.resolveModels();
+		this.updatingModelForSearch = true;
 		this.modelService.updateModel(resultsModel, results.text);
+		this.updatingModelForSearch = false;
 
 		if (searchOperation && searchOperation.messages) {
 			for (const message of searchOperation.messages) {
@@ -638,7 +644,7 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 			return;
 		}
 
-		const { configurationModel, resultsModel } = await newInput.getModels();
+		const { configurationModel, resultsModel } = await newInput.resolveModels();
 		if (token.isCancellationRequested) { return; }
 
 		this.searchResultEditor.setModel(resultsModel);

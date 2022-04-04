@@ -586,8 +586,8 @@ export const ACTIVITY_BAR_ACTIVE_BACKGROUND = registerColor('activityBar.activeB
 export const ACTIVITY_BAR_DRAG_AND_DROP_BORDER = registerColor('activityBar.dropBorder', {
 	dark: ACTIVITY_BAR_FOREGROUND,
 	light: ACTIVITY_BAR_FOREGROUND,
-	hcDark: ACTIVITY_BAR_FOREGROUND,
-	hcLight: ACTIVITY_BAR_FOREGROUND,
+	hcDark: null,
+	hcLight: null,
 }, localize('activityBarDragAndDropBorder', "Drag and drop feedback color for the activity bar items. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.background', {

@@ -95,6 +95,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		if (highlights) {
 			return {
 				label,
+				description: terminal.description,
 				highlights: { label: highlights },
 				buttons: [
 					{

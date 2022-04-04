@@ -49,7 +49,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 	private _rootElement!: HTMLElement;
 	private _dimension?: DOM.Dimension;
 
-	private readonly inputListener = this._register(new MutableDisposable());
+	private readonly _inputListener = this._register(new MutableDisposable());
 
 	// override onDidFocus and onDidBlur to be based on the NotebookEditorWidget element
 	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
@@ -66,36 +66,36 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorDropService private readonly _editorDropService: IEditorDropService,
 		@INotebookEditorService private readonly _notebookWidgetService: INotebookEditorService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IFileService private readonly fileService: IFileService,
+		@IFileService private readonly _fileService: IFileService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, configurationService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 
-		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidChangeFileSystemProvider(e.scheme)));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProvider(e.scheme)));
+		this._register(this._fileService.onDidChangeFileSystemProviderCapabilities(e => this._onDidChangeFileSystemProvider(e.scheme)));
+		this._register(this._fileService.onDidChangeFileSystemProviderRegistrations(e => this._onDidChangeFileSystemProvider(e.scheme)));
 	}
 
-	private onDidChangeFileSystemProvider(scheme: string): void {
+	private _onDidChangeFileSystemProvider(scheme: string): void {
 		if (this.input instanceof NotebookEditorInput && this.input.resource?.scheme === scheme) {
-			this.updateReadonly(this.input);
+			this._updateReadonly(this.input);
 		}
 	}
 
-	private onDidChangeInputCapabilities(input: NotebookEditorInput): void {
+	private _onDidChangeInputCapabilities(input: NotebookEditorInput): void {
 		if (this.input === input) {
-			this.updateReadonly(input);
+			this._updateReadonly(input);
 		}
 	}
 
-	private updateReadonly(input: NotebookEditorInput): void {
+	private _updateReadonly(input: NotebookEditorInput): void {
 		if (this._widget.value) {
 			this._widget.value.setOptions({ isReadOnly: input.hasCapability(EditorInputCapabilities.Readonly) });
 		}
@@ -128,7 +128,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 	override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === SELECT_KERNEL_ID) {
 			// this is being disposed by the consumer
-			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this);
+			return this._instantiationService.createInstance(NotebooKernelActionViewItem, action, this);
 		}
 		return undefined;
 	}
@@ -170,13 +170,13 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 		return !!value && (DOM.isAncestor(activeElement, value.getDomNode() || DOM.isAncestor(activeElement, value.getOverflowContainerDomNode())));
 	}
 
-	override async setInput(input: NotebookEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: NotebookEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken, noRetry?: boolean): Promise<void> {
 		try {
 			clearMarks(input.resource);
 			mark(input.resource, 'startTime');
 			const group = this.group!;
 
-			this.inputListener.value = input.onDidChangeCapabilities(() => this.onDidChangeInputCapabilities(input));
+			this._inputListener.value = input.onDidChangeCapabilities(() => this._onDidChangeInputCapabilities(input));
 
 			this._widgetDisposableStore.clear();
 
@@ -186,7 +186,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 				this._widget.value.onWillHide();
 			}
 
-			this._widget = <IBorrowValue<NotebookEditorWidget>>this.instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input);
+			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input);
 			this._widgetDisposableStore.add(this._widget.value!.onDidChangeModel(() => this._onDidChangeModel.fire()));
 			this._widgetDisposableStore.add(this._widget.value!.onDidChangeActiveCell(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.USER })));
 
@@ -203,6 +203,16 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 			// Check for cancellation
 			if (token.isCancellationRequested) {
 				return undefined;
+			}
+
+			// The widget has been taken away again. This can happen when the tab has been closed while
+			// loading was in progress, in particular when open the same resource as different view type.
+			// When this happen, retry once
+			if (!this._widget.value) {
+				if (noRetry) {
+					return undefined;
+				}
+				return this.setInput(input, options, context, token, true);
 			}
 
 			if (model === null) {
@@ -314,7 +324,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 	}
 
 	override clearInput(): void {
-		this.inputListener.clear();
+		this._inputListener.clear();
 
 		if (this._widget.value) {
 			this._saveEditorViewState(this.input);

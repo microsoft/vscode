@@ -8,11 +8,11 @@ import { IndentationToSpacesCommand, IndentationToTabsCommand } from 'vs/editor/
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 
 function testIndentationToSpacesCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new IndentationToSpacesCommand(sel, tabSize), expectedLines, expectedSelection);
+	testCommand(lines, null, selection, (accessor, sel) => new IndentationToSpacesCommand(sel, tabSize), expectedLines, expectedSelection);
 }
 
 function testIndentationToTabsCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new IndentationToTabsCommand(sel, tabSize), expectedLines, expectedSelection);
+	testCommand(lines, null, selection, (accessor, sel) => new IndentationToTabsCommand(sel, tabSize), expectedLines, expectedSelection);
 }
 
 suite('Editor Contrib - Indentation to Spaces', () => {

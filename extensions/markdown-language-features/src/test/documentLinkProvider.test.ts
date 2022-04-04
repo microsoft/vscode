@@ -6,25 +6,18 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import LinkProvider from '../features/documentLinkProvider';
+import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from './inMemoryDocument';
-import { joinLines, noopToken } from './util';
+import { InMemoryDocument } from '../util/inMemoryDocument';
+import { assertRangeEqual, joinLines, noopToken } from './util';
 
 
 const testFile = vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 'x.md');
 
 function getLinksForFile(fileContents: string) {
 	const doc = new InMemoryDocument(testFile, fileContents);
-	const provider = new LinkProvider(createNewMarkdownEngine());
+	const provider = new MdLinkProvider(createNewMarkdownEngine());
 	return provider.provideDocumentLinks(doc, noopToken);
-}
-
-function assertRangeEqual(expected: vscode.Range, actual: vscode.Range) {
-	assert.strictEqual(expected.start.line, actual.start.line);
-	assert.strictEqual(expected.start.character, actual.start.character);
-	assert.strictEqual(expected.end.line, actual.end.line);
-	assert.strictEqual(expected.end.character, actual.end.character);
 }
 
 suite('markdown.DocumentLinkProvider', () => {

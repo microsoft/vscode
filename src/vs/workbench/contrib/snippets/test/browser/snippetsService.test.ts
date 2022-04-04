@@ -11,10 +11,10 @@ import { LanguageService } from 'vs/editor/common/services/languageService';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { CompletionContext, CompletionItemLabel, CompletionItemRanges, CompletionTriggerKind } from 'vs/editor/common/languages';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 
 class SimpleSnippetService implements ISnippetsService {
 	declare readonly _serviceBrand: undefined;
@@ -402,7 +402,8 @@ suite('SnippetsService', function () {
 	});
 
 	test('issue #61296: VS code freezes when editing CSS file with emoji', async function () {
-		disposableStore.add(LanguageConfigurationRegistry.register('fooLang'!, {
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposableStore.add(languageConfigurationService.register('fooLang', {
 			wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
 		}));
 
@@ -416,7 +417,7 @@ suite('SnippetsService', function () {
 			SnippetSource.User
 		)]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, languageConfigurationService);
 
 		let model = disposables.add(createTextModel('.🐷-a-b', 'fooLang'));
 		let result = await provider.provideCompletionItems(model, new Position(1, 8), context)!;
@@ -547,7 +548,8 @@ suite('SnippetsService', function () {
 	});
 
 	test('Snippet will replace auto-closing pair if specified in prefix', async function () {
-		disposableStore.add(LanguageConfigurationRegistry.register('fooLang'!, {
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposableStore.add(languageConfigurationService.register('fooLang', {
 			brackets: [
 				['{', '}'],
 				['[', ']'],
@@ -565,7 +567,7 @@ suite('SnippetsService', function () {
 			SnippetSource.User
 		)]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, languageConfigurationService);
 
 		let model = createTextModel('[psc]', 'fooLang');
 		let result = await provider.provideCompletionItems(model, new Position(1, 5), context)!;
@@ -724,6 +726,38 @@ suite('SnippetsService', function () {
 		)!;
 
 		assert.strictEqual(result.suggestions.length, 0);
+		model.dispose();
+	});
+
+	test.skip('Snippets disappear with . key #145960', async function () {
+		snippetService = new SimpleSnippetService([
+			new Snippet(['fooLang'], 'div', 'div', '', 'div', '', SnippetSource.User),
+			new Snippet(['fooLang'], 'div.', 'div.', '', 'div.', '', SnippetSource.User),
+			new Snippet(['fooLang'], 'div#', 'div#', '', 'div#', '', SnippetSource.User),
+		]);
+
+		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		let model = createTextModel('di', 'fooLang');
+		let result = await provider.provideCompletionItems(
+			model,
+			new Position(1, 3),
+			{ triggerKind: CompletionTriggerKind.Invoke }
+		)!;
+
+		assert.strictEqual(result.suggestions.length, 3);
+
+
+		model.applyEdits([EditOperation.insert(new Position(1, 3), '.')]);
+		assert.strictEqual(model.getValue(), 'di.');
+		let result2 = await provider.provideCompletionItems(
+			model,
+			new Position(1, 4),
+			{ triggerKind: CompletionTriggerKind.TriggerCharacter, triggerCharacter: '.' }
+		)!;
+
+		assert.strictEqual(result2.suggestions.length, 1);
+		assert.strictEqual(result2.suggestions[0].insertText, 'div.');
+
 		model.dispose();
 	});
 });

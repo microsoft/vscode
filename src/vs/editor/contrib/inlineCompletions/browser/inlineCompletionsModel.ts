@@ -253,6 +253,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
 			// Ghost text depends on the cursor position
+			this.cache.value?.updateRanges();
 			if (this.cache.value) {
 				this.updateFilteredInlineCompletions();
 				this.onDidChangeEmitter.fire();
@@ -285,7 +286,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		const cursorPosition = model.validatePosition(this.editor.getPosition());
 		this.filteredCompletions = this.cache.value.completions.filter(c => {
 			const originalValue = model.getValueInRange(c.synchronizedRange).toLowerCase();
-			const filterText = c.inlineCompletion.filterText;
+			const filterText = c.inlineCompletion.filterText.toLowerCase();
 
 			const indent = model.getLineIndentColumn(c.synchronizedRange.startLineNumber);
 

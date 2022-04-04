@@ -652,6 +652,8 @@ export interface ITreeView extends IDisposable {
 
 	description: string | undefined;
 
+	badge: IViewBadge | undefined;
+
 	readonly visible: boolean;
 
 	readonly onDidExpandItem: Event<ITreeItem>;
@@ -830,7 +832,7 @@ export interface ITreeViewDragAndDropController {
 	readonly dropMimeTypes: string[];
 	readonly dragMimeTypes: string[];
 	handleDrag(sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<IDataTransfer | undefined>;
-	handleDrop(elements: IDataTransfer, target: ITreeItem, token: CancellationToken, operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
+	handleDrop(elements: IDataTransfer, target: ITreeItem | undefined, token: CancellationToken, operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 }
 
 export interface IEditableData {
@@ -854,4 +856,9 @@ export interface IViewPaneContainer {
 	getView(viewId: string): IView | undefined;
 	toggleViewVisibility(viewId: string): void;
 	saveState(): void;
+}
+
+export interface IViewBadge {
+	readonly tooltip: string;
+	readonly value: number;
 }

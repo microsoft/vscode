@@ -6,6 +6,7 @@
   "license": "MIT",
   "enabledApiProposals": [
     "authSession",
+    "badges",
     "contribViewsRemote",
     "customEditorMove",
     "diffCommand",
@@ -23,6 +24,7 @@
     "notebookControllerKind",
     "notebookDebugOptions",
     "notebookDeprecated",
+    "notebookDocumentEvents",
     "notebookEditor",
     "notebookEditorDecorationType",
     "notebookEditorEdit",

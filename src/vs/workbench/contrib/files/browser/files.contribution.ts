@@ -157,7 +157,7 @@ configurationRegistry.registerConfiguration({
 								'type': 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
 								'pattern': '\\w*\\$\\(basename\\)\\w*',
 								'default': '$(basename).ext',
-								'description': nls.localize('files.exclude.when', "Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.")
+								'markdownDescription': nls.localize('files.exclude.when', "Additional check on the siblings of a matching file. Use \\$(basename) as variable for the matching file name.")
 							}
 						}
 					}
@@ -293,6 +293,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
 			'default': false
+		},
+		'files.participants.timeout': {
+			type: 'number',
+			default: 60000,
+			markdownDescription: nls.localize('files.participants.timeout', "Timeout in milliseconds after which file participants for create, rename, and delete are cancelled. Use `0` to disable participants."),
 		}
 	}
 });
@@ -462,6 +467,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.experimental.fileNesting.enabled': {
 			'type': 'boolean',
+			scope: ConfigurationScope.RESOURCE,
 			'markdownDescription': nls.localize('fileNestingEnabled', "Experimental. Controls whether file nesting is enabled in the explorer. File nesting allows for related files in a directory to be visually grouped together under a single parent file."),
 			'default': false,
 		},
@@ -473,11 +479,12 @@ configurationRegistry.registerConfiguration({
 		'explorer.experimental.fileNesting.operateAsGroup': {
 			'type': 'boolean',
 			'markdownDescription': nls.localize('operateAsGroup', "Controls whether file nests are treated as a group for clipboard operations, file deletions, and during drag and drop."),
-			'default': false,
+			'default': true,
 		},
 		'explorer.experimental.fileNesting.patterns': {
 			'type': 'object',
-			'markdownDescription': nls.localize('fileNestingPatterns', "Controls nesting of files in the explorer. Each __Item__ represents a parent pattern and may contain a single `*` character that matches any string. Each __Value__ represents a comma separated list of the child patterns that should be shown nested under a given parent. Child patterns may contain several special tokens:\n- `$\u200b(capture)`: Matches the resolved value of the `*` from the parent pattern\n- `$\u200b(basename)`: Matches the parent file's basename, the `file` in `file.ts`\n- `$\u200b(extname)`: Matches the parent file's extension, the `ts` in `file.ts`\n- `$\u200b(dirname)`: Matches the parent file's directory name, the `src` in `src/file.ts`\n- `*`: Matches any string, may only be used once per child pattern"),
+			scope: ConfigurationScope.RESOURCE,
+			'markdownDescription': nls.localize('fileNestingPatterns', "Controls nesting of files in the explorer. Each __Item__ represents a parent pattern and may contain a single `*` character that matches any string. Each __Value__ represents a comma separated list of the child patterns that should be shown nested under a given parent. Child patterns may contain several special tokens:\n- `${capture}`: Matches the resolved value of the `*` from the parent pattern\n- `${basename}`: Matches the parent file's basename, the `file` in `file.ts`\n- `${extname}`: Matches the parent file's extension, the `ts` in `file.ts`\n- `${dirname}`: Matches the parent file's directory name, the `src` in `src/file.ts`\n- `*`:  Matches any string, may only be used once per child pattern"),
 			patternProperties: {
 				'^[^*]*\\*?[^*]*$': {
 					markdownDescription: nls.localize('fileNesting.description', "Each key pattern may contain a single `*` character which will match any string."),
@@ -487,10 +494,10 @@ configurationRegistry.registerConfiguration({
 			},
 			additionalProperties: false,
 			'default': {
-				'*.ts': '$(capture).js',
-				'*.js': '$(capture).js.map, $(capture).min.js, $(capture).d.ts',
-				'*.jsx': '$(capture).js',
-				'*.tsx': '$(capture).ts',
+				'*.ts': '${capture}.js',
+				'*.js': '${capture}.js.map, ${capture}.min.js, ${capture}.d.ts',
+				'*.jsx': '${capture}.js',
+				'*.tsx': '${capture}.ts',
 				'tsconfig.json': 'tsconfig.*.json',
 				'package.json': 'package-lock.json, yarn.lock',
 			}

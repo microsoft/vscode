@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, NotebookCellsChangeEvent, NotebookDocument, notebooks, workspace, WorkspaceEdit } from 'vscode';
+import { ExtensionContext, NotebookDocument, NotebookDocumentChangeEvent, workspace, WorkspaceEdit } from 'vscode';
 import { v4 as uuid } from 'uuid';
 import { getCellMetadata } from './serializers';
 import { CellMetadata } from './common';
@@ -15,21 +15,21 @@ import * as nbformat from '@jupyterlab/nbformat';
  * Details of the spec can be found here https://jupyter.org/enhancement-proposals/62-cell-id/cell-id.html#
  */
 export function ensureAllNewCellsHaveCellIds(context: ExtensionContext) {
-	notebooks.onDidChangeNotebookCells(onDidChangeNotebookCells, undefined, context.subscriptions);
+	workspace.onDidChangeNotebookDocument(onDidChangeNotebookCells, undefined, context.subscriptions);
 }
 
-function onDidChangeNotebookCells(e: NotebookCellsChangeEvent) {
-	const nbMetadata = getNotebookMetadata(e.document);
+function onDidChangeNotebookCells(e: NotebookDocumentChangeEvent) {
+	const nbMetadata = getNotebookMetadata(e.notebook);
 	if (!isCellIdRequired(nbMetadata)) {
 		return;
 	}
-	e.changes.forEach(change => {
-		change.items.forEach(cell => {
+	e.contentChanges.forEach(change => {
+		change.addedCells.forEach(cell => {
 			const cellMetadata = getCellMetadata(cell);
 			if (cellMetadata?.id) {
 				return;
 			}
-			const id = generateCellId(e.document);
+			const id = generateCellId(e.notebook);
 			const edit = new WorkspaceEdit();
 			// Don't edit the metadata directly, always get a clone (prevents accidental singletons and directly editing the objects).
 			const updatedMetadata: CellMetadata = { ...JSON.parse(JSON.stringify(cellMetadata || {})) };
