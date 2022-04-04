@@ -254,7 +254,7 @@ suite('markdown: rename', () => {
 		}
 	});
 
-	test('Rename on ref should rename refs and def', async () => {
+	test('Rename on reference should rename references and definition', async () => {
 		const uri = workspacePath('doc.md');
 		const doc = new InMemoryDocument(uri, joinLines(
 			`[text][ref]`, // rename here
@@ -273,7 +273,7 @@ suite('markdown: rename', () => {
 		});
 	});
 
-	test('Rename on def should rename refs and def', async () => {
+	test('Rename on definition should rename references and definitions', async () => {
 		const uri = workspacePath('doc.md');
 		const doc = new InMemoryDocument(uri, joinLines(
 			`[text][ref]`,
@@ -288,6 +288,29 @@ suite('markdown: rename', () => {
 				new vscode.TextEdit(new vscode.Range(0, 7, 0, 10), 'new ref'),
 				new vscode.TextEdit(new vscode.Range(1, 8, 1, 11), 'new ref'),
 				new vscode.TextEdit(new vscode.Range(3, 1, 3, 4), 'new ref'),
+			]
+		});
+	});
+
+	test('Rename on definition entry should rename header and references', async () => {
+		const uri = workspacePath('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`# a B c`,
+			`[ref text][ref]`,
+			`[direct](#a-b-c)`,
+			`[ref]: #a-b-c`, // rename here
+		));
+
+		const preparedInfo = await prepareRename(doc, new vscode.Position(3, 10), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assert.strictEqual(preparedInfo!.placeholder, 'a B c');
+		assertRangeEqual(preparedInfo!.range, new vscode.Range(3, 8, 3, 13));
+
+		const edit = await getRenameEdits(doc, new vscode.Position(3, 10), "x Y z", new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assertEditsEqual(edit!, {
+			uri, edits: [
+				new vscode.TextEdit(new vscode.Range(0, 2, 0, 7), 'x Y z'),
+				new vscode.TextEdit(new vscode.Range(2, 10, 2, 15), 'x-y-z'),
+				new vscode.TextEdit(new vscode.Range(3, 8, 3, 13), 'x-y-z'),
 			]
 		});
 	});

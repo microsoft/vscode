@@ -93,12 +93,10 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 						// We may be renaming either the reference or the definition itself
 						if (isRefRename) {
 							edit.replace(ref.link.source.resource, ref.link.ref.range, newName);
-						} else {
-							edit.replace(ref.link.source.resource, ref.fragmentLocation?.range ?? ref.link.source.hrefRange, ref.fragmentLocation ? slug : newName);
+							continue;
 						}
-					} else {
-						edit.replace(ref.location.uri, ref.fragmentLocation?.range ?? ref.location.range, ref.link.href.kind === 'reference' ? newName : slug);
 					}
+					edit.replace(ref.link.source.resource, ref.fragmentLocation?.range ?? ref.location.range, isRefRename && !ref.fragmentLocation ? newName : slug);
 					break;
 			}
 		}
