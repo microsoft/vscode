@@ -49,7 +49,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _decorations: Map<number, IDisposableDecoration> = new Map();
 	private _placeholderDecoration: IDecoration | undefined;
 
-	private readonly _onDidRequestRunCommand = this._register(new Emitter<string>());
+	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
 
 	constructor(
@@ -313,10 +313,14 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				class: 'copy-output', tooltip: 'Copy Output', dispose: () => { }, id: 'terminal.copyOutput', label: localize("terminal.copyOutput", 'Copy Output'), enabled: true,
 				run: () => this._clipboardService.writeText(command.getOutput()!)
 			});
+			actions.push({
+				class: 'copy-output', tooltip: 'Copy Output as HTML', dispose: () => { }, id: 'terminal.copyOutputAsHtml', label: localize("terminal.copyOutputAsHtml", 'Copy Output as HTML'), enabled: true,
+				run: () => this._onDidRequestRunCommand.fire({ command, copyAsHtml: true })
+			});
 		}
 		actions.push({
 			class: 'rerun-command', tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: localize("terminal.rerunCommand", 'Rerun Command'), enabled: true,
-			run: () => this._onDidRequestRunCommand.fire(command.command)
+			run: () => this._onDidRequestRunCommand.fire({ command })
 		});
 		return actions;
 	}

@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITestMessage } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestMessage } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export interface ITestingDecorationsService {
 	_serviceBrand: undefined;

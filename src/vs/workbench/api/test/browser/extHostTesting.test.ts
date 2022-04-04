@@ -11,12 +11,11 @@ import { URI } from 'vs/base/common/uri';
 import { mockObject, MockObject } from 'vs/base/test/common/mock';
 import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
 import { TestRunCoordinator, TestRunDto, TestRunProfileImpl } from 'vs/workbench/api/common/extHostTesting';
+import { ExtHostTestItemCollection, TestItemImpl } from 'vs/workbench/api/common/extHostTestItem';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Location, Position, Range, TestMessage, TestResultState, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from 'vs/workbench/api/common/extHostTypes';
-import { TestDiffOpType, TestItemExpandState, TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestDiffOpType, TestItemExpandState, TestMessageType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
-import { TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 import type { TestItem, TestRunRequest } from 'vscode';
 
 const simplify = (item: TestItem) => ({
@@ -62,9 +61,28 @@ const assertTreesEqual = (a: TestItemImpl | undefined, b: TestItemImpl | undefin
 // }
 
 suite('ExtHost Testing', () => {
-	let single: TestSingleUseCollection;
+	class TestExtHostTestItemCollection extends ExtHostTestItemCollection {
+		public setDiff(diff: TestsDiff) {
+			this.diff = diff;
+		}
+	}
+
+	let single: TestExtHostTestItemCollection;
 	setup(() => {
-		single = testStubs.nested();
+		single = new TestExtHostTestItemCollection('ctrlId', 'root');
+		single.resolveHandler = item => {
+			if (item === undefined) {
+				const a = new TestItemImpl('ctrlId', 'id-a', 'a', URI.file('/'));
+				a.canResolveChildren = true;
+				const b = new TestItemImpl('ctrlId', 'id-b', 'b', URI.file('/'));
+				single.root.children.add(a);
+				single.root.children.add(b);
+			} else if (item.id === 'id-a') {
+				item.children.add(new TestItemImpl('ctrlId', 'id-aa', 'aa', URI.file('/')));
+				item.children.add(new TestItemImpl('ctrlId', 'id-ab', 'ab', URI.file('/')));
+			}
+		};
+
 		single.onDidGenerateDiff(d => single.setDiff(d /* don't clear during testing */));
 	});
 
@@ -186,8 +204,8 @@ suite('ExtHost Testing', () => {
 			single.root.children.get('id-a')!.children.add(child);
 
 			assert.deepStrictEqual(single.collectDiff(), [
-				{ op: TestDiffOpType.AddTag, tag: { ctrlLabel: 'root', id: 'ctrlId\0tag1' } },
-				{ op: TestDiffOpType.AddTag, tag: { ctrlLabel: 'root', id: 'ctrlId\0tag2' } },
+				{ op: TestDiffOpType.AddTag, tag: { id: 'ctrlId\0tag1' } },
+				{ op: TestDiffOpType.AddTag, tag: { id: 'ctrlId\0tag2' } },
 				{
 					op: TestDiffOpType.Add, item: {
 						controllerId: 'ctrlId',
@@ -200,7 +218,7 @@ suite('ExtHost Testing', () => {
 
 			child.tags = [tag2, tag3];
 			assert.deepStrictEqual(single.collectDiff(), [
-				{ op: TestDiffOpType.AddTag, tag: { ctrlLabel: 'root', id: 'ctrlId\0tag3' } },
+				{ op: TestDiffOpType.AddTag, tag: { id: 'ctrlId\0tag3' } },
 				{
 					op: TestDiffOpType.Update, item: {
 						extId: new TestId(['ctrlId', 'id-a', 'id-ac']).toString(),

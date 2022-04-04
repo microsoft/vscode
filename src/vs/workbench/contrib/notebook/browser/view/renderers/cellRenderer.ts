@@ -98,7 +98,7 @@ abstract class AbstractCellRenderer {
 		language: string,
 		protected dndController: CellDragAndDropController | undefined
 	) {
-		this.editorOptions = new CellEditorOptions(notebookEditor, notebookEditor.notebookOptions, configurationService, language);
+		this.editorOptions = new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(language), this.notebookEditor.notebookOptions, configurationService);
 	}
 
 	dispose() {

@@ -125,7 +125,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	//#endregion
 
-
 	constructor(
 		readonly resource: URI,
 		readonly hasAssociatedFilePath: boolean,
@@ -189,7 +188,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 	}
 
-
 	//#region Language
 
 	override setLanguageId(languageId: string): void {
@@ -213,7 +211,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	//#endregion
 
-
 	//#region Encoding
 
 	private configuredEncoding: string | undefined;
@@ -234,7 +231,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	//#endregion
 
-
 	//#region Dirty
 
 	private dirty = this.hasAssociatedFilePath || !!this.initialValue;
@@ -253,7 +249,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	//#endregion
-
 
 	//#region Save / Revert / Backup
 
@@ -299,7 +294,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	//#endregion
-
 
 	//#region Resolve
 
@@ -426,7 +420,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	//#endregion
-
 
 	override isReadonly(): boolean {
 		return false;

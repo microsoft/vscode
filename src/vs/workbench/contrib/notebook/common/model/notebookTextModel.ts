@@ -399,11 +399,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			],
 			true,
 			undefined, () => undefined,
-			undefined
+			undefined,
+			true
 		);
 	}
 
-	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean = true): boolean {
+	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean): boolean {
 		this._pauseableEmitter.pause();
 		this.pushStackElement('edit', beginSelectionState, undoRedoGroup);
 

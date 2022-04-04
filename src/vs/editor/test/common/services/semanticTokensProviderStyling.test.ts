@@ -7,19 +7,21 @@ import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 import { MetadataConsts } from 'vs/editor/common/languages';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
 import { createModelServices } from 'vs/editor/test/common/testTextModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IThemeService, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 suite('ModelService', () => {
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
+	let languageService: ILanguageService;
 
 	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = createModelServices(disposables);
+		languageService = instantiationService.get(ILanguageService);
 	});
 
 	teardown(() => {
@@ -28,7 +30,7 @@ suite('ModelService', () => {
 
 	test('issue #134973: invalid semantic tokens should be handled better', () => {
 		const languageId = 'java';
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		const legend = {
 			tokenTypes: ['st0', 'st1', 'st2', 'st3', 'st4', 'st5', 'st6', 'st7', 'st8', 'st9', 'st10'],
 			tokenModifiers: []

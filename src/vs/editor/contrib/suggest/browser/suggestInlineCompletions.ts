@@ -5,6 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { FuzzyScore } from 'vs/base/common/filters';
+import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, RefCountedDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -20,6 +21,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { CompletionItemInsertTextRule } from 'vs/editor/common/standalone/standaloneEnums';
 import { CompletionModel, LineContext } from 'vs/editor/contrib/suggest/browser/completionModel';
 import { CompletionItemModel, provideSuggestionItems, QuickSuggestionsOptions } from 'vs/editor/contrib/suggest/browser/suggest';
+import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
 import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -32,6 +34,7 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 		readonly word: IWordAtPosition,
 		readonly completionModel: CompletionModel,
 		completions: CompletionItemModel,
+		@ISuggestMemoryService private readonly _suggestMemoryService: ISuggestMemoryService,
 	) {
 		super(completions.disposable);
 	}
@@ -44,7 +47,15 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 
 	get items(): InlineCompletion[] {
 		const result: InlineCompletion[] = [];
-		for (const item of this.completionModel.items) {
+
+		// Split items by preselected index. This ensures the memory-selected item shows first and that better/worst
+		// ranked items are before/after
+		const { items } = this.completionModel;
+		const selectedIndex = this._suggestMemoryService.select(this.model, { lineNumber: this.line, column: this.word.endColumn + this.completionModel.lineContext.characterCountDelta }, items);
+		const first = Iterable.slice(items, selectedIndex);
+		const second = Iterable.slice(items, 0, selectedIndex);
+
+		for (const item of Iterable.concat(first, second)) {
 
 			if (item.score === FuzzyScore.Default) {
 				// skip items that have no overlap
@@ -80,6 +91,7 @@ class SuggestInlineCompletions implements InlineCompletionsProvider<InlineComple
 		private readonly _getEditorOption: <T extends EditorOption>(id: T, model: ITextModel) => FindComputedEditorOptionValueById<T>,
 		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@ISuggestMemoryService private readonly _suggestMemoryService: ISuggestMemoryService,
 	) { }
 
 	async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): Promise<InlineCompletionResults | undefined> {
@@ -143,7 +155,7 @@ class SuggestInlineCompletions implements InlineCompletionsProvider<InlineComple
 				this._getEditorOption(EditorOption.snippetSuggestions, model),
 				clipboardText
 			);
-			result = new InlineCompletionResults(model, position.lineNumber, wordInfo, completionModel, completions);
+			result = new InlineCompletionResults(model, position.lineNumber, wordInfo, completionModel, completions, this._suggestMemoryService);
 		}
 
 		this._lastResult = result;

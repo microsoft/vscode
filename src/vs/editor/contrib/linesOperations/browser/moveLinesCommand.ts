@@ -11,10 +11,10 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { CompleteEnterAction, IndentAction } from 'vs/editor/common/languages/languageConfiguration';
-import { IIndentConverter, LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IndentConsts } from 'vs/editor/common/languages/supports/indentRules';
 import * as indentUtils from 'vs/editor/contrib/indentation/browser/indentUtils';
-import { getGoodIndentForLine, getIndentMetadata } from 'vs/editor/common/languages/autoIndent';
+import { getGoodIndentForLine, getIndentMetadata, IIndentConverter } from 'vs/editor/common/languages/autoIndent';
 import { getEnterAction } from 'vs/editor/common/languages/enterAction';
 
 export class MoveLinesCommand implements ICommand {
@@ -27,7 +27,12 @@ export class MoveLinesCommand implements ICommand {
 	private _moveEndPositionDown?: boolean;
 	private _moveEndLineSelectionShrink: boolean;
 
-	constructor(selection: Selection, isMovingDown: boolean, autoIndent: EditorAutoIndentStrategy) {
+	constructor(
+		selection: Selection,
+		isMovingDown: boolean,
+		autoIndent: EditorAutoIndentStrategy,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
+	) {
 		this._selection = selection;
 		this._isMovingDown = isMovingDown;
 		this._autoIndent = autoIndent;
@@ -120,8 +125,14 @@ export class MoveLinesCommand implements ICommand {
 								return model.getLineContent(lineNumber);
 							}
 						};
-						let indentOfMovingLine = getGoodIndentForLine(this._autoIndent, virtualModel, model.getLanguageIdAtPosition(
-							movingLineNumber, 1), s.startLineNumber, indentConverter);
+						let indentOfMovingLine = getGoodIndentForLine(
+							this._autoIndent,
+							virtualModel,
+							model.getLanguageIdAtPosition(movingLineNumber, 1),
+							s.startLineNumber,
+							indentConverter,
+							this._languageConfigurationService
+						);
 						if (indentOfMovingLine !== null) {
 							let oldIndentation = strings.getLeadingWhitespace(model.getLineContent(movingLineNumber));
 							let newSpaceCnt = indentUtils.getSpaceCnt(indentOfMovingLine, tabSize);
@@ -156,8 +167,14 @@ export class MoveLinesCommand implements ICommand {
 							}
 						};
 
-						let newIndentatOfMovingBlock = getGoodIndentForLine(this._autoIndent, virtualModel, model.getLanguageIdAtPosition(
-							movingLineNumber, 1), s.startLineNumber + 1, indentConverter);
+						let newIndentatOfMovingBlock = getGoodIndentForLine(
+							this._autoIndent,
+							virtualModel,
+							model.getLanguageIdAtPosition(movingLineNumber, 1),
+							s.startLineNumber + 1,
+							indentConverter,
+							this._languageConfigurationService
+						);
 
 						if (newIndentatOfMovingBlock !== null) {
 							const oldIndentation = strings.getLeadingWhitespace(model.getLineContent(s.startLineNumber));
@@ -201,7 +218,14 @@ export class MoveLinesCommand implements ICommand {
 						}
 					} else {
 						// it doesn't match any onEnter rule, let's check indentation rules then.
-						let indentOfFirstLine = getGoodIndentForLine(this._autoIndent, virtualModel, model.getLanguageIdAtPosition(s.startLineNumber, 1), movingLineNumber, indentConverter);
+						let indentOfFirstLine = getGoodIndentForLine(
+							this._autoIndent,
+							virtualModel,
+							model.getLanguageIdAtPosition(s.startLineNumber, 1),
+							movingLineNumber,
+							indentConverter,
+							this._languageConfigurationService
+						);
 						if (indentOfFirstLine !== null) {
 							// adjust the indentation of the moving block
 							let oldIndent = strings.getLeadingWhitespace(model.getLineContent(s.startLineNumber));
@@ -249,7 +273,7 @@ export class MoveLinesCommand implements ICommand {
 			if (this.trimLeft(movingLineText).indexOf(this.trimLeft(enterPrefix)) >= 0) {
 				let oldIndentation = strings.getLeadingWhitespace(model.getLineContent(line));
 				let newIndentation = strings.getLeadingWhitespace(enterPrefix);
-				let indentMetadataOfMovelingLine = getIndentMetadata(model, line);
+				let indentMetadataOfMovelingLine = getIndentMetadata(model, line, this._languageConfigurationService);
 				if (indentMetadataOfMovelingLine !== null && indentMetadataOfMovelingLine & IndentConsts.DECREASE_MASK) {
 					newIndentation = indentConverter.unshiftIndent(newIndentation);
 				}
@@ -275,7 +299,7 @@ export class MoveLinesCommand implements ICommand {
 		if (strings.lastNonWhitespaceIndex(futureAboveLineText) >= 0) {
 			// break
 			let maxColumn = model.getLineMaxColumn(futureAboveLineNumber);
-			let enter = getEnterAction(this._autoIndent, model, new Range(futureAboveLineNumber, maxColumn, futureAboveLineNumber, maxColumn));
+			let enter = getEnterAction(this._autoIndent, model, new Range(futureAboveLineNumber, maxColumn, futureAboveLineNumber, maxColumn), this._languageConfigurationService);
 			return this.parseEnterResult(model, indentConverter, tabSize, line, enter);
 		} else {
 			// go upwards, starting from `line - 1`
@@ -296,7 +320,7 @@ export class MoveLinesCommand implements ICommand {
 			}
 
 			let maxColumn = model.getLineMaxColumn(validPrecedingLine);
-			let enter = getEnterAction(this._autoIndent, model, new Range(validPrecedingLine, maxColumn, validPrecedingLine, maxColumn));
+			let enter = getEnterAction(this._autoIndent, model, new Range(validPrecedingLine, maxColumn, validPrecedingLine, maxColumn), this._languageConfigurationService);
 			return this.parseEnterResult(model, indentConverter, tabSize, line, enter);
 		}
 	}
@@ -324,7 +348,7 @@ export class MoveLinesCommand implements ICommand {
 		}
 
 		let maxColumn = model.getLineMaxColumn(validPrecedingLine);
-		let enter = getEnterAction(this._autoIndent, model, new Range(validPrecedingLine, maxColumn, validPrecedingLine, maxColumn));
+		let enter = getEnterAction(this._autoIndent, model, new Range(validPrecedingLine, maxColumn, validPrecedingLine, maxColumn), this._languageConfigurationService);
 		return this.parseEnterResult(model, indentConverter, tabSize, line, enter);
 	}
 
@@ -347,7 +371,7 @@ export class MoveLinesCommand implements ICommand {
 			return false;
 		}
 
-		if (LanguageConfigurationRegistry.getIndentRulesSupport(languageAtSelectionStart) === null) {
+		if (this._languageConfigurationService.getLanguageConfiguration(languageAtSelectionStart).indentRulesSupport === null) {
 			return false;
 		}
 

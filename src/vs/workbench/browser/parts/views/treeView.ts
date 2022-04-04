@@ -65,6 +65,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Mimes } from 'vs/base/common/mime';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IDataTransfer } from 'vs/workbench/common/dnd';
+import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 export class TreeViewPane extends ViewPane {
 
@@ -1018,13 +1019,14 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		templateData.actionBar.clear();
 		templateData.icon.style.color = '';
 
-		if (resource || this.isFileKindThemeIcon(node.themeIcon)) {
+
+		if (resource) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean; badges: boolean }>('explorer.decorations');
 			const labelResource = resource ? resource : URI.parse('missing:_icon_resource');
 			templateData.resourceLabel.setResource({ name: label, description, resource: labelResource }, {
 				fileKind: this.getFileKind(node),
 				title,
-				hideIcon: !!iconUrl || (!!node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)),
+				hideIcon: !!iconUrl || this.shouldShowThemeIcon(!!resource, node.themeIcon),
 				fileDecorations,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
@@ -1045,7 +1047,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			templateData.icon.style.backgroundImage = DOM.asCSSUrl(iconUrl);
 		} else {
 			let iconClass: string | undefined;
-			if (node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)) {
+			// If there is a resource for this tree item then we should respect the file icon theme's choice about
+			// whether to show a folder icon.
+			if (this.shouldShowThemeIcon(!!resource, node.themeIcon)) {
 				iconClass = ThemeIcon.asClassName(node.themeIcon);
 				if (node.themeIcon.color) {
 					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.themeIcon.color.id)?.toString() ?? '';
@@ -1078,9 +1082,34 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		container.parentElement!.classList.toggle('align-icon-with-twisty', this.aligner.alignIconWithTwisty(treeItem));
 	}
 
+	private shouldShowThemeIcon(hasResource: boolean, icon: ThemeIcon | undefined): icon is ThemeIcon {
+		if (!icon) {
+			return false;
+		}
+
+		if (hasResource && (this.isFileKindThemeIcon(icon) || !this.shouldShowFileIcons())) {
+			return false;
+		} else if (hasResource && (this.isFolderThemeIcon(icon) || !this.shouldShowFolderIcons())) {
+			return false;
+		}
+		return true;
+	}
+
+	private shouldShowFileIcons(): boolean {
+		return this.configurationService.getValue(ThemeSettings.FILE_ICON_THEME);
+	}
+
+	private shouldShowFolderIcons(): boolean {
+		return this.themeService.getFileIconTheme().hasFolderIcons && this.shouldShowFileIcons();
+	}
+
+	private isFolderThemeIcon(icon: ThemeIcon | undefined): boolean {
+		return icon?.id === FolderThemeIcon.id;
+	}
+
 	private isFileKindThemeIcon(icon: ThemeIcon | undefined): boolean {
 		if (icon) {
-			return icon.id === FileThemeIcon.id || icon.id === FolderThemeIcon.id;
+			return icon.id === FileThemeIcon.id || this.isFolderThemeIcon(icon);
 		} else {
 			return false;
 		}

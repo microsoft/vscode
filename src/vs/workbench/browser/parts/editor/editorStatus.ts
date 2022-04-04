@@ -1506,7 +1506,7 @@ export class ChangeEncodingAction extends Action {
 		}
 
 		const activeEncodingSupport = toEditorWithEncodingSupport(this.editorService.activeEditorPane.input);
-		if (typeof encoding.id !== 'undefined' && activeEncodingSupport && activeEncodingSupport.getEncoding() !== encoding.id) {
+		if (typeof encoding.id !== 'undefined' && activeEncodingSupport) {
 			await activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
 		}
 

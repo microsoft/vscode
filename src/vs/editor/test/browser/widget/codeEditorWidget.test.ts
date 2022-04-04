@@ -8,8 +8,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 suite('CodeEditorWidget', () => {
 
@@ -31,9 +31,10 @@ suite('CodeEditorWidget', () => {
 	});
 
 	test('onDidChangeModelLanguage', () => {
-		withTestCodeEditor('', {}, (editor, viewModel) => {
+		withTestCodeEditor('', {}, (editor, viewModel, instantiationService) => {
+			const languageService = instantiationService.get(ILanguageService);
 			const disposables = new DisposableStore();
-			disposables.add(ModesRegistry.registerLanguage({ id: 'testMode' }));
+			disposables.add(languageService.registerLanguage({ id: 'testMode' }));
 
 			let invoked = false;
 			disposables.add(editor.onDidChangeModelLanguage((e) => {
@@ -50,8 +51,10 @@ suite('CodeEditorWidget', () => {
 
 	test('onDidChangeModelLanguageConfiguration', () => {
 		withTestCodeEditor('', {}, (editor, viewModel, instantiationService) => {
+			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+			const languageService = instantiationService.get(ILanguageService);
 			const disposables = new DisposableStore();
-			disposables.add(ModesRegistry.registerLanguage({ id: 'testMode' }));
+			disposables.add(languageService.registerLanguage({ id: 'testMode' }));
 			viewModel.model.setMode('testMode');
 
 			let invoked = false;
@@ -59,7 +62,7 @@ suite('CodeEditorWidget', () => {
 				invoked = true;
 			}));
 
-			disposables.add(LanguageConfigurationRegistry.register('testMode', {
+			disposables.add(languageConfigurationService.register('testMode', {
 				brackets: [['(', ')']]
 			}));
 

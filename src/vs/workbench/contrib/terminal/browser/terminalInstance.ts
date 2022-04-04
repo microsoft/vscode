@@ -329,6 +329,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onRequestAddInstanceToGroup = this._onRequestAddInstanceToGroup.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
+	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number } | undefined>();
+	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
 
 	constructor(
 		private readonly _terminalFocusContextKey: IContextKey<boolean>,
@@ -444,10 +446,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xtermReadyPromise.then(async () => {
 			// Wait for a period to allow a container to be ready
 			await this._containerReadyBarrier.wait();
-			if (this._configHelper.config.shellIntegration?.enabled && !this.shellLaunchConfig.executable) {
+
+			// Resolve the executable ahead of time if shell integration is enabled, this should not
+			// be done for custom PTYs as that would cause extension Pseudoterminal-based terminals
+			// to hang in resolver extensions
+			if (!this.shellLaunchConfig.customPtyImplementation && this._configHelper.config.shellIntegration?.enabled && !this.shellLaunchConfig.executable) {
 				const os = await this._processManager.getBackendOS();
 				this.shellLaunchConfig.executable = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os })).path;
 			}
+
 			await this._createProcess();
 
 			// Re-establish the title after reconnect
@@ -647,7 +654,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);
 		this.updateAccessibilitySupport();
-		this.xterm.onDidRequestRunCommand(command => this.sendText(command, true));
+		this.xterm.onDidRequestRunCommand(e => {
+			if (e.copyAsHtml) {
+				this.copySelection(true, e.command);
+			} else {
+				this.sendText(e.command.command, true);
+			}
+		});
 		// Write initial text, deferring onLineFeed listener when applicable to avoid firing
 		// onLineData events containing initialText
 		if (this._shellLaunchConfig.initialText) {
@@ -975,6 +988,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		const screenElement = xterm.attachToElement(xtermElement);
 
+		xterm.onDidChangeFindResults((results) => this._onDidChangeFindResults.fire(results));
+
 		if (!xterm.raw.element || !xterm.raw.textarea) {
 			throw new Error('xterm elements not set after open');
 		}
@@ -1136,13 +1151,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this.xterm ? this.xterm.raw.hasSelection() : false;
 	}
 
-	async copySelection(asHtml?: boolean): Promise<void> {
+	async copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void> {
 		const xterm = await this._xtermReadyPromise;
-		if (this.hasSelection()) {
+		if (this.hasSelection() || (asHtml && command)) {
 			if (asHtml) {
-				const selectionAsHtml = await xterm.getSelectionAsHtml();
+				const textAsHtml = await xterm.getSelectionAsHtml(command);
 				function listener(e: any) {
-					e.clipboardData.setData('text/html', selectionAsHtml);
+					e.clipboardData.setData('text/html', textAsHtml);
 					e.preventDefault();
 				}
 				document.addEventListener('copy', listener);
