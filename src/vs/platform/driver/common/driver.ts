@@ -44,10 +44,9 @@ export interface IDriver {
 	startTracing(windowId: number, name: string): Promise<void>;
 	stopTracing(windowId: number, name: string, persist: boolean): Promise<void>;
 	reloadWindow(windowId: number): Promise<void>;
-	exitApplication(): Promise<boolean>;
+	exitApplication(): Promise<number /* main PID */>;
 	dispatchKeybinding(windowId: number, keybinding: string): Promise<void>;
 	click(windowId: number, selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
-	doubleClick(windowId: number, selector: string): Promise<void>;
 	setValue(windowId: number, selector: string, text: string): Promise<void>;
 	getTitle(windowId: number): Promise<string>;
 	isActiveElement(windowId: number, selector: string): Promise<boolean>;
@@ -62,7 +61,6 @@ export interface IDriver {
 
 export interface IWindowDriver {
 	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
-	doubleClick(selector: string): Promise<void>;
 	setValue(selector: string, text: string): Promise<void>;
 	getTitle(): Promise<string>;
 	isActiveElement(selector: string): Promise<boolean>;
@@ -79,11 +77,7 @@ export interface IWindowDriver {
 export const ID = 'driverService';
 export const IDriver = createDecorator<IDriver>(ID);
 
-export interface IDriverOptions {
-	verbose: boolean;
-}
-
 export interface IWindowDriverRegistry {
-	registerWindowDriver(windowId: number): Promise<IDriverOptions>;
+	registerWindowDriver(windowId: number): Promise<void>;
 	reloadWindowDriver(windowId: number): Promise<void>;
 }

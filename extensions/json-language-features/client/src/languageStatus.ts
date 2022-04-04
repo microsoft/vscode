@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, languages, Uri, LanguageStatusSeverity, Disposable, commands, QuickPickItem, extensions, workspace } from 'vscode';
-import { JSONLanguageStatus } from './jsonClient';
+import { window, languages, Uri, LanguageStatusSeverity, Disposable, commands, QuickPickItem, extensions, workspace, Extension, WorkspaceFolder, QuickPickItemKind, ThemeIcon } from 'vscode';
+import { JSONLanguageStatus, JSONSchemaSettings } from './jsonClient';
 
 import * as nls from 'vscode-nls';
 
@@ -16,75 +16,160 @@ type ShowSchemasInput = {
 };
 
 interface ShowSchemasItem extends QuickPickItem {
-	uri: Uri;
+	uri?: Uri;
+	buttonCommands?: (() => void)[];
 }
 
-function equalsIgnoreCase(a: string, b: string): boolean {
-	return a.length === b.length && a.toLowerCase().localeCompare(b.toLowerCase()) === 0;
-}
+function getExtensionSchemaAssociations() {
+	const associations: { fullUri: string; extension: Extension<any>; label: string }[] = [];
 
-function isEqualAuthority(a1: string | undefined, a2: string | undefined) {
-	return a1 === a2 || (a1 !== undefined && a2 !== undefined && equalsIgnoreCase(a1, a2));
-}
-
-function findExtension(uri: Uri) {
-	for (const ext of extensions.all) {
-		const parent = ext.extensionUri;
-		if (uri.scheme === parent.scheme && isEqualAuthority(uri.authority, parent.authority) && uri.path.startsWith(parent.path + '/')) {
-			return ext;
-		}
-	}
-	return undefined;
-}
-
-function findWorkspaceFolder(uri: Uri) {
-	if (workspace.workspaceFolders) {
-		for (const wf of workspace.workspaceFolders) {
-			const parent = wf.uri;
-			if (uri.scheme === parent.scheme && isEqualAuthority(uri.authority, parent.authority) && uri.path.startsWith(parent.path + '/')) {
-				return wf;
+	for (const extension of extensions.all) {
+		const jsonValidations = extension.packageJSON?.contributes?.jsonValidation;
+		if (Array.isArray(jsonValidations)) {
+			for (const jsonValidation of jsonValidations) {
+				let uri = jsonValidation.url;
+				if (typeof uri === 'string') {
+					if (uri[0] === '.' && uri[1] === '/') {
+						uri = Uri.joinPath(extension.extensionUri, uri).toString(false);
+					}
+					associations.push({ fullUri: uri, extension, label: jsonValidation.url });
+				}
 			}
 		}
 	}
-	return undefined;
+	return {
+		findExtension(uri: string): ShowSchemasItem | undefined {
+			for (const association of associations) {
+				if (association.fullUri === uri) {
+					return {
+						label: association.label,
+						detail: localize('schemaFromextension', 'Configured by extension: {0}', association.extension.id),
+						uri: Uri.parse(association.fullUri),
+						buttons: [{ iconPath: new ThemeIcon('extensions'), tooltip: localize('openExtension', 'Open Extension') }],
+						buttonCommands: [() => commands.executeCommand('workbench.extensions.action.showExtensionsWithIds', [[association.extension.id]])]
+					};
+				}
+			}
+			return undefined;
+		}
+	};
 }
 
-function renderShowSchemasItem(schema: string): ShowSchemasItem {
-	const uri = Uri.parse(schema);
-	const extension = findExtension(uri);
-	if (extension) {
-		return { label: extension.id, description: uri.path.substring(extension.extensionUri.path.length + 1), uri };
+//
+
+function getSettingsSchemaAssociations(uri: string) {
+	const resourceUri = Uri.parse(uri);
+	const workspaceFolder = workspace.getWorkspaceFolder(resourceUri);
+
+	const settings = workspace.getConfiguration('json', resourceUri).inspect<JSONSchemaSettings[]>('schemas');
+
+	const associations: { fullUri: string; workspaceFolder: WorkspaceFolder | undefined; label: string }[] = [];
+
+	const folderSettingSchemas = settings?.workspaceFolderValue;
+	if (workspaceFolder && Array.isArray(folderSettingSchemas)) {
+		for (const setting of folderSettingSchemas) {
+			const uri = setting.url;
+			if (typeof uri === 'string') {
+				let fullUri = uri;
+				if (uri[0] === '.' && uri[1] === '/') {
+					fullUri = Uri.joinPath(workspaceFolder.uri, uri).toString(false);
+				}
+				associations.push({ fullUri, workspaceFolder, label: uri });
+			}
+		}
 	}
-	const wf = findWorkspaceFolder(uri);
-	if (wf) {
-		return { label: uri.path.substring(wf.uri.path.length + 1), description: 'Workspace', uri };
+	const userSettingSchemas = settings?.globalValue;
+	if (Array.isArray(userSettingSchemas)) {
+		for (const setting of userSettingSchemas) {
+			const uri = setting.url;
+			if (typeof uri === 'string') {
+				let fullUri = uri;
+				if (workspaceFolder && uri[0] === '.' && uri[1] === '/') {
+					fullUri = Uri.joinPath(workspaceFolder.uri, uri).toString(false);
+				}
+				associations.push({ fullUri, workspaceFolder: undefined, label: uri });
+			}
+		}
 	}
-	if (uri.scheme === 'file') {
-		return { label: uri.fsPath, uri };
-	} else if (uri.scheme === 'vscode') {
-		return { label: schema, description: 'internally generated', uri };
-	}
-	return { label: schema, uri };
+	return {
+		findSetting(uri: string): ShowSchemasItem | undefined {
+			for (const association of associations) {
+				if (association.fullUri === uri) {
+					return {
+						label: association.label,
+						detail: association.workspaceFolder ? localize('schemaFromFolderSettings', 'Configured in workspace settings') : localize('schemaFromUserSettings', 'Configured in user settings'),
+						uri: Uri.parse(association.fullUri),
+						buttons: [{ iconPath: new ThemeIcon('gear'), tooltip: localize('openSettings', 'Open Settings') }],
+						buttonCommands: [() => commands.executeCommand(association.workspaceFolder ? 'workbench.action.openWorkspaceSettingsFile' : 'workbench.action.openSettingsJson', ['json.schemas'])]
+					};
+				}
+			}
+			return undefined;
+		}
+	};
 }
 
+function showSchemaList(input: ShowSchemasInput) {
+
+	const extensionSchemaAssocations = getExtensionSchemaAssociations();
+	const settingsSchemaAssocations = getSettingsSchemaAssociations(input.uri);
+
+	const extensionEntries = [];
+	const settingsEntries = [];
+	const otherEntries = [];
+
+	for (const schemaUri of input.schemas) {
+		const extensionEntry = extensionSchemaAssocations.findExtension(schemaUri);
+		if (extensionEntry) {
+			extensionEntries.push(extensionEntry);
+			continue;
+		}
+		const settingsEntry = settingsSchemaAssocations.findSetting(schemaUri);
+		if (settingsEntry) {
+			settingsEntries.push(settingsEntry);
+			continue;
+		}
+		otherEntries.push({ label: schemaUri, uri: Uri.parse(schemaUri) });
+	}
+
+	const items: ShowSchemasItem[] = [...extensionEntries, ...settingsEntries, ...otherEntries];
+	if (items.length === 0) {
+		items.push({
+			label: localize('schema.noSchema', 'No schema configured for this file'),
+			buttons: [{ iconPath: new ThemeIcon('gear'), tooltip: localize('openSettings', 'Open Settings') }],
+			buttonCommands: [() => commands.executeCommand('workbench.action.openSettingsJson', ['json.schemas'])]
+		});
+	}
+
+	items.push({ label: '', kind: QuickPickItemKind.Separator });
+	items.push({ label: localize('schema.showdocs', 'Learn more about JSON schema configuration...'), uri: Uri.parse('https://code.visualstudio.com/docs/languages/json#_json-schemas-and-settings') });
+
+	const quickPick = window.createQuickPick<ShowSchemasItem>();
+	quickPick.title = localize('schemaPicker.title', 'JSON Schemas used for {0}', input.uri);
+	//	quickPick.placeholder = items.length ? localize('schemaPicker.placeholder', 'Select the schema to open') : undefined;
+	quickPick.items = items;
+	quickPick.show();
+	quickPick.onDidAccept(() => {
+		const uri = quickPick.selectedItems[0].uri;
+		if (uri) {
+			commands.executeCommand('vscode.open', uri);
+			quickPick.dispose();
+		}
+	});
+	quickPick.onDidTriggerItemButton(b => {
+		const index = b.item.buttons?.indexOf(b.button);
+		if (index !== undefined && index >= 0 && b.item.buttonCommands && b.item.buttonCommands[index]) {
+			b.item.buttonCommands[index]();
+		}
+	});
+}
 
 export function createLanguageStatusItem(documentSelector: string[], statusRequest: (uri: string) => Promise<JSONLanguageStatus>): Disposable {
 	const statusItem = languages.createLanguageStatusItem('json.projectStatus', documentSelector);
 	statusItem.name = localize('statusItem.name', "JSON Validation Status");
 	statusItem.severity = LanguageStatusSeverity.Information;
 
-	const showSchemasCommand = commands.registerCommand('_json.showAssociatedSchemaList', (arg: ShowSchemasInput) => {
-		const items: ShowSchemasItem[] = arg.schemas.sort().map(renderShowSchemasItem);
-		const quickPick = window.createQuickPick<ShowSchemasItem>();
-		quickPick.title = localize('schemaPicker.title', 'JSON Schemas used for {0}', arg.uri.toString());
-		quickPick.placeholder = localize('schemaPicker.placeholder', 'Select the schema to open');
-		quickPick.items = items;
-		quickPick.show();
-		quickPick.onDidAccept(() => {
-			commands.executeCommand('vscode.open', quickPick.selectedItems[0].uri);
-			quickPick.dispose();
-		});
-	});
+	const showSchemasCommand = commands.registerCommand('_json.showAssociatedSchemaList', showSchemaList);
 
 	const activeEditorListener = window.onDidChangeActiveTextEditor(() => {
 		updateLanguageStatus();
@@ -101,29 +186,24 @@ export function createLanguageStatusItem(documentSelector: string[], statusReque
 				const schemas = (await statusRequest(document.uri.toString())).schemas;
 				statusItem.detail = undefined;
 				if (schemas.length === 0) {
-					statusItem.text = localize('status.noSchema', 'Validated without JSON schema');
+					statusItem.text = localize('status.noSchema.short', "No Schema Validation");
+					statusItem.detail = localize('status.noSchema', 'No JSON schema configured.');
 				} else if (schemas.length === 1) {
-					const item = renderShowSchemasItem(schemas[0]);
-					statusItem.text = localize('status.singleSchema', 'Validated with JSON schema');
-					statusItem.command = {
-						command: 'vscode.open',
-						title: localize('status.openSchemaLink', 'Open Schema'),
-						tooltip: item.description ? `${item.label} - ${item.description}` : item.label,
-						arguments: [item.uri]
-					};
+					statusItem.text = localize('status.withSchema.short', "Schema Validated");
+					statusItem.detail = localize('status.singleSchema', 'JSON schema configured.');
 				} else {
-					statusItem.text = localize('status.multipleSchema', 'Validated with multiple JSON schemas');
-					statusItem.command = {
-						command: '_json.showAssociatedSchemaList',
-						title: localize('status.openSchemasLink', 'Show Schemas'),
-						arguments: [{ schemas, uri: document.uri.toString() } as ShowSchemasInput]
-					};
+					statusItem.text = localize('status.withSchemas.short', "Schema Validated");
+					statusItem.detail = localize('status.multipleSchema', 'Multiple JSON schemas configured.');
 				}
+				statusItem.command = {
+					command: '_json.showAssociatedSchemaList',
+					title: localize('status.openSchemasLink', 'Show Schemas'),
+					arguments: [{ schemas, uri: document.uri.toString() } as ShowSchemasInput]
+				};
 			} catch (e) {
 				statusItem.text = localize('status.error', 'Unable to compute used schemas');
 				statusItem.detail = undefined;
 				statusItem.command = undefined;
-				console.log(e);
 			}
 		} else {
 			statusItem.text = localize('status.notJSON', 'Not a JSON editor');

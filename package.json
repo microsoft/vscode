@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.67.0",
-  "distro": "044c89b614724e7c07260fbfd36f607ebce52c99",
+  "distro": "0fd94ba0644559917aaf4e789db83f3801f35d6d",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -95,7 +95,7 @@
   },
   "devDependencies": {
     "7zip": "0.0.6",
-    "@playwright/test": "1.18.0",
+    "@playwright/test": "1.20.2",
     "@types/applicationinsights": "0.20.0",
     "@types/cookie": "^0.3.3",
     "@types/copy-webpack-plugin": "^6.0.3",
@@ -135,7 +135,7 @@
     "cssnano": "^4.1.11",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
-    "electron": "17.3.0",
+    "electron": "17.3.1",
     "eslint": "8.7.0",
     "eslint-plugin-header": "3.1.1",
     "eslint-plugin-jsdoc": "^19.1.0",
