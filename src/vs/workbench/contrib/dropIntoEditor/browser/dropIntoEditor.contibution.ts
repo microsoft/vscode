@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -71,10 +71,18 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 			return;
 		}
 
+		if (editor.getModel().getVersionId() !== modelVersionNow) {
+			return;
+		}
+
+		const cts = new CancellationTokenSource();
+		editor.onDidDispose(() => cts.cancel());
+		model.onDidChangeContent(() => cts.cancel());
+
 		const ordered = this._languageFeaturesService.documentOnDropEditProvider.ordered(model);
 		for (const provider of ordered) {
-			const edit = await provider.provideDocumentOnDropEdits(model, position, textEditorDataTransfer, CancellationToken.None);
-			if (editor.getModel().getVersionId() !== modelVersionNow) {
+			const edit = await provider.provideDocumentOnDropEdits(model, position, textEditorDataTransfer, cts.token);
+			if (cts.token.isCancellationRequested || editor.getModel().getVersionId() !== modelVersionNow) {
 				return;
 			}
 
