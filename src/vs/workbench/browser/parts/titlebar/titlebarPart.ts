@@ -310,6 +310,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		const activeFolderMedium = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource, { relative: true }) : '';
 		const activeFolderLong = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource) : '';
 		const rootName = this.labelService.getWorkspaceLabel(workspace);
+		const rootNameShort = this.labelService.getWorkspaceLabel(workspace, { verbose: false, short: true });
 		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
@@ -326,6 +327,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			activeFolderMedium,
 			activeFolderLong,
 			rootName,
+			rootNameShort,
 			rootPath,
 			folderName,
 			folderPath,

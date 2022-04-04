@@ -201,7 +201,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return paths.basename(label);
 	}
 
-	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose: boolean }): string {
+	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose: boolean; short: boolean }): string {
 		if (isWorkspace(workspace)) {
 			const identifier = toWorkspaceIdentifier(workspace);
 			if (identifier) {
@@ -229,7 +229,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return '';
 	}
 
-	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbose: boolean }): string {
+	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbose: boolean; short: boolean }): string {
 
 		// Workspace: Untitled
 		if (isUntitledWorkspace(workspaceUri, this.environmentService)) {
@@ -251,7 +251,12 @@ export class LabelService extends Disposable implements ILabelService {
 		if (options?.verbose) {
 			label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspaceUri), filename)));
 		} else {
-			label = localize('workspaceName', "{0} (Workspace)", filename);
+			if (options?.short) {
+				label = localize('workspaceNameShort', "{0}", filename);
+				return label; // rootNameShort does not include the result of appendWorkspaceSuffix
+			} else {
+				label = localize('workspaceName', "{0} (Workspace)", filename);
+			}
 		}
 
 		return this.appendWorkspaceSuffix(label, workspaceUri);
