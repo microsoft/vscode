@@ -29,6 +29,7 @@
     "onCommand:markdown.showPreviewSecuritySelector",
     "onCommand:markdown.api.render",
     "onCommand:markdown.api.reloadPlugins",
+    "onCommand:markdown.findAllFileReferences",
     "onWebviewPanel:markdown.preview",
     "onCustomEditor:vscode.markdown.preview.editor"
   ],
@@ -169,6 +170,11 @@
         "command": "markdown.preview.toggleLock",
         "title": "%markdown.preview.toggleLock.title%",
         "category": "Markdown"
+      },
+      {
+        "command": "markdown.findAllFileReferences",
+        "title": "%markdown.findAllFileReferences%",
+        "category": "Markdown"
       }
     ],
     "menus": {
@@ -205,6 +211,11 @@
           "command": "markdown.showPreview",
           "when": "resourceLangId == markdown && !hasCustomMarkdownPreview",
           "group": "navigation"
+        },
+        {
+          "command": "markdown.findAllFileReferences",
+          "when": "resourceLangId == markdown",
+          "group": "4_search"
         }
       ],
       "editor/title/context": [
@@ -212,6 +223,10 @@
           "command": "markdown.showPreview",
           "when": "resourceLangId == markdown && !hasCustomMarkdownPreview",
           "group": "1_open"
+        },
+        {
+          "command": "markdown.findAllFileReferences",
+          "when": "resourceLangId == markdown"
         }
       ],
       "commandPalette": [
@@ -254,6 +269,10 @@
         {
           "command": "markdown.preview.refresh",
           "when": "markdownPreviewFocus"
+        },
+        {
+          "command": "markdown.findAllFileReferences",
+          "when": "editorLangId == markdown"
         }
       ]
     },
@@ -388,6 +407,12 @@
           "default": "off",
           "description": "%markdown.trace.desc%",
           "scope": "window"
+        },
+        "markdown.editor.drop.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.markdown.editor.drop.enabled%",
+          "scope": "resource"
         }
       }
     },

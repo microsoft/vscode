@@ -6,8 +6,8 @@
 import * as playwright from '@playwright/test';
 import { IDriver, IDisposable } from './driver';
 import type { LaunchOptions } from './code';
-import { PlaywrightDriver } from './playwrightBrowserDriver';
-import { IElectronConfiguration, resolveElectronConfiguration } from './electronDriver';
+import { PlaywrightDriver } from './playwrightDriver';
+import { IElectronConfiguration, resolveElectronConfiguration } from './electron';
 import { measureAndLog } from './logger';
 
 export async function launch(options: LaunchOptions): Promise<{ client: IDisposable; driver: IDriver }> {

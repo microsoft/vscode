@@ -12,6 +12,7 @@ declare module 'vscode' {
 		Resolved = 1
 	}
 
+	// TODO@API doc
 	export interface CommentThread {
 		state?: CommentThreadState;
 	}
