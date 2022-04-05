@@ -187,8 +187,7 @@ declare module 'vscode' {
 		/**
 		 * All the groups within the group container
 		 */
-		// TODO@API name, back to `all`, keep xyzTabGroup
-		readonly groups: readonly TabGroup[];
+		readonly all: readonly TabGroup[];
 
 		/**
 		 * The currently active group
