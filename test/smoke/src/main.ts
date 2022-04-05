@@ -377,7 +377,7 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : opts.legacy ? 'Electron (lega
 	setupSearchTests(logger);
 	setupNotebookTests(logger);
 	setupLanguagesTests(logger);
-	if (!opts.legacy) { setupTerminalTests(logger); }
+	if (opts.web) { setupTerminalTests(logger); }
 	setupStatusbarTests(logger);
 	if (quality !== Quality.Dev) { setupExtensionTests(logger); }
 	setupMultirootTests(logger);
