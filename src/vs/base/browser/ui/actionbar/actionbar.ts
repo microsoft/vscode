@@ -9,7 +9,7 @@ import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from 'vs/b
 import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as types from 'vs/base/common/types';
 import 'vs/css!./actionbar';
 
@@ -69,6 +69,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	// View Items
 	viewItems: IActionViewItem[];
+	private viewItemDisposables: DisposableStore;
 	private previouslyFocusedItem?: number;
 	protected focusedItem?: number;
 	private focusTracker: DOM.IFocusTracker;
@@ -118,6 +119,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		this._actionIds = [];
 		this.viewItems = [];
+		this.viewItemDisposables = this._register(new DisposableStore());
 		this.focusedItem = undefined;
 
 		this.domNode = document.createElement('div');
@@ -319,7 +321,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 			// Prevent native context menu on actions
 			if (!this.options.allowContextMenu) {
-				this._register(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
+				this.viewItemDisposables.add(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
 					DOM.EventHelper.stop(e, true);
 				}));
 			}
@@ -394,6 +396,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	clear(): void {
 		dispose(this.viewItems);
+		this.viewItemDisposables.clear();
 		this.viewItems = [];
 		this._actionIds = [];
 		DOM.clearNode(this.actionsList);
