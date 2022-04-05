@@ -35,7 +35,7 @@
     "@types/request": "^2.47.0",
     "@types/rimraf": "^2.0.4",
     "@types/through": "^0.0.29",
-    "@types/through2": "^2.0.34",
+    "@types/through2": "^2.0.36",
     "@types/tmp": "^0.2.1",
     "@types/underscore": "^1.8.9",
     "@types/webpack": "^4.41.25",
@@ -59,6 +59,7 @@
     "mkdirp": "^1.0.4",
     "p-limit": "^3.1.0",
     "source-map": "0.6.1",
+    "through2": "^4.0.2",
     "tmp": "^0.2.1",
     "vsce": "^1.100.0",
     "vscode-universal-bundler": "^0.0.2"
