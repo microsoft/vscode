@@ -48,10 +48,6 @@ export class PlaywrightDriver implements IDriver {
 		return [1];
 	}
 
-	async capturePage() {
-		return '';
-	}
-
 	async startTracing(windowId: number, name: string): Promise<void> {
 		if (!this.options.tracing) {
 			return; // tracing disabled
@@ -79,10 +75,6 @@ export class PlaywrightDriver implements IDriver {
 		} catch (error) {
 			// Ignore
 		}
-	}
-
-	async reloadWindow(windowId: number) {
-		await this.page.reload();
 	}
 
 	async exitApplication() {

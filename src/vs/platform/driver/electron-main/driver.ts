@@ -69,16 +69,6 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		return windowIds;
 	}
 
-	async capturePage(windowId: number): Promise<string> {
-		const window = this.windowsMainService.getWindowById(windowId) ?? this.windowsMainService.getLastActiveWindow(); // fallback to active window to ensure we capture window
-		if (!window?.win) {
-			throw new Error('Invalid window');
-		}
-
-		const webContents = window.win.webContents;
-		const image = await webContents.capturePage();
-		return image.toPNG().toString('base64');
-	}
 
 	async startTracing(windowId: number, name: string): Promise<void> {
 		// ignore - tracing is not implemented yet
@@ -95,18 +85,15 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		await this.fileService.writeFile(URI.file(join(this.environmentMainService.logsPath, `${name}.png`)), VSBuffer.wrap(buffer));
 	}
 
-	async reloadWindow(windowId: number): Promise<void> {
-		this.logService.info(`[driver] reloadWindow(${windowId})`);
-
-		await this.whenUnfrozen(windowId);
-
-		const window = this.windowsMainService.getWindowById(windowId);
-		if (!window) {
+	private async capturePage(windowId: number): Promise<string> {
+		const window = this.windowsMainService.getWindowById(windowId) ?? this.windowsMainService.getLastActiveWindow(); // fallback to active window to ensure we capture window
+		if (!window?.win) {
 			throw new Error('Invalid window');
 		}
 
-		this.reloadingWindowIds.add(windowId);
-		this.lifecycleMainService.reload(window);
+		const webContents = window.win.webContents;
+		const image = await webContents.capturePage();
+		return image.toPNG().toString('base64');
 	}
 
 	async exitApplication(): Promise<number> {
