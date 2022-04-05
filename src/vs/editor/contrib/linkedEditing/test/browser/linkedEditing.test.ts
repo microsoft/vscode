@@ -74,7 +74,7 @@ suite('linked editing', () => {
 
 				disposables.add(languageFeaturesService.linkedEditingRangeProvider.register(mockFileSelector, {
 					provideLinkedEditingRanges(model: ITextModel, pos: IPosition) {
-						const wordAtPos = model.tokenization.getWordAtPosition(pos);
+						const wordAtPos = model.getWordAtPosition(pos);
 						if (wordAtPos) {
 							const matches = model.findMatches(wordAtPos.word, false, false, true, USUAL_WORD_SEPARATORS, false);
 							return { ranges: matches.map(m => m.range), wordPattern: initialState.responseWordPattern };

@@ -117,7 +117,7 @@ export class MarkerList {
 			let range = Range.lift(this._markers[i]);
 
 			if (range.isEmpty()) {
-				const word = model.tokenization.getWordAtPosition(range.getStartPosition());
+				const word = model.getWordAtPosition(range.getStartPosition());
 				if (word) {
 					range = new Range(range.startLineNumber, word.startColumn, range.startLineNumber, word.endColumn);
 				}

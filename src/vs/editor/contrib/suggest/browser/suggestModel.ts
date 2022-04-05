@@ -63,7 +63,7 @@ export class LineContext {
 		const pos = editor.getPosition();
 		model.tokenization.tokenizeIfCheap(pos.lineNumber);
 
-		const word = model.tokenization.getWordAtPosition(pos);
+		const word = model.getWordAtPosition(pos);
 		if (!word) {
 			return false;
 		}
@@ -85,7 +85,7 @@ export class LineContext {
 
 	constructor(model: ITextModel, position: Position, auto: boolean, shy: boolean) {
 		this.leadingLineContent = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
-		this.leadingWord = model.tokenization.getWordUntilPosition(position);
+		this.leadingWord = model.getWordUntilPosition(position);
 		this.lineNumber = position.lineNumber;
 		this.column = position.column;
 		this.auto = auto;

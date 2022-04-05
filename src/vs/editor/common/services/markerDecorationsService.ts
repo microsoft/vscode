@@ -163,7 +163,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 				return ret;
 			}
 
-			const word = model.tokenization.getWordAtPosition(ret.getStartPosition());
+			const word = model.getWordAtPosition(ret.getStartPosition());
 			if (word) {
 				ret = new Range(ret.startLineNumber, word.startColumn, ret.endLineNumber, word.endColumn);
 			}

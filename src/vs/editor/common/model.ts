@@ -870,7 +870,6 @@ export interface ITextModel {
 	 */
 	getWordUntilPosition(position: IPosition): IWordAtPosition;
 
-
 	/**
 	 * Change the decorations. The callback will be called with a change accessor
 	 * that becomes invalid as soon as the callback finishes executing.

@@ -131,7 +131,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 			return this._model.getLineContent(this._selection.positionLineNumber);
 
 		} else if (name === 'TM_CURRENT_WORD') {
-			const info = this._model.tokenization.getWordAtPosition({
+			const info = this._model.getWordAtPosition({
 				lineNumber: this._selection.positionLineNumber,
 				column: this._selection.positionColumn
 			});

@@ -771,7 +771,7 @@ export interface TrackedInlineCompletion extends NormalizedInlineCompletion {
 }
 
 function getDefaultRange(position: Position, model: ITextModel): Range {
-	const word = model.tokenization.getWordAtPosition(position);
+	const word = model.getWordAtPosition(position);
 	const maxColumn = model.getLineMaxColumn(position.lineNumber);
 	// By default, always replace up until the end of the current line.
 	// This default might be subject to change!

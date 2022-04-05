@@ -313,7 +313,7 @@ class ShowDebugHoverAction extends EditorAction {
 		if (!position || !editor.hasModel()) {
 			return;
 		}
-		const word = editor.getModel().tokenization.getWordAtPosition(position);
+		const word = editor.getModel().getWordAtPosition(position);
 		if (!word) {
 			return;
 		}

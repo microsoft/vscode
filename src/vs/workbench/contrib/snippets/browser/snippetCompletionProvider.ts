@@ -73,7 +73,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		const snippets = new Set(await this._snippets.getSnippets(languageId));
 
 		const lineContentLow = model.getLineContent(position.lineNumber).toLowerCase();
-		const wordUntil = model.tokenization.getWordUntilPosition(position).word.toLowerCase();
+		const wordUntil = model.getWordUntilPosition(position).word.toLowerCase();
 
 		const suggestions: SnippetCompletion[] = [];
 		const columnOffset = position.column - 1;

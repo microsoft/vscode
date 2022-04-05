@@ -6,7 +6,6 @@
 import { Event } from 'vs/base/common/event';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { StandardTokenType } from 'vs/editor/common/languages';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
@@ -85,20 +84,6 @@ export interface ITokenizationTextModelPart {
 	 * @internal
 	*/
 	tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null;
-
-	/**
-	 * Get the word under or besides `position`.
-	 * @param position The position to look for a word.
-	 * @return The word under or besides `position`. Might be null.
-	 */
-	getWordAtPosition(position: IPosition): IWordAtPosition | null;
-
-	/**
-	 * Get the word under or besides `position` trimmed to `position`.column
-	 * @param position The position to look for a word.
-	 * @return The word under or besides `position`. Will never be null.
-	 */
-	getWordUntilPosition(position: IPosition): IWordAtPosition;
 
 	/**
 	 * @internal

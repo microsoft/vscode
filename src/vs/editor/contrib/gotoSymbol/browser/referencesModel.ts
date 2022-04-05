@@ -81,7 +81,7 @@ export class FilePreview implements IDisposable {
 		}
 
 		const { startLineNumber, startColumn, endLineNumber, endColumn } = range;
-		const word = model.tokenization.getWordUntilPosition({ lineNumber: startLineNumber, column: startColumn - n });
+		const word = model.getWordUntilPosition({ lineNumber: startLineNumber, column: startColumn - n });
 		const beforeRange = new Range(startLineNumber, word.startColumn, startLineNumber, startColumn);
 		const afterRange = new Range(endLineNumber, endColumn, endLineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
 

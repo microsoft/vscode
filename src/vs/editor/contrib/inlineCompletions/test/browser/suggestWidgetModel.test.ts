@@ -127,7 +127,7 @@ suite('Suggest Widget Model', () => {
 const provider: CompletionItemProvider = {
 	triggerCharacters: ['.'],
 	async provideCompletionItems(model, pos) {
-		const word = model.tokenization.getWordAtPosition(pos);
+		const word = model.getWordAtPosition(pos);
 		const range = word
 			? { startLineNumber: 1, startColumn: word.startColumn, endLineNumber: 1, endColumn: word.endColumn }
 			: Range.fromPositions(pos);

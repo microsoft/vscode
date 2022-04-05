@@ -146,7 +146,7 @@ export class SnippetController2 implements IEditorContribution {
 						return undefined;
 					}
 
-					const info = model.tokenization.getWordUntilPosition(position);
+					const info = model.getWordUntilPosition(position);
 					const isAnyOfOptions = Boolean(activeChoice.options.find(o => o.value === info.word));
 					const suggestions: CompletionItem[] = [];
 					for (let i = 0; i < activeChoice.options.length; i++) {

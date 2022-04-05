@@ -46,7 +46,7 @@ export abstract class WordDistance {
 		}
 
 		// remove current word
-		const wordUntilPos = model.tokenization.getWordUntilPosition(position);
+		const wordUntilPos = model.getWordUntilPosition(position);
 		delete wordRanges[wordUntilPos.word];
 
 		return new class extends WordDistance {

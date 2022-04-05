@@ -1400,18 +1400,6 @@ declare namespace monaco.editor {
 	 * Provides tokenization related functionality of the text model.
 	*/
 	export interface ITokenizationTextModelPart {
-		/**
-		 * Get the word under or besides `position`.
-		 * @param position The position to look for a word.
-		 * @return The word under or besides `position`. Might be null.
-		 */
-		getWordAtPosition(position: IPosition): IWordAtPosition | null;
-		/**
-		 * Get the word under or besides `position` trimmed to `position`.column
-		 * @param position The position to look for a word.
-		 * @return The word under or besides `position`. Will never be null.
-		 */
-		getWordUntilPosition(position: IPosition): IWordAtPosition;
 		getLanguageId(): string;
 		getLanguageIdAtPosition(lineNumber: number, column: number): string;
 		setLanguageId(languageId: string): void;
