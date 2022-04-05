@@ -104,7 +104,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		if (header) {
 			return this.getReferencesToHeader(document, header);
 		} else {
-			return this.getReferencesToLinkAtPosition(document, position);
+			return this.getReferencesToLinkAtPosition(document, position, token);
 		}
 	}
 
@@ -141,7 +141,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		return references;
 	}
 
-	private async getReferencesToLinkAtPosition(document: SkinnyTextDocument, position: vscode.Position): Promise<MdReference[]> {
+	private async getReferencesToLinkAtPosition(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<MdReference[]> {
 		const docLinks = await this.linkProvider.getAllLinks(document);
 
 		for (const link of docLinks) {
@@ -150,11 +150,11 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 				if (link.ref.range.contains(position)) {
 					return Array.from(this.getReferencesToLinkReference(docLinks, link.ref.text, { resource: document.uri, range: link.ref.range }));
 				} else if (link.source.hrefRange.contains(position)) {
-					return this.getReferencesToLink(link);
+					return this.getReferencesToLink(link, token);
 				}
 			} else {
 				if (link.source.hrefRange.contains(position)) {
-					return this.getReferencesToLink(link);
+					return this.getReferencesToLink(link, token);
 				}
 			}
 		}
@@ -162,8 +162,11 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		return [];
 	}
 
-	private async getReferencesToLink(sourceLink: MdLink): Promise<MdReference[]> {
+	private async getReferencesToLink(sourceLink: MdLink, token: vscode.CancellationToken): Promise<MdReference[]> {
 		const allLinksInWorkspace = (await this._linkCache.getAll()).flat();
+		if (token.isCancellationRequested) {
+			return [];
+		}
 
 		if (sourceLink.href.kind === 'reference') {
 			return Array.from(this.getReferencesToLinkReference(allLinksInWorkspace, sourceLink.href.ref, { resource: sourceLink.source.resource, range: sourceLink.source.hrefRange }));
@@ -182,7 +185,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 			}
 		}
 
-		if (!targetDoc) {
+		if (!targetDoc || token.isCancellationRequested) {
 			return [];
 		}
 
