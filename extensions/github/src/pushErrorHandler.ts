@@ -71,10 +71,8 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 		await repository.renameRemote(remote.name, 'upstream');
 
 		// Issue: what if there's already another `origin` repo?
-		const config = workspace.getConfiguration('github');
-		const gitProtocol = config.get<'https' | 'ssh'>('gitProtocol');
-		const { clone_url, ssh_url } = ghRepository;
-		const remoteUrl = gitProtocol === 'https' ? clone_url : ssh_url;
+		const protocol = workspace.getConfiguration('github').get<'https' | 'ssh'>('gitProtocol');
+		const remoteUrl = protocol === 'https' ? ghRepository.clone_url : ghRepository.ssh_url;
 		await repository.addRemote('origin', remoteUrl);
 
 		try {

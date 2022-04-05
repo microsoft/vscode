@@ -197,10 +197,8 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		progress.report({ message: localize('publishing_uploading', "Uploading files"), increment: 25 });
 
 		const branch = await repository.getBranch('HEAD');
-		const config = vscode.workspace.getConfiguration('github');
-		const gitProtocol = config.get<'https' | 'ssh'>('gitProtocol');
-		const { clone_url, ssh_url } = createdGithubRepository;
-		const remoteUrl = gitProtocol === 'https' ? clone_url : ssh_url;
+		const protocol = vscode.workspace.getConfiguration('github').get<'https' | 'ssh'>('gitProtocol');
+		const remoteUrl = protocol === 'https' ? createdGithubRepository.clone_url : createdGithubRepository.ssh_url;
 		await repository.addRemote('origin', remoteUrl);
 		await repository.push('origin', branch.name, true);
 

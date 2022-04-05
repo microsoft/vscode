@@ -15,14 +15,11 @@ function parse(url: string): { owner: string; repo: string } | undefined {
 }
 
 function asRemoteSource(raw: any): RemoteSource {
-	const config = workspace.getConfiguration('github');
-	const gitProtocol = config.get<'https' | 'ssh'>('gitProtocol');
-	const { clone_url, ssh_url } = raw;
-	const remoteUrl = gitProtocol === 'https' ? clone_url : ssh_url;
+	const protocol = workspace.getConfiguration('github').get<'https' | 'ssh'>('gitProtocol');
 	return {
 		name: `$(github) ${raw.full_name}`,
 		description: raw.description || undefined,
-		url: remoteUrl
+		url: protocol === 'https' ? raw.clone_url : raw.ssh_url
 	};
 }
 
