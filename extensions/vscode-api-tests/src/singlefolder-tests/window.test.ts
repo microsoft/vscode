@@ -383,12 +383,12 @@ suite('vscode API - window', () => {
 		await window.showTextDocument(docC, { viewColumn: ViewColumn.Two, preview: false });
 
 		const tabGroups = window.tabGroups;
-		assert.strictEqual(tabGroups.groups.length, 2);
+		assert.strictEqual(tabGroups.all.length, 2);
 
-		const group1Tabs = tabGroups.groups[0].tabs;
+		const group1Tabs = tabGroups.all[0].tabs;
 		assert.strictEqual(group1Tabs.length, 2);
 
-		const group2Tabs = tabGroups.groups[1].tabs;
+		const group2Tabs = tabGroups.all[1].tabs;
 		assert.strictEqual(group2Tabs.length, 1);
 
 		await tabGroups.move(group1Tabs[0], ViewColumn.One, 1);
@@ -398,7 +398,7 @@ suite('vscode API - window', () => {
 	test('Tabs - vscode.open & vscode.diff', async function () {
 		// Simple function to get the active tab
 		const getActiveTab = () => {
-			return window.tabGroups.groups.find(g => g.isActive)?.activeTab;
+			return window.tabGroups.all.find(g => g.isActive)?.activeTab;
 		};
 
 		const [docA, docB, docC] = await Promise.all([
@@ -421,7 +421,7 @@ suite('vscode API - window', () => {
 		await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Four, preview: false });
 		assert.strictEqual(getActiveTab()?.group.viewColumn, ViewColumn.Four);
 
-		const tabs = window.tabGroups.groups.map(g => g.tabs).flat(1);
+		const tabs = window.tabGroups.all.map(g => g.tabs).flat(1);
 		assert.strictEqual(tabs.length, 5);
 		assert.ok(tabs[0].kind instanceof TabKindText);
 		assert.strictEqual(tabs[0].kind.uri.toString(), docA.uri.toString());
@@ -455,7 +455,7 @@ suite('vscode API - window', () => {
 		const rightDiff = await createRandomFile();
 		await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Three, preview: false });
 
-		const tabs = window.tabGroups.groups.map(g => g.tabs).flat(1);
+		const tabs = window.tabGroups.all.map(g => g.tabs).flat(1);
 		assert.strictEqual(tabs.length, 5);
 
 		// All resources should match the text documents as they're the only tabs currently open
@@ -488,7 +488,7 @@ suite('vscode API - window', () => {
 
 		// Function to acquire the active tab within the active group
 		const getActiveTabInActiveGroup = () => {
-			const activeGroup = window.tabGroups.groups.filter(group => group.isActive)[0];
+			const activeGroup = window.tabGroups.all.filter(group => group.isActive)[0];
 			return activeGroup?.activeTab;
 		};
 
