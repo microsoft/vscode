@@ -11,22 +11,35 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { CompletionItemProvider, CompletionTriggerKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from 'vs/editor/common/languages';
+import { Command, CompletionItemProvider, CompletionTriggerKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CompletionItemInsertTextRule } from 'vs/editor/common/standalone/standaloneEnums';
 import { CompletionModel, LineContext } from 'vs/editor/contrib/suggest/browser/completionModel';
-import { CompletionItemModel, CompletionOptions, provideSuggestionItems, QuickSuggestionsOptions } from 'vs/editor/contrib/suggest/browser/suggest';
+import { CompletionItem, CompletionItemModel, CompletionOptions, provideSuggestionItems, QuickSuggestionsOptions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
 import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-class InlineCompletionResults extends RefCountedDisposable implements InlineCompletions {
+class SuggestInlineCompletion implements InlineCompletion {
+
+	constructor(
+		readonly range: IRange,
+		readonly insertText: string | { snippet: string },
+		readonly filterText: string,
+		readonly additionalTextEdits: ISingleEditOperation[] | undefined,
+		readonly command: Command | undefined,
+		readonly completion: CompletionItem,
+	) { }
+}
+
+class InlineCompletionResults extends RefCountedDisposable implements InlineCompletions<SuggestInlineCompletion> {
 
 	constructor(
 		readonly model: ITextModel,
@@ -45,8 +58,8 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 			&& this.completionModel.incomplete.size === 0; // no incomplete results
 	}
 
-	get items(): InlineCompletion[] {
-		const result: InlineCompletion[] = [];
+	get items(): SuggestInlineCompletion[] {
+		const result: SuggestInlineCompletion[] = [];
 
 		// Split items by preselected index. This ensures the memory-selected item shows first and that better/worst
 		// ranked items are before/after
@@ -70,13 +83,14 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 				? { snippet: item.completion.insertText }
 				: item.completion.insertText;
 
-			result.push({
+			result.push(new SuggestInlineCompletion(
 				range,
-				filterText: item.filterTextLow ?? item.labelLow,
 				insertText,
-				command: item.completion.command,
-				additionalTextEdits: item.completion.additionalTextEdits
-			});
+				item.filterTextLow ?? item.labelLow,
+				item.completion.additionalTextEdits,
+				item.completion.command,
+				item
+			));
 		}
 		return result;
 	}
@@ -169,6 +183,10 @@ class SuggestInlineCompletions implements InlineCompletionsProvider<InlineComple
 
 		this._lastResult = result;
 		return result;
+	}
+
+	handleItemDidShow(_completions: InlineCompletionResults, item: SuggestInlineCompletion): void {
+		item.completion.resolve(CancellationToken.None);
 	}
 
 	freeInlineCompletions(result: InlineCompletionResults): void {
