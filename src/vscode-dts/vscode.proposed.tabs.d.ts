@@ -131,6 +131,7 @@ declare module 'vscode' {
 		/**
 		 * All the groups within the group container
 		 */
+		// TODO@API name, back to `all`, keep xyzTabGroup
 		readonly groups: readonly TabGroup[];
 
 		/**
@@ -149,6 +150,7 @@ declare module 'vscode' {
 		 * An {@link Event event} which fires when a {@link Tab tabs} have changed.
 		 */
 		readonly onDidChangeTabs: Event<readonly Tab[]>;
+		// readonly onDidChangeTabs: Event<{ opened: readonly Tab[], closed: readonly Tab[], changed: readonly Tab[] }>;
 
 		/**
 		 * Closes the tab. This makes the tab object invalid and the tab
