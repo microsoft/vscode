@@ -332,7 +332,6 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		WrappingIndent: standaloneEnums.WrappingIndent,
 		InjectedTextCursorStops: standaloneEnums.InjectedTextCursorStops,
 		PositionAffinity: standaloneEnums.PositionAffinity,
-		BackgroundTokenizationState: standaloneEnums.BackgroundTokenizationState,
 
 		// classes
 		ConfigurationChangedEvent: <any>ConfigurationChangedEvent,
