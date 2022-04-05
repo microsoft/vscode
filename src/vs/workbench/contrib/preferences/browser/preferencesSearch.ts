@@ -379,7 +379,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		const hasMoreFilters = filters.length > (filterPage + 1) * RemoteSearchProvider.MAX_REQUEST_FILTERS;
 
 		const body = JSON.stringify({
-			query: encodedQuery,
+			search: encodedQuery,
 			filters: encodeURIComponent(filterStr),
 			rawQuery: encodeURIComponent(verbatimQuery)
 		});
