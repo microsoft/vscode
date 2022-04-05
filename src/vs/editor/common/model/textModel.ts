@@ -22,6 +22,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextChange } from 'vs/editor/common/core/textChange';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
+import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { FormattingOptions } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
@@ -35,10 +36,11 @@ import { IntervalNode, IntervalTree, recomputeMaxEnd } from 'vs/editor/common/mo
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
-import { ITokenizationTextModelPart, TokenizationTextModelPart } from 'vs/editor/common/model/tokenizationTextModelPart';
+import { TokenizationTextModelPart } from 'vs/editor/common/model/tokenizationTextModelPart';
 import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
+import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { IColorTheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
 
@@ -1904,6 +1906,14 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 	public setLineTokens(lineNumber: number, tokens: Uint32Array | ArrayBuffer | null): void {
 		this._tokenizationTextModelPart.setLineTokens(lineNumber, tokens);
+	}
+
+	public getWordAtPosition(position: IPosition): IWordAtPosition | null {
+		return this._tokenizationTextModelPart.getWordAtPosition(position);
+	}
+
+	public getWordUntilPosition(position: IPosition): IWordAtPosition {
+		return this._tokenizationTextModelPart.getWordUntilPosition(position);
 	}
 
 	//#endregion

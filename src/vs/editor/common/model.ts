@@ -14,11 +14,12 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextChange } from 'vs/editor/common/core/textChange';
 import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
+import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { FormattingOptions } from 'vs/editor/common/languages';
-import { ITokenizationTextModelPart } from 'vs/editor/common/model/tokenizationTextModelPart';
 import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
 import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
+import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 /**
@@ -854,6 +855,20 @@ export interface ITextModel {
 	 * @internal
 	 */
 	getLanguageIdAtPosition(lineNumber: number, column: number): string;
+
+	/**
+	 * Get the word under or besides `position`.
+	 * @param position The position to look for a word.
+	 * @return The word under or besides `position`. Might be null.
+	 */
+	getWordAtPosition(position: IPosition): IWordAtPosition | null;
+
+	/**
+	 * Get the word under or besides `position` trimmed to `position`.column
+	 * @param position The position to look for a word.
+	 * @return The word under or besides `position`. Will never be null.
+	 */
+	getWordUntilPosition(position: IPosition): IWordAtPosition;
 
 
 	/**

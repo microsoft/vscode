@@ -18,7 +18,7 @@ import { Length, lengthAdd, lengthGreaterThanEqual, lengthLessThanEqual, lengthO
 import { parseDocument } from './parser';
 import { DenseKeyProvider } from './smallImmutableSet';
 import { FastTokenizer, TextBufferTokenizer } from './tokenizer';
-import { BackgroundTokenizationState } from 'vs/editor/common/model/tokenizationTextModelPart';
+import { BackgroundTokenizationState } from 'vs/editor/common/tokenizationTextModelPart';
 
 export class BracketPairsTree extends Disposable {
 	private readonly didChangeEmitter = new Emitter<void>();
