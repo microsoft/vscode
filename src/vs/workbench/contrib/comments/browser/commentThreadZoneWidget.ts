@@ -23,10 +23,10 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { commentThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
+import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
 
-export function getCommentThreadWidgetStateColor(thread: languages.CommentThread, theme: IColorTheme): Color | undefined {
+export function getCommentThreadWidgetStateColor(thread: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
 	return getCommentThreadStateColor(thread, theme) ?? theme.getColor(peekViewBorder);
 }
 
@@ -85,7 +85,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private readonly _globalToDispose = new DisposableStore();
 	private _commentThreadDisposables: IDisposable[] = [];
 	private _contextKeyService: IContextKeyService;
-	private _scopedInstatiationService: IInstantiationService;
+	private _scopedInstantiationService: IInstantiationService;
 
 	public get owner(): string {
 		return this._owner;
@@ -109,7 +109,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		super(editor, { keepEditorSelection: true });
 		this._contextKeyService = contextKeyService.createScoped(this.domNode);
 
-		this._scopedInstatiationService = instantiationService.createChild(new ServiceCollection(
+		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, this._contextKeyService]
 		));
 
@@ -184,13 +184,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('review-widget');
-		this._commentThreadWidget = this._scopedInstatiationService.createInstance(
+		this._commentThreadWidget = this._scopedInstantiationService.createInstance(
 			CommentThreadWidget,
 			container,
 			this._owner,
 			this.editor.getModel()!.uri,
 			this._contextKeyService,
-			this._scopedInstatiationService,
+			this._scopedInstantiationService,
 			this._commentThread as unknown as languages.CommentThread<IRange | ICellRange>,
 			this._pendingComment,
 			{ editor: this.editor },
@@ -344,12 +344,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeState(() => {
 			const borderColor =
-				getCommentThreadWidgetStateColor(this._commentThread, this.themeService.getColorTheme()) || Color.transparent;
+				getCommentThreadWidgetStateColor(this._commentThread.state, this.themeService.getColorTheme()) || Color.transparent;
 			this.style({
 				frameColor: borderColor,
 				arrowColor: borderColor,
 			});
 			this.container?.style.setProperty(commentThreadStateColorVar, `${borderColor}`);
+			this.container?.style.setProperty(commentThreadStateBackgroundColorVar, `${borderColor.transparent(.1)}`);
 		}));
 	}
 
@@ -410,7 +411,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	private _applyTheme(theme: IColorTheme) {
-		const borderColor = getCommentThreadWidgetStateColor(this._commentThread, this.themeService.getColorTheme()) || Color.transparent;
+		const borderColor = getCommentThreadWidgetStateColor(this._commentThread.state, this.themeService.getColorTheme()) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
 			frameColor: borderColor

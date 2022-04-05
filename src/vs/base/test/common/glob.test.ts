@@ -1099,4 +1099,19 @@ suite('Glob', () => {
 		let p = 'scheme:/**/*.md';
 		assertGlobMatch(p, URI.file('super/duper/long/some/file.md').with({ scheme: 'scheme' }).toString());
 	});
+
+	test('expression fails when siblings use promises (https://github.com/microsoft/vscode/issues/146294)', async function () {
+		let siblings = ['test.html', 'test.txt', 'test.ts'];
+		let hasSibling = (name: string) => Promise.resolve(siblings.indexOf(name) !== -1);
+
+		// { "**/*.js": { "when": "$(basename).ts" } }
+		let expression: glob.IExpression = {
+			'**/test.js': { when: '$(basename).js' },
+			'**/*.js': { when: '$(basename).ts' }
+		};
+
+		const parsedExpression = glob.parse(expression);
+
+		assert.strictEqual('**/*.js', await parsedExpression('test.js', undefined, hasSibling));
+	});
 });

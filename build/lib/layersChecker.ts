@@ -30,30 +30,13 @@ const CORE_TYPES = [
 	'setInterval',
 	'clearInterval',
 	'console',
-	'log',
-	'info',
-	'warn',
-	'error',
-	'trace',
-	'group',
-	'groupEnd',
-	'table',
-	'assert',
+	'Console',
 	'Error',
+	'ErrorConstructor',
 	'String',
-	'throws',
-	'stack',
-	'captureStackTrace',
-	'stackTraceLimit',
 	'TextDecoder',
 	'TextEncoder',
-	'encode',
-	'decode',
 	'self',
-	'trimStart',
-	'trimEnd',
-	'trimLeft',
-	'trimRight',
 	'queueMicrotask',
 	'Array',
 	'Uint8Array',
@@ -71,7 +54,9 @@ const CORE_TYPES = [
 	'atob',
 	'AbortSignal',
 	'MessageChannel',
-	'MessagePort'
+	'MessagePort',
+	'URL',
+	'URLSearchParams'
 ];
 
 // Types that are defined in a common layer but are known to be only
@@ -100,7 +85,6 @@ const RULES = [
 
 			// Safe access to postMessage() and friends
 			'MessageEvent',
-			'data'
 		],
 		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
@@ -195,20 +179,7 @@ const RULES = [
 	// node.js
 	{
 		target: '**/vs/**/node/**',
-		allowedTypes: [
-			...CORE_TYPES,
-
-			// --> types from node.d.ts that duplicate from lib.dom.d.ts
-			'URL',
-			'protocol',
-			'hostname',
-			'port',
-			'pathname',
-			'search',
-			'username',
-			'password',
-			'origin'
-		],
+		allowedTypes: CORE_TYPES,
 		disallowedDefinitions: [
 			'lib.dom.d.ts'	// no DOM
 		]
@@ -266,7 +237,21 @@ function checkFile(program: ts.Program, sourceFile: ts.SourceFile, rule: IRule) 
 			return ts.forEachChild(node, checkNode); // recurse down
 		}
 
-		const text = node.getText(sourceFile);
+		const checker = program.getTypeChecker();
+		const symbol = checker.getSymbolAtLocation(node);
+
+		if (!symbol) {
+			return;
+		}
+
+		let _parentSymbol: any = symbol;
+
+		while (_parentSymbol.parent) {
+			_parentSymbol = _parentSymbol.parent;
+		}
+
+		const parentSymbol = _parentSymbol as ts.Symbol;
+		const text = parentSymbol.getName();
 
 		if (rule.allowedTypes?.some(allowed => allowed === text)) {
 			return; // override
@@ -274,40 +259,37 @@ function checkFile(program: ts.Program, sourceFile: ts.SourceFile, rule: IRule) 
 
 		if (rule.disallowedTypes?.some(disallowed => disallowed === text)) {
 			const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-			console.log(`[build/lib/layersChecker.ts]: Reference to '${text}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1})`);
+			console.log(`[build/lib/layersChecker.ts]: Reference to type '${text}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1})`);
 
 			hasErrors = true;
 			return;
 		}
 
-		const checker = program.getTypeChecker();
-		const symbol = checker.getSymbolAtLocation(node);
-		if (symbol) {
-			const declarations = symbol.declarations;
-			if (Array.isArray(declarations)) {
-				DeclarationLoop: for (const declaration of declarations) {
-					if (declaration) {
-						const parent = declaration.parent;
-						if (parent) {
-							const parentSourceFile = parent.getSourceFile();
-							if (parentSourceFile) {
-								const definitionFileName = parentSourceFile.fileName;
-								if (rule.allowedDefinitions) {
-									for (const allowedDefinition of rule.allowedDefinitions) {
-										if (definitionFileName.indexOf(allowedDefinition) >= 0) {
-											continue DeclarationLoop;
-										}
+		const declarations = symbol.declarations;
+		if (Array.isArray(declarations)) {
+			DeclarationLoop: for (const declaration of declarations) {
+				if (declaration) {
+					const parent = declaration.parent;
+					if (parent) {
+						const parentSourceFile = parent.getSourceFile();
+						if (parentSourceFile) {
+							const definitionFileName = parentSourceFile.fileName;
+							if (rule.allowedDefinitions) {
+								for (const allowedDefinition of rule.allowedDefinitions) {
+									if (definitionFileName.indexOf(allowedDefinition) >= 0) {
+										continue DeclarationLoop;
 									}
 								}
-								if (rule.disallowedDefinitions) {
-									for (const disallowedDefinition of rule.disallowedDefinitions) {
-										if (definitionFileName.indexOf(disallowedDefinition) >= 0) {
-											const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-											console.log(`[build/lib/layersChecker.ts]: Reference to '${text}' from '${disallowedDefinition}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1})`);
+							}
+							if (rule.disallowedDefinitions) {
+								for (const disallowedDefinition of rule.disallowedDefinitions) {
+									if (definitionFileName.indexOf(disallowedDefinition) >= 0) {
+										const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
 
-											hasErrors = true;
-											return;
-										}
+										console.log(`[build/lib/layersChecker.ts]: Reference to symbol '${text}' from '${disallowedDefinition}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1})`);
+
+										hasErrors = true;
+										return;
 									}
 								}
 							}

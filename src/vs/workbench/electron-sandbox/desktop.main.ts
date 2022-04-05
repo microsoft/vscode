@@ -43,7 +43,6 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 import { safeStringify } from 'vs/base/common/objects';
 import { ISharedProcessWorkerWorkbenchService, SharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
 import { isCI, isMacintosh } from 'vs/base/common/platform';
@@ -115,11 +114,6 @@ export class DesktopMain extends Disposable {
 
 		// Window
 		this._register(instantiationService.createInstance(NativeWindow));
-
-		// Driver
-		if (this.configuration.driver) {
-			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
-		}
 	}
 
 	private getExtraClasses(): string[] {

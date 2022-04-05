@@ -38,6 +38,7 @@ async function main() {
 			'CodeResources',
 			'fsevents.node',
 			'Info.plist', // TODO@deepak1556: regressed with 11.4.2 internal builds
+			'MainMenu.nib', // Generated sequence is not deterministic with Xcode 13
 			'.npmrc'
 		],
 		outAppPath,

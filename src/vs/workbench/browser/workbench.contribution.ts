@@ -464,11 +464,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
 				'markdownDeprecationMessage': localize({ key: 'layoutControlTypeDeprecation', comment: ['{0} is a placeholder for a setting identifier.'] }, "This setting has been deprecated in favor of {0}", '`#workbench.layoutControl.type#`')
 			},
-			'workbench.experimental.editor.dragAndDropIntoEditor.enabled': {
+			'workbench.editor.dropIntoEditor.enabled': {
 				'type': 'boolean',
-				'tags': ['experimental'],
-				'default': false,
-				'description': localize('dragAndDropIntoEditor', "Controls whether you can drag and drop a file into an editor by holding down shift (instead of opening the file in an editor)."),
+				'default': true,
+				'markdownDescription': localize('dropIntoEditor', "Controls whether you can drag and drop a file into a text editor by holding down `shift` (instead of opening the file in an editor)."),
 			}
 		}
 	});

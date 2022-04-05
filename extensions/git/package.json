@@ -987,6 +987,11 @@
           "when": "scmProvider == git"
         },
         {
+          "command": "git.fetch",
+          "group": "1_header@5",
+          "when": "scmProvider == git"
+        },
+        {
           "submenu": "git.commit",
           "group": "2_main@1",
           "when": "scmProvider == git"

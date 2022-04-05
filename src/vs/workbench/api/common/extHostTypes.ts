@@ -1594,7 +1594,10 @@ export class CompletionList {
 
 @es5ClassCompat
 export class InlineSuggestion implements vscode.InlineCompletionItem {
-	insertText?: string;
+
+	insertText?: string | SnippetString;
+
+	filterText?: string;
 
 	/**
 	 * @deprecated Use `insertText` instead. Will be removed eventually.
@@ -1604,7 +1607,7 @@ export class InlineSuggestion implements vscode.InlineCompletionItem {
 	range?: Range;
 	command?: vscode.Command;
 
-	constructor(insertText: string, range?: Range, command?: vscode.Command) {
+	constructor(insertText: string | SnippetString, range?: Range, command?: vscode.Command) {
 		this.insertText = insertText;
 		this.range = range;
 		this.command = command;
