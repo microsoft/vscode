@@ -377,7 +377,7 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : opts.legacy ? 'Electron (lega
 	setupSearchTests(logger);
 	setupNotebookTests(logger);
 	setupLanguagesTests(logger);
-	if (opts.web) { setupTerminalTests(logger); }
+	if (opts.web) { setupTerminalTests(logger); } // Tests require playwright driver (https://github.com/microsoft/vscode/issues/146811)
 	setupStatusbarTests(logger);
 	if (quality !== Quality.Dev) { setupExtensionTests(logger); }
 	setupMultirootTests(logger);
