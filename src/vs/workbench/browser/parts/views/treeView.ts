@@ -1276,7 +1276,7 @@ export class CustomTreeView extends AbstractTreeView {
 	constructor(
 		id: string,
 		title: string,
-		private extensionId: string,
+		private readonly extensionId: string,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICommandService commandService: ICommandService,
