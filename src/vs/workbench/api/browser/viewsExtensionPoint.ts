@@ -510,7 +510,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						containerTitle: item.contextualTitle || viewContainer?.title,
 						canToggleVisibility: true,
 						canMoveView: viewContainer?.id !== REMOTE,
-						treeView: type === ViewType.Tree ? this.instantiationService.createInstance(CustomTreeView, item.id, item.name) : undefined,
+						treeView: type === ViewType.Tree ? this.instantiationService.createInstance(CustomTreeView, item.id, item.name, extension.description.identifier.value) : undefined,
 						collapsed: this.showCollapsed(container) || initialVisibility === InitialVisibility.Collapsed,
 						order: order,
 						extensionId: extension.description.identifier,
