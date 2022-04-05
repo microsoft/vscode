@@ -158,8 +158,22 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 			return Array.from(this.getReferencesToLinkReference(allLinksInWorkspace, sourceLink.href.ref, { resource: sourceLink.source.resource, range: sourceLink.source.hrefRange }));
 		}
 
-		if (sourceLink.href.kind !== 'internal') {
-			return [];
+		if (sourceLink.href.kind === 'external') {
+			const references: MdReference[] = [];
+
+			for (const link of allLinksInWorkspace) {
+				if (link.href.kind === 'external' && link.href.uri.scheme === sourceLink.href.uri.scheme && link.href.uri.path === sourceLink.href.uri.path) {
+					const isTriggerLocation = sourceLink.source.resource.fsPath === link.source.resource.fsPath && sourceLink.source.hrefRange.isEqual(link.source.hrefRange);
+					references.push({
+						kind: 'link',
+						isTriggerLocation,
+						isDefinition: false,
+						link,
+						location: new vscode.Location(link.source.resource, link.source.hrefRange),
+					});
+				}
+			}
+			return references;
 		}
 
 		let targetDoc = await this.workspaceContents.getMarkdownDocument(sourceLink.href.path);
@@ -190,9 +204,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 					headerTextLocation: entry.headerTextLocation
 				});
 			}
-		}
 
-		if (sourceLink.href.fragment) {
 			for (const link of allLinksInWorkspace) {
 				if (link.href.kind !== 'internal' || !this.looksLikeLinkToDoc(link.href, targetDoc.uri)) {
 					continue;
@@ -226,7 +238,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		return Array.from(this.findAllLinksToFile(resource, allLinksInWorkspace, undefined));
 	}
 
-	private *findAllLinksToFile(resource: vscode.Uri, allLinksInWorkspace: readonly MdLink[], sourceLink: MdLink | undefined): Iterable<MdReference> {
+	private * findAllLinksToFile(resource: vscode.Uri, allLinksInWorkspace: readonly MdLink[], sourceLink: MdLink | undefined): Iterable<MdReference> {
 		for (const link of allLinksInWorkspace) {
 			if (link.href.kind !== 'internal' || !this.looksLikeLinkToDoc(link.href, resource)) {
 				continue;
@@ -248,7 +260,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 		}
 	}
 
-	private *getReferencesToLinkReference(allLinks: Iterable<MdLink>, refToFind: string, from: { resource: vscode.Uri; range: vscode.Range }): Iterable<MdReference> {
+	private * getReferencesToLinkReference(allLinks: Iterable<MdLink>, refToFind: string, from: { resource: vscode.Uri; range: vscode.Range }): Iterable<MdReference> {
 		for (const link of allLinks) {
 			let ref: string;
 			if (link.kind === 'definition') {

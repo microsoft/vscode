@@ -356,4 +356,32 @@ suite('markdown: rename', () => {
 		assert.strictEqual(info!.placeholder, 'a B c');
 		assertRangeEqual(info!.range, new vscode.Range(1, 8, 1, 13));
 	});
+
+	test('Rename on http uri should work ', async () => {
+		const uri1 = workspacePath('doc.md');
+		const uri2 = workspacePath('doc2.md');
+		const doc = new InMemoryDocument(uri1, joinLines(
+			`[1](http://example.com)`,
+			`[2]: http://example.com`,
+			`<http://example.com>`,
+		));
+
+		const edit = await getRenameEdits(doc, new vscode.Position(1, 10), "https://example.com/sub", new InMemoryWorkspaceMarkdownDocuments([
+			doc,
+			new InMemoryDocument(uri2, joinLines(
+				`[4](http://example.com)`,
+			))
+		]));
+		assertEditsEqual(edit!, {
+			uri: uri1, edits: [
+				new vscode.TextEdit(new vscode.Range(0, 4, 0, 22), 'https://example.com/sub'),
+				new vscode.TextEdit(new vscode.Range(1, 5, 1, 23), 'https://example.com/sub'),
+				new vscode.TextEdit(new vscode.Range(2, 1, 2, 19), 'https://example.com/sub'),
+			]
+		}, {
+			uri: uri2, edits: [
+				new vscode.TextEdit(new vscode.Range(0, 4, 0, 22), 'https://example.com/sub'),
+			]
+		});
+	});
 });

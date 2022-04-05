@@ -171,6 +171,11 @@ const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*
 const referenceLinkPattern = /(?:(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]|\[\s*?([^\s\]]*?)\])(?![\:\(])/g;
 
 /**
+ * Matches `<http://example.com>`
+ */
+const autoLinkPattern = /\<(\w+:[^\>\s]+)\>/g;
+
+/**
  * Matches `[text]: link`
  */
 const definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)([^<]\S*|<[^>]+>)/gm;
@@ -256,6 +261,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 			...(await this.getInlineLinks(document)),
 			...this.getReferenceLinks(document),
 			...this.getLinkDefinitions(document),
+			...this.getAutoLinks(document),
 		]);
 	}
 
@@ -275,6 +281,30 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 			}
 		}
 		return results;
+	}
+
+	private *getAutoLinks(document: SkinnyTextDocument): Iterable<MdLink> {
+		const text = document.getText();
+
+		for (const match of text.matchAll(autoLinkPattern)) {
+			const link = match[1];
+			const linkTarget = parseLink(document, link);
+			if (linkTarget) {
+				const offset = (match.index ?? 0) + 1;
+				const linkStart = document.positionAt(offset);
+				const linkEnd = document.positionAt(offset + link.length);
+				yield {
+					kind: 'link',
+					href: linkTarget,
+					source: {
+						text: link,
+						resource: document.uri,
+						hrefRange: new vscode.Range(linkStart, linkEnd),
+						fragmentRange: getFragmentRange(link, linkStart, linkEnd),
+					}
+				};
+			}
+		}
 	}
 
 	private *getReferenceLinks(document: SkinnyTextDocument): Iterable<MdLink> {
