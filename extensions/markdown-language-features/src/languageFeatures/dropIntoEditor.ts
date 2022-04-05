@@ -10,6 +10,11 @@ import * as URI from 'vscode-uri';
 export function registerDropIntoEditor(selector: vscode.DocumentSelector) {
 	return vscode.languages.registerDocumentOnDropProvider(selector, new class implements vscode.DocumentOnDropProvider {
 		async provideDocumentOnDropEdits(document: vscode.TextDocument, position: vscode.Position, dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<vscode.SnippetTextEdit | undefined> {
+			const enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.drop.enabled', true);
+			if (!enabled) {
+				return;
+			}
+
 			const urlList = await dataTransfer.get('text/uri-list')?.asString();
 			if (!urlList) {
 				return undefined;
