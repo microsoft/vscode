@@ -203,7 +203,12 @@ export class Code {
 
 						// no need to await since we're polling for the process to die anyways
 						treekill(pid, err => {
-							this.logger.log('Failed to kill Electron process tree:', err?.message);
+							try {
+								process.kill(pid, 0); // throws an exception if the process doesn't exist anymore
+								this.logger.log('Failed to kill Electron process tree:', err?.message);
+							} catch (error) {
+								// Expected when process is gone
+							}
 						});
 					}
 
