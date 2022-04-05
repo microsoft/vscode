@@ -231,7 +231,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 					const activeTabGroup = assertIsDefined(that._extHostTabGroups.find(candidate => candidate.groupId === activeTabGroupId)?.apiObject);
 					return activeTabGroup;
 				},
-				close: async (tabOrTabGroup: vscode.Tab | vscode.Tab[] | vscode.TabGroup | vscode.TabGroup[], preserveFocus?: boolean) => {
+				close: async (tabOrTabGroup: vscode.Tab | readonly vscode.Tab[] | vscode.TabGroup | readonly vscode.TabGroup[], preserveFocus?: boolean) => {
 					const tabsOrTabGroups = Array.isArray(tabOrTabGroup) ? tabOrTabGroup : [tabOrTabGroup];
 					if (!tabsOrTabGroups.length) {
 						return true;
