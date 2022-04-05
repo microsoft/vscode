@@ -49,11 +49,8 @@ export class ExtensionsScanner extends Disposable {
 	async scanExtensions(type: ExtensionType | null): Promise<ILocalExtension[]> {
 		const scannedOptions: ScanOptions = { includeInvalid: true };
 		let scannedExtensions: IScannedExtension[] = [];
-		if (type === null) {
+		if (type === null || type === ExtensionType.System) {
 			scannedExtensions.push(...await this.extensionsScannerService.scanAllExtensions(scannedOptions));
-		} else if (type === ExtensionType.System) {
-			scannedExtensions.push(...await this.extensionsScannerService.scanSystemExtensions(scannedOptions));
-			scannedExtensions.push(...await this.extensionsScannerService.scanUserExtensions(scannedOptions));
 		} else if (type === ExtensionType.User) {
 			scannedExtensions.push(...await this.extensionsScannerService.scanUserExtensions(scannedOptions));
 		}
