@@ -161,6 +161,25 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('scm.diffDecorationsGutterAction', "Controls the behavior of Source Control diff gutter decorations."),
 			default: 'diff'
 		},
+		'scm.diffDecorationsGutterPattern': {
+			type: 'object',
+			description: localize('diffGutterPattern', "Controls whether a pattern is used for the diff decorations in gutter."),
+			additionalProperties: false,
+			properties: {
+				'added': {
+					type: 'boolean',
+					description: localize('diffGutterPatternAdded', "Use pattern for the diff decorations in gutter for added lines."),
+				},
+				'modified': {
+					type: 'boolean',
+					description: localize('diffGutterPatternModifed', "Use pattern for the diff decorations in gutter for modified lines."),
+				},
+			},
+			default: {
+				'added': false,
+				'modified': true
+			}
+		},
 		'scm.diffDecorationsIgnoreTrimWhitespace': {
 			type: 'string',
 			enum: ['true', 'false', 'inherit'],
