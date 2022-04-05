@@ -44,7 +44,7 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 		try {
 			await measureAndLog(context.tracing.start({ screenshots: true, /* remaining options are off for perf reasons */ }), 'context.tracing.start()', logger);
 		} catch (error) {
-			logger.log(`Failed to start playwright tracing: ${error}`); // do not fail the build when this fails
+			logger.log(`Playwright (Electron): Failed to start playwright tracing (${error})`); // do not fail the build when this fails
 		}
 	}
 
@@ -53,17 +53,17 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 		electron.on('close', () => logger.log(`Playwright (Electron): electron.on('close')`));
 
 		context.on('page', () => logger.log(`Playwright (Electron): context.on('page')`));
-		context.on('requestfailed', (e) => logger.log(`Playwright (Electron): context.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
+		context.on('requestfailed', e => logger.log(`Playwright (Electron): context.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
 
-		window.on('console', (e) => logger.log(`Playwright (Electron): window.on('console') [${e.text()}]`));
 		window.on('dialog', () => logger.log(`Playwright (Electron): window.on('dialog')`));
 		window.on('domcontentloaded', () => logger.log(`Playwright (Electron): window.on('domcontentloaded')`));
 		window.on('load', () => logger.log(`Playwright (Electron): window.on('load')`));
 		window.on('popup', () => logger.log(`Playwright (Electron): window.on('popup')`));
 		window.on('framenavigated', () => logger.log(`Playwright (Electron): window.on('framenavigated')`));
-		window.on('requestfailed', (e) => logger.log(`Playwright (Electron): window.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
+		window.on('requestfailed', e => logger.log(`Playwright (Electron): window.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
 	}
 
+	window.on('console', e => logger.log(`Playwright (Electron): window.on('console') [${e.text()}]`));
 	window.on('pageerror', async (error) => logger.log(`Playwright (Electron) ERROR: page error: ${error}`));
 	window.on('crash', () => logger.log('Playwright (Electron) ERROR: page crash'));
 	window.on('close', () => logger.log('Playwright (Electron): page close'));

@@ -287,19 +287,32 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 		try {
 			await measureAndLog(context.tracing.start({ screenshots: true, /* remaining options are off for perf reasons */ }), 'context.tracing.start()', logger);
 		} catch (error) {
-			logger.log(`Failed to start playwright tracing: ${error}`); // do not fail the build when this fails
+			logger.log(`Playwright (Browser): Failed to start playwright tracing (${error})`); // do not fail the build when this fails
 		}
 	}
 
 	const page = await measureAndLog(context.newPage(), 'context.newPage()', logger);
 	await measureAndLog(page.setViewportSize({ width: 1200, height: 800 }), 'page.setViewportSize', logger);
 
-	page.on('pageerror', async (error) => logger.log(`Playwright ERROR: page error: ${error}`));
-	page.on('crash', () => logger.log('Playwright ERROR: page crash'));
-	page.on('close', () => logger.log('Playwright: page close'));
+	if (options.verbose) {
+		context.on('page', () => logger.log(`Playwright (Browser): context.on('page')`));
+		context.on('requestfailed', e => logger.log(`Playwright (Browser): context.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
+
+		page.on('console', e => logger.log(`Playwright (Browser): window.on('console') [${e.text()}]`));
+		page.on('dialog', () => logger.log(`Playwright (Browser): page.on('dialog')`));
+		page.on('domcontentloaded', () => logger.log(`Playwright (Browser): page.on('domcontentloaded')`));
+		page.on('load', () => logger.log(`Playwright (Browser): page.on('load')`));
+		page.on('popup', () => logger.log(`Playwright (Browser): page.on('popup')`));
+		page.on('framenavigated', () => logger.log(`Playwright (Browser): page.on('framenavigated')`));
+		page.on('requestfailed', e => logger.log(`Playwright (Browser): page.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
+	}
+
+	page.on('pageerror', async (error) => logger.log(`Playwright (Browser) ERROR: page error: ${error}`));
+	page.on('crash', () => logger.log('Playwright (Browser) ERROR: page crash'));
+	page.on('close', () => logger.log('Playwright (Browser): page close'));
 	page.on('response', async (response) => {
 		if (response.status() >= 400) {
-			logger.log(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
+			logger.log(`Playwright (Browser) ERROR: HTTP status ${response.status()} for ${response.url()}`);
 		}
 	});
 

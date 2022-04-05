@@ -149,8 +149,8 @@ export class Application {
 
 		// Remote but not web: wait for a remote connection state change
 		if (this.remote) {
-			await measureAndLog(code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', undefined, s => {
-				this.logger.log(`checkWindowReady: remote indicator text is ${s}`);
+			await measureAndLog(code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', undefined, statusHostLabel => {
+				this.logger.log(`checkWindowReady: remote indicator text is ${statusHostLabel}`);
 
 				// The absence of "Opening Remote" is not a strict
 				// indicator for a successful connection, but we
@@ -160,7 +160,7 @@ export class Application {
 				// diagnose this. As such, as soon as the connection
 				// state changes away from the "Opening Remote..." one
 				// we return.
-				return !s.includes('Opening Remote');
+				return !statusHostLabel.includes('Opening Remote');
 			}, 300 /* = 30s of retry */), 'Application#checkWindowReady: wait for remote indicator', this.logger);
 		}
 	}
