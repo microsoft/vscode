@@ -584,13 +584,38 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 		}
 
 		const resultExpression: ParsedStringPattern = function (path: string, basename?: string) {
-			for (let i = 0, n = parsedPatterns.length; i < n; i++) {
+			let resultPromises: Promise<string | null>[] | undefined = undefined;
 
-				// Check if pattern matches path
+			for (let i = 0, n = parsedPatterns.length; i < n; i++) {
 				const result = parsedPatterns[i](path, basename);
-				if (result) {
-					return result;
+				if (typeof result === 'string') {
+					return result; // immediately return as soon as the first expression matches
 				}
+
+				// If the result is a promise, we have to keep it for
+				// later processing and await the result properly.
+				if (isThenable(result)) {
+					if (!resultPromises) {
+						resultPromises = [];
+					}
+
+					resultPromises.push(result);
+				}
+			}
+
+			// With result promises, we have to loop over each and
+			// await the result before we can return any result.
+			if (resultPromises) {
+				return (async () => {
+					for (const resultPromise of resultPromises) {
+						const result = await resultPromise;
+						if (typeof result === 'string') {
+							return result;
+						}
+					}
+
+					return null;
+				})();
 			}
 
 			return null;
@@ -611,6 +636,7 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 
 	const resultExpression: ParsedStringPattern = function (path: string, base?: string, hasSibling?: (name: string) => boolean | Promise<boolean>) {
 		let name: string | undefined = undefined;
+		let resultPromises: Promise<string | null>[] | undefined = undefined;
 
 		for (let i = 0, n = parsedPatterns.length; i < n; i++) {
 
@@ -627,9 +653,34 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 			}
 
 			const result = parsedPattern(path, base, name, hasSibling);
-			if (result) {
-				return result;
+			if (typeof result === 'string') {
+				return result; // immediately return as soon as the first expression matches
 			}
+
+			// If the result is a promise, we have to keep it for
+			// later processing and await the result properly.
+			if (isThenable(result)) {
+				if (!resultPromises) {
+					resultPromises = [];
+				}
+
+				resultPromises.push(result);
+			}
+		}
+
+		// With result promises, we have to loop over each and
+		// await the result before we can return any result.
+		if (resultPromises) {
+			return (async () => {
+				for (const resultPromise of resultPromises) {
+					const result = await resultPromise;
+					if (typeof result === 'string') {
+						return result;
+					}
+				}
+
+				return null;
+			})();
 		}
 
 		return null;
