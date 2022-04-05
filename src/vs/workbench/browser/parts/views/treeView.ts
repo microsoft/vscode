@@ -1414,13 +1414,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		}
 	}
 
-	private debugLog(originalEvent: DragEvent) {
-		const types: Set<string> = new Set();
-		originalEvent.dataTransfer?.types.forEach((value, index) => {
-			if ((originalEvent.dataTransfer?.items[index].kind === 'string') && (INTERNAL_MIME_TYPES.indexOf(value) < 0)) {
-				types.add(this.convertKnownMimes(value).type);
-			}
-		});
+	private debugLog(types: Set<string>) {
 		if (types.size) {
 			this.logService.debug(`TreeView dragged mime types: ${Array.from(types).join(', ')}`);
 		} else {
@@ -1429,12 +1423,19 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
-		this.debugLog(originalEvent);
+		const types: Set<string> = new Set();
+		originalEvent.dataTransfer?.types.forEach((value, index) => {
+			if (INTERNAL_MIME_TYPES.indexOf(value) < 0) {
+				types.add(this.convertKnownMimes(value).type);
+			}
+		});
+
+		this.debugLog(types);
 		const dndController = this.dndController;
 		if (!dndController || !originalEvent.dataTransfer || (dndController.dropMimeTypes.length === 0)) {
 			return false;
 		}
-		const dragContainersSupportedType = originalEvent.dataTransfer.types.some((value, index) => {
+		const dragContainersSupportedType = Array.from(types).some((value, index) => {
 			if (value === this.treeMimeType) {
 				return true;
 			} else {
@@ -1465,13 +1466,18 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		return element.label ? element.label.label : (element.resourceUri ? this.labelService.getUriLabel(URI.revive(element.resourceUri)) : undefined);
 	}
 
-	private convertKnownMimes(type: string, value?: string): { type: string; value?: string } {
-		let convertedValue = value;
+	private convertKnownMimes(type: string, value?: string | FileSystemHandle): { type: string; value?: string } {
+		let convertedValue = undefined;
 		let convertedType = type;
 		switch (type) {
 			case DataTransfers.RESOURCES.toLowerCase(): {
-				convertedValue = value ? convertResourceUrlsToUriList(value) : undefined;
+				convertedValue = value ? convertResourceUrlsToUriList(value as string) : undefined;
 				convertedType = Mimes.uriList;
+				break;
+			}
+			case 'Files': {
+				convertedType = Mimes.uriList;
+				convertedValue = value ? (value as FileSystemHandle).name : undefined;
 				break;
 			}
 		}
@@ -1484,8 +1490,9 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 			return;
 		}
 		const treeDataTransfer: IDataTransfer = new Map();
-		let stringCount = Array.from(originalEvent.dataTransfer.items).reduce((previous, current) => {
-			if (current.kind === 'string') {
+		const uris: URI[] = [];
+		let itemsCount = Array.from(originalEvent.dataTransfer.items).reduce((previous, current) => {
+			if ((current.kind === 'string') || (current.kind === 'file')) {
 				return previous + 1;
 			}
 			return previous;
@@ -1498,8 +1505,15 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		}
 		await new Promise<void>(resolve => {
 			function decrementStringCount() {
-				stringCount--;
-				if (stringCount === 0) {
+				itemsCount--;
+				if (itemsCount === 0) {
+					// Check if there are uris to add and add them
+					if (uris.length) {
+						treeDataTransfer.set(Mimes.uriList, {
+							asString: () => Promise.resolve(uris.map(uri => uri.toString()).join('\n')),
+							value: undefined
+						});
+					}
 					resolve();
 				}
 			}
@@ -1510,15 +1524,14 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 			for (const dataItem of originalEvent.dataTransfer.items) {
 				const type = dataItem.type;
 				const convertedType = this.convertKnownMimes(type).type;
-				if (dataItem.kind === 'string') {
-					if ((convertedType === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(convertedType) >= 0)) {
+				if ((INTERNAL_MIME_TYPES.indexOf(convertedType) < 0)
+					&& (convertedType === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(convertedType) >= 0)) {
+					if (dataItem.kind === 'string') {
 						dataItem.getAsString(dataValue => {
 							if (convertedType === this.treeMimeType) {
 								treeSourceInfo = JSON.parse(dataValue);
 							}
-							if (dataValue
-								&& (INTERNAL_MIME_TYPES.indexOf(convertedType) < 0)
-								&& ((convertedType === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(convertedType) >= 0))) {
+							if (dataValue) {
 								const converted = this.convertKnownMimes(type, dataValue);
 								treeDataTransfer.set(converted.type, {
 									asString: () => Promise.resolve(converted.value!),
@@ -1527,6 +1540,12 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 							}
 							decrementStringCount();
 						});
+					} else if (dataItem.kind === 'file') {
+						const dataValue = dataItem.getAsFile();
+						if (dataValue) {
+							uris.push(URI.file(dataValue.path));
+						}
+						decrementStringCount();
 					} else {
 						decrementStringCount();
 					}
