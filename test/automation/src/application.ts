@@ -6,7 +6,7 @@
 import { Workbench } from './workbench';
 import { Code, launch, LaunchOptions } from './code';
 import { Logger, measureAndLog } from './logger';
-import { PlaywrightDriver } from './playwrightBrowserDriver';
+import { PlaywrightDriver } from './playwrightDriver';
 
 export const enum Quality {
 	Dev,
