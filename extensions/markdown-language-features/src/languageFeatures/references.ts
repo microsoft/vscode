@@ -162,7 +162,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 			const references: MdReference[] = [];
 
 			for (const link of allLinksInWorkspace) {
-				if (link.href.kind === 'external' && link.href.uri.scheme === sourceLink.href.uri.scheme && link.href.uri.path === sourceLink.href.uri.path) {
+				if (link.href.kind === 'external' && link.href.uri.toString() === sourceLink.href.uri.toString()) {
 					const isTriggerLocation = sourceLink.source.resource.fsPath === link.source.resource.fsPath && sourceLink.source.hrefRange.isEqual(link.source.hrefRange);
 					references.push({
 						kind: 'link',

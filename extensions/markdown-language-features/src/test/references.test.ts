@@ -361,7 +361,7 @@ suite('markdown: find all references', () => {
 		);
 	});
 
-	test('Should consider paths when finding references to http uri', async () => {
+	test('Should consider authority, scheme and paths when finding references to http uri', async () => {
 		const uri = workspacePath('doc.md');
 		const doc = new InMemoryDocument(uri, joinLines(
 			`[1](http://example.com/cat)`,
@@ -369,6 +369,8 @@ suite('markdown: find all references', () => {
 			`[3](http://example.com/dog)`,
 			`[4](http://example.com/cat/looong)`,
 			`[5](http://example.com/cat)`,
+			`[6](http://other.com/cat)`,
+			`[7](https://example.com/cat)`,
 		));
 
 		const refs = await getReferences(doc, new vscode.Position(0, 13), new InMemoryWorkspaceMarkdownDocuments([doc]));
