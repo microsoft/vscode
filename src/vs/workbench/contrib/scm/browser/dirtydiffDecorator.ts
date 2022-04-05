@@ -1026,6 +1026,7 @@ class DirtyDiffDecorator extends Disposable {
 
 		this.decorations = this.editorModel.deltaDecorations(this.decorations, decorations);
 	}
+
 	override dispose(): void {
 		super.dispose();
 
