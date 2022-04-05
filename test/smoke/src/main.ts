@@ -227,11 +227,6 @@ async function setupRepository(): Promise<void> {
 			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath });
 			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
 		}
-
-		// None of the current smoke tests have a dependency on the packages.
-		// If new smoke tests are added that need the packages, uncomment this.
-		// logger.log('Running yarn...');
-		// cp.execSync('yarn', { cwd: workspacePath, stdio: 'inherit' });
 	}
 }
 
