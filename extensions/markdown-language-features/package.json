@@ -122,7 +122,8 @@
           "text/x-typescript",
           "text/x-vb",
           "text/x-xml",
-          "text/x-yaml"
+          "text/x-yaml",
+          "application/json"
         ]
       }
     ],
@@ -439,6 +440,7 @@
     "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.1",
     "morphdom": "^2.6.1",
+    "vscode-languageserver-textdocument": "^1.0.4",
     "vscode-nls": "^5.0.0",
     "vscode-uri": "^3.0.3"
   },

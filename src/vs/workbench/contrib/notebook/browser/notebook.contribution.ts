@@ -29,7 +29,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { isCompositeNotebookEditorInput, NotebookEditorInput, NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellUri, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookWorkingCopyTypeIdentifier, NotebookSetting, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookWorkingCopyTypeIdentifier, NotebookSetting, ICellOutput, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -99,7 +99,6 @@ import { NotebookExecutionService } from 'vs/workbench/contrib/notebook/browser/
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookKeymapService } from 'vs/workbench/contrib/notebook/common/notebookKeymapService';
 import { NotebookKeymapService } from 'vs/workbench/contrib/notebook/browser/services/notebookKeymapServiceImpl';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -322,12 +321,15 @@ class CellContentProvider implements ITextModelContentProvider {
 			}
 		}
 
-		if (result) {
-			const once = Event.any(result.onWillDispose, ref.object.notebook.onWillDispose)(() => {
-				once.dispose();
-				ref.dispose();
-			});
+		if (!result) {
+			ref.dispose();
+			return null;
 		}
+
+		const once = Event.any(result.onWillDispose, ref.object.notebook.onWillDispose)(() => {
+			once.dispose();
+			ref.dispose();
+		});
 
 		return result;
 	}
@@ -400,12 +402,15 @@ class CellInfoContentProvider {
 			}
 		}
 
-		if (result) {
-			const once = result.onWillDispose(() => {
-				once.dispose();
-				ref.dispose();
-			});
+		if (!result) {
+			ref.dispose();
+			return null;
 		}
+
+		const once = result.onWillDispose(() => {
+			once.dispose();
+			ref.dispose();
+		});
 
 		return result;
 	}
@@ -429,7 +434,7 @@ class CellInfoContentProvider {
 	private _getResult(data: {
 		notebook: URI;
 		outputId?: string | undefined;
-	}, cell: NotebookCellTextModel) {
+	}, cell: ICell) {
 		let result: { content: string; mode: ILanguageSelection } | undefined = undefined;
 
 		const mode = this._languageService.createById('json');
@@ -472,34 +477,36 @@ class CellInfoContentProvider {
 		const cell = ref.object.notebook.cells.find(cell => !!cell.outputs.find(op => op.outputId === data.outputId));
 
 		if (!cell) {
+			ref.dispose();
 			return null;
 		}
 
 		const result = this._getResult(data, cell);
 
-		if (result) {
-			const model = this._modelService.createModel(result.content, result.mode, resource);
-			const cellModelListener = Event.any(cell.onDidChangeOutputs, cell.onDidChangeOutputItems)(() => {
-				const newResult = this._getResult(data, cell);
-
-				if (!newResult) {
-					return;
-				}
-
-				model.setValue(newResult.content);
-				model.setMode(newResult.mode.languageId);
-			});
-
-			const once = model.onWillDispose(() => {
-				once.dispose();
-				cellModelListener.dispose();
-				ref.dispose();
-			});
-
-			return model;
+		if (!result) {
+			ref.dispose();
+			return null;
 		}
 
-		return null;
+		const model = this._modelService.createModel(result.content, result.mode, resource);
+		const cellModelListener = Event.any(cell.onDidChangeOutputs ?? Event.None, cell.onDidChangeOutputItems ?? Event.None)(() => {
+			const newResult = this._getResult(data, cell);
+
+			if (!newResult) {
+				return;
+			}
+
+			model.setValue(newResult.content);
+			model.setMode(newResult.mode.languageId);
+		});
+
+		const once = model.onWillDispose(() => {
+			once.dispose();
+			cellModelListener.dispose();
+			ref.dispose();
+		});
+
+		return model;
 	}
 }
 
@@ -552,6 +559,15 @@ class NotebookEditorManager implements IWorkbenchContribution {
 			for (const group of editorGroups.groups) {
 				const staleInputs = group.editors.filter(input => input instanceof NotebookEditorInput && input.viewType === e);
 				group.closeEditors(staleInputs);
+			}
+		}));
+
+		// CLOSE editors when we are about to open conflicting notebooks
+		this._disposables.add(_notebookEditorModelService.onWillFailWithConflict(e => {
+			for (const group of editorGroups.groups) {
+				const conflictInputs = group.editors.filter(input => input instanceof NotebookEditorInput && input.viewType !== e.viewType && isEqual(input.resource, e.resource));
+				const p = group.closeEditors(conflictInputs);
+				e.waitUntil(p);
 			}
 		}));
 	}

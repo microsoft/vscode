@@ -105,7 +105,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 			fileService,
 			null!,
 			editorGroupService,
-			null!,
 			new class extends mock<IPaneCompositePartService>() implements IPaneCompositePartService {
 				override onDidPaneCompositeOpen = Event.None;
 				override onDidPaneCompositeClose = Event.None;

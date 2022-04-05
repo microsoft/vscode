@@ -476,7 +476,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		}
 
 		if (this._webviewFindWidget) {
-			parent.appendChild(this._webviewFindWidget.getDomNode()!);
+			parent.appendChild(this._webviewFindWidget.getDomNode());
 		}
 		parent.appendChild(this.element);
 	}

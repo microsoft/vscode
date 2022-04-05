@@ -18,12 +18,15 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchAsyncDataTree, IListService, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
 import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
 import { Codicon } from 'vs/base/common/codicons';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { commentViewThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
+import { CommentThreadState } from 'vs/editor/common/languages';
+import { Color } from 'vs/base/common/color';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_TITLE = 'Comments';
@@ -50,7 +53,7 @@ interface IResourceTemplateData {
 
 interface ICommentThreadTemplateData {
 	threadMetadata: {
-		icon?: HTMLElement;
+		icon: HTMLElement;
 		userNames: HTMLSpanElement;
 		timestamp: TimestampWidget;
 		separator: HTMLElement;
@@ -121,7 +124,8 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 
 	constructor(
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IThemeService private themeService: IThemeService
 	) { }
 
 	renderTemplate(container: HTMLElement) {
@@ -185,6 +189,11 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
 		const commentCount = node.element.replies.length + 1;
 		templateData.threadMetadata.icon?.classList.add(...ThemeIcon.asClassNameArray((commentCount === 1) ? Codicon.comment : Codicon.commentDiscussion));
+		if (node.element.threadState !== undefined) {
+			const color = this.getCommentThreadWidgetStateColor(node.element.threadState, this.themeService.getColorTheme());
+			templateData.threadMetadata.icon.style.setProperty(commentViewThreadStateColorVar, `${color}`);
+			templateData.threadMetadata.icon.style.color = `var(${commentViewThreadStateColorVar}`;
+		}
 		templateData.threadMetadata.userNames.textContent = node.element.comment.userName;
 		templateData.threadMetadata.timestamp.setTimestamp(node.element.comment.timestamp ? new Date(node.element.comment.timestamp) : undefined);
 		const originalComment = node.element;
@@ -211,6 +220,10 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		templateData.repliesMetadata.lastReplyDetail.textContent = nls.localize('lastReplyFrom', "Last reply from {0}", node.element.replies[node.element.replies.length - 1].comment.userName);
 		templateData.repliesMetadata.timestamp.setTimestamp(originalComment.comment.timestamp ? new Date(originalComment.comment.timestamp) : undefined);
 
+	}
+
+	private getCommentThreadWidgetStateColor(state: CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
+		return (state !== undefined) ? getCommentThreadStateColor(state, theme) : undefined;
 	}
 
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {

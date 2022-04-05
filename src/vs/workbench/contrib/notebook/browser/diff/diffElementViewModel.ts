@@ -11,7 +11,7 @@ import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { hash } from 'vs/base/common/hash';
 import { toFormattedString } from 'vs/base/common/jsonFormatter';
-import { ICellOutput, IOutputDto, IOutputItemDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellOutput, INotebookTextModel, IOutputDto, IOutputItemDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 import { URI } from 'vs/base/common/uri';
 import { NotebookDiffEditorEventDispatcher, NotebookDiffViewEventType } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
@@ -117,7 +117,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	private _metadataEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
 
 	constructor(
-		readonly mainDocumentTextModel: NotebookTextModel,
+		readonly mainDocumentTextModel: INotebookTextModel,
 		readonly original: DiffNestedCellViewModel | undefined,
 		readonly modified: DiffNestedCellViewModel | undefined,
 		readonly type: 'unchanged' | 'insert' | 'delete' | 'modified',
@@ -645,7 +645,7 @@ function outputsEqual(original: ICellOutput[], modified: ICellOutput[]) {
 	return OutputComparison.Unchanged;
 }
 
-export function getFormattedMetadataJSON(documentTextModel: NotebookTextModel, metadata: NotebookCellMetadata, language?: string) {
+export function getFormattedMetadataJSON(documentTextModel: INotebookTextModel, metadata: NotebookCellMetadata, language?: string) {
 	let filteredMetadata: { [key: string]: any } = {};
 
 	if (documentTextModel) {

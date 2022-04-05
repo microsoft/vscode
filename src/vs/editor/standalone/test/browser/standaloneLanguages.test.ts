@@ -8,7 +8,6 @@ import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Token, IState, LanguageId, MetadataConsts } from 'vs/editor/common/languages';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { TokenTheme } from 'vs/editor/common/languages/supports/tokenization';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ILineTokens, IToken, TokenizationSupportAdapter, TokensProvider } from 'vs/editor/standalone/browser/standaloneLanguages';
@@ -121,7 +120,7 @@ suite('TokenizationSupport2Adapter', () => {
 
 		const disposables = new DisposableStore();
 		const languageService = disposables.add(new LanguageService());
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		const adapter = new TokenizationSupportAdapter(
 			languageId,
 			new BadTokensProvider(),

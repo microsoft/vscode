@@ -20,7 +20,7 @@ import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorPaneDescriptor } from 'vs/workbench/browser/editor';
+import { computeEditorAriaLabel, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Link } from 'vs/platform/opener/browser/link';
 
@@ -66,14 +66,17 @@ abstract class EditorPlaceholderPane extends EditorPane {
 		}
 
 		// Render Input
-		this.inputDisposable.value = this.renderInput();
+		this.inputDisposable.value = this.renderInput(input);
 	}
 
-	private renderInput(): IDisposable {
+	private renderInput(input: EditorInput): IDisposable {
 		const [container, scrollbar] = assertAllDefined(this.container, this.scrollbar);
 
 		// Reset any previous contents
 		clearNode(container);
+
+		// Update ARIA label
+		container.setAttribute('aria-label', computeEditorAriaLabel(input, undefined, this.group, undefined));
 
 		// Delegate to implementation
 		const disposables = new DisposableStore();

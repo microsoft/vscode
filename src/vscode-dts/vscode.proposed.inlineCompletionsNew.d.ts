@@ -9,16 +9,24 @@ declare module 'vscode' {
 	// Temporary API to allow for safe migration.
 
 	export namespace languages {
+
 		/**
 		 * Registers an inline completion provider.
 		 *
-		 *  @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A inline completion provider.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		// TODO@API what are the rules when multiple providers apply
 		export function registerInlineCompletionItemProviderNew(selector: DocumentSelector, provider: InlineCompletionItemProviderNew): Disposable;
 	}
 
+	// TODO@API doc
 	export interface InlineCompletionItemProviderNew {
+
 		/**
 		 * Provides inline completion items for the given position and document.
 		 * If inline completions are enabled, this method will be called whenever the user stopped typing.
@@ -28,6 +36,7 @@ declare module 'vscode' {
 		provideInlineCompletionItems(document: TextDocument, position: Position, context: InlineCompletionContextNew, token: CancellationToken): ProviderResult<InlineCompletionListNew | InlineCompletionItemNew[]>;
 	}
 
+	// TODO@API doc
 	export interface InlineCompletionContextNew {
 		/**
 		 * How the completion was triggered.
@@ -50,6 +59,7 @@ declare module 'vscode' {
 	}
 
 	// TODO@API find a better name, xyzFilter, xyzConstraint
+	// TODO@API doc
 	export interface SelectedCompletionInfoNew {
 		range: Range;
 		text: string;
@@ -72,17 +82,14 @@ declare module 'vscode' {
 		Automatic = 1,
 	}
 
-	/**
-	 * @deprecated Return an array of Inline Completion items directly. Will be removed eventually.
-	*/
-	// TODO@API We could keep this and allow for `vscode.Command` instances that explain
-	// the result. That would replace the existing proposed menu-identifier and be more LSP friendly
-	// TODO@API maybe use MarkdownString
+	// TODO@API doc
 	export class InlineCompletionListNew {
 		items: InlineCompletionItemNew[];
 
-		// command: Command; "Show More..."
-
+		// TODO@API We could keep this and allow for `vscode.Command` instances that explain
+		// the result. That would replace the existing proposed menu-identifier and be more LSP friendly
+		// TODO@API maybe use MarkdownString
+		// commands?: Command[];  // "Show More..."
 		// description: MarkdownString
 
 		/**
@@ -126,7 +133,7 @@ declare module 'vscode' {
 		 */
 		command?: Command;
 
-		// TODO@API insertText -> string | SnippetString
-		constructor(insertText: string, range?: Range, command?: Command);
+		// TODO@API doc
+		constructor(insertText: string | SnippetString, range?: Range, command?: Command);
 	}
 }

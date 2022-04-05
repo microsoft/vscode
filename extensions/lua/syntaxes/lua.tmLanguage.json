@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/sumneko/lua.tmbundle/commit/43da68bb99b948782e57985f633fa0c395190674",
+	"version": "https://github.com/sumneko/lua.tmbundle/commit/bc74f9230c3f07c0ecc1bc1727ad98d9e70aff5b",
 	"name": "Lua",
 	"scopeName": "source.lua",
 	"patterns": [
@@ -422,7 +422,7 @@
 							"name": "storage.type.annotation.lua"
 						}
 					},
-					"end": "(?=\\n)",
+					"end": "(?=[\\n@#])",
 					"patterns": [
 						{
 							"match": "\\b([a-zA-Z_\\*][a-zA-Z0-9_\\.\\*\\-]*)",
@@ -441,7 +441,7 @@
 							"name": "storage.type.annotation.lua"
 						}
 					},
-					"end": "(?=\\n)",
+					"end": "(?=[\\n@#])",
 					"patterns": [
 						{
 							"include": "#luadoc.type"
@@ -455,7 +455,7 @@
 							"name": "storage.type.annotation.lua"
 						}
 					},
-					"end": "(?=\\n)",
+					"end": "(?=[\\n@#])",
 					"patterns": [
 						{
 							"begin": "\\b([a-zA-Z_\\*][a-zA-Z0-9_\\.\\*\\-]*)",
@@ -480,7 +480,7 @@
 							"name": "storage.type.annotation.lua"
 						}
 					},
-					"end": "(?=\\n)",
+					"end": "(?=[\\n@#])",
 					"patterns": [
 						{
 							"begin": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b(\\??)",
@@ -508,7 +508,7 @@
 							"name": "storage.type.annotation.lua"
 						}
 					},
-					"end": "(?=\\n)",
+					"end": "(?=[\\n@#])",
 					"patterns": [
 						{
 							"match": "\\?",
@@ -526,7 +526,7 @@
 							"name": "storage.type.annotation.lua"
 						}
 					},
-					"end": "(?=\\n)",
+					"end": "(?=[\\n@#])",
 					"patterns": [
 						{
 							"begin": "(\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b|(\\[))(\\??)",
@@ -561,7 +561,7 @@
 							"name": "storage.type.annotation.lua"
 						}
 					},
-					"end": "(?=\\n)",
+					"end": "(?=[\\n@#])",
 					"patterns": [
 						{
 							"begin": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b",
@@ -595,7 +595,7 @@
 							"name": "storage.type.annotation.lua"
 						}
 					},
-					"end": "(?=\\n)",
+					"end": "(?=[\\n@#])",
 					"patterns": [
 						{
 							"include": "#luadoc.type"
@@ -609,7 +609,7 @@
 							"name": "storage.type.annotation.lua"
 						}
 					},
-					"end": "(?=\\n)",
+					"end": "(?=[\\n@#])",
 					"patterns": [
 						{
 							"include": "#luadoc.type"
@@ -623,7 +623,7 @@
 							"name": "storage.type.annotation.lua"
 						}
 					},
-					"end": "(?=\\n)"
+					"end": "(?=[\\n@#])"
 				},
 				{
 					"begin": "(?<=---\\s*)@meta",
@@ -632,7 +632,7 @@
 							"name": "storage.type.annotation.lua"
 						}
 					},
-					"end": "(?=\\n)"
+					"end": "(?=[\\n@#])"
 				},
 				{
 					"begin": "(?<=---\\s*)@version",
@@ -641,7 +641,7 @@
 							"name": "storage.type.annotation.lua"
 						}
 					},
-					"end": "(?=\\n)",
+					"end": "(?=[\\n@#])",
 					"patterns": [
 						{
 							"match": "\\b(5\\.1|5\\.2|5\\.3|5\\.4|JIT)\\b",
@@ -660,7 +660,7 @@
 							"name": "storage.type.annotation.lua"
 						}
 					},
-					"end": "(?=\\n)",
+					"end": "(?=[\\n@#])",
 					"patterns": [
 						{
 							"match": "\\b([a-zA-Z_\\*][a-zA-Z0-9_\\.\\*\\-]*)",
@@ -679,7 +679,7 @@
 							"name": "storage.type.annotation.lua"
 						}
 					},
-					"end": "(?=\\n)",
+					"end": "(?=[\\n@#])",
 					"patterns": [
 						{
 							"begin": "([a-zA-Z_\\-0-9]+)[ \\t]*(:)?",
@@ -712,7 +712,7 @@
 							"name": "storage.type.annotation.lua"
 						}
 					},
-					"end": "(?=\\n)",
+					"end": "(?=[\\n@#])",
 					"patterns": [
 						{
 							"include": "#string"
@@ -730,7 +730,7 @@
 							"name": "storage.type.annotation.lua"
 						}
 					},
-					"end": "(?=[\\n#])",
+					"end": "(?=[\\n@#])",
 					"patterns": [
 						{
 							"include": "#string"

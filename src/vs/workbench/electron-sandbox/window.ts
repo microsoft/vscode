@@ -63,6 +63,7 @@ import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { registerLegacyWindowDriver, registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 
 export class NativeWindow extends Disposable {
 
@@ -569,6 +570,29 @@ export class NativeWindow extends Disposable {
 				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
 				this.nativeHostService.openDevTools();
 			}
+		}
+
+		// Smoke Test Driver
+		this.setupDriver();
+	}
+
+	private setupDriver(): void {
+
+		// Browser Driver
+		if (this.environmentService.args['enable-smoke-test-driver']) {
+			const that = this;
+			registerWindowDriver({
+				async exitApplication(): Promise<number> {
+					that.nativeHostService.quit();
+
+					return that.environmentService.mainPid;
+				}
+			});
+		}
+
+		// Legacy Driver (TODO@bpasero remove me eventually)
+		else if (this.environmentService.args.driver) {
+			this.instantiationService.invokeFunction(async accessor => this._register(await registerLegacyWindowDriver(accessor, this.nativeHostService.windowId)));
 		}
 	}
 

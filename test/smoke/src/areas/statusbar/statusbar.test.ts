@@ -7,7 +7,7 @@ import { join } from 'path';
 import { Application, Quality, StatusBarElement, Logger } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
 
-export function setup(isWeb: boolean, logger: Logger) {
+export function setup(logger: Logger) {
 	describe('Statusbar', () => {
 
 		// Shared before/after handling

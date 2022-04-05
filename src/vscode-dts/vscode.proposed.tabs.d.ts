@@ -7,6 +7,8 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
+	// TODO@API name alternatives for TabKind: TabInput, TabOptions,
+
 	export class TabKindText {
 		readonly uri: Uri;
 		constructor(uri: Uri);
@@ -50,9 +52,12 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a tab within the window
+	 * Represents a tab within a {@link TabGroup group of tabs}.
+	 * Tabs are merely the grapihcal repesentation within the editor area.
+	 * A backing editor is not a gurantee.
 	 */
 	export interface Tab {
+
 		/**
 		 * The text displayed on the tab
 		 */
@@ -70,8 +75,8 @@ declare module 'vscode' {
 		readonly kind: TabKindText | TabKindTextDiff | TabKindCustom | TabKindWebview | TabKindNotebook | TabKindNotebookDiff | TabKindTerminal | unknown;
 
 		/**
-		 * Whether or not the tab is currently active
-		 * Dictated by being the selected tab in the group
+		 * Whether or not the tab is currently active.
+		 * This is dictated by being the selected tab in the group
 		 */
 		readonly isActive: boolean;
 
@@ -131,35 +136,39 @@ declare module 'vscode' {
 		/**
 		 * The currently active group
 		 */
+		// TODO@API name: maybe `activeGroup` to align with `groups` (which isn't tabGroups)
 		readonly activeTabGroup: TabGroup;
 
 		/**
-		 * An {@link Event} which fires when a group changes.
+		 * An {@link Event event} which fires when {@link TabGroup tab groups} has changed.
 		 */
-		// TODO@API add TabGroup instance
-		readonly onDidChangeTabGroup: Event<void>;
+		// TODO@API maybe `onDidChangeGroups`
+		readonly onDidChangeTabGroups: Event<readonly TabGroup[]>;
 
 		/**
-		 * An {@link Event} which fires when a tab changes.
+		 * An {@link Event event} which fires when a {@link Tab tabs} have changed.
 		 */
-		// TODO@API use richer event type?
-		readonly onDidChangeTab: Event<Tab>;
-
-		/**
-		 * An {@link Event} which fires when the active group changes.
-		 * This does not fire when the properties within the group change.
-		 */
-		readonly onDidChangeActiveTabGroup: Event<TabGroup>;
+		readonly onDidChangeTabs: Event<readonly Tab[]>;
 
 		/**
 		 * Closes the tab. This makes the tab object invalid and the tab
 		 * should no longer be used for further actions.
 		 * Note: In the case of a dirty tab, a confirmation dialog will be shown which may be cancelled. If cancelled the tab is still valid
-		 * @param tab The tab to close, must be reference equal to a tab given by the API
+		 *
+		 * @param tab The tab to close.
 		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
+		 * @returns A promise that resolves to `true` when all tabs have been closed
 		 */
-		close(tab: Tab[], preserveFocus?: boolean): Thenable<void>;
-		close(tab: Tab, preserveFocus?: boolean): Thenable<void>;
+		close(tab: Tab | Tab[], preserveFocus?: boolean): Thenable<boolean>;
+
+		/**
+		 * Closes the tab group. This makes the tab group object invalid and the tab group
+		 * should no longer be used for furhter actions.
+		 * @param tabGroup The tab group to close.
+		 * @param preserveFocus When `true` focus will remain in its current position.
+		 * @returns A promise that resolves to `true` when all tab groups have been closed
+		 */
+		close(tabGroup: TabGroup | TabGroup[], preserveFocus?: boolean): Thenable<boolean>;
 
 		/**
 		 * Moves a tab to the given index within the column.
@@ -172,6 +181,7 @@ declare module 'vscode' {
 		 */
 		// TODO@API support TabGroup in addition to ViewColumn
 		// TODO@API support just index for moving inside current group
+		// TODO@API move a tab group
 		move(tab: Tab, viewColumn: ViewColumn, index: number, preserveFocus?: boolean): Thenable<void>;
 	}
 }

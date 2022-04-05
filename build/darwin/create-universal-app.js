@@ -33,6 +33,7 @@ async function main() {
             'CodeResources',
             'fsevents.node',
             'Info.plist',
+            'MainMenu.nib',
             '.npmrc'
         ],
         outAppPath,

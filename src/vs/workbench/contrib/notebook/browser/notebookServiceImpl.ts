@@ -594,12 +594,10 @@ export class NotebookService extends Disposable implements INotebookService {
 		return this._registerProviderData(viewType, new SimpleNotebookProviderInfo(viewType, serializer, extensionData));
 	}
 
-	async withNotebookDataProvider(resource: URI, viewType?: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo> {
-		const providers = this.notebookProviderInfoStore.getContributedNotebook(resource);
-		// If we have a viewtype specified we want that data provider, as the resource won't always map correctly
-		const selected = viewType ? providers.find(p => p.id === viewType) : providers[0];
+	async withNotebookDataProvider(viewType: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo> {
+		const selected = this.notebookProviderInfoStore.get(viewType);
 		if (!selected) {
-			throw new Error(`NO contribution for resource: '${resource.toString()}'`);
+			throw new Error(`UNKNOWN notebook type '${viewType}'`);
 		}
 		await this.canResolve(selected.id);
 		const result = this._notebookProviders.get(selected.id);
@@ -714,4 +712,3 @@ export class NotebookService extends Disposable implements INotebookService {
 	}
 
 }
-

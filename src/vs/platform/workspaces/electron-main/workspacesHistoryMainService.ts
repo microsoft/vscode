@@ -18,11 +18,10 @@ import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IGlobalStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { IRecent, IRecentFile, IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFile, isRecentFolder, isRecentWorkspace, RecentlyOpenedStorageData, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
+import { IRecent, IRecentFile, IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFile, isRecentFolder, isRecentWorkspace, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
@@ -46,15 +45,12 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 	private static readonly RECENTLY_OPENED_STORAGE_KEY = 'history.recentlyOpenedPathsList';
 
-	private static readonly legacyRecentlyOpenedStorageKey = 'openedPathsList';
-
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeRecentlyOpened = this._register(new Emitter<void>());
 	readonly onDidChangeRecentlyOpened = this._onDidChangeRecentlyOpened.event;
 
 	constructor(
-		@IStateMainService private readonly stateMainService: IStateMainService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
@@ -233,15 +229,6 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 				storedRecentlyOpened = JSON.parse(storedRecentlyOpenedRaw);
 			} catch (error) {
 				this.logService.error('Unexpected error parsing opened paths list', error);
-			}
-		}
-
-		// Fallback to state service (TODO@bpasero remove me eventually)
-		else {
-			storedRecentlyOpened = this.stateMainService.getItem<RecentlyOpenedStorageData>(WorkspacesHistoryMainService.legacyRecentlyOpenedStorageKey);
-			if (storedRecentlyOpened) {
-				this.stateMainService.removeItem(WorkspacesHistoryMainService.legacyRecentlyOpenedStorageKey);
-				this.globalStorageMainService.store(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, JSON.stringify(storedRecentlyOpened), StorageScope.GLOBAL, StorageTarget.MACHINE);
 			}
 		}
 

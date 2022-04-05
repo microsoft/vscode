@@ -12,7 +12,7 @@ import { SCMMenus } from 'vs/workbench/contrib/scm/browser/menus';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { debounce } from 'vs/base/common/decorators';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { compareFileNames } from 'vs/base/common/comparers';
+import { compareFileNames, comparePaths } from 'vs/base/common/comparers';
 import { basename } from 'vs/base/common/resources';
 import { binarySearch } from 'vs/base/common/arrays';
 
@@ -131,7 +131,12 @@ export class SCMViewService implements ISCMViewService {
 			const name1 = getRepositoryName(workspaceContextService, op1);
 			const name2 = getRepositoryName(workspaceContextService, op2);
 
-			return compareFileNames(name1, name2);
+			const nameComparison = compareFileNames(name1, name2);
+			if (nameComparison === 0 && op1.provider.rootUri && op2.provider.rootUri) {
+				return comparePaths(op1.provider.rootUri.fsPath, op2.provider.rootUri.fsPath);
+			}
+
+			return nameComparison;
 		};
 
 		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
@@ -275,9 +280,7 @@ export class SCMViewService implements ISCMViewService {
 
 	private insertRepository(repositories: ISCMRepository[], repository: ISCMRepository): void {
 		const index = binarySearch(repositories, repository, this._compareRepositories);
-		if (index < 0) {
-			repositories.splice(~index, 0, repository);
-		}
+		repositories.splice(index < 0 ? ~index : index, 0, repository);
 	}
 
 	private onWillSaveState(): void {
