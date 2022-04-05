@@ -9,8 +9,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionsScannerService, IScannedExtensionManifest } from 'vs/platform/extensionManagement/common/extensionsScannerService';
-import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
+import { AbstractExtensionsScannerService, IExtensionsScannerService, IScannedExtensionManifest, Translations } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionType, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -18,6 +17,32 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
+
+let translations: Translations = Object.create(null);
+
+class ExtensionsScannerService extends AbstractExtensionsScannerService implements IExtensionsScannerService {
+
+	readonly systemExtensionsLocation: URI;
+	readonly userExtensionsLocation: URI;
+	protected readonly extensionsControlLocation: URI;
+
+	constructor(
+		@IFileService fileService: IFileService,
+		@ILogService logService: ILogService,
+		@INativeEnvironmentService nativeEnvironmentService: INativeEnvironmentService,
+		@IProductService productService: IProductService,
+	) {
+		super(fileService, logService, nativeEnvironmentService, productService);
+		this.systemExtensionsLocation = URI.file(nativeEnvironmentService.builtinExtensionsPath);
+		this.userExtensionsLocation = URI.file(nativeEnvironmentService.extensionsPath);
+		this.extensionsControlLocation = joinPath(nativeEnvironmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json');
+	}
+
+	protected async getTranslations(language: string): Promise<Translations> {
+		return translations;
+	}
+
+}
 
 const ROOT = URI.file(tmpdir());
 
@@ -27,6 +52,7 @@ suite('NativeExtensionsScanerService Test', () => {
 	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
+		translations = {};
 		instantiationService = new TestInstantiationService();
 		const logService = new NullLogService();
 		const fileService = disposables.add(new FileService(logService));
@@ -258,7 +284,8 @@ suite('NativeExtensionsScanerService Test', () => {
 		await instantiationService.get(IFileService).writeFile(nlsLocation, VSBuffer.fromString(JSON.stringify({ contents: { package: { displayName: 'Hello World EN' } } })));
 		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
 
-		const actual = await testObject.scanUserExtensions({ nlsConfiguration: { locale: 'en', devMode: false, pseudo: false, translations: { 'pub.name': nlsLocation.fsPath } } });
+		translations = { 'pub.name': nlsLocation.fsPath };
+		const actual = await testObject.scanUserExtensions({ language: 'en' });
 
 		assert.deepStrictEqual(actual.length, 1);
 		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name' });
@@ -272,7 +299,8 @@ suite('NativeExtensionsScanerService Test', () => {
 		await instantiationService.get(IFileService).writeFile(nlsLocation, VSBuffer.fromString(JSON.stringify({ contents: { package: { displayName: 'Hello World EN' } } })));
 		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
 
-		const actual = await testObject.scanUserExtensions({ nlsConfiguration: { locale: 'en', devMode: false, pseudo: false, translations: { 'pub.name2': nlsLocation.fsPath } } });
+		translations = { 'pub.name2': nlsLocation.fsPath };
+		const actual = await testObject.scanUserExtensions({ language: 'en' });
 
 		assert.deepStrictEqual(actual.length, 1);
 		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name' });

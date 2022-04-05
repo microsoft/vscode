@@ -16,7 +16,6 @@ import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { transformOutgoingURIs } from 'vs/base/common/uriIpc';
 import { ILogService } from 'vs/platform/log/common/log';
-import { getNLSConfiguration, InternalNLSConfiguration } from 'vs/server/node/remoteLanguagePacks';
 import { ContextKeyExpr, ContextKeyDefinedExpr, ContextKeyNotExpr, ContextKeyEqualsExpr, ContextKeyNotEqualsExpr, ContextKeyRegexExpr, IContextKeyExprMapper, ContextKeyExpression, ContextKeyInExpr, ContextKeyGreaterExpr, ContextKeyGreaterEqualsExpr, ContextKeySmallerExpr, ContextKeySmallerEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { listProcesses } from 'vs/base/node/ps';
 import { getMachineInfo, collectWorkspaceStats } from 'vs/platform/diagnostics/node/diagnosticsService';
@@ -25,10 +24,9 @@ import { basename, isAbsolute, join, resolve } from 'vs/base/common/path';
 import { ProcessItem } from 'vs/base/common/processes';
 import { IExtensionManagementCLIService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { cwd } from 'vs/base/common/process';
-import * as pfs from 'vs/base/node/pfs';
 import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
 import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
-import { IExtensionsScannerService, NlsConfiguration, toExtensionDescription, Translations } from 'vs/platform/extensionManagement/common/extensionsScannerService';
+import { IExtensionsScannerService, toExtensionDescription } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 
 export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
@@ -120,8 +118,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 					return null;
 				}
 
-				const translations = await this._getTranslations(language);
-				let extension = await this._scanSingleExtension(extensionPath, isBuiltin, language, translations);
+				let extension = await this._scanSingleExtension(extensionPath, isBuiltin, language);
 
 				if (!extension) {
 					return null;
@@ -304,28 +301,13 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		};
 	}
 
-	private async _getTranslations(language: string): Promise<Translations> {
-		const config = await getNLSConfiguration(language, this._environmentService.userDataPath);
-		if (InternalNLSConfiguration.is(config)) {
-			try {
-				const content = await pfs.Promises.readFile(config._translationsConfigFile, 'utf8');
-				return JSON.parse(content);
-			} catch (err) {
-				return Object.create(null);
-			}
-		} else {
-			return Object.create(null);
-		}
-	}
-
 	private async _scanExtensions(language: string, extensionDevelopmentPath?: string[]): Promise<IExtensionDescription[]> {
 		// Ensure that the language packs are available
-		const translations = await this._getTranslations(language);
 
 		const [builtinExtensions, installedExtensions, developedExtensions] = await Promise.all([
-			this._scanBuiltinExtensions(language, translations),
-			this._scanInstalledExtensions(language, translations),
-			this._scanDevelopedExtensions(language, translations, extensionDevelopmentPath)
+			this._scanBuiltinExtensions(language),
+			this._scanInstalledExtensions(language),
+			this._scanDevelopedExtensions(language, extensionDevelopmentPath)
 		]);
 
 		let result = new Map<string, IExtensionDescription>();
@@ -359,45 +341,34 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		return r;
 	}
 
-	private async _scanDevelopedExtensions(language: string, translations: Translations, extensionDevelopmentPaths?: string[]): Promise<IExtensionDescription[]> {
+	private async _scanDevelopedExtensions(language: string, extensionDevelopmentPaths?: string[]): Promise<IExtensionDescription[]> {
 		if (extensionDevelopmentPaths) {
-			const nlsConfiguration = this.createNLSConfig({ locale: language, devMode: true, translations });
-			return (await Promise.all(extensionDevelopmentPaths.map(extensionDevelopmentPath => this._extensionsScannerService.scanOneOrMultipleExtensions(URI.file(resolve(extensionDevelopmentPath)), ExtensionType.User, { nlsConfiguration }))))
+			return (await Promise.all(extensionDevelopmentPaths.map(extensionDevelopmentPath => this._extensionsScannerService.scanOneOrMultipleExtensions(URI.file(resolve(extensionDevelopmentPath)), ExtensionType.User, { language }))))
 				.flat()
 				.map(e => toExtensionDescription(e, true));
 		}
 		return [];
 	}
 
-	private async _scanBuiltinExtensions(language: string, translations: Translations): Promise<IExtensionDescription[]> {
-		const devMode = !!process.env['VSCODE_DEV'];
-		return this._scanExtensionDescriptions(true, this.createNLSConfig({ locale: language, devMode, translations }));
+	private async _scanBuiltinExtensions(language: string): Promise<IExtensionDescription[]> {
+		return this._scanExtensionDescriptions(true, language);
 	}
 
-	private async _scanInstalledExtensions(language: string, translations: Translations): Promise<IExtensionDescription[]> {
-		return this._scanExtensionDescriptions(false, this.createNLSConfig({ devMode: !!process.env['VSCODE_DEV'], locale: language, translations }));
+	private async _scanInstalledExtensions(language: string): Promise<IExtensionDescription[]> {
+		return this._scanExtensionDescriptions(false, language);
 	}
 
-	private async _scanSingleExtension(extensionPath: string, isBuiltin: boolean, language: string, translations: Translations): Promise<IExtensionDescription | null> {
+	private async _scanSingleExtension(extensionPath: string, isBuiltin: boolean, language: string): Promise<IExtensionDescription | null> {
 		const extensionLocation = URI.file(resolve(extensionPath));
 		const type = isBuiltin ? ExtensionType.System : ExtensionType.User;
-		const nlsConfiguration = this.createNLSConfig({ devMode: !!process.env['VSCODE_DEV'], locale: language, translations });
-		const scannedExtension = await this._extensionsScannerService.scanExistingExtension(extensionLocation, type, { nlsConfiguration });
+		const scannedExtension = await this._extensionsScannerService.scanExistingExtension(extensionLocation, type, { language });
 		return scannedExtension ? toExtensionDescription(scannedExtension, false) : null;
 	}
 
-	private async _scanExtensionDescriptions(isBuiltin: boolean, nlsConfiguration: NlsConfiguration): Promise<IExtensionDescription[]> {
-		const scannedExtensions = isBuiltin ? await this._extensionsScannerService.scanSystemExtensions({ nlsConfiguration })
-			: await this._extensionsScannerService.scanUserExtensions({ nlsConfiguration });
+	private async _scanExtensionDescriptions(isBuiltin: boolean, language: string): Promise<IExtensionDescription[]> {
+		const scannedExtensions = isBuiltin ? await this._extensionsScannerService.scanSystemExtensions({ language })
+			: await this._extensionsScannerService.scanUserExtensions({ language });
 		return scannedExtensions.map(e => toExtensionDescription(e, false));
 	}
 
-	public createNLSConfig(input: { devMode: boolean; locale: string | undefined; translations: Translations }): NlsConfiguration {
-		return {
-			devMode: input.devMode,
-			locale: input.locale,
-			pseudo: input.locale === 'pseudo',
-			translations: input.translations
-		};
-	}
 }

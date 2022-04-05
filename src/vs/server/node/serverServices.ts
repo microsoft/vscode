@@ -69,7 +69,7 @@ import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteFileSystemProviderClient';
 import { ExtensionHostStatusService, IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
-import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
+import { ExtensionsScannerService } from 'vs/server/node/extensionsScannerService';
 
 const eventPrefix = 'monacoworkbench';
 

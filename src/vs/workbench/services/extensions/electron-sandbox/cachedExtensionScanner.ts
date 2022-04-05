@@ -17,7 +17,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionsScannerService, IScannedExtension, NlsConfiguration, toExtensionDescription, Translations } from 'vs/platform/extensionManagement/common/extensionsScannerService';
+import { IExtensionsScannerService, IScannedExtension, toExtensionDescription, Translations } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ILogService } from 'vs/platform/log/common/log';
 
 interface IExtensionCacheData {
@@ -41,15 +41,6 @@ class ExtensionScannerInput {
 		public readonly translations: Translations
 	) {
 		// Keep empty!! (JSON.parse)
-	}
-
-	public static createNLSConfig(input: { devMode: boolean; locale: string | undefined; translations: Translations }): NlsConfiguration {
-		return {
-			devMode: input.devMode,
-			locale: input.locale,
-			pseudo: input.locale === 'pseudo',
-			translations: input.translations
-		};
 	}
 
 	public static equals(a: ExtensionScannerInput, b: ExtensionScannerInput): boolean {
@@ -92,11 +83,9 @@ export class CachedExtensionScanner {
 	}
 
 	public async scanSingleExtension(extensionPath: string, isBuiltin: boolean): Promise<IExtensionDescription | null> {
-		const translations = await this.translationConfig;
 		const extensionLocation = URI.file(path.resolve(extensionPath));
 		const type = isBuiltin ? ExtensionType.System : ExtensionType.User;
-		const nlsConfiguration = ExtensionScannerInput.createNLSConfig({ devMode: !this._environmentService.isBuilt, locale: platform.language, translations });
-		const scannedExtension = await this._extensionsScannerService.scanExistingExtension(extensionLocation, type, { nlsConfiguration });
+		const scannedExtension = await this._extensionsScannerService.scanExistingExtension(extensionLocation, type, { language: platform.language });
 		return scannedExtension ? toExtensionDescription(scannedExtension, false) : null;
 	}
 
@@ -115,7 +104,7 @@ export class CachedExtensionScanner {
 		const cacheFolder = path.join(this._environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
-		const expected = JSON.parse(JSON.stringify(await this.scanExtensionDescriptions(input.isBuiltin, ExtensionScannerInput.createNLSConfig(input))));
+		const expected = JSON.parse(JSON.stringify(await this.scanExtensionDescriptions(input.isBuiltin, input.locale)));
 
 		const cacheContents = await this._readExtensionCache(cacheKey);
 		if (!cacheContents) {
@@ -180,7 +169,7 @@ export class CachedExtensionScanner {
 	private async _scanExtensionsWithCache(cacheKey: string, input: ExtensionScannerInput): Promise<IExtensionDescription[]> {
 		if (input.devMode) {
 			// Do not cache when running out of sources...
-			return this.scanExtensionDescriptions(input.isBuiltin, ExtensionScannerInput.createNLSConfig(input));
+			return this.scanExtensionDescriptions(input.isBuiltin, input.locale);
 		}
 
 		try {
@@ -211,7 +200,7 @@ export class CachedExtensionScanner {
 
 		const result: IExtensionDescription[] = [];
 		let canCache = true;
-		const scannedExtensions = await this.scanExtensions(input.isBuiltin, ExtensionScannerInput.createNLSConfig(input), true);
+		const scannedExtensions = await this.scanExtensions(input.isBuiltin, input.locale, true);
 		for (const scannedExtension of scannedExtensions) {
 			if (scannedExtension.isValid) {
 				result.push(toExtensionDescription(scannedExtension, input.isUnderDevelopment));
@@ -251,21 +240,19 @@ export class CachedExtensionScanner {
 		const commit = this._productService.commit;
 		const date = this._productService.date;
 		const devMode = !this._environmentService.isBuilt;
-		const locale = platform.language;
+		const language = platform.language;
 
 		const builtinExtensions = this._scanExtensionsWithCache(
 			BUILTIN_MANIFEST_CACHE_FILE,
-			new ExtensionScannerInput(version, date, commit, locale, devMode, this._extensionsScannerService.systemExtensionsLocation.path, true, false, translations),
+			new ExtensionScannerInput(version, date, commit, language, devMode, this._extensionsScannerService.systemExtensionsLocation.path, true, false, translations),
 		);
 
 		const userExtensions = this._scanExtensionsWithCache(
 			USER_MANIFEST_CACHE_FILE,
-			new ExtensionScannerInput(version, date, commit, locale, devMode, this._extensionsScannerService.userExtensionsLocation.path, false, false, translations),
+			new ExtensionScannerInput(version, date, commit, language, devMode, this._extensionsScannerService.userExtensionsLocation.path, false, false, translations),
 		);
 
-		// Always load developed extensions while extensions development
-		const nlsConfiguration = ExtensionScannerInput.createNLSConfig(ExtensionScannerInput.createNLSConfig({ devMode, locale, translations }));
-		const developedExtensions = this._extensionsScannerService.scanExtensionsUnderDevelopment({ nlsConfiguration })
+		const developedExtensions = this._extensionsScannerService.scanExtensionsUnderDevelopment({ language })
 			.then(scannedExtensions => scannedExtensions.map(e => toExtensionDescription(e, true)));
 
 		return Promise.all([builtinExtensions, userExtensions, developedExtensions]).then((extensionDescriptions: IExtensionDescription[][]) => {
@@ -280,14 +267,14 @@ export class CachedExtensionScanner {
 		});
 	}
 
-	private async scanExtensionDescriptions(isBuiltin: boolean, nlsConfiguration: NlsConfiguration): Promise<IExtensionDescription[]> {
-		const scannedExtensions = await this.scanExtensions(isBuiltin, nlsConfiguration, false);
+	private async scanExtensionDescriptions(isBuiltin: boolean, language: string | undefined): Promise<IExtensionDescription[]> {
+		const scannedExtensions = await this.scanExtensions(isBuiltin, language, false);
 		return scannedExtensions.map(e => toExtensionDescription(e, false));
 	}
 
-	private async scanExtensions(isBuiltin: boolean, nlsConfiguration: NlsConfiguration, includeInvalid: boolean): Promise<IScannedExtension[]> {
-		return isBuiltin ? this._extensionsScannerService.scanSystemExtensions({ nlsConfiguration, checkControlFile: true, includeInvalid })
-			: this._extensionsScannerService.scanUserExtensions({ nlsConfiguration, includeInvalid });
+	private async scanExtensions(isBuiltin: boolean, language: string | undefined, includeInvalid: boolean): Promise<IScannedExtension[]> {
+		return isBuiltin ? this._extensionsScannerService.scanSystemExtensions({ language, checkControlFile: true, includeInvalid })
+			: this._extensionsScannerService.scanUserExtensions({ language, includeInvalid });
 	}
 
 }
