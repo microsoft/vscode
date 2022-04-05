@@ -115,7 +115,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 			return this.cachedRefs;
 		}
 
-		const references = await this.referencesProvider.getAllReferences(document, position, token);
+		const references = await this.referencesProvider.getAllReferencesAtPosition(document, position, token);
 		const triggerRef = references.find(ref => ref.isTriggerLocation);
 		if (!triggerRef) {
 			return undefined;
