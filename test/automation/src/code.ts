@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import { join } from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
 import { IDriver, IDisposable, IElement, Thenable, ILocalizedStrings, ILocaleInfo } from './driver';
 import { launch as launchElectron } from './electronDriver';
-import { launch as launchPlaywright } from './playwrightDriver';
+import { launch as launchPlaywrightBrowser } from './playwrightBrowserDriver';
+import { launch as launchPlaywrightElectron } from './playwrightElectronDriver';
 import { Logger, measureAndLog } from './logger';
 import { copyExtension } from './extensions';
 import * as treekill from 'tree-kill';
 
-const repoPath = path.join(__dirname, '../../..');
+const rootPath = join(__dirname, '../../..');
 
 export interface LaunchOptions {
 	codePath?: string;
@@ -21,10 +22,13 @@ export interface LaunchOptions {
 	userDataDir: string;
 	extensionsPath: string;
 	logger: Logger;
+	logsPath: string;
 	verbose?: boolean;
 	extraArgs?: string[];
 	remote?: boolean;
 	web?: boolean;
+	legacy?: boolean;
+	tracing?: boolean;
 	headless?: boolean;
 	browser?: 'chromium' | 'webkit' | 'firefox';
 }
@@ -71,22 +75,29 @@ export async function launch(options: LaunchOptions): Promise<Code> {
 		throw new Error('Smoke test process has terminated, refusing to spawn Code');
 	}
 
-	await measureAndLog(copyExtension(repoPath, options.extensionsPath, 'vscode-notebook-tests'), 'copyExtension(vscode-notebook-tests)', options.logger);
+	await measureAndLog(copyExtension(rootPath, options.extensionsPath, 'vscode-notebook-tests'), 'copyExtension(vscode-notebook-tests)', options.logger);
 
 	// Browser smoke tests
 	if (options.web) {
-		const { serverProcess, client, driver, kill } = await measureAndLog(launchPlaywright(options), 'launch playwright', options.logger);
+		const { serverProcess, client, driver, kill } = await measureAndLog(launchPlaywrightBrowser(options), 'launch playwright (browser)', options.logger);
 		registerInstance(serverProcess, options.logger, 'server', kill);
 
-		return new Code(client, driver, options.logger, serverProcess);
+		return new Code(client, driver, options.logger);
 	}
 
-	// Electron smoke tests
+	// Electron smoke tests (playwright)
+	else if (!options.legacy) {
+		const { client, driver } = await measureAndLog(launchPlaywrightElectron(options), 'launch playwright (electron)', options.logger);
+
+		return new Code(client, driver, options.logger);
+	}
+
+	// Electron smoke tests (legacy driver)
 	else {
 		const { electronProcess, client, driver, kill } = await measureAndLog(launchElectron(options), 'launch electron', options.logger);
 		registerInstance(electronProcess, options.logger, 'electron', kill);
 
-		return new Code(client, driver, options.logger, electronProcess);
+		return new Code(client, driver, options.logger);
 	}
 }
 
@@ -129,13 +140,12 @@ async function poll<T>(
 export class Code {
 
 	private _activeWindowId: number | undefined = undefined;
-	driver: IDriver;
+	readonly driver: IDriver;
 
 	constructor(
 		private client: IDisposable,
 		driver: IDriver,
-		readonly logger: Logger,
-		private readonly mainProcess: cp.ChildProcess
+		readonly logger: Logger
 	) {
 		this.driver = new Proxy(driver, {
 			get(target, prop) {
@@ -163,16 +173,12 @@ export class Code {
 
 	async startTracing(name: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		if (typeof this.driver.startTracing === 'function') { // added only in 1.64
-			return await this.driver.startTracing(windowId, name);
-		}
+		return await this.driver.startTracing(windowId, name);
 	}
 
 	async stopTracing(name: string, persist: boolean): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		if (typeof this.driver.stopTracing === 'function') { // added only in 1.64
-			return await this.driver.stopTracing(windowId, name, persist);
-		}
+		return await this.driver.stopTracing(windowId, name, persist);
 	}
 
 	async waitForWindowIds(accept: (windowIds: number[]) => boolean): Promise<void> {
@@ -185,18 +191,13 @@ export class Code {
 	}
 
 	async exit(): Promise<void> {
+
+		// Start the exit flow via driver
+		const pid = await measureAndLog(this.driver.exitApplication(), 'driver.exitApplication()', this.logger);
+
 		return measureAndLog(new Promise<void>((resolve, reject) => {
 			let done = false;
 
-			// Start the exit flow via driver
-			this.driver.exitApplication().then(veto => {
-				if (veto) {
-					done = true;
-					reject(new Error('Smoke test exit call resulted in unexpected veto'));
-				}
-			});
-
-			// Await the exit of the application
 			(async () => {
 				let retries = 0;
 				while (!done) {
@@ -206,7 +207,7 @@ export class Code {
 						this.logger.log('Smoke test exit call did not terminate process after 10s, forcefully exiting the application...');
 
 						// no need to await since we're polling for the process to die anyways
-						treekill(this.mainProcess.pid!, err => {
+						treekill(pid, err => {
 							this.logger.log('Failed to kill Electron process tree:', err?.message);
 						});
 					}
@@ -217,7 +218,7 @@ export class Code {
 					}
 
 					try {
-						process.kill(this.mainProcess.pid!, 0); // throws an exception if the process doesn't exist anymore.
+						process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
 						await new Promise(resolve => setTimeout(resolve, 500));
 					} catch (error) {
 						done = true;

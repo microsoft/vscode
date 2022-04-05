@@ -729,7 +729,7 @@ suite('SnippetsService', function () {
 		model.dispose();
 	});
 
-	test('Snippets disappear with . key #145960', async function () {
+	test.skip('Snippets disappear with . key #145960', async function () {
 		snippetService = new SimpleSnippetService([
 			new Snippet(['fooLang'], 'div', 'div', '', 'div', '', SnippetSource.User),
 			new Snippet(['fooLang'], 'div.', 'div.', '', 'div.', '', SnippetSource.User),
