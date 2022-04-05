@@ -46,7 +46,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	private readonly _commands = new Map<string, CommandHandler>();
 	private readonly _apiCommands = new Map<string, ApiCommand>();
-	private readonly _telemetry: MainThreadTelemetryShape;
+	#telemetry: MainThreadTelemetryShape;
 
 	private readonly _logService: ILogService;
 	private readonly _argumentProcessors: ArgumentProcessor[];
@@ -59,7 +59,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	) {
 		this.#proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
 		this._logService = logService;
-		this._telemetry = extHostRpc.getProxy(MainContext.MainThreadTelemetry);
+		this.#telemetry = extHostRpc.getProxy(MainContext.MainThreadTelemetry);
 		this.converter = new CommandsConverter(
 			this,
 			id => {
@@ -221,20 +221,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		if (!command) {
 			throw new Error('Unknown command');
 		}
-		type ExtensionActionTelemetry = {
-			extensionId: string;
-			id: string;
-		};
-		type ExtensionActionTelemetryMeta = {
-			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'digitarald'; comment: 'The id of the extension handling the command, informing which extensions provide most-used functionality.' };
-			id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'digitarald'; comment: 'The id of the command, to understand which specific extension features are most popular.' };
-		};
-		if (command.extension && !command.extension.isBuiltin) {
-			this._telemetry.$publicLog2<ExtensionActionTelemetry, ExtensionActionTelemetryMeta>('Extension:ActionExecuted', {
-				extensionId: command.extension?.identifier.value,
-				id: id,
-			});
-		}
+		this.reportTelemetry(command, id);
 		let { callback, thisArg, description } = command;
 		if (description) {
 			for (let i = 0; i < description.args.length; i++) {
@@ -245,7 +232,6 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				}
 			}
 		}
-
 
 		try {
 			return await callback.apply(thisArg, args);
@@ -272,6 +258,24 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				}
 			};
 		}
+	}
+
+	private reportTelemetry(command: CommandHandler, id: string) {
+		if (!command.extension || command.extension.isBuiltin) {
+			return;
+		}
+		type ExtensionActionTelemetry = {
+			extensionId: string;
+			id: string;
+		};
+		type ExtensionActionTelemetryMeta = {
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'digitarald'; comment: 'The id of the extension handling the command, informing which extensions provide most-used functionality.' };
+			id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'digitarald'; comment: 'The id of the command, to understand which specific extension features are most popular.' };
+		};
+		this.#telemetry.$publicLog2<ExtensionActionTelemetry, ExtensionActionTelemetryMeta>('Extension:ActionExecuted', {
+			extensionId: command.extension?.identifier.value,
+			id: id,
+		});
 	}
 
 	$executeContributedCommand(id: string, ...args: any[]): Promise<unknown> {
