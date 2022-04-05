@@ -465,8 +465,8 @@ suite('viewLineRenderer.renderLine', () => {
 
 		const expectedOutput = [
 			'<span class="mtk6">var</span>',
-			'<span dir="auto" class="mtk1">\u00a0קודמות\u00a0=\u00a0</span>',
-			'<span dir="auto" class="mtk20">"מיותר\u00a0קודמות\u00a0צ\'ט\u00a0של,\u00a0אם\u00a0לשון\u00a0העברית\u00a0שינויים\u00a0ויש,\u00a0אם"</span>',
+			'<span style="unicode-bidi:isolate" class="mtk1">\u00a0קודמות\u00a0=\u00a0</span>',
+			'<span style="unicode-bidi:isolate" class="mtk20">"מיותר\u00a0קודמות\u00a0צ\'ט\u00a0של,\u00a0אם\u00a0לשון\u00a0העברית\u00a0שינויים\u00a0ויש,\u00a0אם"</span>',
 			'<span class="mtk1">;</span>'
 		].join('');
 
@@ -519,9 +519,9 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span class="mtk4">\u00a0</span>',
 			'<span class="mtk5">value</span>',
 			'<span class="mtk4">=</span>',
-			'<span dir="auto" class="mtk6">"العربية"</span>',
+			'<span style="unicode-bidi:isolate" class="mtk6">"العربية"</span>',
 			'<span class="mtk2">&gt;</span>',
-			'<span dir="auto" class="mtk4">العربية</span>',
+			'<span style="unicode-bidi:isolate" class="mtk4">العربية</span>',
 			'<span class="mtk2">&lt;/</span>',
 			'<span class="mtk3">option</span>',
 			'<span class="mtk2">&gt;</span>',
@@ -738,7 +738,7 @@ suite('viewLineRenderer.renderLine', () => {
 		const lineText = 'את גרמנית בהתייחסות שמו, שנתי המשפט אל חפש, אם כתב אחרים ולחבר. של התוכן אודות בויקיפדיה כלל, של עזרה כימיה היא. על עמוד יוצרים מיתולוגיה סדר, אם שכל שתפו לעברית שינויים, אם שאלות אנגלית עזה. שמות בקלות מה סדר.';
 		const lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
 		const expectedOutput = [
-			'<span dir="auto" class="mtk1">את\u00a0גרמנית\u00a0בהתייחסות\u00a0שמו,\u00a0שנתי\u00a0המשפט\u00a0אל\u00a0חפש,\u00a0אם\u00a0כתב\u00a0אחרים\u00a0ולחבר.\u00a0של\u00a0התוכן\u00a0אודות\u00a0בויקיפדיה\u00a0כלל,\u00a0של\u00a0עזרה\u00a0כימיה\u00a0היא.\u00a0על\u00a0עמוד\u00a0יוצרים\u00a0מיתולוגיה\u00a0סדר,\u00a0אם\u00a0שכל\u00a0שתפו\u00a0לעברית\u00a0שינויים,\u00a0אם\u00a0שאלות\u00a0אנגלית\u00a0עזה.\u00a0שמות\u00a0בקלות\u00a0מה\u00a0סדר.</span>'
+			'<span style="unicode-bidi:isolate" class="mtk1">את\u00a0גרמנית\u00a0בהתייחסות\u00a0שמו,\u00a0שנתי\u00a0המשפט\u00a0אל\u00a0חפש,\u00a0אם\u00a0כתב\u00a0אחרים\u00a0ולחבר.\u00a0של\u00a0התוכן\u00a0אודות\u00a0בויקיפדיה\u00a0כלל,\u00a0של\u00a0עזרה\u00a0כימיה\u00a0היא.\u00a0על\u00a0עמוד\u00a0יוצרים\u00a0מיתולוגיה\u00a0סדר,\u00a0אם\u00a0שכל\u00a0שתפו\u00a0לעברית\u00a0שינויים,\u00a0אם\u00a0שאלות\u00a0אנגלית\u00a0עזה.\u00a0שמות\u00a0בקלות\u00a0מה\u00a0סדר.</span>'
 		];
 		const actual = renderViewLine(new RenderLineInput(
 			false,
