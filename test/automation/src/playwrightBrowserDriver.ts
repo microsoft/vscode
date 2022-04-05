@@ -77,14 +77,8 @@ export class PlaywrightDriver implements IDriver {
 		}
 	}
 
-	async takeScreenshot(name: string): Promise<void> {
-		try {
-			const persistPath = join(this.options.logsPath, `playwright-screenshot-${PlaywrightDriver.traceCounter++}-${name.replace(/\s+/g, '-')}.png`);
-
-			await measureAndLog(this.page.screenshot({ path: persistPath, type: 'png' }), 'takeScreenshot', this.options.logger);
-		} catch (error) {
-			// Ignore
-		}
+	async reload() {
+		await this.page.reload();
 	}
 
 	async exitApplication() {
