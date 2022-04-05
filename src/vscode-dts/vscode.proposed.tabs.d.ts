@@ -153,6 +153,12 @@ declare module 'vscode' {
 		export const tabGroups: TabGroups;
 	}
 
+	export interface TabChangeEvent {
+		readonly added: readonly Tab[];
+		readonly removed: readonly Tab[];
+		readonly changed: readonly Tab[];
+	}
+
 	export interface TabGroup {
 		/**
 		 * Whether or not the group is currently active
@@ -199,8 +205,7 @@ declare module 'vscode' {
 		/**
 		 * An {@link Event event} which fires when a {@link Tab tabs} have changed.
 		 */
-		readonly onDidChangeTabs: Event<readonly Tab[]>;
-		// readonly onDidChangeTabs: Event<{ opened: readonly Tab[], closed: readonly Tab[], changed: readonly Tab[] }>;
+		readonly onDidChangeTabs: Event<TabChangeEvent>;
 
 		/**
 		 * Closes the tab. This makes the tab object invalid and the tab

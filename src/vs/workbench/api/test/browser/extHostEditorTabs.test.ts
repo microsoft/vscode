@@ -361,7 +361,7 @@ suite('ExtHostEditorTabs', function () {
 
 		const tab = extHostEditorTabs.tabGroups.groups[0].tabs[0];
 
-		const p = new Promise<readonly vscode.Tab[]>(resolve => extHostEditorTabs.tabGroups.onDidChangeTabs(resolve));
+		const p = new Promise<vscode.TabChangeEvent>(resolve => extHostEditorTabs.tabGroups.onDidChangeTabs(resolve));
 
 		extHostEditorTabs.$acceptTabOperation({
 			groupId: 12,
@@ -370,7 +370,7 @@ suite('ExtHostEditorTabs', function () {
 			tabDto: { ...tabDto, label: 'NEW LABEL' }
 		});
 
-		const changedTab = (await p)[0];
+		const changedTab = (await p).changed[0];
 
 		assert.ok(tab === changedTab);
 		assert.strictEqual(changedTab.label, 'NEW LABEL');

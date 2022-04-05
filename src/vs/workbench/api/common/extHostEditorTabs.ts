@@ -201,7 +201,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 	readonly _serviceBrand: undefined;
 
 	private readonly _proxy: MainThreadEditorTabsShape;
-	private readonly _onDidChangeTabs = new Emitter<vscode.Tab[]>();
+	private readonly _onDidChangeTabs = new Emitter<vscode.TabChangeEvent>();
 	private readonly _onDidChangeTabGroups = new Emitter<vscode.TabGroup[]>();
 
 	// Have to use ! because this gets initialized via an RPC proxy
@@ -291,9 +291,30 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			throw new Error('Update Tabs IPC call received before group creation.');
 		}
 		const tab = group.acceptTabOperation(operation);
-		// We don't want to fire a change event with a closed tab to prevent an invalid tabs from being received
-		if (operation.kind !== TabModelOperationKind.TAB_CLOSE) {
-			this._onDidChangeTabs.fire([tab.apiObject]);
+
+		// Construct the tab change event based on the operation
+		switch (operation.kind) {
+			case TabModelOperationKind.TAB_OPEN:
+				this._onDidChangeTabs.fire({
+					added: [tab.apiObject],
+					removed: [],
+					changed: []
+				});
+				return;
+			case TabModelOperationKind.TAB_CLOSE:
+				this._onDidChangeTabs.fire({
+					added: [],
+					removed: [tab.apiObject],
+					changed: []
+				});
+				return;
+			case TabModelOperationKind.TAB_UPDATE:
+				this._onDidChangeTabs.fire({
+					added: [],
+					removed: [],
+					changed: [tab.apiObject]
+				});
+				return;
 		}
 	}
 
