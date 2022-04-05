@@ -20,6 +20,17 @@
 	pointer-events: none; /* very important to not take events away from the parent */
 	opacity: 0; /* hidden initially */
 	transition: opacity 150ms ease-out;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+#monaco-workbench-editor-drop-overlay .editor-group-overlay-drop-into-prompt {
+	text-align: center;
+	padding: 1em;
+	opacity: 0; /* hidden initially */
+	transition: opacity 150ms ease-out;
 }
 
 #monaco-workbench-editor-drop-overlay > .editor-group-overlay-indicator.overlay-move-transition {

@@ -34,6 +34,9 @@ export class CommandNavigationAddon extends Disposable implements ICommandTracke
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
+		this._terminal.onData(() => {
+			this._currentMarker = Boundary.Bottom;
+		});
 	}
 
 	constructor(

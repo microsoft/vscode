@@ -1131,6 +1131,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			createConcatTextDocument(notebook, selector) {
 				checkProposedApiEnabled(extension, 'notebookConcatTextDocument');
+				extHostApiDeprecation.report('notebookConcatTextDocument', extension, 'This proposal is not on track for finalization and will be removed.');
 				return new ExtHostNotebookConcatDocument(extHostNotebookDocuments, extHostDocuments, notebook, selector);
 			},
 		};

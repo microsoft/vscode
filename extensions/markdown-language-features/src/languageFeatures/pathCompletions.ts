@@ -240,7 +240,7 @@ export class MdPathCompletionProvider implements vscode.CompletionItemProvider {
 		for (const def of definitions) {
 			yield {
 				kind: vscode.CompletionItemKind.Reference,
-				label: def.ref,
+				label: def.ref.text,
 				range: {
 					inserting: insertionRange,
 					replacing: replacementRange,

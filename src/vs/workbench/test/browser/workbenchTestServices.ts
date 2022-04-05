@@ -865,7 +865,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	copyEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): void { }
 	async closeEditor(_editor?: EditorInput, options?: ICloseEditorOptions): Promise<boolean> { return true; }
 	async closeEditors(_editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<boolean> { return true; }
-	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void> { }
+	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean> { return true; }
 	async replaceEditors(_editors: IEditorReplacement[]): Promise<void> { }
 	pinEditor(_editor?: EditorInput): void { }
 	stickEditor(editor?: EditorInput | undefined): void { }
