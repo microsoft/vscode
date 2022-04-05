@@ -924,9 +924,11 @@ class DirtyDiffDecorator extends Disposable {
 		return ModelDecorationOptions.createDynamic(decorationOptions);
 	}
 
-	private modifiedOptions!: ModelDecorationOptions;
-	private addedOptions!: ModelDecorationOptions;
-	private deletedOptions!: ModelDecorationOptions;
+	private addedOptions: ModelDecorationOptions;
+	private addedPatternOptions: ModelDecorationOptions;
+	private modifiedOptions: ModelDecorationOptions;
+	private modifiedPatternOptions: ModelDecorationOptions;
+	private deletedOptions: ModelDecorationOptions;
 	private decorations: string[] = [];
 	private editorModel: ITextModel | null;
 
@@ -938,13 +940,47 @@ class DirtyDiffDecorator extends Disposable {
 		super();
 		this.editorModel = editorModel;
 
+		const decorations = configurationService.getValue<string>('scm.diffDecorations');
+		const gutter = decorations === 'all' || decorations === 'gutter';
+		const overview = decorations === 'all' || decorations === 'overview';
+		const minimap = decorations === 'all' || decorations === 'minimap';
+
+		this.addedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-added', {
+			gutter,
+			overview: { active: overview, color: overviewRulerAddedForeground },
+			minimap: { active: minimap, color: minimapGutterAddedBackground },
+			isWholeLine: true
+		});
+		this.addedPatternOptions = DirtyDiffDecorator.createDecoration('dirty-diff-added-pattern', {
+			gutter,
+			overview: { active: overview, color: overviewRulerAddedForeground },
+			minimap: { active: minimap, color: minimapGutterAddedBackground },
+			isWholeLine: true
+		});
+		this.modifiedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-modified', {
+			gutter,
+			overview: { active: overview, color: overviewRulerModifiedForeground },
+			minimap: { active: minimap, color: minimapGutterModifiedBackground },
+			isWholeLine: true
+		});
+		this.modifiedPatternOptions = DirtyDiffDecorator.createDecoration('dirty-diff-modified-pattern', {
+			gutter,
+			overview: { active: overview, color: overviewRulerModifiedForeground },
+			minimap: { active: minimap, color: minimapGutterModifiedBackground },
+			isWholeLine: true
+		});
+		this.deletedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-deleted', {
+			gutter,
+			overview: { active: overview, color: overviewRulerDeletedForeground },
+			minimap: { active: minimap, color: minimapGutterDeletedBackground },
+			isWholeLine: false
+		});
+
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('scm.diffDecorationsGutterPattern')) {
-				this.onDidChangeDecorationsGutterPattern();
 				this.onDidChange();
 			}
 		}));
-		this.onDidChangeDecorationsGutterPattern();
 
 		this._register(model.onDidChange(this.onDidChange, this));
 	}
@@ -953,6 +989,8 @@ class DirtyDiffDecorator extends Disposable {
 		if (!this.editorModel) {
 			return;
 		}
+
+		const pattern = this.configurationService.getValue<{ added: boolean; modified: boolean }>('scm.diffDecorationsGutterPattern');
 		const decorations = this.model.changes.map((change) => {
 			const changeType = getChangeType(change);
 			const startLineNumber = change.modifiedStartLineNumber;
@@ -965,7 +1003,7 @@ class DirtyDiffDecorator extends Disposable {
 							startLineNumber: startLineNumber, startColumn: 1,
 							endLineNumber: endLineNumber, endColumn: 1
 						},
-						options: this.addedOptions
+						options: pattern.added ? this.addedPatternOptions : this.addedOptions
 					};
 				case ChangeType.Delete:
 					return {
@@ -981,40 +1019,12 @@ class DirtyDiffDecorator extends Disposable {
 							startLineNumber: startLineNumber, startColumn: 1,
 							endLineNumber: endLineNumber, endColumn: 1
 						},
-						options: this.modifiedOptions
+						options: pattern.modified ? this.modifiedPatternOptions : this.modifiedOptions
 					};
 			}
 		});
 
 		this.decorations = this.editorModel.deltaDecorations(this.decorations, decorations);
-	}
-
-	private onDidChangeDecorationsGutterPattern(): void {
-		const decorations = this.configurationService.getValue<string>('scm.diffDecorations');
-		const gutter = decorations === 'all' || decorations === 'gutter';
-		const overview = decorations === 'all' || decorations === 'overview';
-		const minimap = decorations === 'all' || decorations === 'minimap';
-
-		const pattern = this.configurationService.getValue<{ added: boolean; modified: boolean }>('scm.diffDecorationsGutterPattern');
-
-		this.modifiedOptions = DirtyDiffDecorator.createDecoration(pattern.modified ? 'dirty-diff-modified-pattern' : 'dirty-diff-modified', {
-			gutter,
-			overview: { active: overview, color: overviewRulerModifiedForeground },
-			minimap: { active: minimap, color: minimapGutterModifiedBackground },
-			isWholeLine: true
-		});
-		this.addedOptions = DirtyDiffDecorator.createDecoration(pattern.added ? 'dirty-diff-added-pattern' : 'dirty-diff-added', {
-			gutter,
-			overview: { active: overview, color: overviewRulerAddedForeground },
-			minimap: { active: minimap, color: minimapGutterAddedBackground },
-			isWholeLine: true
-		});
-		this.deletedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-deleted', {
-			gutter,
-			overview: { active: overview, color: overviewRulerDeletedForeground },
-			minimap: { active: minimap, color: minimapGutterDeletedBackground },
-			isWholeLine: false
-		});
 	}
 	override dispose(): void {
 		super.dispose();
