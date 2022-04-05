@@ -866,6 +866,7 @@ export interface ExtHostWebviewPanelsShape {
 			state: any;
 			webviewOptions: IWebviewContentOptions;
 			panelOptions: IWebviewPanelOptions;
+			active: boolean;
 		},
 		position: EditorGroupColumn,
 	): Promise<void>;
