@@ -381,7 +381,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	private async _scanSingleExtension(extensionPath: string, isBuiltin: boolean, language: string, translations: Translations): Promise<IExtensionDescription | null> {
 		const extensionLocation = URI.file(resolve(extensionPath));
 		const type = isBuiltin ? ExtensionType.System : ExtensionType.User;
-		const nlsConfiguration = this.createNLSConfig({ devMode: !!process.env['VSCODE_DEV'], locale: platform.language, translations });
+		const nlsConfiguration = this.createNLSConfig({ devMode: !!process.env['VSCODE_DEV'], locale: language, translations });
 		const scannedExtension = await this._extensionsScannerService.scanExistingExtension(extensionLocation, type, { nlsConfiguration });
 		return scannedExtension ? toExtensionDescription(scannedExtension, false) : null;
 	}
