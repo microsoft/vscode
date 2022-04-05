@@ -87,26 +87,25 @@ function getWorkspaceFolder(document: SkinnyTextDocument) {
 		|| vscode.workspace.workspaceFolders?.[0]?.uri;
 }
 
+interface MdLinkSource {
+	readonly text: string;
+	readonly resource: vscode.Uri;
+	readonly hrefRange: vscode.Range;
+}
+
 export interface MdInlineLink {
 	readonly kind: 'link';
-
+	readonly source: MdLinkSource;
 	readonly href: LinkHref;
-
-	readonly sourceText: string;
-	readonly sourceResource: vscode.Uri;
-	readonly sourceHrefRange: vscode.Range;
 }
 
 export interface MdLinkDefinition {
 	readonly kind: 'definition';
-
-	readonly sourceText: string;
-	readonly sourceResource: vscode.Uri;
-	readonly sourceHrefRange: vscode.Range;
-
-	readonly refRange: vscode.Range;
-
-	readonly ref: string;
+	readonly source: MdLinkSource;
+	readonly ref: {
+		readonly range: vscode.Range;
+		readonly text: string;
+	};
 	readonly href: ExternalHref | InternalHref;
 }
 
@@ -129,9 +128,11 @@ function extractDocumentLink(
 		return {
 			kind: 'link',
 			href: linkTarget,
-			sourceText: link,
-			sourceResource: document.uri,
-			sourceHrefRange: new vscode.Range(linkStart, linkEnd)
+			source: {
+				text: link,
+				resource: document.uri,
+				hrefRange: new vscode.Range(linkStart, linkEnd)
+			}
 		};
 	} catch {
 		return undefined;
@@ -192,8 +193,8 @@ async function findCode(document: SkinnyTextDocument, engine: MarkdownEngine): P
 }
 
 function isLinkInsideCode(code: CodeInDocument, link: MdLink) {
-	return code.multiline.some(interval => link.sourceHrefRange.start.line >= interval[0] && link.sourceHrefRange.start.line < interval[1]) ||
-		code.inline.some(position => position.intersection(link.sourceHrefRange));
+	return code.multiline.some(interval => link.source.hrefRange.start.line >= interval[0] && link.source.hrefRange.start.line < interval[1]) ||
+		code.inline.some(position => position.intersection(link.source.hrefRange));
 }
 
 export class MdLinkProvider implements vscode.DocumentLinkProvider {
@@ -219,11 +220,11 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 	private toValidDocumentLink(link: MdLink, definitionSet: LinkDefinitionSet): vscode.DocumentLink | undefined {
 		switch (link.href.kind) {
 			case 'external': {
-				return new vscode.DocumentLink(link.sourceHrefRange, link.href.uri);
+				return new vscode.DocumentLink(link.source.hrefRange, link.href.uri);
 			}
 			case 'internal': {
-				const uri = OpenDocumentLinkCommand.createCommandUri(link.sourceResource, link.href.path, link.href.fragment);
-				const documentLink = new vscode.DocumentLink(link.sourceHrefRange, uri);
+				const uri = OpenDocumentLinkCommand.createCommandUri(link.source.resource, link.href.path, link.href.fragment);
+				const documentLink = new vscode.DocumentLink(link.source.hrefRange, uri);
 				documentLink.tooltip = localize('documentLink.tooltip', 'Follow link');
 				return documentLink;
 			}
@@ -231,8 +232,8 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				const def = definitionSet.lookup(link.href.ref);
 				if (def) {
 					return new vscode.DocumentLink(
-						link.sourceHrefRange,
-						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([def.sourceHrefRange.start.line, def.sourceHrefRange.start.character]))}`));
+						link.source.hrefRange,
+						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([def.source.hrefRange.start.line, def.source.hrefRange.start.character]))}`));
 				} else {
 					return undefined;
 				}
@@ -288,9 +289,11 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 
 			yield {
 				kind: 'link',
-				sourceText: reference,
-				sourceHrefRange: new vscode.Range(linkStart, linkEnd),
-				sourceResource: document.uri,
+				source: {
+					text: reference,
+					hrefRange: new vscode.Range(linkStart, linkEnd),
+					resource: document.uri,
+				},
 				href: {
 					kind: 'reference',
 					ref: reference,
@@ -318,11 +321,12 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				if (target) {
 					yield {
 						kind: 'definition',
-						sourceText: link,
-						sourceResource: document.uri,
-						sourceHrefRange: new vscode.Range(linkStart, linkEnd),
-						refRange,
-						ref: reference,
+						source: {
+							text: link,
+							resource: document.uri,
+							hrefRange: new vscode.Range(linkStart, linkEnd),
+						},
+						ref: { text: reference, range: refRange },
 						href: target,
 					};
 				}
@@ -333,11 +337,12 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				if (target) {
 					yield {
 						kind: 'definition',
-						sourceText: link,
-						sourceResource: document.uri,
-						sourceHrefRange: new vscode.Range(linkStart, linkEnd),
-						refRange,
-						ref: reference,
+						source: {
+							text: link,
+							resource: document.uri,
+							hrefRange: new vscode.Range(linkStart, linkEnd),
+						},
+						ref: { text: reference, range: refRange },
 						href: target,
 					};
 				}
@@ -352,7 +357,7 @@ export class LinkDefinitionSet {
 	constructor(links: Iterable<MdLink>) {
 		for (const link of links) {
 			if (link.kind === 'definition') {
-				this._map.set(link.ref, link);
+				this._map.set(link.ref.text, link);
 			}
 		}
 	}

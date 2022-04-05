@@ -1786,7 +1786,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region closeAllEditors()
 
-	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void> {
+	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean> {
 		if (this.isEmpty) {
 
 			// If the group is empty and the request is to close all editors, we still close
@@ -1796,17 +1796,19 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				this.accessor.removeGroup(this);
 			}
 
-			return;
+			return true;
 		}
 
 		// Check for dirty and veto
 		const veto = await this.handleDirtyClosing(this.model.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, options));
 		if (veto) {
-			return;
+			return false;
 		}
 
 		// Do close
 		this.doCloseAllEditors(options);
+
+		return true;
 	}
 
 	private doCloseAllEditors(options?: ICloseAllEditorsOptions): void {

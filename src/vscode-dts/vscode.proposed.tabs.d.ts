@@ -7,6 +7,8 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
+	// TODO@API name alternatives for TabKind: TabInput, TabOptions,
+
 	export class TabKindText {
 		readonly uri: Uri;
 		constructor(uri: Uri);
@@ -51,8 +53,8 @@ declare module 'vscode' {
 
 	/**
 	 * Represents a tab within a {@link TabGroup group of tabs}.
-	 *
-	 * TODO@API explain the tab is a button, not editor concept
+	 * Tabs are merely the grapihcal repesentation within the editor area.
+	 * A backing editor is not a gurantee.
 	 */
 	export interface Tab {
 
@@ -140,12 +142,13 @@ declare module 'vscode' {
 		/**
 		 * An {@link Event event} which fires when {@link TabGroup tab groups} has changed.
 		 */
-		readonly onDidChangeTabGroups: Event<TabGroup[]>;
+		// TODO@API maybe `onDidChangeGroups`
+		readonly onDidChangeTabGroups: Event<readonly TabGroup[]>;
 
 		/**
 		 * An {@link Event event} which fires when a {@link Tab tabs} have changed.
 		 */
-		readonly onDidChangeTabs: Event<Tab[]>;
+		readonly onDidChangeTabs: Event<readonly Tab[]>;
 
 		/**
 		 * Closes the tab. This makes the tab object invalid and the tab
@@ -157,8 +160,15 @@ declare module 'vscode' {
 		 * @returns A promise that resolves to `true` when all tabs have been closed
 		 */
 		close(tab: Tab | Tab[], preserveFocus?: boolean): Thenable<boolean>;
-		// TODO@API support to close "all"
-		// close(tab: TabGroup | TabGroup[], preserveFocus?: boolean): Thenable<boolean>;
+
+		/**
+		 * Closes the tab group. This makes the tab group object invalid and the tab group
+		 * should no longer be used for furhter actions.
+		 * @param tabGroup The tab group to close.
+		 * @param preserveFocus When `true` focus will remain in its current position.
+		 * @returns A promise that resolves to `true` when all tab groups have been closed
+		 */
+		close(tabGroup: TabGroup | TabGroup[], preserveFocus?: boolean): Thenable<boolean>;
 
 		/**
 		 * Moves a tab to the given index within the column.

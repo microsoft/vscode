@@ -561,5 +561,22 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		// TODO @jrieken This isn't quite right how can we say true for some but not others?
 		return results.every(result => result);
 	}
+
+	async $closeGroup(groupIds: number[], preserveFocus?: boolean): Promise<boolean> {
+		const groupCloseResults: boolean[] = [];
+		for (const groupId of groupIds) {
+			const group = this._editorGroupsService.getGroup(groupId);
+			if (group) {
+				// TODO @lramos15 change this to use group.closeAllEditors once it
+				// is enriched to return a boolean
+				groupCloseResults.push(await group.closeEditors([...group.editors], { preserveFocus }));
+				// Make sure group is empty but still there before removing it
+				if (group.count === 0 && this._editorGroupsService.getGroup(group.id)) {
+					this._editorGroupsService.removeGroup(group);
+				}
+			}
+		}
+		return groupCloseResults.every(result => result);
+	}
 	//#endregion
 }

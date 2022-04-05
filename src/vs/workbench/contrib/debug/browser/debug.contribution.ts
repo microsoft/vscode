@@ -418,8 +418,8 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		'debug.inlineValues': {
-			type: ['boolean', 'string'],
-			'enum': [true, false, 'auto'],
+			type: 'string',
+			'enum': ['on', 'off', 'auto'],
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'inlineValues' }, "Show variable values inline in editor while debugging."),
 			'enumDescriptions': [
 				nls.localize('inlineValues.on', 'Always show variable values inline in editor while debugging.'),
