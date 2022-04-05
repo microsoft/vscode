@@ -15,22 +15,36 @@ declare module 'vscode' {
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
 	}
 
+	/** @deprecated */
 	export interface NotebookConcatTextDocument {
+		/** @deprecated */
 		readonly uri: Uri;
+		/** @deprecated */
 		readonly isClosed: boolean;
+		/** @deprecated */
 		dispose(): void;
+		/** @deprecated */
 		readonly onDidChange: Event<void>;
+		/** @deprecated */
 		readonly version: number;
+		/** @deprecated */
 		getText(): string;
+		/** @deprecated */
 		getText(range: Range): string;
 
 		offsetAt(position: Position): number;
+		/** @deprecated */
 		positionAt(offset: number): Position;
+		/** @deprecated */
 		validateRange(range: Range): Range;
+		/** @deprecated */
 		validatePosition(position: Position): Position;
 
+		/** @deprecated */
 		locationAt(positionOrRange: Position | Range): Location;
+		/** @deprecated */
 		positionAt(location: Location): Position;
+		/** @deprecated */
 		contains(uri: Uri): boolean;
 	}
 }

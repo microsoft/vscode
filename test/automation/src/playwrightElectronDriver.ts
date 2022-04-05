@@ -48,12 +48,28 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 		}
 	}
 
-	window.on('pageerror', async (error) => logger.log(`Playwright ERROR: page error: ${error}`));
-	window.on('crash', () => logger.log('Playwright ERROR: page crash'));
-	window.on('close', () => logger.log('Playwright: page close'));
+	if (options.verbose) {
+		electron.on('window', () => logger.log(`Playwright (Electron): electron.on('window')`));
+		electron.on('close', () => logger.log(`Playwright (Electron): electron.on('close')`));
+
+		context.on('page', () => logger.log(`Playwright (Electron): context.on('page')`));
+		context.on('requestfailed', (e) => logger.log(`Playwright (Electron): context.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
+
+		window.on('console', (e) => logger.log(`Playwright (Electron): window.on('console') [${e.text()}]`));
+		window.on('dialog', () => logger.log(`Playwright (Electron): window.on('dialog')`));
+		window.on('domcontentloaded', () => logger.log(`Playwright (Electron): window.on('domcontentloaded')`));
+		window.on('load', () => logger.log(`Playwright (Electron): window.on('load')`));
+		window.on('popup', () => logger.log(`Playwright (Electron): window.on('popup')`));
+		window.on('framenavigated', () => logger.log(`Playwright (Electron): window.on('framenavigated')`));
+		window.on('requestfailed', (e) => logger.log(`Playwright (Electron): window.on('requestfailed') [${e.failure()?.errorText} for ${e.url()}]`));
+	}
+
+	window.on('pageerror', async (error) => logger.log(`Playwright (Electron) ERROR: page error: ${error}`));
+	window.on('crash', () => logger.log('Playwright (Electron) ERROR: page crash'));
+	window.on('close', () => logger.log('Playwright (Electron): page close'));
 	window.on('response', async (response) => {
 		if (response.status() >= 400) {
-			logger.log(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
+			logger.log(`Playwright (Electron) ERROR: HTTP status ${response.status()} for ${response.url()}`);
 		}
 	});
 

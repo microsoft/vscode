@@ -122,7 +122,8 @@
           "text/x-typescript",
           "text/x-vb",
           "text/x-xml",
-          "text/x-yaml"
+          "text/x-yaml",
+          "application/json"
         ]
       }
     ],

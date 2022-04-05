@@ -48,10 +48,6 @@ export class PlaywrightDriver implements IDriver {
 		return [1];
 	}
 
-	async capturePage() {
-		return '';
-	}
-
 	async startTracing(windowId: number, name: string): Promise<void> {
 		if (!this.options.tracing) {
 			return; // tracing disabled
@@ -81,8 +77,14 @@ export class PlaywrightDriver implements IDriver {
 		}
 	}
 
-	async reloadWindow(windowId: number) {
-		await this.page.reload();
+	async takeScreenshot(name: string): Promise<void> {
+		try {
+			const persistPath = join(this.options.logsPath, `playwright-screenshot-${PlaywrightDriver.traceCounter++}-${name.replace(/\s+/g, '-')}.png`);
+
+			await measureAndLog(this.page.screenshot({ path: persistPath, type: 'png' }), 'takeScreenshot', this.options.logger);
+		} catch (error) {
+			// Ignore
+		}
 	}
 
 	async exitApplication() {

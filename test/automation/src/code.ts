@@ -140,7 +140,7 @@ async function poll<T>(
 export class Code {
 
 	private _activeWindowId: number | undefined = undefined;
-	driver: IDriver;
+	readonly driver: IDriver;
 
 	constructor(
 		private client: IDisposable,
@@ -166,23 +166,14 @@ export class Code {
 		});
 	}
 
-	async capturePage(): Promise<string> {
-		const windowId = await this.getActiveWindowId();
-		return await this.driver.capturePage(windowId);
-	}
-
 	async startTracing(name: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		if (typeof this.driver.startTracing === 'function') { // added only in 1.64
-			return await this.driver.startTracing(windowId, name);
-		}
+		return await this.driver.startTracing(windowId, name);
 	}
 
 	async stopTracing(name: string, persist: boolean): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		if (typeof this.driver.stopTracing === 'function') { // added only in 1.64
-			return await this.driver.stopTracing(windowId, name, persist);
-		}
+		return await this.driver.stopTracing(windowId, name, persist);
 	}
 
 	async waitForWindowIds(accept: (windowIds: number[]) => boolean): Promise<void> {

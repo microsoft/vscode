@@ -7,7 +7,7 @@ import * as nls from 'vscode-nls';
 import { Slugifier } from '../slugify';
 import { Disposable } from '../util/dispose';
 import { SkinnyTextDocument } from '../workspaceContents';
-import { MdReference, MdReferencesProvider } from './references';
+import { MdHeaderReference, MdReference, MdReferencesProvider } from './references';
 
 const localize = nls.loadMessageBundle();
 
@@ -18,6 +18,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 		readonly resource: vscode.Uri;
 		readonly version: number;
 		readonly position: vscode.Position;
+		readonly triggerRef: MdReference;
 		readonly references: MdReference[];
 	} | undefined;
 
@@ -28,63 +29,60 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 		super();
 	}
 
-	public async prepareRename(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<undefined | vscode.Range> {
-		const references = await this.referencesProvider.getAllReferences(document, position, token);
+	public async prepareRename(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<undefined | { readonly range: vscode.Range; readonly placeholder: string }> {
+		const allRefsInfo = await this.getAllReferences(document, position, token);
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
 
-		if (!references?.length) {
+		if (!allRefsInfo || !allRefsInfo.references.length) {
 			throw new Error(localize('invalidRenameLocation', "Rename not supported at location"));
 		}
 
-		const triggerRef = references.find(ref => ref.isTriggerLocation);
-		if (!triggerRef) {
-			return undefined;
-		}
-
+		const triggerRef = allRefsInfo.triggerRef;
 		switch (triggerRef.kind) {
 			case 'header':
-				return triggerRef.headerTextLocation.range;
+				return { range: triggerRef.headerTextLocation.range, placeholder: triggerRef.headerText };
 
 			case 'link':
 				if (triggerRef.link.kind === 'definition') {
 					// We may have been triggered on the ref or the definition itself
-					if (triggerRef.link.refRange.contains(position)) {
-						return triggerRef.link.refRange;
-					} else {
-						if (triggerRef.fragmentLocation) {
-							return triggerRef.fragmentLocation.range;
-						}
-						throw new Error(localize('renameNoFiles', "Renaming files is currently not supported"));
+					if (triggerRef.link.ref.range.contains(position)) {
+						return { range: triggerRef.link.ref.range, placeholder: triggerRef.link.ref.text };
 					}
-				} else {
-					if (triggerRef.fragmentLocation) {
-						return triggerRef.fragmentLocation.range;
-					}
-					throw new Error(localize('renameNoFiles', "Renaming files is currently not supported"));
 				}
+
+				if (triggerRef.fragmentLocation) {
+					const declaration = this.findHeaderDeclaration(allRefsInfo.references);
+					if (declaration) {
+						return { range: triggerRef.fragmentLocation.range, placeholder: declaration.headerText };
+					}
+					return { range: triggerRef.fragmentLocation.range, placeholder: document.getText(triggerRef.fragmentLocation.range) };
+				}
+
+				throw new Error(localize('renameNoFiles', "Renaming files is currently not supported"));
 		}
 	}
 
+	private findHeaderDeclaration(references: readonly MdReference[]): MdHeaderReference | undefined {
+		return references.find(ref => ref.isDefinition && ref.kind === 'header') as MdHeaderReference | undefined;
+	}
+
 	public async provideRenameEdits(document: SkinnyTextDocument, position: vscode.Position, newName: string, token: vscode.CancellationToken): Promise<vscode.WorkspaceEdit | undefined> {
-		const references = await this.getAllReferences(document, position, token);
-		if (token.isCancellationRequested || !references?.length) {
+		const allRefsInfo = await this.getAllReferences(document, position, token);
+		if (token.isCancellationRequested || !allRefsInfo || !allRefsInfo.references.length) {
 			return undefined;
 		}
 
-		const triggerRef = references.find(ref => ref.isTriggerLocation);
-		if (!triggerRef) {
-			return undefined;
-		}
+		const triggerRef = allRefsInfo.triggerRef;
 
 		const isRefRename = triggerRef.kind === 'link' && (
-			(triggerRef.link.kind === 'definition' && triggerRef.link.refRange.contains(position)) || triggerRef.link.href.kind === 'reference'
+			(triggerRef.link.kind === 'definition' && triggerRef.link.ref.range.contains(position)) || triggerRef.link.href.kind === 'reference'
 		);
 		const slug = this.slugifier.fromHeading(newName).value;
 
 		const edit = new vscode.WorkspaceEdit();
-		for (const ref of references) {
+		for (const ref of allRefsInfo.references) {
 			switch (ref.kind) {
 				case 'header':
 					edit.replace(ref.location.uri, ref.headerTextLocation.range, newName);
@@ -94,13 +92,11 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 					if (ref.link.kind === 'definition') {
 						// We may be renaming either the reference or the definition itself
 						if (isRefRename) {
-							edit.replace(ref.link.sourceResource, ref.link.refRange, newName);
-						} else {
-							edit.replace(ref.link.sourceResource, ref.fragmentLocation?.range ?? ref.link.sourceHrefRange, ref.fragmentLocation ? slug : newName);
+							edit.replace(ref.link.source.resource, ref.link.ref.range, newName);
+							continue;
 						}
-					} else {
-						edit.replace(ref.location.uri, ref.fragmentLocation?.range ?? ref.location.range, ref.link.href.kind === 'reference' ? newName : slug);
 					}
+					edit.replace(ref.link.source.resource, ref.fragmentLocation?.range ?? ref.location.range, isRefRename && !ref.fragmentLocation ? newName : slug);
 					break;
 			}
 		}
@@ -108,7 +104,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 		return edit;
 	}
 
-	private async getAllReferences(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken) {
+	private async getAllReferences(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<{ references: MdReference[]; triggerRef: MdReference } | undefined> {
 		const version = document.version;
 
 		if (this.cachedRefs
@@ -116,16 +112,22 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 			&& this.cachedRefs.version === document.version
 			&& this.cachedRefs.position.isEqual(position)
 		) {
-			return this.cachedRefs.references;
+			return this.cachedRefs;
 		}
 
 		const references = await this.referencesProvider.getAllReferences(document, position, token);
+		const triggerRef = references.find(ref => ref.isTriggerLocation);
+		if (!triggerRef) {
+			return undefined;
+		}
+
 		this.cachedRefs = {
 			resource: document.uri,
 			version,
 			position,
-			references
+			references,
+			triggerRef
 		};
-		return references;
+		return this.cachedRefs;
 	}
 }
