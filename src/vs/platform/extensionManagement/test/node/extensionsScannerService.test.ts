@@ -10,7 +10,7 @@ import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { AbstractExtensionsScannerService, IExtensionsScannerService, IScannedExtensionManifest, Translations } from 'vs/platform/extensionManagement/common/extensionsScannerService';
-import { ExtensionType, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtensionManifest, MANIFEST_CACHE_FOLDER, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
@@ -19,12 +19,9 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 let translations: Translations = Object.create(null);
+const ROOT = URI.file(tmpdir());
 
 class ExtensionsScannerService extends AbstractExtensionsScannerService implements IExtensionsScannerService {
-
-	readonly systemExtensionsLocation: URI;
-	readonly userExtensionsLocation: URI;
-	protected readonly extensionsControlLocation: URI;
 
 	constructor(
 		@IFileService fileService: IFileService,
@@ -32,10 +29,12 @@ class ExtensionsScannerService extends AbstractExtensionsScannerService implemen
 		@INativeEnvironmentService nativeEnvironmentService: INativeEnvironmentService,
 		@IProductService productService: IProductService,
 	) {
-		super(fileService, logService, nativeEnvironmentService, productService);
-		this.systemExtensionsLocation = URI.file(nativeEnvironmentService.builtinExtensionsPath);
-		this.userExtensionsLocation = URI.file(nativeEnvironmentService.extensionsPath);
-		this.extensionsControlLocation = joinPath(nativeEnvironmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json');
+		super(
+			URI.file(nativeEnvironmentService.builtinExtensionsPath),
+			URI.file(nativeEnvironmentService.extensionsPath),
+			joinPath(nativeEnvironmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json'),
+			joinPath(ROOT, MANIFEST_CACHE_FOLDER),
+			fileService, logService, nativeEnvironmentService, productService);
 	}
 
 	protected async getTranslations(language: string): Promise<Translations> {
@@ -43,8 +42,6 @@ class ExtensionsScannerService extends AbstractExtensionsScannerService implemen
 	}
 
 }
-
-const ROOT = URI.file(tmpdir());
 
 suite('NativeExtensionsScanerService Test', () => {
 

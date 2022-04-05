@@ -351,11 +351,13 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	}
 
 	private async _scanBuiltinExtensions(language: string): Promise<IExtensionDescription[]> {
-		return this._scanExtensionDescriptions(true, language);
+		const scannedExtensions = await this._extensionsScannerService.scanSystemExtensions({ language, useCache: true });
+		return scannedExtensions.map(e => toExtensionDescription(e, false));
 	}
 
 	private async _scanInstalledExtensions(language: string): Promise<IExtensionDescription[]> {
-		return this._scanExtensionDescriptions(false, language);
+		const scannedExtensions = await this._extensionsScannerService.scanUserExtensions({ language, useCache: true });
+		return scannedExtensions.map(e => toExtensionDescription(e, false));
 	}
 
 	private async _scanSingleExtension(extensionPath: string, isBuiltin: boolean, language: string): Promise<IExtensionDescription | null> {
@@ -363,12 +365,6 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		const type = isBuiltin ? ExtensionType.System : ExtensionType.User;
 		const scannedExtension = await this._extensionsScannerService.scanExistingExtension(extensionLocation, type, { language });
 		return scannedExtension ? toExtensionDescription(scannedExtension, false) : null;
-	}
-
-	private async _scanExtensionDescriptions(isBuiltin: boolean, language: string): Promise<IExtensionDescription[]> {
-		const scannedExtensions = isBuiltin ? await this._extensionsScannerService.scanSystemExtensions({ language })
-			: await this._extensionsScannerService.scanUserExtensions({ language });
-		return scannedExtensions.map(e => toExtensionDescription(e, false));
 	}
 
 }
