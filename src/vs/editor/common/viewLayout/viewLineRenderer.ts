@@ -959,7 +959,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 
 		sb.appendASCIIString('<span ');
 		if (partContainsRTL) {
-			sb.appendASCIIString('dir="auto" ');
+			sb.appendASCIIString('style="unicode-bidi:isolate" ');
 		}
 		sb.appendASCIIString('class="');
 		sb.appendASCIIString(partRendersWhitespaceWithWidth ? 'mtkz' : partType);

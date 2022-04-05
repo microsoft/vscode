@@ -145,7 +145,7 @@ export const tocData: ITOCEntry<string> = {
 				},
 				{
 					id: 'features/scm',
-					label: localize('scm', "SCM"),
+					label: localize('scm', "Source Control"),
 					settings: ['scm.*']
 				},
 				{

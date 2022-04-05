@@ -49,6 +49,15 @@
             "scope": "resource",
             "default": true,
             "description": "%config.gitAuthentication%"
+          },
+          "github.gitProtocol": {
+            "type": "string",
+            "enum": [
+              "https",
+              "ssh"
+            ],
+            "default": "https",
+            "description": "%config.gitProtocol%"
           }
         }
       }

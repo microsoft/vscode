@@ -28,6 +28,8 @@ import { LanguageSelector } from 'vs/editor/common/languageSelector';
  * Register information about a new language.
  */
 export function register(language: ILanguageExtensionPoint): void {
+	// Intentionally using the `ModesRegistry` here to avoid
+	// instantiating services too quickly in the standalone editor.
 	ModesRegistry.registerLanguage(language);
 }
 

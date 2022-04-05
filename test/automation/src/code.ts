@@ -166,11 +166,6 @@ export class Code {
 		});
 	}
 
-	async capturePage(): Promise<string> {
-		const windowId = await this.getActiveWindowId();
-		return await this.driver.capturePage(windowId);
-	}
-
 	async startTracing(name: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
 		return await this.driver.startTracing(windowId, name);
