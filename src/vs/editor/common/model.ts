@@ -1178,6 +1178,9 @@ export interface ITextModel {
 	*/
 	readonly guides: IGuidesTextModelPart;
 
+	/**
+	 * @internal
+	 */
 	readonly tokenization: ITokenizationTextModelPart;
 }
 

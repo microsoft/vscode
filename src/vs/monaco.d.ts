@@ -1397,23 +1397,6 @@ declare namespace monaco.editor {
 	}
 
 	/**
-	 * Provides tokenization related functionality of the text model.
-	*/
-	export interface ITokenizationTextModelPart {
-		getLanguageId(): string;
-		getLanguageIdAtPosition(lineNumber: number, column: number): string;
-		setLanguageId(languageId: string): void;
-		readonly backgroundTokenizationState: BackgroundTokenizationState;
-		readonly onBackgroundTokenizationStateChanged: IEvent<void>;
-	}
-
-	export enum BackgroundTokenizationState {
-		Uninitialized = 0,
-		InProgress = 1,
-		Completed = 2
-	}
-
-	/**
 	 * Vertical Lane in the overview ruler of the editor.
 	 */
 	export enum OverviewRulerLane {
@@ -2099,7 +2082,6 @@ declare namespace monaco.editor {
 		 * Returns if this model is attached to an editor or not.
 		 */
 		isAttachedToEditor(): boolean;
-		readonly tokenization: ITokenizationTextModelPart;
 	}
 
 	export enum PositionAffinity {
