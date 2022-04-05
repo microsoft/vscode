@@ -82,17 +82,14 @@ declare module 'vscode' {
 		Automatic = 1,
 	}
 
-	/**
-	 * @deprecated Return an array of Inline Completion items directly. Will be removed eventually.
-	*/
-	// TODO@API We could keep this and allow for `vscode.Command` instances that explain
-	// the result. That would replace the existing proposed menu-identifier and be more LSP friendly
-	// TODO@API maybe use MarkdownString
+	// TODO@API doc
 	export class InlineCompletionListNew {
 		items: InlineCompletionItemNew[];
 
-		// command: Command; "Show More..."
-
+		// TODO@API We could keep this and allow for `vscode.Command` instances that explain
+		// the result. That would replace the existing proposed menu-identifier and be more LSP friendly
+		// TODO@API maybe use MarkdownString
+		// commands?: Command[];  // "Show More..."
 		// description: MarkdownString
 
 		/**
