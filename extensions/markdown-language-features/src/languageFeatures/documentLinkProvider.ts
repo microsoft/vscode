@@ -91,6 +91,7 @@ interface MdLinkSource {
 	readonly text: string;
 	readonly resource: vscode.Uri;
 	readonly hrefRange: vscode.Range;
+	readonly fragmentRange: vscode.Range | undefined;
 }
 
 export interface MdInlineLink {
@@ -131,12 +132,21 @@ function extractDocumentLink(
 			source: {
 				text: link,
 				resource: document.uri,
-				hrefRange: new vscode.Range(linkStart, linkEnd)
+				hrefRange: new vscode.Range(linkStart, linkEnd),
+				fragmentRange: getFragmentRange(link, linkStart, linkEnd),
 			}
 		};
 	} catch {
 		return undefined;
 	}
+}
+
+function getFragmentRange(text: string, start: vscode.Position, end: vscode.Position): vscode.Range | undefined {
+	const index = text.indexOf('#');
+	if (index < 0) {
+		return undefined;
+	}
+	return new vscode.Range(start.translate({ characterDelta: index + 1 }), end);
 }
 
 const angleBracketLinkRe = /^<(.*)>$/;
@@ -291,8 +301,9 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				kind: 'link',
 				source: {
 					text: reference,
-					hrefRange: new vscode.Range(linkStart, linkEnd),
 					resource: document.uri,
+					hrefRange: new vscode.Range(linkStart, linkEnd),
+					fragmentRange: undefined,
 				},
 				href: {
 					kind: 'reference',
@@ -325,6 +336,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 							text: link,
 							resource: document.uri,
 							hrefRange: new vscode.Range(linkStart, linkEnd),
+							fragmentRange: getFragmentRange(link, linkStart, linkEnd),
 						},
 						ref: { text: reference, range: refRange },
 						href: target,
@@ -341,6 +353,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 							text: link,
 							resource: document.uri,
 							hrefRange: new vscode.Range(linkStart, linkEnd),
+							fragmentRange: getFragmentRange(link, linkStart, linkEnd)
 						},
 						ref: { text: reference, range: refRange },
 						href: target,

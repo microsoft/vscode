@@ -23,8 +23,6 @@ export interface MdLinkReference {
 	readonly location: vscode.Location;
 
 	readonly link: MdLink;
-
-	readonly fragmentLocation: vscode.Location | undefined;
 }
 
 /**
@@ -59,17 +57,6 @@ export interface MdHeaderReference {
 }
 
 export type MdReference = MdLinkReference | MdHeaderReference;
-
-
-function getFragmentLocation(link: MdLink): vscode.Location | undefined {
-	const index = link.source.text.indexOf('#');
-	if (index < 0) {
-		return undefined;
-	}
-	return new vscode.Location(link.source.resource, link.source.hrefRange.with({
-		start: link.source.hrefRange.start.translate({ characterDelta: index + 1 }),
-	}));
-}
 
 export class MdReferencesProvider extends Disposable implements vscode.ReferenceProvider {
 
@@ -133,7 +120,6 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 					isDefinition: false,
 					link,
 					location: new vscode.Location(link.source.resource, link.source.hrefRange),
-					fragmentLocation: getFragmentLocation(link),
 				});
 			}
 		}
@@ -220,7 +206,6 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 						isDefinition: false,
 						link,
 						location: new vscode.Location(link.source.resource, link.source.hrefRange),
-						fragmentLocation: getFragmentLocation(link),
 					});
 				}
 			}
@@ -259,7 +244,6 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 				isDefinition: false,
 				link,
 				location: new vscode.Location(link.source.resource, link.source.hrefRange),
-				fragmentLocation: getFragmentLocation(link),
 			};
 		}
 	}
@@ -284,7 +268,6 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 					isDefinition: link.kind === 'definition',
 					link,
 					location: new vscode.Location(from.resource, link.source.hrefRange),
-					fragmentLocation: getFragmentLocation(link),
 				};
 			}
 		}
