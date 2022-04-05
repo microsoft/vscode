@@ -174,7 +174,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 				isNoisePromise = Promise.resolve(true);
 			} else {
 				isNoisePromise = vscode.commands.executeCommand<vscode.SymbolInformation[] | undefined>('vscode.executeDocumentSymbolProvider', document.uri).then(symbols => {
-					return !!symbols && symbols?.some(x => abbreviation === x.name || (abbreviation.startsWith(x.name + '.') && !/>|\*|\+/.test(abbreviation)));
+					return !!symbols && symbols.some(x => abbreviation === x.name || (abbreviation.startsWith(x.name + '.') && !/>|\*|\+/.test(abbreviation)));
 				});
 			}
 		}
