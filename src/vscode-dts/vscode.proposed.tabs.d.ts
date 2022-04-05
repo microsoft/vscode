@@ -9,23 +9,52 @@ declare module 'vscode' {
 
 	// TODO@API name alternatives for TabKind: TabInput, TabOptions,
 
+
+	/**
+	 * The tab represents a single text based resource
+	 */
 	export class TabKindText {
+		/**
+		 * The uri represented by the tab.
+		 */
 		readonly uri: Uri;
 		constructor(uri: Uri);
 	}
 
+	/**
+	 * The tab represents two text based resources
+	 * being rendered as a diff.
+	 */
 	export class TabKindTextDiff {
+		/**
+		 * The uri of the original text resource.
+		 */
 		readonly original: Uri;
+		/**
+		 * The uri of the modified text resource.
+		 */
 		readonly modified: Uri;
 		constructor(original: Uri, modified: Uri);
 	}
 
+	/**
+	 * The tab represents a custom editor.
+	 */
 	export class TabKindCustom {
+		/**
+		 * The uri which the tab is representing.
+		 */
 		readonly uri: Uri;
+		/**
+		 * The type of custom editor.
+		 */
 		readonly viewType: string;
 		constructor(uri: Uri, viewType: string);
 	}
 
+	/**
+	 * The tab represents a webview.
+	 */
 	export class TabKindWebview {
 		/**
 		 * The type of webview. Maps to {@linkcode WebviewPanel.viewType WebviewPanel's viewType}
@@ -34,19 +63,40 @@ declare module 'vscode' {
 		constructor(viewType: string);
 	}
 
+	/**
+	 * The tab represents a notebook.
+	 */
 	export class TabKindNotebook {
+		/**
+		 * The uri which the tab is representing.
+		 */
 		readonly uri: Uri;
+		/**
+		 * The type of notebook. Maps to {@linkcode NotebookDocument.notebookType NotebookDocuments's notebookType}
+		 */
 		readonly notebookType: string;
 		constructor(uri: Uri, notebookType: string);
 	}
 
+	/**
+	 * The tabs represents two notebooks in a diff configuration.
+	 */
 	export class TabKindNotebookDiff {
+		/**
+		 * The uri of the original notebook.
+		 */
 		readonly original: Uri;
+		/**
+		 * The uri of the modified notebook.
+		 */
 		readonly modified: Uri;
 		readonly notebookType: string;
 		constructor(original: Uri, modified: Uri, notebookType: string);
 	}
 
+	/**
+	 * The tab represents a terminal in the editor area.
+	 */
 	export class TabKindTerminal {
 		constructor();
 	}
