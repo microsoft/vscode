@@ -60,7 +60,7 @@ export type MdReference = MdLinkReference | MdHeaderReference;
 
 export class MdReferencesProvider extends Disposable implements vscode.ReferenceProvider {
 
-	private readonly _linkCache: MdWorkspaceCache<MdLink[]>;
+	private readonly _linkCache: MdWorkspaceCache<readonly MdLink[]>;
 
 	public constructor(
 		private readonly linkProvider: MdLinkProvider,
