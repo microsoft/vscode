@@ -248,83 +248,6 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		});
 	}
 
-	private async doScanOneOrMultipleExtensions(extensionLocation: URI, extensionType: ExtensionType, nlsConfiguration: NlsConfiguration): Promise<IScannedExtension[]> {
-		try {
-			if (await this.fileService.exists(joinPath(extensionLocation, 'package.json'))) {
-				const extension = await this.scanExtension(extensionLocation, extensionType, nlsConfiguration);
-				return extension ? [extension] : [];
-			} else {
-				return await this.scanExtensionsInLocation(extensionLocation, extensionType, nlsConfiguration);
-			}
-		} catch (error) {
-			this.logService.error(`Error scanning extensions at ${extensionLocation.path}:`, getErrorMessage(error));
-			return [];
-		}
-	}
-
-	private async scanExtensionsInLocation(location: URI, preferredType: ExtensionType, nlsConfiguration: NlsConfiguration): Promise<IRelaxedScannedExtension[]> {
-		const stat = await this.fileService.resolve(location);
-		if (stat.children) {
-			const extensions = await Promise.all<IRelaxedScannedExtension | null>(
-				stat.children.filter(c => c.isDirectory)
-					.map(async c => {
-						if (isEqualOrParent(c.resource, this.userExtensionsLocation) && basename(c.resource).indexOf('.') === 0) { // Do not consider user extension folder starting with `.`
-							return null;
-						}
-						return this.scanExtension(c.resource, preferredType, nlsConfiguration);
-					}));
-			return coalesce(extensions);
-		}
-		return [];
-	}
-
-	private async scanDefaultSystemExtensions(nlsConfiguration: NlsConfiguration): Promise<IRelaxedScannedExtension[]> {
-		this.logService.trace('Started scanning system extensions');
-		const result = await this.scanExtensionsInLocation(this.systemExtensionsLocation, ExtensionType.System, nlsConfiguration);
-		this.logService.trace('Scanned system extensions:', result.length);
-		return result;
-	}
-
-	private async scanDevSystemExtensions(nlsConfiguration: NlsConfiguration, checkControlFile: boolean): Promise<IRelaxedScannedExtension[]> {
-		const devSystemExtensionsList = this.environmentService.isBuilt ? [] : this.productService.builtInExtensions;
-		if (!devSystemExtensionsList?.length) {
-			return [];
-		}
-
-		this.logService.trace('Started scanning dev system extensions');
-		const builtinExtensionControl = checkControlFile ? await this.getBuiltInExtensionControl() : {};
-		const devSystemExtensionsLocations: URI[] = [];
-		for (const extension of devSystemExtensionsList) {
-			const controlState = builtinExtensionControl[extension.name] || 'marketplace';
-			switch (controlState) {
-				case 'disabled':
-					break;
-				case 'marketplace':
-					devSystemExtensionsLocations.push(joinPath(this.devSystemExtensionsLocation, extension.name));
-					break;
-				default:
-					devSystemExtensionsLocations.push(URI.file(controlState));
-					break;
-			}
-		}
-		const result = await Promise.all(devSystemExtensionsLocations.map(location => this.scanExtension(location, ExtensionType.System, nlsConfiguration)));
-		this.logService.trace('Scanned dev system extensions:', result.length);
-		return coalesce(result);
-	}
-
-	private async getBuiltInExtensionControl(): Promise<IBuiltInExtensionControl> {
-		try {
-			const content = await this.fileService.readFile(this.extensionsControlLocation);
-			return JSON.parse(content.value.toString());
-		} catch (error) {
-			return {};
-		}
-	}
-
-	private async scanFromUserExtensionsLocation(nlsConfiguration: NlsConfiguration): Promise<IRelaxedScannedExtension[]> {
-		return this.scanExtensionsInLocation(this.userExtensionsLocation, ExtensionType.User, nlsConfiguration);
-	}
-
 	private dedupExtensions(extensions: IRelaxedScannedExtension[], targetPlatform: TargetPlatform, pickLatest: boolean): IRelaxedScannedExtension[] {
 		const result = new Map<string, IRelaxedScannedExtension>();
 		for (const extension of extensions) {
@@ -355,22 +278,82 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		return [...result.values()];
 	}
 
-	private _devSystemExtensionsLocation: URI | null = null;
-	private get devSystemExtensionsLocation(): URI {
-		if (!this._devSystemExtensionsLocation) {
-			this._devSystemExtensionsLocation = URI.file(path.normalize(path.join(FileAccess.asFileUri('', require).fsPath, '..', '.build', 'builtInExtensions')));
-		}
-		return this._devSystemExtensionsLocation;
+	private async scanDefaultSystemExtensions(nlsConfiguration: NlsConfiguration): Promise<IRelaxedScannedExtension[]> {
+		this.logService.trace('Started scanning system extensions');
+		const result = await this.scanExtensionsInLocation(this.systemExtensionsLocation, ExtensionType.System, nlsConfiguration);
+		this.logService.trace('Scanned system extensions:', result.length);
+		return result;
 	}
 
-	private async getUninstalledExtensions(): Promise<IStringDictionary<boolean>> {
-		try {
-			const raw = (await this.fileService.readFile(joinPath(this.userExtensionsLocation, '.obsolete'))).value.toString();
-			return JSON.parse(raw);
-		} catch (error) {
-			/* Ignore */
+	private async scanDevSystemExtensions(nlsConfiguration: NlsConfiguration, checkControlFile: boolean): Promise<IRelaxedScannedExtension[]> {
+		const devSystemExtensionsList = this.environmentService.isBuilt ? [] : this.productService.builtInExtensions;
+		if (!devSystemExtensionsList?.length) {
+			return [];
 		}
-		return {};
+
+		this.logService.trace('Started scanning dev system extensions');
+		const builtinExtensionControl = checkControlFile ? await this.getBuiltInExtensionControl() : {};
+		const devSystemExtensionsLocations: URI[] = [];
+		const devSystemExtensionsLocation = URI.file(path.normalize(path.join(FileAccess.asFileUri('', require).fsPath, '..', '.build', 'builtInExtensions')));
+		for (const extension of devSystemExtensionsList) {
+			const controlState = builtinExtensionControl[extension.name] || 'marketplace';
+			switch (controlState) {
+				case 'disabled':
+					break;
+				case 'marketplace':
+					devSystemExtensionsLocations.push(joinPath(devSystemExtensionsLocation, extension.name));
+					break;
+				default:
+					devSystemExtensionsLocations.push(URI.file(controlState));
+					break;
+			}
+		}
+		const result = await Promise.all(devSystemExtensionsLocations.map(location => this.scanExtension(location, ExtensionType.System, nlsConfiguration)));
+		this.logService.trace('Scanned dev system extensions:', result.length);
+		return coalesce(result);
+	}
+
+	private async getBuiltInExtensionControl(): Promise<IBuiltInExtensionControl> {
+		try {
+			const content = await this.fileService.readFile(this.extensionsControlLocation);
+			return JSON.parse(content.value.toString());
+		} catch (error) {
+			return {};
+		}
+	}
+
+	private async scanFromUserExtensionsLocation(nlsConfiguration: NlsConfiguration): Promise<IRelaxedScannedExtension[]> {
+		return this.scanExtensionsInLocation(this.userExtensionsLocation, ExtensionType.User, nlsConfiguration);
+	}
+
+	private async doScanOneOrMultipleExtensions(extensionLocation: URI, extensionType: ExtensionType, nlsConfiguration: NlsConfiguration): Promise<IScannedExtension[]> {
+		try {
+			if (await this.fileService.exists(joinPath(extensionLocation, 'package.json'))) {
+				const extension = await this.scanExtension(extensionLocation, extensionType, nlsConfiguration);
+				return extension ? [extension] : [];
+			} else {
+				return await this.scanExtensionsInLocation(extensionLocation, extensionType, nlsConfiguration);
+			}
+		} catch (error) {
+			this.logService.error(`Error scanning extensions at ${extensionLocation.path}:`, getErrorMessage(error));
+			return [];
+		}
+	}
+
+	private async scanExtensionsInLocation(location: URI, preferredType: ExtensionType, nlsConfiguration: NlsConfiguration): Promise<IRelaxedScannedExtension[]> {
+		const stat = await this.fileService.resolve(location);
+		if (stat.children) {
+			const extensions = await Promise.all<IRelaxedScannedExtension | null>(
+				stat.children.filter(c => c.isDirectory)
+					.map(async c => {
+						if (isEqualOrParent(c.resource, this.userExtensionsLocation) && basename(c.resource).indexOf('.') === 0) { // Do not consider user extension folder starting with `.`
+							return null;
+						}
+						return this.scanExtension(c.resource, preferredType, nlsConfiguration);
+					}));
+			return coalesce(extensions);
+		}
+		return [];
 	}
 
 	private async scanExtension(extensionLocation: URI, preferredType: ExtensionType, nlsConfiguration: NlsConfiguration): Promise<IRelaxedScannedExtension | null> {
@@ -443,6 +426,16 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 			return null;
 		}
 		return manifest;
+	}
+
+	private async getUninstalledExtensions(): Promise<IStringDictionary<boolean>> {
+		try {
+			const raw = (await this.fileService.readFile(joinPath(this.userExtensionsLocation, '.obsolete'))).value.toString();
+			return JSON.parse(raw);
+		} catch (error) {
+			/* Ignore */
+		}
+		return {};
 	}
 
 	private async localizeExtensions(extensions: IRelaxedScannedExtension[], language: string | undefined): Promise<IRelaxedScannedExtension[]> {
