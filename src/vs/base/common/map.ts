@@ -210,18 +210,18 @@ export class UriIterator implements IKeyIterator<URI> {
 		if (this._value.authority) {
 			this._states.push(UriIteratorState.Authority);
 		}
+		if (this._value.query) {
+			this._states.push(UriIteratorState.Query);
+		}
+		if (this._value.fragment) {
+			this._states.push(UriIteratorState.Fragment);
+		}
 		if (this._value.path) {
 			this._pathIterator = new PathIterator(false, !this._ignorePathCasing(key));
 			this._pathIterator.reset(key.path);
 			if (this._pathIterator.value()) {
 				this._states.push(UriIteratorState.Path);
 			}
-		}
-		if (this._value.query) {
-			this._states.push(UriIteratorState.Query);
-		}
-		if (this._value.fragment) {
-			this._states.push(UriIteratorState.Fragment);
 		}
 		this._stateIdx = 0;
 		return this;

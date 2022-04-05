@@ -67,6 +67,11 @@ export class ExplorerModel implements IDisposable {
 	 */
 	findClosest(resource: URI): ExplorerItem | null {
 		const folder = this.contextService.getWorkspaceFolder(resource);
+		const workspace = this.contextService.getWorkspace();
+		if (!folder) {
+			const folder2 = this.contextService.getWorkspaceFolder(resource);
+			console.log(folder, workspace, resource);
+		}
 		if (folder) {
 			const root = this.roots.find(r => this.uriIdentityService.extUri.isEqual(r.resource, folder.uri));
 			if (root) {

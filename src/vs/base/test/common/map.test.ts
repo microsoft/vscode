@@ -407,6 +407,13 @@ suite('Map', () => {
 		assert.strictEqual(iter.hasNext(), true);
 		iter.next();
 
+		// query
+		assert.strictEqual(iter.value(), 'foo');
+		assert.strictEqual(iter.cmp('z') > 0, true);
+		assert.strictEqual(iter.cmp('a') < 0, true);
+		assert.strictEqual(iter.hasNext(), true);
+		iter.next();
+
 		// path
 		assert.strictEqual(iter.value(), 'usr');
 		assert.strictEqual(iter.hasNext(), true);
@@ -419,13 +426,6 @@ suite('Map', () => {
 
 		// path
 		assert.strictEqual(iter.value(), 'file.txt');
-		assert.strictEqual(iter.hasNext(), true);
-		iter.next();
-
-		// query
-		assert.strictEqual(iter.value(), 'foo');
-		assert.strictEqual(iter.cmp('z') > 0, true);
-		assert.strictEqual(iter.cmp('a') < 0, true);
 		assert.strictEqual(iter.hasNext(), false);
 	});
 
@@ -917,6 +917,17 @@ suite('Map', () => {
 		assert.strictEqual(trie.findSubstr(URI.file('/user/foo/far/boo')), 2);
 		assert.strictEqual(trie.findSubstr(URI.file('/user/foo/bar')), 1);
 		assert.strictEqual(trie.findSubstr(URI.file('/user/foo/bar/far/boo')), 1);
+	});
+
+	test('TernarySearchTree (URI) - query parameters', function () {
+		let trie = new TernarySearchTree<URI, number>(new UriIterator(() => false));
+		const root = URI.parse('memfs:/?param=1');
+		trie.set(root, 1);
+
+		assert.strictEqual(trie.get(URI.parse('memfs:/?param=1')), 1);
+
+		assert.strictEqual(trie.findSubstr(URI.parse('memfs:/?param=1')), 1);
+		assert.strictEqual(trie.findSubstr(URI.parse('memfs:/aaa?param=1')), 1);
 	});
 
 	test('TernarySearchTree (URI) - lookup', function () {
