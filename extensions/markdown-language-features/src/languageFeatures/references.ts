@@ -248,17 +248,19 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 			}
 
 			// Exclude cases where the file is implicitly referencing itself
-			if (!link.source.text.startsWith('#') || link.source.resource.fsPath !== resource.fsPath) {
-				const isTriggerLocation = !!sourceLink && sourceLink.source.resource.fsPath === link.source.resource.fsPath && sourceLink.source.hrefRange.isEqual(link.source.hrefRange);
-				yield {
-					kind: 'link',
-					isTriggerLocation,
-					isDefinition: false,
-					link,
-					location: new vscode.Location(link.source.resource, link.source.hrefRange),
-					fragmentLocation: getFragmentLocation(link),
-				};
+			if (link.source.text.startsWith('#') && link.source.resource.fsPath === resource.fsPath) {
+				continue;
 			}
+
+			const isTriggerLocation = !!sourceLink && sourceLink.source.resource.fsPath === link.source.resource.fsPath && sourceLink.source.hrefRange.isEqual(link.source.hrefRange);
+			yield {
+				kind: 'link',
+				isTriggerLocation,
+				isDefinition: false,
+				link,
+				location: new vscode.Location(link.source.resource, link.source.hrefRange),
+				fragmentLocation: getFragmentLocation(link),
+			};
 		}
 	}
 
