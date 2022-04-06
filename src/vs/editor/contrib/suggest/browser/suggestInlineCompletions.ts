@@ -54,7 +54,9 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 
 	canBeReused(model: ITextModel, line: number, word: IWordAtPosition) {
 		return this.model === model // same model
-			&& this.line === line && this.word.startColumn === word.startColumn && this.word.endColumn < word.endColumn // same word
+			&& this.line === line
+			&& this.word.word.length > 0
+			&& this.word.startColumn === word.startColumn && this.word.endColumn < word.endColumn // same word
 			&& this.completionModel.incomplete.size === 0; // no incomplete results
 	}
 
@@ -134,7 +136,6 @@ class SuggestInlineCompletions implements InlineCompletionsProvider<InlineComple
 			// quick suggest is off (for this token)
 			return undefined;
 		}
-
 
 		// We consider non-empty leading words and trigger characters. The latter only
 		// when no word is being typed (word characters superseed trigger characters)
