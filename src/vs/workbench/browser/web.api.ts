@@ -14,6 +14,7 @@ import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/brow
 import type { IProductConfiguration } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
+import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -61,6 +62,13 @@ export interface IWorkbench {
 		 * workbench.
 		 */
 		openUri(target: URI): Promise<boolean>;
+	};
+
+	telemetry: {
+		/**
+		 * Logs a telemetry event from VS Code.
+		 */
+		publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<void>;
 	};
 
 	/**

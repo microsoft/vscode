@@ -12,6 +12,7 @@ import { mark, PerformanceMark } from 'vs/base/common/performance';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
 import { asArray } from 'vs/base/common/arrays';
+import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 
 let created = false;
 const workbenchPromise = new DeferredPromise<IWorkbench>();
@@ -118,5 +119,13 @@ export namespace env {
 		const workbench = await workbenchPromise.p;
 
 		return workbench.env.openUri(target);
+	}
+}
+
+export namespace telemetry {
+	export async function publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<void> {
+		const workbench = await workbenchPromise.p;
+
+		return workbench.telemetry.publicLog2(eventName, data, anonymizeFilePaths);
 	}
 }

@@ -69,6 +69,7 @@ import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { BrowserCredentialsService } from 'vs/workbench/services/credentials/browser/credentialsService';
 import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class BrowserMain extends Disposable {
 
@@ -116,6 +117,7 @@ export class BrowserMain extends Disposable {
 			const timerService = accessor.get(ITimerService);
 			const openerService = accessor.get(IOpenerService);
 			const productService = accessor.get(IProductService);
+			const telemetryService = accessor.get(ITelemetryService);
 
 			return {
 				commands: {
@@ -131,6 +133,9 @@ export class BrowserMain extends Disposable {
 					async openUri(uri: URI): Promise<boolean> {
 						return openerService.open(uri, {});
 					}
+				},
+				telemetry: {
+					publicLog2: telemetryService.publicLog2.bind(telemetryService),
 				},
 				shutdown: () => lifecycleService.shutdown()
 			};
