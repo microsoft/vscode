@@ -58,9 +58,11 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 					{ label: 'fileBasenameNoExtension', detail: localize('fileBasenameNoExtension', "The current opened file's basename with no file extension") },
 					{ label: 'defaultBuildTask', detail: localize('defaultBuildTask', "The name of the default build task. If there is not a single default build task then a quick pick is shown to choose the build task.") },
 					{ label: 'pathSeparator', detail: localize('pathSeparator', "The character used by the operating system to separate components in file paths") },
+					{ label: 'extensionInstallFolder', detail: localize('extensionInstallFolder', "The path where an an extension is installed."), param: 'publisher.extension' },
 				].map(variable => ({
 					label: '${' + variable.label + '}',
 					range: new vscode.Range(startPosition, position),
+					insertText: variable.param ? new vscode.SnippetString(`\${${variable.label}:`).appendPlaceholder(variable.param).appendText('}') : ('${' + variable.label + '}'),
 					detail: variable.detail
 				}));
 			}

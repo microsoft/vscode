@@ -271,7 +271,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 			case 'input':
 				return this.resolveFromMap(match, argument, commandValueMapping, 'input');
 
-			case 'extensionDir':
+			case 'extensionInstallFolder':
 				if (argument) {
 					const ext = await this._context.getExtension(argument);
 					if (!ext) {
