@@ -540,6 +540,7 @@ export class SuggestModel implements IDisposable {
 				wordDistance,
 				this._editor.getOption(EditorOption.suggest),
 				this._editor.getOption(EditorOption.snippetSuggestions),
+				undefined,
 				clipboardText
 			);
 

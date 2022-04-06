@@ -183,6 +183,7 @@ class SuggestInlineCompletions implements InlineCompletionsProvider<InlineComple
 				WordDistance.None,
 				this._getEditorOption(EditorOption.suggest, model),
 				this._getEditorOption(EditorOption.snippetSuggestions, model),
+				{ boostFullMatch: false, firstMatchCanBeWeak: false },
 				clipboardText
 			);
 			result = new InlineCompletionResults(model, position.lineNumber, wordInfo, completionModel, completions, this._suggestMemoryService);
