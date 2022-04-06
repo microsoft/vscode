@@ -6,7 +6,7 @@
 import 'vs/css!./media/languageStatus';
 import * as dom from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
@@ -227,6 +227,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 						}
 					});
 					observer.observe(document.body, { childList: true, subtree: true });
+					this._renderDisposables.add(toDisposable(() => observer.disconnect()));
 				}
 			}
 		}
