@@ -154,7 +154,9 @@ declare module 'vscode' {
 	}
 
 	export interface TabChangeEvent {
+		// TODO@API consider: opened
 		readonly added: readonly Tab[];
+		// TODO@API consider: closed (aligns with TabGroups.close(...))
 		readonly removed: readonly Tab[];
 		readonly changed: readonly Tab[];
 	}
@@ -205,12 +207,13 @@ declare module 'vscode' {
 		readonly activeTabGroup: TabGroup;
 
 		/**
-		 * An {@link Event event} which fires when {@link TabGroup tab groups} has changed.
+		 * An {@link Event event} which fires when {@link TabGroup tab groups} have changed.
 		 */
+		// TODO@API consider `TabGroupChangeEvent` similar to `TabChangeEvent`
 		readonly onDidChangeTabGroups: Event<readonly TabGroup[]>;
 
 		/**
-		 * An {@link Event event} which fires when a {@link Tab tabs} have changed.
+		 * An {@link Event event} which fires when {@link Tab tabs} have changed.
 		 */
 		readonly onDidChangeTabs: Event<TabChangeEvent>;
 
