@@ -290,6 +290,29 @@ steps:
     continueOnError: true
     condition: succeededOrFailed()
 
+  - script: |
+      set -e
+      cat /proc/sys/fs/inotify/max_user_watches
+    displayName: List max user watches after smoke test run
+    continueOnError: true
+    condition: succeededOrFailed()
+
+  - script: |
+      set -e
+      lsof | wc -l
+    displayName: Count number of open file handles after smoke test run
+    continueOnError: true
+    condition: succeededOrFailed()
+
+  - script: |
+      set -e
+      ps -ef
+      cat /proc/sys/fs/inotify/max_user_watches
+      lsof | wc -l
+    displayName: Diagnostics after smoke test run
+    continueOnError: true
+    condition: succeededOrFailed()
+
   - task: PublishPipelineArtifact@0
     inputs:
       artifactName: crash-dump-linux-$(VSCODE_ARCH)
