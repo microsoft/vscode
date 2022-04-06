@@ -553,6 +553,52 @@ suite('viewLineRenderer.renderLine', () => {
 		assert.strictEqual(_actual.containsRTL, true);
 	});
 
+	test('issue #99589: Rendering whitespace influences bidi layout', () => {
+		const lineText = '    [\"🖨️ چاپ فاکتور\",\"🎨 تنظیمات\"]';
+
+		const lineParts = createViewLineTokens([
+			createPart(5, 2),
+			createPart(21, 3),
+			createPart(22, 2),
+			createPart(34, 3),
+			createPart(35, 2),
+		]);
+
+		const expectedOutput = [
+			'<span class="mtkw">\u00b7\u00b7\u00b7\u00b7</span>',
+			'<span class="mtk2">[</span>',
+			'<span style="unicode-bidi:isolate" class="mtk3">"🖨️\u00a0چاپ\u00a0فاکتور"</span>',
+			'<span class="mtk2">,</span>',
+			'<span style="unicode-bidi:isolate" class="mtk3">"🎨\u00a0تنظیمات"</span>',
+			'<span class="mtk2">]</span>'
+		].join('');
+
+		const _actual = renderViewLine(new RenderLineInput(
+			true,
+			true,
+			lineText,
+			false,
+			false,
+			true,
+			0,
+			lineParts,
+			[],
+			4,
+			0,
+			10,
+			10,
+			10,
+			-1,
+			'all',
+			false,
+			false,
+			null
+		));
+
+		assert.strictEqual(_actual.html, '<span dir="ltr">' + expectedOutput + '</span>');
+		assert.strictEqual(_actual.containsRTL, true);
+	});
+
 	test('issue #6885: Splits large tokens', () => {
 		//                                                                                                                  1         1         1
 		//                        1         2         3         4         5         6         7         8         9         0         1         2
