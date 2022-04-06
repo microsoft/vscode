@@ -66,6 +66,13 @@ export class ReviewViewZone implements IViewZone {
 	}
 }
 
+interface CommentRangeAction {
+	ownerId: string;
+	extensionId: string | undefined;
+	label: string | undefined;
+	commentingRangesInfo: languages.CommentingRanges;
+}
+
 class CommentingRangeDecoration implements IModelDeltaDecoration {
 	private _decorationId: string | undefined;
 	private _startLineNumber: number;
@@ -91,7 +98,7 @@ class CommentingRangeDecoration implements IModelDeltaDecoration {
 		this._endLineNumber = _range.endLineNumber;
 	}
 
-	public getCommentAction(): { ownerId: string; extensionId: string | undefined; label: string | undefined; commentingRangesInfo: languages.CommentingRanges } {
+	public getCommentAction(): CommentRangeAction {
 		return {
 			extensionId: this._extensionId,
 			label: this._label,
@@ -184,28 +191,35 @@ class CommentingRangeDecorator {
 		}
 	}
 
-	public getMatchedCommentAction(commentRange: Range) {
+	public getMatchedCommentAction(commentRange: Range): CommentRangeAction[] {
 		// keys is ownerId
-		const foundHoverActions = new Map<string, languages.CommentingRanges>();
-		let result = [];
+		const foundHoverActions = new Map<string, { range: Range; action: CommentRangeAction }>();
 		for (const decoration of this.commentingRangeDecorations) {
 			const range = decoration.getActiveRange();
-			if (range && (range.startLineNumber <= commentRange.startLineNumber) && (commentRange.endLineNumber <= range.endLineNumber)) {
+			if (range && ((range.startLineNumber <= commentRange.startLineNumber) || (commentRange.endLineNumber <= range.endLineNumber))) {
 				// We can have 3 commenting ranges that match from the same owner because of how
-				// the line hover decoration is done. We only want to use the action from 1 of them.
+				// the line hover decoration is done.
+				// The 3 ranges must be merged so that we can see if the new commentRange fits within them.
 				const action = decoration.getCommentAction();
-				if (decoration.isHover) {
-					if (foundHoverActions.get(action.ownerId) === action.commentingRangesInfo) {
-						continue;
-					} else {
-						foundHoverActions.set(action.ownerId, action.commentingRangesInfo);
-					}
+				const alreadyFoundInfo = foundHoverActions.get(action.ownerId);
+				if (alreadyFoundInfo?.action.commentingRangesInfo === action.commentingRangesInfo) {
+					// Merge ranges.
+					const newRange = new Range(
+						range.startLineNumber < alreadyFoundInfo.range.startLineNumber ? range.startLineNumber : alreadyFoundInfo.range.startLineNumber,
+						range.startColumn < alreadyFoundInfo.range.startColumn ? range.startColumn : alreadyFoundInfo.range.startColumn,
+						range.endLineNumber > alreadyFoundInfo.range.endLineNumber ? range.endLineNumber : alreadyFoundInfo.range.endLineNumber,
+						range.endColumn > alreadyFoundInfo.range.endColumn ? range.endColumn : alreadyFoundInfo.range.endColumn
+					);
+					foundHoverActions.set(action.ownerId, { range: newRange, action });
+				} else {
+					foundHoverActions.set(action.ownerId, { range, action });
 				}
-				result.push(action);
 			}
 		}
 
-		return result;
+		return Array.from(foundHoverActions.values()).filter(action => {
+			return (action.range.startLineNumber <= commentRange.startLineNumber) && (commentRange.endLineNumber <= action.range.endLineNumber);
+		}).map(actions => actions.action);
 	}
 
 	public dispose(): void {
