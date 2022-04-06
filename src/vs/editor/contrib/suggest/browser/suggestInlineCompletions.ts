@@ -120,8 +120,8 @@ class SuggestInlineCompletions implements InlineCompletionsProvider<InlineComple
 			return;
 		}
 
-		model.tokenizeIfCheap(position.lineNumber);
-		const lineTokens = model.getLineTokens(position.lineNumber);
+		model.tokenization.tokenizeIfCheap(position.lineNumber);
+		const lineTokens = model.tokenization.getLineTokens(position.lineNumber);
 		const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(position.column - 1 - 1, 0)));
 		if (QuickSuggestionsOptions.valueFor(config, tokenType) !== 'inline') {
 			// quick suggest is off (for this token)
