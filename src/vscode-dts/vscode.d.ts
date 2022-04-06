@@ -11414,9 +11414,10 @@ declare module 'vscode' {
 		 * *Note* that requests for recursive file watchers for a `base` path that is inside the opened
 		 * workspace are ignored given all opened {@link workspace.workspaceFolders workspace folders} are
 		 * watched for file changes recursively by default. Non-recursive file watchers however are always
-		 * supported, even inside the opened workspace. One benefit of non-recursive file watchers over
-		 * recursive ones is that configured settings for `files.watcherExclude` are ignored, so you are
-		 * guaranteed to receive all events, independent from user configuration.
+		 * supported, even inside the opened workspace because they allow to bypass the configured settings
+		 * for excludes (`files.watcherExclude`). If you need to watch in a location that is typically
+		 * excluded (for example `node_modules` or `.git` folder), then you can use a non-recursive watcher
+		 * in the workspace for this purpose.
 		 *
 		 * If possible, keep the use of recursive watchers to a minimum because recursive file watching
 		 * is quite resource intense.
