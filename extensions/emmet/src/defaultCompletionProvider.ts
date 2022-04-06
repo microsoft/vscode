@@ -161,25 +161,27 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			return;
 		}
 
-		let noiseCheckPromise: Thenable<any> = Promise.resolve();
+		let isNoisePromise: Thenable<boolean> = Promise.resolve(false);
 
 		// Fix for https://github.com/microsoft/vscode/issues/32647
 		// Check for document symbols in js/ts/jsx/tsx and avoid triggering emmet for abbreviations of the form symbolName.sometext
 		// Presence of > or * or + in the abbreviation denotes valid abbreviation that should trigger emmet
 		if (!isStyleSheet(syntax) && (document.languageId === 'javascript' || document.languageId === 'javascriptreact' || document.languageId === 'typescript' || document.languageId === 'typescriptreact')) {
 			let abbreviation: string = extractAbbreviationResults.abbreviation;
-			if (abbreviation.startsWith('this.')) {
-				noiseCheckPromise = Promise.resolve(true);
+			// For the second condition, we don't want abbreviations that have [] characters but not ='s in them to expand
+			// In turn, users must explicitly expand abbreviations of the form Component[attr1 attr2], but it means we don't try to expand a[i].
+			if (abbreviation.startsWith('this.') || /\[[^\]=]*\]/.test(abbreviation)) {
+				isNoisePromise = Promise.resolve(true);
 			} else {
-				noiseCheckPromise = vscode.commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', document.uri).then((symbols: vscode.SymbolInformation[] | undefined) => {
-					return symbols && symbols.find(x => abbreviation === x.name || (abbreviation.startsWith(x.name + '.') && !/>|\*|\+/.test(abbreviation)));
+				isNoisePromise = vscode.commands.executeCommand<vscode.SymbolInformation[] | undefined>('vscode.executeDocumentSymbolProvider', document.uri).then(symbols => {
+					return !!symbols && symbols.some(x => abbreviation === x.name || (abbreviation.startsWith(x.name + '.') && !/>|\*|\+/.test(abbreviation)));
 				});
 			}
 		}
 
-		return noiseCheckPromise.then((noise): vscode.CompletionList | undefined => {
-			if (noise) {
-				return;
+		return isNoisePromise.then((isNoise): vscode.CompletionList | undefined => {
+			if (isNoise) {
+				return undefined;
 			}
 
 			const config = getEmmetConfiguration(syntax!);

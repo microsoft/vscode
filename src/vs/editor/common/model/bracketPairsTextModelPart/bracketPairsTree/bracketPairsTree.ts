@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { BracketInfo, BracketPairWithMinIndentationInfo } from 'vs/editor/common/textModelBracketPairs';
-import { BackgroundTokenizationState, TextModel } from 'vs/editor/common/model/textModel';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { AstNode, AstNodeKind } from './ast';
@@ -18,6 +18,7 @@ import { Length, lengthAdd, lengthGreaterThanEqual, lengthLessThanEqual, lengthO
 import { parseDocument } from './parser';
 import { DenseKeyProvider } from './smallImmutableSet';
 import { FastTokenizer, TextBufferTokenizer } from './tokenizer';
+import { BackgroundTokenizationState } from 'vs/editor/common/tokenizationTextModelPart';
 
 export class BracketPairsTree extends Disposable {
 	private readonly didChangeEmitter = new Emitter<void>();
@@ -49,18 +50,18 @@ export class BracketPairsTree extends Disposable {
 	) {
 		super();
 
-		if (textModel.backgroundTokenizationState === BackgroundTokenizationState.Uninitialized) {
+		if (textModel.tokenization.backgroundTokenizationState === BackgroundTokenizationState.Uninitialized) {
 			// There are no token information yet
 			const brackets = this.brackets.getSingleLanguageBracketTokens(this.textModel.getLanguageId());
 			const tokenizer = new FastTokenizer(this.textModel.getValue(), brackets);
 			this.initialAstWithoutTokens = parseDocument(tokenizer, [], undefined, true);
 			this.astWithTokens = this.initialAstWithoutTokens;
-		} else if (textModel.backgroundTokenizationState === BackgroundTokenizationState.Completed) {
+		} else if (textModel.tokenization.backgroundTokenizationState === BackgroundTokenizationState.Completed) {
 			// Skip the initial ast, as there is no flickering.
 			// Directly create the tree with token information.
 			this.initialAstWithoutTokens = undefined;
 			this.astWithTokens = this.parseDocumentFromTextBuffer([], undefined, false);
-		} else if (textModel.backgroundTokenizationState === BackgroundTokenizationState.InProgress) {
+		} else if (textModel.tokenization.backgroundTokenizationState === BackgroundTokenizationState.InProgress) {
 			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer([], undefined, true);
 			this.astWithTokens = this.initialAstWithoutTokens;
 		}
@@ -69,7 +70,7 @@ export class BracketPairsTree extends Disposable {
 	//#region TextModel events
 
 	public handleDidChangeBackgroundTokenizationState(): void {
-		if (this.textModel.backgroundTokenizationState === BackgroundTokenizationState.Completed) {
+		if (this.textModel.tokenization.backgroundTokenizationState === BackgroundTokenizationState.Completed) {
 			const wasUndefined = this.initialAstWithoutTokens === undefined;
 			// Clear the initial tree as we can use the tree with token information now.
 			this.initialAstWithoutTokens = undefined;

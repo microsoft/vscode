@@ -1272,7 +1272,7 @@ export class Repository implements Disposable {
 
 		const diffEditorTabsToClose: Tab[] = [];
 
-		for (const tab of window.tabGroups.groups.map(g => g.tabs).flat()) {
+		for (const tab of window.tabGroups.all.map(g => g.tabs).flat()) {
 			const { kind } = tab;
 			if (kind instanceof TabKindTextDiff || kind instanceof TabKindNotebookDiff) {
 				if (kind.modified.scheme === 'git' && indexResources.some(r => pathEquals(r, kind.modified.fsPath))) {

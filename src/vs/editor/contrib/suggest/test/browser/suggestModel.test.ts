@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
@@ -26,7 +26,6 @@ import { LineContext, SuggestModel } from 'vs/editor/contrib/suggest/browser/sug
 import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/browser/suggestWidget';
 import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -68,12 +67,14 @@ suite('SuggestModel - Context', function () {
 	const OUTER_LANGUAGE_ID = 'outerMode';
 	const INNER_LANGUAGE_ID = 'innerMode';
 
-	class OuterMode extends MockMode {
+	class OuterMode extends Disposable {
+		public readonly languageId = OUTER_LANGUAGE_ID;
 		constructor(
 			@ILanguageService languageService: ILanguageService,
 			@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 		) {
-			super(OUTER_LANGUAGE_ID);
+			super();
+			this._register(languageService.registerLanguage({ id: this.languageId }));
 			this._register(languageConfigurationService.register(this.languageId, {}));
 
 			this._register(TokenizationRegistry.register(this.languageId, {
@@ -102,11 +103,14 @@ suite('SuggestModel - Context', function () {
 		}
 	}
 
-	class InnerMode extends MockMode {
+	class InnerMode extends Disposable {
+		public readonly languageId = INNER_LANGUAGE_ID;
 		constructor(
+			@ILanguageService languageService: ILanguageService,
 			@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
 		) {
-			super(INNER_LANGUAGE_ID);
+			super();
+			this._register(languageService.registerLanguage({ id: this.languageId }));
 			this._register(languageConfigurationService.register(this.languageId, {}));
 		}
 	}

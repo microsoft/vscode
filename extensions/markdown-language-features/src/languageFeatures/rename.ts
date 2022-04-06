@@ -41,10 +41,10 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 
 		const triggerRef = allRefsInfo.triggerRef;
 		switch (triggerRef.kind) {
-			case 'header':
+			case 'header': {
 				return { range: triggerRef.headerTextLocation.range, placeholder: triggerRef.headerText };
-
-			case 'link':
+			}
+			case 'link': {
 				if (triggerRef.link.kind === 'definition') {
 					// We may have been triggered on the ref or the definition itself
 					if (triggerRef.link.ref.range.contains(position)) {
@@ -52,15 +52,21 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 					}
 				}
 
-				if (triggerRef.fragmentLocation) {
+				if (triggerRef.link.href.kind === 'external') {
+					return { range: triggerRef.link.source.hrefRange, placeholder: document.getText(triggerRef.link.source.hrefRange) };
+				}
+
+				const { fragmentRange } = triggerRef.link.source;
+				if (fragmentRange) {
 					const declaration = this.findHeaderDeclaration(allRefsInfo.references);
 					if (declaration) {
-						return { range: triggerRef.fragmentLocation.range, placeholder: declaration.headerText };
+						return { range: fragmentRange, placeholder: declaration.headerText };
 					}
-					return { range: triggerRef.fragmentLocation.range, placeholder: document.getText(triggerRef.fragmentLocation.range) };
+					return { range: fragmentRange, placeholder: document.getText(fragmentRange) };
 				}
 
 				throw new Error(localize('renameNoFiles', "Renaming files is currently not supported"));
+			}
 		}
 	}
 
@@ -96,7 +102,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 							continue;
 						}
 					}
-					edit.replace(ref.link.source.resource, ref.fragmentLocation?.range ?? ref.location.range, isRefRename && !ref.fragmentLocation ? newName : slug);
+					edit.replace(ref.link.source.resource, ref.link.source.fragmentRange ?? ref.location.range, isRefRename && !ref.link.source.fragmentRange || ref.link.href.kind === 'external' ? newName : slug);
 					break;
 			}
 		}
@@ -115,7 +121,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 			return this.cachedRefs;
 		}
 
-		const references = await this.referencesProvider.getAllReferences(document, position, token);
+		const references = await this.referencesProvider.getAllReferencesAtPosition(document, position, token);
 		const triggerRef = references.find(ref => ref.isTriggerLocation);
 		if (!triggerRef) {
 			return undefined;

@@ -193,7 +193,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		const modelVisibleRanges = this._toModelVisibleRanges(viewVisibleRange);
 
 		for (const modelVisibleRange of modelVisibleRanges) {
-			this.model.tokenizeViewport(modelVisibleRange.startLineNumber, modelVisibleRange.endLineNumber);
+			this.model.tokenization.tokenizeViewport(modelVisibleRange.startLineNumber, modelVisibleRange.endLineNumber);
 		}
 	}
 
@@ -914,7 +914,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		let result = '';
 
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			const lineTokens = this.model.getLineTokens(lineNumber);
+			const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
 			const lineContent = lineTokens.getLineContent();
 			const startOffset = (lineNumber === startLineNumber ? startColumn - 1 : 0);
 			const endOffset = (lineNumber === endLineNumber ? endColumn - 1 : lineContent.length);

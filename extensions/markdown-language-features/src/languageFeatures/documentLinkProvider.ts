@@ -91,6 +91,7 @@ interface MdLinkSource {
 	readonly text: string;
 	readonly resource: vscode.Uri;
 	readonly hrefRange: vscode.Range;
+	readonly fragmentRange: vscode.Range | undefined;
 }
 
 export interface MdInlineLink {
@@ -131,12 +132,21 @@ function extractDocumentLink(
 			source: {
 				text: link,
 				resource: document.uri,
-				hrefRange: new vscode.Range(linkStart, linkEnd)
+				hrefRange: new vscode.Range(linkStart, linkEnd),
+				fragmentRange: getFragmentRange(link, linkStart, linkEnd),
 			}
 		};
 	} catch {
 		return undefined;
 	}
+}
+
+function getFragmentRange(text: string, start: vscode.Position, end: vscode.Position): vscode.Range | undefined {
+	const index = text.indexOf('#');
+	if (index < 0) {
+		return undefined;
+	}
+	return new vscode.Range(start.translate({ characterDelta: index + 1 }), end);
 }
 
 const angleBracketLinkRe = /^<(.*)>$/;
@@ -159,6 +169,11 @@ const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*
  * Matches `[text][ref]`
  */
 const referenceLinkPattern = /(?:(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]|\[\s*?([^\s\]]*?)\])(?![\:\(])/g;
+
+/**
+ * Matches `<http://example.com>`
+ */
+const autoLinkPattern = /\<(\w+:[^\>\s]+)\>/g;
 
 /**
  * Matches `[text]: link`
@@ -246,6 +261,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 			...(await this.getInlineLinks(document)),
 			...this.getReferenceLinks(document),
 			...this.getLinkDefinitions(document),
+			...this.getAutoLinks(document),
 		]);
 	}
 
@@ -265,6 +281,30 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 			}
 		}
 		return results;
+	}
+
+	private *getAutoLinks(document: SkinnyTextDocument): Iterable<MdLink> {
+		const text = document.getText();
+
+		for (const match of text.matchAll(autoLinkPattern)) {
+			const link = match[1];
+			const linkTarget = parseLink(document, link);
+			if (linkTarget) {
+				const offset = (match.index ?? 0) + 1;
+				const linkStart = document.positionAt(offset);
+				const linkEnd = document.positionAt(offset + link.length);
+				yield {
+					kind: 'link',
+					href: linkTarget,
+					source: {
+						text: link,
+						resource: document.uri,
+						hrefRange: new vscode.Range(linkStart, linkEnd),
+						fragmentRange: getFragmentRange(link, linkStart, linkEnd),
+					}
+				};
+			}
+		}
 	}
 
 	private *getReferenceLinks(document: SkinnyTextDocument): Iterable<MdLink> {
@@ -291,8 +331,9 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				kind: 'link',
 				source: {
 					text: reference,
-					hrefRange: new vscode.Range(linkStart, linkEnd),
 					resource: document.uri,
+					hrefRange: new vscode.Range(linkStart, linkEnd),
+					fragmentRange: undefined,
 				},
 				href: {
 					kind: 'reference',
@@ -325,6 +366,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 							text: link,
 							resource: document.uri,
 							hrefRange: new vscode.Range(linkStart, linkEnd),
+							fragmentRange: getFragmentRange(link, linkStart, linkEnd),
 						},
 						ref: { text: reference, range: refRange },
 						href: target,
@@ -341,6 +383,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 							text: link,
 							resource: document.uri,
 							hrefRange: new vscode.Range(linkStart, linkEnd),
+							fragmentRange: getFragmentRange(link, linkStart, linkEnd)
 						},
 						ref: { text: reference, range: refRange },
 						href: target,

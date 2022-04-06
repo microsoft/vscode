@@ -54,7 +54,10 @@ export interface ITokenizerSource {
 	getValue(): string;
 	getLineCount(): number;
 	getLineLength(lineNumber: number): number;
-	getLineTokens(lineNumber: number): IViewLineTokens;
+
+	tokenization: {
+		getLineTokens(lineNumber: number): IViewLineTokens;
+	};
 }
 
 export class TextBufferTokenizer implements Tokenizer {
@@ -166,7 +169,7 @@ class NonPeekableTextBufferTokenizer {
 		}
 
 		if (this.line === null) {
-			this.lineTokens = this.textModel.getLineTokens(this.lineIdx + 1);
+			this.lineTokens = this.textModel.tokenization.getLineTokens(this.lineIdx + 1);
 			this.line = this.lineTokens.getLineContent();
 			this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens!.findTokenIndexAtOffset(this.lineCharOffset);
 		}
@@ -238,7 +241,7 @@ class NonPeekableTextBufferTokenizer {
 					break;
 				}
 				this.lineIdx++;
-				this.lineTokens = this.textModel.getLineTokens(this.lineIdx + 1);
+				this.lineTokens = this.textModel.tokenization.getLineTokens(this.lineIdx + 1);
 				this.lineTokenOffset = 0;
 				this.line = this.lineTokens.getLineContent();
 				this.lineCharOffset = 0;

@@ -61,7 +61,7 @@ export class LineContext {
 		}
 		const model = editor.getModel();
 		const pos = editor.getPosition();
-		model.tokenizeIfCheap(pos.lineNumber);
+		model.tokenization.tokenizeIfCheap(pos.lineNumber);
 
 		const word = model.getWordAtPosition(pos);
 		if (!word) {
@@ -408,8 +408,8 @@ export class SuggestModel implements IDisposable {
 
 			if (!QuickSuggestionsOptions.isAllOn(config)) {
 				// Check the type of the token that triggered this
-				model.tokenizeIfCheap(pos.lineNumber);
-				const lineTokens = model.getLineTokens(pos.lineNumber);
+				model.tokenization.tokenizeIfCheap(pos.lineNumber);
+				const lineTokens = model.tokenization.getLineTokens(pos.lineNumber);
 				const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
 				if (QuickSuggestionsOptions.valueFor(config, tokenType) !== 'on') {
 					return;

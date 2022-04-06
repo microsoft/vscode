@@ -69,6 +69,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	// View Items
 	viewItems: IActionViewItem[];
+	private viewItemDisposables: Map<IActionViewItem, IDisposable>;
 	private previouslyFocusedItem?: number;
 	protected focusedItem?: number;
 	private focusTracker: DOM.IFocusTracker;
@@ -118,6 +119,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		this._actionIds = [];
 		this.viewItems = [];
+		this.viewItemDisposables = new Map<IActionViewItem, IDisposable>();
 		this.focusedItem = undefined;
 
 		this.domNode = document.createElement('div');
@@ -317,13 +319,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 			actionViewItemElement.className = 'action-item';
 			actionViewItemElement.setAttribute('role', 'presentation');
 
-			// Prevent native context menu on actions
-			if (!this.options.allowContextMenu) {
-				this._register(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
-					DOM.EventHelper.stop(e, true);
-				}));
-			}
-
 			let item: IActionViewItem | undefined;
 
 			if (this.options.actionViewItemProvider) {
@@ -332,6 +327,13 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 			if (!item) {
 				item = new ActionViewItem(this.context, action, options);
+			}
+
+			// Prevent native context menu on actions
+			if (!this.options.allowContextMenu) {
+				this.viewItemDisposables.set(item, DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
+					DOM.EventHelper.stop(e, true);
+				}));
 			}
 
 			item.actionRunner = this._actionRunner;
@@ -386,6 +388,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 	pull(index: number): void {
 		if (index >= 0 && index < this.viewItems.length) {
 			this.actionsList.removeChild(this.actionsList.childNodes[index]);
+			this.viewItemDisposables.get(this.viewItems[index])?.dispose();
+			this.viewItemDisposables.delete(this.viewItems[index]);
 			dispose(this.viewItems.splice(index, 1));
 			this._actionIds.splice(index, 1);
 			this.refreshRole();
@@ -394,6 +398,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	clear(): void {
 		dispose(this.viewItems);
+		this.viewItemDisposables.forEach(d => d.dispose());
+		this.viewItemDisposables.clear();
 		this.viewItems = [];
 		this._actionIds = [];
 		DOM.clearNode(this.actionsList);

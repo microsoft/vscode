@@ -139,8 +139,8 @@ export class InlayHintsFragments {
 			return new Range(line, word.startColumn, line, word.endColumn);
 		}
 
-		model.tokenizeIfCheap(line);
-		const tokens = model.getLineTokens(line);
+		model.tokenization.tokenizeIfCheap(line);
+		const tokens = model.tokenization.getLineTokens(line);
 		const offset = position.column - 1;
 		const idx = tokens.findTokenIndexAtOffset(offset);
 
