@@ -28,6 +28,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { equals } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 class LanguageStatusViewModel {
 
@@ -387,3 +389,19 @@ class EditorStatusContribution implements IWorkbenchContribution {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatusContribution, LifecyclePhase.Restored);
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'editor.inlayHints.Reset',
+			title: localize('reset', 'Reset Language Status Interaction Counter'),
+			category: localize('cat', 'View'),
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IStorageService).remove('languageStatus.interactCount', StorageScope.GLOBAL);
+	}
+});
