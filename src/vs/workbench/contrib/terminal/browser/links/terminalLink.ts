@@ -26,6 +26,8 @@ export class TerminalLink extends DisposableStore implements ILink {
 	private _tooltipScheduler: RunOnceScheduler | undefined;
 	private _hoverListeners: DisposableStore | undefined;
 
+	private _hasMouseDownOccurred: undefined | boolean = undefined;
+
 	private readonly _onInvalidated = new Emitter<void>();
 	get onInvalidated(): Event<void> { return this._onInvalidated.event; }
 
@@ -60,6 +62,10 @@ export class TerminalLink extends DisposableStore implements ILink {
 	}
 
 	activate(event: MouseEvent | undefined, text: string): void {
+		if (event && !this._hasMouseDownOccurred) {
+			return;
+		}
+
 		// Trigger the xterm.js callback synchronously but track the promise resolution so we can
 		// use it in tests
 		this.asyncActivate = this._activateCallback(event, text);
@@ -121,9 +127,18 @@ export class TerminalLink extends DisposableStore implements ILink {
 				this._tooltipScheduler?.schedule();
 			}
 		}));
+
+		if (this._hasMouseDownOccurred === undefined) {
+			if ((event.buttons & 1) === 0) {
+				this._hasMouseDownOccurred = false;
+			}
+		} else if (!this._hasMouseDownOccurred) {
+			this._hasMouseDownOccurred = (event.buttons & 1) !== 0;
+		}
 	}
 
 	leave(): void {
+		this._hasMouseDownOccurred = undefined;
 		this._hoverListeners?.dispose();
 		this._hoverListeners = undefined;
 		this._tooltipScheduler?.dispose();
