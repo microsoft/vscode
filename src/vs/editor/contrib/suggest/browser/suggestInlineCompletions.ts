@@ -68,6 +68,8 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 		const first = Iterable.slice(items, selectedIndex);
 		const second = Iterable.slice(items, 0, selectedIndex);
 
+		let resolveCount = 5;
+
 		for (const item of Iterable.concat(first, second)) {
 
 			if (item.score === FuzzyScore.Default) {
@@ -91,6 +93,11 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 				item.completion.command,
 				item
 			));
+
+			// resolve the first N suggestions eagerly
+			if (resolveCount-- >= 0) {
+				item.resolve(CancellationToken.None);
+			}
 		}
 		return result;
 	}
