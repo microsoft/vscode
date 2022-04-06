@@ -258,6 +258,15 @@ steps:
 
   - script: |
       set -e
+      ps -ef
+      cat /proc/sys/fs/inotify/max_user_watches
+      lsof | wc -l
+    displayName: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
+    continueOnError: true
+    condition: succeededOrFailed()
+
+  - script: |
+      set -e
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
       yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
     timeoutInMinutes: 10

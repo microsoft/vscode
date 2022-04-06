@@ -235,6 +235,13 @@ steps:
 
   - script: |
       set -e
+      ps -ef
+    displayName: List tasks before smoke test run
+    continueOnError: true
+    condition: succeededOrFailed()
+
+  - script: |
+      set -e
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin-$(VSCODE_ARCH)" \
       yarn smoketest-no-compile --web --tracing --headless
     timeoutInMinutes: 10
