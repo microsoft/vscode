@@ -175,14 +175,13 @@ class NewFileTemplatesManager extends Disposable {
 
 		qp.show();
 	}
-
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(NewFileTemplatesManager, LifecyclePhase.Restored);
 
 MenuRegistry.appendMenuItem(MenuId.NewFile, {
-	group: 'File',
+	group: 'file',
 	command: {
 		id: 'workbench.action.files.newUntitledFile',
 		title: localize('miNewFile2', "Text File")
