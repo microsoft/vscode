@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { tmpdir } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { dirname, joinPath } from 'vs/base/common/resources';
@@ -19,7 +18,7 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 let translations: Translations = Object.create(null);
-const ROOT = URI.file(tmpdir());
+const ROOT = URI.file('ROOT');
 
 class ExtensionsScannerService extends AbstractExtensionsScannerService implements IExtensionsScannerService {
 
