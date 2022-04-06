@@ -262,6 +262,13 @@ steps:
     displayName: Run smoke tests (Remote)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
+  - script: |
+      set -e
+      ps -ef
+    displayName: List tasks after smoke test run
+    continueOnError: true
+    condition: succeededOrFailed()
+
   - task: PublishPipelineArtifact@0
     inputs:
       artifactName: crash-dump-macos-$(VSCODE_ARCH)

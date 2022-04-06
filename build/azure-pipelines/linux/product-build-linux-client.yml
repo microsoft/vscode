@@ -283,6 +283,15 @@ steps:
     displayName: Run smoke tests (Remote)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
+  - script: |
+      set -e
+      ps -ef
+      cat /proc/sys/fs/inotify/max_user_watches
+      lsof | wc -l
+    displayName: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
+    continueOnError: true
+    condition: succeededOrFailed()
+
   - task: PublishPipelineArtifact@0
     inputs:
       artifactName: crash-dump-linux-$(VSCODE_ARCH)
