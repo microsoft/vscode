@@ -441,11 +441,11 @@ export class SuggestController implements IEditorContribution {
 		});
 	}
 
-	// private _telemetryGate: number = 0;
-	private _reportSuggestionAcceptedTelemetry(item: CompletionItem /*| SnippetCompletion */, model: ITextModel, acceptedSuggestion: ISelectedSuggestion) {
-		// if (this._telemetryGate++ % 100 !== 0) {
-		// 	return;
-		// }
+	private _telemetryGate: number = 0;
+	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, acceptedSuggestion: ISelectedSuggestion) {
+		if (this._telemetryGate++ % 100 !== 0) {
+			return;
+		}
 
 		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string; kind: number };
 		type AcceptedSuggestionClassification = {
