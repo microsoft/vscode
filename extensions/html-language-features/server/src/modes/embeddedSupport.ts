@@ -181,7 +181,6 @@ function getPrefix(c: EmbeddedRegion) {
 	if (c.attributeValue) {
 		switch (c.languageId) {
 			case 'css': return CSS_STYLE_RULE + '{';
-			case 'javascript': return '()=>{';
 		}
 	}
 	return '';
@@ -190,7 +189,7 @@ function getSuffix(c: EmbeddedRegion) {
 	if (c.attributeValue) {
 		switch (c.languageId) {
 			case 'css': return '}';
-			case 'javascript': return '};';
+			case 'javascript': return ';';
 		}
 	}
 	return '';

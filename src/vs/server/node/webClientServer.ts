@@ -260,7 +260,7 @@ export class WebClientServer {
 		}
 
 		let _wrapWebWorkerExtHostInIframe: undefined | false = undefined;
-		if (this._environmentService.driverHandle) {
+		if (this._environmentService.args['enable-smoke-test-driver']) {
 			// integration tests run at a time when the built output is not yet published to the CDN
 			// so we must disable the iframe wrapping because the iframe URL will give a 404
 			_wrapWebWorkerExtHostInIframe = false;
@@ -279,7 +279,7 @@ export class WebClientServer {
 			.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify({
 				remoteAuthority,
 				_wrapWebWorkerExtHostInIframe,
-				developmentOptions: { enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined },
+				developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined },
 				settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 				enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
 				folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),

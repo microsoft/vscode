@@ -83,7 +83,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 
 		snippet: for (const snippet of snippets) {
 
-			if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && !snippet.prefixLow.includes(triggerCharacterLow)) {
+			if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && !snippet.prefixLow.startsWith(triggerCharacterLow)) {
 				// strict -> when having trigger characters they must prefix-match
 				continue snippet;
 			}
@@ -182,7 +182,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		// validate the `languageId` to ensure this is a user
 		// facing language with a name and the chance to have
 		// snippets, else fall back to the outer language
-		model.tokenizeIfCheap(position.lineNumber);
+		model.tokenization.tokenizeIfCheap(position.lineNumber);
 		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
 		if (!this._languageService.getLanguageName(languageId)) {
 			languageId = model.getLanguageId();

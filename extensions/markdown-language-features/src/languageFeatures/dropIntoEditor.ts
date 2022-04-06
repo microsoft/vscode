@@ -7,12 +7,33 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import * as URI from 'vscode-uri';
 
-export function registerDropIntoEditor() {
-	return vscode.workspace.onWillDropOnTextEditor(e => {
-		e.waitUntil((async () => {
-			const urlList = await e.dataTransfer.get('text/uri-list')?.asString();
-			if (!urlList) {
+const imageFileExtensions = new Set<string>([
+	'.bmp',
+	'.gif',
+	'.ico',
+	'.jpe',
+	'.jpeg',
+	'.jpg',
+	'.png',
+	'.psd',
+	'.svg',
+	'.tga',
+	'.tif',
+	'.tiff',
+	'.webp',
+]);
+
+export function registerDropIntoEditor(selector: vscode.DocumentSelector) {
+	return vscode.languages.registerDocumentOnDropProvider(selector, new class implements vscode.DocumentOnDropProvider {
+		async provideDocumentOnDropEdits(document: vscode.TextDocument, position: vscode.Position, dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<vscode.SnippetTextEdit | undefined> {
+			const enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.drop.enabled', true);
+			if (!enabled) {
 				return;
+			}
+
+			const urlList = await dataTransfer.get('text/uri-list')?.asString();
+			if (!urlList) {
+				return undefined;
 			}
 
 			const uris: vscode.Uri[] = [];
@@ -30,9 +51,10 @@ export function registerDropIntoEditor() {
 
 			const snippet = new vscode.SnippetString();
 			uris.forEach((uri, i) => {
-				const rel = path.relative(URI.Utils.dirname(e.editor.document.uri).fsPath, uri.fsPath);
+				const rel = path.relative(URI.Utils.dirname(document.uri).fsPath, uri.fsPath);
 
-				snippet.appendText('[');
+				const ext = URI.Utils.extname(uri).toLowerCase();
+				snippet.appendText(imageFileExtensions.has(ext) ? '![' : '[');
 				snippet.appendTabstop();
 				snippet.appendText(`](${rel})`);
 
@@ -41,7 +63,7 @@ export function registerDropIntoEditor() {
 				}
 			});
 
-			return e.editor.insertSnippet(snippet, e.position);
-		})());
+			return new vscode.SnippetTextEdit(new vscode.Range(position, position), snippet);
+		}
 	});
 }

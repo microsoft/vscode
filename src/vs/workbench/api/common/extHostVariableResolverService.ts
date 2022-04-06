@@ -47,7 +47,7 @@ class ExtHostVariableResolverService extends AbstractVariableResolverService {
 				if (activeEditor) {
 					return activeEditor.document.uri;
 				}
-				const activeTab = editorTabs.tabGroups.groups.find(group => group.isActive)?.activeTab;
+				const activeTab = editorTabs.tabGroups.all.find(group => group.isActive)?.activeTab;
 				if (activeTab !== undefined) {
 					// Resolve a resource from the tab
 					if (activeTab.kind instanceof TextDiffTabInput || activeTab.kind instanceof NotebookDiffEditorTabInput) {

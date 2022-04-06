@@ -158,11 +158,11 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 
 		const context: ITestItemContext = {
 			$mid: MarshalledId.TestItemContext,
-			tests: [this.test],
+			tests: [InternalTestItem.serialize(this.test)],
 		};
 
 		for (let p = this.parent; p && p.depth > 0; p = p.parent) {
-			context.tests.unshift(p.test);
+			context.tests.unshift(InternalTestItem.serialize(p.test));
 		}
 
 		return context;

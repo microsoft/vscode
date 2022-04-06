@@ -10,7 +10,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
@@ -291,7 +291,7 @@ suite('Untitled text editors', () => {
 	test('can change language afterwards', async () => {
 		const languageId = 'untitled-input-test';
 
-		ModesRegistry.registerLanguage({
+		const registration = accessor.languageService.registerLanguage({
 			id: languageId,
 		});
 
@@ -309,12 +309,13 @@ suite('Untitled text editors', () => {
 
 		input.dispose();
 		model.dispose();
+		registration.dispose();
 	});
 
 	test('remembers that language was set explicitly', async () => {
 		const language = 'untitled-input-test';
 
-		ModesRegistry.registerLanguage({
+		const registration = accessor.languageService.registerLanguage({
 			id: language,
 		});
 
@@ -330,6 +331,7 @@ suite('Untitled text editors', () => {
 
 		input.dispose();
 		model.dispose();
+		registration.dispose();
 	});
 
 	test('service#onDidChangeEncoding', async () => {

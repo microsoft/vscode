@@ -34,6 +34,7 @@ import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { filterIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
+import { isSafari } from 'vs/base/common/platform';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -73,57 +74,73 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 	}
 
 	private getActions(): IAction[] {
-		return [
-			{
-				checked: this.filters.markupInput,
-				class: undefined,
-				enabled: !this.filters.markupPreview,
-				id: 'findInMarkdownInput',
-				label: NOTEBOOK_FIND_IN_MARKUP_INPUT,
-				run: async () => {
-					this.filters.markupInput = !this.filters.markupInput;
-				},
-				tooltip: '',
-				dispose: () => null
+		const markdownInput: IAction = {
+			checked: this.filters.markupInput,
+			class: undefined,
+			enabled: !this.filters.markupPreview,
+			id: 'findInMarkdownInput',
+			label: NOTEBOOK_FIND_IN_MARKUP_INPUT,
+			run: async () => {
+				this.filters.markupInput = !this.filters.markupInput;
 			},
-			{
-				checked: this.filters.markupPreview,
-				class: undefined,
-				enabled: true,
-				id: 'findInMarkdownInput',
-				label: NOTEBOOK_FIND_IN_MARKUP_PREVIEW,
-				run: async () => {
-					this.filters.markupPreview = !this.filters.markupPreview;
-				},
-				tooltip: '',
-				dispose: () => null
+			tooltip: '',
+			dispose: () => null
+		};
+
+		const markdownPreview: IAction = {
+			checked: this.filters.markupPreview,
+			class: undefined,
+			enabled: true,
+			id: 'findInMarkdownInput',
+			label: NOTEBOOK_FIND_IN_MARKUP_PREVIEW,
+			run: async () => {
+				this.filters.markupPreview = !this.filters.markupPreview;
 			},
-			new Separator(),
-			{
-				checked: this.filters.codeInput,
-				class: undefined,
-				enabled: true,
-				id: 'findInCodeInput',
-				label: NOTEBOOK_FIND_IN_CODE_INPUT,
-				run: async () => {
-					this.filters.codeInput = !this.filters.codeInput;
-				},
-				tooltip: '',
-				dispose: () => null
+			tooltip: '',
+			dispose: () => null
+		};
+
+		const codeInput: IAction = {
+			checked: this.filters.codeInput,
+			class: undefined,
+			enabled: true,
+			id: 'findInCodeInput',
+			label: NOTEBOOK_FIND_IN_CODE_INPUT,
+			run: async () => {
+				this.filters.codeInput = !this.filters.codeInput;
 			},
-			{
-				checked: this.filters.codeOutput,
-				class: undefined,
-				enabled: true,
-				id: 'findInCodeOutput',
-				label: NOTEBOOK_FIND_IN_CODE_OUTPUT,
-				run: async () => {
-					this.filters.codeOutput = !this.filters.codeOutput;
-				},
-				tooltip: '',
-				dispose: () => null
+			tooltip: '',
+			dispose: () => null
+		};
+
+		const codeOutput = {
+			checked: this.filters.codeOutput,
+			class: undefined,
+			enabled: true,
+			id: 'findInCodeOutput',
+			label: NOTEBOOK_FIND_IN_CODE_OUTPUT,
+			run: async () => {
+				this.filters.codeOutput = !this.filters.codeOutput;
 			},
-		];
+			tooltip: '',
+			dispose: () => null
+		};
+
+		if (isSafari) {
+			return [
+				markdownInput,
+				codeInput
+			];
+		} else {
+			return [
+				markdownInput,
+				markdownPreview,
+				new Separator(),
+				codeInput,
+				codeOutput,
+			];
+		}
+
 	}
 
 	override updateChecked(): void {

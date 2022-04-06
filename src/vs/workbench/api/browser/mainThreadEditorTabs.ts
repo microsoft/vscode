@@ -20,6 +20,7 @@ import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewE
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { isEqual } from 'vs/base/common/resources';
 
 
 interface TabInfo {
@@ -99,10 +100,10 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		if (editor instanceof SideBySideEditorInput && !(editor instanceof DiffEditorInput)) {
 			const primaryResource = editor.primary.resource;
 			const secondaryResource = editor.secondary.resource;
-			// If side by side editor with same resource on both sinds treat it as a singular tab kind
+			// If side by side editor with same resource on both sides treat it as a singular tab kind
 			if (editor.primary instanceof AbstractTextResourceEditorInput
 				&& editor.secondary instanceof AbstractTextResourceEditorInput
-				&& primaryResource?.toString() === secondaryResource?.toString()
+				&& isEqual(primaryResource, secondaryResource)
 				&& primaryResource
 				&& secondaryResource
 			) {
@@ -559,6 +560,23 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		}
 		// TODO @jrieken This isn't quite right how can we say true for some but not others?
 		return results.every(result => result);
+	}
+
+	async $closeGroup(groupIds: number[], preserveFocus?: boolean): Promise<boolean> {
+		const groupCloseResults: boolean[] = [];
+		for (const groupId of groupIds) {
+			const group = this._editorGroupsService.getGroup(groupId);
+			if (group) {
+				// TODO @lramos15 change this to use group.closeAllEditors once it
+				// is enriched to return a boolean
+				groupCloseResults.push(await group.closeEditors([...group.editors], { preserveFocus }));
+				// Make sure group is empty but still there before removing it
+				if (group.count === 0 && this._editorGroupsService.getGroup(group.id)) {
+					this._editorGroupsService.removeGroup(group);
+				}
+			}
+		}
+		return groupCloseResults.every(result => result);
 	}
 	//#endregion
 }

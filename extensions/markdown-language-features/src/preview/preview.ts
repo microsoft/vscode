@@ -339,18 +339,26 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		// fix #82457, find currently opened but unfocused source tab
 		await vscode.commands.executeCommand('markdown.showSource');
 
+		const revealLineInEditor = (editor: vscode.TextEditor) => {
+			const position = new vscode.Position(line, 0);
+			const newSelection = new vscode.Selection(position, position);
+			editor.selection = newSelection;
+			editor.revealRange(newSelection, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+		};
+
 		for (const visibleEditor of vscode.window.visibleTextEditors) {
 			if (this.isPreviewOf(visibleEditor.document.uri)) {
 				const editor = await vscode.window.showTextDocument(visibleEditor.document, visibleEditor.viewColumn);
-				const position = new vscode.Position(line, 0);
-				editor.selection = new vscode.Selection(position, position);
+				revealLineInEditor(editor);
 				return;
 			}
 		}
 
 		await vscode.workspace.openTextDocument(this._resource)
 			.then(vscode.window.showTextDocument)
-			.then(undefined, () => {
+			.then((editor) => {
+				revealLineInEditor(editor);
+			}, () => {
 				vscode.window.showErrorMessage(localize('preview.clickOpenFailed', 'Could not open {0}', this._resource.toString()));
 			});
 	}

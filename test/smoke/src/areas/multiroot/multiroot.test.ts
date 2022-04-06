@@ -26,7 +26,8 @@ function createWorkspaceFile(workspacePath: string): string {
 		],
 		settings: {
 			'workbench.startupEditor': 'none',
-			'workbench.enableExperiments': false
+			'workbench.enableExperiments': false,
+			"typescript.disableAutomaticTypeAcquisition": true
 		}
 	};
 

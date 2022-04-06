@@ -331,6 +331,28 @@
             "scope": "resource",
             "default": false,
             "markdownDescription": "%css.format.spaceAroundSelectorSeparator.desc%"
+          },
+          "css.format.braceStyle": {
+            "type": "string",
+            "scope": "resource",
+            "default": "collapse",
+            "enum": ["collapse", "expand"],
+            "markdownDescription": "%css.format.braceStyle.desc%"
+          },
+          "css.format.preserveNewLines": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "markdownDescription": "%css.format.preserveNewLines.desc%"
+          },
+          "css.format.maxPreserveNewLines": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "scope": "resource",
+            "default": null,
+            "markdownDescription": "%css.format.maxPreserveNewLines.desc%"
           }
         }
       },
@@ -611,6 +633,28 @@
             "scope": "resource",
             "default": false,
             "markdownDescription": "%scss.format.spaceAroundSelectorSeparator.desc%"
+          },
+          "scss.format.braceStyle": {
+            "type": "string",
+            "scope": "resource",
+            "default": "collapse",
+            "enum": ["collapse", "expand"],
+            "markdownDescription": "%scss.format.braceStyle.desc%"
+          },
+          "scss.format.preserveNewLines": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "markdownDescription": "%scss.format.preserveNewLines.desc%"
+          },
+          "scss.format.maxPreserveNewLines": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "scope": "resource",
+            "default": null,
+            "markdownDescription": "%scss.format.maxPreserveNewLines.desc%"
           }
         }
       },
@@ -892,6 +936,28 @@
             "scope": "resource",
             "default": false,
             "markdownDescription": "%less.format.spaceAroundSelectorSeparator.desc%"
+          },
+          "less.format.braceStyle": {
+            "type": "string",
+            "scope": "resource",
+            "default": "collapse",
+            "enum": ["collapse", "expand"],
+            "markdownDescription": "%less.format.braceStyle.desc%"
+          },
+          "less.format.preserveNewLines": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "markdownDescription": "%less.format.preserveNewLines.desc%"
+          },
+          "less.format.maxPreserveNewLines": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "scope": "resource",
+            "default": null,
+            "markdownDescription": "%less.format.maxPreserveNewLines.desc%"
           }
         }
       }

@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider, SnippetTextEdit } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -331,3 +331,16 @@ registerEditorCommand(new CommandCtor({
 	// 	primary: KeyCode.Enter,
 	// }
 }));
+
+
+// ---
+
+export function performSnippetEdit(editor: ICodeEditor, edit: SnippetTextEdit) {
+	const controller = SnippetController2.get(editor);
+	if (!controller) {
+		return false;
+	}
+	editor.setSelection(edit.range);
+	controller.insert(edit.snippet);
+	return controller.isInSnippet();
+}

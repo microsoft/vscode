@@ -14,7 +14,7 @@ import { EncodingMode, TextFileOperationError, TextFileOperationResult } from 'v
 import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { timeout } from 'vs/base/common/async';
-import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -171,7 +171,7 @@ suite('Files - FileEditorInput', () => {
 
 	test('preferred language', async function () {
 		const languageId = 'file-input-test';
-		ModesRegistry.registerLanguage({
+		const registration = accessor.languageService.registerLanguage({
 			id: languageId,
 		});
 
@@ -190,6 +190,8 @@ suite('Files - FileEditorInput', () => {
 
 		const model2 = await input2.resolve() as TextFileEditorModel;
 		assert.strictEqual(model2.textEditorModel!.getLanguageId(), languageId);
+
+		registration.dispose();
 	});
 
 	test('preferred contents', async function () {

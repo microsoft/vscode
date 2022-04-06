@@ -9,11 +9,11 @@ import { BaseServiceConfigurationProvider } from './configuration';
 export class BrowserServiceConfigurationProvider extends BaseServiceConfigurationProvider {
 
 	// On browsers, we only support using the built-in TS version
-	protected extractGlobalTsdk(_configuration: vscode.WorkspaceConfiguration): string | null {
+	protected readGlobalTsdk(_configuration: vscode.WorkspaceConfiguration): string | null {
 		return null;
 	}
 
-	protected extractLocalTsdk(_configuration: vscode.WorkspaceConfiguration): string | null {
+	protected readLocalTsdk(_configuration: vscode.WorkspaceConfiguration): string | null {
 		return null;
 	}
 }

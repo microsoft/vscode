@@ -24,7 +24,7 @@ export interface SkinnyTextDocument {
 	readonly version: number;
 	readonly lineCount: number;
 
-	getText(): string;
+	getText(range?: vscode.Range): string;
 	lineAt(line: number): SkinnyTextLine;
 	positionAt(offset: number): vscode.Position;
 }
