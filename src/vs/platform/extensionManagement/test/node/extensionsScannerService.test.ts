@@ -18,7 +18,7 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 let translations: Translations = Object.create(null);
-const ROOT = URI.file('ROOT');
+const ROOT = URI.file('/ROOT');
 
 class ExtensionsScannerService extends AbstractExtensionsScannerService implements IExtensionsScannerService {
 
