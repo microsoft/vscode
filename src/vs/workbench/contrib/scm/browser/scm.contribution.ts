@@ -249,7 +249,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('scm.repositoriesSortOrder.path', "Sort the repository by repository path.")
 			],
 			description: localize('repositoriesSortOrder', "Controls the sort order of the repositories in the source control repositories view."),
-			default: 'name'
+			default: 'discovery time'
 		},
 		'scm.repositories.visible': {
 			type: 'number',
