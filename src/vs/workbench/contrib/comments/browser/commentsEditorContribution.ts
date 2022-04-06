@@ -184,13 +184,13 @@ class CommentingRangeDecorator {
 		}
 	}
 
-	public getMatchedCommentAction(line: number) {
+	public getMatchedCommentAction(commentRange: Range) {
 		// keys is ownerId
 		const foundHoverActions = new Map<string, languages.CommentingRanges>();
 		let result = [];
 		for (const decoration of this.commentingRangeDecorations) {
 			const range = decoration.getActiveRange();
-			if (range && range.startLineNumber <= line && line <= range.endLineNumber) {
+			if (range && (range.startLineNumber <= commentRange.startLineNumber) && (commentRange.endLineNumber <= range.endLineNumber)) {
 				// We can have 3 commenting ranges that match from the same owner because of how
 				// the line hover decoration is done. We only want to use the action from 1 of them.
 				const action = decoration.getCommentAction();
@@ -229,7 +229,7 @@ export class CommentController implements IEditorContribution {
 	private _commentingRangeSpaceReserved = false;
 	private _computePromise: CancelablePromise<Array<ICommentInfo | null>> | null;
 	private _addInProgress!: boolean;
-	private _emptyThreadsToAddQueue: [number, IEditorMouseEvent | undefined][] = [];
+	private _emptyThreadsToAddQueue: [Range, IEditorMouseEvent | undefined][] = [];
 	private _computeCommentingRangePromise!: CancelablePromise<ICommentInfo[]> | null;
 	private _computeCommentingRangeScheduler!: Delayer<Array<ICommentInfo | null>> | null;
 	private _pendingCommentCache: { [key: string]: { [key: string]: string } };
@@ -569,26 +569,26 @@ export class CommentController implements IEditorContribution {
 
 		if (e.target.element.className.indexOf('comment-diff-added') >= 0) {
 			const lineNumber = e.target.position!.lineNumber;
-			this.addOrToggleCommentAtLine(lineNumber, e);
+			this.addOrToggleCommentAtLine(new Range(lineNumber, 1, lineNumber, 1), e);
 		}
 	}
 
-	public async addOrToggleCommentAtLine(lineNumber: number, e: IEditorMouseEvent | undefined): Promise<void> {
+	public async addOrToggleCommentAtLine(commentRange: Range, e: IEditorMouseEvent | undefined): Promise<void> {
 		// If an add is already in progress, queue the next add and process it after the current one finishes to
 		// prevent empty comment threads from being added to the same line.
 		if (!this._addInProgress) {
 			this._addInProgress = true;
 			// The widget's position is undefined until the widget has been displayed, so rely on the glyph position instead
-			const existingCommentsAtLine = this._commentWidgets.filter(widget => widget.getGlyphPosition() === lineNumber);
+			const existingCommentsAtLine = this._commentWidgets.filter(widget => widget.getGlyphPosition() === commentRange.endLineNumber);
 			if (existingCommentsAtLine.length) {
-				existingCommentsAtLine.forEach(widget => widget.toggleExpand(lineNumber));
+				existingCommentsAtLine.forEach(widget => widget.toggleExpand(commentRange.endLineNumber));
 				this.processNextThreadToAdd();
 				return;
 			} else {
-				this.addCommentAtLine(lineNumber, e);
+				this.addCommentAtLine(commentRange, e);
 			}
 		} else {
-			this._emptyThreadsToAddQueue.push([lineNumber, e]);
+			this._emptyThreadsToAddQueue.push([commentRange, e]);
 		}
 	}
 
@@ -600,8 +600,8 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
-	public addCommentAtLine(lineNumber: number, e: IEditorMouseEvent | undefined): Promise<void> {
-		const newCommentInfos = this._commentingRangeDecorator.getMatchedCommentAction(lineNumber);
+	public addCommentAtLine(range: Range, e: IEditorMouseEvent | undefined): Promise<void> {
+		const newCommentInfos = this._commentingRangeDecorator.getMatchedCommentAction(range);
 		if (!newCommentInfos.length || !this.editor.hasModel()) {
 			return Promise.resolve();
 		}
@@ -612,7 +612,7 @@ export class CommentController implements IEditorContribution {
 
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
-					getActions: () => this.getContextMenuActions(newCommentInfos, lineNumber),
+					getActions: () => this.getContextMenuActions(newCommentInfos, range),
 					getActionsContext: () => newCommentInfos.length ? newCommentInfos[0] : undefined,
 					onHide: () => { this._addInProgress = false; }
 				});
@@ -629,7 +629,7 @@ export class CommentController implements IEditorContribution {
 
 					if (commentInfos.length) {
 						const { ownerId } = commentInfos[0];
-						this.addCommentAtLine2(lineNumber, ownerId);
+						this.addCommentAtLine2(range, ownerId);
 					}
 				}).then(() => {
 					this._addInProgress = false;
@@ -637,7 +637,7 @@ export class CommentController implements IEditorContribution {
 			}
 		} else {
 			const { ownerId } = newCommentInfos[0]!;
-			this.addCommentAtLine2(lineNumber, ownerId);
+			this.addCommentAtLine2(range, ownerId);
 		}
 
 		return Promise.resolve();
@@ -656,7 +656,7 @@ export class CommentController implements IEditorContribution {
 		return picks;
 	}
 
-	private getContextMenuActions(commentInfos: { ownerId: string; extensionId: string | undefined; label: string | undefined; commentingRangesInfo: languages.CommentingRanges }[], lineNumber: number): IAction[] {
+	private getContextMenuActions(commentInfos: { ownerId: string; extensionId: string | undefined; label: string | undefined; commentingRangesInfo: languages.CommentingRanges }[], commentRange: Range): IAction[] {
 		const actions: IAction[] = [];
 
 		commentInfos.forEach(commentInfo => {
@@ -668,7 +668,7 @@ export class CommentController implements IEditorContribution {
 				undefined,
 				true,
 				() => {
-					this.addCommentAtLine2(lineNumber, ownerId);
+					this.addCommentAtLine2(commentRange, ownerId);
 					return Promise.resolve();
 				}
 			));
@@ -676,8 +676,7 @@ export class CommentController implements IEditorContribution {
 		return actions;
 	}
 
-	public addCommentAtLine2(lineNumber: number, ownerId: string) {
-		const range = new Range(lineNumber, 1, lineNumber, 1);
+	public addCommentAtLine2(range: Range, ownerId: string) {
 		this.commentService.createCommentThreadTemplate(ownerId, this.editor.getModel()!.uri, range);
 		this.processNextThreadToAdd();
 		return;
@@ -848,15 +847,15 @@ CommandsRegistry.registerCommand({
 			return Promise.resolve();
 		}
 
-		const position = activeEditor.getPosition();
-		return controller.addOrToggleCommentAtLine(position.lineNumber, undefined);
+		const position = activeEditor.getSelection();
+		return controller.addOrToggleCommentAtLine(position, undefined);
 	}
 });
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: ADD_COMMENT_COMMAND,
-		title: nls.localize('comments.addCommand', "Add Comment on Current Line"),
+		title: nls.localize('comments.addCommand', "Add Comment on Current Selection"),
 		category: 'Comments'
 	},
 	when: ActiveCursorHasCommentingRange
