@@ -221,7 +221,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		if (!command) {
 			throw new Error('Unknown command');
 		}
-		this.reportTelemetry(command, id);
+		this._reportTelemetry(command, id);
 		let { callback, thisArg, description } = command;
 		if (description) {
 			for (let i = 0; i < description.args.length; i++) {
@@ -260,7 +260,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 	}
 
-	private reportTelemetry(command: CommandHandler, id: string) {
+	private _reportTelemetry(command: CommandHandler, id: string) {
 		if (!command.extension || command.extension.isBuiltin) {
 			return;
 		}
@@ -273,7 +273,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'digitarald'; comment: 'The id of the command, to understand which specific extension features are most popular.' };
 		};
 		this.#telemetry.$publicLog2<ExtensionActionTelemetry, ExtensionActionTelemetryMeta>('Extension:ActionExecuted', {
-			extensionId: command.extension?.identifier.value,
+			extensionId: command.extension.identifier.value,
 			id: id,
 		});
 	}
