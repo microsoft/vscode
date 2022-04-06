@@ -6,31 +6,49 @@
 
 @keyframes wiggle {
 	0% {
-		transform: rotate(0) scale(1)
+		transform: rotate(0) scale(1);
+		opacity: 0;
+	}
+
+	30% {
+		opacity: .75;
 	}
 
 	15%,
 	45% {
-		transform: rotate(.04turn) scale(1.1)
+		transform: rotate(.04turn) scale(1.1);
 	}
 
 	30%,
 	60% {
-		transform: rotate(-.04turn) scale(1.2)
+		transform: rotate(-.04turn) scale(1.2);
 	}
 
 	100% {
-		transform: rotate(0) scale(1)
+		transform: rotate(0) scale(1);
+		opacity: 0;
 	}
 }
 
-.monaco-workbench.enable-motion .statusbar DIV#status\.languageStatus span.codicon.wiggle {
+.monaco-workbench.enable-motion .statusbar DIV#status\.languageStatus A.wiggle {
 	animation-duration: .8s;
 	animation-iteration-count: 1;
 	animation-name: wiggle;
 }
 
-.monaco-workbench.enable-motion .statusbar DIV#status\.languageStatus span.codicon.wiggle.repeat {
+.monaco-workbench.enable-motion .statusbar DIV#status\.languageStatus A.wiggle.sev1 {
+	background-color: var(--vscode-statusBarItem-prominentBackground);
+}
+
+.monaco-workbench.enable-motion .statusbar DIV#status\.languageStatus A.wiggle.sev2 {
+	background-color: var(--vscode-statusBarItem-warningBackground);
+}
+
+.monaco-workbench.enable-motion .statusbar DIV#status\.languageStatus A.wiggle.sev3 {
+	background-color: var(--vscode-statusBarItem-errorBackground);
+}
+
+.monaco-workbench.enable-motion .statusbar DIV#status\.languageStatus A.wiggle.repeat {
 	animation-iteration-count: 3;
 }
 

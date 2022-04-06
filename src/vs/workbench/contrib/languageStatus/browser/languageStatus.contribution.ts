@@ -202,16 +202,18 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			// animate the status bar icon whenever language status changes, repeat animation
 			// when severity is warning or error, don't show animation when showing progress/busy
 			const userHasInteractedWithStatus = this._interactionCounter.value >= 3;
-			const node = document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus span.codicon');
+			const node = document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus A');
 			if (node instanceof HTMLElement) {
+				const _sev = `sev${first.severity}`;
 				const _wiggle = 'wiggle';
 				const _repeat = 'repeat';
 				if (!isOneBusy) {
 					node.classList.toggle(_wiggle, showSeverity || !userHasInteractedWithStatus);
+					node.classList.toggle(_sev, showSeverity || !userHasInteractedWithStatus);
 					node.classList.toggle(_repeat, showSeverity);
-					this._renderDisposables.add(dom.addDisposableListener(node, 'animationend', _e => node.classList.remove(_wiggle, _repeat)));
+					this._renderDisposables.add(dom.addDisposableListener(node, 'animationend', _e => node.classList.remove(_wiggle, _repeat, _sev)));
 				} else {
-					node.classList.remove(_wiggle, _repeat);
+					node.classList.remove(_wiggle, _repeat, _sev);
 				}
 			}
 
@@ -226,7 +228,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 							observer.disconnect();
 						}
 					});
-					observer.observe(document.body, { childList: true, subtree: true });
+					observer.observe(hoverTarget, { childList: true, subtree: true });
 					this._renderDisposables.add(toDisposable(() => observer.disconnect()));
 				}
 			}
