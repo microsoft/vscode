@@ -194,7 +194,7 @@ suite('Configuration Resolver Service', () => {
 		const getExtension = stub(extensionService, 'getExtension');
 		getExtension.withArgs('publisher.extId').returns(Promise.resolve({ extensionLocation: uri.file('/some/path') } as IExtensionDescription));
 
-		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${extensionDir:publisher.extId}'), uri.file('/some/path').fsPath);
+		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${extensionInstallFolder:publisher.extId}'), uri.file('/some/path').fsPath);
 	});
 
 	// test('substitute keys and values in object', () => {
@@ -644,13 +644,13 @@ suite('Configuration Resolver Service', () => {
 		});
 	});
 
-	test('resolveWithEnvironment', () => {
+	test('resolveWithEnvironment', async () => {
 		const env = {
 			'VAR_1': 'VAL_1',
 			'VAR_2': 'VAL_2'
 		};
 		const configuration = 'echo ${env:VAR_1}${env:VAR_2}';
-		const resolvedResult = configurationResolverService!.resolveWithEnvironment({ ...env }, undefined, configuration);
+		const resolvedResult = await configurationResolverService!.resolveWithEnvironment({ ...env }, undefined, configuration);
 		assert.deepStrictEqual(resolvedResult, 'echo VAL_1VAL_2');
 	});
 });
