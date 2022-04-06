@@ -262,18 +262,18 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 				}
 				if (existing.isValid === extension.isValid) {
 					if (pickLatest && semver.gt(existing.manifest.version, extension.manifest.version)) {
-						this.logService.debug(`Skipping extension ${extension.location.fsPath} with lower version ${extension.manifest.version}.`);
+						this.logService.debug(`Skipping extension ${extension.location.path} with lower version ${extension.manifest.version}.`);
 						continue;
 					}
 					if (semver.eq(existing.manifest.version, extension.manifest.version) && existing.targetPlatform === targetPlatform) {
-						this.logService.debug(`Skipping extension ${extension.location.fsPath} from different target platform ${extension.targetPlatform}`);
+						this.logService.debug(`Skipping extension ${extension.location.path} from different target platform ${extension.targetPlatform}`);
 						continue;
 					}
 				}
 				if (existing.type === ExtensionType.System) {
-					this.logService.debug(`Overwriting system extension ${existing.location.fsPath} with ${extension.location.fsPath}.`);
+					this.logService.debug(`Overwriting system extension ${existing.location.path} with ${extension.location.path}.`);
 				} else {
-					this.logService.warn(`Overwriting user extension ${existing.location.fsPath} with ${extension.location.fsPath}.`);
+					this.logService.warn(`Overwriting user extension ${existing.location.path} with ${extension.location.path}.`);
 				}
 			}
 			result.set(extensionKey, extension);
