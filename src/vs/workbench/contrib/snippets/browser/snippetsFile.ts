@@ -114,7 +114,8 @@ export class Snippet {
 		readonly body: string,
 		readonly source: string,
 		readonly snippetSource: SnippetSource,
-		readonly snippetIdentifier?: string
+		readonly snippetIdentifier?: string,
+		readonly extension?: string
 	) {
 		this.prefixLow = prefix.toLowerCase();
 		this._bodyInsights = new IdleValue(() => new SnippetBodyInsights(this.body));
@@ -332,7 +333,8 @@ export class SnippetFile {
 				body,
 				source,
 				this.source,
-				this._extension && `${relativePath(this._extension.extensionLocation, this.location)}/${name}`
+				this._extension && `${relativePath(this._extension.extensionLocation, this.location)}/${name}`,
+				this._extension?.identifier.value,
 			));
 		}
 	}
