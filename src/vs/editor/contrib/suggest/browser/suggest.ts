@@ -66,6 +66,9 @@ export class CompletionItem {
 	idx?: number;
 	word?: string;
 
+	// instrumentation
+	readonly extensionId?: string;
+
 	// resolving
 	private _isResolved?: boolean;
 	private _resolveCache?: Promise<void>;
@@ -88,6 +91,8 @@ export class CompletionItem {
 
 		this.sortTextLow = completion.sortText && completion.sortText.toLowerCase();
 		this.filterTextLow = completion.filterText && completion.filterText.toLowerCase();
+
+		this.extensionId = completion.extensionId;
 
 		// normalize ranges
 		if (Range.isIRange(completion.range)) {

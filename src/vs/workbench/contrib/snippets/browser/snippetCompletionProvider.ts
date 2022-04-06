@@ -29,6 +29,7 @@ export class SnippetCompletion implements CompletionItem {
 	sortText: string;
 	kind: CompletionItemKind;
 	insertTextRules: CompletionItemInsertTextRule;
+	extensionId?: string;
 
 	constructor(
 		readonly snippet: Snippet,
@@ -37,6 +38,7 @@ export class SnippetCompletion implements CompletionItem {
 		this.label = { label: snippet.prefix, description: snippet.name };
 		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
 		this.insertText = snippet.codeSnippet;
+		this.extensionId = snippet.extensionId;
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.kind = CompletionItemKind.Snippet;

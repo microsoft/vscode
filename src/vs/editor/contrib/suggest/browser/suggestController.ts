@@ -45,9 +45,6 @@ import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { basename, extname } from 'vs/base/common/resources';
 import { hash } from 'vs/base/common/hash';
-// FIXME: Not what want! What is a better way to access snippets property?
-// eslint-disable-next-line code-import-patterns
-// import { SnippetCompletion } from 'vs/workbench/contrib/snippets/browser/snippetCompletionProvider';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 let _sticky = false;
@@ -444,25 +441,26 @@ export class SuggestController implements IEditorContribution {
 		});
 	}
 
-	private _telemetryGate: number = 0;
+	// private _telemetryGate: number = 0;
 	private _reportSuggestionAcceptedTelemetry(item: CompletionItem /*| SnippetCompletion */, model: ITextModel, acceptedSuggestion: ISelectedSuggestion) {
-		if (this._telemetryGate++ % 100 !== 0) {
-			return;
-		}
+		// if (this._telemetryGate++ % 100 !== 0) {
+		// 	return;
+		// }
 
-		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string };
+		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string; kind: number };
 		type AcceptedSuggestionClassification = {
 			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
 		// _debugDisplayName looks like `vscode.css-language-features(/-:)`, where the last bit is the trigger chars
 		// normalize it to just the extension ID and lowercase
-		const providerId = (acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown').split('(', 1)[0].toLowerCase();
-		// const providerId = ('snippet' in item && item.snippet.extension) ? item.snippet.extension : (acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown').split('(', 1)[0].toLowerCase();
+		const providerId = item.extensionId ?? (acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown').split('(', 1)[0].toLowerCase();
 		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
 			providerId,
+			kind: item.completion.kind,
 			basenameHash: hash(basename(model.uri)).toString(16),
 			languageId: model.getLanguageId(),
 			fileExtension: extname(model.uri),

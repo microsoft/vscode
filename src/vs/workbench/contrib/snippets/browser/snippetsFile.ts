@@ -115,7 +115,7 @@ export class Snippet {
 		readonly source: string,
 		readonly snippetSource: SnippetSource,
 		readonly snippetIdentifier?: string,
-		readonly extension?: string
+		readonly extensionId?: string
 	) {
 		this.prefixLow = prefix.toLowerCase();
 		this._bodyInsights = new IdleValue(() => new SnippetBodyInsights(this.body));

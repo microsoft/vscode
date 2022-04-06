@@ -673,6 +673,10 @@ export interface CompletionItem {
 	 * A command that should be run upon acceptance of this item.
 	 */
 	command?: Command;
+	/**
+	 * Identifier for the extension that contributed this completion.
+	 */
+	extensionId?: string;
 
 	/**
 	 * @internal

@@ -6203,6 +6203,10 @@ declare namespace monaco.languages {
 		 * A command that should be run upon acceptance of this item.
 		 */
 		command?: Command;
+		/**
+		 * Identifier for the extension that contributed this completion.
+		 */
+		extensionId?: string;
 	}
 
 	export interface CompletionList {
