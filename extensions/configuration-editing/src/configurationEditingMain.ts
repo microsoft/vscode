@@ -40,7 +40,7 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 		provideCompletionItems(document, position, _token) {
 			const location = getLocation(document.getText(), document.offsetAt(position));
 			if (!location.isAtPropertyKey && location.previousNode && location.previousNode.type === 'string') {
-				const indexOf$ = document.lineAt(position.line).text.indexOf('$');
+				const indexOf$ = document.lineAt(position.line).text.lastIndexOf('$', position.character);
 				const startPosition = indexOf$ >= 0 ? new vscode.Position(position.line, indexOf$) : position;
 
 				return [
@@ -60,9 +60,9 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 					{ label: 'pathSeparator', detail: localize('pathSeparator', "The character used by the operating system to separate components in file paths") },
 					{ label: 'extensionInstallFolder', detail: localize('extensionInstallFolder', "The path where an an extension is installed."), param: 'publisher.extension' },
 				].map(variable => ({
-					label: '${' + variable.label + '}',
+					label: `\${${variable.label}}`,
 					range: new vscode.Range(startPosition, position),
-					insertText: variable.param ? new vscode.SnippetString(`\${${variable.label}:`).appendPlaceholder(variable.param).appendText('}') : ('${' + variable.label + '}'),
+					insertText: variable.param ? new vscode.SnippetString(`\${${variable.label}:`).appendPlaceholder(variable.param).appendText('}') : (`\${${variable.label}}`),
 					detail: variable.detail
 				}));
 			}
