@@ -2754,12 +2754,22 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	private splitPerGroupType(tasks: Task[]): { none: Task[]; defaults: Task[] } {
+	/**
+	 *
+	 * @param tasks - The tasks which need filtering from defaults and non-defaults
+	 * @param defaultType - If there are globs want globs in the default list, otherwise only tasks with true
+	 * @param taskGlobsInList - This tells splitPerGroupType to filter out globbed tasks (into default), otherwise fall back to boolean
+	 * @returns
+	 */
+	private splitPerGroupType(tasks: Task[], taskGlobsInList: boolean = false): { none: Task[]; defaults: Task[] } {
 		let none: Task[] = [];
 		let defaults: Task[] = [];
 		for (let task of tasks) {
-			// isDefault could be a string of the glob, so make sure to check explicitly for true
-			if ((task.configurationProperties.group as TaskGroup).isDefault === true) {
+			// At this point (assuming taskGlobsInList is true) there are tasks with matching globs, so only put those in defaults
+			if (taskGlobsInList && typeof (task.configurationProperties.group as TaskGroup).isDefault === 'string') {
+				defaults.push(task);
+			}
+			else if (!taskGlobsInList && (task.configurationProperties.group as TaskGroup).isDefault === true) {
 				defaults.push(task);
 			} else {
 				none.push(task);
@@ -2788,57 +2798,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 			let taskGroupTasks: (Task | ConfiguringTask)[] = [];
 
-			// First check for globs before checking for the default tasks of the task group
-			const absoluteURI = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
-			if (absoluteURI) {
-				const workspaceFolder = this.contextService.getWorkspaceFolder(absoluteURI);
-				// fallback to absolute path of the file if it is not in a workspace or relative path cannot be found
-				const relativePath = workspaceFolder?.uri ? (resources.relativePath(workspaceFolder.uri, absoluteURI) ?? absoluteURI.path) : absoluteURI.path;
-
-				taskGroupTasks = await this._findWorkspaceTasks((task) => {
-					const taskGroup = task.configurationProperties.group;
-					if (taskGroup && typeof taskGroup !== 'string' && typeof taskGroup.isDefault === 'string') {
-						return (taskGroup._id === taskGroup._id && glob.match(taskGroup.isDefault, relativePath));
-					}
-
-					return false;
-				});
-			}
-
-			// If no globs are found or matched fallback to checking for default tasks of the task group
-			if (!taskGroupTasks.length) {
-				taskGroupTasks = await this._findWorkspaceTasksInGroup(taskGroup, false);
-			}
-
 			async function runSingleTask(task: Task | undefined, problemMatcherOptions: ProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
 				that.run(task, problemMatcherOptions, TaskRunSource.User).then(undefined, reason => {
 					// eat the error, it has already been surfaced to the user and we don't care about it here
 				});
 			}
 
-			if (taskGroupTasks.length === 1) {
-				const taskGroupTask = taskGroupTasks[0];
-				if (ConfiguringTask.is(taskGroupTask)) {
-					this.tryResolveTask(taskGroupTask).then(resolvedTask => {
-						runSingleTask(resolvedTask, undefined, this);
-					});
-				} else {
-					runSingleTask(taskGroupTask, undefined, this);
-				}
-
-				return;
-			}
-
-			return this.getTasksForGroup(taskGroup).then((tasks) => {
-				if (tasks.length > 0) {
-					let { none, defaults } = this.splitPerGroupType(tasks);
-					if (defaults.length === 1) {
-						runSingleTask(defaults[0], undefined, this);
-						return;
-					} else if (defaults.length + none.length > 0) {
-						tasks = defaults.concat(none);
-					}
-				}
+			const runMultipleTasks = (tasks: Task[]) => {
 				this.showIgnoredFoldersMessage().then(() => {
 					this.showQuickPick(tasks,
 						strings.select,
@@ -2858,6 +2824,80 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							runSingleTask(task, { attachProblemMatcher: true }, this);
 						});
 				});
+			};
+
+			// First check for globs before checking for the default tasks of the task group
+			const absoluteURI = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
+			if (absoluteURI) {
+				const workspaceFolder = this.contextService.getWorkspaceFolder(absoluteURI);
+				// fallback to absolute path of the file if it is not in a workspace or relative path cannot be found
+				const relativePath = workspaceFolder?.uri ? (resources.relativePath(workspaceFolder.uri, absoluteURI) ?? absoluteURI.path) : absoluteURI.path;
+
+				taskGroupTasks = await this._findWorkspaceTasks((task) => {
+					const taskGroup = task.configurationProperties.group;
+					if (taskGroup && typeof taskGroup !== 'string' && typeof taskGroup.isDefault === 'string') {
+						return (taskGroup._id === taskGroup._id && glob.match(taskGroup.isDefault, relativePath));
+					}
+
+					return false;
+				});
+			}
+
+			// If there's multiple globs that match we want to show the quick picker for those tasks
+			// We will need to call splitPerGroupType putting globs in defaults and the remaining tasks in none.
+			// We don't need to carry on after here
+			if (taskGroupTasks.length > 1) {
+				return this.getTasksForGroup(taskGroup).then((tasks) => {
+					if (tasks.length > 0) {
+						// Put globs in the defaults and eveyrthing else in none
+						let { none, defaults } = this.splitPerGroupType(tasks, true);
+						if (defaults.length === 1) {
+							runSingleTask(defaults[0], undefined, this);
+							return;
+						} else if (defaults.length + none.length > 0) {
+							tasks = defaults.concat(none);
+						}
+					}
+
+					// At this this point there's multiple tasks.
+					runMultipleTasks(tasks);
+				});
+			}
+
+			// If no globs are found or matched fallback to checking for default tasks of the task group
+			if (!taskGroupTasks.length) {
+				taskGroupTasks = await this._findWorkspaceTasksInGroup(taskGroup, false);
+			}
+
+
+			// A single default task was returned, just run it directly
+			if (taskGroupTasks.length === 1) {
+				const taskGroupTask = taskGroupTasks[0];
+				if (ConfiguringTask.is(taskGroupTask)) {
+					this.tryResolveTask(taskGroupTask).then(resolvedTask => {
+						runSingleTask(resolvedTask, undefined, this);
+					});
+				} else {
+					runSingleTask(taskGroupTask, undefined, this);
+				}
+
+				return;
+			}
+
+			// Multiple default tasks returned, show the quickPicker
+			return this.getTasksForGroup(taskGroup).then((tasks) => {
+				if (tasks.length > 0) {
+					let { none, defaults } = this.splitPerGroupType(tasks);
+					if (defaults.length === 1) {
+						runSingleTask(defaults[0], undefined, this);
+						return;
+					} else if (defaults.length + none.length > 0) {
+						tasks = defaults.concat(none);
+					}
+				}
+
+				// At this this point there's multiple tasks.
+				runMultipleTasks(tasks);
 			});
 		})();
 		this.progressService.withProgress(options, () => promise);
