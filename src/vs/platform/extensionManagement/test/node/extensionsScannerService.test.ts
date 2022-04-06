@@ -56,12 +56,16 @@ suite('NativeExtensionsScanerService Test', () => {
 		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(IFileService, fileService);
+		const systemExtensionsLocation = joinPath(ROOT, 'system');
+		const userExtensionsLocation = joinPath(ROOT, 'extensions');
 		instantiationService.stub(INativeEnvironmentService, {
 			userHome: ROOT,
-			builtinExtensionsPath: joinPath(ROOT, 'system').fsPath,
-			extensionsPath: joinPath(ROOT, 'extensions').fsPath,
+			builtinExtensionsPath: systemExtensionsLocation.fsPath,
+			extensionsPath: userExtensionsLocation.fsPath,
 		});
 		instantiationService.stub(IProductService, { version: '1.66.0' });
+		await fileService.createFolder(systemExtensionsLocation);
+		await fileService.createFolder(userExtensionsLocation);
 	});
 
 	teardown(() => disposables.clear());
