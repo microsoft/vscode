@@ -112,6 +112,21 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 				language.title = localize('keyboardBindingTooltip', "{0}", languageKeybindingLabel);
 			}
 			this.domNode.appendChild(language);
+
+			const or = $('span');
+			or.innerText = localize('or', " or ",);
+			this.domNode.appendChild(or);
+
+			const chooseEditor = $('a.choose-editor');
+			chooseEditor.style.cursor = 'pointer';
+			chooseEditor.innerText = localize('chooseEditor', "select a different editor");
+			const chooseEditorKeyBinding = this.keybindingService.lookupKeybinding('welcome.showNewFileEntries');
+			const chooseEditorKeybindingLabel = chooseEditorKeyBinding?.getLabel();
+			if (chooseEditorKeybindingLabel) {
+				chooseEditor.title = localize('chooseEditorBindingTooltip', "{0}", chooseEditorKeybindingLabel);
+			}
+			this.domNode.appendChild(chooseEditor);
+
 			const toGetStarted = $('span');
 			toGetStarted.innerText = localize('toGetStarted', " to get started. Start typing to dismiss, or ",);
 			this.domNode.appendChild(toGetStarted);
@@ -135,6 +150,14 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.toDispose.push(dom.addDisposableListener(language, 'click', languageOnClickOrTap));
 			this.toDispose.push(dom.addDisposableListener(language, GestureEventType.Tap, languageOnClickOrTap));
 			this.toDispose.push(Gesture.addTarget(language));
+
+			const chooseEditorOnClickOrTap = async (e: MouseEvent) => {
+				e.stopPropagation();
+				await this.commandService.executeCommand('welcome.showNewFileEntries', { from: 'hint' });
+			};
+			this.toDispose.push(dom.addDisposableListener(chooseEditor, 'click', chooseEditorOnClickOrTap));
+			this.toDispose.push(dom.addDisposableListener(chooseEditor, GestureEventType.Tap, chooseEditorOnClickOrTap));
+			this.toDispose.push(Gesture.addTarget(chooseEditor));
 
 			const dontShowOnClickOrTap = () => {
 				this.configurationService.updateValue(untitledTextEditorHintSetting, 'hidden');

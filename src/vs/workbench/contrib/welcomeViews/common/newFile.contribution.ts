@@ -25,7 +25,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.showNewFileEntries',
-			title: { value: localize('welcome.newFile', "New File..."), original: 'New File...' },
+			title: { value: localize('welcome.newEditor', "New Editor..."), original: 'New Editor...' },
 			category,
 			f1: true,
 			keybinding: {
