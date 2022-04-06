@@ -204,18 +204,21 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			// animate the status bar icon whenever language status changes, repeat animation
 			// when severity is warning or error, don't show animation when showing progress/busy
 			const userHasInteractedWithStatus = this._interactionCounter.value >= 3;
-			const node = document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus A');
-			if (node instanceof HTMLElement) {
-				const _sev = `sev${first.severity}`;
+			const node = document.querySelector('.monaco-workbench.enable-motion .statusbar DIV#status\\.languageStatus A>SPAN.codicon');
+			const container = document.querySelector('.monaco-workbench.enable-motion .statusbar DIV#status\\.languageStatus');
+			if (node instanceof HTMLElement && container) {
 				const _wiggle = 'wiggle';
-				const _repeat = 'repeat';
+				const _flash = 'flash';
 				if (!isOneBusy) {
+					// wiggle icon when severe or "new"
 					node.classList.toggle(_wiggle, showSeverity || !userHasInteractedWithStatus);
-					node.classList.toggle(_sev, showSeverity || !userHasInteractedWithStatus);
-					node.classList.toggle(_repeat, showSeverity);
-					this._renderDisposables.add(dom.addDisposableListener(node, 'animationend', _e => node.classList.remove(_wiggle, _repeat, _sev)));
+					this._renderDisposables.add(dom.addDisposableListener(node, 'animationend', _e => node.classList.remove(_wiggle)));
+					// flash background when severe
+					container.classList.toggle(_flash, showSeverity);
+					this._renderDisposables.add(dom.addDisposableListener(container, 'animationend', _e => container.classList.remove(_flash)));
 				} else {
-					node.classList.remove(_wiggle, _repeat, _sev);
+					node.classList.remove(_wiggle);
+					container.classList.remove(_flash);
 				}
 			}
 
