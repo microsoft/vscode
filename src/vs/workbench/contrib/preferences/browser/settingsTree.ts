@@ -1322,7 +1322,8 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 			}
 
 			if (template.onChange) {
-				template.onChange(newValue);
+				const valueToReport = Object.keys(newValue).length ? newValue : undefined;
+				template.onChange(valueToReport);
 			}
 		}
 	}
