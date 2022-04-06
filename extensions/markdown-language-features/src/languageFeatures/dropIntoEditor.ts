@@ -51,12 +51,14 @@ export function registerDropIntoEditor(selector: vscode.DocumentSelector) {
 
 			const snippet = new vscode.SnippetString();
 			uris.forEach((uri, i) => {
-				const rel = path.relative(URI.Utils.dirname(document.uri).fsPath, uri.fsPath);
+				const mdPath = document.uri.scheme === uri.scheme
+					? path.relative(URI.Utils.dirname(document.uri).fsPath, uri.fsPath)
+					: uri.toString(false);
 
 				const ext = URI.Utils.extname(uri).toLowerCase();
 				snippet.appendText(imageFileExtensions.has(ext) ? '![' : '[');
 				snippet.appendTabstop();
-				snippet.appendText(`](${rel})`);
+				snippet.appendText(`](${mdPath})`);
 
 				if (i <= uris.length - 1 && uris.length > 1) {
 					snippet.appendText(' ');
