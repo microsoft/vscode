@@ -28,9 +28,13 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
 import { goToDefinitionWithLocation, showGoToContextMenu } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
+import { localize } from 'vs/nls';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -605,7 +609,6 @@ function fixSpace(str: string): string {
 }
 
 
-
 CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, ...args: [URI, IRange]): Promise<languages.InlayHint[]> => {
 
 	const [uri, range] = args;
@@ -622,4 +625,37 @@ CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, .
 	} finally {
 		ref.dispose();
 	}
+});
+
+
+registerAction2(class ToggleInlayHints extends Action2 {
+
+	private static _key = 'editor.inlayHints.enabled';
+
+	constructor() {
+		super({
+			id: 'inlayhint.toggle',
+			title: {
+				value: localize('toggle', "Toggle Inlay Hints"),
+				mnemonicTitle: localize('toggleMnem', "Show &&Inlay Hints"),
+				original: 'Toggle Inlay Hints',
+			},
+			category: localize('view', 'View'),
+			toggled: ContextKeyExpr.equals(`config.${ToggleInlayHints._key}`, true),
+			f1: true,
+			menu: [{
+				id: MenuId.MenubarViewMenu,
+				group: '5_editor',
+				order: 3.5,
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		let config = accessor.get(IConfigurationService);
+		const value = Boolean(config.getValue<boolean>(ToggleInlayHints._key));
+		config.updateValue(ToggleInlayHints._key, !value);
+
+	}
+
 });
