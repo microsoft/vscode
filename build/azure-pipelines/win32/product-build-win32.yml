@@ -231,7 +231,6 @@ steps:
       $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
       exec { yarn smoketest-no-compile --tracing --build "$AppRoot" }
     displayName: Run smoke tests (Electron)
-    continueOnError: true
     # Increased timeout because this test downloads stable code
     timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
@@ -243,27 +242,6 @@ steps:
       $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"
       exec { yarn smoketest-no-compile --tracing --remote --build "$AppRoot" }
     displayName: Run smoke tests (Remote)
-    continueOnError: true
-    timeoutInMinutes: 10
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
-
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --legacy --tracing --build "$AppRoot" }
-    displayName: Run smoke tests (Legacy, Electron)
-    # Increased timeout because this test downloads stable code
-    timeoutInMinutes: 20
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
-
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-      $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --legacy --tracing --remote --build "$AppRoot" }
-    displayName: Run smoke tests (Legacy, Remote)
     timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
