@@ -31,7 +31,7 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 	/* ----- vs code options ---	-- */
 
 	'user-data-dir': OPTIONS['user-data-dir'],
-	'driver': OPTIONS['driver'],
+	'enable-smoke-test-driver': OPTIONS['enable-smoke-test-driver'],
 	'disable-telemetry': OPTIONS['disable-telemetry'],
 	'disable-workspace-trust': OPTIONS['disable-workspace-trust'],
 	'file-watcher-polling': { type: 'string', deprecates: ['fileWatcherPolling'] },
@@ -140,7 +140,7 @@ export interface ServerParsedArgs {
 
 	'user-data-dir'?: string;
 
-	driver?: string;
+	'enable-smoke-test-driver'?: boolean;
 
 	'disable-telemetry'?: boolean;
 	'file-watcher-polling'?: string;

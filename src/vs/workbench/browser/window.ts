@@ -123,7 +123,7 @@ export class BrowserWindow extends Disposable {
 	}
 
 	private setupDriver(): void {
-		if (this.environmentService.options?.developmentOptions?.enableSmokeTestDriver) {
+		if (this.environmentService.enableSmokeTestDriver) {
 			registerWindowDriver();
 		}
 	}

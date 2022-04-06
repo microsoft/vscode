@@ -40,7 +40,7 @@ suite('Bracket Pair Colorizer - Tokenizer', () => {
 		}));
 
 		const model = disposableStore.add(instantiateTextModel(instantiationService, document.getText(), mode1));
-		model.forceTokenization(model.getLineCount());
+		model.tokenization.forceTokenization(model.getLineCount());
 
 		const brackets = new LanguageAgnosticBracketTokens(denseKeyProvider, l => languageConfigurationService.getLanguageConfiguration(l));
 

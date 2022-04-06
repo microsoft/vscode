@@ -74,7 +74,7 @@ suite('TokensStore', () => {
 	function extractState(model: TextModel): string[] {
 		let result: string[] = [];
 		for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
-			const lineTokens = model.getLineTokens(lineNumber);
+			const lineTokens = model.tokenization.getLineTokens(lineNumber);
 			const lineContent = model.getLineContent(lineNumber);
 
 			let lineText = '';
@@ -101,7 +101,7 @@ suite('TokensStore', () => {
 	function testTokensAdjustment(rawInitialState: string[], edits: ISingleEditOperation[], rawFinalState: string[]) {
 		const initialState = parseTokensState(rawInitialState);
 		const model = createTextModel(initialState.text);
-		model.setSemanticTokens([initialState.tokens], true);
+		model.tokenization.setSemanticTokens([initialState.tokens], true);
 
 		model.applyEdits(edits);
 
@@ -174,7 +174,7 @@ suite('TokensStore', () => {
 
 	test('issue #91936: Semantic token color highlighting fails on line with selected text', () => {
 		const model = createTextModel('                    else if ($s = 08) then \'\\b\'');
-		model.setSemanticTokens([
+		model.tokenization.setSemanticTokens([
 			SparseMultilineTokens.create(1, new Uint32Array([
 				0, 20, 24, 0b0111100000000010000,
 				0, 25, 27, 0b0111100000000010000,
@@ -187,7 +187,7 @@ suite('TokensStore', () => {
 				0, 43, 47, 0b0101100000000010000,
 			]))
 		], true);
-		const lineTokens = model.getLineTokens(1);
+		const lineTokens = model.tokenization.getLineTokens(1);
 		let decodedTokens: number[] = [];
 		for (let i = 0, len = lineTokens.getCount(); i < len; i++) {
 			decodedTokens.push(lineTokens.getEndOffset(i), lineTokens.getMetadata(i));

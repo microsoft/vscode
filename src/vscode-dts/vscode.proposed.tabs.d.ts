@@ -154,14 +154,24 @@ declare module 'vscode' {
 	}
 
 	export interface TabChangeEvent {
+		// TODO@API consider: opened
 		readonly added: readonly Tab[];
+		// TODO@API consider: closed (aligns with TabGroups.close(...))
 		readonly removed: readonly Tab[];
 		readonly changed: readonly Tab[];
 	}
 
+	/**
+	 * Represents a group of tabs. A tab group itself consists of multiple tab
+	 */
 	export interface TabGroup {
 		/**
-		 * Whether or not the group is currently active
+		 * Whether or not the group is currently active.
+		 *
+		 * *Note* that only one tab group is active at a time, but that multiple tab
+		 * groups can have an {@link TabGroup.aciveTab active tab}.
+		 *
+		 * @see {@link Tab.isActive}
 		 */
 		readonly isActive: boolean;
 
@@ -171,8 +181,10 @@ declare module 'vscode' {
 		readonly viewColumn: ViewColumn;
 
 		/**
-		 * The active tab in the group (this is the tab currently being rendered).
-		 * There can be one active tab per group. There can only be one active group.
+		 * The active {@link Tab tab} in the group. This is the tab which contents are currently
+		 * being rendered.
+		 *
+		 * *Note* that there can be one active tab per group but there can only be one {@link TabGroups.activeTabGroup active group}.
 		 */
 		readonly activeTab: Tab | undefined;
 
@@ -192,17 +204,16 @@ declare module 'vscode' {
 		/**
 		 * The currently active group
 		 */
-		// TODO@API name: maybe `activeGroup` to align with `groups` (which isn't tabGroups)
 		readonly activeTabGroup: TabGroup;
 
 		/**
-		 * An {@link Event event} which fires when {@link TabGroup tab groups} has changed.
+		 * An {@link Event event} which fires when {@link TabGroup tab groups} have changed.
 		 */
-		// TODO@API maybe `onDidChangeGroups`
+		// TODO@API consider `TabGroupChangeEvent` similar to `TabChangeEvent`
 		readonly onDidChangeTabGroups: Event<readonly TabGroup[]>;
 
 		/**
-		 * An {@link Event event} which fires when a {@link Tab tabs} have changed.
+		 * An {@link Event event} which fires when {@link Tab tabs} have changed.
 		 */
 		readonly onDidChangeTabs: Event<TabChangeEvent>;
 
@@ -235,9 +246,7 @@ declare module 'vscode' {
 		 * @param viewColumn The column to move the tab into
 		 * @param index The index to move the tab to
 		 */
-		// TODO@API support TabGroup in addition to ViewColumn
-		// TODO@API support just index for moving inside current group
-		// TODO@API move a tab group
+		// TODO@API remove for now
 		move(tab: Tab, viewColumn: ViewColumn, index: number, preserveFocus?: boolean): Thenable<void>;
 	}
 }

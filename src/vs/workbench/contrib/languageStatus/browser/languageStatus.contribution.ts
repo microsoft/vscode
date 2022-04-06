@@ -6,7 +6,7 @@
 import 'vs/css!./media/languageStatus';
 import * as dom from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
@@ -28,6 +28,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { equals } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 class LanguageStatusViewModel {
 
@@ -202,16 +204,21 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			// animate the status bar icon whenever language status changes, repeat animation
 			// when severity is warning or error, don't show animation when showing progress/busy
 			const userHasInteractedWithStatus = this._interactionCounter.value >= 3;
-			const node = document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus span.codicon');
-			if (node instanceof HTMLElement) {
+			const node = document.querySelector('.monaco-workbench.enable-motion .statusbar DIV#status\\.languageStatus A>SPAN.codicon');
+			const container = document.querySelector('.monaco-workbench.enable-motion .statusbar DIV#status\\.languageStatus');
+			if (node instanceof HTMLElement && container) {
 				const _wiggle = 'wiggle';
-				const _repeat = 'repeat';
+				const _flash = 'flash';
 				if (!isOneBusy) {
+					// wiggle icon when severe or "new"
 					node.classList.toggle(_wiggle, showSeverity || !userHasInteractedWithStatus);
-					node.classList.toggle(_repeat, showSeverity);
-					this._renderDisposables.add(dom.addDisposableListener(node, 'animationend', _e => node.classList.remove(_wiggle, _repeat)));
+					this._renderDisposables.add(dom.addDisposableListener(node, 'animationend', _e => node.classList.remove(_wiggle)));
+					// flash background when severe
+					container.classList.toggle(_flash, showSeverity);
+					this._renderDisposables.add(dom.addDisposableListener(container, 'animationend', _e => container.classList.remove(_flash)));
 				} else {
-					node.classList.remove(_wiggle, _repeat);
+					node.classList.remove(_wiggle);
+					container.classList.remove(_flash);
 				}
 			}
 
@@ -226,7 +233,8 @@ class EditorStatusContribution implements IWorkbenchContribution {
 							observer.disconnect();
 						}
 					});
-					observer.observe(document.body, { childList: true, subtree: true });
+					observer.observe(hoverTarget, { childList: true, subtree: true });
+					this._renderDisposables.add(toDisposable(() => observer.disconnect()));
 				}
 			}
 		}
@@ -384,3 +392,19 @@ class EditorStatusContribution implements IWorkbenchContribution {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatusContribution, LifecyclePhase.Restored);
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'editor.inlayHints.Reset',
+			title: localize('reset', 'Reset Language Status Interaction Counter'),
+			category: localize('cat', 'View'),
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IStorageService).remove('languageStatus.interactCount', StorageScope.GLOBAL);
+	}
+});

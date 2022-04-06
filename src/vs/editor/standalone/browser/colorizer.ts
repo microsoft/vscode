@@ -99,8 +99,8 @@ export class Colorizer {
 
 	public static colorizeModelLine(model: ITextModel, lineNumber: number, tabSize: number = 4): string {
 		const content = model.getLineContent(lineNumber);
-		model.forceTokenization(lineNumber);
-		const tokens = model.getLineTokens(lineNumber);
+		model.tokenization.forceTokenization(lineNumber);
+		const tokens = model.tokenization.getLineTokens(lineNumber);
 		const inflatedTokens = tokens.inflate();
 		return this.colorizeLine(content, model.mightContainNonBasicASCII(), model.mightContainRTL(), inflatedTokens, tabSize);
 	}
