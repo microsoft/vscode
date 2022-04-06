@@ -286,30 +286,9 @@ steps:
   - script: |
       set -e
       ps -ef
-    displayName: List tasks after smoke test run
-    continueOnError: true
-    condition: succeededOrFailed()
-
-  - script: |
-      set -e
-      cat /proc/sys/fs/inotify/max_user_watches
-    displayName: List max user watches after smoke test run
-    continueOnError: true
-    condition: succeededOrFailed()
-
-  - script: |
-      set -e
-      lsof | wc -l
-    displayName: Count number of open file handles after smoke test run
-    continueOnError: true
-    condition: succeededOrFailed()
-
-  - script: |
-      set -e
-      ps -ef
       cat /proc/sys/fs/inotify/max_user_watches
       lsof | wc -l
-    displayName: Diagnostics after smoke test run
+    displayName: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
     continueOnError: true
     condition: succeededOrFailed()
 
