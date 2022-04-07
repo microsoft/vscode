@@ -12,6 +12,7 @@ import { mark, PerformanceMark } from 'vs/base/common/performance';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
 import { asArray } from 'vs/base/common/arrays';
+import { IProgress, IProgressOptions } from 'vs/platform/progress/common/progress';
 
 let created = false;
 const workbenchPromise = new DeferredPromise<IWorkbench>();
@@ -118,5 +119,17 @@ export namespace env {
 		const workbench = await workbenchPromise.p;
 
 		return workbench.env.openUri(target);
+	}
+}
+
+export namespace window {
+
+	/**
+	 * {@linkcode IWorkbench.window IWorkbench.window.withProgress}
+	 */
+	export async function withProgress(options: IProgressOptions, task: (progress: IProgress<{ message?: string; increment?: number }>) => Promise<unknown>): Promise<unknown> {
+		const workbench = await workbenchPromise.p;
+
+		return workbench.window.withProgress(options, task);
 	}
 }
