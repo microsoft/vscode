@@ -53,6 +53,13 @@ export class SCMViewService implements ISCMViewService {
 	}
 
 	get visibleRepositories(): ISCMRepositoryView[] {
+		// In order to match the legacy behaviour, when the repositories are sorted by discovery time,
+		// the visible repositories are sorted by the selection index instead of the discovery time.
+		if (this._repositoriesSortKey === 'discovery time' && this._repositories.find(r => r.selectionIndex !== -1)) {
+			return this._repositories.filter(r => r.visible)
+				.sort((r1, r2) => r1.selectionIndex - r2.selectionIndex);
+		}
+
 		return this._repositories.filter(r => r.visible);
 	}
 
@@ -64,10 +71,12 @@ export class SCMViewService implements ISCMViewService {
 		for (const repositoryView of this._repositories) {
 			if (set.has(repositoryView) && !repositoryView.visible) {
 				repositoryView.visible = true;
+				repositoryView.selectionIndex = visibleRepositories.indexOf(repositoryView);
 				added.add(repositoryView);
 			}
 			if (!set.has(repositoryView) && repositoryView.visible) {
 				repositoryView.visible = false;
+				repositoryView.selectionIndex = -1;
 				removed.add(repositoryView);
 			}
 		}
@@ -171,7 +180,7 @@ export class SCMViewService implements ISCMViewService {
 		}
 
 		const repositoryView: ISCMRepositoryView = {
-			repository, discoveryTime: Date.now(), visible: true
+			repository, discoveryTime: Date.now(), selectionIndex: -1, visible: true
 		};
 
 		let removed: Iterable<ISCMRepositoryView> = Iterable.empty();

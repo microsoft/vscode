@@ -143,6 +143,7 @@ export interface ISCMRepositoryView {
 	readonly repository: ISCMRepository;
 	readonly discoveryTime: number;
 	// focused: boolean;
+	selectionIndex: number;
 	visible: boolean;
 }
 
