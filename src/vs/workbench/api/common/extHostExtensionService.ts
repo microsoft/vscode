@@ -110,6 +110,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private readonly _resolvers: { [authorityPrefix: string]: vscode.RemoteAuthorityResolver };
 
 	private _started: boolean;
+	private _isTerminating: boolean = false;
 	private _remoteConnectionData: IRemoteConnectionData | null;
 
 	constructor(
@@ -204,7 +205,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		}
 	}
 
-	public async deactivateAll(): Promise<void> {
+	private async _deactivateAll(): Promise<void> {
 		this._storagePath.onWillDeactivateAll();
 
 		let allPromises: Promise<void>[] = [];
@@ -220,6 +221,40 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			// TODO: write to log once we have one
 		}
 		await Promise.all(allPromises);
+	}
+
+	public terminate(reason: string): void {
+		if (this._isTerminating) {
+			// we are already shutting down...
+			return;
+		}
+		this._isTerminating = true;
+		this._logService.info(`extension host terminating: ${reason}`);
+		this._logService.flush();
+
+		this._extHostTerminalService.dispose();
+		this._activator.dispose();
+
+		errors.setUnexpectedErrorHandler((err) => {
+			this._logService.error(err);
+		});
+
+		// Invalidate all proxies
+		this._extHostContext.dispose();
+
+		const extensionsDeactivated = this._deactivateAll();
+
+		// Give extensions at most 5 seconds to wrap up any async deactivate, then exit
+		Promise.race([timeout(5000), extensionsDeactivated]).finally(() => {
+			if (this._hostUtils.pid) {
+				this._logService.info(`Extension host with pid ${this._hostUtils.pid} exiting with code 0`);
+			} else {
+				this._logService.info(`Extension host exiting with code 0`);
+			}
+			this._logService.flush();
+			this._logService.dispose();
+			this._hostUtils.exit(0);
+		});
 	}
 
 	public isActivated(extensionId: ExtensionIdentifier): boolean {
@@ -894,10 +929,10 @@ export const IExtHostExtensionService = createDecorator<IExtHostExtensionService
 export interface IExtHostExtensionService extends AbstractExtHostExtensionService {
 	readonly _serviceBrand: undefined;
 	initialize(): Promise<void>;
+	terminate(reason: string): void;
 	getExtension(extensionId: string): Promise<IExtensionDescription | undefined>;
 	isActivated(extensionId: ExtensionIdentifier): boolean;
 	activateByIdWithErrors(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
-	deactivateAll(): Promise<void>;
 	getExtensionExports(extensionId: ExtensionIdentifier): IExtensionAPI | null | undefined;
 	getExtensionRegistry(): Promise<ExtensionDescriptionRegistry>;
 	getExtensionPathIndex(): Promise<TernarySearchTree<URI, IExtensionDescription>>;

@@ -30,6 +30,7 @@ suite('MainThreadDiagnostics', function () {
 			new class implements IExtHostContext {
 				remoteAuthority = '';
 				extensionHostKind = ExtensionHostKind.LocalProcess;
+				dispose() { }
 				assertRegistered() { }
 				set(v: any): any { return null; }
 				getProxy(): any {
@@ -71,6 +72,7 @@ suite('MainThreadDiagnostics', function () {
 				new class implements IExtHostContext {
 					remoteAuthority = '';
 					extensionHostKind = ExtensionHostKind.LocalProcess;
+					dispose() { }
 					assertRegistered() { }
 					set(v: any): any { return null; }
 					getProxy(): any {
@@ -134,6 +136,7 @@ suite('MainThreadDiagnostics', function () {
 				new class implements IExtHostContext {
 					remoteAuthority = '';
 					extensionHostKind = ExtensionHostKind.LocalProcess;
+					dispose() { }
 					assertRegistered() { }
 					set(v: any): any { return null; }
 					getProxy(): any {

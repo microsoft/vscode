@@ -272,6 +272,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 			extensionHostKind: this.kind,
 			getProxy: <T>(identifier: ProxyIdentifier<T>): Proxied<T> => this._rpcProtocol!.getProxy(identifier),
 			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._rpcProtocol!.set(identifier, instance),
+			dispose: (): void => this._rpcProtocol!.dispose(),
 			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => this._rpcProtocol!.assertRegistered(identifiers),
 			drain: (): Promise<void> => this._rpcProtocol!.drain(),
 
