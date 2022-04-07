@@ -27,13 +27,13 @@ import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { editorErrorForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 
-interface IEditorPlaceholderContents {
+export interface IEditorPlaceholderContents {
 	icon: string;
 	label: string;
 	actions: ReadonlyArray<{ label: string; run: () => unknown }>;
 }
 
-abstract class EditorPlaceholderPane extends EditorPane {
+export abstract class EditorPlaceholderPane extends EditorPane {
 
 	private container: HTMLElement | undefined;
 	private scrollbar: DomScrollableElement | undefined;
@@ -41,17 +41,12 @@ abstract class EditorPlaceholderPane extends EditorPane {
 
 	constructor(
 		id: string,
-		private readonly title: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(id, telemetryService, themeService, storageService);
-	}
-
-	override getTitle(): string {
-		return this.title;
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -76,10 +71,10 @@ abstract class EditorPlaceholderPane extends EditorPane {
 		}
 
 		// Render Input
-		this.inputDisposable.value = this.renderInput(input);
+		this.inputDisposable.value = await this.renderInput(input, options);
 	}
 
-	private renderInput(input: EditorInput): IDisposable {
+	private async renderInput(input: EditorInput, options: IEditorOptions | undefined): Promise<IDisposable> {
 		const [container, scrollbar] = assertAllDefined(this.container, this.scrollbar);
 
 		// Reset any previous contents
@@ -90,7 +85,7 @@ abstract class EditorPlaceholderPane extends EditorPane {
 
 		// Delegate to implementation for contents
 		const disposables = new DisposableStore();
-		const { icon, label, actions } = this.getContents();
+		const { icon, label, actions } = await this.getContents(input, options);
 
 		// Icon
 		const iconContainer = document.createElement('div');
@@ -129,7 +124,7 @@ abstract class EditorPlaceholderPane extends EditorPane {
 		return disposables;
 	}
 
-	protected abstract getContents(): IEditorPlaceholderContents;
+	protected abstract getContents(input: EditorInput, options: IEditorOptions | undefined): Promise<IEditorPlaceholderContents>;
 
 	override clearInput(): void {
 		if (this.container) {
@@ -167,7 +162,8 @@ abstract class EditorPlaceholderPane extends EditorPane {
 export class WorkspaceTrustRequiredEditor extends EditorPlaceholderPane {
 
 	static readonly ID = 'workbench.editors.workspaceTrustRequiredEditor';
-	static readonly LABEL = localize('trustRequiredEditor', "Workspace Trust Required");
+	private static readonly LABEL = localize('trustRequiredEditor', "Workspace Trust Required");
+
 	static readonly DESCRIPTOR = EditorPaneDescriptor.create(WorkspaceTrustRequiredEditor, WorkspaceTrustRequiredEditor.ID, WorkspaceTrustRequiredEditor.LABEL);
 
 	constructor(
@@ -178,10 +174,14 @@ export class WorkspaceTrustRequiredEditor extends EditorPlaceholderPane {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(WorkspaceTrustRequiredEditor.ID, WorkspaceTrustRequiredEditor.LABEL, telemetryService, themeService, storageService, instantiationService);
+		super(WorkspaceTrustRequiredEditor.ID, telemetryService, themeService, storageService, instantiationService);
 	}
 
-	protected getContents(): IEditorPlaceholderContents {
+	override getTitle(): string {
+		return WorkspaceTrustRequiredEditor.LABEL;
+	}
+
+	protected async getContents(): Promise<IEditorPlaceholderContents> {
 		return {
 			icon: '$(workspace-untrusted)',
 			label: isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceService.getWorkspace())) ?
@@ -201,18 +201,17 @@ abstract class AbstractErrorEditor extends EditorPlaceholderPane {
 
 	constructor(
 		id: string,
-		label: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(id, label, telemetryService, themeService, storageService, instantiationService);
+		super(id, telemetryService, themeService, storageService, instantiationService);
 	}
 
 	protected abstract getErrorMessage(): string;
 
-	protected getContents(): IEditorPlaceholderContents {
+	protected async getContents(): Promise<IEditorPlaceholderContents> {
 		const group = this.group;
 		const input = this.input;
 
@@ -231,8 +230,9 @@ abstract class AbstractErrorEditor extends EditorPlaceholderPane {
 
 export class UnknownErrorEditor extends AbstractErrorEditor {
 
-	static readonly ID = 'workbench.editors.unknownErrorEditor';
-	static readonly LABEL = localize('unknownErrorEditor', "Unknown Error Editor");
+	private static readonly ID = 'workbench.editors.unknownErrorEditor';
+	private static readonly LABEL = localize('unknownErrorEditor', "Unknown Error Editor");
+
 	static readonly DESCRIPTOR = EditorPaneDescriptor.create(UnknownErrorEditor, UnknownErrorEditor.ID, UnknownErrorEditor.LABEL);
 
 	constructor(
@@ -241,7 +241,11 @@ export class UnknownErrorEditor extends AbstractErrorEditor {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(UnknownErrorEditor.ID, UnknownErrorEditor.LABEL, telemetryService, themeService, storageService, instantiationService);
+		super(UnknownErrorEditor.ID, telemetryService, themeService, storageService, instantiationService);
+	}
+
+	override getTitle(): string {
+		return UnknownErrorEditor.LABEL;
 	}
 
 	protected override getErrorMessage(): string {
@@ -251,8 +255,9 @@ export class UnknownErrorEditor extends AbstractErrorEditor {
 
 export class UnavailableResourceErrorEditor extends AbstractErrorEditor {
 
-	static readonly ID = 'workbench.editors.unavailableResourceErrorEditor';
-	static readonly LABEL = localize('unavailableResourceErrorEditor', "Unavailable Resource Error Editor");
+	private static readonly ID = 'workbench.editors.unavailableResourceErrorEditor';
+	private static readonly LABEL = localize('unavailableResourceErrorEditor', "Unavailable Resource Error Editor");
+
 	static readonly DESCRIPTOR = EditorPaneDescriptor.create(UnavailableResourceErrorEditor, UnavailableResourceErrorEditor.ID, UnavailableResourceErrorEditor.LABEL);
 
 	constructor(
@@ -261,7 +266,11 @@ export class UnavailableResourceErrorEditor extends AbstractErrorEditor {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(UnavailableResourceErrorEditor.ID, UnavailableResourceErrorEditor.LABEL, telemetryService, themeService, storageService, instantiationService);
+		super(UnavailableResourceErrorEditor.ID, telemetryService, themeService, storageService, instantiationService);
+	}
+
+	override getTitle(): string {
+		return UnavailableResourceErrorEditor.LABEL;
 	}
 
 	protected override getErrorMessage(): string {
