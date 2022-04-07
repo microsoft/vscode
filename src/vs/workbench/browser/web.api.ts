@@ -74,8 +74,7 @@ export interface IWorkbench {
 		 */
 		withProgress<R>(
 			options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
-			task: (progress: IProgress<IProgressStep>) => Promise<R>,
-			onDidCancel?: (choice?: number) => void
+			task: (progress: IProgress<IProgressStep>) => Promise<R>
 		): Promise<R>;
 	};
 

@@ -129,11 +129,10 @@ export namespace window {
 	 */
 	export async function withProgress<R>(
 		options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
-		task: (progress: IProgress<IProgressStep>) => Promise<R>,
-		onDidCancel?: (choice?: number) => void
+		task: (progress: IProgress<IProgressStep>) => Promise<R>
 	): Promise<R> {
 		const workbench = await workbenchPromise.p;
 
-		return workbench.window.withProgress(options, task, onDidCancel);
+		return workbench.window.withProgress(options, task);
 	}
 }
