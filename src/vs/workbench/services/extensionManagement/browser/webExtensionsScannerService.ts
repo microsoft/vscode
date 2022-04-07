@@ -36,8 +36,9 @@ import { IExtensionStorageService } from 'vs/platform/extensionManagement/common
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ExtensionManifestValidator } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { validateExtensionManifest } from 'vs/platform/extensions/common/extensionValidator';
+import Severity from 'vs/base/common/severity';
 
 type GalleryExtensionInfo = { readonly id: string; preRelease?: boolean; migrateStorageFrom?: string };
 type ExtensionInfo = { readonly id: string; preRelease: boolean };
@@ -196,8 +197,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				const extension = await this.toScannedExtension(webExtension, true);
 				if (extension.isValid || !scanOptions?.skipInvalidExtensions) {
 					result.push(extension);
-				} else {
-					this.logService.info(`Ignoring additional builtin extension ${webExtension.identifier.id} because it is not valid.`, extension.validationMessages);
 				}
 			} catch (error) {
 				this.logService.info(`Error while fetching the additional builtin extension ${location.toString()}.`, getErrorMessage(error));
@@ -225,8 +224,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						const extension = await this.toScannedExtension(webExtension, true);
 						if (extension.isValid || !scanOptions?.skipInvalidExtensions) {
 							result.push(extension);
-						} else {
-							this.logService.info(`Ignoring additional builtin extension ${webExtension.identifier.id} because it is not valid.`, extension.validationMessages);
 						}
 					} catch (error) {
 						this.logService.info(`Ignoring additional builtin extension ${webExtension.identifier.id} because there is an error while converting it into scanned extension`, getErrorMessage(error));
@@ -497,8 +494,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				const extension = await this.toScannedExtension(webExtension, false);
 				if (extension.isValid || !scanOptions?.skipInvalidExtensions) {
 					result.set(extension.identifier.id.toLowerCase(), extension);
-				} else {
-					this.logService.info(`Skipping user installed extension ${webExtension.identifier.id} because it is not valid.`, extension.validationMessages);
 				}
 			} catch (error) {
 				if (scanOptions?.bailOut) {
@@ -580,8 +575,14 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 		const uuid = (<IGalleryMetadata | undefined>webExtension.metadata)?.id;
 
-		const validationMessages: string[] = [];
-		const isValid = ExtensionManifestValidator.isValidExtensionManifest(this.productService.version, this.productService.date, webExtension.location, manifest, false, validationMessages);
+		const validations = validateExtensionManifest(this.productService.version, this.productService.date, webExtension.location, manifest, false);
+		let isValid = true;
+		for (const [severity, message] of validations) {
+			if (severity === Severity.Error) {
+				isValid = false;
+				this.logService.error(message);
+			}
+		}
 
 		return {
 			identifier: { id: webExtension.identifier.id, uuid: webExtension.identifier.uuid || uuid },
@@ -593,7 +594,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			changelogUrl: webExtension.changelogUri,
 			metadata: webExtension.metadata,
 			targetPlatform: TargetPlatform.WEB,
-			validationMessages,
+			validations,
 			isValid
 		};
 	}

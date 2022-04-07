@@ -598,6 +598,17 @@ export class TextEdit {
 	}
 }
 
+export class SnippetTextEdit implements vscode.SnippetTextEdit {
+
+	range: vscode.Range;
+	snippet: vscode.SnippetString;
+
+	constructor(range: Range, snippet: SnippetString) {
+		this.range = range;
+		this.snippet = snippet;
+	}
+}
+
 export interface IFileOperationOptions {
 	overwrite?: boolean;
 	ignoreIfExists?: boolean;
@@ -1583,7 +1594,10 @@ export class CompletionList {
 
 @es5ClassCompat
 export class InlineSuggestion implements vscode.InlineCompletionItem {
-	insertText?: string;
+
+	insertText?: string | SnippetString;
+
+	filterText?: string;
 
 	/**
 	 * @deprecated Use `insertText` instead. Will be removed eventually.
@@ -1593,7 +1607,7 @@ export class InlineSuggestion implements vscode.InlineCompletionItem {
 	range?: Range;
 	command?: vscode.Command;
 
-	constructor(insertText: string, range?: Range, command?: vscode.Command) {
+	constructor(insertText: string | SnippetString, range?: Range, command?: vscode.Command) {
 		this.insertText = insertText;
 		this.range = range;
 		this.command = command;

@@ -3723,6 +3723,10 @@ declare namespace monaco.editor {
 		 */
 		enabled?: boolean;
 		/**
+		 *
+		 */
+		toggle?: 'show' | 'hide' | null;
+		/**
 		 * Font size of inline hints.
 		 * Default to 90% of the editor font size.
 		 */
@@ -6693,6 +6697,11 @@ declare namespace monaco.languages {
 		text: string;
 		eol?: editor.EndOfLineSequence;
 	};
+
+	export interface SnippetTextEdit {
+		range: IRange;
+		snippet: string;
+	}
 
 	/**
 	 * Interface used to format a model

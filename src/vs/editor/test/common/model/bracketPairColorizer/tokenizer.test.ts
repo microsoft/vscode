@@ -12,10 +12,8 @@ import { TextBufferTokenizer, Token, Tokenizer, TokenKind } from 'vs/editor/comm
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { EncodedTokenizationResult, IState, ITokenizationSupport, LanguageId, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('Bracket Pair Colorizer - Tokenizer', () => {
 	test('Basic', () => {
@@ -24,7 +22,7 @@ suite('Bracket Pair Colorizer - Tokenizer', () => {
 		const instantiationService = createModelServices(disposableStore);
 		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 		const languageService = instantiationService.get(ILanguageService);
-		disposableStore.add(ModesRegistry.registerLanguage({ id: mode1 }));
+		disposableStore.add(languageService.registerLanguage({ id: mode1 }));
 		const encodedMode1 = languageService.languageIdCodec.encodeLanguageId(mode1);
 
 		const denseKeyProvider = new DenseKeyProvider<string>();
@@ -42,10 +40,9 @@ suite('Bracket Pair Colorizer - Tokenizer', () => {
 		}));
 
 		const model = disposableStore.add(instantiateTextModel(instantiationService, document.getText(), mode1));
-		model.forceTokenization(model.getLineCount());
+		model.tokenization.forceTokenization(model.getLineCount());
 
-		const languageConfigService = new TestLanguageConfigurationService();
-		const brackets = new LanguageAgnosticBracketTokens(denseKeyProvider, l => languageConfigService.getLanguageConfiguration(l, undefined));
+		const brackets = new LanguageAgnosticBracketTokens(denseKeyProvider, l => languageConfigurationService.getLanguageConfiguration(l));
 
 		const tokens = readAllTokens(new TextBufferTokenizer(model, brackets));
 

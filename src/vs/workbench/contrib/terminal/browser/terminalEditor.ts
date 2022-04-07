@@ -75,6 +75,7 @@ export class TerminalEditor extends EditorPane {
 		this._findWidget = instantiationService.createInstance(TerminalFindWidget, this._findState);
 		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, _contextKeyService));
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalEditorInstanceContext, _contextKeyService));
+		this._register(this._terminalService.onDidRequestHideFindWidget(() => this.hideFindWidget()));
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {

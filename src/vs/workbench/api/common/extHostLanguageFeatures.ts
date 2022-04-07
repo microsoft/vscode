@@ -35,6 +35,8 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { raceCancellationError } from 'vs/base/common/async';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { DataTransferConverter, DataTransferDTO } from 'vs/workbench/api/common/shared/dataTransfer';
+import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 // --- adapter
 
@@ -1712,6 +1714,27 @@ class TypeHierarchyAdapter {
 		return map?.get(itemId);
 	}
 }
+
+class DocumentOnDropAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.DocumentOnDropProvider
+	) { }
+
+	async provideDocumentOnDropEdits(uri: URI, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
+		const doc = this._documents.getDocument(uri);
+		const pos = typeConvert.Position.to(position);
+		const dataTransfer = DataTransferConverter.toDataTransfer(dataTransferDto);
+
+		const edit = await this._provider.provideDocumentOnDropEdits(doc, pos, dataTransfer, token);
+		if (!edit) {
+			return undefined;
+		}
+		return typeConvert.SnippetTextEdit.from(edit);
+	}
+}
+
 type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
@@ -1720,7 +1743,8 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| SelectionRangeAdapter | CallHierarchyAdapter | TypeHierarchyAdapter
 	| DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
-	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter | InlineCompletionAdapterNew;
+	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter | InlineCompletionAdapterNew
+	| DocumentOnDropAdapter;
 
 class AdapterData {
 	constructor(
@@ -2339,6 +2363,18 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$releaseTypeHierarchy(handle: number, sessionId: string): void {
 		this._withAdapter(handle, TypeHierarchyAdapter, adapter => Promise.resolve(adapter.releaseSession(sessionId)), undefined, undefined);
+	}
+
+	// --- Document on drop
+
+	registerDocumentOnDropProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentOnDropProvider) {
+		const handle = this._addNewAdapter(new DocumentOnDropAdapter(this._documents, provider), extension);
+		this._proxy.$registerDocumentOnDropProvider(handle, this._transformDocumentSelector(selector));
+		return this._createDisposable(handle);
+	}
+
+	$provideDocumentOnDropEdits(handle: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
+		return this._withAdapter(handle, DocumentOnDropAdapter, adapter => Promise.resolve(adapter.provideDocumentOnDropEdits(URI.revive(resource), position, dataTransferDto, token)), undefined, undefined);
 	}
 
 	// --- configuration

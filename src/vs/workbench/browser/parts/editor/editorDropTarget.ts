@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editordroptarget';
+import { localize } from 'vs/nls';
 import { Extensions as DragAndDropExtensions, LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, containsDragType, CodeDataTransfers, DraggedTreeItemsIdentifier, extractTreeDropData, IDragAndDropContributionRegistry } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor, DragAndDropObserver } from 'vs/base/browser/dom';
 import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState } from 'vs/workbench/browser/parts/editor/editor';
@@ -28,11 +29,12 @@ interface IDropOperation {
 	splitDirection?: GroupDirection;
 }
 
+function isDropIntoEditorEnabled(configurationService: IConfigurationService) {
+	return configurationService.getValue<boolean>('workbench.editor.dropIntoEditor.enabled');
+}
+
 function isDragIntoEditorEvent(configurationService: IConfigurationService, e: DragEvent): boolean {
-	if (!configurationService.getValue<boolean>('workbench.experimental.editor.dragAndDropIntoEditor.enabled')) {
-		return false;
-	}
-	return e.shiftKey;
+	return isDropIntoEditorEnabled(configurationService) && e.shiftKey;
 }
 
 class DropOverlay extends Themable {
@@ -41,6 +43,7 @@ class DropOverlay extends Themable {
 
 	private container: HTMLElement | undefined;
 	private overlay: HTMLElement | undefined;
+	private dropIntoPromptElement?: HTMLSpanElement;
 
 	private currentDropOperation: IDropOperation | undefined;
 	private _disposed: boolean | undefined;
@@ -93,6 +96,13 @@ class DropOverlay extends Themable {
 		this.overlay = document.createElement('div');
 		this.overlay.classList.add('editor-group-overlay-indicator');
 		container.appendChild(this.overlay);
+
+		if (isDropIntoEditorEnabled(this.configurationService)) {
+			this.dropIntoPromptElement = document.createElement('span');
+			this.dropIntoPromptElement.classList.add('editor-group-overlay-drop-into-prompt');
+			this.dropIntoPromptElement.textContent = localize('dropIntoEditorPrompt', "Hold shift to drop into editor");
+			this.overlay.appendChild(this.dropIntoPromptElement);
+		}
 
 		// Overlay Event Handling
 		this.registerListeners(container);
@@ -444,18 +454,23 @@ class DropOverlay extends Themable {
 		switch (splitDirection) {
 			case GroupDirection.UP:
 				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '50%' });
+				this.toggleDropIntoPrompt(false);
 				break;
 			case GroupDirection.DOWN:
 				this.doPositionOverlay({ top: '50%', left: '0', width: '100%', height: '50%' });
+				this.toggleDropIntoPrompt(false);
 				break;
 			case GroupDirection.LEFT:
 				this.doPositionOverlay({ top: '0', left: '0', width: '50%', height: '100%' });
+				this.toggleDropIntoPrompt(false);
 				break;
 			case GroupDirection.RIGHT:
 				this.doPositionOverlay({ top: '0', left: '50%', width: '50%', height: '100%' });
+				this.toggleDropIntoPrompt(false);
 				break;
 			default:
 				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
+				this.toggleDropIntoPrompt(true);
 		}
 
 		// Make sure the overlay is visible now
@@ -508,6 +523,13 @@ class DropOverlay extends Themable {
 
 		// Reset current operation
 		this.currentDropOperation = undefined;
+	}
+
+	private toggleDropIntoPrompt(showing: boolean) {
+		if (!this.dropIntoPromptElement) {
+			return;
+		}
+		this.dropIntoPromptElement.style.opacity = showing ? '1' : '0';
 	}
 
 	contains(element: HTMLElement): boolean {

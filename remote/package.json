@@ -24,17 +24,17 @@
     "vscode-proxy-agent": "^0.12.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "6.0.0",
-    "xterm": "4.19.0-beta.17",
-    "xterm-addon-search": "0.9.0-beta.17",
-    "xterm-addon-serialize": "0.7.0-beta.11",
+    "xterm": "4.19.0-beta.20",
+    "xterm-addon-search": "0.9.0-beta.18",
+    "xterm-addon-serialize": "0.7.0-beta.12",
     "xterm-addon-unicode11": "0.4.0-beta.3",
-    "xterm-addon-webgl": "0.12.0-beta.25",
-    "xterm-headless": "4.19.0-beta.17",
+    "xterm-addon-webgl": "0.12.0-beta.27",
+    "xterm-headless": "4.19.0-beta.20",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
   "optionalDependencies": {
     "@vscode/windows-registry": "1.0.6",
-    "windows-process-tree": "^0.3.2"
+    "windows-process-tree": "0.3.3"
   }
 }

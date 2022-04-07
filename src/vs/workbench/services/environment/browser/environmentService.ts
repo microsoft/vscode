@@ -172,6 +172,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	}
 
 	@memoize
+	get enableSmokeTestDriver() { return this.options.developmentOptions?.enableSmokeTestDriver; }
+
+	@memoize
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
 
 	@memoize

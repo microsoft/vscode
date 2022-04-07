@@ -377,6 +377,8 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 		manifest: extensionDescription,
 		location: extensionDescription.extensionLocation,
 		targetPlatform: extensionDescription.targetPlatform,
+		validations: [],
+		isValid: true
 	};
 }
 

@@ -321,12 +321,15 @@ class CellContentProvider implements ITextModelContentProvider {
 			}
 		}
 
-		if (result) {
-			const once = Event.any(result.onWillDispose, ref.object.notebook.onWillDispose)(() => {
-				once.dispose();
-				ref.dispose();
-			});
+		if (!result) {
+			ref.dispose();
+			return null;
 		}
+
+		const once = Event.any(result.onWillDispose, ref.object.notebook.onWillDispose)(() => {
+			once.dispose();
+			ref.dispose();
+		});
 
 		return result;
 	}
@@ -399,12 +402,15 @@ class CellInfoContentProvider {
 			}
 		}
 
-		if (result) {
-			const once = result.onWillDispose(() => {
-				once.dispose();
-				ref.dispose();
-			});
+		if (!result) {
+			ref.dispose();
+			return null;
 		}
+
+		const once = result.onWillDispose(() => {
+			once.dispose();
+			ref.dispose();
+		});
 
 		return result;
 	}
@@ -471,34 +477,36 @@ class CellInfoContentProvider {
 		const cell = ref.object.notebook.cells.find(cell => !!cell.outputs.find(op => op.outputId === data.outputId));
 
 		if (!cell) {
+			ref.dispose();
 			return null;
 		}
 
 		const result = this._getResult(data, cell);
 
-		if (result) {
-			const model = this._modelService.createModel(result.content, result.mode, resource);
-			const cellModelListener = Event.any(cell.onDidChangeOutputs ?? Event.None, cell.onDidChangeOutputItems ?? Event.None)(() => {
-				const newResult = this._getResult(data, cell);
-
-				if (!newResult) {
-					return;
-				}
-
-				model.setValue(newResult.content);
-				model.setMode(newResult.mode.languageId);
-			});
-
-			const once = model.onWillDispose(() => {
-				once.dispose();
-				cellModelListener.dispose();
-				ref.dispose();
-			});
-
-			return model;
+		if (!result) {
+			ref.dispose();
+			return null;
 		}
 
-		return null;
+		const model = this._modelService.createModel(result.content, result.mode, resource);
+		const cellModelListener = Event.any(cell.onDidChangeOutputs ?? Event.None, cell.onDidChangeOutputItems ?? Event.None)(() => {
+			const newResult = this._getResult(data, cell);
+
+			if (!newResult) {
+				return;
+			}
+
+			model.setValue(newResult.content);
+			model.setMode(newResult.mode.languageId);
+		});
+
+		const once = model.onWillDispose(() => {
+			once.dispose();
+			cellModelListener.dispose();
+			ref.dispose();
+		});
+
+		return model;
 	}
 }
 
@@ -551,6 +559,15 @@ class NotebookEditorManager implements IWorkbenchContribution {
 			for (const group of editorGroups.groups) {
 				const staleInputs = group.editors.filter(input => input instanceof NotebookEditorInput && input.viewType === e);
 				group.closeEditors(staleInputs);
+			}
+		}));
+
+		// CLOSE editors when we are about to open conflicting notebooks
+		this._disposables.add(_notebookEditorModelService.onWillFailWithConflict(e => {
+			for (const group of editorGroups.groups) {
+				const conflictInputs = group.editors.filter(input => input instanceof NotebookEditorInput && input.viewType !== e.viewType && isEqual(input.resource, e.resource));
+				const p = group.closeEditors(conflictInputs);
+				e.waitUntil(p);
 			}
 		}));
 	}

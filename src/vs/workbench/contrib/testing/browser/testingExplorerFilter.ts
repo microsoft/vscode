@@ -205,6 +205,17 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 			})),
 			new Separator(),
 			{
+				checked: this.filters.fuzzy.value,
+				class: undefined,
+				enabled: true,
+				id: 'fuzzy',
+				label: localize('testing.filters.fuzzyMatch', "Fuzzy Match"),
+				run: () => this.filters.fuzzy.value = !this.filters.fuzzy.value,
+				tooltip: '',
+				dispose: () => null
+			},
+			new Separator(),
+			{
 				checked: this.filters.isFilteringFor(TestFilterTerm.Hidden),
 				class: undefined,
 				enabled: this.testService.excluded.hasAny,

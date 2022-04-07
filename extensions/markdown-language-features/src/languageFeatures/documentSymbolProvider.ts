@@ -58,7 +58,7 @@ export class MdDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 			this.getSymbolName(entry),
 			vscode.SymbolKind.String,
 			'',
-			entry.location);
+			entry.sectionLocation);
 	}
 
 	private toDocumentSymbol(entry: TocEntry) {
@@ -66,8 +66,8 @@ export class MdDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 			this.getSymbolName(entry),
 			'',
 			vscode.SymbolKind.String,
-			entry.location.range,
-			entry.location.range);
+			entry.sectionLocation.range,
+			entry.sectionLocation.range);
 	}
 
 	private getSymbolName(entry: TocEntry): string {

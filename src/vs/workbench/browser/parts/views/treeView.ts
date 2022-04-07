@@ -65,6 +65,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Mimes } from 'vs/base/common/mime';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IDataTransfer } from 'vs/workbench/common/dnd';
+import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 export class TreeViewPane extends ViewPane {
 
@@ -967,12 +968,14 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		if (!(node instanceof ResolvableTreeItem) || !node.hasResolve) {
 			if (resource && !node.tooltip) {
 				return undefined;
-			} else if (!node.tooltip) {
+			} else if (node.tooltip === undefined) {
 				return label;
 			} else if (!isString(node.tooltip)) {
 				return { markdown: node.tooltip, markdownNotSupportedFallback: resource ? undefined : renderMarkdownAsPlaintext(node.tooltip) }; // Passing undefined as the fallback for a resource falls back to the old native hover
-			} else {
+			} else if (node.tooltip !== '') {
 				return node.tooltip;
+			} else {
+				return undefined;
 			}
 		}
 
@@ -1018,13 +1021,13 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		templateData.actionBar.clear();
 		templateData.icon.style.color = '';
 
-		if (resource || this.isFileKindThemeIcon(node.themeIcon)) {
+		if (resource) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean; badges: boolean }>('explorer.decorations');
 			const labelResource = resource ? resource : URI.parse('missing:_icon_resource');
 			templateData.resourceLabel.setResource({ name: label, description, resource: labelResource }, {
 				fileKind: this.getFileKind(node),
 				title,
-				hideIcon: !!iconUrl || (!!node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)),
+				hideIcon: !!iconUrl || this.shouldShowThemeIcon(!!resource, node.themeIcon),
 				fileDecorations,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
@@ -1045,7 +1048,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			templateData.icon.style.backgroundImage = DOM.asCSSUrl(iconUrl);
 		} else {
 			let iconClass: string | undefined;
-			if (node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)) {
+			// If there is a resource for this tree item then we should respect the file icon theme's choice about
+			// whether to show a folder icon.
+			if (this.shouldShowThemeIcon(!!resource, node.themeIcon)) {
 				iconClass = ThemeIcon.asClassName(node.themeIcon);
 				if (node.themeIcon.color) {
 					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.themeIcon.color.id)?.toString() ?? '';
@@ -1078,9 +1083,34 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		container.parentElement!.classList.toggle('align-icon-with-twisty', this.aligner.alignIconWithTwisty(treeItem));
 	}
 
+	private shouldShowThemeIcon(hasResource: boolean, icon: ThemeIcon | undefined): icon is ThemeIcon {
+		if (!icon) {
+			return false;
+		}
+
+		if (hasResource && (this.isFileKindThemeIcon(icon) || !this.shouldShowFileIcons())) {
+			return false;
+		} else if (hasResource && (this.isFolderThemeIcon(icon) || !this.shouldShowFolderIcons())) {
+			return false;
+		}
+		return true;
+	}
+
+	private shouldShowFileIcons(): boolean {
+		return this.configurationService.getValue(ThemeSettings.FILE_ICON_THEME);
+	}
+
+	private shouldShowFolderIcons(): boolean {
+		return this.themeService.getFileIconTheme().hasFolderIcons && this.shouldShowFileIcons();
+	}
+
+	private isFolderThemeIcon(icon: ThemeIcon | undefined): boolean {
+		return icon?.id === FolderThemeIcon.id;
+	}
+
 	private isFileKindThemeIcon(icon: ThemeIcon | undefined): boolean {
 		if (icon) {
-			return icon.id === FileThemeIcon.id || icon.id === FolderThemeIcon.id;
+			return icon.id === FileThemeIcon.id || this.isFolderThemeIcon(icon);
 		} else {
 			return false;
 		}
@@ -1247,6 +1277,7 @@ export class CustomTreeView extends AbstractTreeView {
 	constructor(
 		id: string,
 		title: string,
+		private readonly extensionId: string,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICommandService commandService: ICommandService,
@@ -1259,13 +1290,26 @@ export class CustomTreeView extends AbstractTreeView {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHoverService hoverService: IHoverService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IActivityService activityService: IActivityService
+		@IActivityService activityService: IActivityService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, hoverService, contextKeyService, activityService);
 	}
 
 	protected activate() {
 		if (!this.activated) {
+			type ExtensionViewTelemetry = {
+				extensionId: string;
+				id: string;
+			};
+			type ExtensionViewTelemetryMeta = {
+				extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'digitarald'; comment: 'Id of the extension' };
+				id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'digitarald'; comment: 'Id of the view' };
+			};
+			this.telemetryService.publicLog2<ExtensionViewTelemetry, ExtensionViewTelemetryMeta>('Extension:ViewActivate', {
+				extensionId: this.extensionId,
+				id: this.id,
+			});
 			this.createTree();
 			this.progressService.withProgress({ location: this.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
 				.then(() => timeout(2000))
@@ -1385,13 +1429,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		}
 	}
 
-	private debugLog(originalEvent: DragEvent) {
-		const types: Set<string> = new Set();
-		originalEvent.dataTransfer?.types.forEach((value, index) => {
-			if ((originalEvent.dataTransfer?.items[index].kind === 'string') && (INTERNAL_MIME_TYPES.indexOf(value) < 0)) {
-				types.add(this.convertKnownMimes(value).type);
-			}
-		});
+	private debugLog(types: Set<string>) {
 		if (types.size) {
 			this.logService.debug(`TreeView dragged mime types: ${Array.from(types).join(', ')}`);
 		} else {
@@ -1400,12 +1438,19 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
-		this.debugLog(originalEvent);
+		const types: Set<string> = new Set();
+		originalEvent.dataTransfer?.types.forEach((value, index) => {
+			if (INTERNAL_MIME_TYPES.indexOf(value) < 0) {
+				types.add(this.convertKnownMimes(value).type);
+			}
+		});
+
+		this.debugLog(types);
 		const dndController = this.dndController;
 		if (!dndController || !originalEvent.dataTransfer || (dndController.dropMimeTypes.length === 0)) {
 			return false;
 		}
-		const dragContainersSupportedType = originalEvent.dataTransfer.types.some((value, index) => {
+		const dragContainersSupportedType = Array.from(types).some((value, index) => {
 			if (value === this.treeMimeType) {
 				return true;
 			} else {
@@ -1436,13 +1481,18 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		return element.label ? element.label.label : (element.resourceUri ? this.labelService.getUriLabel(URI.revive(element.resourceUri)) : undefined);
 	}
 
-	private convertKnownMimes(type: string, value?: string): { type: string; value?: string } {
-		let convertedValue = value;
+	private convertKnownMimes(type: string, value?: string | FileSystemHandle): { type: string; value?: string } {
+		let convertedValue = undefined;
 		let convertedType = type;
 		switch (type) {
 			case DataTransfers.RESOURCES.toLowerCase(): {
-				convertedValue = value ? convertResourceUrlsToUriList(value) : undefined;
+				convertedValue = value ? convertResourceUrlsToUriList(value as string) : undefined;
 				convertedType = Mimes.uriList;
+				break;
+			}
+			case 'Files': {
+				convertedType = Mimes.uriList;
+				convertedValue = value ? (value as FileSystemHandle).name : undefined;
 				break;
 			}
 		}
@@ -1455,8 +1505,9 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 			return;
 		}
 		const treeDataTransfer: IDataTransfer = new Map();
-		let stringCount = Array.from(originalEvent.dataTransfer.items).reduce((previous, current) => {
-			if (current.kind === 'string') {
+		const uris: URI[] = [];
+		let itemsCount = Array.from(originalEvent.dataTransfer.items).reduce((previous, current) => {
+			if ((current.kind === 'string') || (current.kind === 'file')) {
 				return previous + 1;
 			}
 			return previous;
@@ -1469,8 +1520,15 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		}
 		await new Promise<void>(resolve => {
 			function decrementStringCount() {
-				stringCount--;
-				if (stringCount === 0) {
+				itemsCount--;
+				if (itemsCount === 0) {
+					// Check if there are uris to add and add them
+					if (uris.length) {
+						treeDataTransfer.set(Mimes.uriList, {
+							asString: () => Promise.resolve(uris.map(uri => uri.toString()).join('\n')),
+							value: undefined
+						});
+					}
 					resolve();
 				}
 			}
@@ -1481,15 +1539,14 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 			for (const dataItem of originalEvent.dataTransfer.items) {
 				const type = dataItem.type;
 				const convertedType = this.convertKnownMimes(type).type;
-				if (dataItem.kind === 'string') {
-					if ((convertedType === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(convertedType) >= 0)) {
+				if ((INTERNAL_MIME_TYPES.indexOf(convertedType) < 0)
+					&& (convertedType === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(convertedType) >= 0)) {
+					if (dataItem.kind === 'string') {
 						dataItem.getAsString(dataValue => {
 							if (convertedType === this.treeMimeType) {
 								treeSourceInfo = JSON.parse(dataValue);
 							}
-							if (dataValue
-								&& (INTERNAL_MIME_TYPES.indexOf(convertedType) < 0)
-								&& ((convertedType === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(convertedType) >= 0))) {
+							if (dataValue) {
 								const converted = this.convertKnownMimes(type, dataValue);
 								treeDataTransfer.set(converted.type, {
 									asString: () => Promise.resolve(converted.value!),
@@ -1498,6 +1555,12 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 							}
 							decrementStringCount();
 						});
+					} else if (dataItem.kind === 'file') {
+						const dataValue = dataItem.getAsFile();
+						if (dataValue) {
+							uris.push(URI.file(dataValue.path));
+						}
+						decrementStringCount();
 					} else {
 						decrementStringCount();
 					}

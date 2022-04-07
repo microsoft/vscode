@@ -513,6 +513,7 @@ export class TestingExplorerViewModel extends Disposable {
 
 		this._register(Event.any(
 			filterState.text.onDidChange,
+			filterState.fuzzy.onDidChange,
 			testService.excluded.onTestExclusionsChanged,
 		)(this.tree.refilter, this.tree));
 
@@ -911,13 +912,14 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 			return FilterResult.Include;
 		}
 
+		const fuzzy = this.state.fuzzy.value;
 		for (let e: TestItemTreeElement | null = element; e; e = e.parent) {
 			// start as included if the first glob is a negation
 			let included = this.state.globList[0].include === false ? FilterResult.Include : FilterResult.Inherit;
 			const data = e.label.toLowerCase();
 
 			for (const { include, text } of this.state.globList) {
-				if (fuzzyContains(data, text)) {
+				if (fuzzy ? fuzzyContains(data, text) : data.includes(text)) {
 					included = include ? FilterResult.Include : FilterResult.Exclude;
 				}
 			}

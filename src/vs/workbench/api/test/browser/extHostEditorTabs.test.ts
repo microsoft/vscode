@@ -35,7 +35,7 @@ suite('ExtHostEditorTabs', function () {
 			})
 		);
 
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 0);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 0);
 		// Active group should never be undefined (there is always an active group). Ensure accessing it undefined throws.
 		// TODO @lramos15 Add a throw on the main side when a model is sent without an active group
 		assert.throws(() => extHostEditorTabs.tabGroups.activeTabGroup);
@@ -63,8 +63,8 @@ suite('ExtHostEditorTabs', function () {
 			groupId: 12,
 			tabs: [tab]
 		}]);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		const [first] = extHostEditorTabs.tabGroups.groups;
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		const [first] = extHostEditorTabs.tabGroups.all;
 		assert.ok(first.activeTab);
 		assert.strictEqual(first.tabs.indexOf(first.activeTab), 0);
 
@@ -75,8 +75,8 @@ suite('ExtHostEditorTabs', function () {
 				groupId: 12,
 				tabs: [tab]
 			}]);
-			assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-			const [first] = extHostEditorTabs.tabGroups.groups;
+			assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+			const [first] = extHostEditorTabs.tabGroups.all;
 			assert.ok(first.activeTab);
 			assert.strictEqual(first.tabs.indexOf(first.activeTab), 0);
 		}
@@ -95,8 +95,8 @@ suite('ExtHostEditorTabs', function () {
 			groupId: 12,
 			tabs: []
 		}]);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		const [first] = extHostEditorTabs.tabGroups.groups;
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		const [first] = extHostEditorTabs.tabGroups.all;
 		assert.strictEqual(first.activeTab, undefined);
 		assert.strictEqual(first.tabs.length, 0);
 	});
@@ -121,7 +121,7 @@ suite('ExtHostEditorTabs', function () {
 		}]);
 		assert.ok(extHostEditorTabs.tabGroups.activeTabGroup);
 		const activeTabGroup: vscode.TabGroup = extHostEditorTabs.tabGroups.activeTabGroup;
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
 		assert.strictEqual(activeTabGroup.tabs.length, 0);
 		assert.strictEqual(count, 1);
 	});
@@ -147,74 +147,12 @@ suite('ExtHostEditorTabs', function () {
 			groupId: 12,
 			tabs: [tab]
 		}]);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		const [first] = extHostEditorTabs.tabGroups.groups;
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		const [first] = extHostEditorTabs.tabGroups.all;
 		assert.ok(first.activeTab);
 		assert.strictEqual(first.tabs.indexOf(first.activeTab), 0);
 		assert.strictEqual(first.activeTab, first.tabs[0]);
 		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup, first);
-	});
-
-	// TODO @lramos15 Change this test because now it only fires when id changes
-	test.skip('onDidChangeActiveTabGroup fires properly', function () {
-		const extHostEditorTabs = new ExtHostEditorTabs(
-			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
-				// override/implement $moveTab or $closeTab
-			})
-		);
-
-		let count = 0;
-		let activeTabGroupFromEvent: vscode.TabGroup | undefined = undefined;
-		extHostEditorTabs.tabGroups.onDidChangeActiveTabGroup((tabGroup) => {
-			count++;
-			activeTabGroupFromEvent = tabGroup;
-		});
-
-
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 0);
-		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup, undefined);
-		assert.strictEqual(count, 0);
-		const tabModel = [{
-			isActive: true,
-			viewColumn: 0,
-			groupId: 12,
-			tabs: [],
-			activeTab: undefined
-		}];
-		extHostEditorTabs.$acceptEditorTabModel(tabModel);
-		assert.ok(extHostEditorTabs.tabGroups.activeTabGroup);
-		let activeTabGroup: vscode.TabGroup = extHostEditorTabs.tabGroups.activeTabGroup;
-		assert.strictEqual(count, 1);
-		assert.strictEqual(activeTabGroup, activeTabGroupFromEvent);
-		// Firing again with same model shouldn't cause a change
-		extHostEditorTabs.$acceptEditorTabModel(tabModel);
-		assert.strictEqual(count, 1);
-		// Changing a property should fire a change
-		tabModel[0].viewColumn = 1;
-		extHostEditorTabs.$acceptEditorTabModel(tabModel);
-		assert.strictEqual(count, 2);
-		activeTabGroup = extHostEditorTabs.tabGroups.activeTabGroup;
-		assert.strictEqual(activeTabGroup, activeTabGroupFromEvent);
-		// Changing the active tab group should fire a change
-		tabModel[0].isActive = false;
-		tabModel.push({
-			isActive: true,
-			viewColumn: 0,
-			groupId: 13,
-			tabs: [],
-			activeTab: undefined
-		});
-		extHostEditorTabs.$acceptEditorTabModel(tabModel);
-		assert.strictEqual(count, 3);
-		activeTabGroup = extHostEditorTabs.tabGroups.activeTabGroup;
-		assert.strictEqual(activeTabGroup, activeTabGroupFromEvent);
-
-		// Empty tab model should fire a change and return undefined
-		extHostEditorTabs.$acceptEditorTabModel([]);
-		assert.strictEqual(count, 4);
-		activeTabGroup = extHostEditorTabs.tabGroups.activeTabGroup;
-		assert.strictEqual(activeTabGroup, undefined);
-		assert.strictEqual(activeTabGroup, activeTabGroupFromEvent);
 	});
 
 	test('Ensure reference stability', function () {
@@ -234,7 +172,7 @@ suite('ExtHostEditorTabs', function () {
 			groupId: 12,
 			tabs: [tabDto]
 		}]);
-		let all = extHostEditorTabs.tabGroups.groups.map(group => group.tabs).flat();
+		let all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 1);
 		const apiTab1 = all[0];
 		assert.ok(apiTab1.kind instanceof TextTabInput);
@@ -255,7 +193,7 @@ suite('ExtHostEditorTabs', function () {
 			groupId: 12
 		});
 
-		all = extHostEditorTabs.tabGroups.groups.map(group => group.tabs).flat();
+		all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 1);
 		const apiTab2 = all[0];
 		assert.ok(apiTab1.kind instanceof TextTabInput);
@@ -301,7 +239,7 @@ suite('ExtHostEditorTabs', function () {
 			tabs: [tabDtoAAA, tabDtoBBB]
 		}]);
 
-		let all = extHostEditorTabs.tabGroups.groups.map(group => group.tabs).flat();
+		let all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 2);
 
 		const activeTab1 = extHostEditorTabs.tabGroups.activeTabGroup?.activeTab;
@@ -341,7 +279,7 @@ suite('ExtHostEditorTabs', function () {
 		});
 		assert.throws(() => {
 			// @ts-expect-error write to readonly prop
-			extHostEditorTabs.tabGroups.groups.length = 0;
+			extHostEditorTabs.tabGroups.all.length = 0;
 		});
 		assert.throws(() => {
 			// @ts-expect-error write to readonly prop
@@ -379,7 +317,7 @@ suite('ExtHostEditorTabs', function () {
 			groupId: 12,
 			tabs: [tab]
 		}]);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
 		const activeTab = extHostEditorTabs.tabGroups.activeTabGroup?.activeTab;
 		assert.ok(activeTab);
 		extHostEditorTabs.tabGroups.close(activeTab, false);
@@ -418,12 +356,12 @@ suite('ExtHostEditorTabs', function () {
 			tabs: [tabDto]
 		}]);
 
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 1);
 
-		const tab = extHostEditorTabs.tabGroups.groups[0].tabs[0];
+		const tab = extHostEditorTabs.tabGroups.all[0].tabs[0];
 
-		const p = new Promise<vscode.Tab[]>(resolve => extHostEditorTabs.tabGroups.onDidChangeTabs(resolve));
+		const p = new Promise<vscode.TabChangeEvent>(resolve => extHostEditorTabs.tabGroups.onDidChangeTabs(resolve));
 
 		extHostEditorTabs.$acceptTabOperation({
 			groupId: 12,
@@ -432,7 +370,7 @@ suite('ExtHostEditorTabs', function () {
 			tabDto: { ...tabDto, label: 'NEW LABEL' }
 		});
 
-		const changedTab = (await p)[0];
+		const changedTab = (await p).changed[0];
 
 		assert.ok(tab === changedTab);
 		assert.strictEqual(changedTab.label, 'NEW LABEL');
@@ -472,8 +410,8 @@ suite('ExtHostEditorTabs', function () {
 			tabs: [tab1, tab2, tab3]
 		}]);
 
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 3);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 3);
 
 		// Active tab is correct
 		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup?.activeTab, extHostEditorTabs.tabGroups.activeTabGroup?.tabs[0]);
@@ -503,8 +441,8 @@ suite('ExtHostEditorTabs', function () {
 			groupId: 12,
 			tabs: [tab3]
 		}]);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 1);
 		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup?.activeTab, extHostEditorTabs.tabGroups.activeTabGroup?.tabs[0]);
 
 		// Closing out all tabs returns undefine active tab
@@ -514,94 +452,11 @@ suite('ExtHostEditorTabs', function () {
 			groupId: 12,
 			tabs: []
 		}]);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 0);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 0);
 		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup?.activeTab, undefined);
 	});
 
-	test('Active tab change event', function () {
-
-		const extHostEditorTabs = new ExtHostEditorTabs(
-			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
-				// override/implement $moveTab or $closeTab
-			})
-		);
-
-		let activeTabChangeCount = 0;
-		extHostEditorTabs.tabGroups.onDidChangeActiveTab((activeTab) => {
-			if (activeTab.isActive === false) {
-				throw new Error('Active tab changed fired on inactive tab');
-			}
-			activeTabChangeCount++;
-		});
-
-		const tab1: IEditorTabDto = createTabDto({
-			id: 'uniquestring',
-			isActive: true,
-			label: 'label1',
-		});
-
-		const tab2: IEditorTabDto = createTabDto({
-			isActive: false,
-			id: 'uniquestring2',
-			label: 'label2',
-		});
-
-		const tab3: IEditorTabDto = createTabDto({
-			isActive: false,
-			id: 'uniquestring3',
-			label: 'label3',
-		});
-
-		extHostEditorTabs.$acceptEditorTabModel([{
-			isActive: true,
-			viewColumn: 0,
-			groupId: 12,
-			tabs: [tab1, tab2, tab3]
-		}]);
-
-		// Accepting a model doesn't fire an active tab change event
-		assert.strictEqual(activeTabChangeCount, 0);
-
-		// Switching active tab works
-		tab1.isActive = false;
-		tab2.isActive = true;
-
-		extHostEditorTabs.$acceptTabOperation({
-			groupId: 12,
-			index: 0,
-			kind: TabModelOperationKind.TAB_UPDATE,
-			tabDto: tab1
-		});
-		extHostEditorTabs.$acceptTabOperation({
-			groupId: 12,
-			index: 1,
-			kind: TabModelOperationKind.TAB_UPDATE,
-			tabDto: tab2
-		});
-		// The active tab changed so it is fired once
-		assert.strictEqual(activeTabChangeCount, 1);
-
-		//Closing tabs out works
-		tab3.isActive = true;
-		extHostEditorTabs.$acceptEditorTabModel([{
-			isActive: true,
-			viewColumn: 0,
-			groupId: 12,
-			tabs: [tab3]
-		}]);
-		// Accepting a model doesn't fire an active tab change event
-		assert.strictEqual(activeTabChangeCount, 1);
-		tab3.label = 'Foobar';
-		extHostEditorTabs.$acceptTabOperation({
-			groupId: 12,
-			index: 0,
-			kind: TabModelOperationKind.TAB_UPDATE,
-			tabDto: tab3
-		});
-		// Something related to the active tab changed
-		assert.strictEqual(activeTabChangeCount, 2);
-	});
 	test('Tab operations patches open and close correctly', function () {
 		const extHostEditorTabs = new ExtHostEditorTabs(
 			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
@@ -634,8 +489,8 @@ suite('ExtHostEditorTabs', function () {
 			tabs: [tab1, tab2, tab3]
 		}]);
 
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 3);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 3);
 
 		// Close tab 2
 		extHostEditorTabs.$acceptTabOperation({
@@ -644,8 +499,8 @@ suite('ExtHostEditorTabs', function () {
 			kind: TabModelOperationKind.TAB_CLOSE,
 			tabDto: tab2
 		});
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 2);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 2);
 
 		// Close active tab and update tab 3 to be active
 		extHostEditorTabs.$acceptTabOperation({
@@ -654,8 +509,8 @@ suite('ExtHostEditorTabs', function () {
 			kind: TabModelOperationKind.TAB_CLOSE,
 			tabDto: tab1
 		});
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 1);
 		tab3.isActive = true;
 		extHostEditorTabs.$acceptTabOperation({
 			groupId: 12,
@@ -663,9 +518,9 @@ suite('ExtHostEditorTabs', function () {
 			kind: TabModelOperationKind.TAB_UPDATE,
 			tabDto: tab3
 		});
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups[0]?.activeTab?.label, 'label3');
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all[0]?.activeTab?.label, 'label3');
 
 		// Open tab 2 back
 		extHostEditorTabs.$acceptTabOperation({
@@ -674,8 +529,8 @@ suite('ExtHostEditorTabs', function () {
 			kind: TabModelOperationKind.TAB_OPEN,
 			tabDto: tab2
 		});
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 2);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups[0]?.tabs[1]?.label, 'label2');
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 2);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all[0]?.tabs[1]?.label, 'label2');
 	});
 });

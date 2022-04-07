@@ -652,7 +652,7 @@ export interface IEditorGroup {
 	 *
 	 * @returns a promise when all editors are closed.
 	 */
-	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void>;
+	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean>;
 
 	/**
 	 * Replaces editors in this group with the provided replacement.

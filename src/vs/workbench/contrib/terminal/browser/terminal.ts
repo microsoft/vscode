@@ -15,7 +15,7 @@ import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IEditableData } from 'vs/workbench/common/views';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
@@ -146,6 +146,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	onDidInputInstanceData: Event<ITerminalInstance>;
 	onDidRegisterProcessSupport: Event<void>;
 	onDidChangeConnectionState: Event<void>;
+	onDidRequestHideFindWidget: Event<void>;
 
 	/**
 	 * Creates a terminal.
@@ -651,7 +652,7 @@ export interface ITerminalInstance {
 	/**
 	 * Copies the terminal selection to the clipboard.
 	 */
-	copySelection(asHtml?: boolean): Promise<void>;
+	copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void>;
 
 	/**
 	 * Current selection in the terminal.

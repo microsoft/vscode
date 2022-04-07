@@ -115,6 +115,14 @@ export class MouseHandler extends ViewEventHandler {
 				mousePointerId = pointerId;
 			}
 		}));
+		// The `pointerup` listener registered by `GlobalEditorPointerMoveMonitor` does not get invoked 100% of the times.
+		// I speculate that this is because the `pointerup` listener is only registered during the `mousedown` event, and perhaps
+		// the `pointerup` event is already queued for dispatching, which makes it that the new listener doesn't get fired.
+		// See https://github.com/microsoft/vscode/issues/146486 for repro steps.
+		// To compensate for that, we simply register here a `pointerup` listener and just communicate it.
+		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, dom.EventType.POINTER_UP, (e: PointerEvent) => {
+			this._mouseDownOperation.onPointerUp();
+		}));
 		this._register(mouseEvents.onMouseDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e, mousePointerId)));
 
 		const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
@@ -440,6 +448,10 @@ class MouseDownOperation extends Disposable {
 	}
 
 	public onHeightChanged(): void {
+		this._mouseMoveMonitor.stopMonitoring();
+	}
+
+	public onPointerUp(): void {
 		this._mouseMoveMonitor.stopMonitoring();
 	}
 

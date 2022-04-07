@@ -275,6 +275,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 						state,
 						panelOptions: webviewInput.webview.options,
 						webviewOptions: webviewInput.webview.contentOptions,
+						active: webviewInput === this._editorService.activeEditor,
 					}, editorGroupToColumn(this._editorGroupService, webviewInput.group || 0));
 				} catch (error) {
 					onUnexpectedError(error);
