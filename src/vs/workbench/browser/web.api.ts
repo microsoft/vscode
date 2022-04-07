@@ -64,14 +64,14 @@ export interface IWorkbench {
 		openUri(target: URI): Promise<boolean>;
 	};
 
-	/**
-	 * Show progress in the editor. Progress is shown while running the given callback
-	 * and while the promise it returned isn't resolved nor rejected.
-	 *
-	 * @param task A callback returning a promise.
-	 * @return A promise that resolves to the returned value of the given task result.
-	 */
 	window: {
+		/**
+		 * Show progress in the editor. Progress is shown while running the given callback
+		 * and while the promise it returned isn't resolved nor rejected.
+		 *
+		 * @param task A callback returning a promise.
+		 * @return A promise that resolves to the returned value of the given task result.
+		 */
 		withProgress(options: IProgressOptions, task: (progress: IProgress<{ message?: string; increment?: number }>) => Promise<unknown>): Promise<unknown>;
 	};
 
