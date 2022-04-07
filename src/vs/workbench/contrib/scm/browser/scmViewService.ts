@@ -30,8 +30,11 @@ function getRepositoryName(workspaceContextService: IWorkspaceContextService, re
 	return folder?.uri.toString() === repository.provider.rootUri.toString() ? folder.name : basename(repository.provider.rootUri);
 }
 
+type ISCMRepositoryViewSortKey = 'discovery time' | 'name' | 'path';
+
 export interface ISCMViewServiceState {
 	readonly all: string[];
+	readonly sortKey: ISCMRepositoryViewSortKey;
 	readonly visible: number[];
 }
 
@@ -120,7 +123,7 @@ export class SCMViewService implements ISCMViewService {
 	private _onDidFocusRepository = new Emitter<ISCMRepository | undefined>();
 	readonly onDidFocusRepository = this._onDidFocusRepository.event;
 
-	private _repositoriesSortKey: 'discovery time' | 'name' | 'path';
+	private _repositoriesSortKey: ISCMRepositoryViewSortKey;
 	private _compareRepositories: (op1: ISCMRepositoryView, op2: ISCMRepositoryView) => number;
 
 	constructor(
@@ -131,7 +134,14 @@ export class SCMViewService implements ISCMViewService {
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		this.menus = instantiationService.createInstance(SCMMenus);
-		this._repositoriesSortKey = configurationService.getValue('scm.repositories.sortOrder');
+
+		try {
+			this.previousState = JSON.parse(storageService.get('scm:view:visibleRepositories', StorageScope.WORKSPACE, ''));
+		} catch {
+			// noop
+		}
+
+		this._repositoriesSortKey = this.previousState?.sortKey ?? configurationService.getValue('scm.repositories.sortOrder');
 
 		this._compareRepositories = (op1: ISCMRepositoryView, op2: ISCMRepositoryView): number => {
 			// Sort by discovery time
@@ -167,12 +177,6 @@ export class SCMViewService implements ISCMViewService {
 				this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
 			}
 		});
-
-		try {
-			this.previousState = JSON.parse(storageService.get('scm:view:visibleRepositories', StorageScope.WORKSPACE, ''));
-		} catch {
-			// noop
-		}
 
 		for (const repository of scmService.repositories) {
 			this.onDidAddRepository(repository);
@@ -321,7 +325,7 @@ export class SCMViewService implements ISCMViewService {
 
 		const all = this.repositories.map(r => getProviderStorageKey(r.repository.provider));
 		const visible = this.visibleRepositories.map(r => all.indexOf(getProviderStorageKey(r.repository.provider)));
-		const raw = JSON.stringify({ all, visible });
+		const raw = JSON.stringify({ all, sortKey: this._repositoriesSortKey, visible });
 
 		this.storageService.store('scm:view:visibleRepositories', raw, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
