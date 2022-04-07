@@ -172,7 +172,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		let alternativeKeyDown = this._altKey.keyStatus.altKey || ((isWindows || isLinux) && this._altKey.keyStatus.shiftKey);
 
 		const updateAltState = () => {
-			const wantsAltCommand = mouseOver && alternativeKeyDown;
+			const wantsAltCommand = mouseOver && alternativeKeyDown && !!this._commandAction.alt?.enabled;
 			if (wantsAltCommand !== this._wantsAltCommand) {
 				this._wantsAltCommand = wantsAltCommand;
 				this.updateLabel();
