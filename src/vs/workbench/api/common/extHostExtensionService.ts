@@ -229,6 +229,15 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		return false;
 	}
 
+	public async getExtension(extensionId: string): Promise<IExtensionDescription | undefined> {
+		const ext = await this._mainThreadExtensionsProxy.$getExtension(extensionId);
+		return ext && {
+			...ext,
+			identifier: new ExtensionIdentifier(ext.identifier.value),
+			extensionLocation: URI.revive(ext.extensionLocation),
+		};
+	}
+
 	private _activateByEvent(activationEvent: string, startup: boolean): Promise<void> {
 		return this._activator.activateByEvent(activationEvent, startup);
 	}
@@ -885,6 +894,7 @@ export const IExtHostExtensionService = createDecorator<IExtHostExtensionService
 export interface IExtHostExtensionService extends AbstractExtHostExtensionService {
 	readonly _serviceBrand: undefined;
 	initialize(): Promise<void>;
+	getExtension(extensionId: string): Promise<IExtensionDescription | undefined>;
 	isActivated(extensionId: ExtensionIdentifier): boolean;
 	activateByIdWithErrors(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
 	deactivateAll(): Promise<void>;

@@ -289,7 +289,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	}
 
 	private _emitModelTokensChangedEvent(e: IModelTokensChangedEvent): void {
-		if (!this._textModel._isDisposing) {
+		if (!this._textModel._isDisposing()) {
 			this.bracketPairsTextModelPart.handleDidChangeTokens(e);
 			this._onDidChangeTokens.fire(e);
 		}

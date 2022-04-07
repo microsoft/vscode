@@ -3,18 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-binary-resource-editor:focus {
-	outline: none !important;
-}
+import { homedir } from 'os';
+import { ExtHostVariableResolverProviderService } from 'vs/workbench/api/common/extHostVariableResolverService';
 
-.monaco-binary-resource-editor {
-	padding: 0 0 0 16px;
-	box-sizing: border-box;
-}
-
-.monaco-binary-resource-editor .monaco-link,
-.monaco-binary-resource-editor .monaco-link:hover {
-	cursor: pointer;
-	text-decoration: underline;
-	margin-left: 5px;
+export class NodeExtHostVariableResolverProviderService extends ExtHostVariableResolverProviderService {
+	protected override homeDir(): string | undefined {
+		return homedir();
+	}
 }

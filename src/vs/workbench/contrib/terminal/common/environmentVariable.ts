@@ -7,6 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { VariableResolver } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 
 export const IEnvironmentVariableService = createDecorator<IEnvironmentVariableService>('environmentVariableService');
 
@@ -51,7 +52,7 @@ export interface IMergedEnvironmentVariableCollection {
 	 * @param variableResolver An optional function to use to resolve variables within the
 	 * environment values.
 	 */
-	applyToProcessEnvironment(env: IProcessEnvironment, variableResolver?: (str: string) => string): void;
+	applyToProcessEnvironment(env: IProcessEnvironment, variableResolver?: VariableResolver): Promise<void>;
 
 	/**
 	 * Generates a diff of this connection against another. Returns undefined if the collections are

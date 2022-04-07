@@ -75,10 +75,11 @@ export const enum StandardTokenType {
  *     1098 7654 3210 9876 5432 1098 7654 3210
  * - -------------------------------------------
  *     xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx
- *     mbbb bbbb bfff ffff ffFF FFTT LLLL LLLL
+ *     bbbb bbbb ffff ffff fFFF FBTT LLLL LLLL
  * - -------------------------------------------
  *  - L = LanguageId (8 bits)
  *  - T = StandardTokenType (2 bits)
+ *  - B = Balanced bracket (1 bit)
  *  - F = FontStyle (4 bits)
  *  - f = foreground color (9 bits)
  *  - b = background color (9 bits)
@@ -89,15 +90,15 @@ export const enum StandardTokenType {
 export const enum MetadataConsts {
 	LANGUAGEID_MASK = 0b00000000000000000000000011111111,
 	TOKEN_TYPE_MASK = 0b00000000000000000000001100000000,
-	FONT_STYLE_MASK = 0b00000000000000000011110000000000,
-	FOREGROUND_MASK = 0b00000000011111111100000000000000,
-	BACKGROUND_MASK = 0b01111111100000000000000000000000,
-	BALANCED_BRACKETS_MASK = 0b10000000000000000000000000000000,
+	BALANCED_BRACKETS_MASK = 0b00000000000000000000010000000000,
+	FONT_STYLE_MASK = 0b00000000000000000111100000000000,
+	FOREGROUND_MASK = 0b00000000111111111000000000000000,
+	BACKGROUND_MASK = 0b11111111000000000000000000000000,
 
-	ITALIC_MASK = 0b00000000000000000000010000000000,
-	BOLD_MASK = 0b00000000000000000000100000000000,
-	UNDERLINE_MASK = 0b00000000000000000001000000000000,
-	STRIKETHROUGH_MASK = 0b00000000000000000010000000000000,
+	ITALIC_MASK = 0b00000000000000000000100000000000,
+	BOLD_MASK = 0b00000000000000000001000000000000,
+	UNDERLINE_MASK = 0b00000000000000000010000000000000,
+	STRIKETHROUGH_MASK = 0b00000000000000000100000000000000,
 
 	// Semantic tokens cannot set the language id, so we can
 	// use the first 8 bits for control purposes
@@ -110,11 +111,10 @@ export const enum MetadataConsts {
 
 	LANGUAGEID_OFFSET = 0,
 	TOKEN_TYPE_OFFSET = 8,
-	FONT_STYLE_OFFSET = 10,
-	FOREGROUND_OFFSET = 14,
-	BACKGROUND_OFFSET = 23,
-	// Indicates that this token contains balanced brackets
-	BALANCED_BRACKETS = 31,
+	BALANCED_BRACKETS_OFFSET = 10,
+	FONT_STYLE_OFFSET = 11,
+	FOREGROUND_OFFSET = 15,
+	BACKGROUND_OFFSET = 24
 }
 
 /**
@@ -130,6 +130,10 @@ export class TokenMetadata {
 		return (metadata & MetadataConsts.TOKEN_TYPE_MASK) >>> MetadataConsts.TOKEN_TYPE_OFFSET;
 	}
 
+	public static containsBalancedBrackets(metadata: number): boolean {
+		return (metadata & MetadataConsts.BALANCED_BRACKETS_MASK) !== 0;
+	}
+
 	public static getFontStyle(metadata: number): FontStyle {
 		return (metadata & MetadataConsts.FONT_STYLE_MASK) >>> MetadataConsts.FONT_STYLE_OFFSET;
 	}
@@ -140,10 +144,6 @@ export class TokenMetadata {
 
 	public static getBackground(metadata: number): ColorId {
 		return (metadata & MetadataConsts.BACKGROUND_MASK) >>> MetadataConsts.BACKGROUND_OFFSET;
-	}
-
-	public static containsBalancedBrackets(metadata: number): boolean {
-		return (metadata & MetadataConsts.BALANCED_BRACKETS_MASK) !== 0;
 	}
 
 	public static getClassNameFromMetadata(metadata: number): string {
