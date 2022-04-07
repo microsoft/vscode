@@ -12,7 +12,7 @@ import { mark, PerformanceMark } from 'vs/base/common/performance';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
 import { asArray } from 'vs/base/common/arrays';
-import { IProgress, IProgressOptions } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 
 let created = false;
 const workbenchPromise = new DeferredPromise<IWorkbench>();
@@ -127,9 +127,13 @@ export namespace window {
 	/**
 	 * {@linkcode IWorkbench.window IWorkbench.window.withProgress}
 	 */
-	export async function withProgress(options: IProgressOptions, task: (progress: IProgress<{ message?: string; increment?: number }>) => Promise<unknown>): Promise<unknown> {
+	export async function withProgress<R>(
+		options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
+		task: (progress: IProgress<IProgressStep>) => Promise<R>,
+		onDidCancel?: (choice?: number) => void
+	): Promise<R> {
 		const workbench = await workbenchPromise.p;
 
-		return workbench.window.withProgress(options, task);
+		return workbench.window.withProgress(options, task, onDidCancel);
 	}
 }

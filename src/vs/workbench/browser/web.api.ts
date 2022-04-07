@@ -14,7 +14,7 @@ import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/brow
 import type { IProductConfiguration } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
-import type { IProgress, IProgressOptions } from 'vs/platform/progress/common/progress';
+import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -72,7 +72,11 @@ export interface IWorkbench {
 		 * @param task A callback returning a promise.
 		 * @return A promise that resolves to the returned value of the given task result.
 		 */
-		withProgress(options: IProgressOptions, task: (progress: IProgress<{ message?: string; increment?: number }>) => Promise<unknown>): Promise<unknown>;
+		withProgress<R>(
+			options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
+			task: (progress: IProgress<IProgressStep>) => Promise<R>,
+			onDidCancel?: (choice?: number) => void
+		): Promise<R>;
 	};
 
 	/**

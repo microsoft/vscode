@@ -135,7 +135,7 @@ export class BrowserMain extends Disposable {
 					}
 				},
 				window: {
-					withProgress: (options, task) => progessService.withProgress(options, task)
+					withProgress: (options, task, onDidCancel) => progessService.withProgress(options, task, onDidCancel)
 				},
 				shutdown: () => lifecycleService.shutdown()
 			};
