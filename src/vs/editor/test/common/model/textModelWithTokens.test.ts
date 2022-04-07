@@ -438,9 +438,9 @@ suite('TextModelWithTokens', () => {
 			mode1
 		));
 
-		model.forceTokenization(1);
-		model.forceTokenization(2);
-		model.forceTokenization(3);
+		model.tokenization.forceTokenization(1);
+		model.tokenization.forceTokenization(2);
+		model.tokenization.forceTokenization(3);
 
 		assert.deepStrictEqual(model.bracketPairs.matchBracket(new Position(2, 14)), [new Range(2, 13, 2, 14), new Range(2, 18, 2, 19)]);
 
@@ -517,9 +517,9 @@ suite('TextModelWithTokens', () => {
 			mode
 		));
 
-		model.forceTokenization(1);
-		model.forceTokenization(2);
-		model.forceTokenization(3);
+		model.tokenization.forceTokenization(1);
+		model.tokenization.forceTokenization(2);
+		model.tokenization.forceTokenization(3);
 
 		assert.deepStrictEqual(model.bracketPairs.matchBracket(new Position(2, 23)), null);
 		assert.deepStrictEqual(model.bracketPairs.matchBracket(new Position(2, 20)), null);
@@ -534,9 +534,9 @@ suite('TextModelWithTokens regression tests', () => {
 	test('microsoft/monaco-editor#122: Unhandled Exception: TypeError: Unable to get property \'replace\' of undefined or null reference', () => {
 		function assertViewLineTokens(model: TextModel, lineNumber: number, forceTokenization: boolean, expected: TestLineToken[]): void {
 			if (forceTokenization) {
-				model.forceTokenization(lineNumber);
+				model.tokenization.forceTokenization(lineNumber);
 			}
-			let _actual = model.getLineTokens(lineNumber).inflate();
+			let _actual = model.tokenization.getLineTokens(lineNumber).inflate();
 			interface ISimpleViewToken {
 				endIndex: number;
 				foreground: number;
@@ -688,7 +688,7 @@ suite('TextModelWithTokens regression tests', () => {
 
 		const model = disposables.add(instantiateTextModel(instantiationService, 'A model with one line', outerMode));
 
-		model.forceTokenization(1);
+		model.tokenization.forceTokenization(1);
 		assert.strictEqual(model.getLanguageIdAtPosition(1, 1), innerMode);
 
 		disposables.dispose();

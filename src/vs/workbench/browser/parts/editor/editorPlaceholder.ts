@@ -11,8 +11,8 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, clearNode } from 'vs/base/browser/dom';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { Dimension, size, clearNode, $ } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -24,8 +24,17 @@ import { computeEditorAriaLabel, EditorPaneDescriptor } from 'vs/workbench/brows
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Link } from 'vs/platform/opener/browser/link';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
+import { editorErrorForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
+import { Codicon } from 'vs/base/common/codicons';
 
-abstract class EditorPlaceholderPane extends EditorPane {
+export interface IEditorPlaceholderContents {
+	icon: string;
+	label: string;
+	actions: ReadonlyArray<{ label: string; run: () => unknown }>;
+}
+
+export abstract class EditorPlaceholderPane extends EditorPane {
 
 	private container: HTMLElement | undefined;
 	private scrollbar: DomScrollableElement | undefined;
@@ -33,16 +42,12 @@ abstract class EditorPlaceholderPane extends EditorPane {
 
 	constructor(
 		id: string,
-		private readonly title: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(id, telemetryService, themeService, storageService);
-	}
-
-	override getTitle(): string {
-		return this.title;
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -67,10 +72,10 @@ abstract class EditorPlaceholderPane extends EditorPane {
 		}
 
 		// Render Input
-		this.inputDisposable.value = this.renderInput(input);
+		this.inputDisposable.value = await this.renderInput(input, options);
 	}
 
-	private renderInput(input: EditorInput): IDisposable {
+	private async renderInput(input: EditorInput, options: IEditorOptions | undefined): Promise<IDisposable> {
 		const [container, scrollbar] = assertAllDefined(this.container, this.scrollbar);
 
 		// Reset any previous contents
@@ -79,9 +84,31 @@ abstract class EditorPlaceholderPane extends EditorPane {
 		// Update ARIA label
 		container.setAttribute('aria-label', computeEditorAriaLabel(input, undefined, this.group, undefined));
 
-		// Delegate to implementation
+		// Delegate to implementation for contents
 		const disposables = new DisposableStore();
-		this.renderBody(container, disposables);
+		const { icon, label, actions } = await this.getContents(input, options);
+
+		// Icon
+		const iconContainer = container.appendChild($('.editor-placeholder-icon-container'));
+		const iconWidget = new SimpleIconLabel(iconContainer);
+		iconWidget.text = icon;
+
+		// Label
+		const labelContainer = container.appendChild($('.editor-placeholder-label-container'));
+		const labelWidget = document.createElement('span');
+		labelWidget.textContent = label;
+		labelContainer.appendChild(labelWidget);
+
+		// Actions
+		const actionsContainer = container.appendChild($('.editor-placeholder-actions-container'));
+		for (const action of actions) {
+			disposables.add(this.instantiationService.createInstance(Link, actionsContainer, {
+				label: action.label,
+				href: ''
+			}, {
+				opener: () => action.run()
+			}));
+		}
 
 		// Adjust scrollbar
 		scrollbar.scanDomNode();
@@ -89,7 +116,7 @@ abstract class EditorPlaceholderPane extends EditorPane {
 		return disposables;
 	}
 
-	protected abstract renderBody(container: HTMLElement, disposables: DisposableStore): void;
+	protected abstract getContents(input: EditorInput, options: IEditorOptions | undefined): Promise<IEditorPlaceholderContents>;
 
 	override clearInput(): void {
 		if (this.container) {
@@ -109,6 +136,9 @@ abstract class EditorPlaceholderPane extends EditorPane {
 
 		// Adjust scrollbar
 		scrollbar.scanDomNode();
+
+		// Toggle responsive class
+		container.classList.toggle('max-height-200px', dimension.height <= 200);
 	}
 
 	override focus(): void {
@@ -127,7 +157,8 @@ abstract class EditorPlaceholderPane extends EditorPane {
 export class WorkspaceTrustRequiredEditor extends EditorPlaceholderPane {
 
 	static readonly ID = 'workbench.editors.workspaceTrustRequiredEditor';
-	static readonly LABEL = localize('trustRequiredEditor', "Workspace Trust Required");
+	private static readonly LABEL = localize('trustRequiredEditor', "Workspace Trust Required");
+
 	static readonly DESCRIPTOR = EditorPaneDescriptor.create(WorkspaceTrustRequiredEditor, WorkspaceTrustRequiredEditor.ID, WorkspaceTrustRequiredEditor.LABEL);
 
 	constructor(
@@ -136,23 +167,28 @@ export class WorkspaceTrustRequiredEditor extends EditorPlaceholderPane {
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(WorkspaceTrustRequiredEditor.ID, WorkspaceTrustRequiredEditor.LABEL, telemetryService, themeService, storageService);
+		super(WorkspaceTrustRequiredEditor.ID, telemetryService, themeService, storageService, instantiationService);
 	}
 
-	protected renderBody(container: HTMLElement, disposables: DisposableStore): void {
-		const label = container.appendChild(document.createElement('p'));
-		label.textContent = isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceService.getWorkspace())) ?
-			localize('requiresFolderTrustText', "The file is not displayed in the editor because trust has not been granted to the folder.") :
-			localize('requiresWorkspaceTrustText', "The file is not displayed in the editor because trust has not been granted to the workspace.");
+	override getTitle(): string {
+		return WorkspaceTrustRequiredEditor.LABEL;
+	}
 
-		disposables.add(this.instantiationService.createInstance(Link, label, {
-			label: localize('manageTrust', "Manage Workspace Trust"),
-			href: ''
-		}, {
-			opener: () => this.commandService.executeCommand('workbench.trust.manage')
-		}));
+	protected async getContents(): Promise<IEditorPlaceholderContents> {
+		return {
+			icon: '$(workspace-untrusted)',
+			label: isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceService.getWorkspace())) ?
+				localize('requiresFolderTrustText', "The file is not displayed in the editor because trust has not been granted to the folder.") :
+				localize('requiresWorkspaceTrustText', "The file is not displayed in the editor because trust has not been granted to the workspace."),
+			actions: [
+				{
+					label: localize('manageTrust', "Manage Workspace Trust"),
+					run: () => this.commandService.executeCommand('workbench.trust.manage')
+				}
+			]
+		};
 	}
 }
 
@@ -160,39 +196,38 @@ abstract class AbstractErrorEditor extends EditorPlaceholderPane {
 
 	constructor(
 		id: string,
-		label: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(id, label, telemetryService, themeService, storageService);
+		super(id, telemetryService, themeService, storageService, instantiationService);
 	}
 
 	protected abstract getErrorMessage(): string;
 
-	protected renderBody(container: HTMLElement, disposables: DisposableStore): void {
-		const label = container.appendChild(document.createElement('p'));
-		label.textContent = this.getErrorMessage();
-
-		// Offer to re-open
+	protected async getContents(): Promise<IEditorPlaceholderContents> {
 		const group = this.group;
 		const input = this.input;
-		if (group && input) {
-			disposables.add(this.instantiationService.createInstance(Link, label, {
-				label: localize('retry', "Try Again"),
-				href: ''
-			}, {
-				opener: () => group.openEditor(input, { ...this.options, source: EditorOpenSource.USER /* explicit user gesture */ })
-			}));
-		}
+
+		return {
+			icon: '$(error)',
+			label: this.getErrorMessage(),
+			actions: group && input ? [
+				{
+					label: localize('retry', "Try Again"),
+					run: () => group.openEditor(input, { ...this.options, source: EditorOpenSource.USER /* explicit user gesture */ })
+				}
+			] : []
+		};
 	}
 }
 
 export class UnknownErrorEditor extends AbstractErrorEditor {
 
-	static readonly ID = 'workbench.editors.unknownErrorEditor';
-	static readonly LABEL = localize('unknownErrorEditor', "Unknown Error Editor");
+	private static readonly ID = 'workbench.editors.unknownErrorEditor';
+	private static readonly LABEL = localize('unknownErrorEditor', "Unknown Error Editor");
+
 	static readonly DESCRIPTOR = EditorPaneDescriptor.create(UnknownErrorEditor, UnknownErrorEditor.ID, UnknownErrorEditor.LABEL);
 
 	constructor(
@@ -201,7 +236,11 @@ export class UnknownErrorEditor extends AbstractErrorEditor {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(UnknownErrorEditor.ID, UnknownErrorEditor.LABEL, telemetryService, themeService, storageService, instantiationService);
+		super(UnknownErrorEditor.ID, telemetryService, themeService, storageService, instantiationService);
+	}
+
+	override getTitle(): string {
+		return UnknownErrorEditor.LABEL;
 	}
 
 	protected override getErrorMessage(): string {
@@ -211,8 +250,9 @@ export class UnknownErrorEditor extends AbstractErrorEditor {
 
 export class UnavailableResourceErrorEditor extends AbstractErrorEditor {
 
-	static readonly ID = 'workbench.editors.unavailableResourceErrorEditor';
-	static readonly LABEL = localize('unavailableResourceErrorEditor', "Unavailable Resource Error Editor");
+	private static readonly ID = 'workbench.editors.unavailableResourceErrorEditor';
+	private static readonly LABEL = localize('unavailableResourceErrorEditor', "Unavailable Resource Error Editor");
+
 	static readonly DESCRIPTOR = EditorPaneDescriptor.create(UnavailableResourceErrorEditor, UnavailableResourceErrorEditor.ID, UnavailableResourceErrorEditor.LABEL);
 
 	constructor(
@@ -221,10 +261,45 @@ export class UnavailableResourceErrorEditor extends AbstractErrorEditor {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(UnavailableResourceErrorEditor.ID, UnavailableResourceErrorEditor.LABEL, telemetryService, themeService, storageService, instantiationService);
+		super(UnavailableResourceErrorEditor.ID, telemetryService, themeService, storageService, instantiationService);
+	}
+
+	override getTitle(): string {
+		return UnavailableResourceErrorEditor.LABEL;
 	}
 
 	protected override getErrorMessage(): string {
 		return localize('unavailableResourceErrorEditorText', "The editor could not be opened because the file was not found.");
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+
+	// Editor Placeholder Error Icon
+	const editorErrorIconForegroundColor = theme.getColor(editorErrorForeground);
+	if (editorErrorIconForegroundColor) {
+		collector.addRule(`
+		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.error.cssSelector} {
+			color: ${editorErrorIconForegroundColor};
+		}`);
+	}
+
+	// Editor Placeholder Warning Icon
+	const editorWarningIconForegroundColor = theme.getColor(editorWarningForeground);
+	if (editorWarningIconForegroundColor) {
+		collector.addRule(`
+		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.warning.cssSelector} {
+			color: ${editorWarningIconForegroundColor};
+		}`);
+	}
+
+	// Editor Placeholder Info/Trust Icon
+	const editorInfoIconForegroundColor = theme.getColor(editorInfoForeground);
+	if (editorInfoIconForegroundColor) {
+		collector.addRule(`
+		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.info.cssSelector},
+		.monaco-editor-pane-placeholder .editor-placeholder-icon-container ${Codicon.workspaceUntrusted.cssSelector} {
+			color: ${editorInfoIconForegroundColor};
+		}`);
+	}
+});

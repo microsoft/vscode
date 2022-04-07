@@ -74,7 +74,7 @@ suite('TokensStore', () => {
 	function extractState(model: TextModel): string[] {
 		let result: string[] = [];
 		for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
-			const lineTokens = model.getLineTokens(lineNumber);
+			const lineTokens = model.tokenization.getLineTokens(lineNumber);
 			const lineContent = model.getLineContent(lineNumber);
 
 			let lineText = '';
@@ -101,7 +101,7 @@ suite('TokensStore', () => {
 	function testTokensAdjustment(rawInitialState: string[], edits: ISingleEditOperation[], rawFinalState: string[]) {
 		const initialState = parseTokensState(rawInitialState);
 		const model = createTextModel(initialState.text);
-		model.setSemanticTokens([initialState.tokens], true);
+		model.tokenization.setSemanticTokens([initialState.tokens], true);
 
 		model.applyEdits(edits);
 
@@ -174,42 +174,42 @@ suite('TokensStore', () => {
 
 	test('issue #91936: Semantic token color highlighting fails on line with selected text', () => {
 		const model = createTextModel('                    else if ($s = 08) then \'\\b\'');
-		model.setSemanticTokens([
+		model.tokenization.setSemanticTokens([
 			SparseMultilineTokens.create(1, new Uint32Array([
-				0, 20, 24, 0b0111100000000010000,
-				0, 25, 27, 0b0111100000000010000,
-				0, 28, 29, 0b0000100000000010000,
-				0, 29, 31, 0b1000000000000010000,
-				0, 32, 33, 0b0000100000000010000,
-				0, 34, 36, 0b0011000000000010000,
-				0, 36, 37, 0b0000100000000010000,
-				0, 38, 42, 0b0111100000000010000,
-				0, 43, 47, 0b0101100000000010000,
+				0, 20, 24, 0b01111000000000010000,
+				0, 25, 27, 0b01111000000000010000,
+				0, 28, 29, 0b00001000000000010000,
+				0, 29, 31, 0b10000000000000010000,
+				0, 32, 33, 0b00001000000000010000,
+				0, 34, 36, 0b00110000000000010000,
+				0, 36, 37, 0b00001000000000010000,
+				0, 38, 42, 0b01111000000000010000,
+				0, 43, 47, 0b01011000000000010000,
 			]))
 		], true);
-		const lineTokens = model.getLineTokens(1);
+		const lineTokens = model.tokenization.getLineTokens(1);
 		let decodedTokens: number[] = [];
 		for (let i = 0, len = lineTokens.getCount(); i < len; i++) {
 			decodedTokens.push(lineTokens.getEndOffset(i), lineTokens.getMetadata(i));
 		}
 
 		assert.deepStrictEqual(decodedTokens, [
-			20, 0b1000000000100000000000001,
-			24, 0b1000000111100000000000001,
-			25, 0b1000000000100000000000001,
-			27, 0b1000000111100000000000001,
-			28, 0b1000000000100000000000001,
-			29, 0b1000000000100000000000001,
-			31, 0b1000001000000000000000001,
-			32, 0b1000000000100000000000001,
-			33, 0b1000000000100000000000001,
-			34, 0b1000000000100000000000001,
-			36, 0b1000000011000000000000001,
-			37, 0b1000000000100000000000001,
-			38, 0b1000000000100000000000001,
-			42, 0b1000000111100000000000001,
-			43, 0b1000000000100000000000001,
-			47, 0b1000000101100000000000001
+			20, 0b10000000001000000000000001,
+			24, 0b10000001111000000000000001,
+			25, 0b10000000001000000000000001,
+			27, 0b10000001111000000000000001,
+			28, 0b10000000001000000000000001,
+			29, 0b10000000001000000000000001,
+			31, 0b10000010000000000000000001,
+			32, 0b10000000001000000000000001,
+			33, 0b10000000001000000000000001,
+			34, 0b10000000001000000000000001,
+			36, 0b10000000110000000000000001,
+			37, 0b10000000001000000000000001,
+			38, 0b10000000001000000000000001,
+			42, 0b10000001111000000000000001,
+			43, 0b10000000001000000000000001,
+			47, 0b10000001011000000000000001
 		]);
 
 		model.dispose();

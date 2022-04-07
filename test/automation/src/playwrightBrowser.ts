@@ -42,12 +42,26 @@ async function launchServer(options: LaunchOptions) {
 	const codeServerPath = codePath ?? process.env.VSCODE_REMOTE_SERVER_PATH;
 	const agentFolder = userDataDir;
 	await measureAndLog(promisify(mkdir)(agentFolder), `mkdir(${agentFolder})`, logger);
+
 	const env = {
 		VSCODE_REMOTE_SERVER_PATH: codeServerPath,
 		...process.env
 	};
 
-	const args = ['--disable-telemetry', '--disable-workspace-trust', '--port', `${port++}`, '--driver', 'web', '--extensions-dir', extensionsPath, '--server-data-dir', agentFolder, '--accept-server-license-terms'];
+	const args = [
+		'--disable-telemetry',
+		'--disable-workspace-trust',
+		'--port', `${port++}`,
+		'--enable-smoke-test-driver',
+		'--extensions-dir', extensionsPath,
+		'--server-data-dir', agentFolder,
+		'--accept-server-license-terms',
+		'--logsPath', logsPath
+	];
+
+	if (options.verbose) {
+		args.push('--log', 'trace');
+	}
 
 	let serverLocation: string | undefined;
 	if (codeServerPath) {
@@ -62,7 +76,6 @@ async function launchServer(options: LaunchOptions) {
 	}
 
 	logger.log(`Storing log files into '${logsPath}'`);
-	args.push('--logsPath', logsPath);
 
 	logger.log(`Command line: '${serverLocation}' ${args.join(' ')}`);
 	const serverProcess = spawn(

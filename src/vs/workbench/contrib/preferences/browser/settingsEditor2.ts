@@ -1304,6 +1304,8 @@ export class SettingsEditor2 extends EditorPane {
 			this.viewState.languageFilter = parsedQuery.languageFilter;
 		}
 
+		this.settingsTargetsWidget.updateLanguageFilterIndicators(this.viewState.languageFilter);
+
 		if (query && query !== '@') {
 			query = this.parseSettingFromJSON(query) || query;
 			return this.triggerFilterPreferences(query);

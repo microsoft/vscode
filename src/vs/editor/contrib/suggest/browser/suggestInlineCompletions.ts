@@ -54,7 +54,9 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 
 	canBeReused(model: ITextModel, line: number, word: IWordAtPosition) {
 		return this.model === model // same model
-			&& this.line === line && this.word.startColumn === word.startColumn && this.word.endColumn < word.endColumn // same word
+			&& this.line === line
+			&& this.word.word.length > 0
+			&& this.word.startColumn === word.startColumn && this.word.endColumn < word.endColumn // same word
 			&& this.completionModel.incomplete.size === 0; // no incomplete results
 	}
 
@@ -67,6 +69,8 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 		const selectedIndex = this._suggestMemoryService.select(this.model, { lineNumber: this.line, column: this.word.endColumn + this.completionModel.lineContext.characterCountDelta }, items);
 		const first = Iterable.slice(items, selectedIndex);
 		const second = Iterable.slice(items, 0, selectedIndex);
+
+		let resolveCount = 5;
 
 		for (const item of Iterable.concat(first, second)) {
 
@@ -91,13 +95,18 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 				item.completion.command,
 				item
 			));
+
+			// resolve the first N suggestions eagerly
+			if (resolveCount-- >= 0) {
+				item.resolve(CancellationToken.None);
+			}
 		}
 		return result;
 	}
 }
 
 
-class SuggestInlineCompletions implements InlineCompletionsProvider<InlineCompletionResults> {
+export class SuggestInlineCompletions implements InlineCompletionsProvider<InlineCompletionResults> {
 
 	private _lastResult?: InlineCompletionResults;
 
@@ -120,26 +129,34 @@ class SuggestInlineCompletions implements InlineCompletionsProvider<InlineComple
 			return;
 		}
 
-		model.tokenizeIfCheap(position.lineNumber);
-		const lineTokens = model.getLineTokens(position.lineNumber);
+		model.tokenization.tokenizeIfCheap(position.lineNumber);
+		const lineTokens = model.tokenization.getLineTokens(position.lineNumber);
 		const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(position.column - 1 - 1, 0)));
 		if (QuickSuggestionsOptions.valueFor(config, tokenType) !== 'inline') {
 			// quick suggest is off (for this token)
 			return undefined;
 		}
 
-
 		// We consider non-empty leading words and trigger characters. The latter only
 		// when no word is being typed (word characters superseed trigger characters)
-		let wordInfo = model.getWordUntilPosition(position);
+		let wordInfo = model.getWordAtPosition(position);
 		let triggerCharacterInfo: { ch: string; providers: Set<CompletionItemProvider> } | undefined;
 
-		if (!wordInfo.word) {
+		if (!wordInfo?.word) {
 			triggerCharacterInfo = this._getTriggerCharacterInfo(model, position);
 		}
 
-		if (!wordInfo.word && !triggerCharacterInfo) {
+		if (!wordInfo?.word && !triggerCharacterInfo) {
 			// not at word, not a trigger character
+			return;
+		}
+
+		// ensure that we have word information and that we are at the end of a word
+		// otherwise we stop because we don't want to do quick suggestions inside words
+		if (!wordInfo) {
+			wordInfo = model.getWordUntilPosition(position);
+		}
+		if (wordInfo.endColumn !== position.column) {
 			return;
 		}
 
@@ -176,6 +193,7 @@ class SuggestInlineCompletions implements InlineCompletionsProvider<InlineComple
 				WordDistance.None,
 				this._getEditorOption(EditorOption.suggest, model),
 				this._getEditorOption(EditorOption.snippetSuggestions, model),
+				{ boostFullMatch: false, firstMatchCanBeWeak: false },
 				clipboardText
 			);
 			result = new InlineCompletionResults(model, position.lineNumber, wordInfo, completionModel, completions, this._suggestMemoryService);

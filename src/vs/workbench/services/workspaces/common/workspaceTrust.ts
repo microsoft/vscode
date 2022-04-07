@@ -22,7 +22,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isEqualAuthority } from 'vs/base/common/resources';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isCI } from 'vs/base/common/platform';
+import { isCI, isWeb } from 'vs/base/common/platform';
 
 export const WORKSPACE_TRUST_ENABLED = 'security.workspace.trust.enabled';
 export const WORKSPACE_TRUST_STARTUP_PROMPT = 'security.workspace.trust.startupPrompt';
@@ -134,7 +134,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			this._workspaceTrustInitializedPromiseResolve = resolve;
 		});
 
-		this._storedTrustState = new WorkspaceTrustMemento(this.storageService);
+		this._storedTrustState = new WorkspaceTrustMemento(isWeb && this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : this.storageService);
 		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
 
 		this._trustStateInfo = this.loadTrustInfo();
@@ -249,7 +249,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		if (filesToOpen.length) {
-			const filesToOpenOrCreateUris = filesToOpen.filter(f => f.fileUri && f.fileUri.scheme === Schemas.file).map(f => f.fileUri!);
+			const filesToOpenOrCreateUris = filesToOpen.filter(f => !!f.fileUri).map(f => f.fileUri!);
 			const canonicalFilesToOpen = await Promise.all(filesToOpenOrCreateUris.map(uri => this.getCanonicalUri(uri)));
 
 			this._canonicalStartupFiles.push(...canonicalFilesToOpen.filter(uri => this._canonicalStartupFiles.every(u => !this.uriIdentityService.extUri.isEqual(uri, u))));
@@ -883,15 +883,19 @@ class WorkspaceTrustTransitionManager extends Disposable {
 
 class WorkspaceTrustMemento {
 
-	private readonly _memento: Memento;
+	private readonly _memento?: Memento;
 	private readonly _mementoObject: MementoObject;
 
 	private readonly _acceptsOutOfWorkspaceFilesKey = 'acceptsOutOfWorkspaceFiles';
 	private readonly _isEmptyWorkspaceTrustedKey = 'isEmptyWorkspaceTrusted';
 
-	constructor(storageService: IStorageService) {
-		this._memento = new Memento('workspaceTrust', storageService);
-		this._mementoObject = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	constructor(storageService?: IStorageService) {
+		if (storageService) {
+			this._memento = new Memento('workspaceTrust', storageService);
+			this._mementoObject = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		} else {
+			this._mementoObject = {};
+		}
 	}
 
 	get acceptsOutOfWorkspaceFiles(): boolean {
@@ -900,7 +904,10 @@ class WorkspaceTrustMemento {
 
 	set acceptsOutOfWorkspaceFiles(value: boolean) {
 		this._mementoObject[this._acceptsOutOfWorkspaceFilesKey] = value;
-		this._memento.saveMemento();
+
+		if (this._memento) {
+			this._memento.saveMemento();
+		}
 	}
 
 	get isEmptyWorkspaceTrusted(): boolean | undefined {
@@ -909,7 +916,10 @@ class WorkspaceTrustMemento {
 
 	set isEmptyWorkspaceTrusted(value: boolean | undefined) {
 		this._mementoObject[this._isEmptyWorkspaceTrustedKey] = value;
-		this._memento.saveMemento();
+
+		if (this._memento) {
+			this._memento.saveMemento();
+		}
 	}
 }
 

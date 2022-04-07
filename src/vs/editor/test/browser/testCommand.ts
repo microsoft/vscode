@@ -34,7 +34,7 @@ export function testCommand(
 	const viewModel = editor.getViewModel()!;
 
 	if (forceTokenization) {
-		model.forceTokenization(model.getLineCount());
+		model.tokenization.forceTokenization(model.getLineCount());
 	}
 
 	viewModel.setSelections('tests', [selection]);

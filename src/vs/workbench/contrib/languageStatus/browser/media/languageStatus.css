@@ -3,36 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* status bar animation */
 
 @keyframes wiggle {
 	0% {
-		transform: rotate(0) scale(1)
+		transform: rotate(0) scale(1);
 	}
 
 	15%,
 	45% {
-		transform: rotate(.04turn) scale(1.1)
+		transform: rotate(.04turn) scale(1.1);
 	}
 
 	30%,
 	60% {
-		transform: rotate(-.04turn) scale(1.2)
+		transform: rotate(-.04turn) scale(1.2);
 	}
 
 	100% {
-		transform: rotate(0) scale(1)
+		transform: rotate(0) scale(1);
 	}
 }
 
-.monaco-workbench.enable-motion .statusbar DIV#status\.languageStatus span.codicon.wiggle {
+.monaco-workbench.enable-motion .statusbar DIV#status\.languageStatus A>SPAN.codicon.wiggle {
 	animation-duration: .8s;
 	animation-iteration-count: 1;
 	animation-name: wiggle;
 }
 
-.monaco-workbench.enable-motion .statusbar DIV#status\.languageStatus span.codicon.wiggle.repeat {
-	animation-iteration-count: 3;
+@keyframes flash {
+	0% {
+		background-color: initial;
+	}
+
+	50% {
+		background-color: var(--vscode-statusBarItem-prominentBackground);
+	}
+
+	100% {
+		background-color: initial;
+	}
 }
+
+.monaco-workbench.enable-motion .statusbar DIV#status\.languageStatus.flash {
+	animation-duration: .8s;
+	animation-iteration-count: 1;
+	animation-name: flash;
+}
+
+/* --- hover */
 
 .monaco-workbench .hover-language-status {
 	display: flex;

@@ -10,8 +10,8 @@ import * as nls from 'vs/nls';
 import { contrastBorder, disabledForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 
-const resolvedCommentBorder = registerColor('comments.resolved.border', { dark: disabledForeground, light: disabledForeground, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('resolvedCommentBorder', 'Color of borders and arrow for resolved comments.'));
-const unresolvedCommentBorder = registerColor('comments.unresolved.border', { dark: peekViewBorder, light: peekViewBorder, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('unresolvedCommentBorder', 'Color of borders and arrow for unresolved comments.'));
+const resolvedCommentBorder = registerColor('editorCommentsWidget.resolvedBorder', { dark: disabledForeground, light: disabledForeground, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('resolvedCommentBorder', 'Color of borders and arrow for resolved comments.'));
+const unresolvedCommentBorder = registerColor('editorCommentsWidget.unresolvedBorder', { dark: peekViewBorder, light: peekViewBorder, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('unresolvedCommentBorder', 'Color of borders and arrow for unresolved comments.'));
 
 const commentThreadStateColors = new Map([
 	[languages.CommentThreadState.Unresolved, unresolvedCommentBorder],

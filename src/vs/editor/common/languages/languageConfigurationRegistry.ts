@@ -179,8 +179,8 @@ export function getIndentationAtPosition(model: ITextModel, lineNumber: number, 
 }
 
 export function getScopedLineTokens(model: ITextModel, lineNumber: number, columnNumber?: number): ScopedLineTokens {
-	model.forceTokenization(lineNumber);
-	const lineTokens = model.getLineTokens(lineNumber);
+	model.tokenization.forceTokenization(lineNumber);
+	const lineTokens = model.tokenization.getLineTokens(lineNumber);
 	const column = (typeof columnNumber === 'undefined' ? model.getLineMaxColumn(lineNumber) - 1 : columnNumber - 1);
 	return createScopedLineTokens(lineTokens, column);
 }
