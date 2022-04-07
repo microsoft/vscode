@@ -21,6 +21,11 @@
 	font-size: 64px;
 }
 
+.monaco-editor-pane-placeholder.max-height-200px .editor-placeholder-icon-container {
+	/* Hide the icon when height is limited */
+	display: none;
+}
+
 .monaco-editor-pane-placeholder .editor-placeholder-label-container {
 	font-size: 14px;
 }

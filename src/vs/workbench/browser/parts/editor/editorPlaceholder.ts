@@ -135,6 +135,9 @@ export abstract class EditorPlaceholderPane extends EditorPane {
 
 		// Adjust scrollbar
 		scrollbar.scanDomNode();
+
+		// Toggle responsive class
+		container.classList.toggle('max-height-200px', dimension.height <= 200);
 	}
 
 	override focus(): void {
