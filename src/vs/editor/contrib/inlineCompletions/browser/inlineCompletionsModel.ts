@@ -32,7 +32,6 @@ import { assertNever } from 'vs/base/common/types';
 import { matchesSubString } from 'vs/base/common/filters';
 import { getReadonlyEmptyArray } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -85,8 +84,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 
 		this._register(
 			this.editor.onDidChangeCursorPosition((e) => {
-				if (e.reason === CursorChangeReason.Explicit ||
-					this.session && !this.session.isValid) {
+				if (this.session && !this.session.isValid) {
 					this.hide();
 				}
 			})
@@ -254,9 +252,6 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}));
 
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
-			if (e.reason === CursorChangeReason.Explicit) {
-				return;
-			}
 			// Ghost text depends on the cursor position
 			this.cache.value?.updateRanges();
 			if (this.cache.value) {
