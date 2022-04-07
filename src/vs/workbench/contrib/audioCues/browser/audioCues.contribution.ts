@@ -36,6 +36,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'audioCues.enabled': {
 			markdownDeprecationMessage: 'Deprecated. Use the specific setting for each audio cue instead (`audioCues.*`).',
 		},
+		'audioCues.volume': {
+			'description': localize('audioCues.volume', "The volume of the audio cues in percent (0-100)."),
+			'type': 'number',
+			'minimum': 0,
+			'maximum': 100,
+			'default': 50
+		},
 		'audioCues.lineHasBreakpoint': {
 			'description': localize('audioCues.lineHasBreakpoint', "Plays a sound when the active line has a breakpoint."),
 			...audioCueFeatureBase,

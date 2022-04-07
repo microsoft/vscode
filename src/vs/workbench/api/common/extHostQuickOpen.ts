@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
-import type { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
+import type { InputBox, InputBoxOptions, InputBoxValidationSeverity, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
 import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickInput, TransferQuickInputButton, TransferQuickPickItemOrSeparator } from './extHost.protocol';
 import { URI } from 'vs/base/common/uri';
 import { ThemeIcon, QuickInputButtons, QuickPickItemKind } from 'vs/workbench/api/common/extHostTypes';
@@ -18,6 +18,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { coalesce } from 'vs/base/common/arrays';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon as ThemeIconUtils } from 'vs/platform/theme/common/themeService';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export type Item = string | QuickPickItem;
 
@@ -31,9 +32,9 @@ export interface ExtHostQuickOpen {
 
 	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token?: CancellationToken): Promise<WorkspaceFolder | undefined>;
 
-	createQuickPick<T extends QuickPickItem>(extensionId: IExtensionDescription): QuickPick<T>;
+	createQuickPick<T extends QuickPickItem>(extension: IExtensionDescription): QuickPick<T>;
 
-	createInputBox(extensionId: ExtensionIdentifier): InputBox;
+	createInputBox(extension: IExtensionDescription): InputBox;
 }
 
 export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IExtHostWorkspaceProvider, commands: ExtHostCommands): ExtHostQuickOpenShape & ExtHostQuickOpen {
@@ -45,7 +46,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _commands: ExtHostCommands;
 
 		private _onDidSelectItem?: (handle: number) => void;
-		private _validateInput?: (input: string) => string | undefined | null | Thenable<string | undefined | null>;
+		private _validateInput?: (input: string) => string | { content: string; severity: Severity } | undefined | null | Thenable<string | { content: string; severity: Severity } | undefined | null>;
 
 		private _sessions = new Map<number, ExtHostQuickInput>();
 
@@ -159,7 +160,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 				});
 		}
 
-		$validateInput(input: string): Promise<string | null | undefined> {
+		$validateInput(input: string): Promise<string | { content: string; severity: Severity } | null | undefined> {
 			if (this._validateInput) {
 				return asPromise(() => this._validateInput!(input));
 			}
@@ -188,8 +189,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			return session;
 		}
 
-		createInputBox(extensionId: ExtensionIdentifier): InputBox {
-			const session: ExtHostInputBox = new ExtHostInputBox(extensionId, () => this._sessions.delete(session._id));
+		createInputBox(extension: IExtensionDescription): InputBox {
+			const session: ExtHostInputBox = new ExtHostInputBox(extension, () => this._sessions.delete(session._id));
 			this._sessions.set(session._id, session);
 			return session;
 		}
@@ -674,9 +675,10 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _password = false;
 		private _prompt: string | undefined;
 		private _validationMessage: string | undefined;
+		private _validationMessage2: string | { content: string; severity: InputBoxValidationSeverity } | undefined;
 
-		constructor(extensionId: ExtensionIdentifier, onDispose: () => void) {
-			super(extensionId, onDispose);
+		constructor(private readonly extension: IExtensionDescription, onDispose: () => void) {
+			super(extension.identifier, onDispose);
 			this.update({ type: 'inputBox' });
 		}
 
@@ -705,6 +707,22 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		set validationMessage(validationMessage: string | undefined) {
 			this._validationMessage = validationMessage;
 			this.update({ validationMessage, severity: validationMessage ? Severity.Error : Severity.Ignore });
+		}
+
+		get validationMessage2() {
+			return this._validationMessage2;
+		}
+
+		set validationMessage2(validationMessage: string | { content: string; severity: InputBoxValidationSeverity } | undefined) {
+			checkProposedApiEnabled(this.extension, 'inputBoxSeverity');
+			this._validationMessage2 = validationMessage;
+			if (!validationMessage) {
+				this.update({ validationMessage: undefined, severity: Severity.Ignore });
+			} else if (typeof validationMessage === 'string') {
+				this.update({ validationMessage, severity: Severity.Error });
+			} else {
+				this.update({ validationMessage: validationMessage.content, severity: validationMessage.severity ?? Severity.Error });
+			}
 		}
 	}
 

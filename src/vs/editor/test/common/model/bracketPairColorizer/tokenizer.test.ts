@@ -11,19 +11,18 @@ import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairsTextModelPa
 import { TextBufferTokenizer, Token, Tokenizer, TokenKind } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { EncodedTokenizationResult, IState, ITokenizationSupport, LanguageId, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('Bracket Pair Colorizer - Tokenizer', () => {
 	test('Basic', () => {
 		const mode1 = 'testMode1';
 		const disposableStore = new DisposableStore();
 		const instantiationService = createModelServices(disposableStore);
+		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 		const languageService = instantiationService.get(ILanguageService);
-		disposableStore.add(ModesRegistry.registerLanguage({ id: mode1 }));
+		disposableStore.add(languageService.registerLanguage({ id: mode1 }));
 		const encodedMode1 = languageService.languageIdCodec.encodeLanguageId(mode1);
 
 		const denseKeyProvider = new DenseKeyProvider<string>();
@@ -36,15 +35,14 @@ suite('Bracket Pair Colorizer - Tokenizer', () => {
 		]);
 
 		disposableStore.add(TokenizationRegistry.register(mode1, document.getTokenizationSupport()));
-		disposableStore.add(LanguageConfigurationRegistry.register(mode1, {
+		disposableStore.add(languageConfigurationService.register(mode1, {
 			brackets: [['{', '}'], ['[', ']'], ['(', ')'], ['begin', 'end']],
 		}));
 
 		const model = disposableStore.add(instantiateTextModel(instantiationService, document.getText(), mode1));
-		model.forceTokenization(model.getLineCount());
+		model.tokenization.forceTokenization(model.getLineCount());
 
-		const languageConfigService = new TestLanguageConfigurationService();
-		const brackets = new LanguageAgnosticBracketTokens(denseKeyProvider, l => languageConfigService.getLanguageConfiguration(l, undefined));
+		const brackets = new LanguageAgnosticBracketTokens(denseKeyProvider, l => languageConfigurationService.getLanguageConfiguration(l));
 
 		const tokens = readAllTokens(new TextBufferTokenizer(model, brackets));
 

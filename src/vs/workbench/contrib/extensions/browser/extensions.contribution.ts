@@ -74,6 +74,8 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Event } from 'vs/base/common/event';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { UnsupportedExtensionsMigrationContrib } from 'vs/workbench/contrib/extensions/browser/unsupportedExtensionsMigrationContribution';
+import { isWeb } from 'vs/base/common/platform';
+import { ExtensionsCleaner } from 'vs/workbench/contrib/extensions/browser/extensionsCleaner';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -170,6 +172,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'extensions.confirmedUriHandlerExtensionIds': {
 				type: 'array',
+				items: {
+					type: 'string'
+				},
 				description: localize('handleUriConfirmedExtensions', "When an extension is listed here, a confirmation prompt will not be shown when that extension handles a URI."),
 				default: [],
 				scope: ConfigurationScope.APPLICATION
@@ -194,8 +199,23 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 						default: false
 					}
 				},
+				additionalProperties: false,
 				default: {
 					'pub.name': false
+				}
+			},
+			'extensions.experimental.affinity': {
+				type: 'object',
+				markdownDescription: localize('extensions.affinity', "Configure an extension to execute in a different extension host process."),
+				patternProperties: {
+					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+						type: 'integer',
+						default: 1
+					}
+				},
+				additionalProperties: false,
+				default: {
+					'pub.name': 1
 				}
 			},
 			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
@@ -1539,6 +1559,10 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, Life
 workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, LifecyclePhase.Eventually);
+if (isWeb) {
+	workbenchRegistry.registerWorkbenchContribution(ExtensionsCleaner, LifecyclePhase.Eventually);
+}
+
 
 // Running Extensions
 registerAction2(ShowRuntimeExtensionsAction);

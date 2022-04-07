@@ -97,6 +97,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	let scopedSettingsSupport = false;
 	let workspaceFoldersSupport = false;
 	let foldingRangeLimit = Number.MAX_VALUE;
+	let formatterMaxNumberOfEdits = Number.MAX_VALUE;
 
 	const customDataRequestService: CustomDataRequestService = {
 		getContent(uri: string) {
@@ -178,6 +179,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		scopedSettingsSupport = getClientCapability('workspace.configuration', false);
 		workspaceFoldersSupport = getClientCapability('workspace.workspaceFolders', false);
 		foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
+		formatterMaxNumberOfEdits = params.initializationOptions?.customCapabilities?.rangeFormatting?.editLimit || Number.MAX_VALUE;
 		const capabilities: ServerCapabilities = {
 			textDocumentSync: TextDocumentSyncKind.Incremental,
 			completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : undefined,
@@ -426,7 +428,12 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			const unformattedTags: string = settings && settings.html && settings.html.format && settings.html.format.unformatted || '';
 			const enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/) };
 
-			return format(languageModes, document, range ?? getFullRange(document), options, settings, enabledModes);
+			const edits = await format(languageModes, document, range ?? getFullRange(document), options, settings, enabledModes);
+			if (edits.length > formatterMaxNumberOfEdits) {
+				const newText = TextDocument.applyEdits(document, edits);
+				return [TextEdit.replace(getFullRange(document), newText)];
+			}
+			return edits;
 		}
 		return [];
 	}

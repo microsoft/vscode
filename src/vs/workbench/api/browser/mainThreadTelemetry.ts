@@ -38,7 +38,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 			}));
 		}
 
-		this._proxy.$initializeTelemetryLevel(this.telemetryLevel);
+		this._proxy.$initializeTelemetryLevel(this.telemetryLevel, this._productService.enabledTelemetryLevels);
 	}
 
 	private get telemetryLevel(): TelemetryLevel {

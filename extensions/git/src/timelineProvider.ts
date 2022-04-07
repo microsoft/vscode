@@ -220,28 +220,6 @@ export class GitTimelineProvider implements TimelineProvider {
 
 				items.splice(0, 0, item);
 			}
-
-			const working = repo.workingTreeGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
-			if (working) {
-				const date = new Date();
-
-				const item = new GitTimelineItem('', index ? '~' : 'HEAD', localize('git.timeline.uncommitedChanges', 'Uncommitted Changes'), date.getTime(), 'working', 'git:file:working');
-				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
-				item.iconPath = new ThemeIcon('git-commit');
-				item.description = '';
-				item.setItemDetails(you, undefined, dateFormatter.format(date), Resource.getStatusText(working.type));
-
-				const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
-				if (cmd) {
-					item.command = {
-						title: openComparison,
-						command: cmd.command,
-						arguments: cmd.arguments,
-					};
-				}
-
-				items.splice(0, 0, item);
-			}
 		}
 
 		return {

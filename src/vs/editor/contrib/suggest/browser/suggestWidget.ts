@@ -27,6 +27,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder, editorForeground, editorWidgetBackground, editorWidgetBorder, listFocusHighlightForeground, listHighlightForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { CompletionModel } from './completionModel';
 import { ResizableHTMLElement } from './resizable';
@@ -37,15 +38,15 @@ import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
 /**
  * Suggest widget colors
  */
-export const editorSuggestWidgetBackground = registerColor('editorSuggestWidget.background', { dark: editorWidgetBackground, light: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('editorSuggestWidgetBackground', 'Background color of the suggest widget.'));
-export const editorSuggestWidgetBorder = registerColor('editorSuggestWidget.border', { dark: editorWidgetBorder, light: editorWidgetBorder, hc: editorWidgetBorder }, nls.localize('editorSuggestWidgetBorder', 'Border color of the suggest widget.'));
-export const editorSuggestWidgetForeground = registerColor('editorSuggestWidget.foreground', { dark: editorForeground, light: editorForeground, hc: editorForeground }, nls.localize('editorSuggestWidgetForeground', 'Foreground color of the suggest widget.'));
-export const editorSuggestWidgetSelectedForeground = registerColor('editorSuggestWidget.selectedForeground', { dark: quickInputListFocusForeground, light: quickInputListFocusForeground, hc: quickInputListFocusForeground }, nls.localize('editorSuggestWidgetSelectedForeground', 'Foreground color of the selected entry in the suggest widget.'));
-export const editorSuggestWidgetSelectedIconForeground = registerColor('editorSuggestWidget.selectedIconForeground', { dark: quickInputListFocusIconForeground, light: quickInputListFocusIconForeground, hc: quickInputListFocusIconForeground }, nls.localize('editorSuggestWidgetSelectedIconForeground', 'Icon foreground color of the selected entry in the suggest widget.'));
-export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', { dark: quickInputListFocusBackground, light: quickInputListFocusBackground, hc: quickInputListFocusBackground }, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
-export const editorSuggestWidgetHighlightForeground = registerColor('editorSuggestWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hc: listHighlightForeground }, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
-export const editorSuggestWidgetHighlightFocusForeground = registerColor('editorSuggestWidget.focusHighlightForeground', { dark: listFocusHighlightForeground, light: listFocusHighlightForeground, hc: listFocusHighlightForeground }, nls.localize('editorSuggestWidgetFocusHighlightForeground', 'Color of the match highlights in the suggest widget when an item is focused.'));
-export const editorSuggestWidgetStatusForeground = registerColor('editorSuggestWidgetStatus.foreground', { dark: transparent(editorSuggestWidgetForeground, .5), light: transparent(editorSuggestWidgetForeground, .5), hc: transparent(editorSuggestWidgetForeground, .5) }, nls.localize('editorSuggestWidgetStatusForeground', 'Foreground color of the suggest widget status.'));
+export const editorSuggestWidgetBackground = registerColor('editorSuggestWidget.background', { dark: editorWidgetBackground, light: editorWidgetBackground, hcDark: editorWidgetBackground, hcLight: editorWidgetBackground }, nls.localize('editorSuggestWidgetBackground', 'Background color of the suggest widget.'));
+export const editorSuggestWidgetBorder = registerColor('editorSuggestWidget.border', { dark: editorWidgetBorder, light: editorWidgetBorder, hcDark: editorWidgetBorder, hcLight: editorWidgetBorder }, nls.localize('editorSuggestWidgetBorder', 'Border color of the suggest widget.'));
+export const editorSuggestWidgetForeground = registerColor('editorSuggestWidget.foreground', { dark: editorForeground, light: editorForeground, hcDark: editorForeground, hcLight: editorForeground }, nls.localize('editorSuggestWidgetForeground', 'Foreground color of the suggest widget.'));
+export const editorSuggestWidgetSelectedForeground = registerColor('editorSuggestWidget.selectedForeground', { dark: quickInputListFocusForeground, light: quickInputListFocusForeground, hcDark: quickInputListFocusForeground, hcLight: quickInputListFocusForeground }, nls.localize('editorSuggestWidgetSelectedForeground', 'Foreground color of the selected entry in the suggest widget.'));
+export const editorSuggestWidgetSelectedIconForeground = registerColor('editorSuggestWidget.selectedIconForeground', { dark: quickInputListFocusIconForeground, light: quickInputListFocusIconForeground, hcDark: quickInputListFocusIconForeground, hcLight: quickInputListFocusIconForeground }, nls.localize('editorSuggestWidgetSelectedIconForeground', 'Icon foreground color of the selected entry in the suggest widget.'));
+export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', { dark: quickInputListFocusBackground, light: quickInputListFocusBackground, hcDark: quickInputListFocusBackground, hcLight: quickInputListFocusBackground }, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
+export const editorSuggestWidgetHighlightForeground = registerColor('editorSuggestWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hcDark: listHighlightForeground, hcLight: listHighlightForeground }, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
+export const editorSuggestWidgetHighlightFocusForeground = registerColor('editorSuggestWidget.focusHighlightForeground', { dark: listFocusHighlightForeground, light: listFocusHighlightForeground, hcDark: listFocusHighlightForeground, hcLight: listFocusHighlightForeground }, nls.localize('editorSuggestWidgetFocusHighlightForeground', 'Color of the match highlights in the suggest widget when an item is focused.'));
+export const editorSuggestWidgetStatusForeground = registerColor('editorSuggestWidgetStatus.foreground', { dark: transparent(editorSuggestWidgetForeground, .5), light: transparent(editorSuggestWidgetForeground, .5), hcDark: transparent(editorSuggestWidgetForeground, .5), hcLight: transparent(editorSuggestWidgetForeground, .5) }, nls.localize('editorSuggestWidgetStatusForeground', 'Foreground color of the suggest widget status.'));
 
 const enum State {
 	Hidden,
@@ -347,7 +348,7 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	private _onThemeChange(theme: IColorTheme) {
-		this._details.widget.borderWidth = theme.type === 'hc' ? 2 : 1;
+		this._details.widget.borderWidth = isHighContrast(theme.type) ? 2 : 1;
 	}
 
 	private _onListFocus(e: IListEvent<CompletionItem>): void {

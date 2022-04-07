@@ -94,7 +94,7 @@ suite('ConfigurationEditingService', () => {
 		environmentService = TestEnvironmentService;
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService, null));
-		disposables.add(fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, logService))));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, logService))));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));

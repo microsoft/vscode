@@ -8,7 +8,7 @@ import { IChannel, IServerChannel, getDelayedChannel, IPCLogger } from 'vs/base/
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { connectRemoteAgentManagement, IConnectionOptions, ISocketFactory, PersistentConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
@@ -67,6 +67,13 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 			);
 		}
 		return this._environment;
+	}
+
+	getExtensionHostExitInfo(reconnectionToken: string): Promise<IExtensionHostExitInfo | null> {
+		return this._withChannel(
+			(channel, connection) => RemoteExtensionEnvironmentChannelClient.getExtensionHostExitInfo(channel, connection.remoteAuthority, reconnectionToken),
+			null
+		);
 	}
 
 	whenExtensionsReady(): Promise<void> {

@@ -1083,7 +1083,7 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
+					primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
@@ -1105,7 +1105,7 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
+					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
@@ -1127,7 +1127,7 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow },
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow,
 					when: TerminalContextKeys.focus,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
@@ -1149,7 +1149,7 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow },
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow,
 					when: TerminalContextKeys.focus,
 					weight: KeybindingWeight.WorkbenchContrib
 				},

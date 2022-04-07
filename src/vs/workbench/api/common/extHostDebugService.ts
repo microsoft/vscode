@@ -11,7 +11,7 @@ import {
 	MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID,
 	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
 } from 'vs/workbench/api/common/extHost.protocol';
-import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable, DataBreakpoint, DebugConsoleMode, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer } from 'vs/workbench/api/common/extHostTypes';
+import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable, DataBreakpoint, DebugConsoleMode, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer, TextDiffTabInput, NotebookDiffEditorTabInput, TextTabInput, NotebookEditorTabInput, CustomEditorTabInput } from 'vs/workbench/api/common/extHostTypes';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
@@ -953,14 +953,13 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				if (activeEditor) {
 					return activeEditor.document.uri;
 				}
-				const activeTab = editorTabs.tabGroups.groups.find(group => group.isActive)?.activeTab;
+				const activeTab = editorTabs.tabGroups.all.find(group => group.isActive)?.activeTab;
 				if (activeTab !== undefined) {
 					// Resolve a resource from the tab
-					const asSideBySideResource = activeTab.resource as { primary?: URI; secondary?: URI } | undefined;
-					if (asSideBySideResource && (asSideBySideResource.primary || asSideBySideResource.secondary)) {
-						return asSideBySideResource.primary ?? asSideBySideResource.secondary;
-					} else {
-						return activeTab.resource as URI | undefined;
+					if (activeTab.kind instanceof TextDiffTabInput || activeTab.kind instanceof NotebookDiffEditorTabInput) {
+						return activeTab.kind.modified;
+					} else if (activeTab.kind instanceof TextTabInput || activeTab.kind instanceof NotebookEditorTabInput || activeTab.kind instanceof CustomEditorTabInput) {
+						return activeTab.kind.uri;
 					}
 				}
 			}

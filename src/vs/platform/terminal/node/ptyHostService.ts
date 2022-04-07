@@ -12,7 +12,7 @@ import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parsePtyHostPort } from 'vs/platform/environment/common/environmentService';
-import { getResolvedShellEnv } from 'vs/platform/terminal/node/shellEnv';
+import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { ILogService } from 'vs/platform/log/common/log';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
@@ -343,8 +343,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._heartbeatFirstTimeout = setTimeout(() => this._handleHeartbeatFirstTimeout(), HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier);
 		if (!this._isResponsive) {
 			this._isResponsive = true;
+			this._onPtyHostResponsive.fire();
 		}
-		this._onPtyHostResponsive.fire();
 	}
 
 	private _handleHeartbeatFirstTimeout() {
@@ -358,14 +358,17 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._heartbeatSecondTimeout = undefined;
 		if (this._isResponsive) {
 			this._isResponsive = false;
+			this._onPtyHostUnresponsive.fire();
 		}
-		this._onPtyHostUnresponsive.fire();
 	}
 
 	private _handleUnresponsiveCreateProcess() {
 		this._clearHeartbeatTimeouts();
 		this._logService.error(`No ptyHost response to createProcess after ${HeartbeatConstants.CreateProcessTimeout / 1000} seconds`);
-		this._onPtyHostUnresponsive.fire();
+		if (this._isResponsive) {
+			this._isResponsive = false;
+			this._onPtyHostUnresponsive.fire();
+		}
 	}
 
 	private _clearHeartbeatTimeouts() {

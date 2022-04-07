@@ -2303,7 +2303,7 @@ export class CommandCenter {
 		const shouldPrompt = !isReadonly && config.get<boolean>('confirmSync') === true;
 
 		if (shouldPrompt) {
-			const message = localize('sync is unpredictable', "This action will push and pull commits to and from '{0}/{1}'.", HEAD.upstream.remote, HEAD.upstream.name);
+			const message = localize('sync is unpredictable', "This action will pull and push commits from and to '{0}/{1}'.", HEAD.upstream.remote, HEAD.upstream.name);
 			const yes = localize('ok', "OK");
 			const neverAgain = localize('never again', "OK, Don't Show Again");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
@@ -2670,12 +2670,12 @@ export class CommandCenter {
 		else if (item.previousRef === 'HEAD' && item.ref === '~') {
 			title = localize('git.title.index', '{0} (Index)', basename);
 		} else {
-			title = localize('git.title.diffRefs', '{0} ({1}) ⟷ {0} ({2})', basename, item.shortPreviousRef, item.shortRef);
+			title = localize('git.title.diffRefs', '{0} ({1}) ↔ {0} ({2})', basename, item.shortPreviousRef, item.shortRef);
 		}
 
 		return {
 			command: 'vscode.diff',
-			title: 'Open Comparison',
+			title: localize('git.timeline.openDiffCommand', "Open Comparison"),
 			arguments: [toGitUri(uri, item.previousRef), item.ref === '' ? uri : toGitUri(uri, item.ref), title, options]
 		};
 	}
@@ -2740,7 +2740,7 @@ export class CommandCenter {
 		}
 
 
-		const title = localize('git.title.diff', '{0} ⟷ {1}', leftTitle, rightTitle);
+		const title = localize('git.title.diff', '{0} ↔ {1}', leftTitle, rightTitle);
 		await commands.executeCommand('vscode.diff', selected.ref === '' ? uri : toGitUri(uri, selected.ref), item.ref === '' ? uri : toGitUri(uri, item.ref), title);
 	}
 

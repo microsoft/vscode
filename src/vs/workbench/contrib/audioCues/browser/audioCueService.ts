@@ -51,12 +51,22 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound)));
 	}
 
+	private getVolumeInPercent(): number {
+		let volume = this.configurationService.getValue<number>('audioCues.volume');
+		if (typeof volume !== 'number') {
+			return 50;
+		}
+
+		return Math.max(Math.min(volume, 100), 0);
+	}
+
 	public async playSound(sound: Sound): Promise<void> {
 		const url = FileAccess.asBrowserUri(
 			`vs/workbench/contrib/audioCues/browser/media/${sound.fileName}`,
 			require
 		).toString();
 		const audio = new Audio(url);
+		audio.volume = this.getVolumeInPercent() / 100;
 
 		try {
 			try {

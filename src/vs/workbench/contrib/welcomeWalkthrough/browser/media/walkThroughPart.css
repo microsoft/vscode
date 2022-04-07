@@ -135,7 +135,8 @@
 	display: initial;
 }
 
-.monaco-workbench.hc-black .part.editor > .content .walkThroughContent .monaco-editor {
+.monaco-workbench.hc-black .part.editor > .content .walkThroughContent .monaco-editor,
+.monaco-workbench.hc-light .part.editor > .content .walkThroughContent .monaco-editor {
 	border-width: 1px;
 	border-style: solid;
 }

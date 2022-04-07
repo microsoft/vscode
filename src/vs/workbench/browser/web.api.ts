@@ -517,7 +517,8 @@ export interface IWindowIndicator {
 export enum ColorScheme {
 	DARK = 'dark',
 	LIGHT = 'light',
-	HIGH_CONTRAST = 'hc'
+	HIGH_CONTRAST_LIGHT = 'hcLight',
+	HIGH_CONTRAST_DARK = 'hcDark'
 }
 
 export interface IInitialColorTheme {

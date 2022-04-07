@@ -10,13 +10,13 @@ import { CursorConfiguration, CursorState, EditOperationResult, EditOperationTyp
 import { CursorContext } from 'vs/editor/common/cursor/cursorContext';
 import { DeleteOperations } from 'vs/editor/common/cursor/cursorDeleteOperations';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { TypeOperations, TypeWithAutoClosingCommand } from 'vs/editor/common/cursor/cursorTypeOperations';
+import { CompositionOutcome, TypeOperations, TypeWithAutoClosingCommand } from 'vs/editor/common/cursor/cursorTypeOperations';
 import { Position } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from 'vs/editor/common/model';
-import { RawContentChangedType, ModelRawContentChangedEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/textModelEvents';
+import { RawContentChangedType, ModelInjectedTextChangedEvent, InternalModelContentChangeEvent } from 'vs/editor/common/textModelEvents';
 import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from 'vs/editor/common/viewEvents';
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
@@ -216,8 +216,8 @@ export class CursorsController extends Disposable {
 		this.revealPrimary(eventsCollector, 'restoreState', false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Immediate);
 	}
 
-	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent): void {
-		if (e instanceof ModelInjectedTextChangedEvent) {
+	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, event: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
+		if (event instanceof ModelInjectedTextChangedEvent) {
 			// If injected texts change, the view positions of all cursors need to be updated.
 			if (this._isHandling) {
 				// The view positions will be updated when handling finishes
@@ -234,6 +234,7 @@ export class CursorsController extends Disposable {
 				this._isHandling = false;
 			}
 		} else {
+			const e = event.rawContentChangedEvent;
 			this._knownModelVersionId = e.versionId;
 			if (this._isHandling) {
 				return;
@@ -528,17 +529,17 @@ export class CursorsController extends Disposable {
 	}
 
 	public startComposition(eventsCollector: ViewModelEventsCollector): void {
-		this._compositionState = new CompositionState(this._model, this.getSelection());
+		this._compositionState = new CompositionState(this._model, this.getSelections());
 	}
 
 	public endComposition(eventsCollector: ViewModelEventsCollector, source?: string | null | undefined): void {
-		const compositionInsertText = this._compositionState ? this._compositionState.deduceInsertedText(this._model, this.getSelection()) : null;
+		const compositionOutcome = this._compositionState ? this._compositionState.deduceOutcome(this._model, this.getSelections()) : null;
 		this._compositionState = null;
 
 		this._executeEdit(() => {
 			if (source === 'keyboard') {
 				// composition finishes, let's check if we need to auto complete if necessary.
-				this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, compositionInsertText, this.getSelections(), this.getAutoClosedCharacters()));
+				this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, compositionOutcome, this.getSelections(), this.getAutoClosedCharacters()));
 			}
 		}, eventsCollector, source);
 	}
@@ -1013,49 +1014,76 @@ class CommandExecutor {
 class CompositionLineState {
 	constructor(
 		public readonly text: string,
-		public readonly pos: number
+		public readonly startSelection: number,
+		public readonly endSelection: number
 	) { }
 }
 
 class CompositionState {
 
-	private readonly _original: CompositionLineState | null;
+	private readonly _original: CompositionLineState[] | null;
 
-	private static _capture(textModel: ITextModel, selection: Selection): CompositionLineState | null {
-		if (!selection.isEmpty()) {
-			return null;
+	private static _capture(textModel: ITextModel, selections: Selection[]): CompositionLineState[] | null {
+		const result: CompositionLineState[] = [];
+		for (const selection of selections) {
+			if (selection.startLineNumber !== selection.endLineNumber) {
+				return null;
+			}
+			result.push(new CompositionLineState(
+				textModel.getLineContent(selection.startLineNumber),
+				selection.startColumn - 1,
+				selection.endColumn - 1
+			));
 		}
-		return new CompositionLineState(
-			textModel.getLineContent(selection.startLineNumber),
-			selection.startColumn - 1
-		);
+		return result;
 	}
 
-	constructor(textModel: ITextModel, selection: Selection) {
-		this._original = CompositionState._capture(textModel, selection);
+	constructor(textModel: ITextModel, selections: Selection[]) {
+		this._original = CompositionState._capture(textModel, selections);
 	}
 
 	/**
 	 * Returns the inserted text during this composition.
 	 * If the composition resulted in existing text being changed (i.e. not a pure insertion) it returns null.
 	 */
-	deduceInsertedText(textModel: ITextModel, selection: Selection): string | null {
+	deduceOutcome(textModel: ITextModel, selections: Selection[]): CompositionOutcome[] | null {
 		if (!this._original) {
 			return null;
 		}
-		const current = CompositionState._capture(textModel, selection);
+		const current = CompositionState._capture(textModel, selections);
 		if (!current) {
 			return null;
 		}
-		const insertedTextLength = current.text.length - this._original.text.length;
-		if (insertedTextLength < 0) {
+		if (this._original.length !== current.length) {
 			return null;
 		}
-		const originalPrefix = this._original.text.substring(0, this._original.pos);
-		const originalSuffix = this._original.text.substring(this._original.pos);
-		if (!current.text.startsWith(originalPrefix) || !current.text.endsWith(originalSuffix)) {
-			return null;
+		const result: CompositionOutcome[] = [];
+		for (let i = 0, len = this._original.length; i < len; i++) {
+			result.push(CompositionState._deduceOutcome(this._original[i], current[i]));
 		}
-		return current.text.substring(this._original.pos, this._original.pos + insertedTextLength);
+		return result;
+	}
+
+	private static _deduceOutcome(original: CompositionLineState, current: CompositionLineState): CompositionOutcome {
+		const commonPrefix = Math.min(
+			original.startSelection,
+			current.startSelection,
+			strings.commonPrefixLength(original.text, current.text)
+		);
+		const commonSuffix = Math.min(
+			original.text.length - original.endSelection,
+			current.text.length - current.endSelection,
+			strings.commonSuffixLength(original.text, current.text)
+		);
+		const deletedText = original.text.substring(commonPrefix, original.text.length - commonSuffix);
+		const insertedText = current.text.substring(commonPrefix, current.text.length - commonSuffix);
+		return new CompositionOutcome(
+			deletedText,
+			original.startSelection - commonPrefix,
+			original.endSelection - commonPrefix,
+			insertedText,
+			current.startSelection - commonPrefix,
+			current.endSelection - commonPrefix
+		);
 	}
 }

@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
 import * as arrays from 'vs/base/common/arrays';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostEditorsShape, IEditorPropertiesChangeData, IMainContext, ITextDocumentShowOptions, ITextEditorPositionData, MainContext, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { ExtHostTextEditor, TextEditorDecorationType } from 'vs/workbench/api/common/extHostTextEditor';
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { TextEditorSelectionChangeKind } from 'vs/workbench/api/common/extHostTypes';
-import type * as vscode from 'vscode';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import * as vscode from 'vscode';
 
 export class ExtHostEditors implements ExtHostEditorsShape {
 

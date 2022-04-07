@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import * as dom from 'vs/base/browser/dom';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IAction } from 'vs/base/common/actions';
@@ -49,7 +49,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _decorations: Map<number, IDisposableDecoration> = new Map();
 	private _placeholderDecoration: IDecoration | undefined;
 
-	private readonly _onDidRequestRunCommand = this._register(new Emitter<string>());
+	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
 
 	constructor(
@@ -57,10 +57,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
-		this._attachToCommandCapability();
+		this._register(toDisposable(() => this.clearDecorations(true)));
 		this._register(this._contextMenuService.onDidShowContextMenu(() => this._contextMenuVisible = true));
 		this._register(this._contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
@@ -69,11 +70,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIcon) ||
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconSuccess) ||
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconError)) {
-				this._refreshClasses();
+				this._refreshStyles();
 			} else if (e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight)) {
 				this.refreshLayouts();
 			}
 		});
+		this._themeService.onDidColorThemeChange(() => this._refreshStyles(true));
 	}
 
 	public refreshLayouts(): void {
@@ -83,7 +85,22 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	private _refreshClasses(): void {
+	private _refreshStyles(refreshOverviewRulerColors?: boolean): void {
+		if (refreshOverviewRulerColors) {
+			for (const decoration of this._decorations.values()) {
+				let color = decoration.exitCode === undefined ? defaultColor : decoration.exitCode ? errorColor : successColor;
+				if (color && typeof color !== 'string') {
+					color = color.toString();
+				} else {
+					color = '';
+				}
+				if (decoration.decoration.overviewRulerOptions) {
+					decoration.decoration.overviewRulerOptions.color = color;
+				} else {
+					decoration.decoration.overviewRulerOptions = { color };
+				}
+			}
+		}
 		this._updateClasses(this._placeholderDecoration?.element);
 		for (const decoration of this._decorations.values()) {
 			this._updateClasses(decoration.decoration.element, decoration.exitCode);
@@ -99,21 +116,20 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._placeholderDecoration?.marker.dispose();
 		for (const value of this._decorations.values()) {
 			value.decoration.dispose();
-			value.decoration.marker.dispose();
 			dispose(value.disposables);
 		}
 		this._decorations.clear();
-		this.dispose();
 	}
 
 	private _attachToCommandCapability(): void {
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
 			this._addCommandFinishedListener();
+			this._addCommandStartedListener();
 		} else {
 			this._register(this._capabilities.onDidAddCapability(c => {
 				if (c === TerminalCapability.CommandDetection) {
-					this._addCommandStartedListener();
 					this._addCommandFinishedListener();
+					this._addCommandStartedListener();
 				}
 			}));
 		}
@@ -133,11 +149,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!capability) {
 			return;
 		}
-		if (capability.commands.length > 0) {
-			const lastCommand = capability.commands[capability.commands.length - 1];
-			if (lastCommand.marker && !lastCommand.endMarker) {
-				this.registerCommandDecoration(lastCommand, true);
-			}
+		if (capability.executingCommandObject?.marker) {
+			this.registerCommandDecoration(capability.executingCommandObject, true);
 		}
 		this._commandStartedListener = capability.onCommandStarted(command => this.registerCommandDecoration(command, true));
 	}
@@ -165,6 +178,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
+		this._attachToCommandCapability();
 	}
 
 	registerCommandDecoration(command: ITerminalCommand, beforeCommandExecution?: boolean): IDecoration | undefined {
@@ -182,7 +196,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		} else {
 			color = '';
 		}
-		const decoration = this._terminal.registerDecoration({ marker: command.marker, overviewRulerOptions: { color } });
+		const decoration = this._terminal.registerDecoration({
+			marker: command.marker,
+			overviewRulerOptions: beforeCommandExecution ? undefined : { color, position: command.exitCode ? 'right' : 'left' }
+		});
 		if (!decoration) {
 			return undefined;
 		}
@@ -296,10 +313,14 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				class: 'copy-output', tooltip: 'Copy Output', dispose: () => { }, id: 'terminal.copyOutput', label: localize("terminal.copyOutput", 'Copy Output'), enabled: true,
 				run: () => this._clipboardService.writeText(command.getOutput()!)
 			});
+			actions.push({
+				class: 'copy-output', tooltip: 'Copy Output as HTML', dispose: () => { }, id: 'terminal.copyOutputAsHtml', label: localize("terminal.copyOutputAsHtml", 'Copy Output as HTML'), enabled: true,
+				run: () => this._onDidRequestRunCommand.fire({ command, copyAsHtml: true })
+			});
 		}
 		actions.push({
 			class: 'rerun-command', tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: localize("terminal.rerunCommand", 'Rerun Command'), enabled: true,
-			run: () => this._onDidRequestRunCommand.fire(command.command)
+			run: () => this._onDidRequestRunCommand.fire({ command })
 		});
 		return actions;
 	}

@@ -2071,7 +2071,7 @@ declare module 'vscode' {
 		 * *Note* that setting the `notebookType`-property changes how `scheme` and `pattern` are interpreted. When set
 		 * they are evaluated against the {@link NotebookDocument.uri notebook uri}, not the document uri.
 		 *
-		 * @example <caption>Match python document inside jupyter notebook that aren't stored yet</caption>
+		 * @example <caption>Match python document inside jupyter notebook that aren't stored yet (`untitled`)</caption>
 		 * { language: 'python', notebookType: 'jupyter-notebook', scheme: 'untitled' }
 		 */
 		readonly notebookType?: string;
@@ -3249,7 +3249,7 @@ declare module 'vscode' {
 		/**
 		 * Include the declaration of the current symbol.
 		 */
-		includeDeclaration: boolean;
+		readonly includeDeclaration: boolean;
 	}
 
 	/**
@@ -3530,7 +3530,7 @@ declare module 'vscode' {
 		 * value starting at 1.
 		 * @return This snippet string.
 		 */
-		appendChoice(values: string[], number?: number): SnippetString;
+		appendChoice(values: readonly string[], number?: number): SnippetString;
 
 		/**
 		 * Builder-function that appends a variable (`${VAR}`) to
@@ -3568,7 +3568,7 @@ declare module 'vscode' {
 		 * be a range or a range and a placeholder text. The placeholder text should be the identifier of the symbol
 		 * which is being renamed - when omitted the text in the returned range is used.
 		 *
-		 * *Note: * This function should throw an error or return a rejected thenable when the provided location
+		 * *Note:* This function should throw an error or return a rejected thenable when the provided location
 		 * doesn't allow for a rename.
 		 *
 		 * @param document The document in which rename will be invoked.
@@ -3622,7 +3622,7 @@ declare module 'vscode' {
 		 * @param tokenType The token type.
 		 * @param tokenModifiers The token modifiers.
 		 */
-		push(range: Range, tokenType: string, tokenModifiers?: string[]): void;
+		push(range: Range, tokenType: string, tokenModifiers?: readonly string[]): void;
 
 		/**
 		 * Finish and create a `SemanticTokens` instance.
@@ -4893,7 +4893,7 @@ declare module 'vscode' {
 		 * @return Selection ranges or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
-		provideSelectionRanges(document: TextDocument, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[]>;
+		provideSelectionRanges(document: TextDocument, positions: readonly Position[], token: CancellationToken): ProviderResult<SelectionRange[]>;
 	}
 
 	/**
@@ -6825,7 +6825,8 @@ declare module 'vscode' {
 	export enum ColorThemeKind {
 		Light = 1,
 		Dark = 2,
-		HighContrast = 3
+		HighContrast = 3,
+		HighContrastLight = 4
 	}
 
 	/**
@@ -6834,7 +6835,7 @@ declare module 'vscode' {
 	export interface ColorTheme {
 
 		/**
-		 * The kind of this color theme: light, dark or high contrast.
+		 * The kind of this color theme: light, dark, high contrast dark and high contrast light.
 		 */
 		readonly kind: ColorThemeKind;
 	}
@@ -9521,7 +9522,7 @@ declare module 'vscode' {
 		 * @return A new Terminal.
 		 * @throws When running in an environment where a new process cannot be started.
 		 */
-		export function createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): Terminal;
+		export function createTerminal(name?: string, shellPath?: string, shellArgs?: readonly string[] | string): Terminal;
 
 		/**
 		 * Creates a {@link Terminal} with a backing shell process.
@@ -9778,29 +9779,35 @@ declare module 'vscode' {
 
 	/**
 	 * A map containing a mapping of the mime type of the corresponding transferred data.
-	 * Drag and drop controllers that implement `handleDrag` can additional mime types to the data transfer
-	 * These additional mime types will only be included in the `handleDrop` when the the drag was initiated from
+	 *
+	 * Drag and drop controllers that implement {@link TreeDragAndDropController.handleDrag `handleDrag`} can add additional mime types to the
+	 * data transfer. These additional mime types will only be included in the `handleDrop` when the the drag was initiated from
 	 * an element in the same drag and drop controller.
 	 */
-	export class DataTransfer<T extends DataTransferItem = DataTransferItem> {
+	export class DataTransfer {
 		/**
 		 * Retrieves the data transfer item for a given mime type.
-		 * @param mimeType The mime type to get the data transfer item for.
+		 *
+		 * @param mimeType The mime type to get the data transfer item for, such as `text/plain` or `image/png`.
+		 *
+		 * Special mime types:
+		 * - `text/uri-list` — A string with `toString()`ed Uris separated by newlines. To specify a cursor position in the file,
+		 * set the Uri's fragment to `L3,5`, where 3 is the line number and 5 is the column number.
 		 */
-		get(mimeType: string): T | undefined;
+		get(mimeType: string): DataTransferItem | undefined;
 
 		/**
 		 * Sets a mime type to data transfer item mapping.
 		 * @param mimeType The mime type to set the data for.
 		 * @param value The data transfer item for the given mime type.
 		 */
-		set(mimeType: string, value: T): void;
+		set(mimeType: string, value: DataTransferItem): void;
 
 		/**
 		 * Allows iteration through the data transfer items.
 		 * @param callbackfn Callback for iteration through the data transfer items.
 		 */
-		forEach(callbackfn: (value: T, key: string) => void): void;
+		forEach(callbackfn: (value: DataTransferItem, key: string) => void): void;
 	}
 
 	/**
@@ -9809,52 +9816,58 @@ declare module 'vscode' {
 	export interface TreeDragAndDropController<T> {
 
 		/**
-		 * The mime types that the `handleDrop` method of this `DragAndDropController` supports.
+		 * The mime types that the {@link TreeDragAndDropController.handleDrop `handleDrop`} method of this `DragAndDropController` supports.
 		 * This could be well-defined, existing, mime types, and also mime types defined by the extension.
 		 *
-		 * Each tree will automatically support drops from it's own `DragAndDropController`. To support drops from other trees,
-		 * you will need to add the mime type of that tree. The mime type of a tree is of the format `application/vnd.code.tree.treeidlowercase`.
+		 * To support drops from trees, you will need to add the mime type of that tree.
+		 * This includes drops from within the same tree.
+		 * The mime type of a tree is recommended to be of the format `application/vnd.code.tree.<treeidlowercase>`.
 		 *
 		 * To learn the mime type of a dragged item:
 		 * 1. Set up your `DragAndDropController`
 		 * 2. Use the Developer: Set Log Level... command to set the level to "Debug"
 		 * 3. Open the developer tools and drag the item with unknown mime type over your tree. The mime types will be logged to the developer console
+		 *
+		 * Note that mime types that cannot be sent to the extension will be omitted.
 		 */
-		readonly dropMimeTypes: string[];
+		readonly dropMimeTypes: readonly string[];
 
 		/**
-		 * The mime types that the `handleDrag` method of this `TreeDragAndDropController` may add to the tree data transfer.
+		 * The mime types that the {@link TreeDragAndDropController.handleDrag `handleDrag`} method of this `TreeDragAndDropController` may add to the tree data transfer.
 		 * This could be well-defined, existing, mime types, and also mime types defined by the extension.
+		 *
+		 * The recommended mime type of the tree (`application/vnd.code.tree.<treeidlowercase>`) will be automatically added.
 		 */
-		readonly dragMimeTypes: string[];
+		readonly dragMimeTypes: readonly string[];
 
 		/**
 		 * When the user starts dragging items from this `DragAndDropController`, `handleDrag` will be called.
-		 * Extensions can use `handleDrag` to add their `DataTransferItem`s to the drag and drop.
+		 * Extensions can use `handleDrag` to add their {@link DataTransferItem `DataTransferItem`} items to the drag and drop.
 		 *
 		 * When the items are dropped on **another tree item** in **the same tree**, your `DataTransferItem` objects
-		 * will be preserved. See the documentation for `DataTransferItem` for how best to take advantage of this.
+		 * will be preserved. Use the recommended mime type for the tree (`application/vnd.code.tree.<treeidlowercase>`) to add
+		 * tree objects in a data transfer. See the documentation for `DataTransferItem` for how best to take advantage of this.
 		 *
 		 * To add a data transfer item that can be dragged into the editor, use the application specific mime type "text/uri-list".
 		 * The data for "text/uri-list" should be a string with `toString()`ed Uris separated by newlines. To specify a cursor position in the file,
 		 * set the Uri's fragment to `L3,5`, where 3 is the line number and 5 is the column number.
 		 *
 		 * @param source The source items for the drag and drop operation.
-		 * @param treeDataTransfer The data transfer associated with this drag.
+		 * @param dataTransfer The data transfer associated with this drag.
 		 * @param token A cancellation token indicating that drag has been cancelled.
 		 */
-		handleDrag?(source: T[], treeDataTransfer: DataTransfer, token: CancellationToken): Thenable<void> | void;
+		handleDrag?(source: readonly T[], dataTransfer: DataTransfer, token: CancellationToken): Thenable<void> | void;
 
 		/**
-		 * Called when a drag and drop action results in a drop on the tree that this `DragAndDropController` belongs too.
+		 * Called when a drag and drop action results in a drop on the tree that this `DragAndDropController` belongs to.
 		 *
-		 * Extensions should fire `TreeDataProvider.onDidChangeTreeData` for any elements that need to be refreshed.
+		 * Extensions should fire {@link TreeDataProvider.onDidChangeTreeData onDidChangeTreeData} for any elements that need to be refreshed.
 		 *
-		 * @param source The data transfer items of the source of the drag.
-		 * @param target The target tree element that the drop is occurring on.
+		 * @param dataTransfer The data transfer items of the source of the drag.
+		 * @param target The target tree element that the drop is occurring on. When undefined, the target is the root.
 		 * @param token A cancellation token indicating that the drop has been cancelled.
 		 */
-		handleDrop?(target: T, source: DataTransfer, token: CancellationToken): Thenable<void> | void;
+		handleDrop?(target: T | undefined, dataTransfer: DataTransfer, token: CancellationToken): Thenable<void> | void;
 	}
 
 	/**
@@ -10540,17 +10553,20 @@ declare module 'vscode' {
 
 		/**
 		 * Show progress for the source control viewlet, as overlay for the icon and as progress bar
-		 * inside the viewlet (when visible). Neither supports cancellation nor discrete progress.
+		 * inside the viewlet (when visible). Neither supports cancellation nor discrete progress nor
+		 * a label to describe the operation.
 		 */
 		SourceControl = 1,
 
 		/**
 		 * Show progress in the status bar of the editor. Neither supports cancellation nor discrete progress.
+		 * Supports rendering of {@link ThemeIcon theme icons} via the `$(<name>)`-syntax in the progress label.
 		 */
 		Window = 10,
 
 		/**
-		 * Show progress as notification with an optional cancel button. Supports to show infinite and discrete progress.
+		 * Show progress as notification with an optional cancel button. Supports to show infinite and discrete
+		 * progress but does not support rendering of icons.
 		 */
 		Notification = 15
 	}
@@ -10984,7 +11000,7 @@ declare module 'vscode' {
 		 *
 		 * @param thenable A thenable that resolves to {@link TextEdit pre-save-edits}.
 		 */
-		waitUntil(thenable: Thenable<TextEdit[]>): void;
+		waitUntil(thenable: Thenable<readonly TextEdit[]>): void;
 
 		/**
 		 * Allows to pause the event loop until the provided thenable resolved.
@@ -11390,11 +11406,21 @@ declare module 'vscode' {
 		 * By default, all opened {@link workspace.workspaceFolders workspace folders} will be watched
 		 * for file changes recursively.
 		 *
-		 * Additional folders can be added for file watching by providing a {@link RelativePattern} with
-		 * a `base` that is outside of any of the currently opened workspace folders. If the `pattern` is
-		 * complex (e.g. contains `**` or path segments), the folder will be watched recursively and
-		 * otherwise will be watched non-recursively (i.e. only changes to the first level of the path
-		 * will be reported).
+		 * Additional paths can be added for file watching by providing a {@link RelativePattern} with
+		 * a `base` path to watch. If the `pattern` is complex (e.g. contains `**` or path segments),
+		 * the path will be watched recursively and otherwise will be watched non-recursively (i.e. only
+		 * changes to the first level of the path will be reported).
+		 *
+		 * *Note* that requests for recursive file watchers for a `base` path that is inside the opened
+		 * workspace are ignored given all opened {@link workspace.workspaceFolders workspace folders} are
+		 * watched for file changes recursively by default. Non-recursive file watchers however are always
+		 * supported, even inside the opened workspace because they allow to bypass the configured settings
+		 * for excludes (`files.watcherExclude`). If you need to watch in a location that is typically
+		 * excluded (for example `node_modules` or `.git` folder), then you can use a non-recursive watcher
+		 * in the workspace for this purpose.
+		 *
+		 * If possible, keep the use of recursive watchers to a minimum because recursive file watching
+		 * is quite resource intense.
 		 *
 		 * Providing a `string` as `globPattern` acts as convenience method for watching file events in
 		 * all opened workspace folders. It cannot be used to add more folders for file watching, nor will
@@ -11404,10 +11430,11 @@ declare module 'vscode' {
 		 *
 		 * To stop listening to events the watcher must be disposed.
 		 *
-		 * *Note* that file events from file watchers may be excluded based on user configuration.
+		 * *Note* that file events from recursive file watchers may be excluded based on user configuration.
 		 * The setting `files.watcherExclude` helps to reduce the overhead of file events from folders
 		 * that are known to produce many file changes at once (such as `node_modules` folders). As such,
-		 * it is highly recommended to watch with simple patterns that do not require recursive watchers.
+		 * it is highly recommended to watch with simple patterns that do not require recursive watchers
+		 * where the exclude settings are ignored and you have full control over the events.
 		 *
 		 * *Note* that symbolic links are not automatically followed for file watching unless the path to
 		 * watch itself is a symbolic link.
@@ -11915,10 +11942,10 @@ declare module 'vscode' {
 		 * 1. When {@linkcode DocumentSelector} is an array, compute the match for each contained `DocumentFilter` or language identifier and take the maximum value.
 		 * 2. A string will be desugared to become the `language`-part of a {@linkcode DocumentFilter}, so `"fooLang"` is like `{ language: "fooLang" }`.
 		 * 3. A {@linkcode DocumentFilter} will be matched against the document by comparing its parts with the document. The following rules apply:
-		 *  1. When the `DocumentFilter` is empty (`{}`) the result is `0`
-		 *  2. When `scheme`, `language`, or `pattern` are defined but one doesn't match, the result is `0`
-		 *  3. Matching against `*` gives a score of `5`, matching via equality or via a glob-pattern gives a score of `10`
-		 *  4. The result is the maximum value of each match
+		 *    1. When the `DocumentFilter` is empty (`{}`) the result is `0`
+		 *    2. When `scheme`, `language`, `pattern`, or `notebook` are defined but one doesn't match, the result is `0`
+		 *    3. Matching against `*` gives a score of `5`, matching via equality or via a glob-pattern gives a score of `10`
+		 *    4. The result is the maximum value of each match
 		 *
 		 * Samples:
 		 * ```js
@@ -11926,8 +11953,8 @@ declare module 'vscode' {
 		 * doc.uri; //'file:///my/file.js'
 		 * doc.languageId; // 'javascript'
 		 * match('javascript', doc); // 10;
-		 * match({language: 'javascript'}, doc); // 10;
-		 * match({language: 'javascript', scheme: 'file'}, doc); // 10;
+		 * match({ language: 'javascript' }, doc); // 10;
+		 * match({ language: 'javascript', scheme: 'file' }, doc); // 10;
 		 * match('*', doc); // 5
 		 * match('fooLang', doc); // 0
 		 * match(['fooLang', '*'], doc); // 5
@@ -11936,8 +11963,16 @@ declare module 'vscode' {
 		 * doc.uri; // 'git:/my/file.js'
 		 * doc.languageId; // 'javascript'
 		 * match('javascript', doc); // 10;
-		 * match({language: 'javascript', scheme: 'git'}, doc); // 10;
+		 * match({ language: 'javascript', scheme: 'git' }, doc); // 10;
 		 * match('*', doc); // 5
+		 *
+		 * // notebook cell document
+		 * doc.uri; // `vscode-notebook-cell:///my/notebook.ipynb#gl65s2pmha`;
+		 * doc.languageId; // 'python'
+		 * match({ notebookType: 'jupyter-notebook' }, doc) // 10
+		 * match({ notebookType: 'fooNotebook', language: 'python' }, doc) // 0
+		 * match({ language: 'python' }, doc) // 10
+		 * match({ notebookType: '*' }, doc) // 5
 		 * ```
 		 *
 		 * @param selector A document selector.
@@ -13005,7 +13040,7 @@ declare module 'vscode' {
 		 * _Note_ that controller selection is persisted (by the controllers {@link NotebookController.id id}) and restored as soon as a
 		 * controller is re-created or as a notebook is {@link workspace.onDidOpenNotebookDocument opened}.
 		 */
-		readonly onDidChangeSelectedNotebooks: Event<{ notebook: NotebookDocument; selected: boolean }>;
+		readonly onDidChangeSelectedNotebooks: Event<{ readonly notebook: NotebookDocument; readonly selected: boolean }>;
 
 		/**
 		 * A controller can set affinities for specific notebook documents. This allows a controller
@@ -13086,7 +13121,7 @@ declare module 'vscode' {
 		 * this execution.
 		 * @return A thenable that resolves when the operation finished.
 		 */
-		replaceOutput(out: NotebookCellOutput | NotebookCellOutput[], cell?: NotebookCell): Thenable<void>;
+		replaceOutput(out: NotebookCellOutput | readonly NotebookCellOutput[], cell?: NotebookCell): Thenable<void>;
 
 		/**
 		 * Append to the output of the cell that is executing or to another cell that is affected by this execution.
@@ -13096,7 +13131,7 @@ declare module 'vscode' {
 		 * this execution.
 		 * @return A thenable that resolves when the operation finished.
 		 */
-		appendOutput(out: NotebookCellOutput | NotebookCellOutput[], cell?: NotebookCell): Thenable<void>;
+		appendOutput(out: NotebookCellOutput | readonly NotebookCellOutput[], cell?: NotebookCell): Thenable<void>;
 
 		/**
 		 * Replace all output items of existing cell output.
@@ -13105,7 +13140,7 @@ declare module 'vscode' {
 		 * @param output Output object that already exists.
 		 * @return A thenable that resolves when the operation finished.
 		 */
-		replaceOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput): Thenable<void>;
+		replaceOutputItems(items: NotebookCellOutputItem | readonly NotebookCellOutputItem[], output: NotebookCellOutput): Thenable<void>;
 
 		/**
 		 * Append output items to existing cell output.
@@ -13114,7 +13149,7 @@ declare module 'vscode' {
 		 * @param output Output object that already exists.
 		 * @return A thenable that resolves when the operation finished.
 		 */
-		appendOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput): Thenable<void>;
+		appendOutputItems(items: NotebookCellOutputItem | readonly NotebookCellOutputItem[], output: NotebookCellOutput): Thenable<void>;
 	}
 
 	/**

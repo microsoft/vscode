@@ -226,6 +226,16 @@ export interface IStoredFileWorkingCopySaveOptions extends ISaveOptions {
 	readonly ignoreErrorHandler?: boolean;
 }
 
+export interface IStoredFileWorkingCopyResolver {
+
+	/**
+	 * Resolves the working copy in a safe way from an external
+	 * working copy manager that can make sure multiple parallel
+	 * resolves execute properly.
+	 */
+	(options?: IStoredFileWorkingCopyResolveOptions): Promise<void>;
+}
+
 export interface IStoredFileWorkingCopyResolveOptions {
 
 	/**
@@ -306,6 +316,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		resource: URI,
 		readonly name: string,
 		private readonly modelFactory: IStoredFileWorkingCopyModelFactory<M>,
+		private readonly externalResolver: IStoredFileWorkingCopyResolver,
 		@IFileService fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
@@ -716,6 +727,22 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		this._onDidChangeContent.fire();
 	}
 
+	private async forceResolveFromFile(): Promise<void> {
+		if (this.isDisposed()) {
+			return; // return early when the working copy is invalid
+		}
+
+		// We go through the resolver to make
+		// sure this kind of `resolve` is properly
+		// running in sequence with any other running
+		// `resolve` if any, including subsequent runs
+		// that are triggered right after.
+
+		await this.externalResolver({
+			forceReadFromFile: true
+		});
+	}
+
 	//#endregion
 
 	//#region Backup
@@ -878,7 +905,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 						await this.workingCopyFileService.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
 					}
 				} catch (error) {
-					this.logService.error(`[stored file working copy] runSaveParticipants(${versionId}) - resulted in an error: ${error.toString()}`, this.resource.toString(true), this.typeId);
+					this.logService.error(`[stored file working copy] runSaveParticipants(${versionId}) - resulted in an error: ${error.toString()}`, this.resource.toString(), this.typeId);
 				}
 			}
 
@@ -976,7 +1003,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	}
 
 	private handleSaveError(error: Error, versionId: number, options: IStoredFileWorkingCopySaveOptions): void {
-		(options.ignoreErrorHandler ? this.logService.trace : this.logService.error)(`[stored file working copy] handleSaveError(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString(true), this.typeId);
+		(options.ignoreErrorHandler ? this.logService.trace : this.logService.error)(`[stored file working copy] handleSaveError(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString(), this.typeId);
 
 		// Return early if the save() call was made asking to
 		// handle the save error itself.
@@ -1132,7 +1159,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		const softUndo = options?.soft;
 		if (!softUndo) {
 			try {
-				await this.resolve({ forceReadFromFile: true });
+				await this.forceResolveFromFile();
 			} catch (error) {
 
 				// FileNotFound means the file got deleted meanwhile, so ignore it
@@ -1192,7 +1219,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	}
 
 	private trace(msg: string): void {
-		this.logService.trace(msg, this.resource.toString(true), this.typeId);
+		this.logService.trace(msg, this.resource.toString(), this.typeId);
 	}
 
 	//#endregion

@@ -14,7 +14,7 @@ import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollec
 import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR, TERMINAL_DRAG_AND_DROP_BACKGROUND, TERMINAL_TAB_ACTIVE_BORDER } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { ICreateTerminalOptions, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -42,7 +42,6 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { DataTransfers } from 'vs/base/browser/dnd';
 import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
@@ -449,7 +448,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			this._elementDisposables.push(dom.addDisposableListener(this.element, dom.EventType.DRAG_START, e => {
 				const instance = this._terminalGroupService.activeInstance;
 				if (e.dataTransfer && instance) {
-					e.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify([instance.resource.toString()]));
+					e.dataTransfer.setData(TerminalDataTransfers.Terminals, JSON.stringify([instance.resource.toString()]));
 				}
 			}));
 		}

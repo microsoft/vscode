@@ -310,6 +310,6 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	}
 
 	private trace(msg: string): void {
-		this.logService.trace(msg, this.resource.toString(true), this.typeId);
+		this.logService.trace(msg, this.resource.toString(), this.typeId);
 	}
 }

@@ -98,6 +98,8 @@ import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataPr
 import { DiskFileSystemProviderClient, LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
 import { InspectProfilingService as V8InspectProfilingService } from 'vs/platform/profiling/node/profilingService';
 import { IV8InspectProfilingService } from 'vs/platform/profiling/common/profiling';
+import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
+import { ExtensionsScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsScannerService';
 
 class SharedProcessMain extends Disposable {
 
@@ -214,10 +216,10 @@ class SharedProcessMain extends Disposable {
 			// Since user data can change very frequently across multiple
 			// processes, we want a single process handling these operations.
 			this._register(new DiskFileSystemProviderClient(mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux })),
-			Schemas.userData,
+			Schemas.vscodeUserData,
 			logService
 		));
-		fileService.registerProvider(Schemas.userData, userDataFileSystemProvider);
+		fileService.registerProvider(Schemas.vscodeUserData, userDataFileSystemProvider);
 
 		// Configuration
 		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
@@ -278,7 +280,7 @@ class SharedProcessMain extends Disposable {
 				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, productService.msftInternalDomains, installSourcePath),
 				sendErrorTelemetry: true,
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
-			}, configurationService);
+			}, configurationService, productService);
 		} else {
 			telemetryService = NullTelemetryService;
 			const nullAppender = NullAppender;
@@ -289,10 +291,11 @@ class SharedProcessMain extends Disposable {
 		services.set(ITelemetryService, telemetryService);
 
 		// Custom Endpoint Telemetry
-		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, loggerService, environmentService);
+		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, loggerService, environmentService, productService);
 		services.set(ICustomEndpointTelemetryService, customEndpointTelemetryService);
 
 		// Extension Management
+		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 		// Extension Gallery

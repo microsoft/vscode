@@ -44,7 +44,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 				sendErrorTelemetry: true
 			};
 
-			this.impl = this._register(new BaseTelemetryService(config, configurationService));
+			this.impl = this._register(new BaseTelemetryService(config, configurationService, productService));
 		} else {
 			this.impl = NullTelemetryService;
 		}

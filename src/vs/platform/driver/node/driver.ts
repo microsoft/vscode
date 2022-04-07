@@ -20,14 +20,11 @@ export class DriverChannel implements IServerChannel {
 	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'getWindowIds': return this.driver.getWindowIds();
-			case 'capturePage': return this.driver.capturePage(arg);
 			case 'startTracing': return this.driver.startTracing(arg[0], arg[1]);
 			case 'stopTracing': return this.driver.stopTracing(arg[0], arg[1], arg[2]);
-			case 'reloadWindow': return this.driver.reloadWindow(arg);
 			case 'exitApplication': return this.driver.exitApplication();
 			case 'dispatchKeybinding': return this.driver.dispatchKeybinding(arg[0], arg[1]);
 			case 'click': return this.driver.click(arg[0], arg[1], arg[2], arg[3]);
-			case 'doubleClick': return this.driver.doubleClick(arg[0], arg[1]);
 			case 'setValue': return this.driver.setValue(arg[0], arg[1], arg[2]);
 			case 'getTitle': return this.driver.getTitle(arg[0]);
 			case 'isActiveElement': return this.driver.isActiveElement(arg[0], arg[1]);
@@ -54,10 +51,6 @@ export class DriverChannelClient implements IDriver {
 		return this.channel.call('getWindowIds');
 	}
 
-	capturePage(windowId: number): Promise<string> {
-		return this.channel.call('capturePage', windowId);
-	}
-
 	startTracing(windowId: number, name: string): Promise<void> {
 		return this.channel.call('startTracing', [windowId, name]);
 	}
@@ -66,11 +59,7 @@ export class DriverChannelClient implements IDriver {
 		return this.channel.call('stopTracing', [windowId, name, persist]);
 	}
 
-	reloadWindow(windowId: number): Promise<void> {
-		return this.channel.call('reloadWindow', windowId);
-	}
-
-	exitApplication(): Promise<boolean> {
+	exitApplication(): Promise<number> {
 		return this.channel.call('exitApplication');
 	}
 
@@ -80,10 +69,6 @@ export class DriverChannelClient implements IDriver {
 
 	click(windowId: number, selector: string, xoffset: number | undefined, yoffset: number | undefined): Promise<void> {
 		return this.channel.call('click', [windowId, selector, xoffset, yoffset]);
-	}
-
-	doubleClick(windowId: number, selector: string): Promise<void> {
-		return this.channel.call('doubleClick', [windowId, selector]);
 	}
 
 	setValue(windowId: number, selector: string, text: string): Promise<void> {

@@ -59,8 +59,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this.constructDOM();
 		this.editorPart = templateData.editorPart;
-
-		this.cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, this.viewCell.language));
+		this.cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(viewCell.language), this.notebookEditor.notebookOptions, this.configurationService));
 		this.cellEditorOptions.setLineNumbers(this.viewCell.lineNumbers);
 		this.editorOptions = this.cellEditorOptions.getValue(this.viewCell.internalMetadata, this.viewCell.uri);
 
@@ -68,9 +67,9 @@ export class StatefulMarkdownCell extends Disposable {
 		this.registerListeners();
 
 		// update for init state
-		this.templateData.cellParts.forEach(cellPart => cellPart.renderCell(this.viewCell, this.templateData));
+		this.templateData.cellParts.forEach(cellPart => cellPart.renderCell(this.viewCell));
 		this._register(toDisposable(() => {
-			this.templateData.cellParts.forEach(cellPart => cellPart.unrenderCell(this.viewCell, this.templateData));
+			this.templateData.cellParts.forEach(cellPart => cellPart.unrenderCell(this.viewCell));
 		}));
 
 		this.updateForHover();

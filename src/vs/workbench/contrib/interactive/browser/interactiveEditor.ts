@@ -19,7 +19,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorBackground, editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorPaneSelectionChangeReason, IEditorMemento, IEditorOpenContext, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { CodeCellLayoutChangeEvent, IActiveNotebookEditorDelegate, ICellViewModel, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -54,9 +54,10 @@ import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { MarkerController } from 'vs/editor/contrib/gotoError/browser/gotoError';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NOTEBOOK_KERNEL } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -110,6 +111,8 @@ export class InteractiveEditor extends EditorPane {
 
 	#onDidFocusWidget = this._register(new Emitter<void>());
 	override get onDidFocus(): Event<void> { return this.#onDidFocusWidget.event; }
+	#onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
+	readonly onDidChangeSelection = this.#onDidChangeSelection.event;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -436,6 +439,10 @@ export class InteractiveEditor extends EditorPane {
 			}
 		}));
 
+		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidChangeCursorPosition(e => this.#onDidChangeSelection.fire({ reason: this.#toEditorPaneSelectionChangeReason(e) })));
+		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidChangeModelContent(() => this.#onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.EDIT })));
+
+
 		this.#widgetDisposableStore.add(this.#notebookKernelService.onDidChangeNotebookAffinity(this.#syncWithKernel, this));
 		this.#widgetDisposableStore.add(this.#notebookKernelService.onDidChangeSelectedNotebooks(this.#syncWithKernel, this));
 
@@ -493,6 +500,15 @@ export class InteractiveEditor extends EditorPane {
 		}));
 
 		this.#syncWithKernel();
+	}
+
+	#toEditorPaneSelectionChangeReason(e: ICursorPositionChangedEvent): EditorPaneSelectionChangeReason {
+		switch (e.source) {
+			case TextEditorSelectionSource.PROGRAMMATIC: return EditorPaneSelectionChangeReason.PROGRAMMATIC;
+			case TextEditorSelectionSource.NAVIGATION: return EditorPaneSelectionChangeReason.NAVIGATION;
+			case TextEditorSelectionSource.JUMP: return EditorPaneSelectionChangeReason.JUMP;
+			default: return EditorPaneSelectionChangeReason.USER;
+		}
 	}
 
 	#lastCell: ICellViewModel | undefined = undefined;
@@ -565,7 +581,11 @@ export class InteractiveEditor extends EditorPane {
 				return;
 			}
 
-			if (this.#lastCell instanceof CodeCellViewModel && (e as CodeCellLayoutChangeEvent).outputHeight === undefined && !this.#notebookWidget.value!.isScrolledToBottom()) {
+			if (!this.#notebookWidget.value) {
+				return;
+			}
+
+			if (this.#lastCell instanceof CodeCellViewModel && (e as CodeCellLayoutChangeEvent).outputHeight === undefined && !this.#notebookWidget.value.isScrolledToBottom()) {
 				return;
 			}
 

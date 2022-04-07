@@ -18,7 +18,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 export class NativeLifecycleService extends AbstractLifecycleService {
 
 	private static readonly BEFORE_SHUTDOWN_WARNING_DELAY = 5000;
-	private static readonly WILL_SHUTDOWN_WARNING_DELAY = 5000;
+	private static readonly WILL_SHUTDOWN_WARNING_DELAY = 800;
 
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
@@ -160,6 +160,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 
 		this._onWillShutdown.fire({
 			reason,
+			token: cts.token,
 			join(promise, id) {
 				joiners.push(promise);
 

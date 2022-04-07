@@ -619,7 +619,7 @@ export class DebugService implements IDebugService {
 			const launchJsonExists = !!session.root && !!this.configurationService.getValue<IGlobalConfig>('launch', { resource: session.root.uri });
 			await this.telemetry.logDebugSessionStart(dbgr!, launchJsonExists);
 
-			if (forceFocus || !this.viewModel.focusedSession) {
+			if (forceFocus || !this.viewModel.focusedSession || (session.parentSession === this.viewModel.focusedSession && session.compact)) {
 				await this.focusStackFrame(undefined, undefined, session);
 			}
 		} catch (err) {

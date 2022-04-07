@@ -354,7 +354,8 @@
 	opacity: 1;
 }
 
-.monaco-workbench.hc-black .notebookOverlay .monaco-list-row.focused .cell-editor-focus .cell-editor-part:before {
+.monaco-workbench.hc-black .notebookOverlay .monaco-list-row.focused .cell-editor-focus .cell-editor-part:before,
+.monaco-workbench.hc-light .notebookOverlay .monaco-list-row.focused .cell-editor-focus .cell-editor-part:before {
 	outline-style: dashed;
 }
 
@@ -542,10 +543,10 @@
 }
 
 /* high contrast border for multi-select */
-.hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-focus-indicator-top:before { border-top-style: dotted; }
-.hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-focus-indicator-bottom:before { border-bottom-style: dotted; }
-.hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-left:before { border-left-style: dotted; }
-.hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-right:before  { border-right-style: dotted; }
+.hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-focus-indicator-top:before, .hc-light .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-focus-indicator-top:before { border-top-style: dotted; }
+.hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-focus-indicator-bottom:before, .hc-light .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-focus-indicator-bottom:before { border-bottom-style: dotted; }
+.hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-left:before, .hc-light .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-left:before { border-left-style: dotted; }
+.hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-right:before, .hc-light .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-right:before  { border-right-style: dotted; }
 
 .monaco-workbench .notebookOverlay .cell-editor-container .monaco-editor .margin-view-overlays .codicon-folding-expanded,
 .monaco-workbench .notebookOverlay .cell-editor-container .monaco-editor .margin-view-overlays .codicon-folding-collapsed {

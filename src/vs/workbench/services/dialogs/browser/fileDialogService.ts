@@ -274,7 +274,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 
 	private shouldUseSimplified(scheme: string): boolean {
-		return ![Schemas.file, Schemas.userData, Schemas.tmp].includes(scheme);
+		return ![Schemas.file, Schemas.vscodeUserData, Schemas.tmp].includes(scheme);
 	}
 }
 

@@ -26,6 +26,7 @@ import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKe
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 //#region Shared commands
 export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
@@ -136,6 +137,7 @@ export interface CodeCellLayoutInfo {
 	readonly editorHeight: number;
 	readonly editorWidth: number;
 	readonly statusBarHeight: number;
+	readonly commentHeight: number;
 	readonly totalHeight: number;
 	readonly outputContainerOffset: number;
 	readonly outputTotalHeight: number;
@@ -150,6 +152,7 @@ export interface CodeCellLayoutInfo {
 export interface CodeCellLayoutChangeEvent {
 	source?: string;
 	editorHeight?: boolean;
+	commentHeight?: boolean;
 	outputHeight?: boolean;
 	outputShowMoreContainerHeight?: number;
 	totalHeight?: boolean;
@@ -468,6 +471,11 @@ export interface INotebookEditor {
 	 */
 	createOutput(cell: ICellViewModel, output: IInsetRenderOutput, offset: number): Promise<void>;
 
+	/**
+	 * Update the output in webview layer with latest content. It will delegate to `createOutput` is the output is not rendered yet
+	 */
+	updateOutput(cell: ICellViewModel, output: IInsetRenderOutput, offset: number): Promise<void>;
+
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage>;
 
 	/**
@@ -621,6 +629,11 @@ export interface IActiveNotebookEditor extends INotebookEditor {
 	getNextVisibleCellIndex(index: number): number;
 }
 
+export interface IBaseCellEditorOptions extends IDisposable {
+	readonly value: IEditorOptions;
+	readonly onDidChange: Event<void>;
+}
+
 /**
  * A mix of public interface and internal one (used by internal rendering code, e.g., cellRenderer)
  */
@@ -630,6 +643,7 @@ export interface INotebookEditorDelegate extends INotebookEditor {
 	readonly creationOptions: INotebookEditorCreationOptions;
 	readonly onDidChangeOptions: Event<void>;
 	readonly onDidChangeDecorations: Event<void>;
+	getBaseCellEditorOptions(language: string): IBaseCellEditorOptions;
 	createMarkupPreview(cell: ICellViewModel): Promise<void>;
 	unhideMarkupPreviews(cells: readonly ICellViewModel[]): Promise<void>;
 	hideMarkupPreviews(cells: readonly ICellViewModel[]): Promise<void>;

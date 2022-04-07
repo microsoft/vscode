@@ -330,7 +330,7 @@ export class BrowserMain extends Disposable {
 			logService.info('Using in-memory user data provider');
 			userDataProvider = new InMemoryFileSystemProvider();
 		}
-		fileService.registerProvider(Schemas.userData, userDataProvider);
+		fileService.registerProvider(Schemas.vscodeUserData, userDataProvider);
 
 		// Remote file system
 		this._register(RemoteFileSystemProviderClient.register(remoteAgentService, fileService, logService));
@@ -406,7 +406,7 @@ export class BrowserMain extends Disposable {
 	}
 
 	private async createWorkspaceService(payload: IAnyWorkspaceIdentifier, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
-		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.userData, Schemas.tmp] /* Cache all non native resources */, environmentService, fileService);
+		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData, Schemas.tmp] /* Cache all non native resources */, environmentService, fileService);
 		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache }, environmentService, fileService, remoteAgentService, uriIdentityService, logService);
 
 		try {

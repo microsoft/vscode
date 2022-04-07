@@ -25,7 +25,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
 const REVEAL_IN_OS_LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
-const REVEAL_IN_OS_WHEN_CONTEXT = ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.userData));
+const REVEAL_IN_OS_WHEN_CONTEXT = ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData));
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REVEAL_IN_OS_COMMAND_ID,

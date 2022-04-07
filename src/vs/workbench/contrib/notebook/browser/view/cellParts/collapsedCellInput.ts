@@ -4,14 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 
 export class CollapsedCellInput extends CellPart {
-	private currentCell: ICellViewModel | undefined;
-
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
 		cellInputCollapsedContainer: HTMLElement,
@@ -42,19 +38,6 @@ export class CollapsedCellInput extends CellPart {
 				this.currentCell.isInputCollapsed = false;
 			}
 		}));
-	}
-
-	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		this.currentCell = element;
-	}
-
-	prepareLayout(): void {
-	}
-
-	updateInternalLayoutNow(element: ICellViewModel): void {
-	}
-
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
 	}
 }
 

@@ -16,7 +16,7 @@ import { isBoolean, isNumber } from 'vs/base/common/types';
 import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getResolvedShellEnv } from 'vs/platform/terminal/node/shellEnv';
+import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IHTTPConfiguration, IRequestService } from 'vs/platform/request/common/request';
 import { Agent, getProxyAgent } from 'vs/platform/request/node/proxy';

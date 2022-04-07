@@ -43,7 +43,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IWebviewElement, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, ToWebviewMessage } from './webviewMessages';
+import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, ToWebviewMessage } from './webviewMessages';
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -1202,6 +1202,42 @@ var requirejs = (function() {
 		this.insetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
 		this.hiddenInsetMapping.delete(content.source);
 		this.reversedInsetMapping.set(message.outputId, content.source);
+	}
+
+	async updateOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
+		if (this._disposed) {
+			return;
+		}
+
+		if (!this.insetMapping.has(content.source)) {
+			this.createOutput(cellInfo, content, cellTop, offset);
+			return;
+		}
+
+		const outputCache = this.insetMapping.get(content.source)!;
+		this.hiddenInsetMapping.delete(content.source);
+		let updatedContent: ICreationContent | undefined = undefined;
+		if (content.type === RenderOutputType.Extension) {
+			const output = content.source.model;
+			const first = output.outputs.find(op => op.mime === content.mimeType)!;
+			updatedContent = {
+				type: RenderOutputType.Extension,
+				outputId: outputCache.outputId,
+				mimeType: first.mime,
+				valueBytes: first.data.buffer,
+				metadata: output.metadata,
+			};
+		}
+
+		this._sendMessageToWebview({
+			type: 'showOutput',
+			cellId: outputCache.cellInfo.cellId,
+			outputId: outputCache.outputId,
+			cellTop: cellTop,
+			outputOffset: offset,
+			content: updatedContent
+		});
+		return;
 	}
 
 	removeInsets(outputs: readonly ICellOutputViewModel[]) {

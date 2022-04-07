@@ -277,7 +277,7 @@ export class ExtHostConfigProvider {
 			mixin(result, config, false);
 		}
 
-		return <vscode.WorkspaceConfiguration>Object.freeze(result);
+		return Object.freeze(result);
 	}
 
 	private _toReadonlyValue(result: any): any {

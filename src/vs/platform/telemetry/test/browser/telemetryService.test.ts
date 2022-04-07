@@ -8,6 +8,8 @@ import * as sinonTest from 'sinon-test';
 import * as Errors from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryData, TelemetryConfiguration, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
@@ -88,9 +90,11 @@ class ErrorTestingSettings {
 
 suite('TelemetryService', () => {
 
+	const TestProductService: IProductService = { _serviceBrand: undefined, ...product };
+
 	test('Disposing', sinonTestFn(function () {
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService());
+		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService(), TestProductService);
 
 		return service.publicLog('testPrivateEvent').then(() => {
 			assert.strictEqual(testAppender.getEventsCount(), 1);
@@ -103,7 +107,7 @@ suite('TelemetryService', () => {
 	// event reporting
 	test('Simple event', sinonTestFn(function () {
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService());
+		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService(), TestProductService);
 
 		return service.publicLog('testEvent').then(_ => {
 			assert.strictEqual(testAppender.getEventsCount(), 1);
@@ -116,7 +120,7 @@ suite('TelemetryService', () => {
 
 	test('Event with data', sinonTestFn(function () {
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService());
+		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService(), TestProductService);
 
 		return service.publicLog('testEvent', {
 			'stringProp': 'property',
@@ -144,7 +148,7 @@ suite('TelemetryService', () => {
 		let service = new TelemetryService({
 			appenders: [testAppender],
 			commonProperties: Promise.resolve({ foo: 'JA!', get bar() { return Math.random(); } })
-		}, new TestConfigurationService());
+		}, new TestConfigurationService(), TestProductService);
 
 		return service.publicLog('testEvent').then(_ => {
 			let [first] = testAppender.events;
@@ -162,7 +166,7 @@ suite('TelemetryService', () => {
 		let service = new TelemetryService({
 			appenders: [testAppender],
 			commonProperties: Promise.resolve({ foo: 'JA!', get bar() { return Math.random(); } })
-		}, new TestConfigurationService());
+		}, new TestConfigurationService(), TestProductService);
 
 		return service.publicLog('testEvent', { hightower: 'xl', price: 8000 }).then(_ => {
 			let [first] = testAppender.events;
@@ -184,7 +188,7 @@ suite('TelemetryService', () => {
 				sessionID: 'one',
 				['common.machineId']: 'three',
 			})
-		}, new TestConfigurationService());
+		}, new TestConfigurationService(), TestProductService);
 
 		return service.getTelemetryInfo().then(info => {
 			assert.strictEqual(info.sessionId, 'one');
@@ -196,7 +200,7 @@ suite('TelemetryService', () => {
 
 	test('telemetry on by default', sinonTestFn(function () {
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService());
+		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService(), TestProductService);
 
 		return service.publicLog('testEvent').then(() => {
 			assert.strictEqual(testAppender.getEventsCount(), 1);
@@ -211,7 +215,7 @@ suite('TelemetryService', () => {
 		private promises: Promise<void>[] = [];
 
 		constructor(config: ITelemetryServiceConfig) {
-			super({ ...config, sendErrorTelemetry: true }, new TestConfigurationService);
+			super({ ...config, sendErrorTelemetry: true }, new TestConfigurationService, TestProductService);
 			this.promises = this.promises ?? [];
 			this.promises = this.promises ?? [];
 		}
@@ -773,7 +777,7 @@ suite('TelemetryService', () => {
 
 	test('Telemetry Service sends events when telemetry is on', sinonTestFn(function () {
 		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService());
+		let service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService(), TestProductService);
 
 		return service.publicLog('testEvent').then(() => {
 			assert.strictEqual(testAppender.getEventsCount(), 1);
@@ -794,7 +798,7 @@ suite('TelemetryService', () => {
 			override getValue() {
 				return telemetryLevel as any;
 			}
-		}());
+		}(), TestProductService);
 
 		assert.strictEqual(service.telemetryLevel, TelemetryLevel.NONE);
 

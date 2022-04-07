@@ -25,7 +25,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { hash } from 'vs/base/common/hash';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -421,7 +421,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		const statusBarItemHoverBackground = this.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND)?.toString();
 		const statusBarItemCompactHoverBackground = this.getColor(STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND)?.toString();
 		this.compactEntriesDisposable.value = new DisposableStore();
-		if (statusBarItemHoverBackground && statusBarItemCompactHoverBackground && this.theme.type !== ColorScheme.HIGH_CONTRAST) {
+		if (statusBarItemHoverBackground && statusBarItemCompactHoverBackground && !isHighContrast(this.theme.type)) {
 			for (const [, compactEntryGroup] of compactEntryGroups) {
 				for (const compactEntry of compactEntryGroup) {
 					if (!compactEntry.hasCommand) {
@@ -571,7 +571,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 }
 
 registerThemingParticipant((theme, collector) => {
-	if (theme.type !== ColorScheme.HIGH_CONTRAST) {
+	if (!isHighContrast(theme.type)) {
 		const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
 		if (statusBarItemHoverBackground) {
 			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover:not(.disabled) { background-color: ${statusBarItemHoverBackground}; }`);

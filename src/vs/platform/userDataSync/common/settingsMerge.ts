@@ -60,8 +60,11 @@ function getIgnoredSettingsFromContent(settingsContent: string): string[] {
 export function updateIgnoredSettings(targetContent: string, sourceContent: string, ignoredSettings: string[], formattingOptions: FormattingOptions): string {
 	if (ignoredSettings.length) {
 		const sourceTree = parseSettings(sourceContent);
-		const source = parse(sourceContent);
+		const source = parse(sourceContent) || {};
 		const target = parse(targetContent);
+		if (!target) {
+			return targetContent;
+		}
 		const settingsToAdd: INode[] = [];
 		for (const key of ignoredSettings) {
 			const sourceValue = source[key];

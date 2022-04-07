@@ -14,7 +14,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, isEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, isEditorReplacement, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
@@ -697,6 +697,43 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
+	//#region closeEditor()
+
+	async closeEditor({ editor, groupId }: IEditorIdentifier, options?: ICloseEditorOptions): Promise<void> {
+		const group = this.editorGroupService.getGroup(groupId);
+
+		await group?.closeEditor(editor, options);
+	}
+
+	//#endregion
+
+	//#region closeEditors()
+
+	async closeEditors(editors: IEditorIdentifier[], options?: ICloseEditorOptions): Promise<void> {
+		const mapGroupToEditors = new Map<IEditorGroup, EditorInput[]>();
+
+		for (const { editor, groupId } of editors) {
+			const group = this.editorGroupService.getGroup(groupId);
+			if (!group) {
+				continue;
+			}
+
+			let editors = mapGroupToEditors.get(group);
+			if (!editors) {
+				editors = [];
+				mapGroupToEditors.set(group, editors);
+			}
+
+			editors.push(editor);
+		}
+
+		for (const [group, editors] of mapGroupToEditors) {
+			await group.closeEditors(editors, options);
+		}
+	}
+
+	//#endregion
+
 	//#region findEditors()
 
 	findEditors(resource: URI, options?: IFindEditorOptions): readonly IEditorIdentifier[];
@@ -709,13 +746,19 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const typeId = URI.isUri(arg1) ? undefined : arg1.typeId;
 
 		// Do a quick check for the resource via the editor observer
-		// which is a very efficient way to find an editor by resource
-		if (!this.editorsObserver.hasEditors(resource)) {
-			if (URI.isUri(arg1) || isUndefined(arg2)) {
-				return [];
-			}
+		// which is a very efficient way to find an editor by resource.
+		// However, we can only do that unless we are asked to find an
+		// editor on the secondary side of a side by side editor, because
+		// the editor observer provides fast lookups only for primary
+		// editors.
+		if (options?.supportSideBySide !== SideBySideEditor.ANY && options?.supportSideBySide !== SideBySideEditor.SECONDARY) {
+			if (!this.editorsObserver.hasEditors(resource)) {
+				if (URI.isUri(arg1) || isUndefined(arg2)) {
+					return [];
+				}
 
-			return undefined;
+				return undefined;
+			}
 		}
 
 		// Search only in specific group

@@ -9,7 +9,7 @@ import { IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResour
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorGroup, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ICloseEditorOptions, IEditorGroup, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 
@@ -261,6 +261,16 @@ export interface IEditorService {
 	 * Find out if the provided editor is visible in any editor group.
 	 */
 	isVisible(editor: EditorInput): boolean;
+
+	/**
+	 * Close an editor in a specific editor group.
+	 */
+	closeEditor(editor: IEditorIdentifier, options?: ICloseEditorOptions): Promise<void>;
+
+	/**
+	 * Close multiple editors in specific editor groups.
+	 */
+	closeEditors(editors: readonly IEditorIdentifier[], options?: ICloseEditorOptions): Promise<void>;
 
 	/**
 	 * This method will return an entry for each editor that reports

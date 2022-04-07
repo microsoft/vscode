@@ -233,5 +233,18 @@ export class ExpectedError extends Error {
  * Error that when thrown won't be logged in telemetry as an unhandled error.
  */
 export class ErrorNoTelemetry extends Error {
+
+	public static fromError(err: any): ErrorNoTelemetry {
+		if (err && err instanceof Error) {
+			const result = new ErrorNoTelemetry();
+			result.name = err.name;
+			result.message = err.message;
+			result.stack = err.stack;
+			return result;
+		}
+
+		return new ErrorNoTelemetry(err);
+	}
+
 	readonly logTelemetry = false;
 }

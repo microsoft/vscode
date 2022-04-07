@@ -22,7 +22,7 @@
 		"vs/editor/browser/widget/diffReview.ts",
 		"vs/editor/standalone/browser/colorizer.ts",
 		"vs/workbench/api/worker/extHostExtensionService.ts",
-		"vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer.ts",
+		"vs/workbench/contrib/notebook/browser/view/cellParts/cellDragRenderer.ts",
 		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts",
 		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts"
 	],

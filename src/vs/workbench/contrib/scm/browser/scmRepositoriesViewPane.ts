@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $ } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
-import { ISCMRepository, ISCMService, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -41,7 +41,6 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
-		@ISCMService protected scmService: ISCMService,
 		@ISCMViewService protected scmViewService: ISCMViewService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -85,14 +84,8 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		this._register(this.list.onDidChangeSelection(this.onListSelectionChange, this));
 		this._register(this.list.onContextMenu(this.onListContextMenu, this));
 
+		this._register(this.scmViewService.onDidChangeRepositories(this.onDidChangeRepositories, this));
 		this._register(this.scmViewService.onDidChangeVisibleRepositories(this.updateListSelection, this));
-
-		this._register(this.scmService.onDidAddRepository(this.onDidAddRepository, this));
-		this._register(this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this));
-
-		for (const repository of this.scmService.repositories) {
-			this.onDidAddRepository(repository);
-		}
 
 		if (this.orientation === Orientation.VERTICAL) {
 			this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -102,21 +95,12 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			}));
 		}
 
+		this.onDidChangeRepositories();
 		this.updateListSelection();
 	}
 
-	private onDidAddRepository(repository: ISCMRepository): void {
-		this.list.splice(this.list.length, 0, [repository]);
-		this.updateBodySize();
-	}
-
-	private onDidRemoveRepository(repository: ISCMRepository): void {
-		const index = this.list.indexOf(repository);
-
-		if (index > -1) {
-			this.list.splice(index, 1);
-		}
-
+	private onDidChangeRepositories(): void {
+		this.list.splice(0, this.list.length, this.scmViewService.repositories);
 		this.updateBodySize();
 	}
 

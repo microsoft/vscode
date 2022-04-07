@@ -2504,6 +2504,11 @@ export interface IEditorInlayHintsOptions {
 	enabled?: boolean;
 
 	/**
+	 *
+	 */
+	toggle?: 'show' | 'hide' | null;
+
+	/**
 	 * Font size of inline hints.
 	 * Default to 90% of the editor font size.
 	 */
@@ -2514,6 +2519,13 @@ export interface IEditorInlayHintsOptions {
 	 * Defaults to editor font family.
 	 */
 	fontFamily?: string;
+
+	/**
+	 * The display style to render inlay hints with.
+	 * Compact mode disables the borders and padding around the inlay hint.
+	 * Defaults to 'standard'.
+	 */
+	displayStyle: 'standard' | 'compact';
 }
 
 /**
@@ -2524,7 +2536,7 @@ export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions
 class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditorInlayHintsOptions, EditorInlayHintsOptions> {
 
 	constructor() {
-		const defaults: EditorInlayHintsOptions = { enabled: true, fontSize: 0, fontFamily: '' };
+		const defaults: EditorInlayHintsOptions = { enabled: true, toggle: null, fontSize: 0, fontFamily: '', displayStyle: 'compact' };
 		super(
 			EditorOption.inlayHints, 'inlayHints', defaults,
 			{
@@ -2533,16 +2545,36 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					default: defaults.enabled,
 					description: nls.localize('inlayHints.enable', "Enables the inlay hints in the editor.")
 				},
+				'editor.inlayHints.toggle': {
+					type: 'string',
+					enum: ['show', 'hide'],
+					markdownEnumDescriptions: [
+						nls.localize('toogle.show', "Inlay hints are hidden by default and only show when holding `Ctrl+Alt`"),
+						nls.localize('toogle.hide', "Inlay hints are showing by default and hide when holding `Ctrl+Alt`"),
+					],
+					default: defaults.toggle,
+					markdownDescription: nls.localize('inlayHints.toggle', "Control if inlay hints temporarily show or hide when `Ctrl+Alt` is pressed and held.")
+				},
 				'editor.inlayHints.fontSize': {
 					type: 'number',
 					default: defaults.fontSize,
-					markdownDescription: nls.localize('inlayHints.fontSize', "Controls font size of inlay hints in the editor. A default of 90% of `#editor.fontSize#` is used when the configured value is less than `5` or greater than the editor font size.")
+					markdownDescription: nls.localize('inlayHints.fontSize', "Controls font size of inlay hints in the editor. As default the `#editor.fontSize#` is used when the configured value is less than `5` or greater than the editor font size.")
 				},
 				'editor.inlayHints.fontFamily': {
 					type: 'string',
 					default: defaults.fontFamily,
 					markdownDescription: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
 				},
+				'editor.inlayHints.displayStyle': {
+					type: 'string',
+					enum: ['standard', 'compact'],
+					enumDescriptions: [
+						nls.localize('inlayHints.displayStyle.standard', "Renders inlay hints with the default style."),
+						nls.localize('inlayHints.displayStyle.compact', "Renders inlay hints without any padding, and removes the rounded borders."),
+					],
+					default: defaults.displayStyle,
+					description: nls.localize('inlayHints.displayStyle', "Controls the display style of inlay hints.")
+				}
 			}
 		);
 	}
@@ -2554,8 +2586,10 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 		const input = _input as IEditorInlayHintsOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			toggle: stringSet<'show' | 'hide' | null>(input.toggle, this.defaultValue.toggle, ['show', 'hide']),
 			fontSize: EditorIntOption.clampedInt(input.fontSize, this.defaultValue.fontSize, 0, 100),
-			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily)
+			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
+			displayStyle: stringSet<'standard' | 'compact'>(input.displayStyle, this.defaultValue.displayStyle, ['standard', 'compact'])
 		};
 	}
 }
@@ -2864,85 +2898,110 @@ class EditorPixelRatio extends ComputedEditorOption<EditorOption.pixelRatio, num
 
 //#region quickSuggestions
 
+export type QuickSuggestionsValue = 'on' | 'inline' | 'off';
+
 /**
  * Configuration options for quick suggestions
  */
 export interface IQuickSuggestionsOptions {
-	other?: boolean;
-	comments?: boolean;
-	strings?: boolean;
+	other?: boolean | QuickSuggestionsValue;
+	comments?: boolean | QuickSuggestionsValue;
+	strings?: boolean | QuickSuggestionsValue;
 }
 
-/**
- * @internal
- */
-export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSuggestionsOptions>>;
+export interface InternalQuickSuggestionsOptions {
+	readonly other: QuickSuggestionsValue;
+	readonly comments: QuickSuggestionsValue;
+	readonly strings: QuickSuggestionsValue;
+}
 
-class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, boolean | IQuickSuggestionsOptions, ValidQuickSuggestionsOptions> {
+class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, boolean | IQuickSuggestionsOptions, InternalQuickSuggestionsOptions> {
 
-	public override readonly defaultValue: Readonly<Required<IQuickSuggestionsOptions>>;
+	public override readonly defaultValue: InternalQuickSuggestionsOptions;
 
 	constructor() {
-		const defaults: ValidQuickSuggestionsOptions = {
-			other: true,
-			comments: false,
-			strings: false
+		const defaults: InternalQuickSuggestionsOptions = {
+			other: 'on',
+			comments: 'off',
+			strings: 'off'
 		};
+		const types: IJSONSchema[] = [
+			{ type: 'boolean' },
+			{
+				type: 'string',
+				enum: ['on', 'inline', 'off'],
+				enumDescriptions: [nls.localize('on', "Quick suggestions show inside the suggest widget"), nls.localize('inline', "Quick suggestions show as ghost text"), nls.localize('off', "Quick suggestions are disabled")]
+			}
+		];
 		super(
 			EditorOption.quickSuggestions, 'quickSuggestions', defaults,
 			{
-				anyOf: [
-					{
-						type: 'boolean',
-					},
-					{
-						type: 'object',
-						properties: {
-							strings: {
-								type: 'boolean',
-								default: defaults.strings,
-								description: nls.localize('quickSuggestions.strings', "Enable quick suggestions inside strings.")
-							},
-							comments: {
-								type: 'boolean',
-								default: defaults.comments,
-								description: nls.localize('quickSuggestions.comments', "Enable quick suggestions inside comments.")
-							},
-							other: {
-								type: 'boolean',
-								default: defaults.other,
-								description: nls.localize('quickSuggestions.other', "Enable quick suggestions outside of strings and comments.")
-							},
-						}
+				anyOf: [{
+					type: 'boolean',
+				}, {
+					type: 'object',
+					properties: {
+						strings: {
+							anyOf: types,
+							default: defaults.strings,
+							description: nls.localize('quickSuggestions.strings', "Enable quick suggestions inside strings.")
+						},
+						comments: {
+							anyOf: types,
+							default: defaults.comments,
+							description: nls.localize('quickSuggestions.comments', "Enable quick suggestions inside comments.")
+						},
+						other: {
+							anyOf: types,
+							default: defaults.other,
+							description: nls.localize('quickSuggestions.other', "Enable quick suggestions outside of strings and comments.")
+						},
 					}
-				],
+				}],
 				default: defaults,
-				description: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing.")
+				markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing.")
 			}
 		);
 		this.defaultValue = defaults;
 	}
 
-	public validate(_input: any): ValidQuickSuggestionsOptions {
-		if (typeof _input === 'boolean') {
-			return _input;
+	public validate(input: any): InternalQuickSuggestionsOptions {
+		if (typeof input === 'boolean') {
+			// boolean -> all on/off
+			const value = input ? 'on' : 'off';
+			return { comments: value, strings: value, other: value };
 		}
-		if (_input && typeof _input === 'object') {
-			const input = _input as IQuickSuggestionsOptions;
-			const opts = {
-				other: boolean(input.other, this.defaultValue.other),
-				comments: boolean(input.comments, this.defaultValue.comments),
-				strings: boolean(input.strings, this.defaultValue.strings),
-			};
-			if (opts.other && opts.comments && opts.strings) {
-				return true; // all on
-			} else if (!opts.other && !opts.comments && !opts.strings) {
-				return false; // all off
-			} else {
-				return opts;
-			}
+		if (!input || typeof input !== 'object') {
+			// invalid object
+			return this.defaultValue;
 		}
-		return this.defaultValue;
+
+		const { other, comments, strings } = (<IQuickSuggestionsOptions>input);
+		const allowedValues: QuickSuggestionsValue[] = ['on', 'inline', 'off'];
+		let validatedOther: QuickSuggestionsValue;
+		let validatedComments: QuickSuggestionsValue;
+		let validatedStrings: QuickSuggestionsValue;
+
+		if (typeof other === 'boolean') {
+			validatedOther = other ? 'on' : 'off';
+		} else {
+			validatedOther = stringSet(other, this.defaultValue.other, allowedValues);
+		}
+		if (typeof comments === 'boolean') {
+			validatedComments = comments ? 'on' : 'off';
+		} else {
+			validatedComments = stringSet(comments, this.defaultValue.comments, allowedValues);
+		}
+		if (typeof strings === 'boolean') {
+			validatedStrings = strings ? 'on' : 'off';
+		} else {
+			validatedStrings = stringSet(strings, this.defaultValue.strings, allowedValues);
+		}
+		return {
+			other: validatedOther,
+			comments: validatedComments,
+			strings: validatedStrings
+		};
 	}
 }
 
@@ -3554,7 +3613,7 @@ export interface IBracketPairColorizationOptions {
 	/**
 	 * Use independent color pool per bracket type.
 	*/
-	useIndependentColorPoolPerBracketType?: boolean;
+	independentColorPoolPerBracketType?: boolean;
 }
 
 /**
@@ -3569,7 +3628,7 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 	constructor() {
 		const defaults: InternalBracketPairColorizationOptions = {
 			enabled: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions.enabled,
-			useIndependentColorPoolPerBracketType: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions.useIndependentColorPoolPerBracketType,
+			independentColorPoolPerBracketType: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions.independentColorPoolPerBracketType,
 		};
 
 		super(
@@ -3578,12 +3637,12 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 				'editor.bracketPairColorization.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('bracketPairColorization.enabled', "Controls whether bracket pair colorization is enabled or not. Use 'workbench.colorCustomizations' to override the bracket highlight colors.")
+					markdownDescription: nls.localize('bracketPairColorization.enabled', "Controls whether bracket pair colorization is enabled or not. Use `#workbench.colorCustomizations#` to override the bracket highlight colors.")
 				},
-				'editor.bracketPairColorization.useIndependentColorPoolPerBracketType': {
+				'editor.bracketPairColorization.independentColorPoolPerBracketType': {
 					type: 'boolean',
-					default: defaults.useIndependentColorPoolPerBracketType,
-					description: nls.localize('bracketPairColorization.useIndependentColorPoolPerBracketType', "Controls whether each bracket type has its own independent color pool.")
+					default: defaults.independentColorPoolPerBracketType,
+					description: nls.localize('bracketPairColorization.independentColorPoolPerBracketType', "Controls whether each bracket type has its own independent color pool.")
 				},
 			}
 		);
@@ -3596,7 +3655,7 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 		const input = _input as IBracketPairColorizationOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
-			useIndependentColorPoolPerBracketType: boolean(input.useIndependentColorPoolPerBracketType, this.defaultValue.useIndependentColorPoolPerBracketType),
+			independentColorPoolPerBracketType: boolean(input.independentColorPoolPerBracketType, this.defaultValue.independentColorPoolPerBracketType),
 		};
 	}
 }

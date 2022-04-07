@@ -14,7 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 // Importing types is safe in any layer
 // eslint-disable-next-line code-import-patterns
 import type { ITerminalAddon, Terminal } from 'xterm-headless';
-import { ISerializedCommand } from 'vs/platform/terminal/common/terminalProcess';
+import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -99,6 +99,16 @@ const enum VSCodeOscPt {
 	ContinuationEnd = 'G',
 
 	/**
+	 * The start of the right prompt.
+	 */
+	RightPromptStart = 'H',
+
+	/**
+	 * The end of the right prompt.
+	 */
+	RightPromptEnd = 'I',
+
+	/**
 	 * Set an arbitrary property: `OSC 633 ; P ; <Property>=<Value> ST`, only known properties will
 	 * be handled.
 	 */
@@ -151,9 +161,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			case VSCodeOscPt.CommandLine: {
 				let commandLine: string;
 				if (args.length === 1) {
-					commandLine = (args[0]
-						.replace(/<LF>/g, '\n')
-						.replace(/<CL>/g, ';'));
+					commandLine = this._deserializeMessage(args[0]);
 				} else {
 					commandLine = '';
 				}
@@ -168,8 +176,20 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				this._createOrGetCommandDetection(this._terminal).handleContinuationEnd();
 				return true;
 			}
+			case VSCodeOscPt.RightPromptStart: {
+				this._createOrGetCommandDetection(this._terminal).handleRightPromptStart();
+				return true;
+			}
+			case VSCodeOscPt.RightPromptEnd: {
+				this._createOrGetCommandDetection(this._terminal).handleRightPromptEnd();
+				return true;
+			}
 			case VSCodeOscPt.Property: {
-				const [key, value] = args[0].split('=');
+				const [key, rawValue] = args[0].split('=');
+				if (rawValue === undefined) {
+					return true;
+				}
+				const value = this._deserializeMessage(rawValue);
 				switch (key) {
 					case 'Cwd': {
 						this._createOrGetCwdDetection().updateCwd(value);
@@ -191,19 +211,22 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		return false;
 	}
 
-	serializeCommands(): ISerializedCommand[] {
+	serialize(): ISerializedCommandDetectionCapability {
 		if (!this._terminal || !this.capabilities.has(TerminalCapability.CommandDetection)) {
-			return [];
+			return {
+				isWindowsPty: false,
+				commands: []
+			};
 		}
-		const result = this._createOrGetCommandDetection(this._terminal).serializeCommands();
+		const result = this._createOrGetCommandDetection(this._terminal).serialize();
 		return result;
 	}
 
-	restoreCommands(serialized: ISerializedCommand[]): void {
+	deserialize(serialized: ISerializedCommandDetectionCapability): void {
 		if (!this._terminal) {
 			throw new Error('Cannot restore commands before addon is activated');
 		}
-		this._createOrGetCommandDetection(this._terminal).restoreCommands(serialized);
+		this._createOrGetCommandDetection(this._terminal).deserialize(serialized);
 	}
 
 	protected _createOrGetCwdDetection(): ICwdDetectionCapability {
@@ -222,5 +245,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			this.capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		}
 		return commandDetection;
+	}
+
+	private _deserializeMessage(message: string): string {
+		return message
+			.replace(/<LF>/g, '\n')
+			.replace(/<CL>/g, ';')
+			.replace(/<ST>/g, '\x07');
 	}
 }

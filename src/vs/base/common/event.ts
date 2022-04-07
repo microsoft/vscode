@@ -435,6 +435,12 @@ export interface EmitterOptions {
 	onLastListenerRemove?: Function;
 	leakWarningThreshold?: number;
 
+	/**
+	 * Pass in a delivery queue, which is useful for ensuring
+	 * in order event delivery across multiple emitters.
+	 */
+	deliveryQueue?: EventDeliveryQueue;
+
 	/** ONLY enable this during development */
 	_profName?: string;
 }
@@ -598,13 +604,14 @@ export class Emitter<T> {
 	private readonly _perfMon?: EventProfiling;
 	private _disposed: boolean = false;
 	private _event?: Event<T>;
-	private _deliveryQueue?: LinkedList<[Listener<T>, T]>;
+	private _deliveryQueue?: EventDeliveryQueue;
 	protected _listeners?: LinkedList<Listener<T>>;
 
 	constructor(options?: EmitterOptions) {
 		this._options = options;
 		this._leakageMon = _globalLeakWarningThreshold > 0 ? new LeakageMonitor(this._options && this._options.leakWarningThreshold) : undefined;
 		this._perfMon = this._options?._profName ? new EventProfiling(this._options._profName) : undefined;
+		this._deliveryQueue = this._options?.deliveryQueue;
 	}
 
 	dispose() {
@@ -636,7 +643,7 @@ export class Emitter<T> {
 
 				this._listeners.clear();
 			}
-			this._deliveryQueue?.clear();
+			this._deliveryQueue?.clear(this);
 			this._options?.onLastListenerRemove?.();
 			this._leakageMon?.dispose();
 		}
@@ -720,24 +727,17 @@ export class Emitter<T> {
 			// the driver of this
 
 			if (!this._deliveryQueue) {
-				this._deliveryQueue = new LinkedList();
+				this._deliveryQueue = new PrivateEventDeliveryQueue();
 			}
 
 			for (let listener of this._listeners) {
-				this._deliveryQueue.push([listener, event]);
+				this._deliveryQueue.push(this, listener, event);
 			}
 
 			// start/stop performance insight collection
 			this._perfMon?.start(this._deliveryQueue.size);
 
-			while (this._deliveryQueue.size > 0) {
-				const [listener, event] = this._deliveryQueue.shift()!;
-				try {
-					listener.invoke(event);
-				} catch (e) {
-					onUnexpectedError(e);
-				}
-			}
+			this._deliveryQueue.deliver();
 
 			this._perfMon?.stop();
 		}
@@ -751,6 +751,57 @@ export class Emitter<T> {
 	}
 }
 
+export class EventDeliveryQueue {
+	protected _queue = new LinkedList<EventDeliveryQueueElement>();
+
+	get size(): number {
+		return this._queue.size;
+	}
+
+	push<T>(emitter: Emitter<T>, listener: Listener<T>, event: T): void {
+		this._queue.push(new EventDeliveryQueueElement(emitter, listener, event));
+	}
+
+	clear<T>(emitter: Emitter<T>): void {
+		const newQueue = new LinkedList<EventDeliveryQueueElement>();
+		for (const element of this._queue) {
+			if (element.emitter !== emitter) {
+				newQueue.push(element);
+			}
+		}
+		this._queue = newQueue;
+	}
+
+	deliver(): void {
+		while (this._queue.size > 0) {
+			const element = this._queue.shift()!;
+			try {
+				element.listener.invoke(element.event);
+			} catch (e) {
+				onUnexpectedError(e);
+			}
+		}
+	}
+}
+
+/**
+ * An `EventDeliveryQueue` that is guaranteed to be used by a single `Emitter`.
+ */
+class PrivateEventDeliveryQueue extends EventDeliveryQueue {
+	override clear<T>(emitter: Emitter<T>): void {
+		// Here we can just clear the entire linked list because
+		// all elements are guaranteed to belong to this emitter
+		this._queue.clear();
+	}
+}
+
+class EventDeliveryQueueElement<T = any> {
+	constructor(
+		readonly emitter: Emitter<T>,
+		readonly listener: Listener<T>,
+		readonly event: T
+	) { }
+}
 
 export interface IWaitUntil {
 	token: CancellationToken;

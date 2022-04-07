@@ -56,9 +56,9 @@ import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { labelForTestInState, TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
+import { labelForTestInState, TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { InternalTestItem, ITestRunProfile, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, ITestRunProfile, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
@@ -513,6 +513,7 @@ export class TestingExplorerViewModel extends Disposable {
 
 		this._register(Event.any(
 			filterState.text.onDidChange,
+			filterState.fuzzy.onDidChange,
 			testService.excluded.onTestExclusionsChanged,
 		)(this.tree.refilter, this.tree));
 
@@ -911,13 +912,14 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 			return FilterResult.Include;
 		}
 
+		const fuzzy = this.state.fuzzy.value;
 		for (let e: TestItemTreeElement | null = element; e; e = e.parent) {
 			// start as included if the first glob is a negation
 			let included = this.state.globList[0].include === false ? FilterResult.Include : FilterResult.Inherit;
 			const data = e.label.toLowerCase();
 
 			for (const { include, text } of this.state.globList) {
-				if (fuzzyContains(data, text)) {
+				if (fuzzy ? fuzzyContains(data, text) : data.includes(text)) {
 					included = include ? FilterResult.Include : FilterResult.Exclude;
 				}
 			}
@@ -1010,13 +1012,6 @@ const getLabelForTestTreeElement = (element: TestItemTreeElement) => {
 				key: 'testing.treeElementLabelDuration',
 				comment: ['{0} is the original label in testing.treeElementLabel, {1} is a duration'],
 			}, '{0}, in {1}', label, formatDuration(element.duration));
-		}
-
-		if (element.retired) {
-			label = localize({
-				key: 'testing.treeElementLabelOutdated',
-				comment: ['{0} is the original label in testing.treeElementLabel'],
-			}, '{0}, outdated result', label, testStateNames[element.state]);
 		}
 	}
 
@@ -1210,10 +1205,6 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 				: node.element.state);
 
 		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
-		if (node.element.retired) {
-			data.icon.className += ' retired';
-		}
-
 		label.resource = node.element.test.item.uri;
 		options.title = getLabelForTestTreeElement(node.element);
 		options.fileKind = FileKind.FILE;

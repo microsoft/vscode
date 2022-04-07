@@ -63,7 +63,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		const setting = (this.configurationService.getValue('files.simpleDialog.enable') === true);
 		const newWindowSetting = (this.configurationService.getValue('window.openFilesInNewWindow') === 'on');
 		return {
-			useSimplified: ((schema !== Schemas.file) && (schema !== Schemas.userData)) || setting,
+			useSimplified: ((schema !== Schemas.file) && (schema !== Schemas.vscodeUserData)) || setting,
 			isSetting: newWindowSetting
 		};
 	}

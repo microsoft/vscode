@@ -14,7 +14,7 @@ import { NativeRemoteExtensionManagementService } from 'vs/workbench/services/ex
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NativeLocalExtensionManagementService } from 'vs/workbench/services/extensionManagement/electron-sandbox/localExtensionManagementService';
+import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
@@ -31,7 +31,7 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		@ILabelService labelService: ILabelService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		const localExtensionManagementService = instantiationService.createInstance(NativeLocalExtensionManagementService, sharedProcessService.getChannel('extensions'));
+		const localExtensionManagementService = new ExtensionManagementChannelClient(sharedProcessService.getChannel('extensions'));
 
 		this._localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, id: 'local', label: localize('local', "Local") };
 		const remoteAgentConnection = remoteAgentService.getConnection();

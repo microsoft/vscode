@@ -362,6 +362,7 @@ export class FileIconThemeLoader {
 		collectSelectors(iconThemeDocument);
 		collectSelectors(iconThemeDocument.light, '.vs');
 		collectSelectors(iconThemeDocument.highContrast, '.hc-black');
+		collectSelectors(iconThemeDocument.highContrast, '.hc-light');
 
 		if (!result.hasFileIcons && !result.hasFolderIcons) {
 			return result;

@@ -238,7 +238,7 @@ export class ModelService extends Disposable implements IModelService {
 		if (config.editor?.bracketPairColorization && typeof config.editor.bracketPairColorization === 'object') {
 			bracketPairColorizationOptions = {
 				enabled: !!config.editor.bracketPairColorization.enabled,
-				useIndependentColorPoolPerBracketType: !!config.editor.bracketPairColorization.useIndependentColorPoolPerBracketType
+				independentColorPoolPerBracketType: !!config.editor.bracketPairColorization.independentColorPoolPerBracketType
 			};
 		}
 
@@ -567,7 +567,7 @@ export class ModelService extends Disposable implements IModelService {
 		return (
 			resource.scheme === Schemas.file
 			|| resource.scheme === Schemas.vscodeRemote
-			|| resource.scheme === Schemas.userData
+			|| resource.scheme === Schemas.vscodeUserData
 			|| resource.scheme === Schemas.vscodeNotebookCell
 			|| resource.scheme === 'fake-fs' // for tests
 		);
@@ -850,7 +850,7 @@ export class ModelSemanticColoring extends Disposable {
 			// there is no provider
 			if (this._currentDocumentResponse) {
 				// there are semantic tokens set
-				this._model.setSemanticTokens(null, false);
+				this._model.tokenization.setSemanticTokens(null, false);
 			}
 			return;
 		}
@@ -925,11 +925,11 @@ export class ModelSemanticColoring extends Disposable {
 			return;
 		}
 		if (!provider || !styling) {
-			this._model.setSemanticTokens(null, false);
+			this._model.tokenization.setSemanticTokens(null, false);
 			return;
 		}
 		if (!tokens) {
-			this._model.setSemanticTokens(null, true);
+			this._model.tokenization.setSemanticTokens(null, true);
 			rescheduleIfNeeded();
 			return;
 		}
@@ -937,7 +937,7 @@ export class ModelSemanticColoring extends Disposable {
 		if (isSemanticTokensEdits(tokens)) {
 			if (!currentResponse) {
 				// not possible!
-				this._model.setSemanticTokens(null, true);
+				this._model.tokenization.setSemanticTokens(null, true);
 				return;
 			}
 			if (tokens.edits.length === 0) {
@@ -1006,9 +1006,9 @@ export class ModelSemanticColoring extends Disposable {
 				}
 			}
 
-			this._model.setSemanticTokens(result, true);
+			this._model.tokenization.setSemanticTokens(result, true);
 		} else {
-			this._model.setSemanticTokens(null, true);
+			this._model.tokenization.setSemanticTokens(null, true);
 		}
 
 		rescheduleIfNeeded();

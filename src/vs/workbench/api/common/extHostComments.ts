@@ -16,6 +16,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, CommentThreadChanges, CommentChanges } from './extHost.protocol';
 import { ExtHostCommands } from './extHostCommands';
@@ -222,6 +223,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		comments: vscode.Comment[];
 		collapsibleState: vscode.CommentThreadCollapsibleState;
 		canReply: boolean;
+		state: vscode.CommentThreadState;
 	}>;
 
 	class ExtHostCommentThread implements vscode.CommentThread {
@@ -325,6 +327,20 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			this._onDidUpdateCommentThread.fire();
 		}
 
+		private _state?: vscode.CommentThreadState;
+
+		get state(): vscode.CommentThreadState {
+			checkProposedApiEnabled(this.extensionDescription, 'commentsResolvedState');
+			return this._state!;
+		}
+
+		set state(newState: vscode.CommentThreadState) {
+			checkProposedApiEnabled(this.extensionDescription, 'commentsResolvedState');
+			this._state = newState;
+			this.modifications.state = newState;
+			this._onDidUpdateCommentThread.fire();
+		}
+
 		private _localDisposables: types.Disposable[];
 
 		private _isDiposed: boolean;
@@ -397,6 +413,8 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				set contextValue(value: string | undefined) { that.contextValue = value; },
 				get label() { return that.label; },
 				set label(value: string | undefined) { that.label = value; },
+				get state() { return that.state; },
+				set state(value: vscode.CommentThreadState) { that.state = value; },
 				dispose: () => {
 					that.dispose();
 				}
@@ -440,6 +458,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			}
 			if (modified('canReply')) {
 				formattedModifications.canReply = this.canReply;
+			}
+			if (modified('state')) {
+				formattedModifications.state = convertToState(this._state);
 			}
 			this.modifications = {};
 
@@ -658,6 +679,18 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			}
 		}
 		return languages.CommentThreadCollapsibleState.Collapsed;
+	}
+
+	function convertToState(kind: vscode.CommentThreadState | undefined): languages.CommentThreadState {
+		if (kind !== undefined) {
+			switch (kind) {
+				case types.CommentThreadState.Unresolved:
+					return languages.CommentThreadState.Unresolved;
+				case types.CommentThreadState.Resolved:
+					return languages.CommentThreadState.Resolved;
+			}
+		}
+		return languages.CommentThreadState.Unresolved;
 	}
 
 	return new ExtHostCommentsImpl();

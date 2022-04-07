@@ -52,6 +52,14 @@ steps:
 
   - script: |
       set -e
+      git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
+      echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
+      git checkout FETCH_HEAD
+    condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
+    displayName: Checkout override commit
+
+  - script: |
+      set -e
       git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
     displayName: Merge distro
 
@@ -84,7 +92,7 @@ steps:
   - script: |
       set -e
       for i in {1..3}; do # try 3 times, for Terrapin
-        yarn --cwd build --frozen-lockfile && break
+        yarn --cwd build --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then
           echo "Yarn failed too many times" >&2
           exit 1
@@ -121,7 +129,7 @@ steps:
       fi
 
       for i in {1..3}; do # try 3 times, for Terrapin
-        yarn --frozen-lockfile && break
+        yarn --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then
           echo "Yarn failed too many times" >&2
           exit 1
@@ -250,8 +258,17 @@ steps:
 
   - script: |
       set -e
+      ps -ef
+      cat /proc/sys/fs/inotify/max_user_watches
+      lsof | wc -l
+    displayName: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
+    continueOnError: true
+    condition: succeededOrFailed()
+
+  - script: |
+      set -e
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
-      yarn smoketest-no-compile --web --headless --electronArgs="--disable-dev-shm-usage"
+      yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
     timeoutInMinutes: 10
     displayName: Run smoke tests (Browser, Chromium)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
@@ -259,9 +276,9 @@ steps:
   - script: |
       set -e
       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-      yarn smoketest-no-compile --build "$APP_PATH" --electronArgs="--disable-dev-shm-usage"
-    # Increased timeout because this test downloads stable code
-    timeoutInMinutes: 20
+      yarn smoketest-no-compile --verbose --tracing --build "$APP_PATH"
+    # TODO@bpasero reduce timeout and remove --verbose when done
+    timeoutInMinutes: 60
     displayName: Run smoke tests (Electron)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -269,10 +286,20 @@ steps:
       set -e
       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
-      yarn smoketest-no-compile --build "$APP_PATH" --remote --electronArgs="--disable-dev-shm-usage"
-    timeoutInMinutes: 10
+      yarn smoketest-no-compile --verbose --tracing --remote --build "$APP_PATH"
+    # TODO@bpasero reduce timeout and remove --verbose when done
+    timeoutInMinutes: 60
     displayName: Run smoke tests (Remote)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - script: |
+      set -e
+      ps -ef
+      cat /proc/sys/fs/inotify/max_user_watches
+      lsof | wc -l
+    displayName: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
+    continueOnError: true
+    condition: succeededOrFailed()
 
   - task: PublishPipelineArtifact@0
     inputs:

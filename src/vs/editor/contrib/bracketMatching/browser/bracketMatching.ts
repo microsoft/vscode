@@ -24,7 +24,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 
-const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
+const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', { dark: '#A0A0A0', light: '#A0A0A0', hcDark: '#A0A0A0', hcLight: '#A0A0A0' }, nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
 
 class JumpToBracketAction extends EditorAction {
 	constructor() {

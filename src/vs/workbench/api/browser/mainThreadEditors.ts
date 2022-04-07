@@ -7,7 +7,6 @@ import { disposed } from 'vs/base/common/errors';
 import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { equals as objectEquals } from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
@@ -17,41 +16,22 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions, IResourceEditorInput, EditorActivation, EditorResolution } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
-import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, TextEditorRevealType, IWorkspaceEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToColumn, columnToEditorGroup, EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { revive } from 'vs/base/common/marshalling';
-import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IEditorPane } from 'vs/workbench/common/editor';
-
-export function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): ResourceEdit[] {
-	if (!data?.edits) {
-		return [];
-	}
-
-	const result: ResourceEdit[] = [];
-	for (let edit of revive<IWorkspaceEditDto>(data).edits) {
-		if (edit._type === WorkspaceEditType.File) {
-			result.push(new ResourceFileEdit(edit.oldUri, edit.newUri, edit.options, edit.metadata));
-		} else if (edit._type === WorkspaceEditType.Text) {
-			result.push(new ResourceTextEdit(edit.resource, edit.edit, edit.modelVersionId, edit.metadata));
-		} else if (edit._type === WorkspaceEditType.Cell) {
-			result.push(new ResourceNotebookCellEdit(edit.resource, NotebookDto.fromCellEditOperationDto(edit.edit), edit.notebookVersionId, edit.metadata));
-		}
-	}
-	return result;
-}
+import { IEditorControl } from 'vs/workbench/common/editor';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
-	findTextEditorIdFor(editorPane: IEditorPane): string | undefined;
+	findTextEditorIdFor(editorControl: IEditorControl): string | undefined;
+	getIdOfCodeEditor(codeEditor: ICodeEditor): string | undefined;
 }
 
 export class MainThreadTextEditors implements MainThreadTextEditorsShape {
@@ -69,9 +49,8 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		private readonly _editorLocator: IMainThreadEditorLocator,
 		extHostContext: IExtHostContext,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 	) {
 		this._instanceId = String(++MainThreadTextEditors.INSTANCE_COUNT);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
@@ -86,7 +65,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		this._registeredDecorationTypes = Object.create(null);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		Object.keys(this._textEditorsListenersMap).forEach((editorId) => {
 			dispose(this._textEditorsListenersMap[editorId]);
 		});
@@ -241,17 +220,12 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return Promise.resolve(editor.applyEdits(modelVersionId, edits, opts));
 	}
 
-	$tryApplyWorkspaceEdit(dto: IWorkspaceEditDto): Promise<boolean> {
-		const edits = reviveWorkspaceEditDto2(dto);
-		return this._bulkEditService.apply(edits).then(() => true, _err => false);
-	}
-
-	$tryInsertSnippet(id: string, template: string, ranges: readonly IRange[], opts: IUndoStopOptions): Promise<boolean> {
+	$tryInsertSnippet(id: string, modelVersionId: number, template: string, ranges: readonly IRange[], opts: IUndoStopOptions): Promise<boolean> {
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		return Promise.resolve(editor.insertSnippet(template, ranges, opts));
+		return Promise.resolve(editor.insertSnippet(modelVersionId, template, ranges, opts));
 	}
 
 	$registerTextEditorDecorationType(extensionId: ExtensionIdentifier, key: string, options: IDecorationRenderOptions): void {

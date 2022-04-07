@@ -14,7 +14,7 @@ import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtensio
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Color } from 'vs/base/common/color';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { ColorScheme, isHighContrast } from 'vs/platform/theme/common/theme';
 import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
@@ -376,7 +376,7 @@ registerAction2(class extends Action2 {
 		const picks: QuickPickInput<ThemeItem>[] = [
 			...toEntries(themes.filter(t => t.type === ColorScheme.LIGHT), localize('themes.category.light', "light themes")),
 			...toEntries(themes.filter(t => t.type === ColorScheme.DARK), localize('themes.category.dark', "dark themes")),
-			...toEntries(themes.filter(t => t.type === ColorScheme.HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes")),
+			...toEntries(themes.filter(t => isHighContrast(t.type)), localize('themes.category.hc', "high contrast themes")),
 		];
 		await picker.openQuickPick(picks, currentTheme);
 	}

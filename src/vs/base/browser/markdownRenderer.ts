@@ -37,7 +37,7 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 /**
  * Low-level way create a html element from a markdown string.
  *
- * **Note** that for most cases you should be using [`MarkdownRenderer`](./src/vs/editor/browser/core/markdownRenderer.ts)
+ * **Note** that for most cases you should be using [`MarkdownRenderer`](./src/vs/editor/contrib/markdownRenderer/browser/markdownRenderer.ts)
  * which comes with support for pretty code block rendering and which uses the default way of handling links.
  */
 export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): { element: HTMLElement; dispose: () => void } {

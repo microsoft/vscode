@@ -52,7 +52,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get logFile(): URI { return joinPath(this.logsHome, 'window.log'); }
 
 	@memoize
-	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.userData }); }
+	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.vscodeUserData }); }
 
 	@memoize
 	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
@@ -172,6 +172,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	}
 
 	@memoize
+	get enableSmokeTestDriver() { return this.options.developmentOptions?.enableSmokeTestDriver; }
+
+	@memoize
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
 
 	@memoize
@@ -181,7 +184,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get webviewExternalEndpoint(): string {
 		const endpoint = this.options.webviewEndpoint
 			|| this.productService.webviewContentExternalBaseUrlTemplate
-			|| 'https://{{uuid}}.vscode-webview.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/';
+			|| 'https://{{uuid}}.vscode-cdn.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/';
 
 		const webviewExternalEndpointCommit = this.payload?.get('webviewExternalEndpointCommit');
 		return endpoint

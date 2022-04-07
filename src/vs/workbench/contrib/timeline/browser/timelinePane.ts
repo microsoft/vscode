@@ -50,6 +50,7 @@ import { isString } from 'vs/base/common/types';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 const ItemHeight = 22;
 
@@ -257,7 +258,8 @@ export class TimelinePane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super({ ...options, titleMenuId: MenuId.TimelineTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -354,7 +356,7 @@ export class TimelinePane extends ViewPane {
 
 		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
-		if ((uri?.toString(true) === this.uri?.toString(true) && uri !== undefined) ||
+		if ((this.uriIdentityService.extUri.isEqual(uri, this.uri) && uri !== undefined) ||
 			// Fallback to match on fsPath if we are dealing with files or git schemes
 			(uri?.fsPath === this.uri?.fsPath && (uri?.scheme === Schemas.file || uri?.scheme === 'git') && (this.uri?.scheme === Schemas.file || this.uri?.scheme === 'git'))) {
 
@@ -397,7 +399,7 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private onTimelineChanged(e: TimelineChangeEvent) {
-		if (e?.uri === undefined || e.uri.toString(true) === this.uri?.toString(true)) {
+		if (e?.uri === undefined || this.uriIdentityService.extUri.isEqual(e.uri, this.uri)) {
 			const timeline = this.timelinesBySource.get(e.id);
 			if (timeline === undefined) {
 				return;
@@ -760,15 +762,16 @@ export class TimelinePane extends ViewPane {
 		}
 
 		this._visibleItemCount = count;
-
-		if (more) {
-			yield {
-				element: new LoadMoreCommand(this.pendingRequests.size !== 0)
-			};
-		} else if (this.pendingRequests.size !== 0) {
-			yield {
-				element: new LoadMoreCommand(true)
-			};
+		if (count > 0) {
+			if (more) {
+				yield {
+					element: new LoadMoreCommand(this.pendingRequests.size !== 0)
+				};
+			} else if (this.pendingRequests.size !== 0) {
+				yield {
+					element: new LoadMoreCommand(true)
+				};
+			}
 		}
 	}
 
@@ -895,9 +898,9 @@ export class TimelinePane extends ViewPane {
 				}
 			},
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
-			multipleSelectionSupport: true,
+			multipleSelectionSupport: false,
 			overrideStyles: {
-				listBackground: this.getBackgroundColor(),
+				listBackground: this.getBackgroundColor()
 			}
 		});
 
@@ -1285,17 +1288,15 @@ class TimelinePaneCommands extends Disposable {
 		this.sourceDisposables.clear();
 
 		const excluded = new Set(this.configurationService.getValue<string[] | undefined>('timeline.excludeSources') ?? []);
-
 		for (const source of this.timelineService.getSources()) {
 			this.sourceDisposables.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
 						id: `timeline.toggleExcludeSource:${source.id}`,
-						title: { value: localize('timeline.filterSource', "Include: {0}", source.label), original: `Include: ${source.label}` },
-						category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
+						title: source.label,
 						menu: {
-							id: MenuId.TimelineTitle,
-							group: '2_sources',
+							id: MenuId.TimelineFilterSubMenu,
+							group: 'navigation',
 						},
 						toggled: ContextKeyExpr.regex(`config.timeline.excludeSources`, new RegExp(`\\b${escapeRegExpCharacters(source.id)}\\b`)).negate()
 					});

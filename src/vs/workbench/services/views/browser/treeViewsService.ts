@@ -5,9 +5,10 @@
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITreeDataTransfer, ITreeItem } from 'vs/workbench/common/views';
+import { IDataTransfer } from 'vs/workbench/common/dnd';
+import { ITreeItem } from 'vs/workbench/common/views';
 import { ITreeViewsService as ITreeViewsServiceCommon, TreeviewsService } from 'vs/workbench/services/views/common/treeViewsService';
 
-export interface ITreeViewsService extends ITreeViewsServiceCommon<ITreeDataTransfer, ITreeItem, HTMLElement> { }
+export interface ITreeViewsService extends ITreeViewsServiceCommon<IDataTransfer, ITreeItem, HTMLElement> { }
 export const ITreeViewsService = createDecorator<ITreeViewsService>('treeViewsService');
 registerSingleton(ITreeViewsService, TreeviewsService);

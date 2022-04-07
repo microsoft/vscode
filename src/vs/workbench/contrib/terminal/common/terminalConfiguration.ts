@@ -17,7 +17,7 @@ const terminalDescriptors = '\n- ' + [
 	'`\${local}`: ' + localize('local', "indicates a local terminal in a remote workspace"),
 	'`\${process}`: ' + localize('process', "the name of the terminal process"),
 	'`\${separator}`: ' + localize('separator', "a conditional separator (\" - \") that only shows when surrounded by variables with values or static text."),
-	'`\${sequence}`: ' + localize('sequence', "the name provided to xterm.js by the process"),
+	'`\${sequence}`: ' + localize('sequence', "the name provided to the terminal by the process"),
 	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task"),
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
@@ -303,12 +303,13 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.RightClickBehavior]: {
 			type: 'string',
-			enum: ['default', 'copyPaste', 'paste', 'selectWord'],
+			enum: ['default', 'copyPaste', 'paste', 'selectWord', 'nothing'],
 			enumDescriptions: [
 				localize('terminal.integrated.rightClickBehavior.default', "Show the context menu."),
 				localize('terminal.integrated.rightClickBehavior.copyPaste', "Copy when there is a selection, otherwise paste."),
 				localize('terminal.integrated.rightClickBehavior.paste', "Paste on right click."),
-				localize('terminal.integrated.rightClickBehavior.selectWord', "Select the word under the cursor and show the context menu.")
+				localize('terminal.integrated.rightClickBehavior.selectWord', "Select the word under the cursor and show the context menu."),
+				localize('terminal.integrated.rightClickBehavior.nothing', "Do nothing and pass event to terminal.")
 			],
 			default: isMacintosh ? 'selectWord' : isWindows ? 'copyPaste' : 'default',
 			description: localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click.")

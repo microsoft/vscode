@@ -63,6 +63,7 @@ import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { registerLegacyWindowDriver, registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 
 export class NativeWindow extends Disposable {
 
@@ -197,6 +198,15 @@ export class NativeWindow extends Disposable {
 			}]
 		));
 
+		ipcRenderer.on('vscode:showCredentialsError', (event: unknown, message: string) => this.notificationService.prompt(
+			Severity.Error,
+			localize('keychainWriteError', "Writing login information to the keychain failed with error '{0}'.", message),
+			[{
+				label: localize('troubleshooting', "Troubleshooting Guide"),
+				run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2190713')
+			}]
+		));
+
 		// Fullscreen Events
 		ipcRenderer.on('vscode:enterFullScreen', async () => setFullscreen(true));
 		ipcRenderer.on('vscode:leaveFullScreen', async () => setFullscreen(false));
@@ -319,7 +329,7 @@ export class NativeWindow extends Disposable {
 		// Lifecycle
 		this._register(this.lifecycleService.onBeforeShutdown(e => this.onBeforeShutdown(e)));
 		this._register(this.lifecycleService.onBeforeShutdownError(e => this.onBeforeShutdownError(e)));
-		this._register(this.lifecycleService.onWillShutdown((e) => this.onWillShutdown(e)));
+		this._register(this.lifecycleService.onWillShutdown(e => this.onWillShutdown(e)));
 	}
 
 	private onBeforeShutdown({ reason }: BeforeShutdownEvent): void {
@@ -373,13 +383,13 @@ export class NativeWindow extends Disposable {
 
 		switch (reason) {
 			case ShutdownReason.CLOSE:
-				return localize('shutdownTitleClose', "Closing the window is taking longer than expected...");
+				return localize('shutdownTitleClose', "Closing the window is taking a bit longer...");
 			case ShutdownReason.QUIT:
-				return localize('shutdownTitleQuit', "Quitting the application is taking longer than expected...");
+				return localize('shutdownTitleQuit', "Quitting the application is taking a bit longer...");
 			case ShutdownReason.RELOAD:
-				return localize('shutdownTitleReload', "Reloading the window is taking longer than expected...");
+				return localize('shutdownTitleReload', "Reloading the window is taking a bit longer...");
 			case ShutdownReason.LOAD:
-				return localize('shutdownTitleLoad', "Changing the workspace is taking longer than expected...");
+				return localize('shutdownTitleLoad', "Changing the workspace is taking a bit longer...");
 		}
 	}
 
@@ -560,6 +570,29 @@ export class NativeWindow extends Disposable {
 				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
 				this.nativeHostService.openDevTools();
 			}
+		}
+
+		// Smoke Test Driver
+		this.setupDriver();
+	}
+
+	private setupDriver(): void {
+
+		// Modern Driver
+		if (this.environmentService.enableSmokeTestDriver) {
+			const that = this;
+			registerWindowDriver({
+				async exitApplication(): Promise<number> {
+					that.nativeHostService.quit();
+
+					return that.environmentService.mainPid;
+				}
+			});
+		}
+
+		// Legacy Driver (TODO@bpasero remove me eventually)
+		else if (this.environmentService.args.driver) {
+			this.instantiationService.invokeFunction(async accessor => this._register(await registerLegacyWindowDriver(accessor, this.nativeHostService.windowId)));
 		}
 	}
 

@@ -480,6 +480,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			type: UndoRedoElementType.Resource,
 			resource: this._editorResource,
 			label: label ?? localize('defaultEditLabel', "Edit"),
+			code: 'undoredo.customEditorEdit',
 			undo: () => this.undo(),
 			redo: () => this.redo(),
 		});

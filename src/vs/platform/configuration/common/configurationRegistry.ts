@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as types from 'vs/base/common/types';
 import * as nls from 'vs/nls';
+import { getLanguageTagSettingPlainKey } from 'vs/platform/configuration/common/configuration';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -292,7 +293,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
 					const defaultValue = { ...(this.configurationDefaultsOverrides.get(key)?.value || {}), ...overrides[key] };
 					this.configurationDefaultsOverrides.set(key, { source, value: defaultValue });
-					const plainKey = key.replace(/[\[\]]/g, '');
+					const plainKey = getLanguageTagSettingPlainKey(key);
 					const property: IRegisteredConfigurationPropertySchema = {
 						type: 'object',
 						default: defaultValue,

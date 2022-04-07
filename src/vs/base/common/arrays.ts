@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
+import { CancellationError } from 'vs/base/common/errors';
 import { ISplice } from 'vs/base/common/sequence';
 
 /**
@@ -257,7 +257,7 @@ export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: numb
 					await new Promise(resolve => setTimeout(resolve)); // any other delay function would starve I/O
 				}
 				if (token && token.isCancellationRequested) {
-					throw canceled();
+					throw new CancellationError();
 				}
 				topStep(array, compare, result, i, m);
 			}
@@ -378,6 +378,12 @@ export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoun
 export function firstOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
 export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
 	return array.length > 0 ? array[0] : notFoundValue;
+}
+
+export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
+export function lastOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
+export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
+	return array.length > 0 ? array[array.length - 1] : notFoundValue;
 }
 
 export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): number {
@@ -518,6 +524,12 @@ export function pushToEnd<T>(arr: T[], value: T): void {
 	if (index > -1) {
 		arr.splice(index, 1);
 		arr.push(value);
+	}
+}
+
+export function pushMany<T>(arr: T[], items: ReadonlyArray<T>): void {
+	for (const item of items) {
+		arr.push(item);
 	}
 }
 

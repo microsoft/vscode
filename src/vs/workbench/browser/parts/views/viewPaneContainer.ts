@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, Dimension, EventType, isAncestor } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension, DragAndDropObserver, EventType, isAncestor } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -31,7 +31,7 @@ import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
-import { CompositeDragAndDropObserver, DragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
+import { CompositeDragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { Component } from 'vs/workbench/common/component';

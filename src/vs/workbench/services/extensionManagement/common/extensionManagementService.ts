@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions, computeTargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
@@ -29,6 +29,8 @@ import { IExtensionManifestPropertiesService } from 'vs/workbench/services/exten
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { isUndefined } from 'vs/base/common/types';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
 
@@ -51,6 +53,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -462,6 +466,13 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	}
 
+	private _targetPlatformPromise: Promise<TargetPlatform> | undefined;
+	getTargetPlatform(): Promise<TargetPlatform> {
+		if (!this._targetPlatformPromise) {
+			this._targetPlatformPromise = computeTargetPlatform(this.fileService, this.logService);
+		}
+		return this._targetPlatformPromise;
+	}
+
 	registerParticipant() { throw new Error('Not Supported'); }
-	getTargetPlatform(): Promise<TargetPlatform> { throw new Error('Not Supported'); }
 }

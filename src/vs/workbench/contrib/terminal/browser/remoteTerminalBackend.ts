@@ -74,8 +74,8 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		this._remoteTerminalChannel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
 		this._remoteTerminalChannel.onProcessReplay(e => {
 			this._ptys.get(e.id)?.handleReplay(e.event);
-			if (e.event.commands.length > 0) {
-				this._onRestoreCommands.fire({ id: e.id, commands: e.event.commands });
+			if (e.event.commands.commands.length > 0) {
+				this._onRestoreCommands.fire({ id: e.id, commands: e.event.commands.commands });
 			}
 		});
 		this._remoteTerminalChannel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());

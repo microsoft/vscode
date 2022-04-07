@@ -7,6 +7,11 @@
 
 declare module 'vscode' {
 
+	/**
+	 * Describes a change to a notebook cell.
+	 *
+	 * @see {@link NotebookDocumentChangeEvent}
+	 */
 	export interface NotebookDocumentContentCellChange {
 
 		/**
@@ -15,28 +20,55 @@ declare module 'vscode' {
 		readonly cell: NotebookCell;
 
 		/**
-		 * The metadata of the cell or `undefined` when it didn't change
+		 * The document of the cell or `undefined` when it did not change.
+		 *
+		 * *Note* that you should use the {@link workspace.onDidChangeTextDocument onDidChangeTextDocument}-event
+		 * for detailed change information, like what edits have been performed.
+		 */
+		readonly document: TextDocument | undefined;
+
+		/**
+		 * The new metadata of the cell or `undefined` when it did not change.
 		 */
 		readonly metadata: { [key: string]: any } | undefined;
+
+		/**
+		 * The new outputs of the cell or `undefined` when they did not change.
+		 */
 		readonly outputs: readonly NotebookCellOutput[] | undefined;
+
+		/**
+		 * The new execution summary of the cell or `undefined` when it did not change.
+		 */
 		readonly executionSummary: NotebookCellExecutionSummary | undefined;
 	}
 
+	/**
+	 * Describes a structural change to a notebook document.
+	 *
+	 * @see {@link NotebookDocumentChangeEvent}
+	 */
 	export interface NotebookDocumentContentChange {
+
 		/**
-		 * The range at which cells have been either and or removed.
+		 * The range at which cells have been either added or removed.
 		 */
 		readonly range: NotebookRange;
+
 		/**
 		 * Cells that have been added to the document.
 		 */
-		readonly addedCells: NotebookCell[];
+		readonly addedCells: readonly NotebookCell[];
+
 		/**
 		 * Cells that have been removed from the document.
 		 */
-		readonly removedCells: NotebookCell[];
+		readonly removedCells: readonly NotebookCell[];
 	}
 
+	/**
+	 * An event describing a transactional {@link NotebookDocument notebook} change.
+	 */
 	export interface NotebookDocumentChangeEvent {
 
 		/**
@@ -45,13 +77,19 @@ declare module 'vscode' {
 		readonly notebook: NotebookDocument;
 
 		/**
-		 * The notebook metadata when it has changed or `undefined` when it has not changed.
+		 * The new metadata of the notebook or `undefined` when it did not change.
 		 */
 		readonly metadata: { [key: string]: any } | undefined;
 
+		/**
+		 * An array of content changes describing added or removed {@link NotebookCell cells}.
+		 */
 		readonly contentChanges: readonly NotebookDocumentContentChange[];
 
-		readonly cellChanges: NotebookDocumentContentCellChange[];
+		/**
+		 * An array of {@link NotebookDocumentContentCellChange cell changes}.
+		 */
+		readonly cellChanges: readonly NotebookDocumentContentCellChange[];
 	}
 
 	export namespace workspace {

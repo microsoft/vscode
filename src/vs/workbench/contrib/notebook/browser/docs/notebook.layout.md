@@ -41,38 +41,11 @@ The catch here is if we happen to perform any DOM read operation between DOM wri
 
 * Creation. `CellPart` is usually created on cell template
 * Attach cell. When a cell is being rendered, we would attach the cell with all `CellPart`s by invoking `CellPart#renderCell`.
+  * A subclass of `CellPart` should implement `CellPart#didRenderCell` to customize this phase
 * Read DOM dimensions. All DOM read operation should be performed in this phase to prepare for the layout update. `CellPart#prepareLayout` will invoked.
 * Update DOM positions. Once the list view finish reading DOM dimensions of all `CellPart`s, it will ask each `CellPart` to update its internal DOM nodes' positions, by invoking `CellPart#updateLayoutNow`.
 
 When we introduce new UI elements to notebook cell, we would make it a `CellPart` and ensure that we batch the DOM read and write operations in the right phases.
-
-```ts
-export abstract class CellPart extends Disposable {
-	constructor() {
-		super();
-	}
-
-	/**
-	 * Update the DOM for the cell `element`
-	 */
-	abstract renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void;
-
-	/**
-	 * Perform DOM read operations to prepare for the list/cell layout update.
-	 */
-	abstract prepareLayout(): void;
-
-	/**
-	 * Update DOM per cell layout info change
-	 */
-	abstract updateLayoutNow(element: ICellViewModel): void;
-
-	/**
-	 * Update per cell state change
-	 */
-	abstract updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void;
-}
-```
 
 ![render viewport](./viewport-rendering.drawio.svg)
 
