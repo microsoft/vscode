@@ -147,7 +147,6 @@ export interface ISCMRepositoryView {
 	visible: boolean;
 }
 
-
 export interface ISCMService {
 
 	readonly _serviceBrand: undefined;
