@@ -309,12 +309,12 @@ suite('NativeExtensionsScanerService Test', () => {
 
 	async function aUserExtension(manifest: Partial<IScannedExtensionManifest>): Promise<URI> {
 		const environmentService = instantiationService.get(INativeEnvironmentService);
-		return anExtension(manifest, URI.parse(environmentService.extensionsPath));
+		return anExtension(manifest, URI.file(environmentService.extensionsPath));
 	}
 
 	async function aSystemExtension(manifest: Partial<IScannedExtensionManifest>): Promise<URI> {
 		const environmentService = instantiationService.get(INativeEnvironmentService);
-		return anExtension(manifest, URI.parse(environmentService.builtinExtensionsPath));
+		return anExtension(manifest, URI.file(environmentService.builtinExtensionsPath));
 	}
 
 	async function anExtension(manifest: Partial<IScannedExtensionManifest>, root: URI): Promise<URI> {
