@@ -82,6 +82,13 @@ Name: "associatewithfiles"; Description: "{cm:AssociateWithFiles,{#NameShort}}";
 Name: "addtopath"; Description: "{cm:AddToPath}"; GroupDescription: "{cm:Other}"
 Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{cm:Other}"; Check: WizardSilent
 
+[Dirs]
+#if "user" == InstallTarget
+Name: "{app}"; Permissions: system-full admins-full creatorowner-full authusers-readexec users-readexec; AfterInstall: DisableAppDirInheritance
+#else
+Name: "{app}"; Permissions: system-full admins-full authusers-readexec users-readexec; AfterInstall: DisableAppDirInheritance
+#endif
+
 [Files]
 Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\resources\app\product.json"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "tools\*"; DestDir: "{app}\tools"; Flags: ignoreversion
@@ -1480,3 +1487,10 @@ end;
 #ifdef Debug
   #expr SaveToFile(AddBackslash(SourcePath) + "code-processed.iss")
 #endif
+
+procedure DisableAppDirInheritance();
+var
+  ResultCode: Integer;
+begin
+  Exec(ExpandConstant('{sys}\icacls.exe'), ExpandConstant('"{app}" /inheritancelevel:r'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
