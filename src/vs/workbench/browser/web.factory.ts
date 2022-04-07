@@ -12,6 +12,7 @@ import { mark, PerformanceMark } from 'vs/base/common/performance';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
 import { asArray } from 'vs/base/common/arrays';
+import { IOutputChannel } from 'vs/workbench/contrib/output/common/output';
 
 let created = false;
 const workbenchPromise = new DeferredPromise<IWorkbench>();
@@ -119,4 +120,16 @@ export namespace env {
 
 		return workbench.env.openUri(target);
 	}
+}
+
+export namespace window {
+	/**
+	 * {@linkcode IWorkbench.window IWorkbench.window.createOutputChannel}
+	 */
+	export async function createOutputChannel(name: string, languageId?: string): Promise<IOutputChannel> {
+		const workbench = await workbenchPromise.p;
+
+		return workbench.window.createOutputChannel(name, languageId);
+	}
+
 }

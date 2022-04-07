@@ -14,6 +14,7 @@ import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/brow
 import type { IProductConfiguration } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
+import type { IOutputChannel } from 'vs/workbench/contrib/output/common/output';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -61,6 +62,17 @@ export interface IWorkbench {
 		 * workbench.
 		 */
 		openUri(target: URI): Promise<boolean>;
+	};
+
+	window: {
+		/**
+		 * Creates a new output channel with the given name and language id
+		 * If language id is not provided, then **Log** is used as default language id.
+		 *
+		 * @param name Human-readable string which will be used to represent the channel in the UI.
+		 * @param languageId The identifier of the language associated with the channel.
+		 */
+		createOutputChannel(name: string, languageId?: string): Promise<IOutputChannel>;
 	};
 
 	/**

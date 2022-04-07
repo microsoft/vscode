@@ -69,10 +69,14 @@ import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { BrowserCredentialsService } from 'vs/workbench/services/credentials/browser/credentialsService';
 import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
+import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
 
 export class BrowserMain extends Disposable {
 
 	private readonly onWillShutdownDisposables = this._register(new DisposableStore());
+	private _outputChannelCounter = 0;
 
 	constructor(
 		private readonly domElement: HTMLElement,
@@ -116,6 +120,7 @@ export class BrowserMain extends Disposable {
 			const timerService = accessor.get(ITimerService);
 			const openerService = accessor.get(IOpenerService);
 			const productService = accessor.get(IProductService);
+			const outputService = accessor.get(IOutputService);
 
 			return {
 				commands: {
@@ -131,6 +136,19 @@ export class BrowserMain extends Disposable {
 					async openUri(uri: URI): Promise<boolean> {
 						return openerService.open(uri, {});
 					}
+				},
+				window: {
+					createOutputChannel: (name, languageId) => {
+						this._outputChannelCounter++;
+						const id = `web-embedder-${this._outputChannelCounter}`;
+						Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label: name, log: false, languageId });
+						const channel = outputService.getChannel(id);
+						if (channel) {
+							return Promise.resolve(channel);
+						}
+
+						throw Error(`Could not create output channel for name: ${name}`);
+					},
 				},
 				shutdown: () => lifecycleService.shutdown()
 			};
