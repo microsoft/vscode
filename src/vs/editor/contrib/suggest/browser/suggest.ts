@@ -273,7 +273,7 @@ export async function provideSuggestionItems(
 		// for each support in the group ask for suggestions
 		let didAddResult = false;
 		await Promise.all(providerGroup.map(async provider => {
-			if (options.providerFilter.size > 0 && !options.providerFilter.has(provider)) {
+			if (!options.providerFilter.has(provider)) {
 				return;
 			}
 			try {
