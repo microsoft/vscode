@@ -142,7 +142,7 @@ export interface ISCMRepository extends IDisposable {
 export interface ISCMRepositoryView {
 	readonly repository: ISCMRepository;
 	readonly discoveryTime: number;
-	// focused: boolean;
+	focused: boolean;
 	selectionIndex: number;
 	visible: boolean;
 }

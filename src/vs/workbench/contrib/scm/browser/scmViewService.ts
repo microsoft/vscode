@@ -88,7 +88,7 @@ export class SCMViewService implements ISCMViewService {
 		this._onDidSetVisibleRepositories.fire({ added, removed });
 
 		// Update focus if the focused repository is not visible anymore
-		if (this._focusedRepository && this._repositories.find(r => r.repository === this._focusedRepository)?.visible === false) {
+		if (this._repositories.find(r => r.focused && !r.visible)) {
 			this.focus(this._repositories.find(r => r.visible)?.repository);
 		}
 	}
@@ -113,10 +113,8 @@ export class SCMViewService implements ISCMViewService {
 			}, 0)
 	);
 
-	private _focusedRepository: ISCMRepository | undefined;
-
 	get focusedRepository(): ISCMRepository | undefined {
-		return this._focusedRepository;
+		return this._repositories.find(r => r.focused)?.repository;
 	}
 
 	private _onDidFocusRepository = new Emitter<ISCMRepository | undefined>();
@@ -180,7 +178,7 @@ export class SCMViewService implements ISCMViewService {
 		}
 
 		const repositoryView: ISCMRepositoryView = {
-			repository, discoveryTime: Date.now(), selectionIndex: -1, visible: true
+			repository, discoveryTime: Date.now(), focused: false, selectionIndex: -1, visible: true
 		};
 
 		let removed: Iterable<ISCMRepositoryView> = Iterable.empty();
@@ -217,9 +215,8 @@ export class SCMViewService implements ISCMViewService {
 			} else {
 				// First visible repository
 				if (!this.didSelectRepository) {
-					this._focusedRepository = undefined;
 					removed = [...this.visibleRepositories];
-					this._repositories.forEach(r => r.visible = false);
+					this._repositories.forEach(r => r.focused = r.visible = false);
 
 					this.didSelectRepository = true;
 				}
@@ -229,7 +226,7 @@ export class SCMViewService implements ISCMViewService {
 		this.insertRepositoryView(this._repositories, repositoryView);
 		this._onDidChangeRepositories.fire({ added: [repositoryView], removed });
 
-		if (!this._focusedRepository) {
+		if (!this.repositories.find(r => r.focused)) {
 			this.focus(repository);
 		}
 	}
@@ -255,7 +252,7 @@ export class SCMViewService implements ISCMViewService {
 
 		this._onDidChangeRepositories.fire({ added, removed: repositoryView });
 
-		if (this._focusedRepository === repository && this.visibleRepositories.length > 0) {
+		if (repositoryView.length === 1 && repositoryView[0].focused && this.visibleRepositories.length > 0) {
 			this.focus(this.visibleRepositories[0].repository);
 		}
 	}
@@ -295,8 +292,11 @@ export class SCMViewService implements ISCMViewService {
 			return;
 		}
 
-		this._focusedRepository = repository;
-		this._onDidFocusRepository.fire(repository);
+		this._repositories.forEach(r => r.focused = r.repository === repository);
+
+		if (this._repositories.find(r => r.focused)) {
+			this._onDidFocusRepository.fire(repository);
+		}
 	}
 
 	private insertRepositoryView(repositories: ISCMRepositoryView[], repositoryView: ISCMRepositoryView): void {
