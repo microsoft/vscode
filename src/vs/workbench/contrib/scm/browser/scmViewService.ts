@@ -159,6 +159,15 @@ export class SCMViewService implements ISCMViewService {
 		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
 
+		configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('scm.repositories.sortOrder')) {
+				this._repositoriesSortKey = configurationService.getValue('scm.repositories.sortOrder');
+				this._repositories.sort(this._compareRepositories);
+
+				this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
+			}
+		});
+
 		try {
 			this.previousState = JSON.parse(storageService.get('scm:view:visibleRepositories', StorageScope.WORKSPACE, ''));
 		} catch {
@@ -202,6 +211,7 @@ export class SCMViewService implements ISCMViewService {
 				added.push(repositoryView);
 				this.insertRepositoryView(this._repositories, repositoryView);
 				this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
+				this.didSelectRepository = false;
 				return;
 			}
 
