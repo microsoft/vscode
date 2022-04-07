@@ -10,11 +10,11 @@ import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction, IRunEvent, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, IRunEvent, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Action } from 'vs/base/common/actions';
+import { ActionBar, ActionsOrientation, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugConfiguration, IDebugService, State, CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_MULTI_SESSION_DEBUG, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugConfiguration, IDebugService, State, CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_MULTI_SESSION_DEBUG, VIEWLET_ID, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -25,14 +25,18 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, ContextKeyExpression, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { debugToolBarBackground, debugToolBarBorder } from 'vs/workbench/contrib/debug/browser/debugColors';
 import { URI } from 'vs/base/common/uri';
-import { CONTINUE_LABEL, CONTINUE_ID, PAUSE_ID, STOP_ID, DISCONNECT_ID, STEP_OVER_ID, STEP_INTO_ID, RESTART_SESSION_ID, STEP_OUT_ID, STEP_BACK_ID, REVERSE_CONTINUE_ID, RESTART_LABEL, STEP_OUT_LABEL, STEP_INTO_LABEL, STEP_OVER_LABEL, DISCONNECT_LABEL, STOP_LABEL, PAUSE_LABEL, FOCUS_SESSION_ID, FOCUS_SESSION_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { CONTINUE_LABEL, CONTINUE_ID, PAUSE_ID, STOP_ID, DISCONNECT_ID, STEP_OVER_ID, STEP_INTO_ID, RESTART_SESSION_ID, STEP_OUT_ID, STEP_BACK_ID, REVERSE_CONTINUE_ID, RESTART_LABEL, STEP_OUT_LABEL, STEP_INTO_LABEL, STEP_OVER_LABEL, DISCONNECT_LABEL, STOP_LABEL, PAUSE_LABEL, FOCUS_SESSION_ID, FOCUS_SESSION_LABEL, DISCONNECT_AND_SUSPEND_ID, DISCONNECT_AND_SUSPEND_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { ICommandAction } from 'vs/platform/action/common/action';
+import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
@@ -51,6 +55,8 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private isVisible = false;
 	private isBuilt = false;
 
+	private readonly stopActionViewItemDisposables = this._register(new DisposableStore());
+
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -61,7 +67,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(themeService);
 
@@ -80,7 +86,14 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			actionViewItemProvider: (action: IAction) => {
 				if (action.id === FOCUS_SESSION_ID) {
 					return this.instantiationService.createInstance(FocusSessionActionViewItem, action, undefined);
+				} else if (action.id === STOP_ID || action.id === DISCONNECT_ID) {
+					this.stopActionViewItemDisposables.clear();
+					const item = this.instantiationService.invokeFunction(accessor => createDisconnectMenuItemAction(action as MenuItemAction, this.stopActionViewItemDisposables, accessor));
+					if (item) {
+						return item;
+					}
 				}
+
 				return createActionViewItem(this.instantiationService, action);
 			}
 		}));
@@ -256,6 +269,35 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	}
 }
 
+export function createDisconnectMenuItemAction(action: MenuItemAction, disposables: DisposableStore, accessor: ServicesAccessor): IActionViewItem | undefined {
+	const menuService = accessor.get(IMenuService);
+	const contextKeyService = accessor.get(IContextKeyService);
+	const keybindingService = accessor.get(IKeybindingService);
+	const instantiationService = accessor.get(IInstantiationService);
+	const contextMenuService = accessor.get(IContextMenuService);
+
+	const menu = menuService.createMenu(MenuId.DebugToolBarStop, contextKeyService);
+	const secondary: IAction[] = [];
+	disposables.add(createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, secondary));
+
+	if (!secondary.length) {
+		return undefined;
+	}
+
+	const dropdownAction = disposables.add(new Action('notebook.moreRunActions', localize('notebook.moreRunActionsLabel', "More..."), 'codicon-chevron-down', true));
+	const keybindingProvider = (action: IAction) => keybindingService.lookupKeybinding(action.id, contextKeyService);
+	const item = instantiationService.createInstance(DropdownWithPrimaryActionViewItem,
+		action as MenuItemAction,
+		dropdownAction,
+		secondary,
+		'debug-stop-actions',
+		contextMenuService,
+		{
+			getKeyBinding: keybindingProvider
+		});
+	return item;
+}
+
 // Debug toolbar
 
 const debugViewTitleItems: IDisposable[] = [];
@@ -312,3 +354,36 @@ registerDebugToolBarItem(RESTART_SESSION_ID, RESTART_LABEL, 60, icons.debugResta
 registerDebugToolBarItem(STEP_BACK_ID, localize('stepBackDebug', "Step Back"), 50, icons.debugStepBack, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 registerDebugToolBarItem(REVERSE_CONTINUE_ID, localize('reverseContinue', "Reverse"), 55, icons.debugReverseContinue, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 registerDebugToolBarItem(FOCUS_SESSION_ID, FOCUS_SESSION_LABEL, 100, undefined, CONTEXT_MULTI_SESSION_DEBUG);
+
+MenuRegistry.appendMenuItem(MenuId.DebugToolBarStop, {
+	group: 'navigation',
+	when: ContextKeyExpr.and(CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated(), CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED),
+	order: 0,
+	command: {
+		id: DISCONNECT_ID,
+		title: DISCONNECT_LABEL,
+		icon: icons.debugDisconnect
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.DebugToolBarStop, {
+	group: 'navigation',
+	when: ContextKeyExpr.and(CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED),
+	order: 0,
+	command: {
+		id: STOP_ID,
+		title: STOP_LABEL,
+		icon: icons.debugStop
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.DebugToolBarStop, {
+	group: 'navigation',
+	when: ContextKeyExpr.and(CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated(), CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED),
+	order: 0,
+	command: {
+		id: DISCONNECT_AND_SUSPEND_ID,
+		title: DISCONNECT_AND_SUSPEND_LABEL,
+		icon: icons.debugDisconnect
+	}
+});
