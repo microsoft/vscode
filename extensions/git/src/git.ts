@@ -2096,8 +2096,6 @@ export class Repository {
 			}
 		}).filter((b?: Branch): b is Branch => !!b);
 
-		console.log(branches);
-
 		if (branches.length) {
 			const [branch] = branches;
 
