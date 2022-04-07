@@ -64,7 +64,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPlaceholderPane {
 			label: localize('binaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding."),
 			actions: [
 				{
-					label: localize('openAnyway', "Do you want to open it anyway?"),
+					label: localize('openAnyway', "Open Anyway"),
 					run: async () => {
 
 						// Open in place
