@@ -223,13 +223,13 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		await Promise.all(allPromises);
 	}
 
-	public terminate(reason: string): void {
+	public terminate(reason: string, code: number = 0): void {
 		if (this._isTerminating) {
 			// we are already shutting down...
 			return;
 		}
 		this._isTerminating = true;
-		this._logService.info(`extension host terminating: ${reason}`);
+		this._logService.info(`Extension host terminating: ${reason}`);
 		this._logService.flush();
 
 		this._extHostTerminalService.dispose();
@@ -247,13 +247,13 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		// Give extensions at most 5 seconds to wrap up any async deactivate, then exit
 		Promise.race([timeout(5000), extensionsDeactivated]).finally(() => {
 			if (this._hostUtils.pid) {
-				this._logService.info(`Extension host with pid ${this._hostUtils.pid} exiting with code 0`);
+				this._logService.info(`Extension host with pid ${this._hostUtils.pid} exiting with code ${code}`);
 			} else {
-				this._logService.info(`Extension host exiting with code 0`);
+				this._logService.info(`Extension host exiting with code ${code}`);
 			}
 			this._logService.flush();
 			this._logService.dispose();
-			this._hostUtils.exit(0);
+			this._hostUtils.exit(code);
 		});
 	}
 
@@ -689,12 +689,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $extensionTestsExit(code: number): Promise<void> {
-		this._logService.info(`Extension host terminating: test runner requested exit with code ${code}`);
-		if (this._hostUtils.pid) {
-			this._logService.info(`Extension host with pid ${this._hostUtils.pid} exiting with code ${code}`);
-		}
-		this._logService.flush();
-		this._hostUtils.exit(code);
+		this.terminate(`test runner requested exit with code ${code}`, code);
 	}
 
 	private _startExtensionHost(): Promise<void> {
