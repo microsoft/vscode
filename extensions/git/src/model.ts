@@ -105,6 +105,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 	private _onDidRemoveRemoteSourcePublisher = new EventEmitter<RemoteSourcePublisher>();
 	readonly onDidRemoveRemoteSourcePublisher = this._onDidRemoveRemoteSourcePublisher.event;
 
+	private showRepoOnHomeDriveRootWarning = true;
 	private pushErrorHandlers = new Set<PushErrorHandler>();
 
 	private disposables: Disposable[] = [];
@@ -332,6 +333,22 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 
 			if (this.shouldRepositoryBeIgnored(rawRoot)) {
 				return;
+			}
+
+			// On Window, opening a git repository from the root of the HOMEDRIVE poses a security risk.
+			// We will only a open git repository from the root of the HOMEDRIVE if the user explicitly
+			// opens the HOMEDRIVE as a folder. Only show the warning once during repository discovery.
+			if (process.platform === 'win32' && process.env.HOMEDRIVE && pathEquals(`${process.env.HOMEDRIVE}\\`, repositoryRoot)) {
+				const isRepoInWorkspaceFolders = (workspace.workspaceFolders ?? []).find(f => pathEquals(f.uri.fsPath, repositoryRoot))!!;
+
+				if (!isRepoInWorkspaceFolders) {
+					if (this.showRepoOnHomeDriveRootWarning) {
+						window.showWarningMessage(localize('repoOnHomeDriveRootWarning', "Unable to automatically open the git repository at '{0}'. To open that git repository, open it directly as a folder in VS Code.", repositoryRoot));
+						this.showRepoOnHomeDriveRootWarning = false;
+					}
+
+					return;
+				}
 			}
 
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
