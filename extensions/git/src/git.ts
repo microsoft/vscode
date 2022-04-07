@@ -2043,8 +2043,10 @@ export class Repository {
 		if (this._git.compareGitVersionTo('1.9.0') === -1) {
 			args.push('--format=%(refname)%00%(upstream:short)%00%(objectname)');
 			supportsAheadBehind = false;
-		} else {
+		} else if (this._git.compareGitVersionTo('2.16.0') === -1) {
 			args.push('--format=%(refname)%00%(upstream:short)%00%(objectname)%00%(upstream:track)');
+		} else {
+			args.push('--format=%(refname)%00%(upstream:short)%00%(objectname)%00%(upstream:track)%00%(upstream:remotename)%00%(upstream:remoteref)');
 		}
 
 		if (/^refs\/(head|remotes)\//i.test(name)) {
@@ -2055,7 +2057,7 @@ export class Repository {
 
 		const result = await this.exec(args);
 		const branches: Branch[] = result.stdout.trim().split('\n').map<Branch | undefined>(line => {
-			let [branchName, upstream, ref, status] = line.trim().split('\0');
+			let [branchName, upstream, ref, status, remoteName, upstreamRef] = line.trim().split('\0');
 
 			if (branchName.startsWith('refs/heads/')) {
 				branchName = branchName.substring(11);
@@ -2072,8 +2074,8 @@ export class Repository {
 					type: RefType.Head,
 					name: branchName,
 					upstream: upstream ? {
-						name: upstream.substring(index + 1),
-						remote: upstream.substring(0, index)
+						name: upstreamRef ? upstreamRef.substring(11) : upstream.substring(index + 1),
+						remote: remoteName ? remoteName : upstream.substring(0, index)
 					} : undefined,
 					commit: ref || undefined,
 					ahead: Number(ahead) || 0,

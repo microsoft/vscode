@@ -418,8 +418,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			// Do not confuse listeners by emitting any event after disposing
 			return;
 		}
-		this._bracketPairs.handleDidChangeContent(change);
 		this._tokenizationTextModelPart.handleDidChangeContent(change);
+		this._bracketPairs.handleDidChangeContent(change);
 		this._eventEmitter.fire(new InternalModelContentChangeEvent(rawChange, change));
 	}
 

@@ -10,7 +10,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, InlineCompletionTriggerKind, ProviderResult } from 'vs/editor/common/languages';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { SuggestInlineCompletions } from 'vs/editor/contrib/suggest/browser/suggestInlineCompletions';
-import { createCodeEditorServices, instantiateTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -19,24 +19,28 @@ import { Range } from 'vs/editor/common/core/range';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
 import { mock } from 'vs/base/test/common/mock';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 
 suite('Suggest Inline Completions', function () {
 
 	const disposables = new DisposableStore();
-
 	const services = new ServiceCollection([ISuggestMemoryService, new class extends mock<ISuggestMemoryService>() {
 		override select(): number {
 			return 0;
 		}
 	}]);
 
-	const insta = createCodeEditorServices(disposables, services);
-	const model = createTextModel('he', undefined, undefined, URI.from({ scheme: 'foo', path: 'foo.bar' }));
-	const editor = instantiateTestCodeEditor(insta, model);
+	let insta: TestInstantiationService;
+	let model: TextModel;
+	let editor: ITestCodeEditor;
 
 	setup(function () {
 
+		insta = createCodeEditorServices(disposables, services);
+		model = createTextModel('he', undefined, undefined, URI.from({ scheme: 'foo', path: 'foo.bar' }));
+		editor = instantiateTestCodeEditor(insta, model);
 		editor.updateOptions({ quickSuggestions: { comments: 'inline', strings: 'inline', other: 'inline' } });
 
 		insta.invokeFunction(accessor => {
@@ -62,12 +66,15 @@ suite('Suggest Inline Completions', function () {
 
 	teardown(function () {
 		disposables.clear();
+		model.dispose();
+		editor.dispose();
 	});
 
 
 	test('Aggressive inline completions when typing within line #146948', async function () {
 
 		const completions: SuggestInlineCompletions = insta.createInstance(SuggestInlineCompletions, (id: EditorOption) => editor.getOption(id));
+
 		{
 			// (1,3), end of word -> suggestions
 			const result = await completions.provideInlineCompletions(model, new Position(1, 3), { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined }, CancellationToken.None);
