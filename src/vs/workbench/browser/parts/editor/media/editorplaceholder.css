@@ -28,6 +28,8 @@
 
 .monaco-editor-pane-placeholder .editor-placeholder-label-container {
 	font-size: 14px;
+	max-width: 450px;
+	text-align: center
 }
 
 .monaco-editor-pane-placeholder .monaco-link,
