@@ -12,7 +12,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, clearNode } from 'vs/base/browser/dom';
+import { Dimension, size, clearNode, $ } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -88,27 +88,18 @@ export abstract class EditorPlaceholderPane extends EditorPane {
 		const { icon, label, actions } = await this.getContents(input, options);
 
 		// Icon
-		const iconContainer = document.createElement('div');
-		iconContainer.classList.add('editor-placeholder-icon-container');
-		container.appendChild(iconContainer);
-
+		const iconContainer = container.appendChild($('.editor-placeholder-icon-container'));
 		const iconWidget = new SimpleIconLabel(iconContainer);
 		iconWidget.text = icon;
 
 		// Label
-		const labelContainer = document.createElement('div');
-		labelContainer.classList.add('editor-placeholder-label-container');
-		container.appendChild(labelContainer);
-
+		const labelContainer = container.appendChild($('.editor-placeholder-label-container'));
 		const labelWidget = document.createElement('span');
 		labelWidget.textContent = label;
 		labelContainer.appendChild(labelWidget);
 
 		// Actions
-		const actionsContainer = document.createElement('div');
-		actionsContainer.classList.add('editor-placeholder-actions-container');
-		container.appendChild(actionsContainer);
-
+		const actionsContainer = container.appendChild($('.editor-placeholder-actions-container'));
 		for (const action of actions) {
 			disposables.add(this.instantiationService.createInstance(Link, actionsContainer, {
 				label: action.label,
