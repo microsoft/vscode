@@ -83,7 +83,6 @@ export const enum StandardTokenType {
  *  - F = FontStyle (4 bits)
  *  - f = foreground color (9 bits)
  *  - b = background color (9 bits)
- *  - m = is balanced bracket (1 bit)
  *
  * @internal
  */
