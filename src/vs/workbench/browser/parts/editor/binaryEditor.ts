@@ -13,7 +13,7 @@ import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel'
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Dimension, size, clearNode } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -23,6 +23,9 @@ import { ByteSize } from 'vs/platform/files/common/files';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Link } from 'vs/platform/opener/browser/link';
+import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
+import { editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: IEditorOptions | undefined) => Promise<void>;
@@ -97,11 +100,29 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 
 		const disposables = new DisposableStore();
 
-		const label = document.createElement('p');
-		label.textContent = localize('nativeBinaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding.");
-		binaryContainer.appendChild(label);
+		// Icon
+		const iconContainer = document.createElement('div');
+		iconContainer.classList.add('editor-placeholder-icon-container');
+		binaryContainer.appendChild(iconContainer);
 
-		this._register(this.instantiationService.createInstance(Link, label, {
+		const iconWidget = new SimpleIconLabel(iconContainer);
+		iconWidget.text = '$(warning)';
+
+		// Label
+		const labelContainer = document.createElement('div');
+		labelContainer.classList.add('editor-placeholder-label-container');
+		binaryContainer.appendChild(labelContainer);
+
+		const labelWidget = document.createElement('span');
+		labelWidget.textContent = localize('nativeBinaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding.");
+		labelContainer.appendChild(labelWidget);
+
+		// Actions
+		const actionsContainer = document.createElement('div');
+		actionsContainer.classList.add('editor-placeholder-actions-container');
+		binaryContainer.appendChild(actionsContainer);
+
+		disposables.add(this.instantiationService.createInstance(Link, actionsContainer, {
 			label: localize('openAsText', "Do you want to open it anyway?"),
 			href: ''
 		}, {
@@ -168,3 +189,15 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 		super.dispose();
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+
+	// Editor Placeholder Warning Icon
+	const editorWarningIconForegroundColor = theme.getColor(editorWarningForeground);
+	if (editorWarningIconForegroundColor) {
+		collector.addRule(`
+		.monaco-binary-resource-editor .editor-placeholder-icon-container ${Codicon.warning.cssSelector} {
+			color: ${editorWarningIconForegroundColor};
+		}`);
+	}
+});

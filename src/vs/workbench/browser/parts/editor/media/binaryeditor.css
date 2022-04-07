@@ -8,12 +8,26 @@
 }
 
 .monaco-binary-resource-editor {
-	padding: 0 0 0 16px;
+	padding: 0 16px 0 16px;
 	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+}
+
+.monaco-binary-resource-editor .editor-placeholder-icon-container .codicon {
+	font-size: 64px;
+}
+
+.monaco-binary-resource-editor .editor-placeholder-label-container {
+	font-size: 14px;
 }
 
 .monaco-binary-resource-editor .monaco-link,
 .monaco-binary-resource-editor .monaco-link:hover {
+	font-size: 14px;
 	cursor: pointer;
 	text-decoration: underline;
 	margin-left: 5px;
