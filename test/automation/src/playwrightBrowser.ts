@@ -51,16 +51,16 @@ async function launchServer(options: LaunchOptions) {
 	const args = [
 		'--disable-telemetry',
 		'--disable-workspace-trust',
-		'--port', `${port++}`,
+		`--port${port++}`,
 		'--enable-smoke-test-driver',
-		'--extensions-dir', extensionsPath,
-		'--server-data-dir', agentFolder,
+		`--extensions-dir=${extensionsPath}`,
+		`--server-data-dir=${agentFolder}`,
 		'--accept-server-license-terms',
-		'--logsPath', logsPath
+		`--logsPath=${logsPath}`
 	];
 
 	if (options.verbose) {
-		args.push('--log', 'trace');
+		args.push('--log=trace');
 	}
 
 	let serverLocation: string | undefined;
