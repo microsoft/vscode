@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { PerformanceMark } from 'vs/base/common/performance';
-import type { UriComponents, URI } from 'vs/base/common/uri';
-import type { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
-import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
-import type { LogLevel } from 'vs/platform/log/common/log';
-import type { IUpdateProvider } from 'vs/workbench/services/update/browser/updateService';
 import type { Event } from 'vs/base/common/event';
-import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
+import { IObservableValue } from 'vs/base/common/observableValue';
+import type { PerformanceMark } from 'vs/base/common/performance';
 import type { IProductConfiguration } from 'vs/base/common/product';
+import type { URI, UriComponents } from 'vs/base/common/uri';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
+import type { LogLevel } from 'vs/platform/log/common/log';
+import type { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
-import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
+import type { IUpdateProvider } from 'vs/workbench/services/update/browser/updateService';
+import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -66,9 +67,9 @@ export interface IWorkbench {
 
 	telemetry: {
 		/**
-		 * Logs a telemetry event from VS Code.
+		 * Current workbench telemetry level.
 		 */
-		publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<void>;
+		telemetryLevel: IObservableValue<TelemetryLevel>;
 	};
 
 	/**

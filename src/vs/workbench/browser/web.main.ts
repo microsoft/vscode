@@ -135,7 +135,7 @@ export class BrowserMain extends Disposable {
 					}
 				},
 				telemetry: {
-					publicLog2: telemetryService.publicLog2.bind(telemetryService),
+					telemetryLevel: telemetryService.telemetryLevel,
 				},
 				shutdown: () => lifecycleService.shutdown()
 			};
