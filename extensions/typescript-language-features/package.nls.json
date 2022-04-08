@@ -44,6 +44,7 @@
 	"goToProjectConfig.title": "Go to Project Configuration",
 	"javascript.referencesCodeLens.enabled": "Enable/disable references CodeLens in JavaScript files.",
 	"javascript.referencesCodeLens.showOnAllFunctions": "Enable/disable references CodeLens on all functions in JavaScript files.",
+	"javascript.restartJsServer": "Restart JavaScript server",
 	"typescript.referencesCodeLens.enabled": "Enable/disable references CodeLens in TypeScript files.",
 	"typescript.referencesCodeLens.showOnAllFunctions": "Enable/disable references CodeLens on all functions in TypeScript files.",
 	"typescript.implementationsCodeLens.enabled": "Enable/disable implementations CodeLens. This CodeLens shows the implementers of an interface.",

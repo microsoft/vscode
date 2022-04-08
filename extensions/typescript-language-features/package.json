@@ -1216,6 +1216,11 @@
         "category": "JavaScript"
       },
       {
+        "command": "javascript.restartJsServer",
+        "title": "%javascript.restartJsServer%",
+        "category": "JavaScript"
+      },
+      {
         "command": "typescript.openTsServerLog",
         "title": "%typescript.openTsServerLog.title%",
         "category": "TypeScript"
@@ -1263,7 +1268,11 @@
         },
         {
           "command": "javascript.goToProjectConfig",
-          "when": "editorLangId == javascriptreact && typescript.isManagedFile"
+          "when": "editorLangId == javascript"
+        },
+        {
+          "command": "javascript.restartJsServer",
+          "when": "editorLangId == javascript && typescript.isManagedFile"
         },
         {
           "command": "typescript.selectTypeScriptVersion",

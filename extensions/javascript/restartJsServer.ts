@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import TypeScriptServiceClientHost from '../typeScriptServiceClientHost';
-import { Lazy } from '../utils/lazy';
-import { Command } from './commandManager';
+import TypeScriptServiceClientHost from '../typescript-language-features/src/typeScriptServiceClientHost';
+import { Lazy } from '../typescript-language-features/src/utils/lazy';
+import { Command } from '../typescript-language-features/src/commands/commandManager';
 
 export class RestartTsServerCommand implements Command
 {
