@@ -565,7 +565,7 @@ export class CommentController implements IEditorContribution {
 
 	private displayCommentThread(owner: string, thread: languages.CommentThread, pendingComment: string | null): void {
 		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment);
-		zoneWidget.display(thread.range.startLineNumber);
+		zoneWidget.display(thread.range.endLineNumber);
 		this._commentWidgets.push(zoneWidget);
 	}
 
