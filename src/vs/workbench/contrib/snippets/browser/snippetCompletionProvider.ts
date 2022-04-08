@@ -18,6 +18,7 @@ import { isPatternInWord } from 'vs/base/common/filters';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { getWordAtText } from 'vs/editor/common/core/wordHelper';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class SnippetCompletion implements CompletionItem {
 
@@ -29,7 +30,7 @@ export class SnippetCompletion implements CompletionItem {
 	sortText: string;
 	kind: CompletionItemKind;
 	insertTextRules: CompletionItemInsertTextRule;
-	extensionId?: string;
+	extensionId?: ExtensionIdentifier;
 
 	constructor(
 		readonly snippet: Snippet,

@@ -674,9 +674,9 @@ export interface CompletionItem {
 	 */
 	command?: Command;
 	/**
-	 * Identifier for the extension that contributed this completion.
+	 * @internal
 	 */
-	extensionId?: string;
+	extensionId?: ExtensionIdentifier;
 
 	/**
 	 * @internal

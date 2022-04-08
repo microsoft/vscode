@@ -26,6 +26,7 @@ import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistr
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { historyNavigationVisible } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { InternalQuickSuggestionsOptions, QuickSuggestionsValue } from 'vs/editor/common/config/editorOptions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export const Context = {
 	Visible: historyNavigationVisible,
@@ -67,7 +68,7 @@ export class CompletionItem {
 	word?: string;
 
 	// instrumentation
-	readonly extensionId?: string;
+	readonly extensionId?: ExtensionIdentifier;
 
 	// resolving
 	private _isResolved?: boolean;

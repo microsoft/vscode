@@ -457,7 +457,7 @@ export class SuggestController implements IEditorContribution {
 		};
 		// _debugDisplayName looks like `vscode.css-language-features(/-:)`, where the last bit is the trigger chars
 		// normalize it to just the extension ID and lowercase
-		const providerId = item.extensionId ?? (acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown').split('(', 1)[0].toLowerCase();
+		const providerId = item.extensionId ? item.extensionId.value : (acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown').split('(', 1)[0].toLowerCase();
 		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
 			providerId,
 			kind: item.completion.kind,
