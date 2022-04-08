@@ -12,11 +12,31 @@ builtin unset ZDOTDIR
 # as disable it by unsetting the variable.
 VSCODE_SHELL_INTEGRATION=1
 
-if [ -f ~/.zshenv ]; then
-	. ~/.zshenv
+# this is where ZDOTDIR gets set for the user
+if [ -f ~/etc/zshenv ]; then
+	. ~/etc/zshenv
 fi
-if [[ -o "login" &&  -f ~/.zprofile ]]; then
-	. ~/.zprofile
+# if ZDOTDIR is undefined, use HOME
+local __vsc_path=$ZDOTDIR
+if [ -z "${ZDOTDIR}" ]; then
+	__vsc_path="~"
+else
+	VSCODE_SHELL_HIDE_WELCOME=""
+fi
+if [ -f __vsc_path/.zshenv ]; then
+	. __vsc_path/.zshenv
+fi
+if [[ -o "login" &&  -f ~/etc/zprofile ]]; then
+	. ~/etc/zprofile
+fi
+if [[ -o "login" &&  -f __vsc_path/.zprofile ]]; then
+	. __vsc_path/.zprofile
+fi
+if [[ -o "login" &&  -f /etc/zlogin ]]; then
+	. ~/etc/zlogin
+fi
+if [[ -o "login" &&  -f __vsc_path/.zlogin ]]; then
+	. __vsc_path/.zlogin
 fi
 if [ -f ~/.zshrc ]; then
 	. ~/.zshrc
