@@ -23,9 +23,9 @@ import { commonSuffixLength } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { Icon } from 'vs/platform/action/common/action';
 import { createAndFillInActionBarActions, createAndFillInContextMenuActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -474,8 +474,6 @@ interface IThreadTemplateData {
 	stateLabel: HTMLSpanElement;
 	label: HighlightedLabel;
 	actionBar: ActionBar;
-	menu: IMenu;
-	contextKeyHelper: ThreadRendererContextKeyHelper;
 	elementDisposable: DisposableStore;
 	templateDisposable: IDisposable;
 }
@@ -485,9 +483,7 @@ interface ISessionTemplateData {
 	name: HTMLElement;
 	stateLabel: HTMLSpanElement;
 	label: HighlightedLabel;
-	menu: IMenu;
 	actionBar: ActionBar;
-	contextKeyHelper: SessionRendererContextKeyHelper;
 	elementDisposable: DisposableStore;
 	templateDisposable: IDisposable;
 }
@@ -509,29 +505,6 @@ interface IStackFrameTemplateData {
 	label: HighlightedLabel;
 	actionBar: ActionBar;
 	templateDisposable: IDisposable;
-}
-
-class SessionRendererContextKeyHelper {
-	private callStackItemType: IContextKey<string>;
-	private callStackSessionIsAttach: IContextKey<boolean>;
-	private callStackItemStopped: IContextKey<boolean>;
-	private sessionHasOneThread: IContextKey<boolean>;
-
-	constructor(
-		contextKeyService: IContextKeyService
-	) {
-		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
-		this.callStackSessionIsAttach = CONTEXT_CALLSTACK_SESSION_IS_ATTACH.bindTo(contextKeyService);
-		this.callStackItemStopped = CONTEXT_CALLSTACK_ITEM_STOPPED.bindTo(contextKeyService);
-		this.sessionHasOneThread = CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD.bindTo(contextKeyService);
-		this.callStackItemType.set('session');
-	}
-
-	update(session: IDebugSession) {
-		this.callStackSessionIsAttach.set(isSessionAttach(session));
-		this.callStackItemStopped.set(session.state === State.Stopped);
-		this.sessionHasOneThread.set(session.getAllThreads().length === 1);
-	}
 }
 
 function getSessionContextOverlay(session: IDebugSession): [string, any][] {
@@ -564,10 +537,6 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 		const label = new HighlightedLabel(name);
 		const templateDisposable = new DisposableStore();
 
-		const contextKeyService = this.contextKeyService.createScoped(container);
-		const contextKeyHelper = new SessionRendererContextKeyHelper(contextKeyService);
-		const menu = templateDisposable.add(this.menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService));
-
 		const stopActionViewItemDisposables = templateDisposable.add(new DisposableStore());
 		const actionBar = templateDisposable.add(new ActionBar(session, {
 			actionViewItemProvider: action => {
@@ -590,7 +559,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 		}));
 
 		const elementDisposable = templateDisposable.add(new DisposableStore());
-		return { session, name, stateLabel, label, actionBar, menu, contextKeyHelper, elementDisposable, templateDisposable };
+		return { session, name, stateLabel, label, actionBar, elementDisposable, templateDisposable };
 	}
 
 	renderElement(element: ITreeNode<IDebugSession, FuzzyScore>, _: number, data: ISessionTemplateData): void {
@@ -609,7 +578,9 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 		const stoppedDetails = session.getStoppedDetails();
 		const thread = session.getAllThreads().find(t => t.stopped);
 
-		data.contextKeyHelper.update(session);
+		const contextKeyService = this.contextKeyService.createOverlay(getSessionContextOverlay(session));
+		const menu = data.elementDisposable.add(this.menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService));
+
 		const menuDisposables = data.elementDisposable.add(new DisposableStore());
 		const setupActionBar = () => {
 			menuDisposables.clear();
@@ -619,13 +590,13 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 			const secondary: IAction[] = [];
 			const result = { primary, secondary };
 
-			menuDisposables.add(createAndFillInActionBarActions(data.menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, 'inline'));
+			menuDisposables.add(createAndFillInActionBarActions(menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, 'inline'));
 			data.actionBar.push(primary, { icon: true, label: false });
 			// We need to set our internal context on the action bar, since our commands depend on that one
 			// While the external context our extensions rely on
 			data.actionBar.context = getContext(session);
 		};
-		data.elementDisposable.add(data.menu.onDidChange(() => setupActionBar()));
+		data.elementDisposable.add(menu.onDidChange(() => setupActionBar()));
 		setupActionBar();
 
 		data.stateLabel.style.display = '';
@@ -650,23 +621,6 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 
 	disposeElement(_element: ITreeNode<IDebugSession, FuzzyScore>, _: number, templateData: ISessionTemplateData): void {
 		templateData.elementDisposable.clear();
-	}
-}
-
-class ThreadRendererContextKeyHelper {
-	private callStackItemType: IContextKey<string>;
-	private callStackItemStopped: IContextKey<boolean>;
-
-	constructor(
-		contextKeyService: IContextKeyService
-	) {
-		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
-		this.callStackItemStopped = CONTEXT_CALLSTACK_ITEM_STOPPED.bindTo(contextKeyService);
-		this.callStackItemType.set('thread');
-	}
-
-	update(thread: IThread) {
-		this.callStackItemStopped.set(thread.stopped);
 	}
 }
 
@@ -697,13 +651,10 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 
 		const templateDisposable = new DisposableStore();
 
-		const contextKeyService = this.contextKeyService.createScoped(container);
-		const contextKeyHelper = new ThreadRendererContextKeyHelper(contextKeyService);
-		const menu = templateDisposable.add(this.menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService));
 		const actionBar = templateDisposable.add(new ActionBar(thread));
 		const elementDisposable = templateDisposable.add(new DisposableStore());
 
-		return { thread, name, stateLabel, label, actionBar, elementDisposable, contextKeyHelper, menu, templateDisposable };
+		return { thread, name, stateLabel, label, actionBar, elementDisposable, templateDisposable };
 	}
 
 	renderElement(element: ITreeNode<IThread, FuzzyScore>, _index: number, data: IThreadTemplateData): void {
@@ -713,7 +664,9 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 		data.stateLabel.textContent = thread.stateLabel;
 		data.stateLabel.classList.toggle('exception', thread.stoppedDetails?.reason === 'exception');
 
-		data.contextKeyHelper.update(thread);
+		const contextKeyService = this.contextKeyService.createOverlay(getThreadContextOverlay(thread));
+		const menu = data.elementDisposable.add(this.menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService));
+
 		const menuDisposables = data.elementDisposable.add(new DisposableStore());
 		const setupActionBar = () => {
 			menuDisposables.clear();
@@ -723,13 +676,13 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 			const secondary: IAction[] = [];
 			const result = { primary, secondary };
 
-			menuDisposables.add(createAndFillInActionBarActions(data.menu, { arg: getContextForContributedActions(thread), shouldForwardArgs: true }, result, 'inline'));
+			menuDisposables.add(createAndFillInActionBarActions(menu, { arg: getContextForContributedActions(thread), shouldForwardArgs: true }, result, 'inline'));
 			data.actionBar.push(primary, { icon: true, label: false });
 			// We need to set our internal context on the action bar, since our commands depend on that one
 			// While the external context our extensions rely on
 			data.actionBar.context = getContext(thread);
 		};
-		data.elementDisposable.add(data.menu.onDidChange(() => setupActionBar()));
+		data.elementDisposable.add(menu.onDidChange(() => setupActionBar()));
 		setupActionBar();
 	}
 
