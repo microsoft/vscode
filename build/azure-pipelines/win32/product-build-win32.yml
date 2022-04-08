@@ -219,9 +219,9 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       exec {.\build\azure-pipelines\win32\listprocesses.bat }
-    displayName: List tasks before smoke test run
+    displayName: Diagnostics before smoke test run
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -257,9 +257,9 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       exec {.\build\azure-pipelines\win32\listprocesses.bat }
-    displayName: List tasks after smoke test run
+    displayName: Diagnostics after smoke test run
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - task: PublishPipelineArtifact@0
     inputs:

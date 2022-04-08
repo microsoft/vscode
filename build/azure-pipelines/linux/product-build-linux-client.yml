@@ -263,7 +263,7 @@ steps:
       lsof | wc -l
     displayName: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       set -e
@@ -299,7 +299,7 @@ steps:
       lsof | wc -l
     displayName: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - task: PublishPipelineArtifact@0
     inputs:

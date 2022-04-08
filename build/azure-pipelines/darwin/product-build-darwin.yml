@@ -236,9 +236,9 @@ steps:
   - script: |
       set -e
       ps -ef
-    displayName: List tasks before smoke test run
+    displayName: Diagnostics before smoke test run
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       set -e
@@ -272,9 +272,9 @@ steps:
   - script: |
       set -e
       ps -ef
-    displayName: List tasks after smoke test run
+    displayName: Diagnostics after smoke test run
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - task: PublishPipelineArtifact@0
     inputs:
