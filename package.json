@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.67.0",
-  "distro": "f0d4c7dab3ec077f64e301681aeb9d6d03ce3d39",
+  "distro": "a5a6dc6b1c9ba81a52b9e05f31db3298b84c7263",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -181,7 +181,7 @@
     "minimatch": "^3.0.4",
     "minimist": "^1.2.6",
     "mkdirp": "^1.0.4",
-    "mocha": "8",
+    "mocha": "^9.2.2",
     "mocha-junit-reporter": "^2.0.0",
     "mocha-multi-reporters": "^1.5.1",
     "npm-run-all": "^4.1.5",
