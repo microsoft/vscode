@@ -72,6 +72,9 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
 		env['TESTRESOLVER_LOGS_FOLDER'] = join(logsPath, 'server');
+		if (options.verbose) {
+			env['TESTRESOLVER_LOG_LEVEL'] = 'trace';
+		}
 	}
 
 	args.push('--enable-proposed-api=vscode.vscode-notebook-tests');
