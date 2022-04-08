@@ -17,6 +17,7 @@ import { IDataTransfer, IDataTransferItem } from 'vs/editor/common/dnd';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { extractEditorsDropData } from 'vs/workbench/browser/dnd';
@@ -31,10 +32,25 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
-		editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event));
+		this._register(editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event)));
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.editor.dropIntoEditor.enabled')) {
+				this.updateEditorOptions(editor);
+			}
+		}));
+
+		this.updateEditorOptions(editor);
+	}
+
+	private updateEditorOptions(editor: ICodeEditor) {
+		editor.updateOptions({
+			enableDropIntoEditor: this._configurationService.getValue('workbench.editor.dropIntoEditor.enabled')
+		});
 	}
 
 	private async onDropIntoEditor(editor: ICodeEditor, position: IPosition, dragEvent: DragEvent) {

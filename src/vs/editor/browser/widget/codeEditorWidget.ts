@@ -368,35 +368,42 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._actions[internalAction.id] = internalAction;
 		});
 
-		if (_options.enableDropIntoEditor) {
-			this._register(new dom.DragAndDropObserver(this._domElement, {
-				onDragEnter: () => undefined,
-				onDragOver: e => {
-					const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
-					if (target?.position) {
-						this.showDropIndicatorAt(target.position);
-					}
-				},
-				onDrop: async e => {
-					this.removeDropIndicator();
+		this._register(new dom.DragAndDropObserver(this._domElement, {
+			onDragEnter: () => undefined,
+			onDragOver: e => {
+				if (!this._configuration.options.get(EditorOption.enableDropIntoEditor)) {
+					return;
+				}
 
-					if (!e.dataTransfer) {
-						return;
-					}
+				const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
+				if (target?.position) {
+					this.showDropIndicatorAt(target.position);
+				}
+			},
+			onDrop: async e => {
+				if (!this._configuration.options.get(EditorOption.enableDropIntoEditor)) {
+					return;
+				}
 
-					const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
-					if (target?.position) {
-						this._onDropIntoEditor.fire({ position: target.position, event: e });
-					}
-				},
-				onDragLeave: () => {
-					this.removeDropIndicator();
-				},
-				onDragEnd: () => {
-					this.removeDropIndicator();
-				},
-			}));
-		}
+				this.removeDropIndicator();
+
+				if (!e.dataTransfer) {
+					return;
+				}
+
+				const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
+				if (target?.position) {
+					this._onDropIntoEditor.fire({ position: target.position, event: e });
+				}
+			},
+			onDragLeave: () => {
+				this.removeDropIndicator();
+			},
+			onDragEnd: () => {
+				this.removeDropIndicator();
+			},
+		}));
+
 
 		this._codeEditorService.addCodeEditor(this);
 	}
