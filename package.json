@@ -181,7 +181,7 @@
     "minimatch": "^3.0.4",
     "minimist": "^1.2.6",
     "mkdirp": "^1.0.4",
-    "mocha": "8",
+    "mocha": "^9.2.2",
     "mocha-junit-reporter": "^2.0.0",
     "mocha-multi-reporters": "^1.5.1",
     "npm-run-all": "^4.1.5",
