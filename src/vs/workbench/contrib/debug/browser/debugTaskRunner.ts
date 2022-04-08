@@ -15,7 +15,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
@@ -158,7 +157,7 @@ export class DebugTaskRunner {
 			const errorMessage = typeof taskId === 'string'
 				? nls.localize('DebugTaskNotFoundWithTaskId', "Could not find the task '{0}'.", taskId)
 				: nls.localize('DebugTaskNotFound', "Could not find the specified task.");
-			return Promise.reject(createErrorWithActions(errorMessage));
+			return Promise.reject(new Error(errorMessage));
 		}
 
 		// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340

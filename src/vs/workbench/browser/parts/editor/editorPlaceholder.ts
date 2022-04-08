@@ -26,7 +26,7 @@ import { Link } from 'vs/platform/opener/browser/link';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { editorErrorForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Codicon } from 'vs/base/common/codicons';
-import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { FileChangeType, FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
 
 export interface IEditorPlaceholderContents {
@@ -96,7 +96,7 @@ export abstract class EditorPlaceholder extends EditorPane {
 
 		// Delegate to implementation for contents
 		const disposables = new DisposableStore();
-		const { icon, label, actions } = await this.getContents(input, options);
+		const { icon, label, actions } = await this.getContents(input, options, disposables);
 
 		// Icon
 		const iconContainer = container.appendChild($('.editor-placeholder-icon-container'));
@@ -126,7 +126,7 @@ export abstract class EditorPlaceholder extends EditorPane {
 		return disposables;
 	}
 
-	protected abstract getContents(input: EditorInput, options: IEditorOptions | undefined): Promise<IEditorPlaceholderContents>;
+	protected abstract getContents(input: EditorInput, options: IEditorOptions | undefined, disposables: DisposableStore): Promise<IEditorPlaceholderContents>;
 
 	override clearInput(): void {
 		if (this.container) {
@@ -213,28 +213,32 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(ErrorPlaceholderEditor.ID, telemetryService, themeService, storageService, instantiationService);
 	}
 
-	protected async getContents(input: EditorInput, options: IErrorEditorPlaceholderOptions): Promise<IEditorPlaceholderContents> {
+	protected async getContents(input: EditorInput, options: IErrorEditorPlaceholderOptions, disposables: DisposableStore): Promise<IEditorPlaceholderContents> {
+		const resource = input.resource;
 		const group = this.group;
+		const error = options.error;
+		const isFileNotFound = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
 
 		// Error Label
 		let label: string;
-		if ((<FileOperationError>options.error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+		if (isFileNotFound) {
 			label = localize('unavailableResourceErrorEditorText', "The editor could not be opened because the file was not found.");
-		} else if (options.error) {
-			label = localize('unknownErrorEditorTextWithError', "The editor could not be opened due to an unexpected error: {0}", toErrorMessage(options.error));
+		} else if (error) {
+			label = localize('unknownErrorEditorTextWithError', "The editor could not be opened due to an unexpected error: {0}", toErrorMessage(error));
 		} else {
 			label = localize('unknownErrorEditorTextWithoutError', "The editor could not be opened due to an unexpected error.");
 		}
 
 		// Actions
 		let actions: IEditorPlaceholderContentsAction[] | undefined = undefined;
-		if (isErrorWithActions(options.error)) {
-			actions = options.error.actions?.map(action => {
+		if (isErrorWithActions(error) && error.actions.length > 0) {
+			actions = error.actions.map(action => {
 				return {
 					label: action.label,
 					run: () => action.run()
@@ -244,9 +248,18 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 			actions = [
 				{
 					label: localize('retry', "Try Again"),
-					run: () => group.openEditor(input, { ...this.options, source: EditorOpenSource.USER /* explicit user gesture */ })
+					run: () => group.openEditor(input, { ...options, source: EditorOpenSource.USER /* explicit user gesture */ })
 				}
 			];
+		}
+
+		// Auto-reload when file is added
+		if (group && isFileNotFound && resource && this.fileService.hasProvider(resource)) {
+			disposables.add(this.fileService.onDidFilesChange(e => {
+				if (e.contains(resource, FileChangeType.ADDED, FileChangeType.UPDATED)) {
+					group.openEditor(input, options);
+				}
+			}));
 		}
 
 		return { icon: '$(error)', label, actions: actions ?? [] };
