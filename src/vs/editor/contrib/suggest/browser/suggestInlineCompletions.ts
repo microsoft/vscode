@@ -106,7 +106,7 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 }
 
 
-class SuggestInlineCompletions implements InlineCompletionsProvider<InlineCompletionResults> {
+export class SuggestInlineCompletions implements InlineCompletionsProvider<InlineCompletionResults> {
 
 	private _lastResult?: InlineCompletionResults;
 
@@ -139,15 +139,24 @@ class SuggestInlineCompletions implements InlineCompletionsProvider<InlineComple
 
 		// We consider non-empty leading words and trigger characters. The latter only
 		// when no word is being typed (word characters superseed trigger characters)
-		let wordInfo = model.getWordUntilPosition(position);
+		let wordInfo = model.getWordAtPosition(position);
 		let triggerCharacterInfo: { ch: string; providers: Set<CompletionItemProvider> } | undefined;
 
-		if (!wordInfo.word) {
+		if (!wordInfo?.word) {
 			triggerCharacterInfo = this._getTriggerCharacterInfo(model, position);
 		}
 
-		if (!wordInfo.word && !triggerCharacterInfo) {
+		if (!wordInfo?.word && !triggerCharacterInfo) {
 			// not at word, not a trigger character
+			return;
+		}
+
+		// ensure that we have word information and that we are at the end of a word
+		// otherwise we stop because we don't want to do quick suggestions inside words
+		if (!wordInfo) {
+			wordInfo = model.getWordUntilPosition(position);
+		}
+		if (wordInfo.endColumn !== position.column) {
 			return;
 		}
 

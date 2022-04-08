@@ -110,6 +110,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private readonly _resolvers: { [authorityPrefix: string]: vscode.RemoteAuthorityResolver };
 
 	private _started: boolean;
+	private _isTerminating: boolean = false;
 	private _remoteConnectionData: IRemoteConnectionData | null;
 
 	constructor(
@@ -204,7 +205,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		}
 	}
 
-	public async deactivateAll(): Promise<void> {
+	private async _deactivateAll(): Promise<void> {
 		this._storagePath.onWillDeactivateAll();
 
 		let allPromises: Promise<void>[] = [];
@@ -222,11 +223,54 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		await Promise.all(allPromises);
 	}
 
+	public terminate(reason: string, code: number = 0): void {
+		if (this._isTerminating) {
+			// we are already shutting down...
+			return;
+		}
+		this._isTerminating = true;
+		this._logService.info(`Extension host terminating: ${reason}`);
+		this._logService.flush();
+
+		this._extHostTerminalService.dispose();
+		this._activator.dispose();
+
+		errors.setUnexpectedErrorHandler((err) => {
+			this._logService.error(err);
+		});
+
+		// Invalidate all proxies
+		this._extHostContext.dispose();
+
+		const extensionsDeactivated = this._deactivateAll();
+
+		// Give extensions at most 5 seconds to wrap up any async deactivate, then exit
+		Promise.race([timeout(5000), extensionsDeactivated]).finally(() => {
+			if (this._hostUtils.pid) {
+				this._logService.info(`Extension host with pid ${this._hostUtils.pid} exiting with code ${code}`);
+			} else {
+				this._logService.info(`Extension host exiting with code ${code}`);
+			}
+			this._logService.flush();
+			this._logService.dispose();
+			this._hostUtils.exit(code);
+		});
+	}
+
 	public isActivated(extensionId: ExtensionIdentifier): boolean {
 		if (this._readyToRunExtensions.isOpen()) {
 			return this._activator.isActivated(extensionId);
 		}
 		return false;
+	}
+
+	public async getExtension(extensionId: string): Promise<IExtensionDescription | undefined> {
+		const ext = await this._mainThreadExtensionsProxy.$getExtension(extensionId);
+		return ext && {
+			...ext,
+			identifier: new ExtensionIdentifier(ext.identifier.value),
+			extensionLocation: URI.revive(ext.extensionLocation),
+		};
 	}
 
 	private _activateByEvent(activationEvent: string, startup: boolean): Promise<void> {
@@ -645,12 +689,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $extensionTestsExit(code: number): Promise<void> {
-		this._logService.info(`Extension host terminating: test runner requested exit with code ${code}`);
-		if (this._hostUtils.pid) {
-			this._logService.info(`Extension host with pid ${this._hostUtils.pid} exiting with code ${code}`);
-		}
-		this._logService.flush();
-		this._hostUtils.exit(code);
+		this.terminate(`test runner requested exit with code ${code}`, code);
 	}
 
 	private _startExtensionHost(): Promise<void> {
@@ -885,9 +924,10 @@ export const IExtHostExtensionService = createDecorator<IExtHostExtensionService
 export interface IExtHostExtensionService extends AbstractExtHostExtensionService {
 	readonly _serviceBrand: undefined;
 	initialize(): Promise<void>;
+	terminate(reason: string): void;
+	getExtension(extensionId: string): Promise<IExtensionDescription | undefined>;
 	isActivated(extensionId: ExtensionIdentifier): boolean;
 	activateByIdWithErrors(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
-	deactivateAll(): Promise<void>;
 	getExtensionExports(extensionId: ExtensionIdentifier): IExtensionAPI | null | undefined;
 	getExtensionRegistry(): Promise<ExtensionDescriptionRegistry>;
 	getExtensionPathIndex(): Promise<TernarySearchTree<URI, IExtensionDescription>>;

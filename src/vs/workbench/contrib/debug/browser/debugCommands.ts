@@ -44,6 +44,7 @@ export const STEP_INTO_ID = 'workbench.action.debug.stepInto';
 export const STEP_OUT_ID = 'workbench.action.debug.stepOut';
 export const PAUSE_ID = 'workbench.action.debug.pause';
 export const DISCONNECT_ID = 'workbench.action.debug.disconnect';
+export const DISCONNECT_AND_SUSPEND_ID = 'workbench.action.debug.disconnectAndSuspend';
 export const STOP_ID = 'workbench.action.debug.stop';
 export const RESTART_FRAME_ID = 'workbench.action.debug.restartFrame';
 export const CONTINUE_ID = 'workbench.action.debug.continue';
@@ -64,6 +65,7 @@ export const STEP_INTO_LABEL = nls.localize('stepIntoDebug', "Step Into");
 export const STEP_OUT_LABEL = nls.localize('stepOutDebug', "Step Out");
 export const PAUSE_LABEL = nls.localize('pauseDebug', "Pause");
 export const DISCONNECT_LABEL = nls.localize('disconnect', "Disconnect");
+export const DISCONNECT_AND_SUSPEND_LABEL = nls.localize('disconnectSuspend', "Disconnect and Suspend");
 export const STOP_LABEL = nls.localize('stop', "Stop");
 export const CONTINUE_LABEL = nls.localize('continueDebug', "Continue");
 export const FOCUS_SESSION_LABEL = nls.localize('focusSession', "Focus Session");
@@ -313,7 +315,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-async function stopHandler(accessor: ServicesAccessor, _: string, context: CallStackContext | unknown, disconnect: boolean): Promise<void> {
+async function stopHandler(accessor: ServicesAccessor, _: string, context: CallStackContext | unknown, disconnect: boolean, suspend?: boolean): Promise<void> {
 	const debugService = accessor.get(IDebugService);
 	let session: IDebugSession | undefined;
 	if (isSessionContext(context)) {
@@ -329,7 +331,7 @@ async function stopHandler(accessor: ServicesAccessor, _: string, context: CallS
 		session = session.parentSession;
 	}
 
-	await debugService.stopSession(session, disconnect);
+	await debugService.stopSession(session, disconnect, suspend);
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -338,6 +340,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.Shift | KeyCode.F5,
 	when: ContextKeyExpr.and(CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_IN_DEBUG_MODE),
 	handler: (accessor, _, context) => stopHandler(accessor, _, context, true)
+});
+
+CommandsRegistry.registerCommand({
+	id: DISCONNECT_AND_SUSPEND_ID,
+	handler: (accessor, _, context) => stopHandler(accessor, _, context, true, true)
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({

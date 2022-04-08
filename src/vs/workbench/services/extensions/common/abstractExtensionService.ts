@@ -32,7 +32,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { ApiProposalName, allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { forEach } from 'vs/base/common/collections';
@@ -1245,26 +1244,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#region Called by extension host
 
-	protected _createLogger(): ILog {
-		return {
-			error: (message: string | Error): void => {
-				if (this._isDev) {
-					this._notificationService.notify({ severity: Severity.Error, message });
-				}
-				this._logService.error(message);
-			},
-			warn: (message: string): void => {
-				if (this._isDev) {
-					this._notificationService.notify({ severity: Severity.Warning, message });
-				}
-				this._logService.warn(message);
-			},
-			info: (message: string): void => {
-				this._logService.info(message);
-			}
-		};
-	}
-
 	private _acquireInternalAPI(): IInternalExtensionService {
 		return {
 			_activateById: (extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> => {
@@ -1329,7 +1308,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	protected async _scanWebExtensions(): Promise<IExtensionDescription[]> {
-		const log = this._createLogger();
 		const system: IExtensionDescription[] = [], user: IExtensionDescription[] = [], development: IExtensionDescription[] = [];
 		try {
 			await Promise.all([
@@ -1338,9 +1316,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				this._webExtensionsScannerService.scanExtensionsUnderDevelopment().then(extensions => development.push(...extensions.map(e => toExtensionDescription(e, true))))
 			]);
 		} catch (error) {
-			log.error(error);
+			this._logService.error(error);
 		}
-		return dedupExtensions(system, user, development, log);
+		return dedupExtensions(system, user, development, this._logService);
 	}
 
 	//#endregion

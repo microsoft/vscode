@@ -70,6 +70,7 @@ import { BrowserCredentialsService } from 'vs/workbench/services/credentials/bro
 import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export class BrowserMain extends Disposable {
 
@@ -118,6 +119,7 @@ export class BrowserMain extends Disposable {
 			const openerService = accessor.get(IOpenerService);
 			const productService = accessor.get(IProductService);
 			const telemetryService = accessor.get(ITelemetryService);
+			const progessService = accessor.get(IProgressService);
 
 			return {
 				commands: {
@@ -136,6 +138,9 @@ export class BrowserMain extends Disposable {
 				},
 				telemetry: {
 					telemetryLevel: telemetryService.telemetryLevel,
+				},
+				window: {
+					withProgress: (options, task) => progessService.withProgress(options, task)
 				},
 				shutdown: () => lifecycleService.shutdown()
 			};

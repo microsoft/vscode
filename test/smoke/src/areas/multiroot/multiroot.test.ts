@@ -27,7 +27,12 @@ function createWorkspaceFile(workspacePath: string): string {
 		settings: {
 			'workbench.startupEditor': 'none',
 			'workbench.enableExperiments': false,
-			"typescript.disableAutomaticTypeAcquisition": true
+			'typescript.disableAutomaticTypeAcquisition': true,
+			'json.schemaDownload.enable': false,
+			'npm.fetchOnlinePackageInfo': false,
+			'npm.autoDetect': 'off',
+			'workbench.editor.languageDetection': false,
+			"workbench.localHistory.enabled": false
 		}
 	};
 

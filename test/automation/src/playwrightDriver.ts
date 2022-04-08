@@ -100,7 +100,10 @@ export class PlaywrightDriver implements IDriver {
 
 		// Playwright shutdown
 		try {
-			await measureAndLog(this.application.close(), 'playwright.close()', this.options.logger);
+			await Promise.race([
+				measureAndLog(this.application.close(), 'playwright.close()', this.options.logger),
+				new Promise<void>(resolve => setTimeout(() => resolve(), 10000)) // TODO@bpasero mitigate https://github.com/microsoft/vscode/issues/146803
+			]);
 		} catch (error) {
 			this.options.logger.log(`Error closing appliction (${error})`);
 		}

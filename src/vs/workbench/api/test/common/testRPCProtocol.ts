@@ -21,6 +21,7 @@ export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRp
 		set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
 			return value;
 		},
+		dispose: undefined!,
 		assertRegistered: undefined!,
 		drain: undefined!,
 		extensionHostKind: ExtensionHostKind.LocalProcess
@@ -133,6 +134,10 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 				return Promise.reject(err);
 			});
 		});
+	}
+
+	public dispose() {
+		throw new Error('Not implemented!');
 	}
 
 	public assertRegistered(identifiers: ProxyIdentifier<any>[]): void {

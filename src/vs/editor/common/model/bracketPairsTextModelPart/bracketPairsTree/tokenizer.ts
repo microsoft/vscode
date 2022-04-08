@@ -279,7 +279,7 @@ export class FastTokenizer implements Tokenizer {
 
 	constructor(private readonly text: string, brackets: BracketTokens) {
 		const regExpStr = brackets.getRegExpStr();
-		const regexp = regExpStr ? new RegExp(brackets.getRegExpStr() + '|\n', 'g') : null;
+		const regexp = regExpStr ? new RegExp(regExpStr + '|\n', 'g') : null;
 
 		const tokens: Token[] = [];
 

@@ -43,6 +43,7 @@ export interface IActionBarOptions {
 	readonly actionViewItemProvider?: IActionViewItemProvider;
 	readonly actionRunner?: IActionRunner;
 	readonly ariaLabel?: string;
+	readonly ariaRole?: string;
 	readonly animated?: boolean;
 	readonly triggerKeys?: ActionTrigger;
 	readonly allowContextMenu?: boolean;
@@ -212,7 +213,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		this.actionsList = document.createElement('ul');
 		this.actionsList.className = 'actions-container';
-		this.actionsList.setAttribute('role', 'toolbar');
+		this.actionsList.setAttribute('role', this.options.ariaRole || 'toolbar');
 
 		if (this.options.ariaLabel) {
 			this.actionsList.setAttribute('aria-label', this.options.ariaLabel);
@@ -225,7 +226,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	private refreshRole(): void {
 		if (this.length() >= 2) {
-			this.actionsList.setAttribute('role', 'toolbar');
+			this.actionsList.setAttribute('role', this.options.ariaRole || 'toolbar');
 		} else {
 			this.actionsList.setAttribute('role', 'presentation');
 		}

@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
+import { IAction } from 'vs/base/common/actions';
+import { Emitter } from 'vs/base/common/event';
+import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -14,12 +18,14 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { Emitter } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { UnavailableResourceErrorEditor, UnknownErrorEditor, WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { ErrorPlaceholderEditor, IErrorEditorPlaceholderOptions, WorkspaceTrustRequiredPlaceholderEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
+import { EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { isCancellationError } from 'vs/base/common/errors';
+import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export interface IOpenEditorResult {
 
@@ -88,7 +94,9 @@ export class EditorPanes extends Disposable {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService
+		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
+		@ILogService private readonly logService: ILogService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super();
 
@@ -118,26 +126,87 @@ export class EditorPanes extends Disposable {
 			return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, context);
 		} catch (error) {
 
-			// We failed to open an editor and thus fallback to show a generic
-			// editor in error state as a way for the user to be aware.
-			// Previously we would immediately close the editor and show a
-			// error notification which was easy to not see.
-			//
-			// Besides, we want to preserve the users editor UI state as much
-			// as possible, so closing editors is never really an option.
-			//
-			// Related issues:
-			// - https://github.com/microsoft/vscode/issues/110062
-			// - https://github.com/microsoft/vscode/issues/142875
+			// First check if caller instructed us to ignore error handling
+			if (options?.ignoreError) {
+				return { error };
+			}
 
-			const isUnavailableResource = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
-			const editorPlaceholder = isUnavailableResource ? UnavailableResourceErrorEditor.DESCRIPTOR : UnknownErrorEditor.DESCRIPTOR;
+			// In case of an error when opening an editor, we still want to show
+			// an editor in the desired location to preserve the user intent and
+			// view state (e.g. when restoring).
+			//
+			// For that reason we have place holder editors that can convey a
+			// message with actions the user can click on.
 
-			return {
-				...(await this.doOpenEditor(editorPlaceholder, editor, options, context)),
-				error
-			};
+			return this.doShowError(error, editor, options, context);
 		}
+	}
+
+	private async doShowError(error: Error, editor: EditorInput, options?: IEditorOptions, context?: IEditorOpenContext): Promise<IOpenEditorResult> {
+
+		// Always log the error to figure out what is going on
+		this.logService.error(error);
+
+		// Show as modal dialog when explicit user action
+		let errorHandled = false;
+		if (options?.source === EditorOpenSource.USER) {
+
+			// Extract possible error actions from the error
+			let errorActions: readonly IAction[] | undefined = undefined;
+			if (isErrorWithActions(error)) {
+				errorActions = error.actions;
+			}
+
+			const buttons: string[] = [];
+			if (Array.isArray(errorActions) && errorActions.length > 0) {
+				for (const errorAction of errorActions) {
+					buttons.push(errorAction.label);
+				}
+			} else {
+				buttons.push(localize('ok', 'OK'));
+			}
+
+			let cancelId: number | undefined = undefined;
+			if (buttons.length === 1) {
+				buttons.push(localize('cancel', "Cancel"));
+				cancelId = 1;
+			}
+
+			const result = await this.dialogService.show(
+				Severity.Error,
+				localize('editorOpenErrorDialog', "Unable to open '{0}'", editor.getName()),
+				buttons,
+				{
+					detail: toErrorMessage(error),
+					cancelId
+				}
+			);
+
+			// Make sure to run any error action if present
+			if (result.choice !== cancelId && Array.isArray(errorActions)) {
+				const errorAction = errorActions[result.choice];
+				if (errorAction) {
+					errorAction.run();
+					errorHandled = true; // consider the error as handled!
+				}
+			}
+		}
+
+		// Return early if the user dealt with the error already
+		if (errorHandled) {
+			return { error };
+		}
+
+		// Show as editor placeholder: pass over the error to display
+		const editorPlaceholderOptions: IErrorEditorPlaceholderOptions = { ...options };
+		if (!isCancellationError(error)) {
+			editorPlaceholderOptions.error = error;
+		}
+
+		return {
+			...(await this.doOpenEditor(ErrorPlaceholderEditor.DESCRIPTOR, editor, editorPlaceholderOptions, context)),
+			error
+		};
 	}
 
 	private async doOpenEditor(descriptor: IEditorPaneDescriptor, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
@@ -165,7 +234,7 @@ export class EditorPanes extends Disposable {
 			// but the current workspace is untrusted, we fallback to a generic
 			// editor descriptor to indicate this an do NOT load the registered
 			// editor.
-			return WorkspaceTrustRequiredEditor.DESCRIPTOR;
+			return WorkspaceTrustRequiredPlaceholderEditor.DESCRIPTOR;
 		}
 
 		return assertIsDefined(this.editorPanesRegistry.getEditorPane(editor));

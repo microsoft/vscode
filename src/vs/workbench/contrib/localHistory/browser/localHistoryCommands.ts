@@ -632,7 +632,7 @@ export async function findLocalHistoryEntry(workingCopyHistoryService: IWorkingC
 
 const SEP = /\//g;
 function toLocalHistoryEntryDateLabel(timestamp: number): string {
-	return `${LOCAL_HISTORY_DATE_FORMATTER.format(timestamp).replace(SEP, '-')}`; // preserving `/` will break editor labels, so replace it with a non-path symbol
+	return `${LOCAL_HISTORY_DATE_FORMATTER.value.format(timestamp).replace(SEP, '-')}`; // preserving `/` will break editor labels, so replace it with a non-path symbol
 }
 
 //#endregion

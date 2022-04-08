@@ -11,6 +11,7 @@ import { mark, PerformanceMark } from 'vs/base/common/performance';
 import { URI } from 'vs/base/common/uri';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbench, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
 import { BrowserMain } from 'vs/workbench/browser/web.main';
@@ -128,5 +129,20 @@ export namespace telemetry {
 		const workbench = await workbenchPromise.p;
 
 		return workbench.telemetry.telemetryLevel;
+	}
+}
+
+export namespace window {
+
+	/**
+	 * {@linkcode IWorkbench.window IWorkbench.window.withProgress}
+	 */
+	export async function withProgress<R>(
+		options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
+		task: (progress: IProgress<IProgressStep>) => Promise<R>
+	): Promise<R> {
+		const workbench = await workbenchPromise.p;
+
+		return workbench.window.withProgress(options, task);
 	}
 }

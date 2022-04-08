@@ -90,7 +90,10 @@ export function activate(context: vscode.ExtensionContext) {
 			if (logsDir) {
 				commandArgs.push('--logsPath', logsDir);
 			}
-
+			const logLevel = process.env['TESTRESOLVER_LOG_LEVEL'];
+			if (logLevel) {
+				commandArgs.push('--log', logLevel);
+			}
 			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
 			commandArgs.push('--server-data-dir', remoteDataDir);
 
