@@ -29,7 +29,7 @@ import { ExtensionsDownloader } from 'vs/platform/extensionManagement/node/exten
 import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extensionLifecycle';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/extensionsManifestCache';
-import { ExtensionsScanner, ILocalExtensionManifest } from 'vs/platform/extensionManagement/node/extensionsScanner';
+import { ExtensionsScanner } from 'vs/platform/extensionManagement/node/extensionsScanner';
 import { ExtensionsWatcher } from 'vs/platform/extensionManagement/node/extensionsWatcher';
 import { ExtensionType, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
@@ -65,7 +65,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	) {
 		super(galleryService, telemetryService, logService, productService);
 		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
-		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner, extension => extensionLifecycle.postUninstall(extension), this.getTargetPlatform()));
+		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner, extension => extensionLifecycle.postUninstall(extension)));
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
 		this.extensionsDownloader = this._register(instantiationService.createInstance(ExtensionsDownloader));
 		const extensionsWatcher = this._register(new ExtensionsWatcher(this, fileService, environmentService, logService, uriIdentityService));
@@ -123,18 +123,18 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#updateMetadata', local.identifier.id);
-		const localMetadata: Metadata = { ...((<ILocalExtensionManifest>local.manifest).__metadata || {}), ...metadata };
+		const localMetadata: Metadata = { ...metadata };
 		if (metadata.isPreReleaseVersion) {
 			localMetadata.preRelease = true;
 		}
-		local = await this.extensionsScanner.saveMetadataForLocalExtension(local, localMetadata);
+		local = await this.extensionsScanner.updateMetadata(local, localMetadata);
 		this.manifestCache.invalidate();
 		return local;
 	}
 
 	async updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#updateExtensionScope', local.identifier.id);
-		local = await this.extensionsScanner.saveMetadataForLocalExtension(local, { ...((<ILocalExtensionManifest>local.manifest).__metadata || {}), isMachineScoped });
+		local = await this.extensionsScanner.updateMetadata(local, { isMachineScoped });
 		this.manifestCache.invalidate();
 		return local;
 	}
@@ -206,7 +206,7 @@ abstract class AbstractInstallExtensionTask extends AbstractExtensionTask<ILocal
 		try {
 			const local = await this.unsetUninstalledAndGetLocal(installableExtension.key);
 			if (local) {
-				return installableExtension.metadata ? this.extensionsScanner.saveMetadataForLocalExtension(local, { ...((<ILocalExtensionManifest>local.manifest).__metadata || {}), ...installableExtension.metadata }) : local;
+				return installableExtension.metadata ? this.extensionsScanner.updateMetadata(local, installableExtension.metadata) : local;
 			}
 		} catch (e) {
 			if (isMacintosh) {

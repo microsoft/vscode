@@ -40,10 +40,8 @@ export interface IDriver {
 	readonly _serviceBrand: undefined;
 
 	getWindowIds(): Promise<number[]>;
-	capturePage(windowId: number): Promise<string>;
 	startTracing(windowId: number, name: string): Promise<void>;
 	stopTracing(windowId: number, name: string, persist: boolean): Promise<void>;
-	reloadWindow(windowId: number): Promise<void>;
 	exitApplication(): Promise<number /* main PID */>;
 	dispatchKeybinding(windowId: number, keybinding: string): Promise<void>;
 	click(windowId: number, selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;

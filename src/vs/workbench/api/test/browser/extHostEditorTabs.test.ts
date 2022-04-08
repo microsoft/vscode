@@ -35,7 +35,7 @@ suite('ExtHostEditorTabs', function () {
 			})
 		);
 
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 0);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 0);
 		// Active group should never be undefined (there is always an active group). Ensure accessing it undefined throws.
 		// TODO @lramos15 Add a throw on the main side when a model is sent without an active group
 		assert.throws(() => extHostEditorTabs.tabGroups.activeTabGroup);
@@ -63,8 +63,8 @@ suite('ExtHostEditorTabs', function () {
 			groupId: 12,
 			tabs: [tab]
 		}]);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		const [first] = extHostEditorTabs.tabGroups.groups;
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		const [first] = extHostEditorTabs.tabGroups.all;
 		assert.ok(first.activeTab);
 		assert.strictEqual(first.tabs.indexOf(first.activeTab), 0);
 
@@ -75,8 +75,8 @@ suite('ExtHostEditorTabs', function () {
 				groupId: 12,
 				tabs: [tab]
 			}]);
-			assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-			const [first] = extHostEditorTabs.tabGroups.groups;
+			assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+			const [first] = extHostEditorTabs.tabGroups.all;
 			assert.ok(first.activeTab);
 			assert.strictEqual(first.tabs.indexOf(first.activeTab), 0);
 		}
@@ -95,8 +95,8 @@ suite('ExtHostEditorTabs', function () {
 			groupId: 12,
 			tabs: []
 		}]);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		const [first] = extHostEditorTabs.tabGroups.groups;
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		const [first] = extHostEditorTabs.tabGroups.all;
 		assert.strictEqual(first.activeTab, undefined);
 		assert.strictEqual(first.tabs.length, 0);
 	});
@@ -121,7 +121,7 @@ suite('ExtHostEditorTabs', function () {
 		}]);
 		assert.ok(extHostEditorTabs.tabGroups.activeTabGroup);
 		const activeTabGroup: vscode.TabGroup = extHostEditorTabs.tabGroups.activeTabGroup;
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
 		assert.strictEqual(activeTabGroup.tabs.length, 0);
 		assert.strictEqual(count, 1);
 	});
@@ -147,8 +147,8 @@ suite('ExtHostEditorTabs', function () {
 			groupId: 12,
 			tabs: [tab]
 		}]);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		const [first] = extHostEditorTabs.tabGroups.groups;
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		const [first] = extHostEditorTabs.tabGroups.all;
 		assert.ok(first.activeTab);
 		assert.strictEqual(first.tabs.indexOf(first.activeTab), 0);
 		assert.strictEqual(first.activeTab, first.tabs[0]);
@@ -172,7 +172,7 @@ suite('ExtHostEditorTabs', function () {
 			groupId: 12,
 			tabs: [tabDto]
 		}]);
-		let all = extHostEditorTabs.tabGroups.groups.map(group => group.tabs).flat();
+		let all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 1);
 		const apiTab1 = all[0];
 		assert.ok(apiTab1.kind instanceof TextTabInput);
@@ -193,7 +193,7 @@ suite('ExtHostEditorTabs', function () {
 			groupId: 12
 		});
 
-		all = extHostEditorTabs.tabGroups.groups.map(group => group.tabs).flat();
+		all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 1);
 		const apiTab2 = all[0];
 		assert.ok(apiTab1.kind instanceof TextTabInput);
@@ -239,7 +239,7 @@ suite('ExtHostEditorTabs', function () {
 			tabs: [tabDtoAAA, tabDtoBBB]
 		}]);
 
-		let all = extHostEditorTabs.tabGroups.groups.map(group => group.tabs).flat();
+		let all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 2);
 
 		const activeTab1 = extHostEditorTabs.tabGroups.activeTabGroup?.activeTab;
@@ -279,7 +279,7 @@ suite('ExtHostEditorTabs', function () {
 		});
 		assert.throws(() => {
 			// @ts-expect-error write to readonly prop
-			extHostEditorTabs.tabGroups.groups.length = 0;
+			extHostEditorTabs.tabGroups.all.length = 0;
 		});
 		assert.throws(() => {
 			// @ts-expect-error write to readonly prop
@@ -317,7 +317,7 @@ suite('ExtHostEditorTabs', function () {
 			groupId: 12,
 			tabs: [tab]
 		}]);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
 		const activeTab = extHostEditorTabs.tabGroups.activeTabGroup?.activeTab;
 		assert.ok(activeTab);
 		extHostEditorTabs.tabGroups.close(activeTab, false);
@@ -356,12 +356,12 @@ suite('ExtHostEditorTabs', function () {
 			tabs: [tabDto]
 		}]);
 
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 1);
 
-		const tab = extHostEditorTabs.tabGroups.groups[0].tabs[0];
+		const tab = extHostEditorTabs.tabGroups.all[0].tabs[0];
 
-		const p = new Promise<readonly vscode.Tab[]>(resolve => extHostEditorTabs.tabGroups.onDidChangeTabs(resolve));
+		const p = new Promise<vscode.TabChangeEvent>(resolve => extHostEditorTabs.tabGroups.onDidChangeTabs(resolve));
 
 		extHostEditorTabs.$acceptTabOperation({
 			groupId: 12,
@@ -370,7 +370,7 @@ suite('ExtHostEditorTabs', function () {
 			tabDto: { ...tabDto, label: 'NEW LABEL' }
 		});
 
-		const changedTab = (await p)[0];
+		const changedTab = (await p).changed[0];
 
 		assert.ok(tab === changedTab);
 		assert.strictEqual(changedTab.label, 'NEW LABEL');
@@ -410,8 +410,8 @@ suite('ExtHostEditorTabs', function () {
 			tabs: [tab1, tab2, tab3]
 		}]);
 
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 3);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 3);
 
 		// Active tab is correct
 		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup?.activeTab, extHostEditorTabs.tabGroups.activeTabGroup?.tabs[0]);
@@ -441,8 +441,8 @@ suite('ExtHostEditorTabs', function () {
 			groupId: 12,
 			tabs: [tab3]
 		}]);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 1);
 		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup?.activeTab, extHostEditorTabs.tabGroups.activeTabGroup?.tabs[0]);
 
 		// Closing out all tabs returns undefine active tab
@@ -452,8 +452,8 @@ suite('ExtHostEditorTabs', function () {
 			groupId: 12,
 			tabs: []
 		}]);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 0);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 0);
 		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup?.activeTab, undefined);
 	});
 
@@ -489,8 +489,8 @@ suite('ExtHostEditorTabs', function () {
 			tabs: [tab1, tab2, tab3]
 		}]);
 
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 3);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 3);
 
 		// Close tab 2
 		extHostEditorTabs.$acceptTabOperation({
@@ -499,8 +499,8 @@ suite('ExtHostEditorTabs', function () {
 			kind: TabModelOperationKind.TAB_CLOSE,
 			tabDto: tab2
 		});
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 2);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 2);
 
 		// Close active tab and update tab 3 to be active
 		extHostEditorTabs.$acceptTabOperation({
@@ -509,8 +509,8 @@ suite('ExtHostEditorTabs', function () {
 			kind: TabModelOperationKind.TAB_CLOSE,
 			tabDto: tab1
 		});
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 1);
 		tab3.isActive = true;
 		extHostEditorTabs.$acceptTabOperation({
 			groupId: 12,
@@ -518,9 +518,9 @@ suite('ExtHostEditorTabs', function () {
 			kind: TabModelOperationKind.TAB_UPDATE,
 			tabDto: tab3
 		});
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups[0]?.activeTab?.label, 'label3');
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all[0]?.activeTab?.label, 'label3');
 
 		// Open tab 2 back
 		extHostEditorTabs.$acceptTabOperation({
@@ -529,8 +529,8 @@ suite('ExtHostEditorTabs', function () {
 			kind: TabModelOperationKind.TAB_OPEN,
 			tabDto: tab2
 		});
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 2);
-		assert.strictEqual(extHostEditorTabs.tabGroups.groups[0]?.tabs[1]?.label, 'label2');
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 2);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all[0]?.tabs[1]?.label, 'label2');
 	});
 });

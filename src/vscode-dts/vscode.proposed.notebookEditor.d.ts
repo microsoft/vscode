@@ -48,12 +48,12 @@ declare module 'vscode' {
 		 *
 		 * The primary selection (or focused range) is `selections[0]`. When the document has no cells, the primary selection is empty `{ start: 0, end: 0 }`;
 		 */
-		selections: NotebookRange[];
+		selections: readonly NotebookRange[];
 
 		/**
 		 * The current visible ranges in the editor (vertically).
 		 */
-		readonly visibleRanges: NotebookRange[];
+		readonly visibleRanges: readonly NotebookRange[];
 
 		/**
 		 * Scroll as indicated by `revealType` in order to reveal the given range.
@@ -74,7 +74,7 @@ declare module 'vscode' {
 		 * The {@link NotebookEditor notebook editor} for which the selections have changed.
 		 */
 		readonly notebookEditor: NotebookEditor;
-		readonly selections: ReadonlyArray<NotebookRange>;
+		readonly selections: readonly NotebookRange[];
 	}
 
 	export interface NotebookEditorVisibleRangesChangeEvent {
@@ -82,19 +82,19 @@ declare module 'vscode' {
 		 * The {@link NotebookEditor notebook editor} for which the visible ranges have changed.
 		 */
 		readonly notebookEditor: NotebookEditor;
-		readonly visibleRanges: ReadonlyArray<NotebookRange>;
+		readonly visibleRanges: readonly NotebookRange[];
 	}
 
 	export interface NotebookDocumentShowOptions {
-		viewColumn?: ViewColumn;
-		preserveFocus?: boolean;
-		preview?: boolean;
-		selections?: NotebookRange[];
+		readonly viewColumn?: ViewColumn;
+		readonly preserveFocus?: boolean;
+		readonly preview?: boolean;
+		readonly selections?: readonly NotebookRange[];
 	}
 
 	export namespace window {
-		export const visibleNotebookEditors: NotebookEditor[];
-		export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
+		export const visibleNotebookEditors: readonly NotebookEditor[];
+		export const onDidChangeVisibleNotebookEditors: Event<readonly NotebookEditor[]>;
 		export const activeNotebookEditor: NotebookEditor | undefined;
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;

@@ -8,7 +8,7 @@ import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ICommandDto, ICommandHandlerDescriptionDto } from './extHost.protocol';
+import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ICommandDto, ICommandHandlerDescriptionDto, MainThreadTelemetryShape } from './extHost.protocol';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import * as languages from 'vs/editor/common/languages';
 import type * as vscode from 'vscode';
@@ -46,6 +46,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	private readonly _commands = new Map<string, CommandHandler>();
 	private readonly _apiCommands = new Map<string, ApiCommand>();
+	#telemetry: MainThreadTelemetryShape;
 
 	private readonly _logService: ILogService;
 	private readonly _argumentProcessors: ArgumentProcessor[];
@@ -58,6 +59,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	) {
 		this.#proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
 		this._logService = logService;
+		this.#telemetry = extHostRpc.getProxy(MainContext.MainThreadTelemetry);
 		this.converter = new CommandsConverter(
 			this,
 			id => {
@@ -219,6 +221,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		if (!command) {
 			throw new Error('Unknown command');
 		}
+		this._reportTelemetry(command, id);
 		let { callback, thisArg, description } = command;
 		if (description) {
 			for (let i = 0; i < description.args.length; i++) {
@@ -255,6 +258,24 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				}
 			};
 		}
+	}
+
+	private _reportTelemetry(command: CommandHandler, id: string) {
+		if (!command.extension || command.extension.isBuiltin) {
+			return;
+		}
+		type ExtensionActionTelemetry = {
+			extensionId: string;
+			id: string;
+		};
+		type ExtensionActionTelemetryMeta = {
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'digitarald'; comment: 'The id of the extension handling the command, informing which extensions provide most-used functionality.' };
+			id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'digitarald'; comment: 'The id of the command, to understand which specific extension features are most popular.' };
+		};
+		this.#telemetry.$publicLog2<ExtensionActionTelemetry, ExtensionActionTelemetryMeta>('Extension:ActionExecuted', {
+			extensionId: command.extension.identifier.value,
+			id: id,
+		});
 	}
 
 	$executeContributedCommand(id: string, ...args: any[]): Promise<unknown> {

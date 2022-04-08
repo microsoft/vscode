@@ -23,10 +23,10 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { commentThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
+import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
 
-export function getCommentThreadWidgetStateColor(thread: languages.CommentThread, theme: IColorTheme): Color | undefined {
+export function getCommentThreadWidgetStateColor(thread: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
 	return getCommentThreadStateColor(thread, theme) ?? theme.getColor(peekViewBorder);
 }
 
@@ -201,7 +201,17 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 						let newPosition = this.getPosition();
 
 						if (newPosition) {
-							this.commentService.updateCommentThreadTemplate(this.owner, this._commentThread.commentThreadHandle, new Range(newPosition.lineNumber, 1, newPosition.lineNumber, 1));
+							let range: Range;
+							const originalRange = this._commentThread.range;
+							if (newPosition.lineNumber !== originalRange.endLineNumber) {
+								// The widget could have moved as a result of editor changes.
+								// We need to try to calculate the new, more correct, range for the comment.
+								const distance = newPosition.lineNumber - this._commentThread.range.endLineNumber;
+								range = new Range(originalRange.startLineNumber + distance, originalRange.startColumn, originalRange.endLineNumber + distance, originalRange.endColumn);
+							} else {
+								range = new Range(originalRange.startLineNumber, originalRange.startColumn, originalRange.endLineNumber, originalRange.endColumn);
+							}
+							this.commentService.updateCommentThreadTemplate(this.owner, this._commentThread.commentThreadHandle, range);
 						}
 					}
 				},
@@ -261,7 +271,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadWidget.updateCommentThread(commentThread);
 
 		// Move comment glyph widget and show position if the line has changed.
-		const lineNumber = this._commentThread.range.startLineNumber;
+		const lineNumber = this._commentThread.range.endLineNumber;
 		let shouldMoveWidget = false;
 		if (this._commentGlyph) {
 			if (this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
@@ -344,12 +354,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeState(() => {
 			const borderColor =
-				getCommentThreadWidgetStateColor(this._commentThread, this.themeService.getColorTheme()) || Color.transparent;
+				getCommentThreadWidgetStateColor(this._commentThread.state, this.themeService.getColorTheme()) || Color.transparent;
 			this.style({
 				frameColor: borderColor,
 				arrowColor: borderColor,
 			});
 			this.container?.style.setProperty(commentThreadStateColorVar, `${borderColor}`);
+			this.container?.style.setProperty(commentThreadStateBackgroundColorVar, `${borderColor.transparent(.1)}`);
 		}));
 	}
 
@@ -410,7 +421,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	private _applyTheme(theme: IColorTheme) {
-		const borderColor = getCommentThreadWidgetStateColor(this._commentThread, this.themeService.getColorTheme()) || Color.transparent;
+		const borderColor = getCommentThreadWidgetStateColor(this._commentThread.state, this.themeService.getColorTheme()) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
 			frameColor: borderColor

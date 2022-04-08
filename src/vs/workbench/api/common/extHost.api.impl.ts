@@ -673,7 +673,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'editorInsets');
 				return extHostEditorInsets.createWebviewEditorInset(editor, line, height, options, extension);
 			},
-			createTerminal(nameOrOptions?: vscode.TerminalOptions | vscode.ExtensionTerminalOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
+			createTerminal(nameOrOptions?: vscode.TerminalOptions | vscode.ExtensionTerminalOptions | string, shellPath?: string, shellArgs?: readonly string[] | string): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
 					if ('pty' in nameOrOptions) {
 						return extHostTerminalService.createExtensionTerminal(nameOrOptions);
@@ -1131,6 +1131,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			createConcatTextDocument(notebook, selector) {
 				checkProposedApiEnabled(extension, 'notebookConcatTextDocument');
+				extHostApiDeprecation.report('notebookConcatTextDocument', extension, 'This proposal is not on track for finalization and will be removed.');
 				return new ExtHostNotebookConcatDocument(extHostNotebookDocuments, extHostDocuments, notebook, selector);
 			},
 		};

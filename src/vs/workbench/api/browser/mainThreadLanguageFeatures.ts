@@ -3,39 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { distinct } from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ITextModel } from 'vs/editor/common/model';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import * as languages from 'vs/editor/common/languages';
-import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
-import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, ILocationLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto, IdentifiableInlineCompletions, IdentifiableInlineCompletion, ITypeHierarchyItemDto, IInlayHintDto } from '../common/extHost.protocol';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { URI } from 'vs/base/common/uri';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
-import { mixin } from 'vs/base/common/objects';
-import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
-import { revive } from 'vs/base/common/marshalling';
 import { CancellationError } from 'vs/base/common/errors';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { Mimes } from 'vs/base/common/mime';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { revive } from 'vs/base/common/marshalling';
+import { mixin } from 'vs/base/common/objects';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { Position as EditorPosition } from 'vs/editor/common/core/position';
+import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import * as languages from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { IndentationRule, LanguageConfiguration, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { DataTransferConverter } from 'vs/workbench/api/common/shared/dataTransfer';
-import { extractEditorsDropData } from 'vs/workbench/browser/dnd';
-import { IDataTransfer, IDataTransferItem } from 'vs/workbench/common/dnd';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
+import * as search from 'vs/workbench/contrib/search/common/search';
+import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape, reviveWorkspaceEditDto } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -50,8 +43,6 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -83,24 +74,6 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 			});
 			updateAllWordDefinitions();
-		}
-
-		if (this._codeEditorService) {
-			const registerDropListenerOnEditor = (editor: ICodeEditor) => {
-				this._dropIntoEditorListeners.get(editor)?.dispose();
-				this._dropIntoEditorListeners.set(editor, editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event)));
-			};
-
-			this._register(this._codeEditorService.onCodeEditorAdd(registerDropListenerOnEditor));
-
-			this._register(this._codeEditorService.onCodeEditorRemove(editor => {
-				this._dropIntoEditorListeners.get(editor)?.dispose();
-				this._dropIntoEditorListeners.delete(editor);
-			}));
-
-			for (const editor of this._codeEditorService.listCodeEditors()) {
-				registerDropListenerOnEditor(editor);
-			}
 		}
 	}
 
@@ -898,58 +871,6 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				return this._proxy.$provideDocumentOnDropEdits(handle, model.uri, position, dataTransferDto, token);
 			}
 		}));
-	}
-
-	private async onDropIntoEditor(editor: ICodeEditor, position: IPosition, dragEvent: DragEvent) {
-		if (!dragEvent.dataTransfer || !editor.hasModel()) {
-			return;
-		}
-
-		const model = editor.getModel();
-		const modelVersionNow = model.getVersionId();
-
-		const textEditorDataTransfer: IDataTransfer = new Map<string, IDataTransferItem>();
-		for (const item of dragEvent.dataTransfer.items) {
-			if (item.kind === 'string') {
-				const type = item.type;
-				const asStringValue = new Promise<string>(resolve => item.getAsString(resolve));
-				textEditorDataTransfer.set(type, {
-					asString: () => asStringValue,
-					value: undefined
-				});
-			}
-		}
-
-		if (!textEditorDataTransfer.has(Mimes.uriList.toLowerCase())) {
-			const editorData = (await this._instantiationService.invokeFunction(extractEditorsDropData, dragEvent))
-				.filter(input => input.resource)
-				.map(input => input.resource!.toString());
-
-			if (editorData.length) {
-				const str = distinct(editorData).join('\n');
-				textEditorDataTransfer.set(Mimes.uriList.toLowerCase(), {
-					asString: () => Promise.resolve(str),
-					value: undefined
-				});
-			}
-		}
-
-		if (textEditorDataTransfer.size === 0) {
-			return;
-		}
-
-		const ordered = this._languageFeaturesService.documentOnDropEditProvider.ordered(model);
-		for (const provider of ordered) {
-			const edit = await provider.provideDocumentOnDropEdits(model, position, textEditorDataTransfer, CancellationToken.None);
-			if (editor.getModel().getVersionId() !== modelVersionNow) {
-				return;
-			}
-
-			if (edit) {
-				performSnippetEdit(editor, edit);
-				return;
-			}
-		}
 	}
 }
 

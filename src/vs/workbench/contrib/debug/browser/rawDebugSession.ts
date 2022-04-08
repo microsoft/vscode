@@ -284,7 +284,8 @@ export class RawDebugSession implements IDisposable {
 	 */
 	disconnect(args: DebugProtocol.DisconnectArguments): Promise<any> {
 		const terminateDebuggee = this.capabilities.supportTerminateDebuggee ? args.terminateDebuggee : undefined;
-		return this.shutdown(undefined, args.restart, terminateDebuggee);
+		const suspendDebuggee = this.capabilities.supportSuspendDebuggee ? args.suspendDebuggee : undefined;
+		return this.shutdown(undefined, args.restart, terminateDebuggee, suspendDebuggee);
 	}
 
 	//---- DAP requests
@@ -553,12 +554,20 @@ export class RawDebugSession implements IDisposable {
 
 	//---- private
 
-	private async shutdown(error?: Error, restart = false, terminateDebuggee: boolean | undefined = undefined): Promise<any> {
+	private async shutdown(error?: Error, restart = false, terminateDebuggee: boolean | undefined = undefined, suspendDebuggee: boolean | undefined = undefined): Promise<any> {
 		if (!this.inShutdown) {
 			this.inShutdown = true;
 			if (this.debugAdapter) {
 				try {
-					const args = typeof terminateDebuggee === 'boolean' ? { restart, terminateDebuggee } : { restart };
+					const args: DebugProtocol.DisconnectArguments = { restart };
+					if (typeof terminateDebuggee === 'boolean') {
+						args.terminateDebuggee = terminateDebuggee;
+					}
+
+					if (typeof suspendDebuggee === 'boolean') {
+						args.suspendDebuggee = suspendDebuggee;
+					}
+
 					this.send('disconnect', args, undefined, 2000);
 				} catch (e) {
 					// Catch the potential 'disconnect' error - no need to show it to the user since the adapter is shutting down

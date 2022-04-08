@@ -12,7 +12,7 @@ export function setup(logger: Logger) {
 		// Shared before/after handling
 		installAllHandlers(logger);
 
-		it('install and enable vscode-smoketest-check extension', async function () {
+		it.skip('install and enable vscode-smoketest-check extension', async function () { // TODO@bpasero TODO@sandy081 https://github.com/microsoft/vscode/issues/146800
 			const app = this.app as Application;
 
 			await app.workbench.extensions.openExtensionsViewlet();

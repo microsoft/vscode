@@ -486,7 +486,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 				realPathLength = realPath.length;
 				realPathDiffers = true;
 
-				this.warn(`correcting a path to watch that seems to be a symbolic link or wrong casing (original: ${request.path}, real: ${realPath})`);
+				this.trace(`correcting a path to watch that seems to be a symbolic link or wrong casing (original: ${request.path}, real: ${realPath})`);
 			}
 		} catch (error) {
 			// ignore
