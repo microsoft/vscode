@@ -284,7 +284,7 @@ export class RawDebugSession implements IDisposable {
 	 */
 	disconnect(args: DebugProtocol.DisconnectArguments): Promise<any> {
 		const terminateDebuggee = this.capabilities.supportTerminateDebuggee ? args.terminateDebuggee : undefined;
-		const suspendDebuggee = this.capabilities.supportSuspendDebuggee ? args.suspendDebuggee : undefined;
+		const suspendDebuggee = this.capabilities.supportTerminateDebuggee && this.capabilities.supportSuspendDebuggee ? args.suspendDebuggee : undefined;
 		return this.shutdown(undefined, args.restart, terminateDebuggee, suspendDebuggee);
 	}
 
