@@ -343,6 +343,10 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 				----
 			*/
 
+			if (!pair.closingBracketRange) {
+				continue;
+			}
+
 			const isActive = activeBracketPairRange && pair.range.equalsRange(activeBracketPairRange);
 
 			if (!isActive && !options.includeInactive) {
@@ -357,9 +361,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 
 
 			const start = pair.openingBracketRange.getStartPosition();
-			const end =
-				pair.closingBracketRange?.getStartPosition() ??
-				pair.range.getEndPosition();
+			const end = pair.closingBracketRange.getStartPosition();
 
 			const horizontalGuides = options.horizontalGuides === HorizontalGuidesState.Enabled || (options.horizontalGuides === HorizontalGuidesState.EnabledForActive && isActive);
 
@@ -388,16 +390,16 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 			const guideVisibleColumn = Math.min(startVisibleColumn, endVisibleColumn, pair.minVisibleColumnIndentation + 1);
 
 			let renderHorizontalEndLineAtTheBottom = false;
-			if (pair.closingBracketRange) {
-				const firstNonWsIndex = strings.firstNonWhitespaceIndex(
-					this.textModel.getLineContent(
-						pair.closingBracketRange.startLineNumber
-					)
-				);
-				const hasTextBeforeClosingBracket = firstNonWsIndex < pair.closingBracketRange.startColumn - 1;
-				if (hasTextBeforeClosingBracket) {
-					renderHorizontalEndLineAtTheBottom = true;
-				}
+
+
+			const firstNonWsIndex = strings.firstNonWhitespaceIndex(
+				this.textModel.getLineContent(
+					pair.closingBracketRange.startLineNumber
+				)
+			);
+			const hasTextBeforeClosingBracket = firstNonWsIndex < pair.closingBracketRange.startColumn - 1;
+			if (hasTextBeforeClosingBracket) {
+				renderHorizontalEndLineAtTheBottom = true;
 			}
 
 
