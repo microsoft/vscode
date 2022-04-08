@@ -13,7 +13,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ByteSize } from 'vs/platform/files/common/files';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorPlaceholderPane, IEditorPlaceholderContents } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
+import { EditorPlaceholder, IEditorPlaceholderContents } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: IEditorOptions | undefined) => Promise<void>;
@@ -22,7 +22,7 @@ export interface IOpenCallbacks {
 /*
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class BaseBinaryResourceEditor extends EditorPlaceholderPane {
+export abstract class BaseBinaryResourceEditor extends EditorPlaceholder {
 
 	private readonly _onDidChangeMetadata = this._register(new Emitter<void>());
 	readonly onDidChangeMetadata = this._onDidChangeMetadata.event;
