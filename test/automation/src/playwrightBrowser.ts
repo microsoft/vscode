@@ -133,7 +133,13 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 		}
 	});
 
-	const payloadParam = `[["enableProposedApi",""],["webviewExternalEndpointCommit","181b43c0e2949e36ecb623d8cc6de29d4fa2bae8"],["skipWelcome","true"]]`;
+	const payloadParam = `[${[
+		'["enableProposedApi",""]',
+		'["skipWelcome", "true"]',
+		'["skipReleaseNotes", "true"]',
+		`["logLevel","${options.verbose ? 'trace' : 'info'}"]`
+	].join(',')}]`;
+
 	await measureAndLog(page.goto(`${endpoint}&${workspacePath.endsWith('.code-workspace') ? 'workspace' : 'folder'}=${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
 
 	return { browser, context, page };
