@@ -13,7 +13,7 @@ import { setup as setupTerminalTabsTests } from './terminal-tabs.test';
 import { setup as setupTerminalSplitCwdTests } from './terminal-splitCwd.test';
 
 export function setup(logger: Logger) {
-	describe.skip('Terminal', function () { // TODO@Tyriar (https://github.com/microsoft/vscode/issues/147063)
+	describe('Terminal', function () {
 
 		// Retry tests 3 times to minimize build failures due to any flakiness
 		this.retries(3);

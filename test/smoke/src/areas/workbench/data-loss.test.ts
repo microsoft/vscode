@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
 import { createApp, timeout, installDiagnosticsHandler, installAppAfterHandler, getRandomUserDataDir } from '../../utils';
 
@@ -17,7 +17,10 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		installAppAfterHandler(() => app);
 
 		it('verifies opened editors are restored', async function () {
-			app = createApp(this.defaultOptions);
+			app = createApp({
+				...this.defaultOptions,
+				logsPath: join(dirname(this.defaultOptions.logsPath), `test_verifies_opened_editors_are_restored`)
+			});
 			await app.start();
 
 			// Open 3 editors
@@ -39,7 +42,10 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		});
 
 		it('verifies editors can save and restore', async function () {
-			app = createApp(this.defaultOptions);
+			app = createApp({
+				...this.defaultOptions,
+				logsPath: join(dirname(this.defaultOptions.logsPath), `test_verifies_editors_can_save_and_restore`)
+			});
 			await app.start();
 
 			const textToType = 'Hello, Code';
@@ -64,19 +70,22 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		});
 
 		it('verifies that "hot exit" works for dirty files (without delay)', function () {
-			return testHotExit.call(this, undefined);
+			return testHotExit.call(this, 'test_verifies_that_hot_exit_works_for_dirty_files_without_delay', undefined);
 		});
 
 		it('verifies that "hot exit" works for dirty files (with delay)', function () {
-			return testHotExit.call(this, 2000);
+			return testHotExit.call(this, 'test_verifies_that_hot_exit_works_for_dirty_files_with_delay', 2000);
 		});
 
 		it('verifies that auto save triggers on shutdown', function () {
-			return testHotExit.call(this, undefined, true);
+			return testHotExit.call(this, 'test_verifies_that_auto_save_triggers_on_shutdown', undefined, true);
 		});
 
-		async function testHotExit(restartDelay: number | undefined, autoSave: boolean | undefined) {
-			app = createApp(this.defaultOptions);
+		async function testHotExit(title: string, restartDelay: number | undefined, autoSave: boolean | undefined) {
+			app = createApp({
+				...this.defaultOptions,
+				logsPath: join(dirname(this.defaultOptions.logsPath), title)
+			});
 			await app.start();
 
 			if (autoSave) {
@@ -143,11 +152,13 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			}
 
 			const userDataDir = getRandomUserDataDir(this.defaultOptions);
+			const logsPath = join(dirname(this.defaultOptions.logsPath), `test_verifies_opened_editors_are_restored_from_stable`);
 
 			const stableOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			stableOptions.codePath = stableCodePath;
 			stableOptions.userDataDir = userDataDir;
 			stableOptions.quality = Quality.Stable;
+			stableOptions.logsPath = logsPath;
 
 			stableApp = new Application(stableOptions);
 			await stableApp.start();
@@ -164,6 +175,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 
 			const insiderOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			insiderOptions.userDataDir = userDataDir;
+			insiderOptions.logsPath = logsPath;
 
 			insidersApp = new Application(insiderOptions);
 			await insidersApp.start();
@@ -178,14 +190,14 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		});
 
 		it('verifies that "hot exit" works for dirty files (without delay)', async function () {
-			return testHotExit.call(this, undefined);
+			return testHotExit.call(this, `test_verifies_that_hot_exit_works_for_dirty_files_without_delay_from_stable`, undefined);
 		});
 
 		it('verifies that "hot exit" works for dirty files (with delay)', async function () {
-			return testHotExit.call(this, 2000);
+			return testHotExit.call(this, `test_verifies_that_hot_exit_works_for_dirty_files_with_delay_from_stable`, 2000);
 		});
 
-		async function testHotExit(restartDelay: number | undefined) {
+		async function testHotExit(title: string, restartDelay: number | undefined) {
 			const stableCodePath = ensureStableCode();
 			if (!stableCodePath) {
 				this.skip();
@@ -197,6 +209,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			stableOptions.codePath = stableCodePath;
 			stableOptions.userDataDir = userDataDir;
 			stableOptions.quality = Quality.Stable;
+			stableOptions.logsPath = join(dirname(this.defaultOptions.logsPath), title);
 
 			stableApp = new Application(stableOptions);
 			await stableApp.start();
@@ -225,6 +238,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 
 			const insiderOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			insiderOptions.userDataDir = userDataDir;
+			insiderOptions.logsPath = join(dirname(this.defaultOptions.logsPath), title);
 
 			insidersApp = new Application(insiderOptions);
 			await insidersApp.start();
