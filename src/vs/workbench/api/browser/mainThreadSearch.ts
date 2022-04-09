@@ -9,7 +9,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchProviderType } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from 'vs/workbench/services/search/common/search';
 import { ExtHostContext, ExtHostSearchShape, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadSearch)
@@ -74,7 +74,6 @@ class SearchOperation {
 	private static _idPool = 0;
 
 	constructor(
-		readonly query: ITextQuery | IFileQuery,
 		readonly progress?: (match: IFileMatch) => any,
 		readonly id: number = ++SearchOperation._idPool,
 		readonly matches = new Map<string, IFileMatch>()
@@ -83,10 +82,6 @@ class SearchOperation {
 	}
 
 	addMatch(match: IFileMatch): void {
-		if (!pathIncludedInQuery(this.query, match.resource.fsPath)) {
-			return;
-		}
-
 		const existingMatch = this.matches.get(match.resource.toString());
 		if (existingMatch) {
 			// TODO@rob clean up text/file result types
@@ -137,7 +132,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 			throw new Error('Empty folderQueries');
 		}
 
-		const search = new SearchOperation(query, onProgress);
+		const search = new SearchOperation(onProgress);
 		this._searches.set(search.id, search);
 
 		const searchP = query.type === QueryType.File
