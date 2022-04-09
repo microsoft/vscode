@@ -14,6 +14,7 @@ import { teardown } from './playwrightBrowser';
 export class PlaywrightDriver implements IDriver {
 
 	private static traceCounter = 1;
+	private static screenShotCounter = 1;
 
 	private static readonly vscodeToPlaywrightKey: { [key: string]: string } = {
 		cmd: 'Meta',
@@ -68,6 +69,24 @@ export class PlaywrightDriver implements IDriver {
 			}
 
 			await measureAndLog(this.context.tracing.stopChunk({ path: persistPath }), `stopTracing for ${name}`, this.options.logger);
+
+			// To ensure we have a screenshot at the end where
+			// it failed, also trigger one explicitly. Tracing
+			// does not guarantee to give us a screenshot unless
+			// some driver action ran before.
+			if (persist) {
+				await this.takeScreenshot(name);
+			}
+		} catch (error) {
+			// Ignore
+		}
+	}
+
+	private async takeScreenshot(name: string): Promise<void> {
+		try {
+			const persistPath = join(this.options.logsPath, `playwright-screenshot-${PlaywrightDriver.screenShotCounter++}-${name.replace(/\s+/g, '-')}.png`);
+
+			await measureAndLog(this.page.screenshot({ path: persistPath, type: 'png' }), 'takeScreenshot', this.options.logger);
 		} catch (error) {
 			// Ignore
 		}
