@@ -240,7 +240,7 @@ import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 					localize('window.confirmBeforeQuit.never', "Never explicitly ask for confirmation unless data loss is imminent.")
 				],
 				'default': 'never',
-				'description': localize('confirmBeforeQuit', "Controls whether to show a confirmation dialog before quitting the application."),
+				'markdownDescription': localize('confirmBeforeQuit', "Controls whether to show a confirmation dialog before quitting the application. See `#window.confirmBeforeClose#` for a related setting to show a confirmation dialog before closing the window."),
 				'scope': ConfigurationScope.APPLICATION
 			}
 		}
