@@ -22,6 +22,9 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
 import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
 import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 
 // Actions
 (function registerActions(): void {
@@ -59,8 +62,18 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'workbench.action.quit',
 		weight: KeybindingWeight.WorkbenchContrib,
-		handler(accessor: ServicesAccessor) {
+		async handler(accessor: ServicesAccessor) {
 			const nativeHostService = accessor.get(INativeHostService);
+			const configurationService = accessor.get(IConfigurationService);
+
+			const confirmBeforeQuit = configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeQuit');
+			if (confirmBeforeQuit === 'always' || confirmBeforeQuit === 'keyboardOnly') {
+				const confirmed = await NativeWindow.confirmOnShutdown(accessor, ShutdownReason.QUIT);
+				if (!confirmed) {
+					return; // quit prevented by user
+				}
+			}
+
 			nativeHostService.quit();
 		},
 		when: undefined,
@@ -216,6 +229,18 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
+			},
+			'window.confirmBeforeQuit': {
+				'type': 'string',
+				'enum': ['always', 'keyboardOnly', 'never'],
+				'enumDescriptions': [
+					localize('window.confirmBeforeQuit.always', "Always ask for confirmation."),
+					localize('window.confirmBeforeQuit.keyboardOnly', "Only ask for confirmation if a keybinding was used to quit."),
+					localize('window.confirmBeforeQuit.never', "Never explicitly ask for confirmation unless data loss is imminent.")
+				],
+				'default': 'never',
+				'description': localize('confirmBeforeQuit', "Controls whether to show a confirmation dialog before quitting the application."),
+				'scope': ConfigurationScope.APPLICATION
 			}
 		}
 	});
