@@ -89,7 +89,7 @@ export function installDiagnosticsHandler(logger: Logger, appFn?: () => Applicat
 
 function installAppBeforeHandler(optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions) {
 	before(async function () {
-		const suiteName = this.currentTest?.titlePath()[1] ?? 'unknown';
+		const suiteName = this.test?.parent?.title ?? 'unknown';
 
 		this.app = createApp({
 			...this.defaultOptions,
