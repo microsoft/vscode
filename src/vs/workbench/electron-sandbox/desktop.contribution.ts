@@ -25,6 +25,7 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
+import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 
 // Actions
 (function registerActions(): void {
@@ -67,7 +68,7 @@ import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 			const configurationService = accessor.get(IConfigurationService);
 
 			const confirmBeforeQuit = configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeQuit');
-			if (confirmBeforeQuit === 'always' || confirmBeforeQuit === 'keyboardOnly') {
+			if (confirmBeforeQuit === 'always' || (confirmBeforeQuit === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed)) {
 				const confirmed = await NativeWindow.confirmOnShutdown(accessor, ShutdownReason.QUIT);
 				if (!confirmed) {
 					return; // quit prevented by user
