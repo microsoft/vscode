@@ -46,6 +46,8 @@ import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Position } from 'vs/editor/common/core/position';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { CommentThreadRangeDecorator } from 'vs/workbench/contrib/comments/browser/commentThreadRangeDecorator';
+import { commentThreadRangeBackground, commentThreadRangeBorder } from 'vs/workbench/contrib/comments/browser/commentColors';
 
 export const ID = 'editor.contrib.review';
 
@@ -239,6 +241,7 @@ export class CommentController implements IEditorContribution {
 	private _commentWidgets: ReviewZoneWidget[];
 	private _commentInfos: ICommentInfo[];
 	private _commentingRangeDecorator!: CommentingRangeDecorator;
+	private _commentThreadRangeDecorator!: CommentThreadRangeDecorator;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private _commentingRangeSpaceReserved = false;
 	private _computePromise: CancelablePromise<Array<ICommentInfo | null>> | null;
@@ -281,6 +284,8 @@ export class CommentController implements IEditorContribution {
 				this.registerEditorListeners();
 			}
 		}));
+
+		this._commentThreadRangeDecorator = new CommentThreadRangeDecorator();
 
 		this.globalToDispose.add(this.commentService.onDidDeleteDataProvider(ownerId => {
 			delete this._pendingCommentCache[ownerId];
@@ -552,7 +557,7 @@ export class CommentController implements IEditorContribution {
 				this.displayCommentThread(e.owner, thread, pendingCommentText);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
 			});
-
+			this._commentThreadRangeDecorator.update(this.editor, commentInfo);
 		}));
 
 		this.beginCompute().then(() => {
@@ -755,6 +760,7 @@ export class CommentController implements IEditorContribution {
 		});
 
 		this._commentingRangeDecorator.update(this.editor, this._commentInfos);
+		this._commentThreadRangeDecorator.update(this.editor, this._commentInfos);
 	}
 
 	public closeWidget(): void {
@@ -992,5 +998,19 @@ registerThemingParticipant((theme, collector) => {
 	const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
 	if (statusBarItemActiveBackground) {
 		collector.addRule(`.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label:active { background-color: ${statusBarItemActiveBackground}; border: 1px solid transparent;}`);
+	}
+
+	const commentThreadRangeBackgroundColor = theme.getColor(commentThreadRangeBackground);
+	if (commentThreadRangeBackgroundColor) {
+		collector.addRule(`.monaco-editor .comment-thread-range { background-color: ${commentThreadRangeBackgroundColor};}`);
+	}
+
+	const commentThreadRangeBorderColor = theme.getColor(commentThreadRangeBorder);
+	if (commentThreadRangeBorderColor) {
+		collector.addRule(`.monaco-editor .comment-thread-range {
+		border-color: ${commentThreadRangeBorderColor};
+		border-width: 1px;
+		border-style: solid;
+		box-sizing: border-box; }`);
 	}
 });
