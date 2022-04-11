@@ -69,7 +69,7 @@ const NATIVE_TYPES = [
 	'ICommonNativeHostService'
 ];
 
-const RULES: IRule[] = [
+const RULES = [
 
 	// Tests: skip
 	{
@@ -209,9 +209,6 @@ const RULES: IRule[] = [
 			// --> types from electron.d.ts that duplicate from lib.dom.d.ts
 			'Event',
 			'Request'
-		],
-		disallowedTypes: [
-			'ipcMain' // not allowed, use validatedIpcMain instead
 		],
 		disallowedDefinitions: [
 			'lib.dom.d.ts'	// no DOM

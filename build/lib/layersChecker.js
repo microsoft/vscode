@@ -191,9 +191,6 @@ const RULES = [
             'Event',
             'Request'
         ],
-        disallowedTypes: [
-            'ipcMain' // not allowed, use validatedIpcMain instead
-        ],
         disallowedDefinitions: [
             'lib.dom.d.ts' // no DOM
         ]
