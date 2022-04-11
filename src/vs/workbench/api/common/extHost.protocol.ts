@@ -979,6 +979,17 @@ export interface INotebookKernelDto2 {
 	preloads?: { uri: UriComponents; provides: string[] }[];
 }
 
+export interface INotebookProxyKernelDto {
+	id: string;
+	notebookType: string;
+	extensionId: ExtensionIdentifier;
+	extensionLocation: UriComponents;
+	label: string;
+	detail?: string;
+	description?: string;
+	kind?: string;
+}
+
 export interface ICellExecuteOutputEditDto {
 	editType: CellExecutionUpdateType.Output;
 	append?: boolean;
@@ -1004,6 +1015,8 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean>;
 	$addKernel(handle: number, data: INotebookKernelDto2): Promise<void>;
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void;
+	$addProxyKernel(handle: number, data: INotebookProxyKernelDto): Promise<void>;
+	$updateProxyKernel(handle: number, data: Partial<INotebookProxyKernelDto>): void;
 	$removeKernel(handle: number): void;
 	$updateNotebookPriority(handle: number, uri: UriComponents, value: number | undefined): void;
 
@@ -2097,6 +2110,7 @@ export interface ExtHostNotebookKernelsShape {
 	$cancelCells(handle: number, uri: UriComponents, handles: number[]): Promise<void>;
 	$acceptKernelMessageFromRenderer(handle: number, editorId: string, message: any): void;
 	$cellExecutionChanged(uri: UriComponents, cellHandle: number, state: notebookCommon.NotebookCellExecutionState | undefined): void;
+	$resolveKernel(handle: number): Promise<string | null>;
 }
 
 export interface ExtHostInteractiveShape {

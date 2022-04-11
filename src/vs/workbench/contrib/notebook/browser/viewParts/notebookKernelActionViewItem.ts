@@ -9,14 +9,16 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { INotebookKernelMatchResult, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelMatchResult, INotebookKernelService, ProxyKernelState } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { Event } from 'vs/base/common/event';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export class NotebooKernelActionViewItem extends ActionViewItem {
 
 	private _kernelLabel?: HTMLAnchorElement;
+	private _kernelDisposable: DisposableStore;
 
 	constructor(
 		actualAction: IAction,
@@ -31,6 +33,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		this._register(_editor.onDidChangeModel(this._update, this));
 		this._register(_notebookKernelService.onDidChangeNotebookAffinity(this._update, this));
 		this._register(_notebookKernelService.onDidChangeSelectedNotebooks(this._update, this));
+		this._kernelDisposable = this._register(new DisposableStore());
 	}
 
 	override render(container: HTMLElement): void {
@@ -63,15 +66,33 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 	}
 
 	private _updateActionFromKernelInfo(info: INotebookKernelMatchResult): void {
-
+		this._kernelDisposable.clear();
 		this._action.enabled = true;
-		const selectedOrSuggested = info.selected ?? (info.all.length === 1 && info.suggestions.length === 1 ? info.suggestions[0] : undefined);
+		const selectedOrSuggested = info.selected ?? ((info.all.length === 1 && info.suggestions.length === 1 && !('resolveKernel' in info.suggestions[0])) ? info.suggestions[0] : undefined);
 		if (selectedOrSuggested) {
 			// selected or suggested kernel
 			this._action.label = selectedOrSuggested.label;
 			this._action.tooltip = selectedOrSuggested.description ?? selectedOrSuggested.detail ?? '';
 			if (!info.selected) {
 				// special UI for selected kernel?
+			}
+
+			if ('resolveKernel' in selectedOrSuggested) {
+				if (selectedOrSuggested.connectionState === ProxyKernelState.Initializing) {
+					this._action.label = localize('initializing', "Initializing...");
+				} else {
+					this._action.label = selectedOrSuggested.label;
+				}
+
+				this._kernelDisposable.add(selectedOrSuggested.onDidChange(e => {
+					if (e.connectionState) {
+						if (selectedOrSuggested.connectionState === ProxyKernelState.Initializing) {
+							this._action.label = localize('initializing', "Initializing...");
+						} else {
+							this._action.label = selectedOrSuggested.label;
+						}
+					}
+				}));
 			}
 
 		} else {

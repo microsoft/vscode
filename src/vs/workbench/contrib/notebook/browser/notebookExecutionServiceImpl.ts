@@ -12,7 +12,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { CellKind, INotebookTextModel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelService, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 export class NotebookExecutionService implements INotebookExecutionService {
 	declare _serviceBrand: undefined;
@@ -42,6 +42,23 @@ export class NotebookExecutionService implements INotebookExecutionService {
 		}
 
 		if (!kernel) {
+			return;
+		}
+
+		if (kernel.type === NotebookKernelType.Proxy) {
+			// we should actually resolve the kernel
+			const resolved = await kernel.resolveKernel(notebook.uri);
+			let kernels = this._notebookKernelService.getMatchingKernel(notebook);
+			const newlyMatchedKernel = kernels.all.find(k => k.id === resolved);
+
+			if (!newlyMatchedKernel) {
+				return;
+			}
+
+			kernel = newlyMatchedKernel;
+		}
+
+		if (kernel.type === NotebookKernelType.Proxy) {
 			return;
 		}
 
@@ -75,6 +92,11 @@ export class NotebookExecutionService implements INotebookExecutionService {
 		this._logService.debug(`NotebookExecutionService#cancelNotebookCellHandles ${JSON.stringify(cellsArr)}`);
 		const kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
 		if (kernel) {
+			if (kernel.type === NotebookKernelType.Proxy) {
+				// we should handle cancelling proxy kernel too
+				return;
+			}
+
 			await kernel.cancelNotebookCellExecution(notebook.uri, cellsArr);
 		}
 	}

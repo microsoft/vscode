@@ -76,7 +76,7 @@ import { CellKind, INotebookSearchOptions, SelectionStateType } from 'vs/workben
 import { NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelService, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookOptions, OutputInnerContainerTopPadding } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -2108,6 +2108,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 		const { selected } = this.notebookKernelService.getMatchingKernel(this.textModel);
+		if (!selected) {
+			return;
+		}
+
+		if (selected.type === NotebookKernelType.Proxy) {
+			return;
+		}
+
 		if (!this._webview?.isResolved()) {
 			await this._resolveWebview();
 		}

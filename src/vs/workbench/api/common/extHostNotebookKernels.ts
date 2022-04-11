@@ -12,7 +12,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape, NotebookOutputDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IMainContext, INotebookKernelDto2, INotebookProxyKernelDto, MainContext, MainThreadNotebookKernelsShape, NotebookOutputDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
@@ -34,6 +34,13 @@ interface IKernelData {
 	associatedNotebooks: ResourceMap<boolean>;
 }
 
+interface IProxyKernelData {
+	extensionId: ExtensionIdentifier;
+	controller: vscode.NotebookProxyController;
+	onDidChangeSelection: Emitter<{ selected: boolean; notebook: vscode.NotebookDocument }>;
+	associatedNotebooks: ResourceMap<boolean>;
+}
+
 type ExtHostSelectKernelArgs = ControllerInfo | { notebookEditor: vscode.NotebookEditor } | ControllerInfo & { notebookEditor: vscode.NotebookEditor } | undefined;
 export type SelectKernelReturnArgs = ControllerInfo | { notebookEditorId: string } | ControllerInfo & { notebookEditorId: string } | undefined;
 type ControllerInfo = { id: string; extension: string };
@@ -45,6 +52,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 	private readonly _activeExecutions = new ResourceMap<NotebookCellExecutionTask>();
 
 	private readonly _kernelData = new Map<number, IKernelData>();
+	private readonly _proxyKernelData: Map<number, IProxyKernelData> = new Map<number, IProxyKernelData>();
 	private _handlePool: number = 0;
 
 	private readonly _onDidChangeCellExecutionState = new Emitter<vscode.NotebookCellExecutionStateChangeEvent>();
@@ -257,8 +265,105 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		return controller;
 	}
 
+	createNotebookProxyController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler: () => vscode.NotebookController | Thenable<vscode.NotebookController>): vscode.NotebookProxyController {
+		const handle = this._handlePool++;
+
+		let isDisposed = false;
+		const commandDisposables = new DisposableStore();
+		const onDidChangeSelection = new Emitter<{ selected: boolean; notebook: vscode.NotebookDocument }>();
+
+		const data: INotebookProxyKernelDto = {
+			id: createKernelId(extension, id),
+			notebookType: viewType,
+			extensionId: extension.identifier,
+			extensionLocation: extension.extensionLocation,
+			label: label || extension.identifier.value,
+		};
+
+		let _resolveHandler = handler;
+
+		this._proxy.$addProxyKernel(handle, data).catch(err => {
+			// this can happen when a kernel with that ID is already registered
+			console.log(err);
+			isDisposed = true;
+		});
+
+		let tokenPool = 0;
+		const _update = () => {
+			if (isDisposed) {
+				return;
+			}
+			const myToken = ++tokenPool;
+			Promise.resolve().then(() => {
+				if (myToken === tokenPool) {
+					this._proxy.$updateProxyKernel(handle, data);
+				}
+			});
+		};
+
+		// notebook documents that are associated to this controller
+		const associatedNotebooks = new ResourceMap<boolean>();
+
+		const controller: vscode.NotebookProxyController = {
+			get id() { return id; },
+			get notebookType() { return data.notebookType; },
+			onDidChangeSelectedNotebooks: onDidChangeSelection.event,
+			get label() {
+				return data.label;
+			},
+			set label(value) {
+				data.label = value ?? extension.displayName ?? extension.name;
+				_update();
+			},
+			get detail() {
+				return data.detail ?? '';
+			},
+			set detail(value) {
+				data.detail = value;
+				_update();
+			},
+			get description() {
+				return data.description ?? '';
+			},
+			set description(value) {
+				data.description = value;
+				_update();
+			},
+			get kind() {
+				checkProposedApiEnabled(extension, 'notebookControllerKind');
+				return data.kind ?? '';
+			},
+			set kind(value) {
+				checkProposedApiEnabled(extension, 'notebookControllerKind');
+				data.kind = value;
+				_update();
+			},
+			get resolveHandler() {
+				return _resolveHandler;
+			},
+			dispose: () => {
+				if (!isDisposed) {
+					this._logService.trace(`NotebookController[${handle}], DISPOSED`);
+					isDisposed = true;
+					this._kernelData.delete(handle);
+					commandDisposables.dispose();
+					onDidChangeSelection.dispose();
+					this._proxy.$removeKernel(handle);
+				}
+			}
+		};
+
+		this._proxyKernelData.set(handle, {
+			extensionId: extension.identifier,
+			controller,
+			onDidChangeSelection,
+			associatedNotebooks
+		});
+		return controller;
+	}
+
 	$acceptNotebookAssociation(handle: number, uri: UriComponents, value: boolean): void {
-		const obj = this._kernelData.get(handle);
+		const obj = this._kernelData.get(handle) ?? this._proxyKernelData.get(handle);
 		if (obj) {
 			// update data structure
 			const notebook = this._extHostNotebook.getNotebookDocument(URI.revive(uri))!;
@@ -344,6 +449,28 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				state: state ? extHostTypeConverters.NotebookCellExecutionState.to(state) : ExtHostNotebookCellExecutionState.Idle
 			});
 		}
+	}
+
+	async $resolveKernel(handle: number): Promise<string | null> {
+		const obj = this._proxyKernelData.get(handle);
+		if (!obj) {
+			// extension can dispose kernels in the meantime
+			return null;
+		}
+
+		const controller = await obj.controller.resolveHandler();
+		let matchedKernelData: IKernelData | undefined;
+		this._kernelData.forEach(d => {
+			if (d.controller.id === controller.id) {
+				matchedKernelData = d;
+			}
+		});
+
+		if (matchedKernelData) {
+			return `${matchedKernelData.extensionId.value}/${matchedKernelData.controller.id}`;
+		}
+
+		return null;
 	}
 
 	// ---

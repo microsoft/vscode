@@ -31,7 +31,7 @@ import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/vi
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellUri, IOrderedMimeType, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
@@ -127,7 +127,8 @@ export class CellOutputElement extends Disposable {
 			this.notebookEditor.hasModel() &&
 			this.innerContainer &&
 			this.renderResult &&
-			this.renderResult.type === RenderOutputType.Extension
+			this.renderResult.type === RenderOutputType.Extension &&
+			this.notebookEditor.activeKernel?.type === NotebookKernelType.Resolved
 		) {
 			// Output rendered by extension renderer got an update
 			const [mimeTypes, pick] = this.output.resolveMimeTypes(this.notebookEditor.textModel, this.notebookEditor.activeKernel?.preloadProvides);
@@ -191,7 +192,7 @@ export class CellOutputElement extends Disposable {
 
 		const notebookTextModel = this.notebookEditor.textModel;
 
-		const [mimeTypes, pick] = this.output.resolveMimeTypes(notebookTextModel, this.notebookEditor.activeKernel?.preloadProvides);
+		const [mimeTypes, pick] = this.output.resolveMimeTypes(notebookTextModel, this.notebookEditor.activeKernel?.type === NotebookKernelType.Resolved ? this.notebookEditor.activeKernel?.preloadProvides : undefined);
 
 		if (!mimeTypes.find(mimeType => mimeType.isTrusted) || mimeTypes.length === 0) {
 			this.viewCell.updateOutputHeight(index, 0, 'CellOutputElement#noMimeType');
@@ -299,7 +300,7 @@ export class CellOutputElement extends Disposable {
 	}
 
 	private async _pickActiveMimeTypeRenderer(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, viewModel: ICellOutputViewModel) {
-		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel, kernel?.preloadProvides);
+		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel, kernel?.type === NotebookKernelType.Resolved ? kernel?.preloadProvides : undefined);
 
 		const items: IMimeTypeRenderer[] = [];
 		const unsupportedItems: IMimeTypeRenderer[] = [];

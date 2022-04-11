@@ -31,8 +31,13 @@ export interface INotebookKernelChangeEvent {
 	hasExecutionOrder?: true;
 }
 
-export interface INotebookKernel {
+export const enum NotebookKernelType {
+	Resolved,
+	Proxy = 1
+}
 
+export interface IResolvedNotebookKernel {
+	readonly type: NotebookKernelType.Resolved;
 	readonly id: string;
 	readonly viewType: string;
 	readonly onDidChange: Event<Readonly<INotebookKernelChangeEvent>>;
@@ -54,6 +59,33 @@ export interface INotebookKernel {
 	cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
 }
 
+export const enum ProxyKernelState {
+	Disconnected = 1,
+	Connected = 2,
+	Initializing = 3
+}
+
+export interface INotebookProxyKernelChangeEvent extends INotebookKernelChangeEvent {
+	connectionState?: true;
+}
+
+export interface INotebookProxyKernel {
+	readonly type: NotebookKernelType.Proxy;
+	readonly id: string;
+	readonly viewType: string;
+	readonly extension: ExtensionIdentifier;
+	readonly onDidChange: Event<Readonly<INotebookProxyKernelChangeEvent>>;
+	label: string;
+	description?: string;
+	detail?: string;
+	kind?: string;
+	supportedLanguages: string[];
+	connectionState: ProxyKernelState;
+	resolveKernel(uri: URI): Promise<string | null>;
+}
+
+export type INotebookKernel = IResolvedNotebookKernel | INotebookProxyKernel;
+
 export interface INotebookTextModelLike { uri: URI; viewType: string }
 
 export const INotebookKernelService = createDecorator<INotebookKernelService>('INotebookKernelService');
@@ -66,7 +98,8 @@ export interface INotebookKernelService {
 	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent>;
 	readonly onDidChangeNotebookAffinity: Event<void>;
 
-	registerKernel(kernel: INotebookKernel): IDisposable;
+	registerKernel(kernel: IResolvedNotebookKernel): IDisposable;
+	registerProxyKernel(proxyKernel: INotebookProxyKernel): IDisposable;
 
 	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult;
 

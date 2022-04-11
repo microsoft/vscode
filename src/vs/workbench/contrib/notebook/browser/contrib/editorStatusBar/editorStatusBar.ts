@@ -197,6 +197,11 @@ registerAction2(class extends Action2 {
 					quickPickItems.push(...suggestions.map(toQuickPick));
 				}
 
+				quickPickItems.push({
+					id: 'install',
+					label: nls.localize('installKernels', "Install kernels from the marketplace"),
+				});
+
 				// Next display all of the kernels grouped by categories or extensions.
 				// If we don't have a kind, always display those at the bottom.
 				const picks = all.filter(item => !suggestions.includes(item)).map(toQuickPick);
