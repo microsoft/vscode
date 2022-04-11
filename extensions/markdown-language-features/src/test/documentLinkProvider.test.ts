@@ -239,4 +239,12 @@ suite('markdown.DocumentLinkProvider', () => {
 		const links = await getLinksForFile(text);
 		assert.strictEqual(links.length, 1);
 	});
+
+	test('Should find autolinks', async () => {
+		const links = await getLinksForFile('pre <http://example.com> post');
+		assert.strictEqual(links.length, 1);
+
+		const link = links[0];
+		assertRangeEqual(link.range, new vscode.Range(0, 5, 0, 23));
+	});
 });

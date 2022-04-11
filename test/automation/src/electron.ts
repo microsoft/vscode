@@ -43,6 +43,10 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		`--logsPath=${logsPath}`
 	];
 
+	if (options.verbose) {
+		args.push('--verbose');
+	}
+
 	if (process.platform === 'linux') {
 		args.push('--disable-gpu'); // Linux has trouble in VMs to render properly with GPU enabled
 	}

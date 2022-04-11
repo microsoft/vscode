@@ -227,14 +227,14 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 				const range = Range.lift(edit.textEdit.textEdit.range);
 
 				//prefix-math
-				let startTokens = textModel.getLineTokens(range.startLineNumber);
+				let startTokens = textModel.tokenization.getLineTokens(range.startLineNumber);
 				let prefixLen = 23; // default value for the no tokens/grammar case
 				for (let idx = startTokens.findTokenIndexAtOffset(range.startColumn) - 1; prefixLen < 50 && idx >= 0; idx--) {
 					prefixLen = range.startColumn - startTokens.getStartOffset(idx);
 				}
 
 				//suffix-math
-				let endTokens = textModel.getLineTokens(range.endLineNumber);
+				let endTokens = textModel.tokenization.getLineTokens(range.endLineNumber);
 				let suffixLen = 0;
 				for (let idx = endTokens.findTokenIndexAtOffset(range.endColumn); suffixLen < 50 && idx < endTokens.getCount(); idx++) {
 					suffixLen += endTokens.getEndOffset(idx) - endTokens.getStartOffset(idx);
