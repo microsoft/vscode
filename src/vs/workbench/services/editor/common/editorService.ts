@@ -11,7 +11,7 @@ import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { ICloseEditorOptions, IEditorGroup, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
-import { IGroupEditorMoveEvent, IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -88,12 +88,15 @@ export interface IOpenEditorsOptions {
 	readonly validateTrust?: boolean;
 }
 
-export interface IEditorsChangeEvent extends IGroupModelChangeEvent {
+export interface IEditorsChangeEvent {
+	/**
+	 * The group which had the editor change
+	 */
 	groupId: GroupIdentifier;
-}
-
-export interface IEditorsMoveEvent extends IGroupEditorMoveEvent {
-	groupId: GroupIdentifier;
+	/*
+	 * The event fired from the model
+	 */
+	event: IGroupModelChangeEvent;
 }
 
 export interface IEditorService {

@@ -11,7 +11,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { GroupDirection, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorsChangeEvent, IEditorService, IEditorsMoveEvent, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorsChangeEvent, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
@@ -21,6 +21,7 @@ import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/termi
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { isEqual } from 'vs/base/common/resources';
+import { isGroupEditorMoveEvent } from 'vs/workbench/common/editor/editorGroupModel';
 
 interface TabInfo {
 	tab: IEditorTabDto;
@@ -469,10 +470,12 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	 * The main handler for the tab events
 	 * @param events The list of events to process
 	 */
-	private _updateTabsModel(event: IEditorsChangeEvent | IEditorsMoveEvent): void {
+	private _updateTabsModel(changeEvent: IEditorsChangeEvent): void {
+		const event = changeEvent.event;
+		const groupId = changeEvent.groupId;
 		switch (event.kind) {
 			case GroupModelChangeKind.GROUP_ACTIVE:
-				if (event.groupId === this._editorGroupsService.activeGroup.id) {
+				if (groupId === this._editorGroupsService.activeGroup.id) {
 					this._onDidGroupActivate();
 					break;
 				} else {
@@ -480,42 +483,42 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				}
 			case GroupModelChangeKind.EDITOR_LABEL:
 				if (event.editor !== undefined && event.editorIndex !== undefined) {
-					this._onDidTabLabelChange(event.groupId, event.editor, event.editorIndex);
+					this._onDidTabLabelChange(groupId, event.editor, event.editorIndex);
 					break;
 				}
 			case GroupModelChangeKind.EDITOR_OPEN:
 				if (event.editor !== undefined && event.editorIndex !== undefined) {
-					this._onDidTabOpen(event.groupId, event.editor, event.editorIndex);
+					this._onDidTabOpen(groupId, event.editor, event.editorIndex);
 					break;
 				}
 			case GroupModelChangeKind.EDITOR_CLOSE:
 				if (event.editorIndex !== undefined) {
-					this._onDidTabClose(event.groupId, event.editorIndex);
+					this._onDidTabClose(groupId, event.editorIndex);
 					break;
 				}
 			case GroupModelChangeKind.EDITOR_ACTIVE:
 				if (event.editorIndex !== undefined) {
-					this._onDidTabActiveChange(event.groupId, event.editorIndex);
+					this._onDidTabActiveChange(groupId, event.editorIndex);
 					break;
 				}
 			case GroupModelChangeKind.EDITOR_DIRTY:
 				if (event.editorIndex !== undefined && event.editor !== undefined) {
-					this._onDidTabDirty(event.groupId, event.editorIndex, event.editor);
+					this._onDidTabDirty(groupId, event.editorIndex, event.editor);
 					break;
 				}
 			case GroupModelChangeKind.EDITOR_STICKY:
 				if (event.editorIndex !== undefined && event.editor !== undefined) {
-					this._onDidTabPinChange(event.groupId, event.editorIndex, event.editor);
+					this._onDidTabPinChange(groupId, event.editorIndex, event.editor);
 					break;
 				}
 			case GroupModelChangeKind.EDITOR_PIN:
 				if (event.editorIndex !== undefined && event.editor !== undefined) {
-					this._onDidTabPreviewChange(event.groupId, event.editorIndex, event.editor);
+					this._onDidTabPreviewChange(groupId, event.editorIndex, event.editor);
 					break;
 				}
 			case GroupModelChangeKind.EDITOR_MOVE:
-				if (event.editor && event.editorIndex !== undefined && (event as IEditorsMoveEvent).oldEditorIndex !== undefined) {
-					this._onDidTabMove(event.groupId, event.editorIndex, (event as IEditorsMoveEvent).oldEditorIndex, event.editor);
+				if (isGroupEditorMoveEvent(event) && event.editor && event.editorIndex !== undefined && event.oldEditorIndex !== undefined) {
+					this._onDidTabMove(groupId, event.editorIndex, event.oldEditorIndex, event.editor);
 					break;
 				}
 			default:
