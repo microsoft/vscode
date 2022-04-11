@@ -65,7 +65,7 @@ export class MainThreadAuthenticationProvider extends Disposable implements IAut
 		quickPick.items = items;
 		quickPick.selectedItems = items.filter(item => item.extension.allowed === undefined || item.extension.allowed);
 		quickPick.title = nls.localize('manageTrustedExtensions', "Manage Trusted Extensions");
-		quickPick.placeholder = nls.localize('manageExensions', "Choose which extensions can access this account");
+		quickPick.placeholder = nls.localize('manageExtensions', "Choose which extensions can access this account");
 
 		quickPick.onDidAccept(() => {
 			const updatedAllowedList = quickPick.items
@@ -102,7 +102,7 @@ export class MainThreadAuthenticationProvider extends Disposable implements IAut
 		const result = await this.dialogService.show(
 			Severity.Info,
 			accountUsages.length
-				? nls.localize('signOutMessagve', "The account '{0}' has been used by: \n\n{1}\n\n Sign out from these extensions?", accountName, accountUsages.map(usage => usage.extensionName).join('\n'))
+				? nls.localize('signOutMessage', "The account '{0}' has been used by: \n\n{1}\n\n Sign out from these extensions?", accountName, accountUsages.map(usage => usage.extensionName).join('\n'))
 				: nls.localize('signOutMessageSimple', "Sign out of '{0}'?", accountName),
 			[
 				nls.localize('signOut', "Sign Out"),
