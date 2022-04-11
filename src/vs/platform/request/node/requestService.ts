@@ -62,7 +62,7 @@ export class RequestService extends Disposable implements IRequestService {
 	}
 
 	async request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		this.logService.trace('RequestService#request', options.url);
+		this.logService.info('RequestService#request (node) - begin', options.url);
 
 		const { proxyUrl, strictSSL } = this;
 
@@ -72,7 +72,7 @@ export class RequestService extends Disposable implements IRequestService {
 		} catch (error) {
 			if (!this.shellEnvErrorLogged) {
 				this.shellEnvErrorLogged = true;
-				this.logService.error('RequestService#request resolving shell environment failed', error);
+				this.logService.error('RequestService#request (node) resolving shell environment failed', error);
 			}
 		}
 
@@ -92,7 +92,17 @@ export class RequestService extends Disposable implements IRequestService {
 			};
 		}
 
-		return this._request(options, token);
+		try {
+			const res = await this._request(options, token);
+
+			this.logService.info('RequestService#request (node) - success', options.url);
+
+			return res;
+		} catch (error) {
+			this.logService.error('RequestService#request (node) - error', options.url, error);
+
+			throw error;
+		}
 	}
 
 	private async getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunction> {
