@@ -591,7 +591,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					isWeb ?
 						localize('window.confirmBeforeClose.keyboardOnly.web', "Only ask for confirmation if a keybinding was used to close the window. Note that detection may not be possible in some cases.") :
 						localize('window.confirmBeforeClose.keyboardOnly', "Only ask for confirmation if a keybinding was used."),
-					localize('window.confirmBeforeClose.never', "Never explicitly ask for confirmation unless data loss is imminent.")
+					isWeb ?
+						localize('window.confirmBeforeClose.never.web', "Never explicitly ask for confirmation unless data loss is imminent.") :
+						localize('window.confirmBeforeClose.never', "Never explicitly ask for confirmation.")
 				],
 				'default': (isWeb && !isStandalone()) ? 'keyboardOnly' : 'never', // on by default in web, unless PWA, never on desktop
 				'markdownDescription': isWeb ?

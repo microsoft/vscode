@@ -335,8 +335,8 @@ export class NativeWindow extends Disposable {
 	private onBeforeShutdown({ veto, reason }: BeforeShutdownEvent): void {
 		if (reason === ShutdownReason.CLOSE) {
 			const confirmBeforeCloseSetting = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
-			const confirmBeforeClose = confirmBeforeCloseSetting === 'always' || (confirmBeforeCloseSetting === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed);
 
+			const confirmBeforeClose = confirmBeforeCloseSetting === 'always' || (confirmBeforeCloseSetting === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed);
 			if (confirmBeforeClose) {
 
 				// When we need to confirm on close or quit, veto the shutdown
