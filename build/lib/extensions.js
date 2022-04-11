@@ -223,7 +223,7 @@ function fromGithub({ name, version, repo, metadata }) {
     }).pipe(through2.obj(function (file, _enc, callback) {
         const asset = JSON.parse(file.contents.toString()).assets.find((a) => a.name.endsWith('.vsix'));
         if (!asset) {
-            callback(new Error(`Could not find vsix in release of ${repo} @ ${version}`));
+            return callback(new Error(`Could not find vsix in release of ${repo} @ ${version}`));
         }
         const res = got_1.default.stream(asset.url, { headers: ghDownloadHeaders, followRedirect: true });
         file.contents = res.pipe(through2());

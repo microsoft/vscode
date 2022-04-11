@@ -262,7 +262,7 @@ export function fromGithub({ name, version, repo, metadata }: IBuiltInExtension)
 	}).pipe(through2.obj(function (file, _enc, callback) {
 		const asset = JSON.parse(file.contents.toString()).assets.find((a: any) => a.name.endsWith('.vsix'));
 		if (!asset) {
-			callback(new Error(`Could not find vsix in release of ${repo} @ ${version}`));
+			return callback(new Error(`Could not find vsix in release of ${repo} @ ${version}`));
 		}
 
 		const res = got.stream(asset.url, { headers: ghDownloadHeaders, followRedirect: true });
