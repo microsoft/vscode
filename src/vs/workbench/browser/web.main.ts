@@ -134,9 +134,7 @@ export class BrowserMain extends Disposable {
 					},
 					async openUri(uri: URI): Promise<boolean> {
 						return openerService.open(uri, {});
-					}
-				},
-				telemetry: {
+					},
 					telemetryLevel: telemetryService.telemetryLevel,
 				},
 				window: {

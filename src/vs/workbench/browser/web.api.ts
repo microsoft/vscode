@@ -64,9 +64,7 @@ export interface IWorkbench {
 		 * workbench.
 		 */
 		openUri(target: URI): Promise<boolean>;
-	};
 
-	telemetry: {
 		/**
 		 * Current workbench telemetry level.
 		 */

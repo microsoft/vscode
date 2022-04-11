@@ -122,13 +122,11 @@ export namespace env {
 
 		return workbench.env.openUri(target);
 	}
-}
 
-export namespace telemetry {
 	export async function telemetryLevel(): Promise<IObservableValue<TelemetryLevel>> {
 		const workbench = await workbenchPromise.p;
 
-		return workbench.telemetry.telemetryLevel;
+		return workbench.env.telemetryLevel;
 	}
 }
 
