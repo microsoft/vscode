@@ -582,10 +582,6 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 					// visibleColumns stay as they are (this is a bug and needs to be fixed, but it is not a regression)
 					// model-columns must be converted to view-model columns.
 					const result = bracketGuides.map(g => {
-						/*if (g.onlyForWrappedLines && !viewLineInfo.isWrappedLineContinuation) {
-							return undefined;
-						}*/
-
 						if (g.forWrappedLinesAfterColumn !== -1) {
 							const p = this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewPositionOfModelPosition(0, g.forWrappedLinesAfterColumn);
 							if (p.lineNumber >= viewLineInfo.modelLineWrappedLineIdx) {
@@ -593,9 +589,9 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 							}
 						}
 
-						if (g.forWrappedLinesBeforeColumn !== -1) {
-							const p = this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewPositionOfModelPosition(0, g.forWrappedLinesBeforeColumn);
-							if (p.lineNumber <= viewLineInfo.modelLineWrappedLineIdx) {
+						if (g.forWrappedLinesBeforeOrAtColumn !== -1) {
+							const p = this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewPositionOfModelPosition(0, g.forWrappedLinesBeforeOrAtColumn);
+							if (p.lineNumber < viewLineInfo.modelLineWrappedLineIdx) {
 								return undefined;
 							}
 						}

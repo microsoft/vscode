@@ -9,7 +9,7 @@ import { GroupIdentifier, CloseDirection, IEditorCloseEvent, IEditorPane, SaveRe
 import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext } from 'vs/workbench/common/contextkeys';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { Event, Emitter, Relay } from 'vs/base/common/event';
+import { Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor, asCSSUrl } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -26,10 +26,7 @@ import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { EditorProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { localize } from 'vs/nls';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { isCancellationError } from 'vs/base/common/errors';
 import { combinedDisposable, dispose, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
-import { toErrorMessage, isErrorWithActions } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DeferredPromise, Promises, RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
@@ -48,9 +45,8 @@ import { hash } from 'vs/base/common/hash';
 import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { EditorActivation, EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
-import { ILogService } from 'vs/platform/log/common/log';
+import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -134,7 +130,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private readonly whenRestoredPromise = new DeferredPromise<void>();
 	readonly whenRestored = this.whenRestoredPromise.p;
-	private isRestored = false;
 
 	constructor(
 		private accessor: IEditorGroupsAccessor,
@@ -143,14 +138,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@ILogService private readonly logService: ILogService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
@@ -235,7 +227,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Signal restored once editors have restored
 		restoreEditorsPromise.finally(() => {
-			this.isRestored = true;
 			this.whenRestoredPromise.complete();
 		});
 
@@ -1105,9 +1096,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					this._onDidActiveEditorChange.fire({ editor });
 				}
 
-				// Handle errors but do not bubble them up
+				// Indicate error as an event but do not bubble them up
 				if (error) {
-					await this.doHandleOpenEditorError(error, editor, options);
+					this._onDidOpenEditorFail.fire(editor);
 				}
 
 				// Without an editor pane, recover by closing the active editor
@@ -1130,84 +1121,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		return openEditorPromise;
-	}
-
-	private async doHandleOpenEditorError(error: Error, editor: EditorInput, options?: IEditorOptions): Promise<void> {
-
-		// Report error only if we are not told to ignore errors that occur from opening an editor
-		if (!isCancellationError(error) && !options?.ignoreError) {
-
-			// Always log the error to figure out what is going on
-			this.logService.error(error);
-
-			// Since it is more likely that errors fail to open when restoring them e.g.
-			// because files got deleted or moved meanwhile, we do not show any notifications
-			// if we are still restoring editors.
-			if (this.isRestored) {
-
-				// Extract possible error actions from the error
-				let errorActions: readonly IAction[] | undefined = undefined;
-				if (isErrorWithActions(error)) {
-					errorActions = error.actions;
-				}
-
-				// If the context is USER, we try to show a modal dialog instead of a background notification
-				if (options?.source === EditorOpenSource.USER) {
-					const buttons: string[] = [];
-					if (Array.isArray(errorActions) && errorActions.length > 0) {
-						for (const errorAction of errorActions) {
-							buttons.push(errorAction.label);
-						}
-					} else {
-						buttons.push(localize('ok', 'OK'));
-					}
-
-					let cancelId: number | undefined = undefined;
-					if (buttons.length === 1) {
-						buttons.push(localize('cancel', "Cancel"));
-						cancelId = 1;
-					}
-
-					const result = await this.dialogService.show(
-						Severity.Error,
-						localize('editorOpenErrorDialog', "Unable to open '{0}'", editor.getName()),
-						buttons,
-						{
-							detail: toErrorMessage(error),
-							cancelId
-						}
-					);
-
-					// Make sure to run any error action if present
-					if (result.choice !== cancelId && Array.isArray(errorActions)) {
-						const errorAction = errorActions[result.choice];
-						if (errorAction) {
-							errorAction.run();
-						}
-					}
-				}
-
-				// Otherwise, show a background notification.
-				else {
-					const actions = { primary: [] as readonly IAction[] };
-					if (Array.isArray(errorActions)) {
-						actions.primary = errorActions;
-					}
-
-					const handle = this.notificationService.notify({
-						id: `${hash(editor.resource?.toString())}`, // unique per editor
-						severity: Severity.Error,
-						message: localize('editorOpenError', "Unable to open '{0}': {1}.", editor.getName(), toErrorMessage(error)),
-						actions
-					});
-
-					Event.once(handle.onDidClose)(() => actions.primary && dispose(actions.primary));
-				}
-			}
-		}
-
-		// Event
-		this._onDidOpenEditorFail.fire(editor);
 	}
 
 	//#endregion

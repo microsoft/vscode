@@ -6,6 +6,8 @@
 import { Event } from 'vs/base/common/event';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
+import { ClosingBracketKind, OpeningBracketKind } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
+import { PairAstNode } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/ast';
 
 export interface IBracketPairsTextModelPart {
 	/**
@@ -65,9 +67,7 @@ export interface IBracketPairsTextModelPart {
 
 export interface IFoundBracket {
 	range: Range;
-	open: string[];
-	close: string[];
-	isOpen: boolean;
+	bracketInfo: OpeningBracketKind | ClosingBracketKind;
 }
 
 export class BracketInfo {
@@ -88,7 +88,18 @@ export class BracketPairInfo {
 		/** 0-based */
 		public readonly nestingLevel: number,
 		public readonly nestingLevelOfEqualBracketType: number,
-	) { }
+		private readonly bracketPairNode: PairAstNode,
+
+	) {
+	}
+
+	public get openingBracketInfo(): OpeningBracketKind {
+		return this.bracketPairNode.openingBracket.bracketInfo as OpeningBracketKind;
+	}
+
+	public get closingBracketInfo(): ClosingBracketKind | undefined {
+		return this.bracketPairNode.closingBracket?.bracketInfo as ClosingBracketKind | undefined;
+	}
 }
 
 export class BracketPairWithMinIndentationInfo extends BracketPairInfo {
@@ -101,11 +112,12 @@ export class BracketPairWithMinIndentationInfo extends BracketPairInfo {
 		*/
 		nestingLevel: number,
 		nestingLevelOfEqualBracketType: number,
+		bracketPairNode: PairAstNode,
 		/**
 		 * -1 if not requested, otherwise the size of the minimum indentation in the bracket pair in terms of visible columns.
 		*/
 		public readonly minVisibleColumnIndentation: number,
 	) {
-		super(range, openingBracketRange, closingBracketRange, nestingLevel, nestingLevelOfEqualBracketType);
+		super(range, openingBracketRange, closingBracketRange, nestingLevel, nestingLevelOfEqualBracketType, bracketPairNode);
 	}
 }

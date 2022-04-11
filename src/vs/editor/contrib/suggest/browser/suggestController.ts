@@ -434,7 +434,7 @@ export class SuggestController implements IEditorContribution {
 
 		// clear only now - after all tasks are done
 		Promise.all(tasks).finally(() => {
-			this._reportSuggestionAcceptedTelemetry(model, event);
+			this._reportSuggestionAcceptedTelemetry(item, model, event);
 
 			this.model.clear();
 			cts.dispose();
@@ -442,23 +442,25 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private _telemetryGate: number = 0;
-	private _reportSuggestionAcceptedTelemetry(model: ITextModel, acceptedSuggestion: ISelectedSuggestion) {
+	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, acceptedSuggestion: ISelectedSuggestion) {
 		if (this._telemetryGate++ % 100 !== 0) {
 			return;
 		}
 
-		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string };
+		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string; kind: number };
 		type AcceptedSuggestionClassification = {
 			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
 		// _debugDisplayName looks like `vscode.css-language-features(/-:)`, where the last bit is the trigger chars
 		// normalize it to just the extension ID and lowercase
-		const providerId = (acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown').split('(', 1)[0].toLowerCase();
+		const providerId = item.extensionId ? item.extensionId.value : (acceptedSuggestion.item.provider._debugDisplayName ?? 'unknown').split('(', 1)[0].toLowerCase();
 		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
 			providerId,
+			kind: item.completion.kind,
 			basenameHash: hash(basename(model.uri)).toString(16),
 			languageId: model.getLanguageId(),
 			fileExtension: extname(model.uri),

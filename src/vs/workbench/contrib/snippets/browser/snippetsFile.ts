@@ -12,7 +12,7 @@ import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/browser/sni
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IdleValue } from 'vs/base/common/async';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { relativePath } from 'vs/base/common/resources';
@@ -114,7 +114,8 @@ export class Snippet {
 		readonly body: string,
 		readonly source: string,
 		readonly snippetSource: SnippetSource,
-		readonly snippetIdentifier?: string
+		readonly snippetIdentifier?: string,
+		readonly extensionId?: ExtensionIdentifier,
 	) {
 		this.prefixLow = prefix.toLowerCase();
 		this._bodyInsights = new IdleValue(() => new SnippetBodyInsights(this.body));
@@ -332,7 +333,8 @@ export class SnippetFile {
 				body,
 				source,
 				this.source,
-				this._extension && `${relativePath(this._extension.extensionLocation, this.location)}/${name}`
+				this._extension && `${relativePath(this._extension.extensionLocation, this.location)}/${name}`,
+				this._extension?.identifier,
 			));
 		}
 	}

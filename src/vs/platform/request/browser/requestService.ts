@@ -24,14 +24,24 @@ export class RequestService implements IRequestService {
 	) {
 	}
 
-	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		this.logService.trace('RequestService#request', options.url);
+	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		this.logService.info('RequestService#request (browser) - begin', options.url);
 
 		if (!options.proxyAuthorization) {
 			options.proxyAuthorization = this.configurationService.getValue<string>('http.proxyAuthorization');
 		}
 
-		return request(options, token);
+		try {
+			const res = await request(options, token);
+
+			this.logService.info('RequestService#request (browser) - success', options.url);
+
+			return res;
+		} catch (error) {
+			this.logService.error('RequestService#request (browser) - error', options.url, error);
+
+			throw error;
+		}
 	}
 
 	async resolveProxy(url: string): Promise<string | undefined> {

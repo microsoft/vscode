@@ -7,7 +7,6 @@ import { URI } from 'vs/base/common/uri';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionsScannerService, NativeExtensionsScannerService, } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 
@@ -28,5 +27,3 @@ export class ExtensionsScannerService extends NativeExtensionsScannerService imp
 	}
 
 }
-
-registerSingleton(IExtensionsScannerService, ExtensionsScannerService);
