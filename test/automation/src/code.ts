@@ -22,7 +22,7 @@ export interface LaunchOptions {
 	userDataDir: string;
 	readonly extensionsPath: string;
 	readonly logger: Logger;
-	readonly logsPath: string;
+	logsPath: string;
 	readonly verbose?: boolean;
 	readonly extraArgs?: string[];
 	readonly remote?: boolean;

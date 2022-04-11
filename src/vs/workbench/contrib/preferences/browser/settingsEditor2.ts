@@ -1018,13 +1018,15 @@ export class SettingsEditor2 extends EditorPane {
 			target: string;
 		};
 		type SettingsEditorModifiedSettingClassification = {
-			key: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'rzhao271'; comment: 'The setting that is being modified.' };
-			groupId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'rzhao271'; comment: 'Whether the setting is from the local search or remote search provider, if applicable.' };
-			nlpIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; owner: 'rzhao271'; comment: 'The index of the setting in the remote search provider results, if applicable.' };
-			displayIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; owner: 'rzhao271'; comment: 'The index of the setting in the combined search results, if applicable.' };
-			showConfiguredOnly: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; 'owner': 'rzhao271'; comment: 'Whether the user is in the modified view, which shows configured settings only.' };
-			isReset: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'rzhao271'; comment: 'Identifies whether a setting was reset to its default value.' };
-			target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'rzhao271'; comment: 'The scope of the setting, such as user or workspace.' };
+			key: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The setting that is being modified.' };
+			groupId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the setting is from the local search or remote search provider, if applicable.' };
+			nlpIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The index of the setting in the remote search provider results, if applicable.' };
+			displayIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The index of the setting in the combined search results, if applicable.' };
+			showConfiguredOnly: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is in the modified view, which shows configured settings only.' };
+			isReset: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies whether a setting was reset to its default value.' };
+			target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The scope of the setting, such as user or workspace.' };
+			owner: 'rzhao271';
+			comment: 'Event which fires when the user modifies a setting in the settings editor';
 		};
 
 		this.pendingSettingUpdate = null;

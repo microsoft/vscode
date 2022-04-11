@@ -15,7 +15,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Link } from 'vs/platform/opener/browser/link';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorPlaceholderPane, IEditorPlaceholderContents } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
+import { EditorPlaceholder, IEditorPlaceholderContents } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: IEditorOptions | undefined) => Promise<void>;
@@ -24,7 +24,7 @@ export interface IOpenCallbacks {
 /*
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class BaseBinaryResourceEditor extends EditorPlaceholderPane {
+export abstract class BaseBinaryResourceEditor extends EditorPlaceholder {
 
 	private readonly _onDidChangeMetadata = this._register(new Emitter<void>());
 	readonly onDidChangeMetadata = this._onDidChangeMetadata.event;

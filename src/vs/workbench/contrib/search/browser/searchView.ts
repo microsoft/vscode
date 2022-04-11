@@ -1065,8 +1065,10 @@ export class SearchView extends ViewPane {
 
 		this.inputPatternExcludes.setWidth(this.size.width - 28 /* container margin */);
 		this.inputPatternIncludes.setWidth(this.size.width - 28 /* container margin */);
-
-		this.tree.layout(); // The tree will measure its container
+		const widgetHeight = dom.getTotalHeight(this.searchWidget.domNode);
+		const messagesHeight = dom.getTotalHeight(this.messagesElement);
+		const margin = 25;
+		this.tree.layout(this.size.height - widgetHeight - messagesHeight - margin, this.size.width - 28);
 	}
 
 	protected override layoutBody(height: number, width: number): void {

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.67.0",
-  "distro": "a40d8d289fa3740ffe4c939e568bf3b64a40deee",
+  "distro": "a5a6dc6b1c9ba81a52b9e05f31db3298b84c7263",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -145,7 +145,7 @@
     "file-loader": "^4.2.0",
     "glob": "^5.0.13",
     "gulp": "^4.0.0",
-    "gulp-atom-electron": "^1.32.3",
+    "gulp-atom-electron": "^1.33.0",
     "gulp-azure-storage": "^0.12.1",
     "gulp-bom": "^3.0.0",
     "gulp-buffer": "0.0.2",
@@ -181,7 +181,7 @@
     "minimatch": "^3.0.4",
     "minimist": "^1.2.6",
     "mkdirp": "^1.0.4",
-    "mocha": "^8.2.1",
+    "mocha": "^9.2.2",
     "mocha-junit-reporter": "^2.0.0",
     "mocha-multi-reporters": "^1.5.1",
     "npm-run-all": "^4.1.5",
