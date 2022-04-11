@@ -85,14 +85,14 @@ export class BracketTokens {
 	get regExpGlobal(): RegExp | null {
 		if (!this.hasRegExp) {
 			const regExpStr = this.getRegExpStr();
-			this._regExpGlobal = regExpStr ? new RegExp(regExpStr, 'g') : null;
+			this._regExpGlobal = regExpStr ? new RegExp(regExpStr, 'gi') : null;
 			this.hasRegExp = true;
 		}
 		return this._regExpGlobal;
 	}
 
 	getToken(value: string): Token | undefined {
-		return this.map.get(value);
+		return this.map.get(value.toLowerCase());
 	}
 
 	findClosingTokenText(openingBracketIds: SmallImmutableSet<OpeningBracketId>): string | undefined {
