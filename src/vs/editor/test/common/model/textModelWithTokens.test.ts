@@ -31,17 +31,25 @@ function createTextModelWithBrackets(disposables: DisposableStore, text: string,
 }
 
 suite('TextModelWithTokens', () => {
-
 	function testBrackets(contents: string[], brackets: CharacterPair[]): void {
+		const languageId = 'testMode';
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
+		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		const languageService = instantiationService.get(ILanguageService);
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			brackets: brackets
+		}));
+
+
 		function toRelaxedFoundBracket(a: IFoundBracket | null) {
 			if (!a) {
 				return null;
 			}
 			return {
 				range: a.range.toString(),
-				open: a.open[0],
-				close: a.close[0],
-				isOpen: a.isOpen
+				info: a.bracketInfo,
 			};
 		}
 
@@ -71,25 +79,12 @@ suite('TextModelWithTokens', () => {
 				let ch = lineText.charAt(charIndex);
 				if (charIsBracket[ch]) {
 					expectedBrackets.push({
-						open: [openForChar[ch]],
-						close: [closeForChar[ch]],
-						isOpen: charIsOpenBracket[ch],
+						bracketInfo: languageConfigurationService.getLanguageConfiguration(languageId).bracketsNew.getBracketInfo(ch)!,
 						range: new Range(lineIndex + 1, charIndex + 1, lineIndex + 1, charIndex + 2)
 					});
 				}
 			}
 		}
-
-		const languageId = 'testMode';
-		const disposables = new DisposableStore();
-		const instantiationService = createModelServices(disposables);
-		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
-		const languageService = instantiationService.get(ILanguageService);
-
-		disposables.add(languageService.registerLanguage({ id: languageId }));
-		disposables.add(languageConfigurationService.register(languageId, {
-			brackets: brackets
-		}));
 
 		const model = disposables.add(instantiateTextModel(instantiationService, contents.join('\n'), languageId));
 
@@ -165,7 +160,11 @@ function assertIsNotBracket(model: TextModel, lineNumber: number, column: number
 }
 
 function assertIsBracket(model: TextModel, testPosition: Position, expected: [Range, Range]): void {
+	expected.sort(Range.compareRangesUsingStarts);
 	const actual = model.bracketPairs.matchBracket(testPosition);
+	if (actual) {
+		actual.sort(Range.compareRangesUsingStarts);
+	}
 	assert.deepStrictEqual(actual, expected, 'matches brackets at ' + testPosition);
 }
 
@@ -652,7 +651,7 @@ suite('TextModelWithTokens regression tests', () => {
 		);
 
 		const actual = model.bracketPairs.matchBracket(new Position(3, 9));
-		assert.deepStrictEqual(actual, [new Range(3, 6, 3, 17), new Range(2, 6, 2, 14)]);
+		assert.deepStrictEqual(actual, [new Range(2, 6, 2, 14), new Range(3, 6, 3, 17)]);
 
 		disposables.dispose();
 	});
