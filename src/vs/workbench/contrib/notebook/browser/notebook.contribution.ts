@@ -892,5 +892,11 @@ configurationRegistry.registerConfiguration({
 			enum: ['always', 'never', 'fromEditor'],
 			default: 'fromEditor'
 		},
+		[NotebookSetting.outputLineHeight]: {
+			markdownDescription: nls.localize('notebook.outputLineHeight', "line height of the output text"),
+			type: 'number',
+			default: 22,
+			tags: ['notebookLayout']
+		},
 	}
 });

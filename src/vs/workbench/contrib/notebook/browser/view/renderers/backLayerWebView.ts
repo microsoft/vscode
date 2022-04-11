@@ -81,6 +81,7 @@ export interface INotebookDelegateForWebview {
 interface BacklayerWebviewOptions {
 	readonly outputNodePadding: number;
 	readonly outputNodeLeftPadding: number;
+	readonly outputLineHeight: number;
 	readonly previewNodePadding: number;
 	readonly markdownLeftMargin: number;
 	readonly leftMargin: number;
@@ -205,6 +206,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			'notebook-markdown-min-height': `${this.options.previewNodePadding * 2}px`,
 			'notebook-markup-font-size': typeof this.options.markupFontSize === 'number' && this.options.markupFontSize > 0 ? `${this.options.markupFontSize}px` : `calc(${this.options.fontSize}px * 1.2)`,
 			'notebook-cell-output-font-size': `${this.options.fontSize}px`,
+			'notebook-cell-output-line-height': `${this.options.outputLineHeight}px`,
 			'notebook-cell-output-font-family': this.options.fontFamily,
 			'notebook-cell-markup-empty-content': nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit."),
 			'notebook-cell-renderer-not-found-error': nls.localize({
