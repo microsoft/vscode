@@ -533,4 +533,66 @@ suite('ExtHostEditorTabs', function () {
 		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 2);
 		assert.strictEqual(extHostEditorTabs.tabGroups.all[0]?.tabs[1]?.label, 'label2');
 	});
+
+	test('Tab operations patches move correctly', function () {
+		const extHostEditorTabs = new ExtHostEditorTabs(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
+				// override/implement $moveTab or $closeTab
+			})
+		);
+
+		const tab1: IEditorTabDto = createTabDto({
+			id: 'uniquestring',
+			isActive: true,
+			label: 'label1',
+		});
+
+		const tab2: IEditorTabDto = createTabDto({
+			isActive: false,
+			id: 'uniquestring2',
+			label: 'label2',
+		});
+
+		const tab3: IEditorTabDto = createTabDto({
+			isActive: false,
+			id: 'uniquestring3',
+			label: 'label3',
+		});
+
+		extHostEditorTabs.$acceptEditorTabModel([{
+			isActive: true,
+			viewColumn: 0,
+			groupId: 12,
+			tabs: [tab1, tab2, tab3]
+		}]);
+
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 3);
+
+		// Move tab 2 to index 0
+		extHostEditorTabs.$acceptTabOperation({
+			groupId: 12,
+			index: 0,
+			oldIndex: 1,
+			kind: TabModelOperationKind.TAB_MOVE,
+			tabDto: tab2
+		});
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 3);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all[0]?.tabs[0]?.label, 'label2');
+
+		// Move tab 3 to index 1
+		extHostEditorTabs.$acceptTabOperation({
+			groupId: 12,
+			index: 1,
+			oldIndex: 2,
+			kind: TabModelOperationKind.TAB_MOVE,
+			tabDto: tab3
+		});
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.map(g => g.tabs).flat().length, 3);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all[0]?.tabs[1]?.label, 'label3');
+		assert.strictEqual(extHostEditorTabs.tabGroups.all[0]?.tabs[0]?.label, 'label2');
+		assert.strictEqual(extHostEditorTabs.tabGroups.all[0]?.tabs[2]?.label, 'label1');
+	});
 });
