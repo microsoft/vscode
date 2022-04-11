@@ -429,8 +429,8 @@ export class Menubar {
 			return true; // never confirm when no windows are opened
 		}
 
-		const confirmBeforeQuit = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeQuit');
-		if (confirmBeforeQuit === 'always' || (confirmBeforeQuit === 'keyboardOnly' && this.isKeyboardEvent(event))) {
+		const confirmBeforeClose = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
+		if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && this.isKeyboardEvent(event))) {
 			const options: MessageBoxOptions = {
 				title: this.productService.nameLong,
 				type: 'question',

@@ -67,8 +67,8 @@ import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 			const nativeHostService = accessor.get(INativeHostService);
 			const configurationService = accessor.get(IConfigurationService);
 
-			const confirmBeforeQuit = configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeQuit');
-			if (confirmBeforeQuit === 'always' || (confirmBeforeQuit === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed)) {
+			const confirmBeforeClose = configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
+			if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed)) {
 				const confirmed = await NativeWindow.confirmOnShutdown(accessor, ShutdownReason.QUIT);
 				if (!confirmed) {
 					return; // quit prevented by user
@@ -230,18 +230,6 @@ import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
-			},
-			'window.confirmBeforeQuit': {
-				'type': 'string',
-				'enum': ['always', 'keyboardOnly', 'never'],
-				'enumDescriptions': [
-					localize('window.confirmBeforeQuit.always', "Always ask for confirmation."),
-					localize('window.confirmBeforeQuit.keyboardOnly', "Only ask for confirmation if a keybinding was used to quit."),
-					localize('window.confirmBeforeQuit.never', "Never explicitly ask for confirmation unless data loss is imminent.")
-				],
-				'default': 'never',
-				'markdownDescription': localize('confirmBeforeQuit', "Controls whether to show a confirmation dialog before quitting the application. See `#window.confirmBeforeClose#` for a related setting to show a confirmation dialog before closing the window."),
-				'scope': ConfigurationScope.APPLICATION
 			}
 		}
 	});

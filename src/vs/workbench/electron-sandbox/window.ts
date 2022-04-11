@@ -337,10 +337,7 @@ export class NativeWindow extends Disposable {
 			const confirmBeforeCloseSetting = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
 			const confirmBeforeClose = confirmBeforeCloseSetting === 'always' || (confirmBeforeCloseSetting === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed);
 
-			const confirmBeforeQuitSetting = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeQuit');
-			const confirmBeforeQuit = confirmBeforeQuitSetting === 'always' || (confirmBeforeQuitSetting === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed);
-
-			if (confirmBeforeClose || confirmBeforeQuit) {
+			if (confirmBeforeClose) {
 
 				// When we need to confirm on close or quit, veto the shutdown
 				// with a long running promise to figure out whether shutdown
@@ -348,7 +345,7 @@ export class NativeWindow extends Disposable {
 
 				return veto((async () => {
 					let actualReason: ShutdownReason = reason;
-					if (reason === ShutdownReason.CLOSE && confirmBeforeQuit && !isMacintosh) {
+					if (reason === ShutdownReason.CLOSE && !isMacintosh) {
 						const windowCount = await this.nativeHostService.getWindowCount();
 						if (windowCount === 1) {
 							actualReason = ShutdownReason.QUIT; // Windows/Linux: closing last window means to QUIT
@@ -356,7 +353,7 @@ export class NativeWindow extends Disposable {
 					}
 
 					let confirmed = true;
-					if (confirmBeforeClose || (actualReason === ShutdownReason.QUIT && confirmBeforeQuit)) {
+					if (confirmBeforeClose) {
 						confirmed = await this.instantiationService.invokeFunction(accessor => NativeWindow.confirmOnShutdown(accessor, actualReason));
 					}
 
@@ -410,14 +407,7 @@ export class NativeWindow extends Disposable {
 
 		// Update setting if checkbox checked
 		if (res.checkboxChecked) {
-			let settingKey: string;
-			if (reason === ShutdownReason.QUIT) {
-				settingKey = 'window.confirmBeforeQuit';
-			} else {
-				settingKey = 'window.confirmBeforeClose';
-			}
-
-			await configurationService.updateValue(settingKey, 'never');
+			await configurationService.updateValue('window.confirmBeforeClose', 'never');
 		}
 
 		return res.confirmed;
