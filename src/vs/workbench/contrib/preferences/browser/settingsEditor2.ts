@@ -1380,10 +1380,12 @@ export class SettingsEditor2 extends EditorPane {
 			'requestCount': number | undefined;
 		};
 		type SettingsEditorFilterClassification = {
-			'durations.nlpResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; owner: 'rzhao271'; 'comment': 'How long the remote search provider took, if applicable.' };
-			'counts.nlpResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; owner: 'rzhao271'; 'comment': 'The number of matches found by the remote search provider, if applicable.' };
-			'counts.filterResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; owner: 'rzhao271'; 'comment': 'The number of matches found by the local search provider, if applicable.' };
-			'requestCount': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; owner: 'rzhao271'; 'comment': 'The number of requests sent to Bing, if applicable.' };
+			'durations.nlpResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'How long the remote search provider took, if applicable.' };
+			'counts.nlpResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'The number of matches found by the remote search provider, if applicable.' };
+			'counts.filterResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'The number of matches found by the local search provider, if applicable.' };
+			'requestCount': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'The number of requests sent to Bing, if applicable.' };
+			owner: 'rzhao271';
+			comment: 'Tracks the number of requests and performance of the built-in search providers';
 		};
 
 		const nlpResult = results[SearchResultIdx.Remote];

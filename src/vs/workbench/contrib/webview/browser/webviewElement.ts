@@ -530,7 +530,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			} as const;
 
 			type Classification = {
-				extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'mjbvz'; comment: 'The id of the extension that created the webview.' };
+				extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the extension that created the webview.' };
+				owner: 'mjbz';
+				comment: 'Helps find which extensions are contributing webviews with invalid CSPs';
 			};
 
 			this._telemetryService.publicLog2<typeof payload, Classification>('webviewMissingCsp', payload);
