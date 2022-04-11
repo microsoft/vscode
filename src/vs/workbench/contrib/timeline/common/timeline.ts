@@ -51,6 +51,7 @@ export interface TimelineItem {
 	contextValue?: string;
 
 	relativeTime?: string;
+	relativeTimeFullWord?: string;
 	hideRelativeTime?: boolean;
 }
 
