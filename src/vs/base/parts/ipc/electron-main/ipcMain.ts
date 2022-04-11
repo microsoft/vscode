@@ -110,7 +110,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 
 		const sender = event.senderFrame;
 		if (!sender) {
-			return true; // happens when renderer uses `ipcRenderer.postMessage`
+			return true; // happens when renderer uses `ipcRenderer.postMessage` (TODO@bpasero revisit with newer Electron version)
 		}
 
 		const host = new URL(sender.url).host;
