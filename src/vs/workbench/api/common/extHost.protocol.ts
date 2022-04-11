@@ -625,7 +625,8 @@ export const enum TabInputKind {
 export const enum TabModelOperationKind {
 	TAB_OPEN,
 	TAB_CLOSE,
-	TAB_UPDATE
+	TAB_UPDATE,
+	TAB_MOVE
 }
 
 export interface UnknownInputDto {
@@ -690,11 +691,12 @@ export interface IEditorTabGroupDto {
 }
 
 export interface TabOperation {
-	readonly kind: TabModelOperationKind.TAB_OPEN | TabModelOperationKind.TAB_CLOSE | TabModelOperationKind.TAB_UPDATE;
+	readonly kind: TabModelOperationKind.TAB_OPEN | TabModelOperationKind.TAB_CLOSE | TabModelOperationKind.TAB_UPDATE | TabModelOperationKind.TAB_MOVE;
 	// TODO @lramos15 Possibly get rid of index for tab update, it's only needed for open and close
 	readonly index: number;
 	readonly tabDto: IEditorTabDto;
 	readonly groupId: number;
+	readonly oldIndex?: number;
 }
 
 export interface IEditorTabDto {

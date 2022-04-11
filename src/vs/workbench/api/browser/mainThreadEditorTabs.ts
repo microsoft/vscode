@@ -11,7 +11,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { GroupDirection, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorsChangeEvent, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorsChangeEvent, IEditorService, IEditorsMoveEvent, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
@@ -21,7 +21,6 @@ import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/termi
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { isEqual } from 'vs/base/common/resources';
-
 
 interface TabInfo {
 	tab: IEditorTabDto;
@@ -386,6 +385,32 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		});
 	}
 
+	private _onDidTabMove(groupId: number, editorIndex: number, oldEditorIndex: number, editor: EditorInput) {
+		const tabs = this._groupLookup.get(groupId)?.tabs;
+		// Something wrong with the model state so we rebuild
+		if (!tabs) {
+			console.error('Invalid model for move change, rebuilding');
+			this._createTabsModel();
+			return;
+		}
+
+		// Move tab from old index to new index
+		const removedTab = tabs.splice(oldEditorIndex, 1);
+		if (removedTab.length === 0) {
+			return;
+		}
+		tabs.splice(editorIndex, 0, removedTab[0]);
+
+		// Notify exthost of move
+		this._proxy.$acceptTabOperation({
+			kind: TabModelOperationKind.TAB_MOVE,
+			groupId,
+			tabDto: removedTab[0],
+			index: editorIndex,
+			oldIndex: oldEditorIndex
+		});
+	}
+
 	/**
 	 * Builds the model from scratch based on the current state of the editor service.
 	 */
@@ -421,30 +446,31 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	}
 
 	// TODOD @lramos15 Remove this after done finishing the tab model code
-	// private _eventToString(event: IEditorsChangeEvent): string {
-	// 	let eventString = '';
-	// 	switch (event.kind) {
-	// 		case GroupModelChangeKind.GROUP_INDEX: eventString += 'GROUP_INDEX'; break;
-	// 		case GroupModelChangeKind.EDITOR_ACTIVE: eventString += 'EDITOR_ACTIVE'; break;
-	// 		case GroupModelChangeKind.EDITOR_PIN: eventString += 'EDITOR_PIN'; break;
-	// 		case GroupModelChangeKind.EDITOR_OPEN: eventString += 'EDITOR_OPEN'; break;
-	// 		case GroupModelChangeKind.EDITOR_CLOSE: eventString += 'EDITOR_CLOSE'; break;
-	// 		case GroupModelChangeKind.EDITOR_MOVE: eventString += 'EDITOR_MOVE'; break;
-	// 		case GroupModelChangeKind.EDITOR_LABEL: eventString += 'EDITOR_LABEL'; break;
-	// 		case GroupModelChangeKind.GROUP_ACTIVE: eventString += 'GROUP_ACTIVE'; break;
-	// 		case GroupModelChangeKind.GROUP_LOCKED: eventString += 'GROUP_LOCKED'; break;
-	// 		case GroupModelChangeKind.EDITOR_DIRTY: eventString += 'EDITOR_DIRTY'; break;
-	// 		case GroupModelChangeKind.EDITOR_STICKY: eventString += 'EDITOR_STICKY'; break;
-	// 		default: eventString += `UNKNOWN: ${event.kind}`; break;
-	// 	}
-	// 	return eventString;
-	// }
+	private _eventToString(event: IEditorsChangeEvent | IEditorsMoveEvent): string {
+		let eventString = '';
+		switch (event.kind) {
+			case GroupModelChangeKind.GROUP_INDEX: eventString += 'GROUP_INDEX'; break;
+			case GroupModelChangeKind.EDITOR_ACTIVE: eventString += 'EDITOR_ACTIVE'; break;
+			case GroupModelChangeKind.EDITOR_PIN: eventString += 'EDITOR_PIN'; break;
+			case GroupModelChangeKind.EDITOR_OPEN: eventString += 'EDITOR_OPEN'; break;
+			case GroupModelChangeKind.EDITOR_CLOSE: eventString += 'EDITOR_CLOSE'; break;
+			case GroupModelChangeKind.EDITOR_MOVE: eventString += 'EDITOR_MOVE'; break;
+			case GroupModelChangeKind.EDITOR_LABEL: eventString += 'EDITOR_LABEL'; break;
+			case GroupModelChangeKind.GROUP_ACTIVE: eventString += 'GROUP_ACTIVE'; break;
+			case GroupModelChangeKind.GROUP_LOCKED: eventString += 'GROUP_LOCKED'; break;
+			case GroupModelChangeKind.EDITOR_DIRTY: eventString += 'EDITOR_DIRTY'; break;
+			case GroupModelChangeKind.EDITOR_STICKY: eventString += 'EDITOR_STICKY'; break;
+			default: eventString += `UNKNOWN: ${event.kind}`; break;
+		}
+		return eventString;
+	}
 
 	/**
 	 * The main handler for the tab events
 	 * @param events The list of events to process
 	 */
-	private _updateTabsModel(event: IEditorsChangeEvent): void {
+	private _updateTabsModel(event: IEditorsChangeEvent | IEditorsMoveEvent): void {
+		console.log(this._eventToString(event));
 		switch (event.kind) {
 			case GroupModelChangeKind.GROUP_ACTIVE:
 				if (event.groupId === this._editorGroupsService.activeGroup.id) {
@@ -486,6 +512,11 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			case GroupModelChangeKind.EDITOR_PIN:
 				if (event.editorIndex !== undefined && event.editor !== undefined) {
 					this._onDidTabPreviewChange(event.groupId, event.editorIndex, event.editor);
+					break;
+				}
+			case GroupModelChangeKind.EDITOR_MOVE:
+				if (event.editor && event.editorIndex !== undefined && (event as IEditorsMoveEvent).oldEditorIndex !== undefined) {
+					this._onDidTabMove(event.groupId, event.editorIndex, (event as IEditorsMoveEvent).oldEditorIndex, event.editor);
 					break;
 				}
 			default:
