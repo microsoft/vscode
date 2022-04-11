@@ -131,5 +131,8 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 /**
  * A drop-in replacement of `ipcMain` that validates the sender of a message
  * according to https://github.com/electron/electron/blob/main/docs/tutorial/security.md
+ *
+ * @deprecated direct use of Electron IPC is not encouraged. We have utilities in place
+ * to create services on top of IPC, see `ProxyChannel` for more information.
  */
 export const validatedIpcMain = new ValidatedIpcMain();
