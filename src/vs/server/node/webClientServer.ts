@@ -78,10 +78,14 @@ export async function serveFile(logService: ILogService, req: http.IncomingMessa
 }
 
 const APP_ROOT = dirname(FileAccess.asFileUri('', require).fsPath);
+const CHARCODE_SLASH = '/'.charCodeAt(0);
 
 export class WebClientServer {
 
 	private readonly _webExtensionResourceUrlTemplate: URI | undefined;
+
+	private readonly _staticRoute;
+	private readonly _callbackRoute;
 
 	constructor(
 		private readonly _connectionToken: ServerConnectionToken,
@@ -91,6 +95,9 @@ export class WebClientServer {
 		@IProductService private readonly _productService: IProductService,
 	) {
 		this._webExtensionResourceUrlTemplate = this._productService.extensionsGallery?.resourceUrlTemplate ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate) : undefined;
+		const qualityAndCommit = `${_productService.quality ?? 'oss'}-${_productService.commit ?? 'dev'}`;
+		this._staticRoute = `/${qualityAndCommit}/static`;
+		this._callbackRoute = `/${qualityAndCommit}/callback`;
 	}
 
 	/**
@@ -102,16 +109,13 @@ export class WebClientServer {
 		try {
 			const pathname = parsedUrl.pathname!;
 
-			if (pathname === '/favicon.ico' || pathname === '/manifest.json' || pathname === '/code-192.png' || pathname === '/code-512.png') {
-				return serveFile(this._logService, req, res, join(APP_ROOT, 'resources', 'server', pathname.substr(1)));
-			}
-			if (/^\/static\//.test(pathname)) {
+			if (pathname.startsWith(this._staticRoute) && pathname.charCodeAt(this._staticRoute.length) === CHARCODE_SLASH) {
 				return this._handleStatic(req, res, parsedUrl);
 			}
 			if (pathname === '/') {
 				return this._handleRoot(req, res, parsedUrl);
 			}
-			if (pathname === '/callback') {
+			if (pathname === this._callbackRoute) {
 				// callback support
 				return this._handleCallback(res);
 			}
@@ -137,9 +141,9 @@ export class WebClientServer {
 
 		// Strip `/static/` from the path
 		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
-		const relativeFilePath = normalize(normalizedPathname.substr('/static/'.length));
+		const relativeFilePath = normalizedPathname.substring(this._staticRoute.length + 1);
 
-		const filePath = join(APP_ROOT, relativeFilePath);
+		const filePath = join(APP_ROOT, relativeFilePath); // join also normalizes the path
 		if (!isEqualOrParent(filePath, APP_ROOT, !isLinux)) {
 			return serveError(req, res, 400, `Bad request.`);
 		}
@@ -259,8 +263,8 @@ export class WebClientServer {
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		function escapeAttribute(value: string): string {
-			return value.replace(/"/g, '&quot;');
+		function asJSON(value: unknown): string {
+			return JSON.stringify(value).replace(/"/g, '&quot;');
 		}
 
 		let _wrapWebWorkerExtHostInIframe: undefined | false = undefined;
@@ -279,28 +283,47 @@ export class WebClientServer {
 			accessToken: this._environmentService.args['github-auth'],
 			scopes: [['user:email'], ['repo']]
 		} : undefined;
-		const data = (await util.promisify(fs.readFile)(filePath)).toString()
-			.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify({
-				remoteAuthority,
-				_wrapWebWorkerExtHostInIframe,
-				developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined },
-				settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
-				enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
-				folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
-				workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
-				productConfiguration: <Partial<IProductConfiguration>>{
-					embedderIdentifier: 'server-distro',
-					extensionsGallery: this._webExtensionResourceUrlTemplate ? {
-						...this._productService.extensionsGallery,
-						'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({
-							scheme: 'http',
-							authority: remoteAuthority,
-							path: `web-extension-resource/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
-						}).toString(true)
-					} : undefined
-				}
-			})))
-			.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '');
+
+
+		const workbenchWebConfiguration = {
+			remoteAuthority,
+			_wrapWebWorkerExtHostInIframe,
+			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined },
+			settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
+			enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
+			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
+			workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
+			productConfiguration: <Partial<IProductConfiguration>>{
+				embedderIdentifier: 'server-distro',
+				extensionsGallery: this._webExtensionResourceUrlTemplate ? {
+					...this._productService.extensionsGallery,
+					'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({
+						scheme: 'http',
+						authority: remoteAuthority,
+						path: `web-extension-resource/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
+					}).toString(true)
+				} : undefined
+			},
+			callbackRoute: this._callbackRoute
+		};
+
+		const values: { [key: string]: string } = {
+			WORKBENCH_WEB_CONFIGURATION: asJSON(workbenchWebConfiguration),
+			WORKBENCH_AUTH_SESSION: authSessionInfo ? asJSON(authSessionInfo) : '',
+			WORKBENCH_WEB_BASE_URL: this._staticRoute,
+		};
+		//if (!this._environmentService.isBuilt) {
+		//values.WORKBENCH_BUILTIN_EXTENSIONS = //get built in extensions
+		//}
+
+		let data;
+		try {
+			const workbenchTemplate = (await util.promisify(fs.readFile)(filePath)).toString();
+			data = workbenchTemplate.replace(/\{\{([^}]+)\}\}/g, (_, key) => values[key] ?? 'undefined');
+		} catch (e) {
+			res.writeHead(404, { 'Content-Type': 'text/plain' });
+			return res.end('Not found');
+		}
 
 		const cspDirectives = [
 			'default-src \'self\';',
