@@ -21,7 +21,6 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
 	public readonly onDidWheel = this._onDidWheel.event;
 
-	private readonly _pendingMessages = new Set<{ readonly message: any; readonly transfer?: readonly ArrayBuffer[] }>();
 	private readonly _webview = this._register(new MutableDisposable<IWebviewElement>());
 	private readonly _webviewEvents = this._register(new DisposableStore());
 
@@ -199,9 +198,6 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 				this._state = state;
 				this._onDidUpdateState.fire(state);
 			}));
-
-			this._pendingMessages.forEach(msg => webview.postMessage(msg.message, msg.transfer));
-			this._pendingMessages.clear();
 		}
 
 		this.container.style.visibility = 'visible';
@@ -268,12 +264,11 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
 	public readonly onMissingCsp: Event<any> = this._onMissingCsp.event;
 
-	public postMessage(message: any, transfer?: readonly ArrayBuffer[]): void {
-		if (this._webview.value) {
-			this._webview.value.postMessage(message, transfer);
-		} else {
-			this._pendingMessages.add({ message, transfer });
+	public async postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean> {
+		if (!this._webview.value) {
+			return false;
 		}
+		return this._webview.value.postMessage(message, transfer);
 	}
 
 	focus(): void { this._webview.value?.focus(); }
