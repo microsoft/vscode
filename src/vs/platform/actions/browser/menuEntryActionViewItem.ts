@@ -224,6 +224,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 				title += `\n[${UILabelProvider.modifierLabels[OS].altKey}] ${altTitleSection}`;
 			}
 			this.label.title = title;
+			this.label.setAttribute('aria-label', title);
 		}
 	}
 
