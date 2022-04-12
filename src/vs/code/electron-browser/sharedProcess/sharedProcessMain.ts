@@ -198,6 +198,9 @@ class SharedProcessMain extends Disposable {
 		const logService = this._register(new FollowerLogService(logLevelClient, multiplexLogger));
 		services.set(ILogService, logService);
 
+		// Log info
+		logService.info('sharedProcess is alive!');
+
 		// Worker
 		this.sharedProcessWorkerService = new SharedProcessWorkerService(logService);
 		services.set(ISharedProcessWorkerService, this.sharedProcessWorkerService);
