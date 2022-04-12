@@ -195,10 +195,11 @@ class NonPeekableTextBufferTokenizer {
 				}
 
 				const isOther = TokenMetadata.getTokenType(tokenMetadata) === StandardTokenType.Other;
+				const containsBracketType = TokenMetadata.containsBalancedBrackets(tokenMetadata);
 
 				const endOffset = lineTokens.getEndOffset(this.lineTokenOffset);
 				// Is there a bracket token next? Only consume text.
-				if (isOther && endOffset !== this.lineCharOffset) {
+				if (containsBracketType && isOther && endOffset !== this.lineCharOffset) {
 					const languageId = lineTokens.getLanguageId(this.lineTokenOffset);
 					const text = this.line.substring(this.lineCharOffset, endOffset);
 
