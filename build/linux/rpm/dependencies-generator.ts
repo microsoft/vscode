@@ -8,7 +8,7 @@
 import { spawnSync } from 'child_process';
 import { constants, statSync } from 'fs';
 import path = require('path');
-import { additionalDeps, bundledDeps } from './dep-lists';
+import { additionalDeps, bundledDeps, referenceGeneratedDeps } from './dep-lists';
 
 export function getDependencies(buildDir: string, applicationName: string): string[] {
 	// Get the files for which we want to find dependencies.
@@ -49,8 +49,12 @@ export function getDependencies(buildDir: string, applicationName: string): stri
 		return !bundledDeps.some(bundledDep => dependency.startsWith(bundledDep));
 	});
 
-	console.log('Printing dependencies:');
-	console.log(sortedDependencies.join('\n'));
+	if (JSON.stringify(sortedDependencies) !== JSON.stringify(referenceGeneratedDeps)) {
+		// Don't fail the build for now.
+		console.warn('The dependencies list has changed. ' +
+			'Printing newer dependencies list that one can use to compare against referenceGeneratedDeps:');
+		console.warn(sortedDependencies.join('\n'));
+	}
 
 	return sortedDependencies;
 }
