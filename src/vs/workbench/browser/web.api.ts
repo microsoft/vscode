@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Event } from 'vs/base/common/event';
-import { IObservableValue } from 'vs/base/common/observableValue';
 import type { PerformanceMark } from 'vs/base/common/performance';
-import type { IProductConfiguration } from 'vs/base/common/product';
-import type { URI, UriComponents } from 'vs/base/common/uri';
-import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
-import type { LogLevel } from 'vs/platform/log/common/log';
-import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
+import type { UriComponents, URI } from 'vs/base/common/uri';
 import type { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
-import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
-import type { IUpdateProvider } from 'vs/workbench/services/update/browser/updateService';
 import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
+import type { LogLevel } from 'vs/platform/log/common/log';
+import type { IUpdateProvider } from 'vs/workbench/services/update/browser/updateService';
+import type { Event } from 'vs/base/common/event';
+import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
+import type { IProductConfiguration } from 'vs/base/common/product';
+import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
+import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
+import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
+import { IObservableValue } from 'vs/base/common/observableValue';
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -68,7 +68,7 @@ export interface IWorkbench {
 		/**
 		 * Current workbench telemetry level.
 		 */
-		telemetryLevel: IObservableValue<TelemetryLevel>;
+		readonly telemetryLevel: IObservableValue<TelemetryLevel>;
 	};
 
 	window: {

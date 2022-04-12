@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asArray } from 'vs/base/common/arrays';
-import { DeferredPromise } from 'vs/base/common/async';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservableValue } from 'vs/base/common/observableValue';
-import { mark, PerformanceMark } from 'vs/base/common/performance';
-import { URI } from 'vs/base/common/uri';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbench, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
 import { BrowserMain } from 'vs/workbench/browser/web.main';
+import { URI } from 'vs/base/common/uri';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { mark, PerformanceMark } from 'vs/base/common/performance';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { DeferredPromise } from 'vs/base/common/async';
+import { asArray } from 'vs/base/common/arrays';
+import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
+import { IObservableValue } from 'vs/base/common/observableValue';
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 
 let created = false;
 const workbenchPromise = new DeferredPromise<IWorkbench>();
@@ -123,11 +123,8 @@ export namespace env {
 		return workbench.env.openUri(target);
 	}
 
-	export async function telemetryLevel(): Promise<IObservableValue<TelemetryLevel>> {
-		const workbench = await workbenchPromise.p;
-
-		return workbench.env.telemetryLevel;
-	}
+	export const telemetryLevel: Promise<IObservableValue<TelemetryLevel>> =
+		workbenchPromise.p.then(workbench => workbench.env.telemetryLevel);
 }
 
 export namespace window {
