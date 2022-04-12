@@ -25,7 +25,7 @@ export class RequestService implements IRequestService {
 	}
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		this.logService.info('RequestService#request (browser) - begin', options.url);
+		this.logService.trace('RequestService#request (browser) - begin', options.url);
 
 		if (!options.proxyAuthorization) {
 			options.proxyAuthorization = this.configurationService.getValue<string>('http.proxyAuthorization');
@@ -34,7 +34,7 @@ export class RequestService implements IRequestService {
 		try {
 			const res = await request(options, token);
 
-			this.logService.info('RequestService#request (browser) - success', options.url);
+			this.logService.trace('RequestService#request (browser) - success', options.url);
 
 			return res;
 		} catch (error) {

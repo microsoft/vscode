@@ -87,14 +87,19 @@ export function installDiagnosticsHandler(logger: Logger, appFn?: () => Applicat
 	});
 }
 
+let logsCounter = 1;
+
+export function suiteLogsPath(options: ApplicationOptions, suiteName: string): string {
+	return join(dirname(options.logsPath), `${logsCounter++}_suite_${suiteName.replace(/[^a-z0-9\-]/ig, '_')}`);
+}
+
 function installAppBeforeHandler(optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions) {
 	before(async function () {
 		const suiteName = this.test?.parent?.title ?? 'unknown';
 
 		this.app = createApp({
 			...this.defaultOptions,
-			// Set a suite specific logs path
-			logsPath: join(dirname(this.defaultOptions.logsPath), `suite_${suiteName.replace(/[^a-z0-9\-]/ig, '_')}`)
+			logsPath: suiteLogsPath(this.defaultOptions, suiteName)
 		}, optionsTransform);
 		await this.app.start();
 	});

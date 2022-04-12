@@ -148,7 +148,7 @@ class SharedProcessMain extends Disposable {
 			const logService = accessor.get(ILogService);
 
 			// Log info
-			logService.info('sharedProcess configuration', JSON.stringify(this.configuration));
+			logService.trace('sharedProcess configuration', JSON.stringify(this.configuration));
 
 			// Channels
 			this.initChannels(accessor);
@@ -197,9 +197,6 @@ class SharedProcessMain extends Disposable {
 
 		const logService = this._register(new FollowerLogService(logLevelClient, multiplexLogger));
 		services.set(ILogService, logService);
-
-		// Log info
-		logService.info('sharedProcess is alive!');
 
 		// Worker
 		this.sharedProcessWorkerService = new SharedProcessWorkerService(logService);
