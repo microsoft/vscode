@@ -98,14 +98,14 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 
 		// Empty
 		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
-			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
+			for (const target of [StorageTarget.MACHINE, StorageTarget.USER, StorageTarget.PROFILE]) {
 				strictEqual(storageService.keys(scope, target).length, 0);
 			}
 		}
 
 		// Add values
 		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
-			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
+			for (const target of [StorageTarget.MACHINE, StorageTarget.USER, StorageTarget.PROFILE]) {
 				storageTargetEvent = Object.create(null);
 				storageValueChangeEvent = Object.create(null);
 
@@ -135,7 +135,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 
 		// Remove values
 		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
-			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
+			for (const target of [StorageTarget.MACHINE, StorageTarget.USER, StorageTarget.PROFILE]) {
 				const keysLength = storageService.keys(scope, target).length;
 
 				storageService.store('test.target4', 'value1', scope, target);
@@ -154,7 +154,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 
 		// Remove all
 		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
-			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
+			for (const target of [StorageTarget.MACHINE, StorageTarget.USER, StorageTarget.PROFILE]) {
 				const keys = storageService.keys(scope, target);
 
 				for (const key of keys) {
@@ -167,7 +167,7 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 
 		// Adding undefined or null removes value
 		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
-			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
+			for (const target of [StorageTarget.MACHINE, StorageTarget.USER, StorageTarget.PROFILE]) {
 				storageService.store('test.target1', 'value1', scope, target);
 				strictEqual(storageService.keys(scope, target).length, 1);
 
@@ -191,6 +191,9 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		ok(storageTargetEvent);
 		storageTargetEvent = undefined;
 		storageService.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.USER);
+		ok(storageTargetEvent);
+		storageTargetEvent = undefined;
+		storageService.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.PROFILE);
 		ok(storageTargetEvent);
 		storageTargetEvent = undefined;
 		storageService.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);

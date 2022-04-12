@@ -178,12 +178,18 @@ export const enum StorageTarget {
 	/**
 	 * The stored data is user specific and applies across machines.
 	 */
-	USER,
+	USER = 0, // never change this value, it is persisted
 
 	/**
 	 * The stored data is machine specific.
 	 */
-	MACHINE
+	MACHINE = 1, // never change this value, it is persisted
+
+	/**
+	 * The stored data can be exported and imported into another profile
+	 * and thus applies across machines and across users.
+	 */
+	PROFILE = 2 // never change this value, it is persisted
 }
 
 export interface IStorageValueChangeEvent {
