@@ -77,11 +77,8 @@ export interface TimelineChangeEvent {
 export interface TimelineOptions {
 	cursor?: string;
 	limit?: number | { timestamp: number; id?: string };
-}
-
-export interface InternalTimelineOptions {
-	cacheResults: boolean;
-	resetCache: boolean;
+	resetCache?: boolean;
+	cacheResults?: boolean;
 }
 
 export interface Timeline {
@@ -101,7 +98,7 @@ export interface Timeline {
 export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {
 	onDidChange?: Event<TimelineChangeEvent>;
 
-	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
+	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken): Promise<Timeline | undefined>;
 }
 
 export interface TimelineSource {
@@ -152,7 +149,7 @@ export interface ITimelineService {
 
 	getSources(): TimelineSource[];
 
-	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: InternalTimelineOptions): TimelineRequest | undefined;
+	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource): TimelineRequest | undefined;
 
 	setUri(uri: URI): void;
 }
