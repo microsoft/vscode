@@ -49,6 +49,9 @@ export function getDependencies(buildDir: string, applicationName: string): stri
 		return !bundledDeps.some(bundledDep => dependency.startsWith(bundledDep));
 	});
 
+	console.log('Printing dependencies:');
+	console.log(sortedDependencies.join('\n'));
+
 	return sortedDependencies;
 }
 

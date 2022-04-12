@@ -40,6 +40,8 @@ function getDependencies(buildDir, applicationName) {
     sortedDependencies = sortedDependencies.filter(dependency => {
         return !dep_lists_1.bundledDeps.some(bundledDep => dependency.startsWith(bundledDep));
     });
+    console.log('Printing dependencies:');
+    console.log(sortedDependencies.join('\n'));
     return sortedDependencies;
 }
 exports.getDependencies = getDependencies;
