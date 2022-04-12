@@ -82,13 +82,15 @@ export class SCMViewService implements ISCMViewService {
 		const removed = new Set<ISCMRepository>();
 
 		for (const repositoryView of this._repositories) {
-			if (set.has(repositoryView.repository) && repositoryView.selectionIndex === -1) {
-				repositoryView.selectionIndex = visibleRepositories.indexOf(repositoryView.repository);
-				added.add(repositoryView.repository);
-			}
+			// Selected -> !Selected
 			if (!set.has(repositoryView.repository) && repositoryView.selectionIndex !== -1) {
 				repositoryView.selectionIndex = -1;
 				removed.add(repositoryView.repository);
+			}
+			// !Selected -> Selected
+			if (set.has(repositoryView.repository) && repositoryView.selectionIndex === -1) {
+				repositoryView.selectionIndex = visibleRepositories.indexOf(repositoryView.repository);
+				added.add(repositoryView.repository);
 			}
 		}
 
@@ -135,8 +137,8 @@ export class SCMViewService implements ISCMViewService {
 
 	constructor(
 		@ISCMService scmService: ISCMService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
@@ -148,14 +150,14 @@ export class SCMViewService implements ISCMViewService {
 			// noop
 		}
 
-		this._repositoriesSortKey = this.previousState?.sortKey ?? configurationService.getValue('scm.repositories.sortOrder');
+		this._repositoriesSortKey = this.previousState?.sortKey ?? this.getViewSortOrder();
 
 		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
 
 		configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('scm.repositories.sortOrder')) {
-				this._repositoriesSortKey = configurationService.getValue('scm.repositories.sortOrder');
+				this._repositoriesSortKey = this.getViewSortOrder();
 				this._repositories.sort(this.compareRepositories.bind(this));
 
 				this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
@@ -224,8 +226,8 @@ export class SCMViewService implements ISCMViewService {
 			}
 		}
 
-		const selectionIndex = Math.max(...this._repositories.map(r => r.selectionIndex));
-		this.insertRepositoryView(this._repositories, { ...repositoryView, selectionIndex });
+		const maxSelectionIndex = this.getMaxSelectionIndex();
+		this.insertRepositoryView(this._repositories, { ...repositoryView, selectionIndex: maxSelectionIndex + 1 });
 		this._onDidChangeRepositories.fire({ added: [repositoryView.repository], removed });
 
 		if (!this._repositories.find(r => r.focused)) {
@@ -317,6 +319,20 @@ export class SCMViewService implements ISCMViewService {
 		}
 
 		return nameComparison;
+	}
+
+	private getMaxSelectionIndex(): number {
+		return this._repositories.length === 0 ? -1 :
+			Math.max(...this._repositories.map(r => r.selectionIndex));
+	}
+
+	private getViewSortOrder(): ISCMRepositoryViewSortKey {
+		const sortOder = this.configurationService.getValue<ISCMRepositoryViewSortKey>('scm.repositories.sortOrder');
+		if (sortOder !== 'discovery time' && sortOder !== 'name' && sortOder !== 'path') {
+			return 'discovery time';
+		}
+
+		return sortOder;
 	}
 
 	private insertRepositoryView(repositories: ISCMRepositoryView[], repositoryView: ISCMRepositoryView): void {
