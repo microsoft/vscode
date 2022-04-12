@@ -85,10 +85,11 @@ namespace WebviewState {
 		readonly type = Type.Initializing;
 
 		constructor(
-			public readonly pendingMessages: Array<{
+			public pendingMessages: Array<{
 				readonly channel: string;
 				readonly data?: any;
 				readonly transferable: Transferable[];
+				readonly resolve: (posted: boolean) => void;
 			}>
 		) { }
 	}
@@ -369,6 +370,13 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		this.messagePort = undefined;
 
+		if (this._state.type === WebviewState.Type.Initializing) {
+			for (const message of this._state.pendingMessages) {
+				message.resolve(false);
+			}
+			this._state.pendingMessages = [];
+		}
+
 		this._onDidDispose.fire();
 
 		this._resourceLoadingCts.dispose(true);
@@ -410,15 +418,18 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	public readonly onDidDispose = this._onDidDispose.event;
 
-	public postMessage(message: any, transfer?: ArrayBuffer[]): void {
-		this._send('message', { message, transfer });
+	public postMessage(message: any, transfer?: ArrayBuffer[]): Promise<boolean> {
+		return this._send('message', { message, transfer });
 	}
 
-	protected _send(channel: string, data?: any, transferable: Transferable[] = []): void {
+	protected async _send(channel: string, data?: any, transferable: Transferable[] = []): Promise<boolean> {
 		if (this._state.type === WebviewState.Type.Initializing) {
-			this._state.pendingMessages.push({ channel, data, transferable });
+			let resolve: (x: boolean) => void;
+			const promise = new Promise<boolean>(r => resolve = r);
+			this._state.pendingMessages.push({ channel, data, transferable, resolve: resolve! });
+			return promise;
 		} else {
-			this.doPostMessage(channel, data, transferable);
+			return this.doPostMessage(channel, data, transferable);
 		}
 	}
 
@@ -494,10 +505,12 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		return uri.scheme + '://' + uri.authority.toLowerCase();
 	}
 
-	private doPostMessage(channel: string, data?: any, transferable: Transferable[] = []): void {
+	private doPostMessage(channel: string, data?: any, transferable: Transferable[] = []): boolean {
 		if (this.element && this.messagePort) {
 			this.messagePort.postMessage({ channel, args: data }, transferable);
+			return true;
 		}
+		return false;
 	}
 
 	protected on<T = unknown>(channel: WebviewMessageChannels, handler: (data: T, e: MessageEvent) => void): IDisposable {
@@ -530,7 +543,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			} as const;
 
 			type Classification = {
-				extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'mjbvz'; comment: 'The id of the extension that created the webview.' };
+				extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the extension that created the webview.' };
+				owner: 'mjbz';
+				comment: 'Helps find which extensions are contributing webviews with invalid CSPs';
 			};
 
 			this._telemetryService.publicLog2<typeof payload, Classification>('webviewMissingCsp', payload);

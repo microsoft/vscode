@@ -175,7 +175,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			const brackets = model.bracketPairs.matchBracket(position);
 			let newCursorPosition: Position | null = null;
 			if (brackets) {
-				if (brackets[0].containsPosition(position)) {
+				if (brackets[0].containsPosition(position) && !brackets[1].containsPosition(position)) {
 					newCursorPosition = brackets[1].getStartPosition();
 				} else if (brackets[1].containsPosition(position)) {
 					newCursorPosition = brackets[0].getStartPosition();
@@ -184,7 +184,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 				// find the enclosing brackets if the position isn't on a matching bracket
 				const enclosingBrackets = model.bracketPairs.findEnclosingBrackets(position);
 				if (enclosingBrackets) {
-					newCursorPosition = enclosingBrackets[0].getStartPosition();
+					newCursorPosition = enclosingBrackets[1].getStartPosition();
 				} else {
 					// no enclosing brackets, try the very first next bracket
 					const nextBracket = model.bracketPairs.findNextBracket(position);

@@ -154,9 +154,11 @@ export async function applyCodeAction(
 		codeActionIsPreferred: boolean;
 	};
 	type ApplyCodeEventClassification = {
-		codeActionTitle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'mjbvz'; comment: 'The display label of the applied code action' };
-		codeActionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'mjbvz'; comment: 'The kind (refactor, quickfix) of the applied code action' };
-		codeActionIsPreferred: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'mjbvz'; comment: 'Was the code action marked as being a preferred action?' };
+		codeActionTitle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The display label of the applied code action' };
+		codeActionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind (refactor, quickfix) of the applied code action' };
+		codeActionIsPreferred: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Was the code action marked as being a preferred action?' };
+		owner: 'mjbvz';
+		comment: 'Event used to gain insights into which code actions are being triggered';
 	};
 
 	telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {

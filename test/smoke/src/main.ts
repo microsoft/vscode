@@ -64,7 +64,7 @@ const opts = minimist(args, {
 	electronArgs?: string;
 };
 
-const logsPath = (() => {
+const logsRootPath = (() => {
 	const logsParentPath = path.join(rootPath, '.build', 'logs');
 
 	let logsName: string;
@@ -89,12 +89,12 @@ function createLogger(): Logger {
 		loggers.push(new ConsoleLogger());
 	}
 
-	// Prepare logs path
-	fs.rmSync(logsPath, { recursive: true, force: true, maxRetries: 3 });
-	mkdirp.sync(logsPath);
+	// Prepare logs rot path
+	fs.rmSync(logsRootPath, { recursive: true, force: true, maxRetries: 3 });
+	mkdirp.sync(logsRootPath);
 
 	// Always log to log file
-	loggers.push(new FileLogger(path.join(logsPath, 'smoke-test-runner.log')));
+	loggers.push(new FileLogger(path.join(logsRootPath, 'smoke-test-runner.log')));
 
 	return new MultiLogger(loggers);
 }
@@ -227,11 +227,6 @@ async function setupRepository(): Promise<void> {
 			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath });
 			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
 		}
-
-		// None of the current smoke tests have a dependency on the packages.
-		// If new smoke tests are added that need the packages, uncomment this.
-		// logger.log('Running yarn...');
-		// cp.execSync('yarn', { cwd: workspacePath, stdio: 'inherit' });
 	}
 }
 
@@ -321,7 +316,7 @@ async function setup(): Promise<void> {
 	logger.log('Smoketest setup done!\n');
 }
 
-// Before main suite (before all tests)
+// Before all tests run setup
 before(async function () {
 	this.timeout(5 * 60 * 1000); // increase since we download VSCode
 
@@ -333,7 +328,7 @@ before(async function () {
 		extensionsPath,
 		waitTime: parseInt(opts['wait-time'] || '0') || 20,
 		logger,
-		logsPath,
+		logsPath: path.join(logsRootPath, 'suite_unknown'),
 		verbose: opts.verbose,
 		remote: opts.remote,
 		web: opts.web,
@@ -341,7 +336,7 @@ before(async function () {
 		tracing: opts.tracing,
 		headless: opts.headless,
 		browser: opts.browser,
-		extraArgs: (opts.electronArgs || '').split(' ').map(a => a.trim()).filter(a => !!a)
+		extraArgs: (opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg)
 	};
 
 	await setup();
@@ -377,7 +372,7 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : opts.legacy ? 'Electron (lega
 	setupSearchTests(logger);
 	setupNotebookTests(logger);
 	setupLanguagesTests(logger);
-	if (!opts.legacy) { setupTerminalTests(logger); }
+	if (opts.web) { setupTerminalTests(logger); } // Tests require playwright driver (https://github.com/microsoft/vscode/issues/146811)
 	setupStatusbarTests(logger);
 	if (quality !== Quality.Dev) { setupExtensionTests(logger); }
 	setupMultirootTests(logger);

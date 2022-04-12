@@ -274,6 +274,29 @@ export function lastNonWhitespaceIndex(str: string, startIndex: number = str.len
 	return -1;
 }
 
+/**
+ * Function that works identically to String.prototype.replace, except, the
+ * replace function is allowed to be async and return a Promise.
+ */
+export function replaceAsync(str: string, search: RegExp, replacer: (match: string, ...args: any[]) => Promise<string>): Promise<string> {
+	let parts: (string | Promise<string>)[] = [];
+
+	let last = 0;
+	for (const match of str.matchAll(search)) {
+		parts.push(str.slice(last, match.index));
+		if (match.index === undefined) {
+			throw new Error('match.index should be defined');
+		}
+
+		last = match.index + match[0].length;
+		parts.push(replacer(match[0], ...match.slice(1), match.index, str, match.groups));
+	}
+
+	parts.push(str.slice(last));
+
+	return Promise.all(parts).then(p => p.join(''));
+}
+
 export function compare(a: string, b: string): number {
 	if (a < b) {
 		return -1;

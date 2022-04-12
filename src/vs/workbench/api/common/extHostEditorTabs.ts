@@ -174,6 +174,17 @@ class ExtHostEditorTabGroup {
 				this._activeTabId = '';
 			}
 			return tab;
+		} else if (operation.kind === TabModelOperationKind.TAB_MOVE) {
+			if (operation.oldIndex === undefined) {
+				throw new Error('Invalid old index on move IPC');
+			}
+			// Splice to remove at old index and insert at new index === moving the tab
+			const tab = this._tabs.splice(operation.oldIndex, 1)[0];
+			if (!tab) {
+				throw new Error(`Tab move updated received for index ${operation.oldIndex} which does not exist`);
+			}
+			this._tabs.splice(operation.index, 0, tab);
+			return tab;
 		}
 		const tab = this._tabs.find(extHostTab => extHostTab.tabId === operation.tabDto.id);
 		if (!tab) {
@@ -201,7 +212,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 	readonly _serviceBrand: undefined;
 
 	private readonly _proxy: MainThreadEditorTabsShape;
-	private readonly _onDidChangeTabs = new Emitter<vscode.Tab[]>();
+	private readonly _onDidChangeTabs = new Emitter<vscode.TabChangeEvent>();
 	private readonly _onDidChangeTabGroups = new Emitter<vscode.TabGroup[]>();
 
 	// Have to use ! because this gets initialized via an RPC proxy
@@ -223,7 +234,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 				onDidChangeTabGroups: that._onDidChangeTabGroups.event,
 				onDidChangeTabs: that._onDidChangeTabs.event,
 				// dynamic -> getters
-				get groups() {
+				get all() {
 					return Object.freeze(that._extHostTabGroups.map(group => group.apiObject));
 				},
 				get activeTabGroup() {
@@ -231,7 +242,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 					const activeTabGroup = assertIsDefined(that._extHostTabGroups.find(candidate => candidate.groupId === activeTabGroupId)?.apiObject);
 					return activeTabGroup;
 				},
-				close: async (tabOrTabGroup: vscode.Tab | vscode.Tab[] | vscode.TabGroup | vscode.TabGroup[], preserveFocus?: boolean) => {
+				close: async (tabOrTabGroup: vscode.Tab | readonly vscode.Tab[] | vscode.TabGroup | readonly vscode.TabGroup[], preserveFocus?: boolean) => {
 					const tabsOrTabGroups = Array.isArray(tabOrTabGroup) ? tabOrTabGroup : [tabOrTabGroup];
 					if (!tabsOrTabGroups.length) {
 						return true;
@@ -291,9 +302,31 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			throw new Error('Update Tabs IPC call received before group creation.');
 		}
 		const tab = group.acceptTabOperation(operation);
-		// We don't want to fire a change event with a closed tab to prevent an invalid tabs from being received
-		if (operation.kind !== TabModelOperationKind.TAB_CLOSE) {
-			this._onDidChangeTabs.fire([tab.apiObject]);
+
+		// Construct the tab change event based on the operation
+		switch (operation.kind) {
+			case TabModelOperationKind.TAB_OPEN:
+				this._onDidChangeTabs.fire({
+					added: [tab.apiObject],
+					removed: [],
+					changed: []
+				});
+				return;
+			case TabModelOperationKind.TAB_CLOSE:
+				this._onDidChangeTabs.fire({
+					added: [],
+					removed: [tab.apiObject],
+					changed: []
+				});
+				return;
+			case TabModelOperationKind.TAB_MOVE:
+			case TabModelOperationKind.TAB_UPDATE:
+				this._onDidChangeTabs.fire({
+					added: [],
+					removed: [],
+					changed: [tab.apiObject]
+				});
+				return;
 		}
 	}
 

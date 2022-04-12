@@ -773,6 +773,18 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
 			isInWhitespace = lineIsEmptyOrWhitespace || charIndex > lastNonWhitespaceIndex;
 		}
 
+		if (isInWhitespace && tokenContainsRTL) {
+			// If the token contains RTL text, breaking it up into multiple line parts
+			// to render whitespace might affect the browser's bidi layout.
+			//
+			// We render whitespace in such tokens only if the whitespace
+			// is the leading or the trailing whitespace of the line,
+			// which doesn't affect the browser's bidi layout.
+			if (charIndex >= firstNonWhitespaceIndex && charIndex <= lastNonWhitespaceIndex) {
+				isInWhitespace = false;
+			}
+		}
+
 		if (wasInWhitespace) {
 			// was in whitespace token
 			if (!isInWhitespace || (!useMonospaceOptimizations && tmpIndent >= tabSize)) {
@@ -959,7 +971,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 
 		sb.appendASCIIString('<span ');
 		if (partContainsRTL) {
-			sb.appendASCIIString('dir="auto" ');
+			sb.appendASCIIString('style="unicode-bidi:isolate" ');
 		}
 		sb.appendASCIIString('class="');
 		sb.appendASCIIString(partRendersWhitespaceWithWidth ? 'mtkz' : partType);

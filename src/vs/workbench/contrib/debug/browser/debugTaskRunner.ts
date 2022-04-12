@@ -15,9 +15,12 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { createErrorWithActions } from 'vs/base/common/errorMessage';
+import { Action } from 'vs/base/common/actions';
+import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 function once(match: (e: TaskEvent) => boolean, event: Event<TaskEvent>): Event<TaskEvent> {
 	return (listener, thisArgs = null, disposables?) => {
@@ -48,7 +51,8 @@ export class DebugTaskRunner {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@ICommandService private readonly commandService: ICommandService
 	) { }
 
 	cancel(): void {
@@ -158,7 +162,7 @@ export class DebugTaskRunner {
 			const errorMessage = typeof taskId === 'string'
 				? nls.localize('DebugTaskNotFoundWithTaskId', "Could not find the task '{0}'.", taskId)
 				: nls.localize('DebugTaskNotFound', "Could not find the specified task.");
-			return Promise.reject(createErrorWithActions(errorMessage));
+			return Promise.reject(createErrorWithActions(errorMessage, [new Action(DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, undefined, true, () => this.commandService.executeCommand(DEBUG_CONFIGURE_COMMAND_ID))]));
 		}
 
 		// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340

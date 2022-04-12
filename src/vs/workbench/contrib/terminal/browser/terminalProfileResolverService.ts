@@ -355,25 +355,23 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		const env = await this._context.getEnvironment(options.remoteAuthority);
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(options.remoteAuthority ? Schemas.vscodeRemote : Schemas.file);
 		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-		profile.path = this._resolveVariables(profile.path, env, lastActiveWorkspace);
+		profile.path = await this._resolveVariables(profile.path, env, lastActiveWorkspace);
 
 		// Resolve args variables
 		if (profile.args) {
 			if (typeof profile.args === 'string') {
-				profile.args = this._resolveVariables(profile.args, env, lastActiveWorkspace);
+				profile.args = await this._resolveVariables(profile.args, env, lastActiveWorkspace);
 			} else {
-				for (let i = 0; i < profile.args.length; i++) {
-					profile.args[i] = this._resolveVariables(profile.args[i], env, lastActiveWorkspace);
-				}
+				profile.args = await Promise.all(profile.args.map(arg => this._resolveVariables(arg, env, lastActiveWorkspace)));
 			}
 		}
 
 		return profile;
 	}
 
-	private _resolveVariables(value: string, env: IProcessEnvironment, lastActiveWorkspace: IWorkspaceFolder | undefined) {
+	private async _resolveVariables(value: string, env: IProcessEnvironment, lastActiveWorkspace: IWorkspaceFolder | undefined) {
 		try {
-			value = this._configurationResolverService.resolveWithEnvironment(env, lastActiveWorkspace, value);
+			value = await this._configurationResolverService.resolveWithEnvironment(env, lastActiveWorkspace, value);
 		} catch (e) {
 			this._logService.error(`Could not resolve shell`, e);
 		}

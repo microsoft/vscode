@@ -5,8 +5,8 @@
 
 import { Workbench } from './workbench';
 import { Code, launch, LaunchOptions } from './code';
-import { Logger } from './logger';
-import { PlaywrightDriver } from './playwrightBrowserDriver';
+import { Logger, measureAndLog } from './logger';
+import { PlaywrightDriver } from './playwrightDriver';
 
 export const enum Quality {
 	Dev,
@@ -22,11 +22,7 @@ export interface ApplicationOptions extends LaunchOptions {
 
 export class Application {
 
-	private static INSTANCES = 0;
-
 	constructor(private options: ApplicationOptions) {
-		Application.INSTANCES++;
-
 		this._userDataPath = options.userDataDir;
 		this._workspacePathOrFolder = options.workspacePath;
 	}
@@ -71,37 +67,27 @@ export class Application {
 		return this._userDataPath;
 	}
 
-	async start(): Promise<any> {
+	async start(): Promise<void> {
 		await this._start();
 		await this.code.waitForElement('.explorer-folders-view');
 	}
 
-	async restart(options?: { workspaceOrFolder?: string; extraArgs?: string[] }): Promise<any> {
+	async restart(options?: { workspaceOrFolder?: string; extraArgs?: string[] }): Promise<void> {
 		await this.stop();
 		await this._start(options?.workspaceOrFolder, options?.extraArgs);
 	}
 
-	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<any> {
+	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<void> {
 		this._workspacePathOrFolder = workspaceOrFolder;
 
 		// Launch Code...
 		const code = await this.startApplication(extraArgs);
 
 		// ...and make sure the window is ready to interact
-		const windowReady = this.checkWindowReady(code);
-
-		// Make sure to take a screenshot if waiting for window ready
-		// takes unusually long to help diagnose issues when Code does
-		// not seem to startup healthy.
-		const timeoutHandle = setTimeout(() => this.takeScreenshot(`checkWindowReady_instance_${Application.INSTANCES}`), 20000);
-		try {
-			await windowReady;
-		} finally {
-			clearTimeout(timeoutHandle);
-		}
+		await measureAndLog(this.checkWindowReady(code), 'Application#checkWindowReady()', this.logger);
 	}
 
-	async stop(): Promise<any> {
+	async stop(): Promise<void> {
 		if (this._code) {
 			try {
 				await this._code.exit();
@@ -119,15 +105,6 @@ export class Application {
 		await this._code?.stopTracing(name, persist);
 	}
 
-	private async takeScreenshot(name: string): Promise<void> {
-		if (this.web || !this.legacy) {
-			return; // supported only on desktop (legacy)
-		}
-
-		// Desktop (legacy): call `stopTracing` to take a screenshot
-		return this._code?.stopTracing(name, true);
-	}
-
 	private async startApplication(extraArgs: string[] = []): Promise<Code> {
 		const code = this._code = await launch({
 			...this.options,
@@ -139,22 +116,18 @@ export class Application {
 		return code;
 	}
 
-	private async checkWindowReady(code: Code): Promise<any> {
-		this.logger.log('checkWindowReady: begin');
+	private async checkWindowReady(code: Code): Promise<void> {
 
+		// This is legacy and will be removed when our old driver removes
 		await code.waitForWindowIds(ids => ids.length > 0);
 
-		// TODO@bpasero productize this hack
-		if (code.driver instanceof PlaywrightDriver) {
-			await code.driver.page.locator('.monaco-workbench').waitFor({ timeout: 40000 });
-		} else {
-			await code.waitForElement('.monaco-workbench');
-		}
+		// We need a rendered workbench
+		await this.checkWorkbenchReady(code);
 
 		// Remote but not web: wait for a remote connection state change
 		if (this.remote) {
-			await code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', undefined, s => {
-				this.logger.log(`checkWindowReady: remote indicator text is ${s}`);
+			await measureAndLog(code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', undefined, statusHostLabel => {
+				this.logger.log(`checkWindowReady: remote indicator text is ${statusHostLabel}`);
 
 				// The absence of "Opening Remote" is not a strict
 				// indicator for a successful connection, but we
@@ -164,10 +137,32 @@ export class Application {
 				// diagnose this. As such, as soon as the connection
 				// state changes away from the "Opening Remote..." one
 				// we return.
-				return !s.includes('Opening Remote');
-			}, 300 /* = 30s of retry */);
+				return !statusHostLabel.includes('Opening Remote');
+			}, 300 /* = 30s of retry */), 'Application#checkWindowReady: wait for remote indicator', this.logger);
+		}
+	}
+
+	private async checkWorkbenchReady(code: Code): Promise<void> {
+		const driver = code.driver;
+
+		// Web / Legacy: just poll for workbench element
+		if (this.web || !(driver instanceof PlaywrightDriver)) {
+			await measureAndLog(code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
 		}
 
-		this.logger.log('checkWindowReady: end');
+		// Desktop (playwright): we see hangs, where IPC messages
+		// are not delivered (https://github.com/microsoft/vscode/issues/146785)
+		// Workaround is to try to reload the window when that happens
+		else {
+			try {
+				await measureAndLog(code.waitForElement('.monaco-workbench', undefined, 100 /* 10s of retry */), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
+			} catch (error) {
+				this.logger.log(`checkWindowReady: giving up after 10s, reloading window and trying again...`);
+
+				await driver.reload();
+
+				return this.checkWorkbenchReady(code);
+			}
+		}
 	}
 }

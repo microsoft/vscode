@@ -324,7 +324,7 @@ export async function createTask(packageManager: string, script: NpmTaskDefiniti
 	}
 
 	let relativePackageJson = getRelativePath(packageJsonUri);
-	if (relativePackageJson.length) {
+	if (relativePackageJson.length && !kind.path) {
 		kind.path = relativePackageJson.substring(0, relativePackageJson.length - 1);
 	}
 	let taskName = getTaskName(kind.script, relativePackageJson);

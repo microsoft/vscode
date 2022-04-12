@@ -5,12 +5,15 @@
 
 import { Color } from 'vs/base/common/color';
 import * as languages from 'vs/editor/common/languages';
+import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
 import * as nls from 'vs/nls';
-import { contrastBorder, editorWarningForeground, editorWidgetForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, disabledForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 
-export const resolvedCommentBorder = registerColor('comments.resolved.border', { dark: editorWidgetForeground, light: editorWidgetForeground, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('resolvedCommentBorder', 'Color of borders and arrow for resolved comments.'));
-export const unresolvedCommentBorder = registerColor('comments.unresolved.border', { dark: editorWarningForeground, light: editorWarningForeground, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('unresolvedCommentBorder', 'Color of borders and arrow for unresolved comments.'));
+const resolvedCommentBorder = registerColor('editorCommentsWidget.resolvedBorder', { dark: disabledForeground, light: disabledForeground, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('resolvedCommentBorder', 'Color of borders and arrow for resolved comments.'));
+const unresolvedCommentBorder = registerColor('editorCommentsWidget.unresolvedBorder', { dark: peekViewBorder, light: peekViewBorder, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('unresolvedCommentBorder', 'Color of borders and arrow for unresolved comments.'));
+export const commentThreadRangeBackground = registerColor('editorCommentsWidget.rangeBackground', { dark: transparent(unresolvedCommentBorder, .1), light: transparent(unresolvedCommentBorder, .1), hcDark: transparent(unresolvedCommentBorder, .1), hcLight: transparent(unresolvedCommentBorder, .1) }, nls.localize('commentThreadRangeBackground', 'Color of background for comment ranges.'));
+export const commentThreadRangeBorder = registerColor('editorCommentsWidget.rangeBorder', { dark: transparent(unresolvedCommentBorder, .4), light: transparent(unresolvedCommentBorder, .4), hcDark: transparent(unresolvedCommentBorder, .4), hcLight: transparent(unresolvedCommentBorder, .4) }, nls.localize('commentThreadRangeBackground', 'Color of background for comment ranges.'));
 
 const commentThreadStateColors = new Map([
 	[languages.CommentThreadState.Unresolved, unresolvedCommentBorder],
@@ -18,8 +21,12 @@ const commentThreadStateColors = new Map([
 ]);
 
 export const commentThreadStateColorVar = '--comment-thread-state-color';
+export const commentViewThreadStateColorVar = '--comment-view-thread-state-color';
+export const commentThreadStateBackgroundColorVar = '--comment-thread-state-background-color';
+export const commentThreadRangeBackgroundColorVar = '--vscode-comment-thread-range-background';
+export const commentThreadRangeBorderColorVar = '--vscode-comment-thread-range-border';
 
-export function getCommentThreadStateColor(thread: languages.CommentThread, theme: IColorTheme): Color | undefined {
-	const colorId = thread.state !== undefined ? commentThreadStateColors.get(thread.state) : undefined;
-	return colorId !== undefined ? theme.getColor(colorId) : undefined;
+export function getCommentThreadStateColor(state: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
+	const colorId = (state !== undefined) ? commentThreadStateColors.get(state) : undefined;
+	return (colorId !== undefined) ? theme.getColor(colorId) : undefined;
 }

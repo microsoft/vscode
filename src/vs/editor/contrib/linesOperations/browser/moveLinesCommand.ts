@@ -14,7 +14,7 @@ import { CompleteEnterAction, IndentAction } from 'vs/editor/common/languages/la
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IndentConsts } from 'vs/editor/common/languages/supports/indentRules';
 import * as indentUtils from 'vs/editor/contrib/indentation/browser/indentUtils';
-import { getGoodIndentForLine, getIndentMetadata, IIndentConverter } from 'vs/editor/common/languages/autoIndent';
+import { getGoodIndentForLine, getIndentMetadata, IIndentConverter, IVirtualModel } from 'vs/editor/common/languages/autoIndent';
 import { getEnterAction } from 'vs/editor/common/languages/enterAction';
 
 export class MoveLinesCommand implements ICommand {
@@ -63,15 +63,17 @@ export class MoveLinesCommand implements ICommand {
 
 		const { tabSize, indentSize, insertSpaces } = model.getOptions();
 		let indentConverter = this.buildIndentConverter(tabSize, indentSize, insertSpaces);
-		let virtualModel = {
-			getLineTokens: (lineNumber: number) => {
-				return model.getLineTokens(lineNumber);
-			},
-			getLanguageId: () => {
-				return model.getLanguageId();
-			},
-			getLanguageIdAtPosition: (lineNumber: number, column: number) => {
-				return model.getLanguageIdAtPosition(lineNumber, column);
+		let virtualModel: IVirtualModel = {
+			tokenization: {
+				getLineTokens: (lineNumber: number) => {
+					return model.tokenization.getLineTokens(lineNumber);
+				},
+				getLanguageId: () => {
+					return model.getLanguageId();
+				},
+				getLanguageIdAtPosition: (lineNumber: number, column: number) => {
+					return model.getLanguageIdAtPosition(lineNumber, column);
+				},
 			},
 			getLineContent: null as unknown as (lineNumber: number) => string,
 		};
@@ -361,7 +363,7 @@ export class MoveLinesCommand implements ICommand {
 			return false;
 		}
 		// if it's not easy to tokenize, we stop auto indent.
-		if (!model.isCheapToTokenize(selection.startLineNumber)) {
+		if (!model.tokenization.isCheapToTokenize(selection.startLineNumber)) {
 			return false;
 		}
 		let languageAtSelectionStart = model.getLanguageIdAtPosition(selection.startLineNumber, 1);

@@ -5,7 +5,7 @@
 
 import { quickSelect } from 'vs/base/common/arrays';
 import { CharCode } from 'vs/base/common/charCode';
-import { anyScore, fuzzyScore, FuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScorer } from 'vs/base/common/filters';
+import { anyScore, fuzzyScore, FuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from 'vs/base/common/filters';
 import { compareIgnoreCase } from 'vs/base/common/strings';
 import { InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
 import { CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
@@ -41,6 +41,7 @@ export class CompletionModel {
 	private readonly _wordDistance: WordDistance;
 	private readonly _options: InternalSuggestOptions;
 	private readonly _snippetCompareFn = CompletionModel._compareCompletionItems;
+	private readonly _fuzzyScoreOptions: FuzzyScoreOptions;
 
 	private _lineContext: LineContext;
 	private _refilterKind: Refilter;
@@ -55,7 +56,8 @@ export class CompletionModel {
 		wordDistance: WordDistance,
 		options: InternalSuggestOptions,
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none',
-		readonly clipboardText: string | undefined
+		fuzzyScoreOptions: FuzzyScoreOptions | undefined = FuzzyScoreOptions.default,
+		readonly clipboardText: string | undefined = undefined
 	) {
 		this._items = items;
 		this._column = column;
@@ -63,6 +65,7 @@ export class CompletionModel {
 		this._options = options;
 		this._refilterKind = Refilter.All;
 		this._lineContext = lineContext;
+		this._fuzzyScoreOptions = fuzzyScoreOptions;
 
 		if (snippetSuggestions === 'top') {
 			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsUp;
@@ -209,7 +212,7 @@ export class CompletionModel {
 					// if it matches we check with the label to compute highlights
 					// and if that doesn't yield a result we have no highlights,
 					// despite having the match
-					let match = scoreFn(word, wordLow, wordPos, item.completion.filterText, item.filterTextLow!, 0, false);
+					let match = scoreFn(word, wordLow, wordPos, item.completion.filterText, item.filterTextLow!, 0, this._fuzzyScoreOptions);
 					if (!match) {
 						continue; // NO match
 					}
@@ -225,7 +228,7 @@ export class CompletionModel {
 
 				} else {
 					// by default match `word` against the `label`
-					let match = scoreFn(word, wordLow, wordPos, item.textLabel, item.labelLow, 0, false);
+					let match = scoreFn(word, wordLow, wordPos, item.textLabel, item.labelLow, 0, this._fuzzyScoreOptions);
 					if (!match) {
 						continue; // NO match
 					}

@@ -43,6 +43,10 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		`--logsPath=${logsPath}`
 	];
 
+	if (options.verbose) {
+		args.push('--verbose');
+	}
+
 	if (process.platform === 'linux') {
 		args.push('--disable-gpu'); // Linux has trouble in VMs to render properly with GPU enabled
 	}
@@ -68,6 +72,9 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
 		env['TESTRESOLVER_LOGS_FOLDER'] = join(logsPath, 'server');
+		if (options.verbose) {
+			env['TESTRESOLVER_LOG_LEVEL'] = 'trace';
+		}
 	}
 
 	args.push('--enable-proposed-api=vscode.vscode-notebook-tests');
