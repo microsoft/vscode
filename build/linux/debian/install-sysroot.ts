@@ -9,11 +9,11 @@ import * as fs from 'fs';
 import * as https from 'https';
 import * as path from 'path';
 import { sysrootInfo } from './sysroots';
+import { ArchString } from './types';
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
 const URL_PREFIX = 'https://s3.amazonaws.com';
 const URL_PATH = 'electronjs-sysroots/toolchain';
-const VALID_ARCH_LIST = ['amd64', 'armhf', 'arm64'];
 
 function getSha(filename: fs.PathLike): string {
 	const hash = createHash('sha1');
@@ -36,20 +36,8 @@ type SysrootDictEntry = {
 	Tarball: string;
 };
 
-function getSysrootDict(arch: string): SysrootDictEntry {
-	if (!VALID_ARCH_LIST.includes(arch)) {
-		throw new Error('Unknown arch ' + arch);
-	}
-
-	const sysroot_key = 'sid_' + arch;
-	if (!sysrootInfo[sysroot_key]) {
-		throw new Error(`No sysroot for: ${arch}`);
-	}
-	return sysrootInfo[sysroot_key] as SysrootDictEntry;
-}
-
-export async function getSysroot(arch: string): Promise<string> {
-	const sysrootDict = getSysrootDict(arch);
+export async function getSysroot(arch: ArchString): Promise<string> {
+	const sysrootDict: SysrootDictEntry = sysrootInfo[arch];
 	const tarballFilename = sysrootDict['Tarball'];
 	const tarballSha = sysrootDict['Sha1Sum'];
 	const sysroot = path.join(__dirname, sysrootDict['SysrootDir']);

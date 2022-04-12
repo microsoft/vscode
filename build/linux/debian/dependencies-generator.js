@@ -42,8 +42,13 @@ function getDependencies(buildDir, applicationName, arch) {
         sortedDependencies = sortedDependencies.filter(dependency => {
             return !dep_lists_1.bundledDeps.some(bundledDep => dependency.startsWith(bundledDep));
         });
-        console.log('Printing dependencies:');
-        console.log(sortedDependencies.join('\n'));
+        const referenceGeneratedDeps = dep_lists_1.referenceGeneratedDepsByArch[arch];
+        if (JSON.stringify(sortedDependencies) !== JSON.stringify(referenceGeneratedDeps)) {
+            // Don't fail the build for now.
+            console.warn('The dependencies list has changed. ' +
+                'Printing newer dependencies list that one can use to compare against referenceGeneratedDeps:');
+            console.warn(sortedDependencies.join('\n'));
+        }
         return sortedDependencies;
     });
 }

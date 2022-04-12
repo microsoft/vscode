@@ -8,10 +8,11 @@
 import { spawnSync } from 'child_process';
 import { constants, statSync } from 'fs';
 import path = require('path');
-import { additionalDeps, bundledDeps } from './dep-lists';
+import { additionalDeps, bundledDeps, referenceGeneratedDepsByArch } from './dep-lists';
 import { getSysroot } from './install-sysroot';
+import { ArchString } from './types';
 
-export function getDependencies(buildDir: string, applicationName: string, arch: string): Promise<string[]> {
+export function getDependencies(buildDir: string, applicationName: string, arch: ArchString): Promise<string[]> {
 	// Get the files for which we want to find dependencies.
 	const nativeModulesPath = path.join(buildDir, 'resources', 'app', 'node_modules.asar.unpacked');
 	const findResult = spawnSync('find', [nativeModulesPath, '-name', '*.node']);
@@ -50,15 +51,20 @@ export function getDependencies(buildDir: string, applicationName: string, arch:
 			return !bundledDeps.some(bundledDep => dependency.startsWith(bundledDep));
 		});
 
-		console.log('Printing dependencies:');
-		console.log(sortedDependencies.join('\n'));
+		const referenceGeneratedDeps = referenceGeneratedDepsByArch[arch];
+		if (JSON.stringify(sortedDependencies) !== JSON.stringify(referenceGeneratedDeps)) {
+			// Don't fail the build for now.
+			console.warn('The dependencies list has changed. ' +
+				'Printing newer dependencies list that one can use to compare against referenceGeneratedDeps:');
+			console.warn(sortedDependencies.join('\n'));
+		}
 
 		return sortedDependencies;
 	});
 }
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/debian/calculate_package_deps.py.
-async function calculatePackageDeps(binaryPath: string, arch: string, buildRoot: string): Promise<Set<string>> {
+async function calculatePackageDeps(binaryPath: string, arch: ArchString, buildRoot: string): Promise<Set<string>> {
 	// TODO: Do we need this following try-catch check for Debian?
 	// Test by running it through the CL.
 	try {

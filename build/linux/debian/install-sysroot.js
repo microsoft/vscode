@@ -14,7 +14,6 @@ const sysroots_1 = require("./sysroots");
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
 const URL_PREFIX = 'https://s3.amazonaws.com';
 const URL_PATH = 'electronjs-sysroots/toolchain';
-const VALID_ARCH_LIST = ['amd64', 'armhf', 'arm64'];
 function getSha(filename) {
     const hash = (0, crypto_1.createHash)('sha1');
     // Read file 1 MB at a time
@@ -29,18 +28,8 @@ function getSha(filename) {
     hash.update(buffer.slice(0, bytesRead));
     return hash.digest('hex');
 }
-function getSysrootDict(arch) {
-    if (!VALID_ARCH_LIST.includes(arch)) {
-        throw new Error('Unknown arch ' + arch);
-    }
-    const sysroot_key = 'sid_' + arch;
-    if (!sysroots_1.sysrootInfo[sysroot_key]) {
-        throw new Error(`No sysroot for: ${arch}`);
-    }
-    return sysroots_1.sysrootInfo[sysroot_key];
-}
 async function getSysroot(arch) {
-    const sysrootDict = getSysrootDict(arch);
+    const sysrootDict = sysroots_1.sysrootInfo[arch];
     const tarballFilename = sysrootDict['Tarball'];
     const tarballSha = sysrootDict['Sha1Sum'];
     const sysroot = path.join(__dirname, sysrootDict['SysrootDir']);
