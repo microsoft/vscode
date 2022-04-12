@@ -397,7 +397,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this._updateForNotebookConfiguration();
 			}
 
-			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation || e.dragAndDropEnabled || e.fontSize || e.outputFontSize || e.fontFamily || e.outputFontFamily || e.markupFontSize || e.insertToolbarAlignment || e.outputLineHeight) {
+			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation || e.dragAndDropEnabled || e.fontSize || e.outputFontSize || e.markupFontSize || e.insertToolbarAlignment || e.outputLineHeight) {
 				this._styleElement?.remove();
 				this._createLayoutStyles();
 				this._webview?.updateOptions({

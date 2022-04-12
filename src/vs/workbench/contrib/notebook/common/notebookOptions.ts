@@ -88,8 +88,6 @@ export interface NotebookOptionsChangeEvent {
 	readonly dragAndDropEnabled?: boolean;
 	readonly fontSize?: boolean;
 	readonly outputFontSize?: boolean;
-	readonly fontFamily?: boolean;
-	readonly outputFontFamily?: boolean;
 	readonly markupFontSize?: boolean;
 	readonly editorOptionsCustomizations?: boolean;
 	readonly interactiveWindowCollapseCodeCells?: boolean;
@@ -146,7 +144,7 @@ export class NotebookOptions extends Disposable {
 		const markupFontSize = this.configurationService.getValue<number>(NotebookSetting.markupFontSize);
 		const editorOptionsCustomizations = this.configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations);
 		const interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells = this.configurationService.getValue(NotebookSetting.interactiveWindowCollapseCodeCells);
-		const outputLineHeight = this.configurationService.getValue<number>(NotebookSetting.outputLineHeight);
+		const outputLineHeight = this._computeOutputLineHeight();
 
 		this._layoutConfiguration = {
 			...(compactView ? compactConfigConstants : defaultConfigConstants),
@@ -198,6 +196,29 @@ export class NotebookOptions extends Disposable {
 		}));
 	}
 
+	private _computeOutputLineHeight(): number {
+		const minimumLineHeight = 8;
+		let lineHeight = this.configurationService.getValue<number>(NotebookSetting.outputLineHeight);
+
+		if (lineHeight < minimumLineHeight) {
+			// Values too small to be line heights in pixels are in ems.
+			let fontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize);
+			if (fontSize === 0) {
+				fontSize = this.configurationService.getValue<number>('editor.fontSize');
+			}
+
+			lineHeight = lineHeight * fontSize;
+		}
+
+		// Enforce integer, minimum constraints
+		lineHeight = Math.round(lineHeight);
+		if (lineHeight < minimumLineHeight) {
+			lineHeight = minimumLineHeight;
+		}
+
+		return lineHeight;
+	}
+
 	private _updateConfiguration(e: IConfigurationChangeEvent) {
 		const cellStatusBarVisibility = e.affectsConfiguration(NotebookSetting.showCellStatusBar);
 		const cellToolbarLocation = e.affectsConfiguration(NotebookSetting.cellToolbarLocation);
@@ -213,8 +234,6 @@ export class NotebookOptions extends Disposable {
 		const dragAndDropEnabled = e.affectsConfiguration(NotebookSetting.dragAndDropEnabled);
 		const fontSize = e.affectsConfiguration('editor.fontSize');
 		const outputFontSize = e.affectsConfiguration(NotebookSetting.outputFontSize);
-		const fontFamily = e.affectsConfiguration('editor.fontFamily');
-		const outputFontFamily = e.affectsConfiguration(NotebookSetting.outputFontFamily);
 		const markupFontSize = e.affectsConfiguration(NotebookSetting.markupFontSize);
 		const editorOptionsCustomizations = e.affectsConfiguration(NotebookSetting.cellEditorOptionsCustomizations);
 		const interactiveWindowCollapseCodeCells = e.affectsConfiguration(NotebookSetting.interactiveWindowCollapseCodeCells);
@@ -236,8 +255,6 @@ export class NotebookOptions extends Disposable {
 			&& !dragAndDropEnabled
 			&& !fontSize
 			&& !outputFontSize
-			&& !fontFamily
-			&& !outputFontFamily
 			&& !markupFontSize
 			&& !editorOptionsCustomizations
 			&& !interactiveWindowCollapseCodeCells
@@ -304,11 +321,7 @@ export class NotebookOptions extends Disposable {
 		}
 
 		if (outputFontSize) {
-			configuration.outputFontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize);
-		}
-
-		if (outputFontFamily) {
-			configuration.outputFontFamily = this.configurationService.getValue<string>(NotebookSetting.outputFontFamily);
+			configuration.outputFontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize) ?? configuration.fontSize;
 		}
 
 		if (markupFontSize) {
@@ -323,8 +336,8 @@ export class NotebookOptions extends Disposable {
 			configuration.interactiveWindowCollapseCodeCells = this.configurationService.getValue(NotebookSetting.interactiveWindowCollapseCodeCells);
 		}
 
-		if (outputLineHeight) {
-			configuration.outputLineHeight = this.configurationService.getValue<number>(NotebookSetting.outputLineHeight);
+		if (outputLineHeight || fontSize || outputFontSize) {
+			configuration.outputLineHeight = this._computeOutputLineHeight();
 		}
 
 		this._layoutConfiguration = Object.freeze(configuration);
@@ -346,7 +359,6 @@ export class NotebookOptions extends Disposable {
 			dragAndDropEnabled,
 			fontSize,
 			outputFontSize,
-			outputFontFamily,
 			markupFontSize,
 			editorOptionsCustomizations,
 			interactiveWindowCollapseCodeCells,
