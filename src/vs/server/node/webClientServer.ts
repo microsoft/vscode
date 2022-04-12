@@ -139,7 +139,7 @@ export class WebClientServer {
 	private async _handleStatic(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
 		const headers: Record<string, string> = Object.create(null);
 
-		// Strip `/static/` from the path
+		// Strip the this._staticRoute from the path
 		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
 		const relativeFilePath = normalizedPathname.substring(this._staticRoute.length + 1);
 
