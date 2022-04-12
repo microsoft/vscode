@@ -8,7 +8,7 @@ import * as semver from 'vs/base/common/semver/semver';
 import { Event, Emitter } from 'vs/base/common/event';
 import { index, distinct } from 'vs/base/common/arrays';
 import { Promises, ThrottledDelayer } from 'vs/base/common/async';
-import { canceled, isCancellationError } from 'vs/base/common/errors';
+import { CancellationError, isCancellationError } from 'vs/base/common/errors';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -1353,7 +1353,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 								}
 							}
 						], {
-							onCancel: () => reject(canceled())
+							onCancel: () => reject(new CancellationError())
 						});
 					});
 				}
