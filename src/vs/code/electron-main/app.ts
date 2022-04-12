@@ -895,6 +895,7 @@ export class CodeApplication extends Disposable {
 					const [window] = windowsMainService.open({
 						context: OpenContext.API,
 						cli: { ...environmentService.args },
+						forceNewWindow: true,
 						forceEmpty: true,
 						gotoLineMode: true,
 						remoteAuthority: getRemoteAuthority(uri)
