@@ -22,7 +22,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
 import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext, IsFullscreenContext } from 'vs/workbench/common/contextkeys';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext, IsFullscreenContext, PanelPositionContext } from 'vs/workbench/common/contextkeys';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -330,12 +330,8 @@ registerAction2(class extends Action2 {
 			category: CATEGORIES.View,
 			f1: true,
 			toggled: EditorAreaVisibleContext,
-			// Remove from appearance menu
-			// menu: [{
-			// 	id: MenuId.MenubarAppearanceMenu,
-			// 	group: '2_workbench_layout',
-			// 	order: 5
-			// }]
+			// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
+			precondition: ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), PanelPositionContext.notEqualsTo('bottom'))
 		});
 	}
 
