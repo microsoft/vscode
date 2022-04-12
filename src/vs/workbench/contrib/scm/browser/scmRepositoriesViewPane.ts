@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $ } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
-import { ISCMRepositoryView, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -24,7 +24,7 @@ import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmReposito
 import { collectContextMenuActions, getActionViewItemProvider } from 'vs/workbench/contrib/scm/browser/util';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 
-class ListDelegate implements IListVirtualDelegate<ISCMRepositoryView> {
+class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
 	getHeight(): number {
 		return 22;
@@ -37,7 +37,7 @@ class ListDelegate implements IListVirtualDelegate<ISCMRepositoryView> {
 
 export class SCMRepositoriesViewPane extends ViewPane {
 
-	private list!: WorkbenchList<ISCMRepositoryView>;
+	private list!: WorkbenchList<ISCMRepository>;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -62,7 +62,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 		const delegate = new ListDelegate();
 		const renderer = this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService));
-		const identityProvider = { getId: (r: ISCMRepositoryView) => r.repository.provider.id };
+		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Main`, listContainer, delegate, [renderer], {
 			identityProvider,
@@ -71,14 +71,14 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				listBackground: SIDE_BAR_BACKGROUND
 			},
 			accessibilityProvider: {
-				getAriaLabel(r: ISCMRepositoryView) {
-					return r.repository.provider.label;
+				getAriaLabel(r: ISCMRepository) {
+					return r.provider.label;
 				},
 				getWidgetAriaLabel() {
 					return localize('scm', "Source Control Repositories");
 				}
 			}
-		}) as WorkbenchList<ISCMRepositoryView>;
+		}) as WorkbenchList<ISCMRepository>;
 
 		this._register(this.list);
 		this._register(this.list.onDidChangeSelection(this.onListSelectionChange, this));
@@ -126,12 +126,12 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		this.maximumBodySize = visibleCount === 0 ? Number.POSITIVE_INFINITY : empty ? Number.POSITIVE_INFINITY : size;
 	}
 
-	private onListContextMenu(e: IListContextMenuEvent<ISCMRepositoryView>): void {
+	private onListContextMenu(e: IListContextMenuEvent<ISCMRepository>): void {
 		if (!e.element) {
 			return;
 		}
 
-		const provider = e.element.repository.provider;
+		const provider = e.element.provider;
 		const menus = this.scmViewService.menus.getRepositoryMenus(provider);
 		const menu = menus.repositoryMenu;
 		const [actions, disposable] = collectContextMenuActions(menu);
@@ -146,7 +146,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		});
 	}
 
-	private onListSelectionChange(e: IListEvent<ISCMRepositoryView>): void {
+	private onListSelectionChange(e: IListEvent<ISCMRepository>): void {
 		if (e.browserEvent && e.elements.length > 0) {
 			const scrollTop = this.list.scrollTop;
 			this.scmViewService.visibleRepositories = e.elements;

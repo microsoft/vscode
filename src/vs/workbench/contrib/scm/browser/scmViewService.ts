@@ -5,7 +5,7 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositoryView } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { Iterable } from 'vs/base/common/iterator';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SCMMenus } from 'vs/workbench/contrib/scm/browser/menus';
@@ -32,6 +32,14 @@ function getRepositoryName(workspaceContextService: IWorkspaceContextService, re
 
 type ISCMRepositoryViewSortKey = 'discovery time' | 'name' | 'path';
 
+interface ISCMRepositoryView {
+	readonly repository: ISCMRepository;
+	readonly discoveryTime: number;
+	focused: boolean;
+	selectionIndex: number;
+	visible: boolean;
+}
+
 export interface ISCMViewServiceState {
 	readonly all: string[];
 	readonly sortKey: ISCMRepositoryViewSortKey;
@@ -51,36 +59,39 @@ export class SCMViewService implements ISCMViewService {
 
 	private _repositories: ISCMRepositoryView[] = [];
 
-	get repositories(): ISCMRepositoryView[] {
-		return this._repositories;
+	get repositories(): ISCMRepository[] {
+		return this._repositories.map(r => r.repository);
 	}
 
-	get visibleRepositories(): ISCMRepositoryView[] {
+	get visibleRepositories(): ISCMRepository[] {
 		// In order to match the legacy behaviour, when the repositories are sorted by discovery time,
 		// the visible repositories are sorted by the selection index instead of the discovery time.
 		if (this._repositoriesSortKey === 'discovery time' && this._repositories.find(r => r.selectionIndex !== -1)) {
 			return this._repositories.filter(r => r.visible)
-				.sort((r1, r2) => r1.selectionIndex - r2.selectionIndex);
+				.sort((r1, r2) => r1.selectionIndex - r2.selectionIndex)
+				.map(r => r.repository);
 		}
 
-		return this._repositories.filter(r => r.visible);
+		return this._repositories
+			.filter(r => r.visible)
+			.map(r => r.repository);
 	}
 
-	set visibleRepositories(visibleRepositories: ISCMRepositoryView[]) {
+	set visibleRepositories(visibleRepositories: ISCMRepository[]) {
 		const set = new Set(visibleRepositories);
-		const added = new Set<ISCMRepositoryView>();
-		const removed = new Set<ISCMRepositoryView>();
+		const added = new Set<ISCMRepository>();
+		const removed = new Set<ISCMRepository>();
 
 		for (const repositoryView of this._repositories) {
-			if (set.has(repositoryView) && !repositoryView.visible) {
+			if (set.has(repositoryView.repository) && !repositoryView.visible) {
 				repositoryView.visible = true;
-				repositoryView.selectionIndex = visibleRepositories.indexOf(repositoryView);
-				added.add(repositoryView);
+				repositoryView.selectionIndex = visibleRepositories.indexOf(repositoryView.repository);
+				added.add(repositoryView.repository);
 			}
-			if (!set.has(repositoryView) && repositoryView.visible) {
+			if (!set.has(repositoryView.repository) && repositoryView.visible) {
 				repositoryView.visible = false;
 				repositoryView.selectionIndex = -1;
-				removed.add(repositoryView);
+				removed.add(repositoryView.repository);
 			}
 		}
 
@@ -194,7 +205,7 @@ export class SCMViewService implements ISCMViewService {
 			repository, discoveryTime: Date.now(), focused: false, selectionIndex: -1, visible: true
 		};
 
-		let removed: Iterable<ISCMRepositoryView> = Iterable.empty();
+		let removed: Iterable<ISCMRepository> = Iterable.empty();
 
 		if (this.previousState) {
 			const index = this.previousState.all.indexOf(getProviderStorageKey(repository.provider));
@@ -204,15 +215,15 @@ export class SCMViewService implements ISCMViewService {
 				// was either manually closed in the previous session, or the repository
 				// was added after the previous session.In this case, we should select all
 				// of the repositories.
-				const added: ISCMRepositoryView[] = [];
+				const added: ISCMRepository[] = [];
 				for (const repositoryView of this._repositories) {
 					if (!repositoryView.visible) {
 						repositoryView.visible = true;
-						added.push(repositoryView);
+						added.push(repositoryView.repository);
 					}
 				}
 
-				added.push(repositoryView);
+				added.push(repositoryView.repository);
 				this.insertRepositoryView(this._repositories, repositoryView);
 				this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
 				this.didSelectRepository = false;
@@ -238,9 +249,9 @@ export class SCMViewService implements ISCMViewService {
 		}
 
 		this.insertRepositoryView(this._repositories, repositoryView);
-		this._onDidChangeRepositories.fire({ added: [repositoryView], removed });
+		this._onDidChangeRepositories.fire({ added: [repositoryView.repository], removed });
 
-		if (!this.repositories.find(r => r.focused)) {
+		if (!this._repositories.find(r => r.focused)) {
 			this.focus(repository);
 		}
 	}
@@ -256,18 +267,18 @@ export class SCMViewService implements ISCMViewService {
 			return;
 		}
 
-		let added: Iterable<ISCMRepositoryView> = Iterable.empty();
+		let added: Iterable<ISCMRepository> = Iterable.empty();
 		const repositoryView = this._repositories.splice(repositoriesIndex, 1);
 
 		if (this._repositories.length > 0 && this.visibleRepositories.length === 0) {
 			this._repositories[0].visible = true;
-			added = [this._repositories[0]];
+			added = [this._repositories[0].repository];
 		}
 
-		this._onDidChangeRepositories.fire({ added, removed: repositoryView });
+		this._onDidChangeRepositories.fire({ added, removed: repositoryView.map(r => r.repository) });
 
 		if (repositoryView.length === 1 && repositoryView[0].focused && this.visibleRepositories.length > 0) {
-			this.focus(this.visibleRepositories[0].repository);
+			this.focus(this.visibleRepositories[0]);
 		}
 	}
 
@@ -282,15 +293,10 @@ export class SCMViewService implements ISCMViewService {
 			return;
 		}
 
-		const repositoryView = this._repositories.find(r => r.repository === repository);
-		if (!repositoryView) {
-			return;
-		}
-
 		if (visible) {
-			this.visibleRepositories = [...this.visibleRepositories, repositoryView];
+			this.visibleRepositories = [...this.visibleRepositories, repository];
 		} else {
-			const index = this.visibleRepositories.indexOf(repositoryView);
+			const index = this.visibleRepositories.indexOf(repository);
 
 			if (index > -1) {
 				this.visibleRepositories = [
@@ -323,8 +329,8 @@ export class SCMViewService implements ISCMViewService {
 			return;
 		}
 
-		const all = this.repositories.map(r => getProviderStorageKey(r.repository.provider));
-		const visible = this.visibleRepositories.map(r => all.indexOf(getProviderStorageKey(r.repository.provider)));
+		const all = this.repositories.map(r => getProviderStorageKey(r.provider));
+		const visible = this.visibleRepositories.map(r => all.indexOf(getProviderStorageKey(r.provider)));
 		const raw = JSON.stringify({ all, sortKey: this._repositoriesSortKey, visible });
 
 		this.storageService.store('scm:view:visibleRepositories', raw, StorageScope.WORKSPACE, StorageTarget.MACHINE);

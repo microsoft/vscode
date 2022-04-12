@@ -139,14 +139,6 @@ export interface ISCMRepository extends IDisposable {
 	readonly input: ISCMInput;
 }
 
-export interface ISCMRepositoryView {
-	readonly repository: ISCMRepository;
-	readonly discoveryTime: number;
-	focused: boolean;
-	selectionIndex: number;
-	visible: boolean;
-}
-
 export interface ISCMService {
 
 	readonly _serviceBrand: undefined;
@@ -179,8 +171,8 @@ export interface ISCMMenus {
 export const ISCMViewService = createDecorator<ISCMViewService>('scmView');
 
 export interface ISCMViewVisibleRepositoryChangeEvent {
-	readonly added: Iterable<ISCMRepositoryView>;
-	readonly removed: Iterable<ISCMRepositoryView>;
+	readonly added: Iterable<ISCMRepository>;
+	readonly removed: Iterable<ISCMRepository>;
 }
 
 export interface ISCMViewService {
@@ -188,10 +180,10 @@ export interface ISCMViewService {
 
 	readonly menus: ISCMMenus;
 
-	repositories: ISCMRepositoryView[];
+	repositories: ISCMRepository[];
 	readonly onDidChangeRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
 
-	visibleRepositories: ISCMRepositoryView[];
+	visibleRepositories: ISCMRepository[];
 	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
 
 	isVisible(repository: ISCMRepository): boolean;

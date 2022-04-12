@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMRepositoryView } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton } from 'vs/workbench/contrib/scm/common/scm';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -19,10 +19,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 
 export function isSCMRepository(element: any): element is ISCMRepository {
 	return !!(element as ISCMRepository).provider && !!(element as ISCMRepository).input;
-}
-
-export function isSCMRepositoryView(element: any): element is ISCMRepositoryView {
-	return !!(element as ISCMRepositoryView).repository && isSCMRepository((element as ISCMRepositoryView).repository);
 }
 
 export function isSCMInput(element: any): element is ISCMInput {

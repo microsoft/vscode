@@ -10,7 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, 
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositoryView } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -1097,7 +1097,7 @@ class ViewModel {
 		return this._treeViewState;
 	}
 
-	private items = new Map<ISCMRepositoryView, IRepositoryItem>();
+	private items = new Map<ISCMRepository, IRepositoryItem>();
 	private visibilityDisposables = new DisposableStore();
 	private scrollTop: number | undefined;
 	private alwaysShowRepositories = false;
@@ -1154,31 +1154,31 @@ class ViewModel {
 	}
 
 	private _onDidChangeVisibleRepositories({ added, removed }: ISCMViewVisibleRepositoryChangeEvent): void {
-		for (const repositoryView of added) {
+		for (const repository of added) {
 			const disposable = combinedDisposable(
-				repositoryView.repository.provider.groups.onDidSplice(splice => this._onDidSpliceGroups(item, splice)),
-				repositoryView.repository.input.onDidChangeVisibility(() => this.refresh(item)),
-				repositoryView.repository.provider.onDidChange(() => {
+				repository.provider.groups.onDidSplice(splice => this._onDidSpliceGroups(item, splice)),
+				repository.input.onDidChangeVisibility(() => this.refresh(item)),
+				repository.provider.onDidChange(() => {
 					if (this.showActionButton) {
 						this.refresh(item);
 					}
 				})
 			);
-			const groupItems = repositoryView.repository.provider.groups.elements.map(group => this.createGroupItem(group));
+			const groupItems = repository.provider.groups.elements.map(group => this.createGroupItem(group));
 			const item: IRepositoryItem = {
-				element: repositoryView.repository, groupItems, dispose() {
+				element: repository, groupItems, dispose() {
 					dispose(this.groupItems);
 					disposable.dispose();
 				}
 			};
 
-			this.items.set(repositoryView, item);
+			this.items.set(repository, item);
 		}
 
-		for (const repositoryView of removed) {
-			const item = this.items.get(repositoryView)!;
+		for (const repository of removed) {
+			const item = this.items.get(repository)!;
 			item.dispose();
-			this.items.delete(repositoryView);
+			this.items.delete(repository);
 		}
 
 		this.refresh();
@@ -1392,8 +1392,8 @@ class ViewModel {
 
 	focus() {
 		if (this.tree.getFocus().length === 0) {
-			for (const repositoryView of this.scmViewService.visibleRepositories) {
-				const widget = this.inputRenderer.getRenderedInputWidget(repositoryView.repository.input);
+			for (const repository of this.scmViewService.visibleRepositories) {
+				const widget = this.inputRenderer.getRenderedInputWidget(repository.input);
 
 				if (widget) {
 					widget.focus();
@@ -1412,22 +1412,22 @@ class ViewModel {
 			return;
 		}
 
-		this.isAnyRepositoryCollapsibleContextKey.set(this.scmViewService.visibleRepositories.some(r => this.tree.hasElement(r.repository) && this.tree.isCollapsible(r.repository)));
-		this.areAllRepositoriesCollapsedContextKey.set(this.scmViewService.visibleRepositories.every(r => this.tree.hasElement(r.repository) && (!this.tree.isCollapsible(r.repository) || this.tree.isCollapsed(r.repository))));
+		this.isAnyRepositoryCollapsibleContextKey.set(this.scmViewService.visibleRepositories.some(r => this.tree.hasElement(r) && this.tree.isCollapsible(r)));
+		this.areAllRepositoriesCollapsedContextKey.set(this.scmViewService.visibleRepositories.every(r => this.tree.hasElement(r) && (!this.tree.isCollapsible(r) || this.tree.isCollapsed(r))));
 	}
 
 	collapseAllRepositories(): void {
-		for (const repositoryView of this.scmViewService.visibleRepositories) {
-			if (this.tree.isCollapsible(repositoryView.repository)) {
-				this.tree.collapse(repositoryView.repository);
+		for (const repository of this.scmViewService.visibleRepositories) {
+			if (this.tree.isCollapsible(repository)) {
+				this.tree.collapse(repository);
 			}
 		}
 	}
 
 	expandAllRepositories(): void {
-		for (const repositoryView of this.scmViewService.visibleRepositories) {
-			if (this.tree.isCollapsible(repositoryView.repository)) {
-				this.tree.expand(repositoryView.repository);
+		for (const repository of this.scmViewService.visibleRepositories) {
+			if (this.tree.isCollapsible(repository)) {
+				this.tree.expand(repository);
 			}
 		}
 	}
