@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, contentTracing, dialog, ipcMain, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, contentTracing, dialog, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { statSync } from 'fs';
 import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -380,7 +381,7 @@ export class CodeApplication extends Disposable {
 
 		//#region Bootstrap IPC Handlers
 
-		ipcMain.handle('vscode:fetchShellEnv', event => {
+		validatedIpcMain.handle('vscode:fetchShellEnv', event => {
 
 			// Prefer to use the args and env from the target window
 			// when resolving the shell env. It is possible that
@@ -405,7 +406,7 @@ export class CodeApplication extends Disposable {
 			return this.resolveShellEnvironment(args, env, false);
 		});
 
-		ipcMain.handle('vscode:writeNlsFile', (event, path: unknown, data: unknown) => {
+		validatedIpcMain.handle('vscode:writeNlsFile', (event, path: unknown, data: unknown) => {
 			const uri = this.validateNlsPath([path]);
 			if (!uri || typeof data !== 'string') {
 				throw new Error('Invalid operation (vscode:writeNlsFile)');
@@ -414,7 +415,7 @@ export class CodeApplication extends Disposable {
 			return this.fileService.writeFile(uri, VSBuffer.fromString(data));
 		});
 
-		ipcMain.handle('vscode:readNlsFile', async (event, ...paths: unknown[]) => {
+		validatedIpcMain.handle('vscode:readNlsFile', async (event, ...paths: unknown[]) => {
 			const uri = this.validateNlsPath(paths);
 			if (!uri) {
 				throw new Error('Invalid operation (vscode:readNlsFile)');
@@ -423,10 +424,10 @@ export class CodeApplication extends Disposable {
 			return (await this.fileService.readFile(uri)).value.toString();
 		});
 
-		ipcMain.on('vscode:toggleDevTools', event => event.sender.toggleDevTools());
-		ipcMain.on('vscode:openDevTools', event => event.sender.openDevTools());
+		validatedIpcMain.on('vscode:toggleDevTools', event => event.sender.toggleDevTools());
+		validatedIpcMain.on('vscode:openDevTools', event => event.sender.openDevTools());
 
-		ipcMain.on('vscode:reloadWindow', event => event.sender.reload());
+		validatedIpcMain.on('vscode:reloadWindow', event => event.sender.reload());
 
 		//#endregion
 	}
