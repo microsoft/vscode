@@ -62,6 +62,8 @@ export interface NotebookLayoutConfiguration {
 	showFoldingControls: 'always' | 'mouseover';
 	dragAndDropEnabled: boolean;
 	fontSize: number;
+	outputFontSize: number;
+	outputFontFamily: string;
 	outputLineHeight: number;
 	markupFontSize: number;
 	focusIndicatorLeftMargin: number;
@@ -85,6 +87,9 @@ export interface NotebookOptionsChangeEvent {
 	readonly consolidatedRunButton?: boolean;
 	readonly dragAndDropEnabled?: boolean;
 	readonly fontSize?: boolean;
+	readonly outputFontSize?: boolean;
+	readonly fontFamily?: boolean;
+	readonly outputFontFamily?: boolean;
 	readonly markupFontSize?: boolean;
 	readonly editorOptionsCustomizations?: boolean;
 	readonly interactiveWindowCollapseCodeCells?: boolean;
@@ -136,6 +141,8 @@ export class NotebookOptions extends Disposable {
 		const showFoldingControls = this._computeShowFoldingControlsOption();
 		// const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(compactView, insertToolbarPosition, insertToolbarAlignment);
 		const fontSize = this.configurationService.getValue<number>('editor.fontSize');
+		const outputFontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize);
+		const outputFontFamily = this.configurationService.getValue<string>(NotebookSetting.outputFontFamily);
 		const markupFontSize = this.configurationService.getValue<number>(NotebookSetting.markupFontSize);
 		const editorOptionsCustomizations = this.configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations);
 		const interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells = this.configurationService.getValue(NotebookSetting.interactiveWindowCollapseCodeCells);
@@ -169,6 +176,8 @@ export class NotebookOptions extends Disposable {
 			insertToolbarAlignment,
 			showFoldingControls,
 			fontSize,
+			outputFontSize,
+			outputFontFamily,
 			outputLineHeight,
 			markupFontSize,
 			editorOptionsCustomizations,
@@ -203,10 +212,14 @@ export class NotebookOptions extends Disposable {
 		const showFoldingControls = e.affectsConfiguration(NotebookSetting.showFoldingControls);
 		const dragAndDropEnabled = e.affectsConfiguration(NotebookSetting.dragAndDropEnabled);
 		const fontSize = e.affectsConfiguration('editor.fontSize');
+		const outputFontSize = e.affectsConfiguration(NotebookSetting.outputFontSize);
+		const fontFamily = e.affectsConfiguration('editor.fontFamily');
+		const outputFontFamily = e.affectsConfiguration(NotebookSetting.outputFontFamily);
 		const markupFontSize = e.affectsConfiguration(NotebookSetting.markupFontSize);
 		const editorOptionsCustomizations = e.affectsConfiguration(NotebookSetting.cellEditorOptionsCustomizations);
 		const interactiveWindowCollapseCodeCells = e.affectsConfiguration(NotebookSetting.interactiveWindowCollapseCodeCells);
 		const outputLineHeight = e.affectsConfiguration(NotebookSetting.outputLineHeight);
+
 
 		if (
 			!cellStatusBarVisibility
@@ -222,6 +235,9 @@ export class NotebookOptions extends Disposable {
 			&& !showFoldingControls
 			&& !dragAndDropEnabled
 			&& !fontSize
+			&& !outputFontSize
+			&& !fontFamily
+			&& !outputFontFamily
 			&& !markupFontSize
 			&& !editorOptionsCustomizations
 			&& !interactiveWindowCollapseCodeCells
@@ -287,6 +303,14 @@ export class NotebookOptions extends Disposable {
 			configuration.fontSize = this.configurationService.getValue<number>('editor.fontSize');
 		}
 
+		if (outputFontSize) {
+			configuration.outputFontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize);
+		}
+
+		if (outputFontFamily) {
+			configuration.outputFontFamily = this.configurationService.getValue<string>(NotebookSetting.outputFontFamily);
+		}
+
 		if (markupFontSize) {
 			configuration.markupFontSize = this.configurationService.getValue<number>(NotebookSetting.markupFontSize);
 		}
@@ -321,6 +345,8 @@ export class NotebookOptions extends Disposable {
 			consolidatedRunButton,
 			dragAndDropEnabled,
 			fontSize,
+			outputFontSize,
+			outputFontFamily,
 			markupFontSize,
 			editorOptionsCustomizations,
 			interactiveWindowCollapseCodeCells,
@@ -514,6 +540,8 @@ export class NotebookOptions extends Disposable {
 			runGutter: this._layoutConfiguration.cellRunGutter,
 			dragAndDropEnabled: this._layoutConfiguration.dragAndDropEnabled,
 			fontSize: this._layoutConfiguration.fontSize,
+			outputFontSize: this._layoutConfiguration.outputFontSize,
+			outputFontFamily: this._layoutConfiguration.outputFontFamily,
 			markupFontSize: this._layoutConfiguration.markupFontSize,
 			outputLineHeight: this._layoutConfiguration.outputLineHeight,
 		};
@@ -530,6 +558,8 @@ export class NotebookOptions extends Disposable {
 			runGutter: 0,
 			dragAndDropEnabled: false,
 			fontSize: this._layoutConfiguration.fontSize,
+			outputFontSize: this._layoutConfiguration.outputFontSize,
+			outputFontFamily: this._layoutConfiguration.outputFontFamily,
 			markupFontSize: this._layoutConfiguration.markupFontSize,
 			outputLineHeight: this._layoutConfiguration.outputLineHeight,
 		};

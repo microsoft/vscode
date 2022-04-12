@@ -893,9 +893,20 @@ configurationRegistry.registerConfiguration({
 			default: 'fromEditor'
 		},
 		[NotebookSetting.outputLineHeight]: {
-			markdownDescription: nls.localize('notebook.outputLineHeight', "line height of the output text"),
+			markdownDescription: nls.localize('notebook.outputLineHeight', "Line height of the output text"),
 			type: 'number',
 			default: 22,
+			tags: ['notebookLayout']
+		},
+		[NotebookSetting.outputFontSize]: {
+			markdownDescription: nls.localize('notebook.outputFontSize', "Font size for plain text outputs. When set to 0 `#editor.fontSize#` is used."),
+			type: 'number',
+			default: 0,
+			tags: ['notebookLayout']
+		},
+		[NotebookSetting.outputFontFamily]: {
+			markdownDescription: nls.localize('notebook.outputFontFamily', "The font family for plain text output of notebook cells. When set to empty, the `#editor.fontFamily#` is used."),
+			type: 'string',
 			tags: ['notebookLayout']
 		},
 	}
