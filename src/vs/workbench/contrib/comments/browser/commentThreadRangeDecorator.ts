@@ -51,6 +51,9 @@ export class CommentThreadRangeDecorator {
 		const commentThreadRangeDecorations: CommentThreadRangeDecoration[] = [];
 		for (const info of commentInfos) {
 			info.threads.forEach(thread => {
+				if (thread.isDisposed) {
+					return;
+				}
 				const range = thread.range;
 				// We only want to show a range decoration when there's the range spans either multiple lines
 				// or, when is spans multiple characters on the sample line

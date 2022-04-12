@@ -48,6 +48,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CommentThreadRangeDecorator } from 'vs/workbench/contrib/comments/browser/commentThreadRangeDecorator';
 import { commentThreadRangeBackground, commentThreadRangeBorder } from 'vs/workbench/contrib/comments/browser/commentColors';
+import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 
 export const ID = 'editor.contrib.review';
 
@@ -120,13 +121,16 @@ class CommentingRangeDecoration implements IModelDeltaDecoration {
 
 class CommentingRangeDecorator {
 	public static description = 'commenting-range-decorator';
-	private decorationOptions!: ModelDecorationOptions;
-	private hoverDecorationOptions!: ModelDecorationOptions;
+	private decorationOptions: ModelDecorationOptions;
+	private hoverDecorationOptions: ModelDecorationOptions;
+	private multilineDecorationOptions: ModelDecorationOptions;
 	private commentingRangeDecorations: CommentingRangeDecoration[] = [];
 	private decorationIds: string[] = [];
 	private _editor: ICodeEditor | undefined;
 	private _infos: ICommentInfo[] | undefined;
 	private _lastHover: number = -1;
+	private _lastSelection: Range | undefined;
+	private _lastSelectionCursor: number | undefined;
 	private _onDidChangeDecorationsCount: Emitter<number> = new Emitter();
 	public readonly onDidChangeDecorationsCount = this._onDidChangeDecorationsCount.event;
 
@@ -146,6 +150,14 @@ class CommentingRangeDecorator {
 		};
 
 		this.hoverDecorationOptions = ModelDecorationOptions.createDynamic(hoverDecorationOptions);
+
+		const multilineDecorationOptions: IModelDecorationOptions = {
+			description: CommentingRangeDecorator.description,
+			isWholeLine: true,
+			linesDecorationsClassName: `comment-range-glyph comment-diff-added multiline-add`
+		};
+
+		this.multilineDecorationOptions = ModelDecorationOptions.createDynamic(multilineDecorationOptions);
 	}
 
 	public updateHover(hoverLine?: number) {
@@ -155,27 +167,72 @@ class CommentingRangeDecorator {
 		this._lastHover = hoverLine ?? -1;
 	}
 
+	public updateSelection(cursorLine: number, range: Range) {
+		this._lastSelection = range.isEmpty() ? undefined : range;
+		this._lastSelectionCursor = range.isEmpty() ? undefined : cursorLine;
+		// Some scenarios:
+		// Selection is made. Emphasis should show on the drag/selection end location.
+		// Selection is made, then user clicks elsewhere. We should still show the decoration.
+		if (this._editor && this._infos) {
+			this._doUpdate(this._editor, this._infos, cursorLine, range);
+		}
+	}
+
 	public update(editor: ICodeEditor, commentInfos: ICommentInfo[]) {
 		this._editor = editor;
 		this._infos = commentInfos;
 		this._doUpdate(editor, commentInfos);
 	}
 
-	private _doUpdate(editor: ICodeEditor, commentInfos: ICommentInfo[], hoverLine: number = -1) {
+	private _doUpdate(editor: ICodeEditor, commentInfos: ICommentInfo[], emphasisLine: number = -1, selectionRange: Range | undefined = this._lastSelection) {
 		let model = editor.getModel();
 		if (!model) {
 			return;
 		}
 
+		// If there's still a selection, use that.
+		emphasisLine = this._lastSelectionCursor ?? emphasisLine;
+
 		let commentingRangeDecorations: CommentingRangeDecoration[] = [];
 		for (const info of commentInfos) {
 			info.commentingRanges.ranges.forEach(range => {
-				if ((range.startLineNumber <= hoverLine) && (range.endLineNumber >= hoverLine)) {
-					const beforeRange = new Range(range.startLineNumber, 1, hoverLine, 1);
-					const hoverRange = new Range(hoverLine, 1, hoverLine, 1);
-					const afterRange = new Range(hoverLine, 1, range.endLineNumber, 1);
+				const rangeObject = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+				let intersectingSelectionRange = selectionRange ? rangeObject.intersectRanges(selectionRange) : undefined;
+				if ((selectionRange && (emphasisLine >= 0) && intersectingSelectionRange)
+					// If there's only one selection line, then just drop into the else if and show an emphasis line.
+					&& !((intersectingSelectionRange.startLineNumber === intersectingSelectionRange.endLineNumber)
+						&& (emphasisLine === intersectingSelectionRange.startLineNumber))) {
+					// The emphasisLine should be the within the commenting range, even if the selection range stretches
+					// outside of the commenting range.
+					// Clip the emphasis and selection ranges to the commenting range
+					let intersectingEmphasisRange: Range;
+					if (emphasisLine <= intersectingSelectionRange.startLineNumber) {
+						intersectingEmphasisRange = intersectingSelectionRange.collapseToStart();
+						intersectingSelectionRange = new Range(intersectingSelectionRange.startLineNumber + 1, 1, intersectingSelectionRange.endLineNumber, 1);
+					} else {
+						intersectingEmphasisRange = new Range(intersectingSelectionRange.endLineNumber, 1, intersectingSelectionRange.endLineNumber, 1);
+						intersectingSelectionRange = new Range(intersectingSelectionRange.startLineNumber, 1, intersectingSelectionRange.endLineNumber - 1, 1);
+					}
+					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, intersectingSelectionRange, this.multilineDecorationOptions, info.commentingRanges, true));
+					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, intersectingEmphasisRange, this.hoverDecorationOptions, info.commentingRanges, true));
+
+					const beforeRangeEndLine = Math.min(intersectingEmphasisRange.startLineNumber, intersectingSelectionRange.startLineNumber) - 1;
+					const hasBeforeRange = rangeObject.startLineNumber <= beforeRangeEndLine;
+					const afterRangeStartLine = Math.max(intersectingEmphasisRange.endLineNumber, intersectingSelectionRange.endLineNumber) + 1;
+					const hasAfterRange = rangeObject.endLineNumber >= afterRangeStartLine;
+					if (hasBeforeRange) {
+						const beforeRange = new Range(range.startLineNumber, 1, beforeRangeEndLine, 1);
+						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, beforeRange, this.decorationOptions, info.commentingRanges, true));
+					}
+					if (hasAfterRange) {
+						const afterRange = new Range(afterRangeStartLine, 1, range.endLineNumber, 1);
+						commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, afterRange, this.decorationOptions, info.commentingRanges, true));
+					}
+				} else if ((rangeObject.startLineNumber <= emphasisLine) && (emphasisLine <= rangeObject.endLineNumber)) {
+					const beforeRange = new Range(range.startLineNumber, 1, emphasisLine, 1);
+					const afterRange = new Range(emphasisLine, 1, range.endLineNumber, 1);
 					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, beforeRange, this.decorationOptions, info.commentingRanges, true));
-					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, hoverRange, this.hoverDecorationOptions, info.commentingRanges, true));
+					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, new Range(emphasisLine, 1, emphasisLine, 1), this.hoverDecorationOptions, info.commentingRanges, true));
 					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, afterRange, this.decorationOptions, info.commentingRanges, true));
 				} else {
 					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, range, this.decorationOptions, info.commentingRanges));
@@ -199,9 +256,9 @@ class CommentingRangeDecorator {
 		for (const decoration of this.commentingRangeDecorations) {
 			const range = decoration.getActiveRange();
 			if (range && ((range.startLineNumber <= commentRange.startLineNumber) || (commentRange.endLineNumber <= range.endLineNumber))) {
-				// We can have 3 commenting ranges that match from the same owner because of how
-				// the line hover decoration is done.
-				// The 3 ranges must be merged so that we can see if the new commentRange fits within them.
+				// We can have several commenting ranges that match from the same owner because of how
+				// the line hover and selection decoration is done.
+				// The ranges must be merged so that we can see if the new commentRange fits within them.
 				const action = decoration.getCommentAction();
 				const alreadyFoundInfo = foundHoverActions.get(action.ownerId);
 				if (alreadyFoundInfo?.action.commentingRangesInfo === action.commentingRangesInfo) {
@@ -311,6 +368,7 @@ export class CommentController implements IEditorContribution {
 		this._editorDisposables.push(this.editor.onMouseMove(e => this.onEditorMouseMove(e)));
 		this._editorDisposables.push(this.editor.onDidChangeCursorPosition(e => this.onEditorChangeCursorPosition(e.position)));
 		this._editorDisposables.push(this.editor.onDidFocusEditorWidget(() => this.onEditorChangeCursorPosition(this.editor.getPosition())));
+		this._editorDisposables.push(this.editor.onDidChangeCursorSelection(e => this.onEditorChangeCursorSelection(e)));
 	}
 
 	private clearEditorListeners() {
@@ -320,6 +378,13 @@ export class CommentController implements IEditorContribution {
 
 	private onEditorMouseMove(e: IEditorMouseEvent): void {
 		this._commentingRangeDecorator.updateHover(e.target.position?.lineNumber);
+	}
+
+	private onEditorChangeCursorSelection(e: ICursorSelectionChangedEvent): void {
+		const position = this.editor.getPosition()?.lineNumber;
+		if (position) {
+			this._commentingRangeDecorator.updateSelection(position, e.selection);
+		}
 	}
 
 	private onEditorChangeCursorPosition(e: Position | null) {
@@ -531,6 +596,13 @@ export class CommentController implements IEditorContribution {
 					this._commentWidgets.splice(index, 1);
 					matchedZone.dispose();
 				}
+				const infosThreads = this._commentInfos.filter(info => info.owner === e.owner)[0].threads;
+				for (let i = 0; i < infosThreads.length; i++) {
+					if (infosThreads[i] === thread) {
+						infosThreads.splice(i, 1);
+						i--;
+					}
+				}
 			});
 
 			changed.forEach(thread => {
@@ -588,7 +660,14 @@ export class CommentController implements IEditorContribution {
 
 		if (e.target.element.className.indexOf('comment-diff-added') >= 0) {
 			const lineNumber = e.target.position!.lineNumber;
-			this.addOrToggleCommentAtLine(new Range(lineNumber, 1, lineNumber, 1), e);
+			// Check for selection at line number.
+			let range: Range = new Range(lineNumber, 1, lineNumber, 1);
+			const selection = this.editor.getSelection();
+			if (selection?.containsRange(range)) {
+				range = selection;
+				this.editor.setSelection(new Range(selection.endLineNumber, 1, selection.endLineNumber, 1));
+			}
+			this.addOrToggleCommentAtLine(range, e);
 		}
 	}
 
