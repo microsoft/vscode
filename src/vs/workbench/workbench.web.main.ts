@@ -166,7 +166,7 @@ import 'vs/workbench/contrib/offline/browser/offline.contribution';
 //
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-import { create, commands, env, window, telemetry } from 'vs/workbench/browser/web.factory';
+import { create, commands, env, window } from 'vs/workbench/browser/web.factory';
 import { IWorkbench, ICommand, ICommonTelemetryPropertiesResolver, IDefaultEditor, IDefaultLayout, IDefaultView, IDevelopmentOptions, IExternalUriResolver, IExternalURLOpener, IHomeIndicator, IInitialColorTheme, IPosition, IProductQualityChangeHandler, IRange, IResourceUriProvider, ISettingsSyncOptions, IShowPortCandidate, ITunnel, ITunnelFactory, ITunnelOptions, ITunnelProvider, IWelcomeBanner, IWelcomeBannerAction, IWindowIndicator, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
@@ -226,7 +226,6 @@ export {
 	IProductQualityChangeHandler,
 
 	// Telemetry
-	telemetry,
 	ICommonTelemetryPropertiesResolver,
 
 	// External Uris
