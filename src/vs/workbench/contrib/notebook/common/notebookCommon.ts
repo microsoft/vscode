@@ -913,7 +913,10 @@ export const NotebookSetting = {
 	textOutputLineLimit: 'notebook.output.textLineLimit',
 	globalToolbarShowLabel: 'notebook.globalToolbarShowLabel',
 	markupFontSize: 'notebook.markup.fontSize',
-	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode'
+	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
+	outputLineHeight: 'notebook.outputLineHeight',
+	outputFontSize: 'notebook.outputFontSize',
+	outputFontFamily: 'notebook.outputFontFamily'
 } as const;
 
 export const enum CellStatusbarAlignment {
