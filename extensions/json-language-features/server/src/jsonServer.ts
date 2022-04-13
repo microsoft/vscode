@@ -57,7 +57,7 @@ export interface RequestService {
 export interface RuntimeEnvironment {
 	file?: RequestService;
 	http?: RequestService;
-	configureHttpRequests?(proxy: string, strictSSL: boolean): void;
+	configureHttpRequests?(proxy: string | undefined, strictSSL: boolean): void;
 	readonly timer: {
 		setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable;
 		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
@@ -166,14 +166,15 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	// The settings interface describes the server relevant settings part
 	interface Settings {
-		json: {
-			schemas: JSONSchemaSettings[];
-			format: { enable: boolean };
+		json?: {
+			schemas?: JSONSchemaSettings[];
+			format?: { enable?: boolean };
+			validate?: { enable?: boolean };
 			resultLimit?: number;
 		};
-		http: {
-			proxy: string;
-			proxyStrictSSL: boolean;
+		http?: {
+			proxy?: string;
+			proxyStrictSSL?: boolean;
 		};
 	}
 
@@ -226,22 +227,24 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = undefined;
 	let schemaAssociations: ISchemaAssociations | SchemaConfiguration[] | undefined = undefined;
 	let formatterRegistrations: Thenable<Disposable>[] | null = null;
+	let validateEnabled = true;
 
 	// The settings have changed. Is send on server activation as well.
 	connection.onDidChangeConfiguration((change) => {
 		let settings = <Settings>change.settings;
 		if (runtime.configureHttpRequests) {
-			runtime.configureHttpRequests(settings.http && settings.http.proxy, settings.http && settings.http.proxyStrictSSL);
+			runtime.configureHttpRequests(settings?.http?.proxy, !!settings.http?.proxyStrictSSL);
 		}
-		jsonConfigurationSettings = settings.json && settings.json.schemas;
+		jsonConfigurationSettings = settings.json?.schemas;
+		validateEnabled = !!settings.json?.validate?.enable;
 		updateConfiguration();
 
-		foldingRangeLimit = Math.trunc(Math.max(settings.json && settings.json.resultLimit || foldingRangeLimitDefault, 0));
-		resultLimit = Math.trunc(Math.max(settings.json && settings.json.resultLimit || Number.MAX_VALUE, 0));
+		foldingRangeLimit = Math.trunc(Math.max(settings.json?.resultLimit || foldingRangeLimitDefault, 0));
+		resultLimit = Math.trunc(Math.max(settings.json?.resultLimit || Number.MAX_VALUE, 0));
 
 		// dynamically enable & disable the formatter
 		if (dynamicFormatterRegistration) {
-			const enableFormatter = settings && settings.json && settings.json.format && settings.json.format.enable;
+			const enableFormatter = settings.json?.format?.enable;
 			if (enableFormatter) {
 				if (!formatterRegistrations) {
 					const documentSelector = [{ language: 'json' }, { language: 'jsonc' }];
@@ -309,7 +312,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	function updateConfiguration() {
 		const languageSettings = {
-			validate: true,
+			validate: validateEnabled,
 			allowComments: true,
 			schemas: new Array<SchemaConfiguration>()
 		};
@@ -371,10 +374,14 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	function triggerValidation(textDocument: TextDocument): void {
 		cleanPendingValidation(textDocument);
-		pendingValidationRequests[textDocument.uri] = runtime.timer.setTimeout(() => {
-			delete pendingValidationRequests[textDocument.uri];
-			validateTextDocument(textDocument);
-		}, validationDelayMs);
+		if (validateEnabled) {
+			pendingValidationRequests[textDocument.uri] = runtime.timer.setTimeout(() => {
+				delete pendingValidationRequests[textDocument.uri];
+				validateTextDocument(textDocument);
+			}, validationDelayMs);
+		} else {
+			connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: [] });
+		}
 	}
 
 	function validateTextDocument(textDocument: TextDocument, callback?: (diagnostics: Diagnostic[]) => void): void {

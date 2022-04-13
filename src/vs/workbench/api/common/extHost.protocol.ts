@@ -53,12 +53,12 @@ import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCo
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
+import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ISerializedTestResults, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, RunTestForControllerRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
-import { InternalTimelineOptions, Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
+import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/workbench/services/authentication/common/authentication';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -625,7 +625,8 @@ export const enum TabInputKind {
 export const enum TabModelOperationKind {
 	TAB_OPEN,
 	TAB_CLOSE,
-	TAB_UPDATE
+	TAB_UPDATE,
+	TAB_MOVE
 }
 
 export interface UnknownInputDto {
@@ -690,11 +691,12 @@ export interface IEditorTabGroupDto {
 }
 
 export interface TabOperation {
-	readonly kind: TabModelOperationKind.TAB_OPEN | TabModelOperationKind.TAB_CLOSE | TabModelOperationKind.TAB_UPDATE;
+	readonly kind: TabModelOperationKind.TAB_OPEN | TabModelOperationKind.TAB_CLOSE | TabModelOperationKind.TAB_UPDATE | TabModelOperationKind.TAB_MOVE;
 	// TODO @lramos15 Possibly get rid of index for tab update, it's only needed for open and close
 	readonly index: number;
 	readonly tabDto: IEditorTabDto;
 	readonly groupId: number;
+	readonly oldIndex?: number;
 }
 
 export interface IEditorTabDto {
@@ -2136,7 +2138,7 @@ export interface ExtHostTunnelServiceShape {
 }
 
 export interface ExtHostTimelineShape {
-	$getTimeline(source: string, uri: UriComponents, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Dto<Timeline> | undefined>;
+	$getTimeline(source: string, uri: UriComponents, options: TimelineOptions, token: CancellationToken): Promise<Dto<Timeline> | undefined>;
 }
 
 export const enum ExtHostTestingResource {

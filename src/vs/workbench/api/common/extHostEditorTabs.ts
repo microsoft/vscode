@@ -174,6 +174,17 @@ class ExtHostEditorTabGroup {
 				this._activeTabId = '';
 			}
 			return tab;
+		} else if (operation.kind === TabModelOperationKind.TAB_MOVE) {
+			if (operation.oldIndex === undefined) {
+				throw new Error('Invalid old index on move IPC');
+			}
+			// Splice to remove at old index and insert at new index === moving the tab
+			const tab = this._tabs.splice(operation.oldIndex, 1)[0];
+			if (!tab) {
+				throw new Error(`Tab move updated received for index ${operation.oldIndex} which does not exist`);
+			}
+			this._tabs.splice(operation.index, 0, tab);
+			return tab;
 		}
 		const tab = this._tabs.find(extHostTab => extHostTab.tabId === operation.tabDto.id);
 		if (!tab) {
@@ -308,6 +319,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 					changed: []
 				});
 				return;
+			case TabModelOperationKind.TAB_MOVE:
 			case TabModelOperationKind.TAB_UPDATE:
 				this._onDidChangeTabs.fire({
 					added: [],

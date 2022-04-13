@@ -46,7 +46,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug-companion",
-			"version": "1.0.16",
+			"version": "1.0.17",
 			"repo": "https://github.com/microsoft/vscode-js-debug-companion",
 			"metadata": {
 				"id": "99cb0b7f-7354-4278-b8da-6cc79972169d",
@@ -76,7 +76,7 @@
 		},
 		{
 			"name": "ms-vscode.vscode-js-profile-table",
-			"version": "1.0.0",
+			"version": "1.0.1",
 			"repo": "https://github.com/microsoft/vscode-js-profile-visualizer",
 			"metadata": {
 				"id": "7e52b41b-71ad-457b-ab7e-0620f1fc4feb",

@@ -24,7 +24,7 @@ import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { computeTargetPlatform, ExtensionKey, getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, ExtensionIdentifier, IExtensionManifest, TargetPlatform, IExtensionIdentifier, IRelaxedExtensionManifest, UNDEFINED_PUBLISHER, IExtensionDescription, BUILTIN_MANIFEST_CACHE_FILE, USER_MANIFEST_CACHE_FILE } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, ExtensionIdentifier, IExtensionManifest, TargetPlatform, IExtensionIdentifier, IRelaxedExtensionManifest, UNDEFINED_PUBLISHER, IExtensionDescription, BUILTIN_MANIFEST_CACHE_FILE, USER_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER } from 'vs/platform/extensions/common/extensions';
 import { validateExtensionManifest } from 'vs/platform/extensions/common/extensionValidator';
 import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -815,4 +815,41 @@ export function toExtensionDescription(extension: IScannedExtension, isUnderDeve
 		targetPlatform: extension.targetPlatform,
 		...extension.manifest,
 	};
+}
+
+export class NativeExtensionsScannerService extends AbstractExtensionsScannerService implements IExtensionsScannerService {
+
+	private readonly translationsPromise: Promise<Translations>;
+
+	constructor(
+		systemExtensionsLocation: URI,
+		userExtensionsLocation: URI,
+		userHome: URI,
+		userDataPath: URI,
+		fileService: IFileService,
+		logService: ILogService,
+		environmentService: IEnvironmentService,
+		productService: IProductService,
+	) {
+		super(
+			systemExtensionsLocation,
+			userExtensionsLocation,
+			joinPath(userHome, '.vscode-oss-dev', 'extensions', 'control.json'),
+			joinPath(userDataPath, MANIFEST_CACHE_FOLDER),
+			fileService, logService, environmentService, productService);
+		this.translationsPromise = (async () => {
+			if (platform.translationsConfigFile) {
+				try {
+					const content = await this.fileService.readFile(URI.file(platform.translationsConfigFile));
+					return JSON.parse(content.value.toString());
+				} catch (err) { /* Ignore Error */ }
+			}
+			return Object.create(null);
+		})();
+	}
+
+	protected getTranslations(language: string): Promise<Translations> {
+		return this.translationsPromise;
+	}
+
 }

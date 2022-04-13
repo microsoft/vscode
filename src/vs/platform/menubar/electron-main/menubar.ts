@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, KeyboardEvent, Menu, MenuItem, MenuItemConstructorOptions, WebContents } from 'electron';
+import { app, BrowserWindow, KeyboardEvent, Menu, MenuItem, MenuItemConstructorOptions, MessageBoxOptions, WebContents } from 'electron';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { mnemonicMenuLabel } from 'vs/base/common/labels';
+import { mnemonicButtonLabel, mnemonicMenuLabel } from 'vs/base/common/labels';
 import { isMacintosh, language } from 'vs/base/common/platform';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -74,7 +76,8 @@ export class Menubar {
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IDialogMainService private readonly dialogMainService: IDialogMainService
 	) {
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 
@@ -382,14 +385,17 @@ export class Menubar {
 		const hideOthers = new MenuItem({ label: nls.localize('mHideOthers', "Hide Others"), role: 'hideOthers', accelerator: 'Command+Alt+H' });
 		const showAll = new MenuItem({ label: nls.localize('mShowAll', "Show All"), role: 'unhide' });
 		const quit = new MenuItem(this.likeAction('workbench.action.quit', {
-			label: nls.localize('miQuit', "Quit {0}", this.productService.nameLong), click: () => {
+			label: nls.localize('miQuit', "Quit {0}", this.productService.nameLong), click: async (item, window, event) => {
 				const lastActiveWindow = this.windowsMainService.getLastActiveWindow();
 				if (
 					this.windowsMainService.getWindowCount() === 0 || 	// allow to quit when no more windows are open
 					!!BrowserWindow.getFocusedWindow() ||				// allow to quit when window has focus (fix for https://github.com/microsoft/vscode/issues/39191)
 					lastActiveWindow?.isMinimized()						// allow to quit when window has no focus but is minimized (https://github.com/microsoft/vscode/issues/63000)
 				) {
-					this.nativeHostMainService.quit(undefined);
+					const confirmed = await this.confirmBeforeQuit(event);
+					if (confirmed) {
+						this.nativeHostMainService.quit(undefined);
+					}
 				}
 			}
 		}));
@@ -416,6 +422,33 @@ export class Menubar {
 		]);
 
 		actions.forEach(i => macApplicationMenu.append(i));
+	}
+
+	private async confirmBeforeQuit(event: KeyboardEvent): Promise<boolean> {
+		if (this.windowsMainService.getWindowCount() === 0) {
+			return true; // never confirm when no windows are opened
+		}
+
+		const confirmBeforeClose = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
+		if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && this.isKeyboardEvent(event))) {
+			const options: MessageBoxOptions = {
+				title: this.productService.nameLong,
+				type: 'question',
+				buttons: [
+					mnemonicButtonLabel(nls.localize({ key: 'quit', comment: ['&& denotes a mnemonic'] }, "&&Quit")),
+					mnemonicButtonLabel(nls.localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel"))
+				],
+				message: nls.localize('quitMessage', "Are you sure you want to quit?"),
+				noLink: true,
+				defaultId: 0,
+				cancelId: 1
+			};
+
+			const { response } = await this.dialogMainService.showMessageBox(options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+			return response === 0;
+		}
+
+		return true;
 	}
 
 	private shouldDrawMenu(menuId: string): boolean {
@@ -520,6 +553,10 @@ export class Menubar {
 
 	private isOptionClick(event: KeyboardEvent): boolean {
 		return !!(event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey))));
+	}
+
+	private isKeyboardEvent(event: KeyboardEvent): boolean {
+		return !!(event.triggeredByAccelerator || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey);
 	}
 
 	private createRoleMenuItem(label: string, commandId: string, role: any): MenuItem {

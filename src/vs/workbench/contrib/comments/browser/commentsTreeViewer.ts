@@ -58,6 +58,7 @@ interface ICommentThreadTemplateData {
 		timestamp: TimestampWidget;
 		separator: HTMLElement;
 		commentPreview: HTMLSpanElement;
+		range: HTMLSpanElement;
 	};
 	repliesMetadata: {
 		container: HTMLElement;
@@ -138,7 +139,8 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			userNames: dom.append(metadataContainer, dom.$('.user')),
 			timestamp: new TimestampWidget(this.configurationService, dom.append(metadataContainer, dom.$('.timestamp-container'))),
 			separator: dom.append(metadataContainer, dom.$('.separator')),
-			commentPreview: dom.append(metadataContainer, dom.$('.text'))
+			commentPreview: dom.append(metadataContainer, dom.$('.text')),
+			range: dom.append(metadataContainer, dom.$('.range'))
 		};
 		data.threadMetadata.separator.innerText = '\u00b7';
 
@@ -209,6 +211,8 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element);
 			templateData.threadMetadata.commentPreview.title = renderedComment.element.textContent ?? '';
 		}
+
+		templateData.threadMetadata.range.textContent = `[${node.element.range.startLineNumber}-${node.element.range.endLineNumber}]`;
 
 		if (!node.element.hasReply()) {
 			templateData.repliesMetadata.container.style.display = 'none';

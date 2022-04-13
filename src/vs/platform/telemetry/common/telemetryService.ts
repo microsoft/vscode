@@ -5,6 +5,7 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { cloneAndChange, mixin } from 'vs/base/common/objects';
+import { MutableObservableValue } from 'vs/base/common/observableValue';
 import { isWeb } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
@@ -35,8 +36,9 @@ export class TelemetryService implements ITelemetryService {
 	private _commonProperties: Promise<{ [name: string]: any }>;
 	private _experimentProperties: { [name: string]: string } = {};
 	private _piiPaths: string[];
-	private _telemetryLevel: TelemetryLevel;
 	private _sendErrorTelemetry: boolean;
+
+	public readonly telemetryLevel = new MutableObservableValue<TelemetryLevel>(TelemetryLevel.USAGE);
 
 	private readonly _disposables = new DisposableStore();
 	private _cleanupPatterns: RegExp[] = [];
@@ -49,7 +51,6 @@ export class TelemetryService implements ITelemetryService {
 		this._appenders = config.appenders;
 		this._commonProperties = config.commonProperties || Promise.resolve({});
 		this._piiPaths = config.piiPaths || [];
-		this._telemetryLevel = TelemetryLevel.USAGE;
 		this._sendErrorTelemetry = !!config.sendErrorTelemetry;
 
 		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
@@ -58,7 +59,6 @@ export class TelemetryService implements ITelemetryService {
 		for (let piiPath of this._piiPaths) {
 			this._cleanupPatterns.push(new RegExp(escapeRegExpCharacters(piiPath), 'gi'));
 		}
-
 
 		this._updateTelemetryLevel();
 		this._configurationService.onDidChangeConfiguration(this._updateTelemetryLevel, this, this._disposables);
@@ -69,19 +69,17 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	private _updateTelemetryLevel(): void {
-		this._telemetryLevel = getTelemetryLevel(this._configurationService);
+		let level = getTelemetryLevel(this._configurationService);
 		const collectableTelemetry = this._productService.enabledTelemetryLevels;
 		// Also ensure that error telemetry is respecting the product configuration for collectable telemetry
 		if (collectableTelemetry) {
 			this._sendErrorTelemetry = this.sendErrorTelemetry ? collectableTelemetry.error : false;
 			// Make sure the telemetry level from the service is the minimum of the config and product
 			const maxCollectableTelemetryLevel = collectableTelemetry.usage ? TelemetryLevel.USAGE : collectableTelemetry.error ? TelemetryLevel.ERROR : TelemetryLevel.NONE;
-			this._telemetryLevel = Math.min(this._telemetryLevel, maxCollectableTelemetryLevel);
+			level = Math.min(level, maxCollectableTelemetryLevel);
 		}
-	}
 
-	get telemetryLevel(): TelemetryLevel {
-		return this._telemetryLevel;
+		this.telemetryLevel.value = level;
 	}
 
 	get sendErrorTelemetry(): boolean {
@@ -106,7 +104,7 @@ export class TelemetryService implements ITelemetryService {
 
 	private _log(eventName: string, eventLevel: TelemetryLevel, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {
 		// don't send events when the user is optout
-		if (this.telemetryLevel < eventLevel) {
+		if (this.telemetryLevel.value < eventLevel) {
 			return Promise.resolve(undefined);
 		}
 

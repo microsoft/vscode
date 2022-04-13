@@ -2222,6 +2222,12 @@
           "description": "%config.timeline.showAuthor%",
           "scope": "window"
         },
+        "git.timeline.showUncommitted": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.timeline.showUncommitted%",
+          "scope": "window"
+        },
         "git.showUnpublishedCommitsButton": {
           "type": "string",
           "enum": [

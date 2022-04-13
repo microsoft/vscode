@@ -36,6 +36,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 	private _keychain: Keychain = new Keychain(this.context, `${this.type}.auth`, this._logger);
 	private _sessionsPromise: Promise<vscode.AuthenticationSession[]>;
+	private _accountsSeen = new Set<string>();
 	private _disposable: vscode.Disposable;
 
 	constructor(private readonly context: vscode.ExtensionContext, private readonly type: AuthProviderType) {
@@ -55,7 +56,11 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		}
 
 		// Contains the current state of the sessions we have available.
-		this._sessionsPromise = this.readSessions();
+		this._sessionsPromise = this.readSessions().then((sessions) => {
+			// fire telemetry after a second to allow the workbench to focus on loading
+			setTimeout(() => sessions.forEach(s => this.afterSessionLoad(s)), 1000);
+			return sessions;
+		});
 
 		this._disposable = vscode.Disposable.from(
 			this._telemetryReporter,
@@ -86,8 +91,12 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		return finalSessions;
 	}
 
-	private async afterTokenLoad(token: string): Promise<void> {
-		this._githubServer.sendAdditionalTelemetryInfo(token);
+	private async afterSessionLoad(session: vscode.AuthenticationSession): Promise<void> {
+		// We only want to fire a telemetry if we haven't seen this account yet in this session.
+		if (!this._accountsSeen.has(session.account.id)) {
+			this._accountsSeen.add(session.account.id);
+			this._githubServer.sendAdditionalTelemetryInfo(session.accessToken);
+		}
 	}
 
 	private async checkForUpdates() {
@@ -164,8 +173,6 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				}
 			}
 
-			setTimeout(() => this.afterTokenLoad(session.accessToken), 1000);
-
 			this._logger.trace(`Read the following session from the keychain with the following scopes: ${scopesStr}`);
 			scopesSeen.add(scopesStr);
 			return {
@@ -218,8 +225,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 			const scopeString = sortedScopes.join(' ');
 			const token = await this._githubServer.login(scopeString);
-			this.afterTokenLoad(token);
 			const session = await this.tokenToSession(token, sortedScopes);
+			this.afterSessionLoad(session);
 
 			const sessions = await this._sessionsPromise;
 			const sessionIndex = sessions.findIndex(s => s.id === session.id || arrayEquals([...s.scopes].sort(), sortedScopes));

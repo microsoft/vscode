@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.67.0",
-  "distro": "a5a6dc6b1c9ba81a52b9e05f31db3298b84c7263",
+  "distro": "5c715d21e609df4020231e89b9a0a684dcfa6ffd",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -95,7 +95,7 @@
   },
   "devDependencies": {
     "7zip": "0.0.6",
-    "@playwright/test": "1.20.2",
+    "@playwright/test": "1.21.0",
     "@types/applicationinsights": "0.20.0",
     "@types/cookie": "^0.3.3",
     "@types/copy-webpack-plugin": "^6.0.3",
@@ -161,7 +161,6 @@
     "gulp-remote-retry-src": "^0.8.0",
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
-    "gulp-shell": "^0.6.5",
     "gulp-sourcemaps": "^3.0.0",
     "gulp-svgmin": "^4.1.0",
     "gulp-tsb": "4.0.6",

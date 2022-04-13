@@ -91,9 +91,6 @@ export abstract class EditorPlaceholder extends EditorPane {
 		// Reset any previous contents
 		clearNode(container);
 
-		// Update ARIA label
-		container.setAttribute('aria-label', computeEditorAriaLabel(input, undefined, this.group, undefined));
-
 		// Delegate to implementation for contents
 		const disposables = new DisposableStore();
 		const { icon, label, actions } = await this.getContents(input, options, disposables);
@@ -108,6 +105,9 @@ export abstract class EditorPlaceholder extends EditorPane {
 		const labelWidget = document.createElement('span');
 		labelWidget.textContent = label;
 		labelContainer.appendChild(labelWidget);
+
+		// ARIA label
+		container.setAttribute('aria-label', `${computeEditorAriaLabel(input, undefined, this.group, undefined)}, ${label}`);
 
 		// Actions
 		const actionsContainer = container.appendChild($('.editor-placeholder-actions-container'));
