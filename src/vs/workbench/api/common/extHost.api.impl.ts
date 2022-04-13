@@ -625,7 +625,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
 				if (options?.validateInput2) {
 					checkProposedApiEnabled(extension, 'inputBoxSeverity');
-					options.validateInput = options.validateInput2 as any;
 				}
 				return extHostQuickOpen.showInput(options, token);
 			},
