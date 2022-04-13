@@ -60,7 +60,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	}
 
 	private async onWindowConnection(e: IpcMainEvent, nonce: string): Promise<void> {
-		this.logService.info('SharedProcess: on vscode:createSharedProcessMessageChannel');
+		this.logService.trace('SharedProcess: on vscode:createSharedProcessMessageChannel');
 
 		// release barrier if this is the first window connection
 		if (!this.firstWindowConnectionBarrier.isOpen()) {
@@ -175,7 +175,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			// Overall signal that the shared process window was loaded and
 			// all services within have been created.
 			this._whenReady = new Promise<void>(resolve => validatedIpcMain.once('vscode:shared-process->electron-main=init-done', () => {
-				this.logService.info('SharedProcess: Overall ready');
+				this.logService.trace('SharedProcess: Overall ready');
 
 				resolve();
 			}));
@@ -200,7 +200,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 				// Wait for window indicating that IPC connections are accepted
 				await new Promise<void>(resolve => validatedIpcMain.once('vscode:shared-process->electron-main=ipc-ready', () => {
-					this.logService.info('SharedProcess: IPC ready');
+					this.logService.trace('SharedProcess: IPC ready');
 
 					resolve();
 				}));
