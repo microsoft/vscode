@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { compareIgnoreCase, regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
-import { clearLanguageAssociations, getMimeTypes, registerLanguageAssociation } from 'vs/editor/common/services/languagesAssociations';
+import { clearPlatformLanguageAssociations, getLanguageIds, registerPlatformLanguageAssociation } from 'vs/editor/common/services/languagesAssociations';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageIdCodec, LanguageId } from 'vs/editor/common/languages';
 import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageExtensionPoint, ILanguageNameIdPair, ILanguageIcon } from 'vs/editor/common/services/language';
+import { ILanguageExtensionPoint, ILanguageNameIdPair, ILanguageIcon } from 'vs/editor/common/languages/language';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -74,10 +73,10 @@ export class LanguagesRegistry extends Disposable {
 	private readonly _warnOnOverwrite: boolean;
 	public readonly languageIdCodec: LanguageIdCodec;
 	private _dynamicLanguages: ILanguageExtensionPoint[];
-	private _languages: { [id: string]: IResolvedLanguage; };
-	private _mimeTypesMap: { [mimeType: string]: string; };
-	private _nameMap: { [name: string]: string; };
-	private _lowercaseNameMap: { [name: string]: string; };
+	private _languages: { [id: string]: IResolvedLanguage };
+	private _mimeTypesMap: { [mimeType: string]: string };
+	private _nameMap: { [name: string]: string };
+	private _lowercaseNameMap: { [name: string]: string };
 
 	constructor(useModesRegistry = true, warnOnOverwrite = false) {
 		super();
@@ -115,9 +114,13 @@ export class LanguagesRegistry extends Disposable {
 		this._nameMap = {};
 		this._lowercaseNameMap = {};
 
-		clearLanguageAssociations();
+		clearPlatformLanguageAssociations();
 		const desc = (<ILanguageExtensionPoint[]>[]).concat(ModesRegistry.getLanguages()).concat(this._dynamicLanguages);
 		this._registerLanguages(desc);
+	}
+
+	registerLanguage(desc: ILanguageExtensionPoint): IDisposable {
+		return ModesRegistry.registerLanguage(desc);
 	}
 
 	_registerLanguages(desc: ILanguageExtensionPoint[]): void {
@@ -195,20 +198,20 @@ export class LanguagesRegistry extends Disposable {
 				resolvedLanguage.extensions = resolvedLanguage.extensions.concat(lang.extensions);
 			}
 			for (let extension of lang.extensions) {
-				registerLanguageAssociation({ id: langId, mime: primaryMime, extension: extension }, this._warnOnOverwrite);
+				registerPlatformLanguageAssociation({ id: langId, mime: primaryMime, extension: extension }, this._warnOnOverwrite);
 			}
 		}
 
 		if (Array.isArray(lang.filenames)) {
 			for (let filename of lang.filenames) {
-				registerLanguageAssociation({ id: langId, mime: primaryMime, filename: filename }, this._warnOnOverwrite);
+				registerPlatformLanguageAssociation({ id: langId, mime: primaryMime, filename: filename }, this._warnOnOverwrite);
 				resolvedLanguage.filenames.push(filename);
 			}
 		}
 
 		if (Array.isArray(lang.filenamePatterns)) {
 			for (let filenamePattern of lang.filenamePatterns) {
-				registerLanguageAssociation({ id: langId, mime: primaryMime, filepattern: filenamePattern }, this._warnOnOverwrite);
+				registerPlatformLanguageAssociation({ id: langId, mime: primaryMime, filepattern: filenamePattern }, this._warnOnOverwrite);
 			}
 		}
 
@@ -220,7 +223,7 @@ export class LanguagesRegistry extends Disposable {
 			try {
 				const firstLineRegex = new RegExp(firstLineRegexStr);
 				if (!regExpLeadsToEndlessLoop(firstLineRegex)) {
-					registerLanguageAssociation({ id: langId, mime: primaryMime, firstline: firstLineRegex }, this._warnOnOverwrite);
+					registerPlatformLanguageAssociation({ id: langId, mime: primaryMime, firstline: firstLineRegex }, this._warnOnOverwrite);
 				}
 			} catch (err) {
 				// Most likely, the regex was bad
@@ -359,7 +362,6 @@ export class LanguagesRegistry extends Disposable {
 		if (!resource && !firstLine) {
 			return [];
 		}
-		const mimeTypes = getMimeTypes(resource, firstLine);
-		return coalesce(mimeTypes.map(mimeType => this.getLanguageIdByMimeType(mimeType)));
+		return getLanguageIds(resource, firstLine);
 	}
 }

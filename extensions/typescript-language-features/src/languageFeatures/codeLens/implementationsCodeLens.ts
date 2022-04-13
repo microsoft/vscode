@@ -9,10 +9,11 @@ import type * as Proto from '../../protocol';
 import * as PConst from '../../protocol.const';
 import { CachedResponse } from '../../tsServer/cachedResponse';
 import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
-import { conditionalRegistration, requireConfiguration, requireSomeCapability } from '../../utils/dependentRegistration';
+import { conditionalRegistration, requireGlobalConfiguration, requireSomeCapability } from '../../utils/dependentRegistration';
 import { DocumentSelector } from '../../utils/documentSelector';
+import { LanguageDescription } from '../../utils/languageDescription';
 import * as typeConverters from '../../utils/typeConverters';
-import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
+import { ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
 
 const localize = nls.loadMessageBundle();
 
@@ -65,36 +66,41 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 	}
 
 	protected extractSymbol(
-		document: vscode.TextDocument,
 		item: Proto.NavigationTree,
-		_parent: Proto.NavigationTree | null
-	): vscode.Range | null {
+		_parent: Proto.NavigationTree | undefined
+	): vscode.Range | undefined {
+		if (!item.nameSpan) {
+			return undefined;
+		}
+
+		const itemSpan = typeConverters.Range.fromTextSpan(item.nameSpan);
+
 		switch (item.kind) {
 			case PConst.Kind.interface:
-				return getSymbolRange(document, item);
+				return itemSpan;
 
 			case PConst.Kind.class:
 			case PConst.Kind.method:
 			case PConst.Kind.memberVariable:
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
-				if (item.kindModifiers.match(/\babstract\b/g)) {
-					return getSymbolRange(document, item);
+				if (/\babstract\b/g.test(item.kindModifiers)) {
+					return itemSpan;
 				}
 				break;
 		}
-		return null;
+		return undefined;
 	}
 }
 
 export function register(
 	selector: DocumentSelector,
-	modeId: string,
+	language: LanguageDescription,
 	client: ITypeScriptServiceClient,
 	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
 	return conditionalRegistration([
-		requireConfiguration(modeId, 'implementationsCodeLens.enabled'),
+		requireGlobalConfiguration(language.id, 'implementationsCodeLens.enabled'),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCodeLensProvider(selector.semantic,

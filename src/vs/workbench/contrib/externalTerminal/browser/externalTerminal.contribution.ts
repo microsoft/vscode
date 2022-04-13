@@ -8,7 +8,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { URI } from 'vs/base/common/uri';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
 import { ITerminalGroupService, ITerminalService as IIntegratedTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
+import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { getMultiSelectedResources, IExplorerService } from 'vs/workbench/contrib/files/browser/files';

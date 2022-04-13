@@ -20,7 +20,7 @@ export interface IMarkerService {
 
 	remove(owner: string, resources: URI[]): void;
 
-	read(filter?: { owner?: string; resource?: URI; severities?: number, take?: number; }): IMarker[];
+	read(filter?: { owner?: string; resource?: URI; severities?: number; take?: number }): IMarker[];
 
 	readonly onMarkerChanged: Event<readonly URI[]>;
 }
@@ -55,7 +55,7 @@ export namespace MarkerSeverity {
 		return b - a;
 	}
 
-	const _displayStrings: { [value: number]: string; } = Object.create(null);
+	const _displayStrings: { [value: number]: string } = Object.create(null);
 	_displayStrings[MarkerSeverity.Error] = localize('sev.error', "Error");
 	_displayStrings[MarkerSeverity.Warning] = localize('sev.warning', "Warning");
 	_displayStrings[MarkerSeverity.Info] = localize('sev.info', "Info");

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Constants } from 'vs/base/common/uint';
-import { FloatHorizontalRange } from 'vs/editor/common/view/renderingContext';
+import { FloatHorizontalRange } from 'vs/editor/browser/view/renderingContext';
 
 export class RangeUtil {
 

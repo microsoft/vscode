@@ -3,41 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import * as resources from 'vs/base/common/resources';
-import * as platform from 'vs/base/common/platform';
-import severity from 'vs/base/common/severity';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Position, IPosition } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { mixin } from 'vs/base/common/objects';
-import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
-import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { RunOnceScheduler, Queue } from 'vs/base/common/async';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ICustomEndpointTelemetryService, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { localize } from 'vs/nls';
+import { Queue, RunOnceScheduler } from 'vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
-import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { Emitter, Event } from 'vs/base/common/event';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { mixin } from 'vs/base/common/objects';
+import * as platform from 'vs/base/common/platform';
+import * as resources from 'vs/base/common/resources';
+import Severity from 'vs/base/common/severity';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ICustomEndpointTelemetryService, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
+import { AdapterEndEvent, IBreakpoint, IConfig, IDataBreakpoint, IDebugConfiguration, IDebugger, IDebugService, IDebugSession, IDebugSessionOptions, IExceptionBreakpoint, IExceptionInfo, IExpression, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IReplElementSource, IStackFrame, IThread, LoadedSourceEvent, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
+import { DebugModel, ExpressionContainer, MemoryRegion, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
+import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 export class DebugSession implements IDebugSession {
 
@@ -65,6 +65,7 @@ export class DebugSession implements IDebugSession {
 	private readonly _onDidProgressStart = new Emitter<DebugProtocol.ProgressStartEvent>();
 	private readonly _onDidProgressUpdate = new Emitter<DebugProtocol.ProgressUpdateEvent>();
 	private readonly _onDidProgressEnd = new Emitter<DebugProtocol.ProgressEndEvent>();
+	private readonly _onDidInvalidMemory = new Emitter<DebugProtocol.MemoryEvent>();
 
 	private readonly _onDidChangeREPLElements = new Emitter<void>();
 
@@ -73,7 +74,7 @@ export class DebugSession implements IDebugSession {
 
 	constructor(
 		private id: string,
-		private _configuration: { resolved: IConfig, unresolved: IConfig | undefined },
+		private _configuration: { resolved: IConfig; unresolved: IConfig | undefined },
 		public root: IWorkspaceFolder | undefined,
 		private model: DebugModel,
 		options: IDebugSessionOptions | undefined,
@@ -139,6 +140,10 @@ export class DebugSession implements IDebugSession {
 		this._subId = subId;
 	}
 
+	getMemory(memoryReference: string): IMemoryRegion {
+		return new MemoryRegion(memoryReference, this);
+	}
+
 	get subId(): string | undefined {
 		return this._subId;
 	}
@@ -167,7 +172,7 @@ export class DebugSession implements IDebugSession {
 		return this._options.debugUI?.simple ?? false;
 	}
 
-	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }) {
+	setConfiguration(configuration: { resolved: IConfig; unresolved: IConfig | undefined }) {
 		this._configuration = configuration;
 	}
 
@@ -245,6 +250,10 @@ export class DebugSession implements IDebugSession {
 
 	get onDidProgressEnd(): Event<DebugProtocol.ProgressEndEvent> {
 		return this._onDidProgressEnd.event;
+	}
+
+	get onDidInvalidateMemory(): Event<DebugProtocol.MemoryEvent> {
+		return this._onDidInvalidMemory.event;
 	}
 
 	//---- DAP requests
@@ -341,7 +350,7 @@ export class DebugSession implements IDebugSession {
 	/**
 	 * end the current debug adapter session
 	 */
-	async disconnect(restart = false): Promise<void> {
+	async disconnect(restart = false, suspend = false): Promise<void> {
 		if (!this.raw) {
 			// Adapter went down but it did not send a 'terminated' event, simulate like the event has been sent
 			this.onDidExitAdapter();
@@ -349,9 +358,10 @@ export class DebugSession implements IDebugSession {
 
 		this.cancelAllRequests();
 		if (this._options.lifecycleManagedByParent && this.parentSession) {
-			await this.parentSession.disconnect(restart);
+			await this.parentSession.disconnect(restart, suspend);
 		} else if (this.raw) {
-			await this.raw.disconnect({ restart, terminateDebuggee: false });
+			// TODO terminateDebuggee should be undefined by default?
+			await this.raw.disconnect({ restart, terminateDebuggee: false, suspendDebuggee: suspend });
 		}
 
 		if (!restart) {
@@ -455,7 +465,7 @@ export class DebugSession implements IDebugSession {
 		}
 	}
 
-	async dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null, description: string, canPersist?: boolean } | undefined> {
+	async dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null; description: string; canPersist?: boolean } | undefined> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'data breakpoints info'));
 		}
@@ -742,7 +752,7 @@ export class DebugSession implements IDebugSession {
 		}, sessionCancelationToken);
 	}
 
-	async stepInTargets(frameId: number): Promise<{ id: number, label: string }[] | undefined> {
+	async stepInTargets(frameId: number): Promise<{ id: number; label: string }[] | undefined> {
 		if (!this.raw) {
 			return Promise.reject(new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepInTargets')));
 		}
@@ -766,6 +776,22 @@ export class DebugSession implements IDebugSession {
 
 		const response = await this.raw.disassemble({ memoryReference, offset, instructionOffset, instructionCount, resolveSymbols: true });
 		return response?.body?.instructions;
+	}
+
+	readMemory(memoryReference: string, offset: number, count: number): Promise<DebugProtocol.ReadMemoryResponse | undefined> {
+		if (!this.raw) {
+			return Promise.reject(new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'readMemory')));
+		}
+
+		return this.raw.readMemory({ count, memoryReference, offset });
+	}
+
+	writeMemory(memoryReference: string, offset: number, data: string, allowPartial?: boolean): Promise<DebugProtocol.WriteMemoryResponse | undefined> {
+		if (!this.raw) {
+			return Promise.reject(new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'disassemble')));
+		}
+
+		return this.raw.writeMemory({ memoryReference, offset, allowPartial, data });
 	}
 
 	//---- threads
@@ -1030,7 +1056,7 @@ export class DebugSession implements IDebugSession {
 					resolved.forEach((child) => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
 						(<any>child).name = null;
-						this.appendToRepl(child, severity.Info, source);
+						this.appendToRepl(child, Severity.Info, event.body.category === 'important', source);
 					});
 				});
 				return;
@@ -1040,7 +1066,7 @@ export class DebugSession implements IDebugSession {
 					return;
 				}
 
-				const outputSeverity = event.body.category === 'stderr' ? severity.Error : event.body.category === 'console' ? severity.Warning : severity.Info;
+				const outputSeverity = event.body.category === 'stderr' ? Severity.Error : event.body.category === 'console' ? Severity.Warning : Severity.Info;
 				if (event.body.category === 'telemetry') {
 					// only log telemetry events from debug adapter if the debug extension provided the telemetry key
 					// and the user opted in telemetry
@@ -1079,7 +1105,7 @@ export class DebugSession implements IDebugSession {
 				}
 
 				if (typeof event.body.output === 'string') {
-					this.appendToRepl(event.body.output, outputSeverity, source);
+					this.appendToRepl(event.body.output, outputSeverity, event.body.category === 'important', source);
 				}
 			});
 		}));
@@ -1158,6 +1184,9 @@ export class DebugSession implements IDebugSession {
 		}));
 		this.rawListeners.push(this.raw.onDidProgressEnd(event => {
 			this._onDidProgressEnd.fire(event);
+		}));
+		this.rawListeners.push(this.raw.onDidInvalidateMemory(event => {
+			this._onDidInvalidMemory.fire(event);
 		}));
 		this.rawListeners.push(this.raw.onDidInvalidated(async event => {
 			if (!(event.body.areas && event.body.areas.length === 1 && (event.body.areas[0] === 'variables' || event.body.areas[0] === 'watch'))) {
@@ -1269,11 +1298,10 @@ export class DebugSession implements IDebugSession {
 		this.debugService.getViewModel().updateViews();
 	}
 
-	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void {
+	appendToRepl(data: string | IExpression, severity: Severity, isImportant?: boolean, source?: IReplElementSource): void {
 		this.repl.appendToRepl(this, data, severity, source);
-	}
-
-	logToRepl(sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
-		this.repl.logToRepl(this, sev, args, frame);
+		if (isImportant) {
+			this.notificationService.notify({ message: data.toString(), severity: severity, source: this.name });
+		}
 	}
 }

@@ -7,7 +7,7 @@ import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/commo
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getNotebookEditorFromEditorPane, ICellViewModel, ICommonCellViewModelLayoutChangeInfo, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -65,7 +65,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 			e.splices.reverse().forEach(splice => {
 				const [start, deleted, newCells] = splice;
 				const deletedCells = this._cellStateListeners.splice(start, deleted, ...newCells.map(cell => {
-					return cell.onDidChangeLayout(e => {
+					return cell.onDidChangeLayout((e: ICommonCellViewModelLayoutChangeInfo) => {
 						this._log(cell, e);
 					});
 				}));

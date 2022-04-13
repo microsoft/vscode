@@ -12,7 +12,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$repos=repo:microsoft/vscode repo:microsoft/vscode-internalbacklog repo:microsoft/vscode-dev repo:microsoft/vscode-remote-release repo:microsoft/vscode-js-debug repo:microsoft/vscode-pull-request-github repo:microsoft/vscode-github-issue-notebooks repo:microsoft/vscode-emmet-helper repo:microsoft/vscode-jupyter repo:microsoft/vscode-python\n$milestone=milestone:\"August 2021\""
+    "value": "$repos=repo:microsoft/vscode repo:microsoft/vscode-internalbacklog repo:microsoft/vscode-dev repo:microsoft/vscode-remote-release repo:microsoft/vscode-js-debug repo:microsoft/vscode-pull-request-github repo:microsoft/vscode-github-issue-notebooks repo:microsoft/vscode-emmet-helper repo:microsoft/vscode-jupyter repo:microsoft/vscode-python\n$milestone=milestone:\"March 2022\""
   },
   {
     "kind": 1,

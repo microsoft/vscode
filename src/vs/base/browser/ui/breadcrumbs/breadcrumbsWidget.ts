@@ -289,10 +289,12 @@ export class BreadcrumbsWidget {
 	}
 
 	private _render(start: number): void {
+		let didChange = false;
 		for (; start < this._items.length && start < this._nodes.length; start++) {
 			let item = this._items[start];
 			let node = this._nodes[start];
 			this._renderItem(item, node);
+			didChange = true;
 		}
 		// case a: more nodes -> remove them
 		while (start < this._nodes.length) {
@@ -300,6 +302,7 @@ export class BreadcrumbsWidget {
 			if (free) {
 				this._freeNodes.push(free);
 				free.remove();
+				didChange = true;
 			}
 		}
 
@@ -311,9 +314,12 @@ export class BreadcrumbsWidget {
 				this._renderItem(item, node);
 				this._domNode.appendChild(node);
 				this._nodes.push(node);
+				didChange = true;
 			}
 		}
-		this.layout(undefined);
+		if (didChange) {
+			this.layout(undefined);
+		}
 	}
 
 	private _renderItem(item: BreadcrumbsItem, container: HTMLDivElement): void {

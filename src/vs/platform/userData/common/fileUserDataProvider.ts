@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileWriteOptions, FileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, IFileOverwriteOptions, FileType, IFileWriteOptions, IFileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
@@ -34,11 +34,10 @@ export class FileUserDataProvider extends Disposable implements
 		private readonly fileSystemScheme: string,
 		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability & (IFileSystemProviderWithFileReadStreamCapability | IFileSystemProviderWithFileAtomicReadCapability),
 		private readonly userDataScheme: string,
-		fileService: IFileService,
-		private readonly logService: ILogService
+		private readonly logService: ILogService,
 	) {
 		super();
-		this._register(fileService.onDidFilesChange(e => this.handleFileChanges(e)));
+		this._register(this.fileSystemProvider.onDidChangeFile(e => this.handleFileChanges(e)));
 	}
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
@@ -58,7 +57,7 @@ export class FileUserDataProvider extends Disposable implements
 		return this.fileSystemProvider.mkdir(this.toFileSystemResource(resource));
 	}
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+	rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
 		return this.fileSystemProvider.rename(this.toFileSystemResource(from), this.toFileSystemResource(to), opts);
 	}
 
@@ -66,7 +65,7 @@ export class FileUserDataProvider extends Disposable implements
 		return this.fileSystemProvider.readFile(this.toFileSystemResource(resource), { atomic: true });
 	}
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
 		(async () => {
 			try {
@@ -84,31 +83,27 @@ export class FileUserDataProvider extends Disposable implements
 		return this.fileSystemProvider.readdir(this.toFileSystemResource(resource));
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 		return this.fileSystemProvider.writeFile(this.toFileSystemResource(resource), content, opts);
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
+	delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
 		return this.fileSystemProvider.delete(this.toFileSystemResource(resource), opts);
 	}
 
-	private handleFileChanges(e: FileChangesEvent): void {
+	private handleFileChanges(changes: readonly IFileChange[]): void {
 		const userDataChanges: IFileChange[] = [];
-		for (const changes of [{ raw: e.rawAdded, type: FileChangeType.ADDED }, { raw: e.rawUpdated, type: FileChangeType.UPDATED }, { raw: e.rawDeleted, type: FileChangeType.DELETED }]) {
-			if (changes.raw) {
-				for (const [resource] of changes.raw) {
-					if (resource.scheme !== this.fileSystemScheme) {
-						continue; // only interested in file schemes
-					}
+		for (const change of changes) {
+			if (change.resource.scheme !== this.fileSystemScheme) {
+				continue; // only interested in file schemes
+			}
 
-					const userDataResource = this.toUserDataResource(resource);
-					if (this.watchResources.findSubstr(userDataResource)) {
-						userDataChanges.push({
-							resource: userDataResource,
-							type: changes.type
-						});
-					}
-				}
+			const userDataResource = this.toUserDataResource(change.resource);
+			if (this.watchResources.findSubstr(userDataResource)) {
+				userDataChanges.push({
+					resource: userDataResource,
+					type: change.type
+				});
 			}
 		}
 		if (userDataChanges.length) {

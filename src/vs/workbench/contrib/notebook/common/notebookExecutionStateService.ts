@@ -6,7 +6,6 @@
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, ICellExecuteOutputEdit, ICellExecuteOutputItemEdit } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 
@@ -17,6 +16,7 @@ export interface ICellExecutionStateUpdate {
 	executionOrder?: number;
 	runStartTime?: number;
 	didPause?: boolean;
+	isPaused?: boolean;
 }
 
 export interface ICellExecutionComplete {
@@ -29,13 +29,15 @@ export interface ICellExecutionEntry {
 	cellHandle: number;
 	state: NotebookCellExecutionState;
 	didPause: boolean;
+	isPaused: boolean;
 }
 
 export interface ICellExecutionStateChangedEvent {
 	notebook: URI;
 	cellHandle: number;
-	changed?: ICellExecutionEntry; // undefined -> execution was completed
-	affectsCell(cell: NotebookCellTextModel): boolean;
+	changed?: INotebookCellExecution; // undefined -> execution was completed
+	affectsCell(cell: URI): boolean;
+	affectsNotebook(notebook: URI): boolean;
 }
 
 export const INotebookExecutionStateService = createDecorator<INotebookExecutionStateService>('INotebookExecutionStateService');
@@ -45,11 +47,20 @@ export interface INotebookExecutionStateService {
 
 	onDidChangeCellExecution: Event<ICellExecutionStateChangedEvent>;
 
-	getCellExecutionStatesForNotebook(notebook: URI): ICellExecutionEntry[];
+	forceCancelNotebookExecutions(notebookUri: URI): void;
+	getCellExecutionStatesForNotebook(notebook: URI): INotebookCellExecution[];
+	getCellExecution(cellUri: URI): INotebookCellExecution | undefined;
+	createCellExecution(controllerId: string, notebook: URI, cellHandle: number): INotebookCellExecution;
+}
 
-	getCellExecutionState(cellUri: URI): ICellExecutionEntry | undefined;
+export interface INotebookCellExecution {
+	readonly notebook: URI;
+	readonly cellHandle: number;
+	readonly state: NotebookCellExecutionState;
+	readonly didPause: boolean;
+	readonly isPaused: boolean;
 
-	createNotebookCellExecution(notebook: URI, cellHandle: number): void;
-	updateNotebookCellExecution(notebook: URI, cellHandle: number, updates: ICellExecuteUpdate[]): void;
-	completeNotebookCellExecution(notebook: URI, cellHandle: number, complete: ICellExecutionComplete): void;
+	confirm(): void;
+	update(updates: ICellExecuteUpdate[]): void;
+	complete(complete: ICellExecutionComplete): void;
 }

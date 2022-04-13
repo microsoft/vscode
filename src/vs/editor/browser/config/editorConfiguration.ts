@@ -13,13 +13,30 @@ import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserve
 import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { migrateOptions } from 'vs/editor/browser/config/migrateOptions';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
-import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { BareFontInfo, FontInfo, IValidatedEditorOptions } from 'vs/editor/common/config/fontInfo';
-import { IDimension } from 'vs/editor/common/editorCommon';
+import { IDimension } from 'vs/editor/common/core/dimension';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+
+export interface IEditorConstructionOptions extends IEditorOptions {
+	/**
+	 * The initial editor dimension (to avoid measuring the container).
+	 */
+	dimension?: IDimension;
+	/**
+	 * Place overflow widgets inside an external DOM node.
+	 * Defaults to an internal DOM node.
+	 */
+	overflowWidgetsDomNode?: HTMLElement;
+	/**
+	 * Enables dropping into the editor.
+	 *
+	 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
+	 */
+	enableDropIntoEditor?: boolean;
+}
 
 export class EditorConfiguration extends Disposable implements IEditorConfiguration {
 
@@ -73,7 +90,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 		this._register(TabFocus.onDidChangeTabFocus(() => this._recomputeOptions()));
 		this._register(this._containerObserver.onDidChange(() => this._recomputeOptions()));
 		this._register(FontMeasurements.onDidChange(() => this._recomputeOptions()));
-		this._register(browser.onDidChangeZoomLevel(() => this._recomputeOptions()));
+		this._register(browser.PixelRatio.onDidChange(() => this._recomputeOptions()));
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
 	}
 
@@ -92,7 +109,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 
 	private _computeOptions(): ComputedEditorOptions {
 		const partialEnv = this._readEnvConfiguration();
-		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.zoomLevel, partialEnv.pixelRatio, this.isSimpleWidget);
+		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.pixelRatio, this.isSimpleWidget);
 		const fontInfo = this._readFontInfo(bareFontInfo);
 		const env: IEnvironmentalOptions = {
 			memory: this._computeOptionsMemory,
@@ -117,8 +134,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			outerWidth: this._containerObserver.getWidth(),
 			outerHeight: this._containerObserver.getHeight(),
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
-			pixelRatio: browser.getPixelRatio(),
-			zoomLevel: browser.getZoomLevel(),
+			pixelRatio: browser.PixelRatio.value,
 			accessibilitySupport: (
 				this._accessibilityService.isScreenReaderOptimized()
 					? AccessibilitySupport.Enabled
@@ -149,10 +165,6 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 
 	public observeContainer(dimension?: IDimension): void {
 		this._containerObserver.observe(dimension);
-	}
-
-	public observePixelRatio(): void {
-		this._recomputeOptions();
 	}
 
 	public setIsDominatedByLongLines(isDominatedByLongLines: boolean): void {
@@ -207,6 +219,7 @@ function getExtraEditorClassName(): string {
 	if (browser.isSafari) {
 		// See https://github.com/microsoft/vscode/issues/108822
 		extra += 'no-minimap-shadow ';
+		extra += 'enable-user-select ';
 	}
 	if (platform.isMacintosh) {
 		extra += 'mac ';
@@ -220,7 +233,6 @@ export interface IEnvConfiguration {
 	outerHeight: number;
 	emptySelectionClipboard: boolean;
 	pixelRatio: number;
-	zoomLevel: number;
 	accessibilitySupport: AccessibilitySupport;
 }
 
@@ -279,7 +291,7 @@ class EditorOptionsUtil {
 		if (Array.isArray(a) || Array.isArray(b)) {
 			return (Array.isArray(a) && Array.isArray(b) ? arrays.equals(a, b) : false);
 		}
-		if (Object.keys(a).length !== Object.keys(b).length) {
+		if (Object.keys(a as unknown as object).length !== Object.keys(b as unknown as object).length) {
 			return false;
 		}
 		for (const key in a) {

@@ -1,7 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "14.x"
+      versionSpec: "16.x"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
@@ -35,6 +35,14 @@ steps:
 
   - script: |
       set -e
+      git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
+      echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
+      git checkout FETCH_HEAD
+    condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
+    displayName: Checkout override commit
+
+  - script: |
+      set -e
       git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
     displayName: Merge distro
 
@@ -60,13 +68,14 @@ steps:
       set -e
       npx https://aka.ms/enablesecurefeed standAlone
     timeoutInMinutes: 5
+    retryCountOnTaskFailure: 3
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
     displayName: Switch to Terrapin packages
 
   - script: |
       set -e
       for i in {1..3}; do # try 3 times, for Terrapin
-        yarn --frozen-lockfile && break
+        yarn --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then
           echo "Yarn failed too many times" >&2
           exit 1
@@ -119,7 +128,7 @@ steps:
         node build/azure-pipelines/upload-cdn
     displayName: Upload to CDN
 
-    # upload only the workbench.web.api.js source maps because
+    # upload only the workbench.web.main.js source maps because
     # we just compiled these bits in the previous step and the
     # general task to upload source maps has already been run
   - script: |
@@ -128,7 +137,7 @@ steps:
       AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
       AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
       AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
-        node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.api.js.map
+        node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.js.map
     displayName: Upload sourcemaps (Web)
 
   - script: |

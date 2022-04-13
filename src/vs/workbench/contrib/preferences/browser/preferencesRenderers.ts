@@ -13,15 +13,15 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import * as modes from 'vs/editor/common/languages';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
+import * as languages from 'vs/editor/common/languages';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
@@ -39,6 +39,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export interface IPreferencesRenderer extends IDisposable {
 	render(): void;
@@ -169,8 +170,8 @@ class EditSettingRenderer extends Disposable {
 	associatedPreferencesModel!: IPreferencesEditorModel<ISetting>;
 	private toggleEditPreferencesForMouseMoveDelayer: Delayer<void>;
 
-	private readonly _onUpdateSetting: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
-	readonly onUpdateSetting: Event<{ key: string, value: any, source: IIndexedSetting }> = this._onUpdateSetting.event;
+	private readonly _onUpdateSetting: Emitter<{ key: string; value: any; source: IIndexedSetting }> = new Emitter<{ key: string; value: any; source: IIndexedSetting }>();
+	readonly onUpdateSetting: Event<{ key: string; value: any; source: IIndexedSetting }> = this._onUpdateSetting.event;
 
 	constructor(private editor: ICodeEditor, private primarySettingsModel: ISettingsEditorModel,
 		private settingHighlighter: SettingHighlighter,
@@ -236,7 +237,7 @@ class EditSettingRenderer extends Disposable {
 
 	private getEditPreferenceWidgetUnderMouse(mouseMoveEvent: IEditorMouseEvent): EditPreferenceWidget<ISetting> | undefined {
 		if (mouseMoveEvent.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN) {
-			const line = mouseMoveEvent.target.position!.lineNumber;
+			const line = mouseMoveEvent.target.position.lineNumber;
 			if (this.editPreferenceWidgetForMouseMove.getLine() === line && this.editPreferenceWidgetForMouseMove.isVisible()) {
 				return this.editPreferenceWidgetForMouseMove;
 			}
@@ -371,7 +372,7 @@ class EditSettingRenderer extends Disposable {
 		return true;
 	}
 
-	private toAbsoluteCoords(position: Position): { x: number, y: number } {
+	private toAbsoluteCoords(position: Position): { x: number; y: number } {
 		const positionCoords = this.editor.getScrolledVisiblePosition(position);
 		const editorCoords = getDomNodePagePosition(this.editor.getDomNode()!);
 		const x = editorCoords.left + positionCoords!.left;
@@ -461,11 +462,11 @@ class SettingHighlighter extends Disposable {
 	}
 }
 
-class UnsupportedSettingsRenderer extends Disposable implements modes.CodeActionProvider {
+class UnsupportedSettingsRenderer extends Disposable implements languages.CodeActionProvider {
 
 	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
 
-	private readonly codeActions = new ResourceMap<[Range, modes.CodeAction[]][]>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+	private readonly codeActions = new ResourceMap<[Range, languages.CodeAction[]][]>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -475,11 +476,12 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 		this._register(this.editor.getModel()!.onDidChangeContent(() => this.delayedRender()));
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.source === ConfigurationTarget.DEFAULT)(() => this.delayedRender()));
-		this._register(modes.CodeActionProviderRegistry.register({ pattern: settingsEditorModel.uri.path }, this));
+		this._register(languageFeaturesService.codeActionProvider.register({ pattern: settingsEditorModel.uri.path }, this));
 	}
 
 	private delayedRender(): void {
@@ -496,8 +498,8 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 		}
 	}
 
-	async provideCodeActions(model: ITextModel, range: Range | Selection, context: modes.CodeActionContext, token: CancellationToken): Promise<modes.CodeActionList> {
-		const actions: modes.CodeAction[] = [];
+	async provideCodeActions(model: ITextModel, range: Range | Selection, context: languages.CodeActionContext, token: CancellationToken): Promise<languages.CodeActionList> {
+		const actions: languages.CodeAction[] = [];
 		const codeActionsByRange = this.codeActions.get(model.uri);
 		if (codeActionsByRange) {
 			for (const [codeActionsRange, codeActions] of codeActionsByRange) {
@@ -634,7 +636,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 		};
 	}
 
-	private generateUntrustedSettingCodeActions(diagnostics: IMarkerData[]): modes.CodeAction[] {
+	private generateUntrustedSettingCodeActions(diagnostics: IMarkerData[]): languages.CodeAction[] {
 		return [{
 			title: nls.localize('manage workspace trust', "Manage Workspace Trust"),
 			command: {
@@ -646,7 +648,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 		}];
 	}
 
-	private addCodeActions(range: IRange, codeActions: modes.CodeAction[]): void {
+	private addCodeActions(range: IRange, codeActions: languages.CodeAction[]): void {
 		let actions = this.codeActions.get(this.settingsEditorModel.uri);
 		if (!actions) {
 			actions = [];

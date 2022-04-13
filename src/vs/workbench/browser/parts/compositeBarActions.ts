@@ -255,11 +255,8 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.badge = append(container, $('.badge'));
 		this.badgeContent = append(this.badge, $('.badge-content'));
 
-		// Activity bar active border + background
-		const isActivityBarItem = this.options.icon;
-		if (isActivityBarItem) {
-			append(container, $('.active-item-indicator'));
-		}
+		// pane composite bar active border + background
+		append(container, $('.active-item-indicator'));
 
 		hide(this.badge);
 
@@ -420,7 +417,8 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			content: this.computeTitle(),
 			showPointer: true,
 			compact: true,
-			skipFadeInAnimation
+			hideOnKeyDown: true,
+			skipFadeInAnimation,
 		});
 	}
 
@@ -457,7 +455,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 
 	constructor(
 		action: ActivityAction,
-		private getOverflowingComposites: () => { id: string, name?: string }[],
+		private getOverflowingComposites: () => { id: string; name?: string }[],
 		private getActiveCompositeId: () => string | undefined,
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => IAction,

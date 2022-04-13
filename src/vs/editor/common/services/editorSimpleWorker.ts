@@ -10,20 +10,19 @@ import { URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
-import { IChange } from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence, IWordAtPosition } from 'vs/editor/common/model';
+import { DiffComputer, IChange, IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';
+import { EndOfLineSequence } from 'vs/editor/common/model';
 import { IMirrorTextModel, IModelChangedEvent, MirrorTextModel as BaseMirrorModel } from 'vs/editor/common/model/mirrorTextModel';
-import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model/wordHelper';
+import { ensureValidWordDefinition, getWordAtText, IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/languages';
 import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/languages/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/languages/supports/inplaceReplaceSupport';
-import { IDiffComputationResult, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
-import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
+import { IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
+import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
 import * as types from 'vs/base/common/types';
-import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/languages/unicodeTextModelHighlighter';
+import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
@@ -327,12 +326,12 @@ declare const require: any;
 export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 	_requestHandlerBrand: any;
 
-	protected readonly _host: EditorWorkerHost;
-	private _models: { [uri: string]: MirrorModel; };
+	protected readonly _host: IEditorWorkerHost;
+	private _models: { [uri: string]: MirrorModel };
 	private readonly _foreignModuleFactory: IForeignModuleFactory | null;
 	private _foreignModule: any;
 
-	constructor(host: EditorWorkerHost, foreignModuleFactory: IForeignModuleFactory | null) {
+	constructor(host: IEditorWorkerHost, foreignModuleFactory: IForeignModuleFactory | null) {
 		this._host = host;
 		this._models = Object.create(null);
 		this._foreignModuleFactory = foreignModuleFactory;
@@ -534,7 +533,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 	private static readonly _suggestionsLimit = 10000;
 
-	public async textualSuggest(modelUrls: string[], leadingWord: string | undefined, wordDef: string, wordDefFlags: string): Promise<{ words: string[], duration: number } | null> {
+	public async textualSuggest(modelUrls: string[], leadingWord: string | undefined, wordDef: string, wordDefFlags: string): Promise<{ words: string[]; duration: number } | null> {
 
 		const sw = new StopWatch(true);
 		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
@@ -681,7 +680,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
  * Called on the worker side
  * @internal
  */
-export function create(host: EditorWorkerHost): IRequestHandler {
+export function create(host: IEditorWorkerHost): IRequestHandler {
 	return new EditorSimpleWorker(host, null);
 }
 

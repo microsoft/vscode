@@ -12,9 +12,9 @@ import { isMacintosh as isMac } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { IFileQuery, IFolderQuery } from 'vs/workbench/services/search/common/search';
 import { anchorGlob } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
-import { rgPath } from 'vscode-ripgrep';
+import { rgPath } from '@vscode/ripgrep';
 
-// If vscode-ripgrep is in an .asar file, then the binary is unpacked.
+// If @vscode/ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
 export function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression) {

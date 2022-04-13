@@ -26,7 +26,7 @@ suite('Experimental Prompts', () => {
 	let commandService: TestCommandService;
 	let onExperimentEnabledEvent: Emitter<IExperiment>;
 
-	let storageData: { [key: string]: any; } = {};
+	let storageData: { [key: string]: any } = {};
 	const promptText = 'Hello there! Can you see this?';
 	const experiment: IExperiment =
 	{

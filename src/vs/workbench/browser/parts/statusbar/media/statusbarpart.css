@@ -11,6 +11,7 @@
 	font-size: 12px;
 	display: flex;
 	overflow: visible;
+	transition: background-color 0.35s ease-out;
 }
 
 .monaco-workbench .part.statusbar.status-border-top::after {
@@ -126,7 +127,7 @@
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right > a {
-	padding: 0 3px 0 5px;
+	padding: 0 3px;
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a:hover:not(.disabled) {

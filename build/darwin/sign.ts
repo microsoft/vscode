@@ -6,11 +6,10 @@
 'use strict';
 
 import * as codesign from 'electron-osx-sign';
-import * as fs from 'fs-extra';
 import * as path from 'path';
-import * as plist from 'plist';
 import * as util from '../lib/util';
 import * as product from '../../product.json';
+import { spawn } from '@malept/cross-spawn-promise';
 
 async function main(): Promise<void> {
 	const buildDir = process.env['AGENT_BUILDDIRECTORY'];
@@ -71,14 +70,31 @@ async function main(): Promise<void> {
 		'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
 	};
 
-	let infoPlistString = await fs.readFile(infoPlistPath, 'utf8');
-	let infoPlistJson = plist.parse(infoPlistString);
-	Object.assign(infoPlistJson, {
-		NSAppleEventsUsageDescription: 'An application in Visual Studio Code wants to use AppleScript.',
-		NSMicrophoneUsageDescription: 'An application in Visual Studio Code wants to use the Microphone.',
-		NSCameraUsageDescription: 'An application in Visual Studio Code wants to use the Camera.'
-	});
-	await fs.writeFile(infoPlistPath, plist.build(infoPlistJson), 'utf8');
+	// Only overwrite plist entries for x64 and arm64 builds,
+	// universal will get its copy from the x64 build.
+	if (arch !== 'universal') {
+		await spawn('plutil', [
+			'-insert',
+			'NSAppleEventsUsageDescription',
+			'-string',
+			'An application in Visual Studio Code wants to use AppleScript.',
+			`${infoPlistPath}`
+		]);
+		await spawn('plutil', [
+			'-replace',
+			'NSMicrophoneUsageDescription',
+			'-string',
+			'An application in Visual Studio Code wants to use the Microphone.',
+			`${infoPlistPath}`
+		]);
+		await spawn('plutil', [
+			'-replace',
+			'NSCameraUsageDescription',
+			'-string',
+			'An application in Visual Studio Code wants to use the Camera.',
+			`${infoPlistPath}`
+		]);
+	}
 
 	await codesign.signAsync(gpuHelperOpts);
 	await codesign.signAsync(rendererHelperOpts);

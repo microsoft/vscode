@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
+import { CancellationError } from 'vs/base/common/errors';
 import { ISplice } from 'vs/base/common/sequence';
 
 /**
@@ -198,7 +198,7 @@ export function sortedDiff<T>(before: ReadonlyArray<T>, after: ReadonlyArray<T>,
  * Takes two *sorted* arrays and computes their delta (removed, added elements).
  * Finishes in `Math.min(before.length, after.length)` steps.
  */
-export function delta<T>(before: ReadonlyArray<T>, after: ReadonlyArray<T>, compare: (a: T, b: T) => number): { removed: T[], added: T[] } {
+export function delta<T>(before: ReadonlyArray<T>, after: ReadonlyArray<T>, compare: (a: T, b: T) => number): { removed: T[]; added: T[] } {
 	const splices = sortedDiff(before, after, compare);
 	const removed: T[] = [];
 	const added: T[] = [];
@@ -257,7 +257,7 @@ export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: numb
 					await new Promise(resolve => setTimeout(resolve)); // any other delay function would starve I/O
 				}
 				if (token && token.isCancellationRequested) {
-					throw canceled();
+					throw new CancellationError();
 				}
 				topStep(array, compare, result, i, m);
 			}
@@ -339,17 +339,17 @@ export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => any = 
 	});
 }
 
-export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
-	const seen: { [key: string]: boolean; } = Object.create(null);
+export function uniqueFilter<T, R>(keyFn: (t: T) => R): (t: T) => boolean {
+	const seen = new Set<R>();
 
 	return element => {
 		const key = keyFn(element);
 
-		if (seen[key]) {
+		if (seen.has(key)) {
 			return false;
 		}
 
-		seen[key] = true;
+		seen.add(key);
 		return true;
 	};
 }
@@ -380,6 +380,12 @@ export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoun
 	return array.length > 0 ? array[0] : notFoundValue;
 }
 
+export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
+export function lastOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
+export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
+	return array.length > 0 ? array[array.length - 1] : notFoundValue;
+}
+
 export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): number {
 	let result = 0;
 
@@ -390,6 +396,9 @@ export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArra
 	return result;
 }
 
+/**
+ * @deprecated Use `[].flat()`
+ */
 export function flatten<T>(arr: T[][]): T[] {
 	return (<T[]>[]).concat(...arr);
 }
@@ -421,9 +430,9 @@ export function range(arg: number, to?: number): number[] {
 	return result;
 }
 
-export function index<T>(array: ReadonlyArray<T>, indexer: (t: T) => string): { [key: string]: T; };
-export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, mapper: (t: T) => R): { [key: string]: R; };
-export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, mapper?: (t: T) => R): { [key: string]: R; } {
+export function index<T>(array: ReadonlyArray<T>, indexer: (t: T) => string): { [key: string]: T };
+export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, mapper: (t: T) => R): { [key: string]: R };
+export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, mapper?: (t: T) => R): { [key: string]: R } {
 	return array.reduce((r, t) => {
 		r[indexer(t)] = mapper ? mapper(t) : t;
 		return r;
@@ -433,6 +442,8 @@ export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, 
 /**
  * Inserts an element into an array. Returns a function which, when
  * called, will remove that element from the array.
+ *
+ * @deprecated In almost all cases, use a `Set<T>` instead.
  */
 export function insert<T>(array: T[], element: T): () => void {
 	array.push(element);
@@ -442,6 +453,8 @@ export function insert<T>(array: T[], element: T): () => void {
 
 /**
  * Removes an element from an array if it can be found.
+ *
+ * @deprecated In almost all cases, use a `Set<T>` instead.
  */
 export function remove<T>(array: T[], element: T): T | undefined {
 	const index = array.indexOf(element);
@@ -511,6 +524,12 @@ export function pushToEnd<T>(arr: T[], value: T): void {
 	if (index > -1) {
 		arr.splice(index, 1);
 		arr.push(value);
+	}
+}
+
+export function pushMany<T>(arr: T[], items: ReadonlyArray<T>): void {
+	for (const item of items) {
+		arr.push(item);
 	}
 }
 

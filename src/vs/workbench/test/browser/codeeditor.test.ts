@@ -8,7 +8,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { URI } from 'vs/base/common/uri';
 import { workbenchInstantiationService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/codeeditor';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -18,7 +18,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelService } from 'vs/editor/common/services/modelService';
-import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';

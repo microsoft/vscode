@@ -10,10 +10,11 @@ import * as platform from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/resources';
 import { assertIsDefined, assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
-import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLineQuickAccess';
+import { ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/browser/findModel';
+import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/gotoLineQuickAccess';
 import * as nls from 'vs/nls';
-import { Action2, ICommandAction, MenuId, MenuRegistry, registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, MenuRegistry, registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { ICommandAction } from 'vs/platform/action/common/action';
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -45,7 +46,7 @@ import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import { resolveResourcesForSearchIncludes } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { resolveResourcesForSearchIncludes } from 'vs/workbench/services/search/common/queryBuilder';
 import { getWorkspaceSymbols, IWorkspaceSymbol, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { FileMatch, FileMatchOrMatch, FolderMatch, ISearchWorkbenchService, Match, RenderableMatch, SearchWorkbenchService } from 'vs/workbench/contrib/search/common/searchModel';
@@ -477,7 +478,7 @@ registerAction2(class ClearSearchResultsAction extends Action2 {
 
 const RevealInSideBarForSearchResultsCommand: ICommandAction = {
 	id: Constants.RevealInSideBarForSearchResults,
-	title: nls.localize('revealInSideBar', "Reveal in Side Bar")
+	title: nls.localize('revealInSideBar', "Reveal in Explorer View")
 };
 
 MenuRegistry.appendMenuItem(MenuId.SearchContext, {
@@ -839,7 +840,7 @@ configurationRegistry.registerConfiguration({
 								type: 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
 								pattern: '\\w*\\$\\(basename\\)\\w*',
 								default: '$(basename).ext',
-								description: nls.localize('exclude.when', 'Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.')
+								markdownDescription: nls.localize('exclude.when', 'Additional check on the siblings of a matching file. Use \\$(basename) as variable for the matching file name.')
 							}
 						}
 					}
@@ -851,9 +852,9 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['view', 'reuseEditor', 'newEditor'],
 			default: 'view',
-			markdownDescription: nls.localize('search.mode', "Controls where new `Search: Find in Files` and `Find in Folder` operations occur: either in the sidebar's search view, or in a search editor"),
+			markdownDescription: nls.localize('search.mode', "Controls where new `Search: Find in Files` and `Find in Folder` operations occur: either in the search view, or in a search editor"),
 			enumDescriptions: [
-				nls.localize('search.mode.view', "Search in the search view, either in the panel or sidebar."),
+				nls.localize('search.mode.view', "Search in the search view, either in the panel or side bars."),
 				nls.localize('search.mode.reuseEditor', "Search in an existing search editor if present, otherwise in a new search editor."),
 				nls.localize('search.mode.newEditor', "Search in a new search editor."),
 			]

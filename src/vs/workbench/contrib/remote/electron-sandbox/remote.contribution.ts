@@ -29,7 +29,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand, RemoteFileDialogContext } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { TelemetryLevel, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 
 class RemoteChannelsContribution implements IWorkbenchContribution {
@@ -53,7 +53,7 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ILabelService labelService: ILabelService
 	) {
-		ipcRenderer.on('vscode:getDiagnosticInfo', (event: unknown, request: { replyChannel: string, args: IDiagnosticInfoOptions }): void => {
+		ipcRenderer.on('vscode:getDiagnosticInfo', (event: unknown, request: { replyChannel: string; args: IDiagnosticInfoOptions }): void => {
 			const connection = remoteAgentService.getConnection();
 			if (connection) {
 				const hostName = labelService.getHostLabel(Schemas.vscodeRemote, connection.remoteAuthority);
@@ -66,7 +66,7 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 						ipcRenderer.send(request.replyChannel, info);
 					})
 					.catch(e => {
-						const errorMessage = e && e.message ? `Fetching remote diagnostics for '${hostName}' failed: ${e.message}` : `Fetching remote diagnostics for '${hostName}' failed.`;
+						const errorMessage = e && e.message ? `Connection to '${hostName}' could not be established  ${e.message}` : `Connection to '${hostName}' could not be established `;
 						ipcRenderer.send(request.replyChannel, { hostName, errorMessage });
 					});
 			} else {
@@ -113,11 +113,7 @@ class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchC
 	}
 
 	private updateRemoteTelemetryEnablement(): Promise<void> {
-		if (getTelemetryLevel(this.configurationService) === TelemetryLevel.NONE) {
-			return this.remoteAgentService.disableTelemetry();
-		}
-
-		return Promise.resolve();
+		return this.remoteAgentService.updateTelemetryLevel(getTelemetryLevel(this.configurationService));
 	}
 }
 
@@ -141,7 +137,7 @@ class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchC
 			return shouldShowExplorer();
 		}
 
-		const { remoteAuthority, filesToDiff, filesToOpenOrCreate, filesToWait } = environmentService.configuration;
+		const { remoteAuthority, filesToDiff, filesToOpenOrCreate, filesToWait } = environmentService;
 		if (remoteAuthority && contextService.getWorkbenchState() === WorkbenchState.EMPTY && !filesToDiff?.length && !filesToOpenOrCreate?.length && !filesToWait) {
 			remoteAuthorityResolverService.resolveAuthority(remoteAuthority).then(() => {
 				if (shouldShowExplorer()) {

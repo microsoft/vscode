@@ -14,7 +14,7 @@ import { randomPort } from 'vs/base/common/ports';
 import { isString } from 'vs/base/common/types';
 import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
-import { watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
+import { watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
 import { addArg, parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
@@ -270,7 +270,7 @@ export async function main(argv: string[]): Promise<any> {
 			processCallbacks.push(async _child => {
 
 				class Profiler {
-					static async start(name: string, filenamePrefix: string, opts: { port: number, tries?: number, target?: (targets: Target[]) => Target }) {
+					static async start(name: string, filenamePrefix: string, opts: { port: number; tries?: number; target?: (targets: Target[]) => Target }) {
 						const profiler = await import('v8-inspect-profiler');
 
 						let session: ProfilingSession;
@@ -401,8 +401,12 @@ export async function main(argv: string[]): Promise<any> {
 							const stream = outputType === 'stdout' ? process.stdout : process.stderr;
 
 							const cts = new CancellationTokenSource();
-							child.on('close', () => cts.dispose(true));
-							await watchFileContents(tmpName, chunk => stream.write(chunk), cts.token);
+							child.on('close', () => {
+								// We must dispose the token to stop watching,
+								// but the watcher might still be reading data.
+								setTimeout(() => cts.dispose(true), 200);
+							});
+							await watchFileContents(tmpName, chunk => stream.write(chunk), () => { /* ignore */ }, cts.token);
 						} finally {
 							unlinkSync(tmpName);
 						}

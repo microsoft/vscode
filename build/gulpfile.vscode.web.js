@@ -17,7 +17,7 @@ const filter = require('gulp-filter');
 const _ = require('underscore');
 const { getProductionDependencies } = require('./lib/dependencies');
 const vfs = require('vinyl-fs');
-const fs = require('fs');
+const replace = require('gulp-replace');
 const packageJson = require('../package.json');
 const { compileBuildTask } = require('./gulpfile.compile');
 const extensions = require('./lib/extensions');
@@ -64,7 +64,7 @@ const vscodeWebResources = [
 const buildfile = require('../src/buildfile');
 
 const vscodeWebEntryPoints = _.flatten([
-	buildfile.entrypoint('vs/workbench/workbench.web.api'),
+	buildfile.entrypoint('vs/workbench/workbench.web.main'),
 	buildfile.base,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
@@ -78,9 +78,9 @@ exports.vscodeWebEntryPoints = vscodeWebEntryPoints;
 const buildDate = new Date().toISOString();
 
 /**
- * @param extensionsRoot {string} The location where extension will be read from
+ * @param {object} product The parsed product.json file contents
  */
-const createVSCodeWebFileContentMapper = (extensionsRoot) => {
+const createVSCodeWebProductConfigurationPatcher = (product) => {
 	/**
 	 * @param content {string} The contens of the file
 	 * @param path {string} The absolute file path, always using `/`, even on Windows
@@ -90,7 +90,6 @@ const createVSCodeWebFileContentMapper = (extensionsRoot) => {
 		if (path.endsWith('vs/platform/product/common/product.js')) {
 			const productConfiguration = JSON.stringify({
 				...product,
-				extensionAllowedProposedApi: [...product.extensionAllowedProposedApi],
 				version,
 				commit,
 				date: buildDate
@@ -98,16 +97,57 @@ const createVSCodeWebFileContentMapper = (extensionsRoot) => {
 			return content.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', productConfiguration.substr(1, productConfiguration.length - 2) /* without { and }*/);
 		}
 
+		return content;
+	};
+	return result;
+};
+
+/**
+ * @param extensionsRoot {string} The location where extension will be read from
+ */
+const createVSCodeWebBuiltinExtensionsPatcher = (extensionsRoot) => {
+	/**
+	 * @param content {string} The contens of the file
+	 * @param path {string} The absolute file path, always using `/`, even on Windows
+	 */
+	const result = (content, path) => {
 		// (2) Patch builtin extensions
 		if (path.endsWith('vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.js')) {
-			// Do not inline `vscode-web-playground` even if it has been packed!
-			const builtinExtensions = JSON.stringify(extensions.scanBuiltinExtensions(extensionsRoot, ['vscode-web-playground']));
+			const builtinExtensions = JSON.stringify(extensions.scanBuiltinExtensions(extensionsRoot));
 			return content.replace('/*BUILD->INSERT_BUILTIN_EXTENSIONS*/', builtinExtensions.substr(1, builtinExtensions.length - 2) /* without [ and ]*/);
 		}
 
 		return content;
 	};
 	return result;
+};
+
+/**
+ * @param patchers {((content:string, path: string)=>string)[]}
+ */
+const combineContentPatchers = (...patchers) => {
+	/**
+	 * @param content {string} The contens of the file
+	 * @param path {string} The absolute file path, always using `/`, even on Windows
+	 */
+	const result = (content, path) => {
+		for (const patcher of patchers) {
+			content = patcher(content, path);
+		}
+		return content;
+	};
+	return result;
+};
+
+/**
+ * @param extensionsRoot {string} The location where extension will be read from
+ * @param {object} product The parsed product.json file contents
+ */
+const createVSCodeWebFileContentMapper = (extensionsRoot, product) => {
+	return combineContentPatchers(
+		createVSCodeWebProductConfigurationPatcher(product),
+		createVSCodeWebBuiltinExtensionsPatcher(extensionsRoot)
+	);
 };
 exports.createVSCodeWebFileContentMapper = createVSCodeWebFileContentMapper;
 
@@ -123,7 +163,7 @@ const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 		out: 'out-vscode-web',
 		inlineAmdImages: true,
 		bundleInfo: undefined,
-		fileContentMapper: createVSCodeWebFileContentMapper('.build/web/extensions')
+		fileContentMapper: createVSCodeWebFileContentMapper('.build/web/extensions', product)
 	})
 ));
 
@@ -189,12 +229,12 @@ function packageTask(sourceFolderName, destinationFolderName) {
 const compileWebExtensionsBuildTask = task.define('compile-web-extensions-build', task.series(
 	task.define('clean-web-extensions-build', util.rimraf('.build/web/extensions')),
 	task.define('bundle-web-extensions-build', () => extensions.packageLocalExtensionsStream(true).pipe(gulp.dest('.build/web'))),
-	task.define('bundle-marketplace-web-extensions-build', () => extensions.packageMarketplaceExtensionsStream(true).pipe(gulp.dest('.build/web'))),
+	task.define('bundle-marketplace-web-extensions-build', () => extensions.packageMarketplaceExtensionsStream(true, product.extensionsGallery?.serviceUrl).pipe(gulp.dest('.build/web'))),
 	task.define('bundle-web-extension-media-build', () => extensions.buildExtensionMedia(false, '.build/web/extensions')),
 ));
 gulp.task(compileWebExtensionsBuildTask);
 
-const dashed = (str) => (str ? `-${str}` : ``);
+const dashed = (/** @type {string} */ str) => (str ? `-${str}` : ``);
 
 ['', 'min'].forEach(minified => {
 	const sourceFolderName = `out-vscode-web${dashed(minified)}`;

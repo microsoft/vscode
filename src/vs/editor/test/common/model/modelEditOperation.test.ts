@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
@@ -31,7 +31,7 @@ suite('Editor Model - Model Edit Operation', () => {
 		model.dispose();
 	});
 
-	function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
+	function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): ISingleEditOperation {
 		let range = new Range(
 			selectionLineNumber,
 			selectionColumn,
@@ -40,14 +40,13 @@ suite('Editor Model - Model Edit Operation', () => {
 		);
 
 		return {
-			identifier: null,
 			range: range,
 			text: text,
 			forceMoveMarkers: false
 		};
 	}
 
-	function assertSingleEditOp(singleEditOp: IIdentifiedSingleEditOperation, editedLines: string[]) {
+	function assertSingleEditOp(singleEditOp: ISingleEditOperation, editedLines: string[]) {
 		let editOp = [singleEditOp];
 
 		let inverseEditOp = model.applyEdits(editOp, true);
@@ -66,13 +65,11 @@ suite('Editor Model - Model Edit Operation', () => {
 		assert.strictEqual(model.getLineContent(4), LINE4);
 		assert.strictEqual(model.getLineContent(5), LINE5);
 
-		const simplifyEdit = (edit: IIdentifiedSingleEditOperation) => {
+		const simplifyEdit = (edit: ISingleEditOperation) => {
 			return {
-				identifier: edit.identifier,
 				range: edit.range,
 				text: edit.text,
-				forceMoveMarkers: edit.forceMoveMarkers || false,
-				isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit || false
+				forceMoveMarkers: edit.forceMoveMarkers || false
 			};
 		};
 		assert.deepStrictEqual(originalOp.map(simplifyEdit), editOp.map(simplifyEdit));

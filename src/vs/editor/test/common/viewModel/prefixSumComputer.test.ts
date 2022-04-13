@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { toUint32 } from 'vs/base/common/uint';
-import { PrefixSumComputer, PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { PrefixSumComputer, PrefixSumIndexOfResult } from 'vs/editor/common/model/prefixSumComputer';
 
 function toUint32Array(arr: number[]): Uint32Array {
 	const len = arr.length;

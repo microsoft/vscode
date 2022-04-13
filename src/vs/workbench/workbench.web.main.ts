@@ -57,8 +57,11 @@ import 'vs/workbench/services/path/browser/pathService';
 import 'vs/workbench/services/themes/browser/browserHostColorSchemeService';
 import 'vs/workbench/services/encryption/browser/encryptionService';
 import 'vs/workbench/services/workingCopy/browser/workingCopyBackupService';
-import 'vs/workbench/services/remote/browser/tunnelService';
+import 'vs/workbench/services/tunnel/browser/tunnelService';
 import 'vs/workbench/services/files/browser/elevatedFileService';
+import 'vs/workbench/services/workingCopy/browser/workingCopyHistoryService';
+import 'vs/workbench/services/userDataSync/browser/webUserDataSyncEnablementService';
+import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -68,10 +71,10 @@ import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/ex
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
 import { IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
-import { ILoggerService } from 'vs/platform/log/common/log';
+import { ILoggerService, LogLevel } from 'vs/platform/log/common/log';
 import { FileLoggerService } from 'vs/platform/log/common/fileLog';
 import { UserDataSyncMachinesService, IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
@@ -83,11 +86,8 @@ import { NullEndpointTelemetryService } from 'vs/platform/telemetry/common/telem
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { ITimerService, TimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
-import { WebUserDataSyncEnablementService } from 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
+import { IDiagnosticsService, NullDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 
-registerSingleton(IUserDataSyncEnablementService, WebUserDataSyncEnablementService);
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService);
 registerSingleton(IAccessibilityService, AccessibilityService, true);
 registerSingleton(IContextMenuService, ContextMenuService);
@@ -101,8 +101,8 @@ registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService);
 registerSingleton(ITitleService, TitlebarPart);
 registerSingleton(IExtensionTipsService, ExtensionTipsService);
 registerSingleton(ITimerService, TimerService);
-registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
 registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, true);
+registerSingleton(IDiagnosticsService, NullDiagnosticsService, true);
 
 //#endregion
 
@@ -125,7 +125,7 @@ import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';
 import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 
 // Welcome Banner
-import 'vs/workbench/contrib/welcome/banner/browser/welcomeBanner.contribution';
+import 'vs/workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution';
 
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.web.contribution';
@@ -149,5 +149,129 @@ import 'vs/workbench/contrib/issue/browser/issue.web.contribution';
 
 // Splash
 import 'vs/workbench/contrib/splash/browser/splash.contribution';
+
+// Offline
+import 'vs/workbench/contrib/offline/browser/offline.contribution';
+
+//#endregion
+
+
+//#region --- export workbench factory
+
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//
+// Do NOT change these exports in a way that something is removed unless
+// intentional. These exports are used by web embedders and thus require
+// an adoption when something changes.
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+import { create, commands, env, window } from 'vs/workbench/browser/web.factory';
+import { IWorkbench, ICommand, ICommonTelemetryPropertiesResolver, IDefaultEditor, IDefaultLayout, IDefaultView, IDevelopmentOptions, IExternalUriResolver, IExternalURLOpener, IHomeIndicator, IInitialColorTheme, IPosition, IProductQualityChangeHandler, IRange, IResourceUriProvider, ISettingsSyncOptions, IShowPortCandidate, ITunnel, ITunnelFactory, ITunnelOptions, ITunnelProvider, IWelcomeBanner, IWelcomeBannerAction, IWindowIndicator, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
+import { UriComponents, URI } from 'vs/base/common/uri';
+import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
+import { Event, Emitter } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { IProductConfiguration } from 'vs/base/common/product';
+import { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
+// eslint-disable-next-line no-duplicate-imports
+import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
+// eslint-disable-next-line no-duplicate-imports
+import type { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
+// eslint-disable-next-line no-duplicate-imports
+import type { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
+
+
+export {
+
+	// Factory
+	create,
+	IWorkbenchConstructionOptions,
+	IWorkbench,
+
+	// Basic Types
+	URI,
+	UriComponents,
+	Event,
+	Emitter,
+	IDisposable,
+	Disposable,
+
+	// Workspace
+	IWorkspace,
+	IWorkspaceProvider,
+
+	// WebSockets
+	IWebSocketFactory,
+	IWebSocket,
+
+	// Resources
+	IResourceUriProvider,
+
+	// Credentials
+	ICredentialsProvider,
+
+	// Callbacks
+	IURLCallbackProvider,
+
+	// LogLevel
+	LogLevel,
+
+	// SettingsSync
+	ISettingsSyncOptions,
+
+	// Updates/Quality
+	IUpdateProvider,
+	IUpdate,
+	IProductQualityChangeHandler,
+
+	// Telemetry
+	ICommonTelemetryPropertiesResolver,
+
+	// External Uris
+	IExternalUriResolver,
+
+	// External URL Opener
+	IExternalURLOpener,
+
+	// Tunnel
+	ITunnelProvider,
+	ITunnelFactory,
+	ITunnel,
+	ITunnelOptions,
+
+	// Ports
+	IShowPortCandidate,
+
+	// Commands
+	ICommand,
+	commands,
+	Menu,
+
+	// Window
+	window,
+
+	// Branding
+	IHomeIndicator,
+	IWelcomeBanner,
+	IWelcomeBannerAction,
+	IProductConfiguration,
+	IWindowIndicator,
+	IInitialColorTheme,
+
+	// Default layout
+	IDefaultView,
+	IDefaultEditor,
+	IDefaultLayout,
+	IPosition,
+	IRange as ISelection,
+
+	// Env
+	env,
+
+	// Development
+	IDevelopmentOptions
+};
+
 
 //#endregion

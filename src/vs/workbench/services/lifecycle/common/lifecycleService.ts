@@ -29,6 +29,9 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 	protected readonly _onBeforeShutdownError = this._register(new Emitter<BeforeShutdownErrorEvent>());
 	readonly onBeforeShutdownError = this._onBeforeShutdownError.event;
 
+	protected readonly _onShutdownVeto = this._register(new Emitter<void>());
+	readonly onShutdownVeto = this._onShutdownVeto.event;
+
 	private _startupKind: StartupKind;
 	get startupKind(): StartupKind { return this._startupKind; }
 

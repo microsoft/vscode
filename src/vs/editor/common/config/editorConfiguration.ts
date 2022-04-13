@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ConfigurationChangedEvent, IComputedEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IDimension } from 'vs/editor/common/editorCommon';
+import { IDimension } from 'vs/editor/common/core/dimension';
 
 export interface IEditorConfiguration extends IDisposable {
 	/**
@@ -39,10 +39,6 @@ export interface IEditorConfiguration extends IDisposable {
 	 * Recompute options with new reference element dimensions.
 	 */
 	observeContainer(dimension?: IDimension): void;
-	/**
-	 * Recompute options with new pixel ratio.
-	 */
-	observePixelRatio(): void;
 	/**
 	 * Set if the current model is dominated by long lines.
 	 */

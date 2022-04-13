@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IEncodingSupport, ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot, ITextFileSaveAsOptions, IReadTextFileEncodingOptions, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
-import { IRevertOptions } from 'vs/workbench/common/editor';
+import { IRevertOptions, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, IFileStreamContent } from 'vs/platform/files/common/files';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -31,11 +31,10 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, ICreateFileOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceContextService, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, toEncodeReadable, toDecodeStream, IDecodeStreamResult, DecodeStreamError, DecodeStreamErrorKind } from 'vs/workbench/services/textfile/common/encoding';
 import { consumeStream, ReadableStream } from 'vs/base/common/stream';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
@@ -43,6 +42,7 @@ import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/w
 import { Emitter } from 'vs/base/common/event';
 import { Codicon } from 'vs/base/common/codicons';
 import { listErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -50,6 +50,9 @@ import { listErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 export abstract class AbstractTextFileService extends Disposable implements ITextFileService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private static readonly TEXTFILE_SAVE_CREATE_SOURCE = SaveSourceRegistry.registerSource('textFileCreate.source', localize('textFileCreate.source', "File Created"));
+	private static readonly TEXTFILE_SAVE_REPLACE_SOURCE = SaveSourceRegistry.registerSource('textFileOverwrite.source', localize('textFileOverwrite.source', "File Replaced"));
 
 	readonly files: ITextFileEditorModelManager = this._register(this.instantiationService.createInstance(TextFileEditorModelManager));
 
@@ -246,7 +249,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 	}
 
-	async create(operations: { resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]> {
+	async create(operations: { resource: URI; value?: string | ITextSnapshot; options?: ICreateFileOptions }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]> {
 		const operationsWithContents: ICreateFileOperation[] = await Promise.all(operations.map(async operation => {
 			const contents = await this.getEncodedReadable(operation.resource, operation.value);
 			return {
@@ -303,7 +306,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return toDecodeStream(stream, {
 			acceptTextOnly: options?.acceptTextOnly ?? false,
 			guessEncoding: options?.autoGuessEncoding || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
-			overwriteEncoding: detectedEncoding => this.encoding.getReadEncoding(resource, options, detectedEncoding)
+			overwriteEncoding: async detectedEncoding => {
+				const { encoding } = await this.encoding.getPreferredReadEncoding(resource, options, withNullAsUndefined(detectedEncoding));
+
+				return encoding;
+			}
 		});
 	}
 
@@ -537,6 +544,14 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			}
 		}
 
+		// set source options depending on target exists or not
+		if (!options?.source) {
+			options = {
+				...options,
+				source: targetExists ? AbstractTextFileService.TEXTFILE_SAVE_REPLACE_SOURCE : AbstractTextFileService.TEXTFILE_SAVE_CREATE_SOURCE
+			};
+		}
+
 		// save model
 		return targetModel.save(options);
 	}
@@ -577,7 +592,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				// of untitled model if it is a valid path name,
 				// otherwise fallback to `basename`.
 				let untitledName = model.name;
-				if (!(await this.pathService.hasValidBasename(joinPath(defaultFilePath, untitledName)))) {
+				if (!(await this.pathService.hasValidBasename(joinPath(defaultFilePath, untitledName), untitledName))) {
 					untitledName = basename(resource);
 				}
 
@@ -706,7 +721,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		return defaultEncodingOverrides;
 	}
 
-	async getWriteEncoding(resource: URI, options?: IWriteTextFileOptions): Promise<{ encoding: string, addBOM: boolean }> {
+	async getWriteEncoding(resource: URI, options?: IWriteTextFileOptions): Promise<{ encoding: string; addBOM: boolean }> {
 		const { encoding, hasBOM } = await this.getPreferredWriteEncoding(resource, options ? options.encoding : undefined);
 
 		return { encoding, addBOM: hasBOM };
@@ -721,7 +736,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		};
 	}
 
-	getReadEncoding(resource: URI, options: IReadTextFileEncodingOptions | undefined, detectedEncoding: string | null): Promise<string> {
+	async getPreferredReadEncoding(resource: URI, options?: IReadTextFileEncodingOptions, detectedEncoding?: string): Promise<IResourceEncoding> {
 		let preferredEncoding: string | undefined;
 
 		// Encoding passed in as option
@@ -734,7 +749,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		}
 
 		// Encoding detected
-		else if (detectedEncoding) {
+		else if (typeof detectedEncoding === 'string') {
 			preferredEncoding = detectedEncoding;
 		}
 
@@ -743,7 +758,12 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 			preferredEncoding = UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
 		}
 
-		return this.getEncodingForResource(resource, preferredEncoding);
+		const encoding = await this.getEncodingForResource(resource, preferredEncoding);
+
+		return {
+			encoding,
+			hasBOM: encoding === UTF16be || encoding === UTF16le || encoding === UTF8_with_bom // enforce BOM for certain encodings
+		};
 	}
 
 	private async getEncodingForResource(resource: URI, preferredEncoding?: string): Promise<string> {

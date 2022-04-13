@@ -11,7 +11,7 @@ import * as model from 'vs/editor/common/model';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { EditorWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
+import { INotebookWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerHost';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 function bufferHash(buffer: VSBuffer): number {
@@ -122,7 +122,7 @@ class MirrorNotebookDocument {
 			} else if (e.kind === NotebookCellsChangeType.Output) {
 				const cell = this.cells[e.index];
 				cell.outputs = e.outputs;
-			} else if (e.kind === NotebookCellsChangeType.ChangeLanguage) {
+			} else if (e.kind === NotebookCellsChangeType.ChangeCellLanguage) {
 				const cell = this.cells[e.index];
 				cell.language = e.language;
 			} else if (e.kind === NotebookCellsChangeType.ChangeCellMetadata) {
@@ -178,7 +178,7 @@ export class CellSequence implements ISequence {
 export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable {
 	_requestHandlerBrand: any;
 
-	private _models: { [uri: string]: MirrorNotebookDocument; };
+	private _models: { [uri: string]: MirrorNotebookDocument };
 
 	constructor() {
 		this._models = Object.create(null);
@@ -218,7 +218,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		const diff = new LcsDiff(new CellSequence(original), new CellSequence(modified));
 		const diffResult = diff.ComputeDiff(false);
 
-		/* let cellLineChanges: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[] = [];
+		/* let cellLineChanges: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: ILineChange[] }[] = [];
 
 		diffResult.changes.forEach(change => {
 			if (change.modifiedLength === 0) {
@@ -282,6 +282,6 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
  * Called on the worker side
  * @internal
  */
-export function create(host: EditorWorkerHost): IRequestHandler {
+export function create(host: INotebookWorkerHost): IRequestHandler {
 	return new NotebookEditorSimpleWorker();
 }

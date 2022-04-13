@@ -13,14 +13,14 @@
   "main": "./out/node/jsonServerMain",
   "dependencies": {
     "jsonc-parser": "^3.0.0",
-    "request-light": "^0.5.5",
-    "vscode-json-languageservice": "^4.2.0-next.2",
+    "request-light": "^0.5.8",
+    "vscode-json-languageservice": "^4.2.1",
     "vscode-languageserver": "^7.0.0",
-    "vscode-uri": "^3.0.2"
+    "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
     "@types/mocha": "^8.2.0",
-    "@types/node": "14.x"
+    "@types/node": "16.x"
   },
   "scripts": {
     "prepublishOnly": "npm run clean && npm run compile",

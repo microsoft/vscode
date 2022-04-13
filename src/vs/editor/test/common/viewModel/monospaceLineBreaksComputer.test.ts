@@ -6,9 +6,9 @@ import * as assert from 'assert';
 import { WrappingIndent, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { ModelLineProjectionData, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { ModelLineProjectionData, ILineBreaksComputerFactory } from 'vs/editor/common/modelLineProjectionData';
 
-function parseAnnotatedText(annotatedText: string): { text: string; indices: number[]; } {
+function parseAnnotatedText(annotatedText: string): { text: string; indices: number[] } {
 	let text = '';
 	let currentLineIndex = 0;
 	const indices: number[] = [];
@@ -45,7 +45,6 @@ function toAnnotatedText(text: string, lineBreakData: ModelLineProjectionData | 
 
 function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, text: string, previousLineBreakData: ModelLineProjectionData | null): ModelLineProjectionData | null {
 	const fontInfo = new FontInfo({
-		zoomLevel: 0,
 		pixelRatio: 1,
 		fontFamily: 'testFontFamily',
 		fontWeight: 'normal',

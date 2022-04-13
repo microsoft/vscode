@@ -8,12 +8,13 @@ import * as platform from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/base/common/uint';
-import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
+import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 
 //#region typed options
 
@@ -554,6 +555,11 @@ export interface IEditorOptions {
 	 */
 	foldingImportsByDefault?: boolean;
 	/**
+	 * Maximum number of foldable regions.
+	 * Defaults to 5000.
+	 */
+	foldingMaximumRegions?: number;
+	/**
 	 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 	 * Defaults to 'mouseover'.
 	 */
@@ -643,8 +649,15 @@ export interface IEditorOptions {
 	*/
 	guides?: IGuidesOptions;
 
+	/**
+	 * Controls the behavior of the unicode highlight feature
+	 * (by default, ambiguous and invisible characters are highlighted).
+	 */
 	unicodeHighlight?: IUnicodeHighlightOptions;
 
+	/**
+	 * Configures bracket pair colorization (disabled by default).
+	*/
 	bracketPairColorization?: IBracketPairColorizationOptions;
 }
 
@@ -785,7 +798,7 @@ export interface IEditorOption<K extends EditorOption, V> {
 	/**
 	 * @internal
 	 */
-	readonly schema: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; } | undefined;
+	readonly schema: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema } | undefined;
 	/**
 	 * @internal
 	 */
@@ -818,9 +831,9 @@ abstract class BaseEditorOption<K extends EditorOption, T, V> implements IEditor
 	public readonly id: K;
 	public readonly name: string;
 	public readonly defaultValue: V;
-	public readonly schema: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; } | undefined;
+	public readonly schema: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema } | undefined;
 
-	constructor(id: K, name: PossibleKeyName<T>, defaultValue: V, schema?: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; }) {
+	constructor(id: K, name: PossibleKeyName<T>, defaultValue: V, schema?: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }) {
 		this.id = id;
 		this.name = name;
 		this.defaultValue = defaultValue;
@@ -1845,6 +1858,8 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 				'editor.hover.delay': {
 					type: 'number',
 					default: defaults.delay,
+					minimum: 0,
+					maximum: 10000,
 					description: nls.localize('hover.delay', "Controls the delay in milliseconds after which the hover is shown.")
 				},
 				'editor.hover.sticky': {
@@ -2092,7 +2107,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		height: number;
 		lineHeight: number;
 		pixelRatio: number;
-	}): { typicalViewportLineCount: number; extraLinesBeyondLastLine: number; desiredRatio: number; minimapLineCount: number; } {
+	}): { typicalViewportLineCount: number; extraLinesBeyondLastLine: number; desiredRatio: number; minimapLineCount: number } {
 		const typicalViewportLineCount = input.height / input.lineHeight;
 		const extraLinesBeyondLastLine = input.scrollBeyondLastLine ? (typicalViewportLineCount - 1) : 0;
 		const desiredRatio = (input.viewLineCount + extraLinesBeyondLastLine) / (input.pixelRatio * input.height);
@@ -2489,6 +2504,11 @@ export interface IEditorInlayHintsOptions {
 	enabled?: boolean;
 
 	/**
+	 *
+	 */
+	toggle?: 'show' | 'hide' | null;
+
+	/**
 	 * Font size of inline hints.
 	 * Default to 90% of the editor font size.
 	 */
@@ -2499,6 +2519,13 @@ export interface IEditorInlayHintsOptions {
 	 * Defaults to editor font family.
 	 */
 	fontFamily?: string;
+
+	/**
+	 * The display style to render inlay hints with.
+	 * Compact mode disables the borders and padding around the inlay hint.
+	 * Defaults to 'standard'.
+	 */
+	displayStyle: 'standard' | 'compact';
 }
 
 /**
@@ -2509,7 +2536,7 @@ export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions
 class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditorInlayHintsOptions, EditorInlayHintsOptions> {
 
 	constructor() {
-		const defaults: EditorInlayHintsOptions = { enabled: true, fontSize: 0, fontFamily: '' };
+		const defaults: EditorInlayHintsOptions = { enabled: true, toggle: null, fontSize: 0, fontFamily: '', displayStyle: 'compact' };
 		super(
 			EditorOption.inlayHints, 'inlayHints', defaults,
 			{
@@ -2518,16 +2545,36 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					default: defaults.enabled,
 					description: nls.localize('inlayHints.enable', "Enables the inlay hints in the editor.")
 				},
+				'editor.inlayHints.toggle': {
+					type: 'string',
+					enum: ['show', 'hide'],
+					markdownEnumDescriptions: [
+						nls.localize('toogle.show', "Inlay hints are hidden by default and only show when holding `Ctrl+Alt`"),
+						nls.localize('toogle.hide', "Inlay hints are showing by default and hide when holding `Ctrl+Alt`"),
+					],
+					default: defaults.toggle,
+					markdownDescription: nls.localize('inlayHints.toggle', "Control if inlay hints temporarily show or hide when `Ctrl+Alt` is pressed and held.")
+				},
 				'editor.inlayHints.fontSize': {
 					type: 'number',
 					default: defaults.fontSize,
-					markdownDescription: nls.localize('inlayHints.fontSize', "Controls font size of inlay hints in the editor. A default of 90% of `#editor.fontSize#` is used when the configured value is less than `5` or greater than the editor font size.")
+					markdownDescription: nls.localize('inlayHints.fontSize', "Controls font size of inlay hints in the editor. As default the `#editor.fontSize#` is used when the configured value is less than `5` or greater than the editor font size.")
 				},
 				'editor.inlayHints.fontFamily': {
 					type: 'string',
 					default: defaults.fontFamily,
 					markdownDescription: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
 				},
+				// 'editor.inlayHints.displayStyle': {
+				// 	type: 'string',
+				// 	enum: ['standard', 'compact'],
+				// 	enumDescriptions: [
+				// 		nls.localize('inlayHints.displayStyle.standard', "Renders inlay hints with the default style."),
+				// 		nls.localize('inlayHints.displayStyle.compact', "Renders inlay hints without any padding, and removes the rounded borders."),
+				// 	],
+				// 	default: defaults.displayStyle,
+				// 	description: nls.localize('inlayHints.displayStyle', "Controls the display style of inlay hints.")
+				// }
 			}
 		);
 	}
@@ -2539,8 +2586,10 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 		const input = _input as IEditorInlayHintsOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			toggle: stringSet<'show' | 'hide' | null>(input.toggle, this.defaultValue.toggle, ['show', 'hide']),
 			fontSize: EditorIntOption.clampedInt(input.fontSize, this.defaultValue.fontSize, 0, 100),
-			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily)
+			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
+			displayStyle: stringSet<'standard' | 'compact'>(input.displayStyle, this.defaultValue.displayStyle, ['standard', 'compact'])
 		};
 	}
 }
@@ -2849,85 +2898,110 @@ class EditorPixelRatio extends ComputedEditorOption<EditorOption.pixelRatio, num
 
 //#region quickSuggestions
 
+export type QuickSuggestionsValue = 'on' | 'inline' | 'off';
+
 /**
  * Configuration options for quick suggestions
  */
 export interface IQuickSuggestionsOptions {
-	other?: boolean;
-	comments?: boolean;
-	strings?: boolean;
+	other?: boolean | QuickSuggestionsValue;
+	comments?: boolean | QuickSuggestionsValue;
+	strings?: boolean | QuickSuggestionsValue;
 }
 
-/**
- * @internal
- */
-export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSuggestionsOptions>>;
+export interface InternalQuickSuggestionsOptions {
+	readonly other: QuickSuggestionsValue;
+	readonly comments: QuickSuggestionsValue;
+	readonly strings: QuickSuggestionsValue;
+}
 
-class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, boolean | IQuickSuggestionsOptions, ValidQuickSuggestionsOptions> {
+class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, boolean | IQuickSuggestionsOptions, InternalQuickSuggestionsOptions> {
 
-	public override readonly defaultValue: Readonly<Required<IQuickSuggestionsOptions>>;
+	public override readonly defaultValue: InternalQuickSuggestionsOptions;
 
 	constructor() {
-		const defaults: ValidQuickSuggestionsOptions = {
-			other: true,
-			comments: false,
-			strings: false
+		const defaults: InternalQuickSuggestionsOptions = {
+			other: 'on',
+			comments: 'off',
+			strings: 'off'
 		};
+		const types: IJSONSchema[] = [
+			{ type: 'boolean' },
+			{
+				type: 'string',
+				enum: ['on', 'inline', 'off'],
+				enumDescriptions: [nls.localize('on', "Quick suggestions show inside the suggest widget"), nls.localize('inline', "Quick suggestions show as ghost text"), nls.localize('off', "Quick suggestions are disabled")]
+			}
+		];
 		super(
 			EditorOption.quickSuggestions, 'quickSuggestions', defaults,
 			{
-				anyOf: [
-					{
-						type: 'boolean',
-					},
-					{
-						type: 'object',
-						properties: {
-							strings: {
-								type: 'boolean',
-								default: defaults.strings,
-								description: nls.localize('quickSuggestions.strings', "Enable quick suggestions inside strings.")
-							},
-							comments: {
-								type: 'boolean',
-								default: defaults.comments,
-								description: nls.localize('quickSuggestions.comments', "Enable quick suggestions inside comments.")
-							},
-							other: {
-								type: 'boolean',
-								default: defaults.other,
-								description: nls.localize('quickSuggestions.other', "Enable quick suggestions outside of strings and comments.")
-							},
-						}
+				anyOf: [{
+					type: 'boolean',
+				}, {
+					type: 'object',
+					properties: {
+						strings: {
+							anyOf: types,
+							default: defaults.strings,
+							description: nls.localize('quickSuggestions.strings', "Enable quick suggestions inside strings.")
+						},
+						comments: {
+							anyOf: types,
+							default: defaults.comments,
+							description: nls.localize('quickSuggestions.comments', "Enable quick suggestions inside comments.")
+						},
+						other: {
+							anyOf: types,
+							default: defaults.other,
+							description: nls.localize('quickSuggestions.other', "Enable quick suggestions outside of strings and comments.")
+						},
 					}
-				],
+				}],
 				default: defaults,
-				description: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing.")
+				markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing.")
 			}
 		);
 		this.defaultValue = defaults;
 	}
 
-	public validate(_input: any): ValidQuickSuggestionsOptions {
-		if (typeof _input === 'boolean') {
-			return _input;
+	public validate(input: any): InternalQuickSuggestionsOptions {
+		if (typeof input === 'boolean') {
+			// boolean -> all on/off
+			const value = input ? 'on' : 'off';
+			return { comments: value, strings: value, other: value };
 		}
-		if (_input && typeof _input === 'object') {
-			const input = _input as IQuickSuggestionsOptions;
-			const opts = {
-				other: boolean(input.other, this.defaultValue.other),
-				comments: boolean(input.comments, this.defaultValue.comments),
-				strings: boolean(input.strings, this.defaultValue.strings),
-			};
-			if (opts.other && opts.comments && opts.strings) {
-				return true; // all on
-			} else if (!opts.other && !opts.comments && !opts.strings) {
-				return false; // all off
-			} else {
-				return opts;
-			}
+		if (!input || typeof input !== 'object') {
+			// invalid object
+			return this.defaultValue;
 		}
-		return this.defaultValue;
+
+		const { other, comments, strings } = (<IQuickSuggestionsOptions>input);
+		const allowedValues: QuickSuggestionsValue[] = ['on', 'inline', 'off'];
+		let validatedOther: QuickSuggestionsValue;
+		let validatedComments: QuickSuggestionsValue;
+		let validatedStrings: QuickSuggestionsValue;
+
+		if (typeof other === 'boolean') {
+			validatedOther = other ? 'on' : 'off';
+		} else {
+			validatedOther = stringSet(other, this.defaultValue.other, allowedValues);
+		}
+		if (typeof comments === 'boolean') {
+			validatedComments = comments ? 'on' : 'off';
+		} else {
+			validatedComments = stringSet(comments, this.defaultValue.comments, allowedValues);
+		}
+		if (typeof strings === 'boolean') {
+			validatedStrings = strings ? 'on' : 'off';
+		} else {
+			validatedStrings = stringSet(strings, this.defaultValue.strings, allowedValues);
+		}
+		return {
+			other: validatedOther,
+			comments: validatedComments,
+			strings: validatedStrings
+		};
 	}
 }
 
@@ -3288,16 +3362,40 @@ export const inUntrustedWorkspace: InUntrustedWorkspace = 'inUntrustedWorkspace'
  * Configuration options for unicode highlighting.
  */
 export interface IUnicodeHighlightOptions {
+
+	/**
+	 * Controls whether all non-basic ASCII characters are highlighted. Only characters between U+0020 and U+007E, tab, line-feed and carriage-return are considered basic ASCII.
+	 */
 	nonBasicASCII?: boolean | InUntrustedWorkspace;
+
+	/**
+	 * Controls whether characters that just reserve space or have no width at all are highlighted.
+	 */
 	invisibleCharacters?: boolean;
+
+	/**
+	 * Controls whether characters are highlighted that can be confused with basic ASCII characters, except those that are common in the current user locale.
+	 */
 	ambiguousCharacters?: boolean;
+
+	/**
+	 * Controls whether characters in comments should also be subject to unicode highlighting.
+	 */
 	includeComments?: boolean | InUntrustedWorkspace;
+
+	/**
+	 * Controls whether characters in strings should also be subject to unicode highlighting.
+	 */
 	includeStrings?: boolean | InUntrustedWorkspace;
 
 	/**
-	 * A map of allowed characters (true: allowed).
-	*/
+	 * Defines allowed characters that are not being highlighted.
+	 */
 	allowedCharacters?: Record<string, true>;
+
+	/**
+	 * Unicode characters that are common in allowed locales are not being highlighted.
+	 */
 	allowedLocales?: Record<string | '_os' | '_vscode', true>;
 }
 
@@ -3511,6 +3609,11 @@ export interface IBracketPairColorizationOptions {
 	 * Enable or disable bracket pair colorization.
 	*/
 	enabled?: boolean;
+
+	/**
+	 * Use independent color pool per bracket type.
+	*/
+	independentColorPoolPerBracketType?: boolean;
 }
 
 /**
@@ -3524,7 +3627,8 @@ export type InternalBracketPairColorizationOptions = Readonly<Required<IBracketP
 class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairColorization, IBracketPairColorizationOptions, InternalBracketPairColorizationOptions> {
 	constructor() {
 		const defaults: InternalBracketPairColorizationOptions = {
-			enabled: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions.enabled
+			enabled: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions.enabled,
+			independentColorPoolPerBracketType: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions.independentColorPoolPerBracketType,
 		};
 
 		super(
@@ -3533,8 +3637,13 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 				'editor.bracketPairColorization.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('bracketPairColorization.enabled', "Controls whether bracket pair colorization is enabled or not. Use 'workbench.colorCustomizations' to override the bracket highlight colors.")
-				}
+					markdownDescription: nls.localize('bracketPairColorization.enabled', "Controls whether bracket pair colorization is enabled or not. Use `#workbench.colorCustomizations#` to override the bracket highlight colors.")
+				},
+				'editor.bracketPairColorization.independentColorPoolPerBracketType': {
+					type: 'boolean',
+					default: defaults.independentColorPoolPerBracketType,
+					description: nls.localize('bracketPairColorization.independentColorPoolPerBracketType', "Controls whether each bracket type has its own independent color pool.")
+				},
 			}
 		);
 	}
@@ -3545,7 +3654,8 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 		}
 		const input = _input as IBracketPairColorizationOptions;
 		return {
-			enabled: boolean(input.enabled, this.defaultValue.enabled)
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			independentColorPoolPerBracketType: boolean(input.independentColorPoolPerBracketType, this.defaultValue.independentColorPoolPerBracketType),
 		};
 	}
 }
@@ -3633,7 +3743,7 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, IGuidesOptions,
 				'editor.guides.highlightActiveBracketPair': {
 					type: 'boolean',
 					default: defaults.highlightActiveBracketPair,
-					description: nls.localize('editor.guides.highlightActiveBracketPair', "Controls whether bracket pair guides are enabled or not.")
+					description: nls.localize('editor.guides.highlightActiveBracketPair', "Controls whether the editor should highlight the active bracket pair.")
 				},
 				'editor.guides.indentation': {
 					type: 'boolean',
@@ -4146,7 +4256,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 //#region smart select
 
 export interface ISmartSelectOptions {
-	selectLeadingAndTrailingWhitespace?: boolean
+	selectLeadingAndTrailingWhitespace?: boolean;
 }
 
 /**
@@ -4286,19 +4396,6 @@ export const EDITOR_FONT_DEFAULTS = {
 /**
  * @internal
  */
-export const EDITOR_MODEL_DEFAULTS = {
-	tabSize: 4,
-	indentSize: 4,
-	insertSpaces: true,
-	detectIndentation: true,
-	trimAutoWhitespace: true,
-	largeFileOptimizations: true,
-	bracketPairColorizationOptions: { enabled: false }
-};
-
-/**
- * @internal
- */
 export const editorOptionsRegistry: IEditorOption<EditorOption, any>[] = [];
 
 function register<K extends EditorOption, V>(option: IEditorOption<K, V>): IEditorOption<K, V> {
@@ -4348,6 +4445,7 @@ export const enum EditorOption {
 	foldingStrategy,
 	foldingHighlight,
 	foldingImportsByDefault,
+	foldingMaximumRegions,
 	unfoldOnClickAfterEndOfLine,
 	fontFamily,
 	fontInfo,
@@ -4681,6 +4779,11 @@ export const EditorOptions = {
 	foldingImportsByDefault: register(new EditorBooleanOption(
 		EditorOption.foldingImportsByDefault, 'foldingImportsByDefault', false,
 		{ description: nls.localize('foldingImportsByDefault', "Controls whether the editor automatically collapses import ranges.") }
+	)),
+	foldingMaximumRegions: register(new EditorIntOption(
+		EditorOption.foldingMaximumRegions, 'foldingMaximumRegions',
+		5000, 10, 65000, // limit must be less than foldingRanges MAX_FOLDING_REGIONS
+		{ description: nls.localize('foldingMaximumRegions', "The maximum number of foldable regions. Increasing this value may result in the editor becoming less responsive when the current source has a large number of foldable regions.") }
 	)),
 	unfoldOnClickAfterEndOfLine: register(new EditorBooleanOption(
 		EditorOption.unfoldOnClickAfterEndOfLine, 'unfoldOnClickAfterEndOfLine', false,

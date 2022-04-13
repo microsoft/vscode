@@ -10,7 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, 
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -47,27 +47,27 @@ import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/ed
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, PANEL_BACKGROUND, PANEL_INPUT_BORDER } from 'vs/workbench/common/theme';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { ITextModel } from 'vs/editor/common/model';
-import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IModelService } from 'vs/editor/common/services/model';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
+import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import * as platform from 'vs/base/common/platform';
 import { compare, format } from 'vs/base/common/strings';
 import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder, registerColor, contrastBorder, editorSelectionBackground, selectionBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
-import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
-import { LinkDetector } from 'vs/editor/contrib/links/links';
+import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
+import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
@@ -81,9 +81,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { Command } from 'vs/editor/common/languages';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { Button, ButtonWithDescription } from 'vs/base/browser/ui/button/button';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
@@ -95,7 +94,7 @@ interface ISCMLayout {
 }
 
 interface ActionButtonTemplate {
-	readonly actionButton: ScmActionButton;
+	readonly actionButton: SCMActionButton;
 	disposable: IDisposable;
 	readonly templateDisposable: IDisposable;
 }
@@ -113,11 +112,14 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 	) { }
 
 	renderTemplate(container: HTMLElement): ActionButtonTemplate {
+		// hack
+		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+
 		// Disable hover for list item
 		container.parentElement!.parentElement!.classList.add('force-no-hover');
 
 		const buttonContainer = append(container, $('.button-container'));
-		const actionButton = new ScmActionButton(buttonContainer, this.commandService, this.themeService, this.notificationService);
+		const actionButton = new SCMActionButton(buttonContainer, this.commandService, this.themeService, this.notificationService);
 
 		return { actionButton, disposable: Disposable.None, templateDisposable: actionButton };
 	}
@@ -739,7 +741,7 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 		@ILabelService private readonly labelService: ILabelService,
 	) { }
 
-	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } | { toString(): string; }[] | undefined {
+	getKeyboardNavigationLabel(element: TreeElement): { toString(): string } | { toString(): string }[] | undefined {
 		if (ResourceTree.isResourceNode(element)) {
 			return element.name;
 		} else if (isSCMRepository(element) || isSCMInput(element) || isSCMActionButton(element)) {
@@ -764,7 +766,7 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 		}
 	}
 
-	getCompressedNodeKeyboardNavigationLabel(elements: TreeElement[]): { toString(): string | undefined; } | undefined {
+	getCompressedNodeKeyboardNavigationLabel(elements: TreeElement[]): { toString(): string | undefined } | undefined {
 		const folders = elements as IResourceNode<ISCMResource, ISCMResourceGroup>[];
 		return folders.map(e => e.name).join('/');
 	}
@@ -829,7 +831,7 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 		} else if (isSCMInput(element)) {
 			return localize('input', "Source Control Input");
 		} else if (isSCMActionButton(element)) {
-			return element.button?.title ?? '';
+			return element.button?.command.title ?? '';
 		} else if (isSCMResourceGroup(element)) {
 			return element.label;
 		} else {
@@ -1042,6 +1044,9 @@ class ViewModel {
 	private readonly _onDidChangeMode = new Emitter<ViewModelMode>();
 	readonly onDidChangeMode = this._onDidChangeMode.event;
 
+	private readonly _onDidChangeSortKey = new Emitter<ViewModelSortKey>();
+	readonly onDidChangeSortKey = this._onDidChangeSortKey.event;
+
 	private visible: boolean = false;
 
 	get mode(): ViewModelMode { return this._mode; }
@@ -1069,13 +1074,16 @@ class ViewModel {
 		this.modeContextKey.set(mode);
 	}
 
-	private _sortKey: ViewModelSortKey = ViewModelSortKey.Path;
 	get sortKey(): ViewModelSortKey { return this._sortKey; }
 	set sortKey(sortKey: ViewModelSortKey) {
-		if (sortKey !== this._sortKey) {
-			this._sortKey = sortKey;
-			this.refresh();
+		if (this._sortKey === sortKey) {
+			return;
 		}
+
+		this._sortKey = sortKey;
+
+		this.refresh();
+		this._onDidChangeSortKey.fire(sortKey);
 		this.sortKeyContextKey.set(sortKey);
 	}
 
@@ -1109,6 +1117,7 @@ class ViewModel {
 		private tree: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>,
 		private inputRenderer: InputRenderer,
 		private _mode: ViewModelMode,
+		private _sortKey: ViewModelSortKey,
 		private _treeViewState: ITreeViewState | undefined,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IEditorService protected editorService: IEditorService,
@@ -1120,7 +1129,7 @@ class ViewModel {
 		this.modeContextKey = ContextKeys.ViewModelMode.bindTo(contextKeyService);
 		this.modeContextKey.set(_mode);
 		this.sortKeyContextKey = ContextKeys.ViewModelSortKey.bindTo(contextKeyService);
-		this.sortKeyContextKey.set(this._sortKey);
+		this.sortKeyContextKey.set(_sortKey);
 		this.areAllRepositoriesCollapsedContextKey = ContextKeys.ViewModelAreAllRepositoriesCollapsed.bindTo(contextKeyService);
 		this.isAnyRepositoryCollapsibleContextKey = ContextKeys.ViewModelIsAnyRepositoryCollapsible.bindTo(contextKeyService);
 		this.scmProviderContextKey = ContextKeys.SCMProvider.bindTo(contextKeyService);
@@ -1498,7 +1507,7 @@ abstract class SetSortKeyAction extends ViewAction<SCMViewPane>  {
 	constructor(private sortKey: ViewModelSortKey, title: string) {
 		super({
 			id: `workbench.scm.action.setSortKey.${sortKey}`,
-			title: title,
+			title,
 			viewId: VIEW_PANE_ID,
 			f1: false,
 			toggled: ContextKeys.ViewModelSortKey.isEqualTo(sortKey),
@@ -1594,7 +1603,7 @@ class SCMInputWidget extends Disposable {
 	private placeholderTextContainer: HTMLElement;
 	private inputEditor: CodeEditorWidget;
 
-	private model: { readonly input: ISCMInput; readonly textModel: ITextModel; } | undefined;
+	private model: { readonly input: ISCMInput; readonly textModel: ITextModel } | undefined;
 	private repositoryContextKey: IContextKey<ISCMRepository | undefined>;
 	private repositoryDisposables = new DisposableStore();
 
@@ -2143,6 +2152,25 @@ export class SCMViewPane extends ViewPane {
 			viewMode = storageMode;
 		}
 
+		let viewSortKey: ViewModelSortKey;
+		const viewSortKeyString = this.configurationService.getValue<'path' | 'name' | 'status'>('scm.defaultViewSortKey');
+		switch (viewSortKeyString) {
+			case 'name':
+				viewSortKey = ViewModelSortKey.Name;
+				break;
+			case 'status':
+				viewSortKey = ViewModelSortKey.Status;
+				break;
+			default:
+				viewSortKey = ViewModelSortKey.Path;
+				break;
+		}
+
+		const storageSortKey = this.storageService.get(`scm.viewSortKey`, StorageScope.WORKSPACE) as ViewModelSortKey;
+		if (typeof storageSortKey === 'string') {
+			viewSortKey = storageSortKey;
+		}
+
 		let viewState: ITreeViewState | undefined;
 
 		const storageViewState = this.storageService.get(`scm.viewState`, StorageScope.WORKSPACE);
@@ -2154,7 +2182,7 @@ export class SCMViewPane extends ViewPane {
 
 		this._register(this.instantiationService.createInstance(RepositoryVisibilityActionController));
 
-		this._viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, viewMode, viewState);
+		this._viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, viewMode, viewSortKey, viewState);
 		this._register(this._viewModel);
 
 		this.listContainer.classList.add('file-icon-themable-tree');
@@ -2163,6 +2191,7 @@ export class SCMViewPane extends ViewPane {
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
 		this._register(this._viewModel.onDidChangeMode(this.onDidChangeMode, this));
+		this._register(this._viewModel.onDidChangeSortKey(this.onDidChangeSortKey, this));
 
 		this._register(this.onDidChangeBodyVisibility(this._viewModel.setVisible, this._viewModel));
 
@@ -2186,6 +2215,10 @@ export class SCMViewPane extends ViewPane {
 	private onDidChangeMode(): void {
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 		this.storageService.store(`scm.viewMode`, this._viewModel.mode, StorageScope.WORKSPACE, StorageTarget.USER);
+	}
+
+	private onDidChangeSortKey(): void {
+		this.storageService.store(`scm.viewSortKey`, this._viewModel.sortKey, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	override layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
@@ -2350,7 +2383,7 @@ export class SCMViewPane extends ViewPane {
 	}
 }
 
-export const scmProviderSeparatorBorderColor = registerColor('scm.providerBorder', { dark: '#454545', light: '#C8C8C8', hc: contrastBorder }, localize('scm.providerBorder', "SCM Provider separator border."));
+export const scmProviderSeparatorBorderColor = registerColor('scm.providerBorder', { dark: '#454545', light: '#C8C8C8', hcDark: contrastBorder, hcLight: contrastBorder }, localize('scm.providerBorder', "SCM Provider separator border."));
 
 registerThemingParticipant((theme, collector) => {
 	const inputBackgroundColor = theme.getColor(inputBackground);
@@ -2445,8 +2478,8 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 
-export class ScmActionButton implements IDisposable {
-	private button: Button | undefined;
+export class SCMActionButton implements IDisposable {
+	private button: Button | ButtonWithDescription | undefined;
 	private readonly disposables = new MutableDisposable<DisposableStore>();
 
 	constructor(
@@ -2461,19 +2494,26 @@ export class ScmActionButton implements IDisposable {
 		this.disposables?.dispose();
 	}
 
-
-	setButton(button: Command | undefined): void {
+	setButton(button: ISCMActionButtonDescriptor | undefined): void {
 		// Clear old button
 		this.clear();
 		if (!button) {
 			return;
 		}
 
-		this.button = new Button(this.container, { title: button.tooltip, supportIcons: true });
-		this.button.label = button.title;
+		if (button.description) {
+			// ButtonWithDescription
+			this.button = new ButtonWithDescription(this.container, { supportIcons: true, title: button.command.tooltip });
+			(this.button as ButtonWithDescription).description = button.description;
+		} else {
+			// Button
+			this.button = new Button(this.container, { supportIcons: true });
+		}
+
+		this.button.label = button.command.title;
 		this.button.onDidClick(async () => {
 			try {
-				await this.commandService.executeCommand(button!.id, ...(button!.arguments || []));
+				await this.commandService.executeCommand(button.command.id, ...(button.command.arguments || []));
 			} catch (ex) {
 				this.notificationService.error(ex);
 			}

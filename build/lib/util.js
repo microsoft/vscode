@@ -12,8 +12,8 @@ const rename = require("gulp-rename");
 const path = require("path");
 const fs = require("fs");
 const _rimraf = require("rimraf");
-const git = require("./git");
 const VinylFile = require("vinyl");
+const git = require("./git");
 const root = path.dirname(path.dirname(__dirname));
 const NoCancellationToken = { isCancellationRequested: () => false };
 function incremental(streamProvider, initial, supportsCancellation) {
@@ -254,8 +254,8 @@ function ensureDir(dirPath) {
 }
 exports.ensureDir = ensureDir;
 function getVersion(root) {
-    let version = process.env['BUILD_SOURCEVERSION'];
-    if (!version || !/^[0-9a-f]{40}$/i.test(version)) {
+    let version = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
+    if (!version || !/^[0-9a-f]{40}$/i.test(version.trim())) {
         version = git.getVersion(root);
     }
     return version;
@@ -304,7 +304,6 @@ function getElectronVersion() {
 }
 exports.getElectronVersion = getElectronVersion;
 function acquireWebNodePaths() {
-    var _a;
     const root = path.join(__dirname, '..', '..');
     const webPackageJSON = path.join(root, '/remote/web', 'package.json');
     const webPackages = JSON.parse(fs.readFileSync(webPackageJSON, 'utf8')).dependencies;
@@ -312,7 +311,7 @@ function acquireWebNodePaths() {
     for (const key of Object.keys(webPackages)) {
         const packageJSON = path.join(root, 'node_modules', key, 'package.json');
         const packageData = JSON.parse(fs.readFileSync(packageJSON, 'utf8'));
-        let entryPoint = (_a = packageData.browser) !== null && _a !== void 0 ? _a : packageData.main;
+        let entryPoint = packageData.browser ?? packageData.main;
         // On rare cases a package doesn't have an entrypoint so we assume it has a dist folder with a min.js
         if (!entryPoint) {
             // TODO @lramos15 remove this when jschardet adds an entrypoint so we can warn on all packages w/out entrypoint
@@ -323,10 +322,17 @@ function acquireWebNodePaths() {
         }
         // Remove any starting path information so it's all relative info
         if (entryPoint.startsWith('./')) {
-            entryPoint = entryPoint.substr(2);
+            entryPoint = entryPoint.substring(2);
         }
         else if (entryPoint.startsWith('/')) {
-            entryPoint = entryPoint.substr(1);
+            entryPoint = entryPoint.substring(1);
+        }
+        // Search for a minified entrypoint as well
+        if (/(?<!\.min)\.js$/i.test(entryPoint)) {
+            const minEntryPoint = entryPoint.replace(/\.js$/i, '.min.js');
+            if (fs.existsSync(path.join(root, 'node_modules', key, minEntryPoint))) {
+                entryPoint = minEntryPoint;
+            }
         }
         nodePaths[key] = entryPoint;
     }

@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as encoding from 'vs/workbench/services/textfile/common/encoding';
 import * as terminalEncoding from 'vs/base/node/terminalEncoding';
 import * as streams from 'vs/base/common/stream';
-import * as iconv from 'iconv-lite-umd';
+import * as iconv from '@vscode/iconv-lite-umd';
 import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, streamToBufferReadableStream } from 'vs/base/common/buffer';
 import { splitLines } from 'vs/base/common/strings';
@@ -322,9 +322,6 @@ suite('Encoding', () => {
 	});
 
 	test('toDecodeStream - decodes buffer entirely', async function () {
-		if (!process.versions.electron) {
-			this.skip(); // TODO@bpasero enable once we ship Electron 16
-		}
 		const emojis = Buffer.from('🖥️💻💾');
 		const incompleteEmojis = emojis.slice(0, emojis.length - 1);
 

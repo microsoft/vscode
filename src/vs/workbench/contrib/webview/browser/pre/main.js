@@ -22,7 +22,6 @@ const searchParams = new URL(location.toString()).searchParams;
 const ID = searchParams.get('id');
 const onElectron = searchParams.get('platform') === 'electron';
 const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
-const parentOrigin = searchParams.get('parentOrigin');
 
 /**
  * Use polling to track focus of main webview and iframes within the webview
@@ -152,6 +151,12 @@ defaultStyles.textContent = `
 	}
 	::-webkit-scrollbar-thumb:active {
 		background-color: var(--vscode-scrollbarSlider-activeBackground);
+	}
+	::highlight(find-highlight) {
+		background-color: var(--vscode-editor-findMatchHighlightBackground);
+	}
+	::highlight(current-find-highlight) {
+		background-color: var(--vscode-editor-findMatchBackground);
 	}`;
 
 /**
@@ -204,28 +209,38 @@ const workerReady = new Promise((resolve, reject) => {
 		return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 	}
 
-	const swPath = `service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}`;
-
-	navigator.serviceWorker.register(swPath).then(
-		async registration => {
-			await navigator.serviceWorker.ready;
+	const swPath = `service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`;
+	navigator.serviceWorker.register(swPath)
+		.then(() => navigator.serviceWorker.ready)
+		.then(async registration => {
 			/**
 			 * @param {MessageEvent} event
 			 */
 			const versionHandler = async (event) => {
-				if (event.data.channel !== 'init') {
+				if (event.data.channel !== 'version') {
 					return;
 				}
-				navigator.serviceWorker.removeEventListener('message', versionHandler);
 
-				// Forward the port back to VS Code
-				hostMessaging.onMessage('did-init-service-worker', () => resolve());
-				hostMessaging.postMessage('init-service-worker', {}, event.ports);
+				navigator.serviceWorker.removeEventListener('message', versionHandler);
+				if (event.data.version === expectedWorkerVersion) {
+					return resolve();
+				} else {
+					console.log(`Found unexpected service worker version. Found: ${event.data.version}. Expected: ${expectedWorkerVersion}`);
+					console.log(`Attempting to reload service worker`);
+
+					// If we have the wrong version, try once (and only once) to unregister and re-register
+					// Note that `.update` doesn't seem to work desktop electron at the moment so we use
+					// `unregister` and `register` here.
+					return registration.unregister()
+						.then(() => navigator.serviceWorker.register(swPath))
+						.then(() => navigator.serviceWorker.ready)
+						.finally(() => { resolve(); });
+				}
 			};
 			navigator.serviceWorker.addEventListener('message', versionHandler);
 
-			const postVersionMessage = () => {
-				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'init' });
+			const postVersionMessage = (/** @type {ServiceWorker} */ controller) => {
+				controller.postMessage({ channel: 'version' });
 			};
 
 			// At this point, either the service worker is ready and
@@ -233,20 +248,19 @@ const workerReady = new Promise((resolve, reject) => {
 			// Note that navigator.serviceWorker.controller could be a
 			// controller from a previously loaded service worker.
 			const currentController = navigator.serviceWorker.controller;
-			if (currentController && currentController.scriptURL.endsWith(swPath)) {
+			if (currentController?.scriptURL.endsWith(swPath)) {
 				// service worker already loaded & ready to receive messages
-				postVersionMessage();
+				postVersionMessage(currentController);
 			} else {
 				// either there's no controlling service worker, or it's an old one:
 				// wait for it to change before posting the message
 				const onControllerChange = () => {
 					navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-					postVersionMessage();
+					postVersionMessage(navigator.serviceWorker.controller);
 				};
 				navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 			}
-		},
-		error => {
+		}).catch(error => {
 			reject(new Error(`Could not register service workers: ${error}.`));
 		});
 });
@@ -294,8 +308,43 @@ const hostMessaging = new class HostMessaging {
 		handlers.push(handler);
 	}
 
-	signalReady() {
-		window.parent.postMessage({ target: ID, channel: 'webview-ready', data: {} }, parentOrigin, [this.channel.port2]);
+	async signalReady() {
+		const start = (/** @type {string} */ parentOrigin) => {
+			window.parent.postMessage({ target: ID, channel: 'webview-ready', data: {} }, parentOrigin, [this.channel.port2]);
+		};
+
+		const parentOrigin = searchParams.get('parentOrigin');
+		const id = searchParams.get('id');
+
+		const hostname = location.hostname;
+
+		if (!crypto.subtle) {
+			// cannot validate, not running in a secure context
+			throw new Error(`Cannot validate in current context!`);
+		}
+
+		// Here the `parentOriginHash()` function from `src/vs/workbench/common/webview.ts` is inlined
+		// compute a sha-256 composed of `parentOrigin` and `salt` converted to base 32
+		let parentOriginHash;
+		try {
+			const strData = JSON.stringify({ parentOrigin, salt: id });
+			const encoder = new TextEncoder();
+			const arrData = encoder.encode(strData);
+			const hash = await crypto.subtle.digest('sha-256', arrData);
+			const hashArray = Array.from(new Uint8Array(hash));
+			const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+			// sha256 has 256 bits, so we need at most ceil(lg(2^256-1)/lg(32)) = 52 chars to represent it in base 32
+			parentOriginHash = BigInt(`0x${hashHex}`).toString(32).padStart(52, '0');
+		} catch (err) {
+			throw err instanceof Error ? err : new Error(String(err));
+		}
+
+		if (hostname === parentOriginHash || hostname.startsWith(parentOriginHash + '.')) {
+			// validation succeeded!
+			return start(parentOrigin);
+		}
+
+		throw new Error(`Expected '${parentOriginHash}' as hostname or subdomain!`);
 	}
 }();
 
@@ -374,9 +423,34 @@ const initData = {
 
 	/** @type {string | undefined} */
 	themeName: undefined,
+
+	/** @type {boolean} */
+	screenReader: false,
+
+	/** @type {boolean} */
+	reduceMotion: false,
 };
 
+hostMessaging.onMessage('did-load-resource', (_event, data) => {
+	navigator.serviceWorker.ready.then(registration => {
+		assertIsDefined(registration.active).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
+	});
+});
 
+hostMessaging.onMessage('did-load-localhost', (_event, data) => {
+	navigator.serviceWorker.ready.then(registration => {
+		assertIsDefined(registration.active).postMessage({ channel: 'did-load-localhost', data });
+	});
+});
+
+navigator.serviceWorker.addEventListener('message', event => {
+	switch (event.data.channel) {
+		case 'load-resource':
+		case 'load-localhost':
+			hostMessaging.postMessage(event.data.channel, event.data);
+			return;
+	}
+});
 /**
  * @param {HTMLDocument?} document
  * @param {HTMLElement?} body
@@ -387,9 +461,17 @@ const applyStyles = (document, body) => {
 	}
 
 	if (body) {
-		body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
+		body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast', 'vscode-reduce-motion', 'vscode-using-screen-reader');
 		if (initData.activeTheme) {
 			body.classList.add(initData.activeTheme);
+		}
+
+		if (initData.reduceMotion) {
+			body.classList.add('vscode-reduce-motion');
+		}
+
+		if (initData.screenReader) {
+			body.classList.add('vscode-using-screen-reader');
 		}
 
 		body.dataset.vscodeThemeKind = initData.activeTheme;
@@ -433,8 +515,8 @@ const handleInnerClick = (event) => {
 			if (node.getAttribute('href') === '#') {
 				event.view.scrollTo(0, 0);
 			} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href === baseElement.href + node.hash))) {
-				const fragment = node.hash.substr(1, node.hash.length - 1);
-				const scrollTarget = event.view.document.getElementById(decodeURIComponent(fragment));
+				const fragment = node.hash.slice(1);
+				const scrollTarget = event.view.document.getElementById(fragment) ?? event.view.document.getElementById(decodeURIComponent(fragment));
 				scrollTarget?.scrollIntoView();
 			} else {
 				hostMessaging.postMessage('did-click-link', node.href.baseVal || node.href);
@@ -708,6 +790,8 @@ onDomReady(() => {
 		initData.styles = data.styles;
 		initData.activeTheme = data.activeTheme;
 		initData.themeName = data.themeName;
+		initData.reduceMotion = data.reduceMotion;
+		initData.screenReader = data.screenReader;
 
 		const target = getActiveFrame();
 		if (!target) {
@@ -834,7 +918,7 @@ onDomReady(() => {
 		}
 
 		if (!options.allowScripts && isSafari) {
-			// On Safari for iframes with scripts disabled, the `DOMContentLoaded` never seems to be fired.
+			// On Safari for iframes with scripts disabled, the `DOMContentLoaded` never seems to be fired: https://bugs.webkit.org/show_bug.cgi?id=33604
 			// Use polling instead.
 			const interval = setInterval(() => {
 				// If the frame is no longer mounted, loading has stopped
@@ -844,7 +928,7 @@ onDomReady(() => {
 				}
 
 				const contentDocument = assertIsDefined(newFrame.contentDocument);
-				if (contentDocument.readyState !== 'loading') {
+				if (contentDocument.location.pathname.endsWith('/fake.html') && contentDocument.readyState !== 'loading') {
 					clearInterval(interval);
 					onFrameLoaded(contentDocument);
 				}
@@ -893,8 +977,6 @@ onDomReady(() => {
 				});
 				pendingMessages = [];
 			}
-
-			hostMessaging.postMessage('did-load');
 		};
 
 		/**
@@ -939,10 +1021,26 @@ onDomReady(() => {
 				});
 			});
 
+			const dragHandler = (/** @type {DragEvent} */ e) => {
+				if (e.defaultPrevented) {
+					// Extension code has already handled this event
+					return;
+				}
+
+				if (!e.dataTransfer) {
+					return;
+				}
+
+				// Only handle drags from outside editor for now
+				if (e.target === contentWindow.document.documentElement) {
+					hostMessaging.postMessage('drag-start');
+				}
+			};
+			contentWindow.addEventListener('dragenter', dragHandler);
+			contentWindow.addEventListener('dragover', dragHandler);
+
 			unloadMonitor.onIframeLoaded(newFrame);
 		}
-
-		hostMessaging.postMessage('did-set-content', undefined);
 	});
 
 	// Forward message to the embedded iframe

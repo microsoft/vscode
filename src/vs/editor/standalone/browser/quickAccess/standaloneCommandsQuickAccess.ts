@@ -8,7 +8,7 @@ import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/
 import { QuickCommandNLS } from 'vs/editor/common/standaloneStrings';
 import { ICommandQuickPick } from 'vs/platform/quickinput/browser/commandsQuickAccess';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/commandsQuickAccess';
+import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';

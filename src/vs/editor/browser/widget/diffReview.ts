@@ -18,13 +18,13 @@ import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IComputedEditorOptions, EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
-import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
-import { ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
+import { editorLineNumbers } from 'vs/editor/common/core/editorColorRegistry';
 import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { ViewLineRenderingData } from 'vs/editor/common/viewModel';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
@@ -33,7 +33,8 @@ import { Constants } from 'vs/base/common/uint';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 
 const DIFF_LINES_PADDING = 3;
 

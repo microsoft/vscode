@@ -19,6 +19,7 @@ export interface IInteractiveHistoryService {
 	getNextValue(uri: URI): string | null;
 	replaceLast(uri: URI, value: string): void;
 	clearHistory(uri: URI): void;
+	has(uri: URI): boolean;
 }
 
 export class InteractiveHistoryService extends Disposable implements IInteractiveHistoryService {
@@ -71,4 +72,9 @@ export class InteractiveHistoryService extends Disposable implements IInteractiv
 	clearHistory(uri: URI) {
 		this.#history.delete(uri);
 	}
+
+	has(uri: URI) {
+		return this.#history.has(uri) ? true : false;
+	}
+
 }

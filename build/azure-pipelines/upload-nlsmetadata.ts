@@ -5,24 +5,21 @@
 
 'use strict';
 
-import * as path from 'path';
 import * as es from 'event-stream';
 import * as Vinyl from 'vinyl';
 import * as vfs from 'vinyl-fs';
-import * as util from '../lib/util';
 import * as merge from 'gulp-merge-json';
 import * as gzip from 'gulp-gzip';
 import { ClientSecretCredential } from '@azure/identity';
 const azure = require('gulp-azure-storage');
 
-const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
+const commit = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
 const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
 
 interface NlsMetadata {
-	keys: { [module: string]: string },
-	messages: { [module: string]: string },
-	bundles: { [bundle: string]: string[] },
+	keys: { [module: string]: string };
+	messages: { [module: string]: string };
+	bundles: { [bundle: string]: string[] };
 }
 
 function main(): Promise<void> {
@@ -65,7 +62,7 @@ function main(): Promise<void> {
 							parsedJson = { header: parsedJson };
 							break;
 
-						case 'nls.metadata.json':
+						case 'nls.metadata.json': {
 							// put nls.metadata.json content in Core NlsMetadata format
 							const modules = Object.keys(parsedJson);
 
@@ -83,6 +80,7 @@ function main(): Promise<void> {
 							}
 							parsedJson = json;
 							break;
+						}
 					}
 					key = 'vscode.' + file.relative.split('/')[0];
 					return { [key]: parsedJson };

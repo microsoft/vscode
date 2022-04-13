@@ -10,14 +10,14 @@ import { IRelativePattern } from 'vs/base/common/glob';
 import { hash } from 'vs/base/common/hash';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Cache } from 'vs/workbench/api/common/cache';
 import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatusBarListDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape, NotebookDataDto } from 'vs/workbench/api/common/extHost.protocol';
-import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { ApiCommand, ApiCommandArgument, ApiCommandResult, CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
@@ -48,12 +48,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
 	private readonly _commandsConverter: CommandsConverter;
 
-	private readonly _onDidChangeNotebookCells = new Emitter<vscode.NotebookCellsChangeEvent>();
-	readonly onDidChangeNotebookCells = this._onDidChangeNotebookCells.event;
-	private readonly _onDidChangeCellOutputs = new Emitter<vscode.NotebookCellOutputsChangeEvent>();
-	readonly onDidChangeCellOutputs = this._onDidChangeCellOutputs.event;
-	private readonly _onDidChangeCellMetadata = new Emitter<vscode.NotebookCellMetadataChangeEvent>();
-	readonly onDidChangeCellMetadata = this._onDidChangeCellMetadata.event;
 	private readonly _onDidChangeActiveNotebookEditor = new Emitter<vscode.NotebookEditor | undefined>();
 	readonly onDidChangeActiveNotebookEditor = this._onDidChangeActiveNotebookEditor.event;
 
@@ -104,6 +98,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				return arg;
 			}
 		});
+
+		ExtHostNotebookController._registerApiCommands(commands);
 	}
 
 	getEditorById(editorId: string): ExtHostNotebookEditor {
@@ -225,7 +221,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		});
 	}
 
-	async createNotebookDocument(options: { viewType: string, content?: vscode.NotebookData }): Promise<URI> {
+	async createNotebookDocument(options: { viewType: string; content?: vscode.NotebookData }): Promise<URI> {
 		const canonicalUri = await this._notebookDocumentsProxy.$tryCreateNotebook({
 			viewType: options.viewType,
 			content: options.content && typeConverters.NotebookData.from(options.content)
@@ -442,23 +438,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				if (this._documents.has(uri)) {
 					throw new Error(`adding EXISTING notebook ${uri} `);
 				}
-				const that = this;
 
 				const document = new ExtHostNotebookDocument(
 					this._notebookDocumentsProxy,
 					this._textDocumentsAndEditors,
 					this._textDocuments,
-					{
-						emitModelChange(event: vscode.NotebookCellsChangeEvent): void {
-							that._onDidChangeNotebookCells.fire(event);
-						},
-						emitCellOutputsChange(event: vscode.NotebookCellOutputsChangeEvent): void {
-							that._onDidChangeCellOutputs.fire(event);
-						},
-						emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void {
-							that._onDidChangeCellMetadata.fire(event);
-						}
-					},
 					uri,
 					modelData
 				);
@@ -530,5 +514,25 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		if (delta.value.newActiveEditor !== undefined) {
 			this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor?.apiEditor);
 		}
+	}
+
+	private static _registerApiCommands(extHostCommands: ExtHostCommands) {
+
+		const notebookTypeArg = ApiCommandArgument.String.with('notebookType', 'A notebook type');
+
+		const commandDataToNotebook = new ApiCommand(
+			'vscode.executeDataToNotebook', '_executeDataToNotebook', 'Invoke notebook serializer',
+			[notebookTypeArg, new ApiCommandArgument<Uint8Array, VSBuffer>('data', 'Bytes to convert to data', v => v instanceof Uint8Array, v => VSBuffer.wrap(v))],
+			new ApiCommandResult<NotebookDataDto, vscode.NotebookData>('Notebook Data', dto => typeConverters.NotebookData.to(dto))
+		);
+
+		const commandNotebookToData = new ApiCommand(
+			'vscode.executeNotebookToData', '_executeNotebookToData', 'Invoke notebook serializer',
+			[notebookTypeArg, new ApiCommandArgument<vscode.NotebookData, NotebookDataDto>('NotebookData', 'Notebook data to convert to bytes', v => true, v => typeConverters.NotebookData.from(v))],
+			new ApiCommandResult<VSBuffer, Uint8Array>('Bytes', dto => dto.buffer)
+		);
+
+		extHostCommands.registerApiCommand(commandDataToNotebook);
+		extHostCommands.registerApiCommand(commandNotebookToData);
 	}
 }

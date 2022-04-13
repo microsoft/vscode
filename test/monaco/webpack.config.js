@@ -9,8 +9,8 @@ const WarningsToErrorsPlugin = require('warnings-to-errors-webpack-plugin');
 module.exports = {
 	mode: 'production',
 	entry: {
-		"core": './core.js',
-		"editor.worker": '../../out-monaco-editor-core/esm/vs/editor/editor.worker.js',
+		'core': './core.js',
+		'editor.worker': '../../out-monaco-editor-core/esm/vs/editor/editor.worker.js',
 	},
 	output: {
 		globalObject: 'self',

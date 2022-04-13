@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { joinPath } from 'vs/base/common/resources';
+import { dirname, joinPath } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
@@ -40,6 +40,9 @@ suite('UserDataSyncService', () => {
 			// Snippets
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '0' } },
+			// Tasks
+			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/tasks`, headers: { 'If-Match': '0' } },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
@@ -69,6 +72,9 @@ suite('UserDataSyncService', () => {
 			// Snippets
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '0' } },
+			// Snippets
+			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/tasks`, headers: { 'If-Match': '0' } },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
@@ -97,6 +103,8 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			// Snippets
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
+			// Tasks
+			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			// Extensions
@@ -127,6 +135,7 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
 		]);
@@ -150,6 +159,7 @@ suite('UserDataSyncService', () => {
 		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
 		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
 		await fileService.writeFile(joinPath(environmentService.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
+		await fileService.writeFile(joinPath(dirname(environmentService.settingsResource), 'tasks.json'), VSBuffer.fromString(JSON.stringify({})));
 		const testObject = testClient.instantiationService.get(IUserDataSyncService);
 
 		// Sync (merge) from the test client
@@ -164,6 +174,7 @@ suite('UserDataSyncService', () => {
 			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '1' } },
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
+			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
 		]);
@@ -348,6 +359,9 @@ suite('UserDataSyncService', () => {
 			// Snippets
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '0' } },
+			// Tasks
+			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/tasks`, headers: { 'If-Match': '0' } },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
@@ -371,7 +385,7 @@ suite('UserDataSyncService', () => {
 		await (await testObject.createSyncTask(null)).run();
 
 		disposable.dispose();
-		assert.deepStrictEqual(actualStatuses, [SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle]);
+		assert.deepStrictEqual(actualStatuses, [SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle, SyncStatus.Syncing, SyncStatus.Idle]);
 	});
 
 	test('test sync conflicts status', async () => {

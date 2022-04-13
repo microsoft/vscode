@@ -7,7 +7,8 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -18,7 +19,8 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -29,7 +31,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -40,7 +43,8 @@
 			"light_plus": "entity.name.function.preprocessor: #0000FF",
 			"dark_vs": "entity.name.function.preprocessor: #569CD6",
 			"light_vs": "entity.name.function.preprocessor: #0000FF",
-			"hc_black": "entity.name.function: #DCDCAA"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -51,7 +55,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -62,7 +67,8 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "variable: #9CDCFE"
+			"hc_black": "variable: #9CDCFE",
+			"hc_light": "variable: #001080"
 		}
 	},
 	{
@@ -73,7 +79,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -84,7 +91,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -95,7 +103,8 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "variable: #9CDCFE"
+			"hc_black": "variable: #9CDCFE",
+			"hc_light": "variable: #001080"
 		}
 	},
 	{
@@ -106,7 +115,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -117,7 +127,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -128,7 +139,8 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "variable: #9CDCFE"
+			"hc_black": "variable: #9CDCFE",
+			"hc_light": "variable: #001080"
 		}
 	},
 	{
@@ -139,7 +151,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -150,7 +163,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -161,7 +175,8 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "variable: #9CDCFE"
+			"hc_black": "variable: #9CDCFE",
+			"hc_light": "variable: #001080"
 		}
 	},
 	{
@@ -172,7 +187,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -183,7 +199,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -194,7 +211,8 @@
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "constant.character: #569CD6"
+			"hc_black": "constant.character: #569CD6",
+			"hc_light": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -205,7 +223,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -216,7 +235,8 @@
 			"light_plus": "storage.type: #0000FF",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0000FF"
 		}
 	},
 	{
@@ -227,7 +247,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -238,7 +259,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -249,7 +271,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -260,7 +283,8 @@
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "constant.character: #569CD6"
+			"hc_black": "constant.character: #569CD6",
+			"hc_light": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -271,7 +295,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -282,7 +307,8 @@
 			"light_plus": "storage.type: #0000FF",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0000FF"
 		}
 	},
 	{
@@ -293,7 +319,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -304,7 +331,8 @@
 			"light_plus": "entity.name.type: #267F99",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "entity.name.type: #4EC9B0"
+			"hc_black": "entity.name.type: #4EC9B0",
+			"hc_light": "entity.name.type: #267F99"
 		}
 	},
 	{
@@ -315,7 +343,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -326,7 +355,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -337,7 +367,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -348,7 +379,8 @@
 			"light_plus": "storage.type: #0000FF",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0000FF"
 		}
 	},
 	{
@@ -359,7 +391,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -370,7 +403,8 @@
 			"light_plus": "entity.name.type: #267F99",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "entity.name.type: #4EC9B0"
+			"hc_black": "entity.name.type: #4EC9B0",
+			"hc_light": "entity.name.type: #267F99"
 		}
 	},
 	{
@@ -381,7 +415,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -392,7 +427,8 @@
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "constant.character: #569CD6"
+			"hc_black": "constant.character: #569CD6",
+			"hc_light": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -403,7 +439,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -414,7 +451,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -425,7 +463,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -436,7 +475,8 @@
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "constant.character: #569CD6"
+			"hc_black": "constant.character: #569CD6",
+			"hc_light": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -447,7 +487,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -458,7 +499,8 @@
 			"light_plus": "storage.type: #0000FF",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0000FF"
 		}
 	},
 	{
@@ -469,7 +511,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -480,7 +523,8 @@
 			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "entity.name.function: #DCDCAA"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -491,7 +535,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -502,7 +547,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -513,7 +559,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -524,7 +571,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -535,7 +583,8 @@
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "constant.character: #569CD6"
+			"hc_black": "constant.character: #569CD6",
+			"hc_light": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -546,7 +595,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -557,7 +607,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -568,7 +619,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -579,7 +631,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -590,7 +643,8 @@
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "constant.character: #569CD6"
+			"hc_black": "constant.character: #569CD6",
+			"hc_light": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -601,7 +655,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -612,7 +667,8 @@
 			"light_plus": "storage.modifier: #0000FF",
 			"dark_vs": "storage.modifier: #569CD6",
 			"light_vs": "storage.modifier: #0000FF",
-			"hc_black": "storage.modifier: #569CD6"
+			"hc_black": "storage.modifier: #569CD6",
+			"hc_light": "storage.modifier: #0000FF"
 		}
 	},
 	{
@@ -623,7 +679,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -634,7 +691,8 @@
 			"light_plus": "storage.type: #0000FF",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0000FF"
 		}
 	},
 	{
@@ -645,7 +703,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -656,7 +715,8 @@
 			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "entity.name.function: #DCDCAA"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -667,7 +727,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -678,7 +739,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -689,7 +751,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -700,7 +763,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -711,7 +775,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -722,7 +787,8 @@
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "constant.character: #569CD6"
+			"hc_black": "constant.character: #569CD6",
+			"hc_light": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -733,7 +799,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -744,7 +811,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -755,7 +823,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -766,7 +835,8 @@
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "constant.character: #569CD6"
+			"hc_black": "constant.character: #569CD6",
+			"hc_light": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -777,7 +847,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -788,7 +859,8 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "variable: #9CDCFE"
+			"hc_black": "variable: #9CDCFE",
+			"hc_light": "variable: #001080"
 		}
 	},
 	{
@@ -799,7 +871,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -810,7 +883,8 @@
 			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "entity.name.function: #DCDCAA"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -821,7 +895,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -832,7 +907,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -843,7 +919,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -854,7 +931,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -865,7 +943,8 @@
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "constant.character: #569CD6"
+			"hc_black": "constant.character: #569CD6",
+			"hc_light": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -876,7 +955,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -887,7 +967,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -898,7 +979,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -909,7 +991,8 @@
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "constant.character: #569CD6"
+			"hc_black": "constant.character: #569CD6",
+			"hc_light": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -920,7 +1003,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -931,7 +1015,8 @@
 			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "entity.name.function: #DCDCAA"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -942,7 +1027,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -953,7 +1039,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -964,7 +1051,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -975,7 +1063,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -986,7 +1075,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -997,7 +1087,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -1008,7 +1099,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -1019,7 +1111,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -1030,7 +1123,8 @@
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "constant.character: #569CD6"
+			"hc_black": "constant.character: #569CD6",
+			"hc_light": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -1041,7 +1135,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -1052,7 +1147,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -1063,7 +1159,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -1074,7 +1171,8 @@
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "constant.character: #569CD6"
+			"hc_black": "constant.character: #569CD6",
+			"hc_light": "constant.character.escape: #EE0000"
 		}
 	},
 	{
@@ -1085,7 +1183,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -1096,7 +1195,8 @@
 			"light_plus": "storage.modifier: #0000FF",
 			"dark_vs": "storage.modifier: #569CD6",
 			"light_vs": "storage.modifier: #0000FF",
-			"hc_black": "storage.modifier: #569CD6"
+			"hc_black": "storage.modifier: #569CD6",
+			"hc_light": "storage.modifier: #0000FF"
 		}
 	},
 	{
@@ -1107,7 +1207,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -1118,7 +1219,8 @@
 			"light_plus": "storage.type: #0000FF",
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+			"hc_black": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0000FF"
 		}
 	},
 	{
@@ -1129,7 +1231,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -1140,7 +1243,8 @@
 			"light_plus": "entity.name.scope-resolution: #267F99",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "entity.name.scope-resolution: #4EC9B0"
+			"hc_black": "entity.name.scope-resolution: #4EC9B0",
+			"hc_light": "entity.name.scope-resolution: #267F99"
 		}
 	},
 	{
@@ -1151,7 +1255,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -1162,7 +1267,8 @@
 			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "entity.name.function: #DCDCAA"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -1173,7 +1279,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -1184,7 +1291,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	}
 ]

@@ -8,7 +8,7 @@ import { GithubRemoteSourceProvider } from './remoteSourceProvider';
 import { GitExtension } from './typings/git';
 import { registerCommands } from './commands';
 import { GithubCredentialProviderManager } from './credentialProvider';
-import { dispose, combinedDisposable } from './util';
+import { DisposableStore } from './util';
 import { GithubPushErrorHandler } from './pushErrorHandler';
 import { GitBaseExtension } from './typings/git-base';
 import { GithubRemoteSourcePublisher } from './remoteSourcePublisher';
@@ -19,7 +19,7 @@ export function activate(context: ExtensionContext): void {
 }
 
 function initializeGitBaseExtension(): Disposable {
-	const disposables = new Set<Disposable>();
+	const disposables = new DisposableStore();
 
 	const initialize = () => {
 		try {
@@ -35,8 +35,7 @@ function initializeGitBaseExtension(): Disposable {
 
 	const onDidChangeGitBaseExtensionEnablement = (enabled: boolean) => {
 		if (!enabled) {
-			dispose(disposables);
-			disposables.clear();
+			disposables.dispose();
 		} else {
 			initialize();
 		}
@@ -46,11 +45,11 @@ function initializeGitBaseExtension(): Disposable {
 	disposables.add(gitBaseExtension.onDidChangeEnablement(onDidChangeGitBaseExtensionEnablement));
 	onDidChangeGitBaseExtensionEnablement(gitBaseExtension.enabled);
 
-	return combinedDisposable(disposables);
+	return disposables;
 }
 
 function initializeGitExtension(): Disposable {
-	const disposables = new Set<Disposable>();
+	const disposables = new DisposableStore();
 
 	let gitExtension = extensions.getExtension<GitExtension>('vscode.git');
 
@@ -68,8 +67,7 @@ function initializeGitExtension(): Disposable {
 
 						commands.executeCommand('setContext', 'git-base.gitEnabled', true);
 					} else {
-						dispose(disposables);
-						disposables.clear();
+						disposables.dispose();
 					}
 				};
 
@@ -81,16 +79,15 @@ function initializeGitExtension(): Disposable {
 	if (gitExtension) {
 		initialize();
 	} else {
-		const disposable = extensions.onDidChange(() => {
+		const listener = extensions.onDidChange(() => {
 			if (!gitExtension && extensions.getExtension<GitExtension>('vscode.git')) {
 				gitExtension = extensions.getExtension<GitExtension>('vscode.git');
 				initialize();
-
-				dispose(disposable);
+				listener.dispose();
 			}
 		});
-		disposables.add(disposable);
+		disposables.add(listener);
 	}
 
-	return combinedDisposable(disposables);
+	return disposables;
 }

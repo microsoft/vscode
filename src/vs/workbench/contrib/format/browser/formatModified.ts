@@ -12,7 +12,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { formatDocumentRangesWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/format';
+import { formatDocumentRangesWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/browser/format';
 import * as nls from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

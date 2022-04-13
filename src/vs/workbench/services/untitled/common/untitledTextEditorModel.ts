@@ -6,7 +6,7 @@
 import { ISaveOptions } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { URI } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
@@ -15,17 +15,17 @@ import { ITextModel } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IEncodingSupport, ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
+import { ensureValidWordDefinition } from 'vs/editor/common/core/wordHelper';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getCharContainingOffset } from 'vs/base/common/strings';
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
-import { bufferToStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { bufferToReadable, bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
@@ -72,7 +72,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private static readonly FIRST_LINE_NAME_MAX_LENGTH = 40;
 	private static readonly FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH = UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH * 10;
 
-	// support the special '${activeEditorLanguage}' language by
+	// Support the special '${activeEditorLanguage}' language by
 	// looking up the language id from the editor that is active
 	// before the untitled editor opens. This special id is only
 	// used for the initial language and can be changed after the
@@ -93,6 +93,9 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private readonly _onDidChangeEncoding = this._register(new Emitter<void>());
 	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
 
+	private readonly _onDidSave = this._register(new Emitter<IWorkingCopySaveEvent>());
+	readonly onDidSave = this._onDidSave.event;
+
 	private readonly _onDidRevert = this._register(new Emitter<void>());
 	readonly onDidRevert = this._onDidRevert.event;
 
@@ -108,6 +111,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	private cachedModelFirstLineWords: string | undefined = undefined;
 	get name(): string {
+
 		// Take name from first line if present and only if
 		// we have no associated file path. In that case we
 		// prefer the file name as title.
@@ -120,7 +124,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	//#endregion
-
 
 	constructor(
 		readonly resource: URI,
@@ -185,7 +188,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 	}
 
-
 	//#region Language
 
 	override setLanguageId(languageId: string): void {
@@ -209,7 +211,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	//#endregion
 
-
 	//#region Encoding
 
 	private configuredEncoding: string | undefined;
@@ -230,7 +231,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	//#endregion
 
-
 	//#region Dirty
 
 	private dirty = this.hasAssociatedFilePath || !!this.initialValue;
@@ -250,11 +250,15 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	//#endregion
 
-
 	//#region Save / Revert / Backup
 
 	async save(options?: ISaveOptions): Promise<boolean> {
 		const target = await this.textFileService.save(this.resource, options);
+
+		// Emit as event
+		if (target) {
+			this._onDidSave.fire({ reason: options?.reason, source: options?.source });
+		}
 
 		return !!target;
 	}
@@ -272,17 +276,24 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
+		let content: VSBufferReadable | undefined = undefined;
 
-		// Fill in content the same way we would do when
-		// saving the file via the text file service
-		// encoding support (hardcode UTF-8)
-		const content = await this.textFileService.getEncodedReadable(this.resource, withNullAsUndefined(this.createSnapshot()), { encoding: UTF8 });
+		// Make sure to check whether this model has been resolved
+		// or not and fallback to the initial value - if any - to
+		// prevent backing up an unresolved model and loosing the
+		// initial value.
+		if (this.isResolved()) {
+			// Fill in content the same way we would do when saving the file
+			// via the text file service encoding support (hardcode UTF-8)
+			content = await this.textFileService.getEncodedReadable(this.resource, withNullAsUndefined(this.createSnapshot()), { encoding: UTF8 });
+		} else if (typeof this.initialValue === 'string') {
+			content = bufferToReadable(VSBuffer.fromString(this.initialValue));
+		}
 
 		return { content };
 	}
 
 	//#endregion
-
 
 	//#region Resolve
 
@@ -409,7 +420,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	//#endregion
-
 
 	override isReadonly(): boolean {
 		return false;

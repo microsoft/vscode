@@ -11,7 +11,7 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
+import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, CONTEXT_IN_BREAKPOINT_WIDGET, IBreakpointUpdateData, IBreakpointEditorContribution, BREAKPOINT_EDITOR_CONTRIBUTION_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
@@ -22,10 +22,10 @@ import { ServicesAccessor, EditorCommand, registerEditorCommand } from 'vs/edito
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelService } from 'vs/editor/common/services/model';
 import { URI as uri } from 'vs/base/common/uri';
-import { CompletionProviderRegistry, CompletionList, CompletionContext, CompletionItemKind } from 'vs/editor/common/languages';
+import { CompletionList, CompletionContext, CompletionItemKind } from 'vs/editor/common/languages';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModel } from 'vs/editor/common/model';
-import { provideSuggestionItems, CompletionOptions } from 'vs/editor/contrib/suggest/suggest';
+import { provideSuggestionItems, CompletionOptions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -38,6 +38,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
@@ -47,14 +48,10 @@ export interface IPrivateBreakpointWidgetService {
 }
 const DECORATION_KEY = 'breakpointwidgetdecoration';
 
-function isCurlyBracketOpen(input: IActiveCodeEditor): boolean {
+function isPositionInCurlyBracketBlock(input: IActiveCodeEditor): boolean {
 	const model = input.getModel();
-	const prevBracket = model.bracketPairs.findPrevBracket(input.getPosition());
-	if (prevBracket && prevBracket.isOpen) {
-		return true;
-	}
-
-	return false;
+	const bracketPairs = model.bracketPairs.getBracketPairsInRange(Range.fromPositions(input.getPosition()));
+	return bracketPairs.some(p => p.openingBracketInfo.bracketText === '{');
 }
 
 function createDecorations(theme: IColorTheme, placeHolder: string): IDecorationOptions[] {
@@ -97,7 +94,8 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super(editor, { showFrame: true, showArrow: false, frameWidth: 1, isAccessible: true });
 
@@ -245,12 +243,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.input.getModel().onDidChangeContent(() => setDecorations());
 		this.themeService.onDidColorThemeChange(() => setDecorations());
 
-		this.toDispose.push(CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
+		this.toDispose.push(this.languageFeaturesService.completionProvider.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
 			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 				let suggestionsPromise: Promise<CompletionList>;
 				const underlyingModel = this.editor.getModel();
-				if (underlyingModel && (this.context === Context.CONDITION || (this.context === Context.LOG_MESSAGE && isCurlyBracketOpen(this.input)))) {
-					suggestionsPromise = provideSuggestionItems(underlyingModel, new Position(this.lineNumber, 1), new CompletionOptions(undefined, new Set<CompletionItemKind>().add(CompletionItemKind.Snippet)), _context, token).then(suggestions => {
+				if (underlyingModel && (this.context === Context.CONDITION || (this.context === Context.LOG_MESSAGE && isPositionInCurlyBracketBlock(this.input)))) {
+					suggestionsPromise = provideSuggestionItems(this.languageFeaturesService.completionProvider, underlyingModel, new Position(this.lineNumber, 1), new CompletionOptions(undefined, new Set<CompletionItemKind>().add(CompletionItemKind.Snippet)), _context, token).then(suggestions => {
 
 						let overwriteBefore = 0;
 						if (this.context === Context.CONDITION) {
@@ -293,6 +291,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		options.fontFamily = editorConfig.fontFamily;
 		options.lineHeight = editorConfig.lineHeight;
 		options.fontLigatures = editorConfig.fontLigatures;
+		options.ariaLabel = this.placeholder;
 		return options;
 	}
 

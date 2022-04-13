@@ -13,10 +13,10 @@ import * as _ from 'underscore';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as _rimraf from 'rimraf';
-import * as git from './git';
 import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map';
+import * as git from './git';
 
 const root = path.dirname(path.dirname(__dirname));
 
@@ -320,9 +320,9 @@ export function ensureDir(dirPath: string): void {
 }
 
 export function getVersion(root: string): string | undefined {
-	let version = process.env['BUILD_SOURCEVERSION'];
+	let version = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
 
-	if (!version || !/^[0-9a-f]{40}$/i.test(version)) {
+	if (!version || !/^[0-9a-f]{40}$/i.test(version.trim())) {
 		version = git.getVersion(root);
 	}
 
@@ -384,23 +384,37 @@ export function acquireWebNodePaths() {
 	for (const key of Object.keys(webPackages)) {
 		const packageJSON = path.join(root, 'node_modules', key, 'package.json');
 		const packageData = JSON.parse(fs.readFileSync(packageJSON, 'utf8'));
-		let entryPoint = packageData.browser ?? packageData.main;
+		let entryPoint: string = packageData.browser ?? packageData.main;
+
 		// On rare cases a package doesn't have an entrypoint so we assume it has a dist folder with a min.js
 		if (!entryPoint) {
 			// TODO @lramos15 remove this when jschardet adds an entrypoint so we can warn on all packages w/out entrypoint
 			if (key !== 'jschardet') {
 				console.warn(`No entry point for ${key} assuming dist/${key}.min.js`);
 			}
+
 			entryPoint = `dist/${key}.min.js`;
 		}
+
 		// Remove any starting path information so it's all relative info
 		if (entryPoint.startsWith('./')) {
-			entryPoint = entryPoint.substr(2);
+			entryPoint = entryPoint.substring(2);
 		} else if (entryPoint.startsWith('/')) {
-			entryPoint = entryPoint.substr(1);
+			entryPoint = entryPoint.substring(1);
 		}
+
+		// Search for a minified entrypoint as well
+		if (/(?<!\.min)\.js$/i.test(entryPoint)) {
+			const minEntryPoint = entryPoint.replace(/\.js$/i, '.min.js');
+
+			if (fs.existsSync(path.join(root, 'node_modules', key, minEntryPoint))) {
+				entryPoint = minEntryPoint;
+			}
+		}
+
 		nodePaths[key] = entryPoint;
 	}
+
 	return nodePaths;
 }
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IFileService, FileChangeType, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, FileType, FileSystemProviderCapabilities, FileChangesEvent } from 'vs/platform/files/common/files';
+import { IFileService, FileChangeType, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, FileType, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
@@ -18,7 +18,6 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/product/common/product';
-import { isLinux } from 'vs/base/common/platform';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -26,7 +25,7 @@ class TestEnvironmentService extends AbstractNativeEnvironmentService {
 	constructor(private readonly _appSettingsHome: URI) {
 		super(Object.create(null), Object.create(null), { _serviceBrand: undefined, ...product });
 	}
-	override get userRoamingDataHome() { return this._appSettingsHome.with({ scheme: Schemas.userData }); }
+	override get userRoamingDataHome() { return this._appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
 }
 
 suite('FileUserDataProvider', () => {
@@ -52,9 +51,9 @@ suite('FileUserDataProvider', () => {
 
 		environmentService = new TestEnvironmentService(userDataHomeOnDisk);
 
-		fileUserDataProvider = new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, new FileService(logService), logService);
+		fileUserDataProvider = new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, logService);
 		disposables.add(fileUserDataProvider);
-		disposables.add(testObject.registerProvider(Schemas.userData, fileUserDataProvider));
+		disposables.add(testObject.registerProvider(Schemas.vscodeUserData, fileUserDataProvider));
 	});
 
 	teardown(() => disposables.clear());
@@ -300,31 +299,18 @@ class TestFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapa
 
 }
 
-class TestFileService extends FileService {
-
-	private readonly _onDidFilesChange2 = this._register(new Emitter<FileChangesEvent>());
-	override readonly onDidFilesChange = this._onDidFilesChange2.event;
-
-	constructor(fileEventEmitter: Emitter<readonly IFileChange[]>) {
-		super(new NullLogService());
-
-		fileEventEmitter.event(changes => this._onDidFilesChange2.fire(new FileChangesEvent(changes, !isLinux)));
-	}
-}
-
 suite('FileUserDataProvider - Watching', () => {
 
 	let testObject: FileUserDataProvider;
 	const disposables = new DisposableStore();
 	const rootFileResource = joinPath(ROOT, 'User');
-	const rootUserDataResource = rootFileResource.with({ scheme: Schemas.userData });
+	const rootUserDataResource = rootFileResource.with({ scheme: Schemas.vscodeUserData });
 
 	const fileEventEmitter: Emitter<readonly IFileChange[]> = new Emitter<readonly IFileChange[]>();
 	disposables.add(fileEventEmitter);
 
 	setup(() => {
-		const logService = new NullLogService();
-		testObject = disposables.add(new FileUserDataProvider(rootFileResource.scheme, new TestFileSystemProvider(fileEventEmitter.event), Schemas.userData, new TestFileService(fileEventEmitter), logService));
+		testObject = disposables.add(new FileUserDataProvider(rootFileResource.scheme, new TestFileSystemProvider(fileEventEmitter.event), Schemas.vscodeUserData, new NullLogService()));
 	});
 
 	teardown(() => disposables.clear());

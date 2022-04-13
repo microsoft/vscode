@@ -205,7 +205,7 @@ suite('MarkdownRenderer', () => {
 
 		const uri = URI.parse(anchor.dataset['href']!);
 
-		const data = <{ script: string, documentUri: URI }>parse(decodeURIComponent(uri.query));
+		const data = <{ script: string; documentUri: URI }>parse(decodeURIComponent(uri.query));
 		assert.ok(data);
 		assert.strictEqual(data.script, 'echo');
 		assert.ok(data.documentUri.toString().startsWith('file:///c%3A/'));

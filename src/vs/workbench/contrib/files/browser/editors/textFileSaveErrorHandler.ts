@@ -19,7 +19,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TextFileContentProvider } from 'vs/workbench/contrib/files/common/files';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { SAVE_FILE_AS_LABEL } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { SAVE_FILE_AS_LABEL } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { INotificationService, INotificationHandle, INotificationActions, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -67,7 +67,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 	}
 
 	private registerListeners(): void {
-		this._register(this.textFileService.files.onDidSave(event => this.onFileSavedOrReverted(event.model.resource)));
+		this._register(this.textFileService.files.onDidSave(e => this.onFileSavedOrReverted(e.model.resource)));
 		this._register(this.textFileService.files.onDidRevert(model => this.onFileSavedOrReverted(model.resource)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 	}

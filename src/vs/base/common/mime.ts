@@ -11,6 +11,7 @@ export namespace Mimes {
 	export const unknown = 'application/unknown';
 	export const markdown = 'text/markdown';
 	export const latex = 'text/latex';
+	export const uriList = 'text/uri-list';
 }
 
 interface MapExtToMediaMimes {
@@ -64,6 +65,7 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.mpga': 'audio/mpeg',
 	'.oga': 'audio/ogg',
 	'.ogg': 'audio/ogg',
+	'.opus': 'audio/opus',
 	'.ogv': 'video/ogg',
 	'.png': 'image/png',
 	'.psd': 'image/vnd.adobe.photoshop',

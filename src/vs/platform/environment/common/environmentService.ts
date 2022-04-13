@@ -11,8 +11,7 @@ import { env } from 'vs/base/common/process';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { ExtensionKind, IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export interface INativeEnvironmentPaths {
@@ -23,7 +22,7 @@ export interface INativeEnvironmentPaths {
 	 *
 	 * Only one instance of VSCode can use the same `userDataDir`.
 	 */
-	userDataDir: string
+	userDataDir: string;
 
 	/**
 	 * The user home directory mainly used for persisting extensions
@@ -35,7 +34,7 @@ export interface INativeEnvironmentPaths {
 	/**
 	 * OS tmp dir.
 	 */
-	tmpDir: string,
+	tmpDir: string;
 }
 
 export abstract class AbstractNativeEnvironmentService implements INativeEnvironmentService {
@@ -88,10 +87,13 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get machineSettingsResource(): URI { return joinPath(URI.file(join(this.userDataPath, 'Machine')), 'settings.json'); }
 
 	@memoize
-	get globalStorageHome(): URI { return URI.joinPath(this.appSettingsHome, 'globalStorage'); }
+	get globalStorageHome(): URI { return joinPath(this.appSettingsHome, 'globalStorage'); }
 
 	@memoize
-	get workspaceStorageHome(): URI { return URI.joinPath(this.appSettingsHome, 'workspaceStorage'); }
+	get workspaceStorageHome(): URI { return joinPath(this.appSettingsHome, 'workspaceStorage'); }
+
+	@memoize
+	get localHistoryHome(): URI { return joinPath(this.appSettingsHome, 'History'); }
 
 	@memoize
 	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }

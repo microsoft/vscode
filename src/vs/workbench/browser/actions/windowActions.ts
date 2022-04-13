@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { MenuRegistry, MenuId, Action2, registerAction2, IAction2Options } from 'vs/platform/actions/common/actions';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IsFullscreenContext } from 'vs/workbench/common/contextkeys';
 import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
-import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService, IWorkspaceIdentifier, isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/workspaces/common/workspaces';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind } from 'vs/platform/files/common/files';
 import { splitName } from 'vs/base/common/labels';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
+import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -33,11 +33,12 @@ import { isHTMLElement } from 'vs/base/browser/dom';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
 interface IRecentlyOpenedPick extends IQuickPickItem {
-	resource: URI,
+	resource: URI;
 	openable: IWindowOpenable;
 	remoteAuthority: string | undefined;
 }
@@ -231,9 +232,11 @@ abstract class BaseOpenRecentAction extends Action2 {
 
 export class OpenRecentAction extends BaseOpenRecentAction {
 
+	static ID = 'workbench.action.openRecent';
+
 	constructor() {
 		super({
-			id: 'workbench.action.openRecent',
+			id: OpenRecentAction.ID,
 			title: {
 				value: localize('openRecent', "Open Recent..."),
 				mnemonicTitle: localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."),
@@ -285,7 +288,7 @@ class ToggleFullScreenAction extends Action2 {
 				mnemonicTitle: localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
 				original: 'Toggle Full Screen'
 			},
-			category: CATEGORIES.View.value,
+			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -296,11 +299,11 @@ class ToggleFullScreenAction extends Action2 {
 			},
 			precondition: IsIOSContext.toNegated(),
 			toggled: IsFullscreenContext,
-			menu: {
+			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
 				order: 1
-			}
+			}]
 		});
 	}
 
@@ -319,7 +322,7 @@ export class ReloadWindowAction extends Action2 {
 		super({
 			id: ReloadWindowAction.ID,
 			title: { value: localize('reloadWindow', "Reload Window"), original: 'Reload Window' },
-			category: CATEGORIES.Developer.value,
+			category: CATEGORIES.Developer,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 50,
@@ -346,7 +349,7 @@ class ShowAboutDialogAction extends Action2 {
 				mnemonicTitle: localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About"),
 				original: 'About'
 			},
-			category: CATEGORIES.Help.value,
+			category: CATEGORIES.Help,
 			f1: true,
 			menu: {
 				id: MenuId.MenubarHelpMenu,
@@ -377,13 +380,13 @@ class NewWindowAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: isWeb ? (KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyN) : KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN,
+				primary: isWeb ? (isWindows ? KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Shift | KeyCode.KeyN) : KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyN) : KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN,
 				secondary: isWeb ? [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN] : undefined
 			},
 			menu: {
 				id: MenuId.MenubarFileMenu,
 				group: '1_new',
-				order: 2
+				order: 3
 			}
 		});
 	}

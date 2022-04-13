@@ -3,39 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import { join } from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
 import { IDriver, IDisposable, IElement, Thenable, ILocalizedStrings, ILocaleInfo } from './driver';
-import { launch as launchElectron } from './electronDriver';
-import { launch as launchPlaywright } from './playwrightDriver';
+import { launch as launchElectron } from './electron';
+import { launch as launchPlaywrightBrowser } from './playwrightBrowser';
+import { launch as launchPlaywrightElectron } from './playwrightElectron';
 import { Logger, measureAndLog } from './logger';
 import { copyExtension } from './extensions';
+import * as treekill from 'tree-kill';
+import { teardown } from './processes';
 
-const repoPath = path.join(__dirname, '../../..');
+const rootPath = join(__dirname, '../../..');
 
 export interface LaunchOptions {
 	codePath?: string;
-	workspacePath: string;
+	readonly workspacePath: string;
 	userDataDir: string;
-	extensionsPath: string;
-	logger: Logger;
-	verbose?: boolean;
-	extraArgs?: string[];
-	remote?: boolean;
-	web?: boolean;
-	headless?: boolean;
-	browser?: 'chromium' | 'webkit' | 'firefox';
+	readonly extensionsPath: string;
+	readonly logger: Logger;
+	logsPath: string;
+	readonly verbose?: boolean;
+	readonly extraArgs?: string[];
+	readonly remote?: boolean;
+	readonly web?: boolean;
+	readonly legacy?: boolean;
+	readonly tracing?: boolean;
+	readonly headless?: boolean;
+	readonly browser?: 'chromium' | 'webkit' | 'firefox';
 }
 
 interface ICodeInstance {
-	kill: () => Promise<void>
+	kill: () => Promise<void>;
 }
 
 const instances = new Set<ICodeInstance>();
 
-function registerInstance(process: cp.ChildProcess, logger: Logger, type: string, kill: () => Promise<void>) {
-	const instance = { kill };
+function registerInstance(process: cp.ChildProcess, logger: Logger, type: string) {
+	const instance = { kill: () => teardown(process, logger) };
 	instances.add(instance);
 
 	process.stdout?.on('data', data => logger.log(`[${type}] stdout: ${data}`));
@@ -48,7 +54,7 @@ function registerInstance(process: cp.ChildProcess, logger: Logger, type: string
 	});
 }
 
-async function teardown(signal?: number) {
+async function teardownAll(signal?: number) {
 	stopped = true;
 
 	for (const instance of instances) {
@@ -61,74 +67,46 @@ async function teardown(signal?: number) {
 }
 
 let stopped = false;
-process.on('exit', () => teardown());
-process.on('SIGINT', () => teardown(128 + 2)); 	 // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
-process.on('SIGTERM', () => teardown(128 + 15)); // same as above
+process.on('exit', () => teardownAll());
+process.on('SIGINT', () => teardownAll(128 + 2)); 	 // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+process.on('SIGTERM', () => teardownAll(128 + 15)); // same as above
 
 export async function launch(options: LaunchOptions): Promise<Code> {
 	if (stopped) {
 		throw new Error('Smoke test process has terminated, refusing to spawn Code');
 	}
 
-	await measureAndLog(copyExtension(repoPath, options.extensionsPath, 'vscode-notebook-tests'), 'copyExtension(vscode-notebook-tests)', options.logger);
+	await measureAndLog(copyExtension(rootPath, options.extensionsPath, 'vscode-notebook-tests'), 'copyExtension(vscode-notebook-tests)', options.logger);
 
 	// Browser smoke tests
 	if (options.web) {
-		const { serverProcess, client, driver, kill } = await measureAndLog(launchPlaywright(options), 'launch playwright', options.logger);
-		registerInstance(serverProcess, options.logger, 'server', kill);
+		const { serverProcess, client, driver } = await measureAndLog(launchPlaywrightBrowser(options), 'launch playwright (browser)', options.logger);
+		registerInstance(serverProcess, options.logger, 'server');
 
 		return new Code(client, driver, options.logger, serverProcess);
 	}
 
-	// Electron smoke tests
-	else {
-		const { electronProcess, client, driver, kill } = await measureAndLog(launchElectron(options), 'launch electron', options.logger);
-		registerInstance(electronProcess, options.logger, 'electron', kill);
+	// Electron smoke tests (playwright)
+	else if (!options.legacy) {
+		const { electronProcess, client, driver } = await measureAndLog(launchPlaywrightElectron(options), 'launch playwright (electron)', options.logger);
+		registerInstance(electronProcess, options.logger, 'electron');
 
 		return new Code(client, driver, options.logger, electronProcess);
 	}
-}
 
-async function poll<T>(
-	fn: () => Thenable<T>,
-	acceptFn: (result: T) => boolean,
-	logger: Logger,
-	timeoutMessage: string,
-	retryCount = 200,
-	retryInterval = 100 // millis
-): Promise<T> {
-	let trial = 1;
-	let lastError: string = '';
+	// Electron smoke tests (legacy driver)
+	else {
+		const { electronProcess, client, driver } = await measureAndLog(launchElectron(options), 'launch electron', options.logger);
+		registerInstance(electronProcess, options.logger, 'electron');
 
-	while (true) {
-		if (trial > retryCount) {
-			logger.log('Timeout!');
-			logger.log(lastError);
-			logger.log(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
-			throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
-		}
-
-		let result;
-		try {
-			result = await fn();
-			if (acceptFn(result)) {
-				return result;
-			} else {
-				lastError = 'Did not pass accept function';
-			}
-		} catch (e: any) {
-			lastError = Array.isArray(e.stack) ? e.stack.join(os.EOL) : e.stack;
-		}
-
-		await new Promise(resolve => setTimeout(resolve, retryInterval));
-		trial++;
+		return new Code(client, driver, options.logger, electronProcess);
 	}
 }
 
 export class Code {
 
 	private _activeWindowId: number | undefined = undefined;
-	driver: IDriver;
+	readonly driver: IDriver;
 
 	constructor(
 		private client: IDisposable,
@@ -155,27 +133,18 @@ export class Code {
 		});
 	}
 
-	async capturePage(): Promise<string> {
-		const windowId = await this.getActiveWindowId();
-		return await this.driver.capturePage(windowId);
-	}
-
 	async startTracing(name: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		if (typeof this.driver.startTracing === 'function') { // added only in 1.64
-			return await this.driver.startTracing(windowId, name);
-		}
+		return await this.driver.startTracing(windowId, name);
 	}
 
 	async stopTracing(name: string, persist: boolean): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		if (typeof this.driver.stopTracing === 'function') { // added only in 1.64
-			return await this.driver.stopTracing(windowId, name, persist);
-		}
+		return await this.driver.stopTracing(windowId, name, persist);
 	}
 
 	async waitForWindowIds(accept: (windowIds: number[]) => boolean): Promise<void> {
-		await poll(() => this.driver.getWindowIds(), accept, this.logger, `get window ids`);
+		await this.poll(() => this.driver.getWindowIds(), accept, `get window ids`);
 	}
 
 	async dispatchKeybinding(keybinding: string): Promise<void> {
@@ -185,15 +154,12 @@ export class Code {
 
 	async exit(): Promise<void> {
 		return measureAndLog(new Promise<void>((resolve, reject) => {
+			const pid = this.mainProcess.pid!;
+
 			let done = false;
 
 			// Start the exit flow via driver
-			this.driver.exitApplication().then(veto => {
-				if (veto) {
-					done = true;
-					reject(new Error('Smoke test exit call resulted in unexpected veto'));
-				}
-			});
+			this.driver.exitApplication();
 
 			// Await the exit of the application
 			(async () => {
@@ -201,17 +167,27 @@ export class Code {
 				while (!done) {
 					retries++;
 
-					if (retries > 20) {
-						this.logger.log('Smoke test exit call did not terminate process after 10s, still trying...');
+					if (retries === 20) {
+						this.logger.log('Smoke test exit call did not terminate process after 10s, forcefully exiting the application...');
+
+						// no need to await since we're polling for the process to die anyways
+						treekill(pid, err => {
+							try {
+								process.kill(pid, 0); // throws an exception if the process doesn't exist anymore
+								this.logger.log('Failed to kill Electron process tree:', err?.message);
+							} catch (error) {
+								// Expected when process is gone
+							}
+						});
 					}
 
-					if (retries > 40) {
+					if (retries === 40) {
 						done = true;
 						reject(new Error('Smoke test exit call did not terminate process after 20s, giving up'));
 					}
 
 					try {
-						process.kill(this.mainProcess.pid!, 0); // throws an exception if the process doesn't exist anymore.
+						process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
 						await new Promise(resolve => setTimeout(resolve, 500));
 					} catch (error) {
 						done = true;
@@ -228,10 +204,9 @@ export class Code {
 		const windowId = await this.getActiveWindowId();
 		accept = accept || (result => textContent !== undefined ? textContent === result : !!result);
 
-		return await poll(
+		return await this.poll(
 			() => this.driver.getElements(windowId, selector).then(els => els.length > 0 ? Promise.resolve(els[0].textContent) : Promise.reject(new Error('Element not found for textContent'))),
 			s => accept!(typeof s === 'string' ? s : ''),
-			this.logger,
 			`get text content '${selector}'`,
 			retryCount
 		);
@@ -239,47 +214,47 @@ export class Code {
 
 	async waitAndClick(selector: string, xoffset?: number, yoffset?: number, retryCount: number = 200): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.click(windowId, selector, xoffset, yoffset), () => true, this.logger, `click '${selector}'`, retryCount);
+		await this.poll(() => this.driver.click(windowId, selector, xoffset, yoffset), () => true, `click '${selector}'`, retryCount);
 	}
 
 	async waitForSetValue(selector: string, value: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.setValue(windowId, selector, value), () => true, this.logger, `set value '${selector}'`);
+		await this.poll(() => this.driver.setValue(windowId, selector, value), () => true, `set value '${selector}'`);
 	}
 
 	async waitForElements(selector: string, recursive: boolean, accept: (result: IElement[]) => boolean = result => result.length > 0): Promise<IElement[]> {
 		const windowId = await this.getActiveWindowId();
-		return await poll(() => this.driver.getElements(windowId, selector, recursive), accept, this.logger, `get elements '${selector}'`);
+		return await this.poll(() => this.driver.getElements(windowId, selector, recursive), accept, `get elements '${selector}'`);
 	}
 
 	async waitForElement(selector: string, accept: (result: IElement | undefined) => boolean = result => !!result, retryCount: number = 200): Promise<IElement> {
 		const windowId = await this.getActiveWindowId();
-		return await poll<IElement>(() => this.driver.getElements(windowId, selector).then(els => els[0]), accept, this.logger, `get element '${selector}'`, retryCount);
+		return await this.poll<IElement>(() => this.driver.getElements(windowId, selector).then(els => els[0]), accept, `get element '${selector}'`, retryCount);
 	}
 
 	async waitForActiveElement(selector: string, retryCount: number = 200): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.isActiveElement(windowId, selector), r => r, this.logger, `is active element '${selector}'`, retryCount);
+		await this.poll(() => this.driver.isActiveElement(windowId, selector), r => r, `is active element '${selector}'`, retryCount);
 	}
 
 	async waitForTitle(accept: (title: string) => boolean): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.getTitle(windowId), accept, this.logger, `get title`);
+		await this.poll(() => this.driver.getTitle(windowId), accept, `get title`);
 	}
 
 	async waitForTypeInEditor(selector: string, text: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.typeInEditor(windowId, selector, text), () => true, this.logger, `type in editor '${selector}'`);
+		await this.poll(() => this.driver.typeInEditor(windowId, selector, text), () => true, `type in editor '${selector}'`);
 	}
 
 	async waitForTerminalBuffer(selector: string, accept: (result: string[]) => boolean): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.getTerminalBuffer(windowId, selector), accept, this.logger, `get terminal buffer '${selector}'`);
+		await this.poll(() => this.driver.getTerminalBuffer(windowId, selector), accept, `get terminal buffer '${selector}'`);
 	}
 
 	async writeInTerminal(selector: string, value: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.writeInTerminal(windowId, selector, value), () => true, this.logger, `writeInTerminal '${selector}'`);
+		await this.poll(() => this.driver.writeInTerminal(windowId, selector, value), () => true, `writeInTerminal '${selector}'`);
 	}
 
 	async getLocaleInfo(): Promise<ILocaleInfo> {
@@ -305,6 +280,42 @@ export class Code {
 
 	dispose(): void {
 		this.client.dispose();
+	}
+
+	private async poll<T>(
+		fn: () => Thenable<T>,
+		acceptFn: (result: T) => boolean,
+		timeoutMessage: string,
+		retryCount = 200,
+		retryInterval = 100 // millis
+	): Promise<T> {
+		let trial = 1;
+		let lastError: string = '';
+
+		while (true) {
+			if (trial > retryCount) {
+				this.logger.log('Timeout!');
+				this.logger.log(lastError);
+				this.logger.log(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
+
+				throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
+			}
+
+			let result;
+			try {
+				result = await fn();
+				if (acceptFn(result)) {
+					return result;
+				} else {
+					lastError = 'Did not pass accept function';
+				}
+			} catch (e: any) {
+				lastError = Array.isArray(e.stack) ? e.stack.join(os.EOL) : e.stack;
+			}
+
+			await new Promise(resolve => setTimeout(resolve, retryInterval));
+			trial++;
+		}
 	}
 }
 

@@ -72,7 +72,7 @@ export function isDebuggerMainContribution(dbg: IDebuggerContribution) {
 	return dbg.type && (dbg.label || dbg.program || dbg.runtime);
 }
 
-export function getExactExpressionStartAndEnd(lineContent: string, looseStart: number, looseEnd: number): { start: number, end: number } {
+export function getExactExpressionStartAndEnd(lineContent: string, looseStart: number, looseEnd: number): { start: number; end: number } {
 	let matchingExpression: string | undefined = undefined;
 	let startOffset = 0;
 
@@ -256,6 +256,14 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 						break;
 					case 'setBreakpoints':
 						(<DebugProtocol.SetBreakpointsResponse>response).body.breakpoints.forEach(bp => fixSourcePath(false, bp.source));
+						break;
+					case 'disassemble':
+						{
+							const di = <DebugProtocol.DisassembleResponse>response;
+							if (di.body) {
+								di.body.instructions.forEach(di => fixSourcePath(false, di.location));
+							}
+						}
 						break;
 					default:
 						break;

@@ -6,9 +6,10 @@
 import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
+import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 
 export class TerminalFindWidget extends SimpleFindWidget {
 	protected _findInputFocused: IContextKey<boolean>;
@@ -19,9 +20,11 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		findState: FindReplaceState,
 		@IContextViewService _contextViewService: IContextViewService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService
 	) {
-		super(_contextViewService, _contextKeyService, findState, true);
+		super(_contextViewService, _contextKeyService, findState, { showOptionButtons: true, showResultCount: true });
+
 		this._register(findState.onFindReplaceStateChange(() => {
 			this.show();
 		}));
@@ -41,7 +44,17 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			instance.xterm?.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
 		}
 	}
+
 	override reveal(initialInput?: string): void {
+		const instance = this._terminalService.activeInstance;
+		if (instance && this.inputValue && this.inputValue !== '') {
+			// trigger highlight all matches
+			instance.xterm?.findPrevious(this.inputValue, { incremental: true, regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() }).then(foundMatch => {
+				this.updateButtons(foundMatch);
+			});
+		}
+		this.updateButtons(false);
+
 		super.reveal(initialInput);
 		this._findWidgetVisible.set(true);
 	}
@@ -58,13 +71,33 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		if (instance) {
 			instance.focus();
 		}
+		// Terminals in a group currently share a find widget, so hide
+		// all decorations for terminals in this group
+		const activeGroup = this._terminalGroupService.activeGroup;
+		if (instance?.target !== TerminalLocation.Editor && activeGroup) {
+			for (const terminal of activeGroup.terminalInstances) {
+				terminal.xterm?.clearSearchDecorations();
+			}
+		} else {
+			instance?.xterm?.clearSearchDecorations();
+		}
+	}
+
+	protected async _getResultCount(): Promise<{ resultIndex: number; resultCount: number } | undefined> {
+		const instance = this._terminalService.activeInstance;
+		if (instance) {
+			return instance.xterm?.findResult;
+		}
+		return undefined;
 	}
 
 	protected _onInputChanged() {
 		// Ignore input changes for now
 		const instance = this._terminalService.activeInstance;
 		if (instance?.xterm) {
-			instance.xterm.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true });
+			instance.xterm.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true }).then(foundMatch => {
+				this.updateButtons(foundMatch);
+			});
 		}
 		return false;
 	}

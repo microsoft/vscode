@@ -6,7 +6,12 @@
 declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/133935
 
+	export interface SourceControlActionButton {
+		command: Command;
+		description?: string;
+	}
+
 	export interface SourceControl {
-		actionButton?: Command;
+		actionButton?: SourceControlActionButton;
 	}
 }

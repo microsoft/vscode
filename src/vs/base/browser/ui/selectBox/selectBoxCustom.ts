@@ -777,8 +777,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this._register(onSelectDropDownKeyDown.filter(e => (e.keyCode >= KeyCode.Digit0 && e.keyCode <= KeyCode.KeyZ) || (e.keyCode >= KeyCode.Semicolon && e.keyCode <= KeyCode.NumpadDivide)).on(this.onCharacter, this));
 
 		// SetUp list mouse controller - control navigation, disabled items, focus
-
-		this._register(dom.addDisposableListener(this.selectList.getHTMLElement(), dom.EventType.POINTER_DOWN, e => this.onPointerDown(e)));
+		this._register(dom.addDisposableListener(this.selectList.getHTMLElement(), dom.EventType.POINTER_UP, e => this.onPointerUp(e)));
 
 		this._register(this.selectList.onMouseOver(e => typeof e.index !== 'undefined' && this.selectList.setFocus([e.index])));
 		this._register(this.selectList.onDidChangeFocus(e => this.onListFocus(e)));
@@ -800,7 +799,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	// List mouse controller - active exit, select option, fire onDidSelect if change, return focus to parent select
 	// Also takes in touchend events
-	private onPointerDown(e: PointerEvent): void {
+	private onPointerUp(e: PointerEvent): void {
 
 		if (!this.selectList.length) {
 			return;
@@ -814,7 +813,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 
 		// Check our mouse event is on an option (not scrollbar)
-		if (!!target.classList.contains('slider')) {
+		if (target.classList.contains('slider')) {
 			return;
 		}
 

@@ -108,7 +108,7 @@ export interface NodeSocketCloseEvent {
 	/**
 	 * Underlying error.
 	 */
-	readonly error: Error | undefined
+	readonly error: Error | undefined;
 }
 
 export interface WebSocketCloseEvent {
@@ -1123,7 +1123,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 // 			? 'renderer'
 // 			: (process.argv.includes('--type=extensionHost')
 // 				? 'extensionHost'
-// 				: (process.argv.some(item => item.includes('server/main'))
+// 				: (process.argv.some(item => item.includes('server-main'))
 // 					? 'server'
 // 					: 'unknown'
 // 				)

@@ -7,24 +7,23 @@ import { groupBy } from 'vs/base/common/arrays';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { compareIgnoreCase, uppercaseFirstLetter } from 'vs/base/common/strings';
-import { HoverProviderRegistry } from 'vs/editor/common/languages';
 import * as nls from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import type { SelectKernelReturnArgs } from 'vs/workbench/api/common/extHostNotebookKernels';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { CENTER_ACTIVE_CELL } from 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { getNotebookEditorFromEditorPane, INotebookEditor, KERNEL_EXTENSIONS, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { getNotebookEditorFromEditorPane, INotebookEditor, KERNEL_EXTENSIONS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -34,6 +33,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -94,7 +94,13 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: SelectKernelReturnArgs | { ui?: boolean, notebookEditor?: NotebookEditorWidget }): Promise<boolean> {
+	async run(accessor: ServicesAccessor, context?:
+		{ id: string; extension: string } |
+		{ notebookEditorId: string } |
+		{ id: string; extension: string; notebookEditorId: string } |
+		{ ui?: boolean; notebookEditor?: NotebookEditorWidget } |
+		undefined
+	): Promise<boolean> {
 		const notebookKernelService = accessor.get(INotebookKernelService);
 		const editorService = accessor.get(IEditorService);
 		const quickInputService = accessor.get(IQuickInputService);
@@ -152,7 +158,7 @@ registerAction2(class extends Action2 {
 		}
 
 		if (!newKernel) {
-			type KernelPick = IQuickPickItem & { kernel: INotebookKernel; };
+			type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
 			const configButton: IQuickInputButton = {
 				iconClass: ThemeIcon.asClassName(configureKernelIcon),
 				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default for '{0}' notebooks", editor.textModel.viewType)
@@ -254,6 +260,7 @@ class ImplictKernelSelector implements IDisposable {
 		notebook: NotebookTextModel,
 		suggested: INotebookKernel,
 		@INotebookKernelService notebookKernelService: INotebookKernelService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@ILogService logService: ILogService
 	) {
 		const disposables = new DisposableStore();
@@ -272,7 +279,7 @@ class ImplictKernelSelector implements IDisposable {
 					case NotebookCellsChangeType.ChangeCellContent:
 					case NotebookCellsChangeType.ModelChange:
 					case NotebookCellsChangeType.Move:
-					case NotebookCellsChangeType.ChangeLanguage:
+					case NotebookCellsChangeType.ChangeCellLanguage:
 						logService.trace('IMPLICIT kernel selection because of change event', event.kind);
 						selectKernel();
 						break;
@@ -284,7 +291,7 @@ class ImplictKernelSelector implements IDisposable {
 		// IMPLICITLY select a suggested kernel when users start to hover. This should
 		// be a strong enough hint that the user wants to interact with the notebook. Maybe
 		// add more triggers like goto-providers or completion-providers
-		disposables.add(HoverProviderRegistry.register({ scheme: Schemas.vscodeNotebookCell, pattern: notebook.uri.path }, {
+		disposables.add(languageFeaturesService.hoverProvider.register({ scheme: Schemas.vscodeNotebookCell, pattern: notebook.uri.path }, {
 			provideHover() {
 				logService.trace('IMPLICIT kernel selection because of hover');
 				selectKernel();
@@ -303,7 +310,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
-		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 		this._register(this._editorService.onDidActiveEditorChange(() => this._updateStatusbar()));
@@ -363,7 +370,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 				// when non trivial interactions with the notebook happen.
 				kernel = suggested!;
 				isSuggested = true;
-				this._kernelInfoElement.add(new ImplictKernelSelector(notebook, kernel, this._notebookKernelService, this._logService));
+				this._kernelInfoElement.add(this._instantiationService.createInstance(ImplictKernelSelector, notebook, kernel));
 			}
 			const tooltip = kernel.description ?? kernel.detail ?? kernel.label;
 			this._kernelInfoElement.add(this._statusbarService.addEntry(

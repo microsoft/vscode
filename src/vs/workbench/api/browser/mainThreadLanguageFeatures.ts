@@ -3,47 +3,56 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ITextModel, ISingleEditOperation } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/languages';
-import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Position as EditorPosition } from 'vs/editor/common/core/position';
-import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto, IdentifiableInlineCompletions, IdentifiableInlineCompletion, ITypeHierarchyItemDto } from '../common/extHost.protocol';
-import { ILanguageConfigurationService, LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageService } from 'vs/editor/common/services/language';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { URI } from 'vs/base/common/uri';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
+import { CancellationError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { revive } from 'vs/base/common/marshalling';
 import { mixin } from 'vs/base/common/objects';
+import { URI } from 'vs/base/common/uri';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { Position as EditorPosition } from 'vs/editor/common/core/position';
+import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import * as languages from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { IndentationRule, LanguageConfiguration, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { DataTransferConverter } from 'vs/workbench/api/common/shared/dataTransfer';
+import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
+import * as search from 'vs/workbench/contrib/search/common/search';
+import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape, reviveWorkspaceEditDto } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
-export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
+export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
 
 	private readonly _proxy: ExtHostLanguageFeaturesShape;
-	private readonly _languageService: ILanguageService;
 	private readonly _registrations = new Map<number, IDisposable>();
+
+	private readonly _dropIntoEditorListeners = new Map<ICodeEditor, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ILanguageService languageService: ILanguageService,
-		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 	) {
+		super();
+
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageFeatures);
-		this._languageService = languageService;
 
 		if (this._languageService) {
 			const updateAllWordDefinitions = () => {
 				let wordDefinitionDtos: ILanguageWordDefinitionDto[] = [];
-				for (const languageId of languageService.getRegisteredLanguageIds()) {
-					const wordDefinition = languageConfigurationService.getLanguageConfiguration(languageId).getWordDefinition();
+				for (const languageId of _languageService.getRegisteredLanguageIds()) {
+					const wordDefinition = this._languageConfigurationService.getLanguageConfiguration(languageId).getWordDefinition();
 					wordDefinitionDtos.push({
 						languageId: languageId,
 						regexSource: wordDefinition.source,
@@ -52,11 +61,11 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				}
 				this._proxy.$setWordDefinitions(wordDefinitionDtos);
 			};
-			languageConfigurationService.onDidChange((e) => {
+			this._languageConfigurationService.onDidChange((e) => {
 				if (!e.languageId) {
 					updateAllWordDefinitions();
 				} else {
-					const wordDefinition = languageConfigurationService.getLanguageConfiguration(e.languageId).getWordDefinition();
+					const wordDefinition = this._languageConfigurationService.getLanguageConfiguration(e.languageId).getWordDefinition();
 					this._proxy.$setWordDefinitions([{
 						languageId: e.languageId,
 						regexSource: wordDefinition.source,
@@ -68,11 +77,16 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		for (const registration of this._registrations.values()) {
 			registration.dispose();
 		}
 		this._registrations.clear();
+
+		dispose(this._dropIntoEditorListeners.values());
+		this._dropIntoEditorListeners.clear();
+
+		super.dispose();
 	}
 
 	$unregister(handle: number): void {
@@ -85,31 +99,31 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	//#region --- revive functions
 
-	private static _reviveLocationDto(data?: ILocationDto): modes.Location;
-	private static _reviveLocationDto(data?: ILocationDto[]): modes.Location[];
-	private static _reviveLocationDto(data: ILocationDto | ILocationDto[] | undefined): modes.Location | modes.Location[] | undefined {
+	private static _reviveLocationDto(data?: ILocationDto): languages.Location;
+	private static _reviveLocationDto(data?: ILocationDto[]): languages.Location[];
+	private static _reviveLocationDto(data: ILocationDto | ILocationDto[] | undefined): languages.Location | languages.Location[] | undefined {
 		if (!data) {
 			return data;
 		} else if (Array.isArray(data)) {
 			data.forEach(l => MainThreadLanguageFeatures._reviveLocationDto(l));
-			return <modes.Location[]>data;
+			return <languages.Location[]>data;
 		} else {
 			data.uri = URI.revive(data.uri);
-			return <modes.Location>data;
+			return <languages.Location>data;
 		}
 	}
 
-	private static _reviveLocationLinkDto(data: IDefinitionLinkDto): modes.LocationLink;
-	private static _reviveLocationLinkDto(data: IDefinitionLinkDto[]): modes.LocationLink[];
-	private static _reviveLocationLinkDto(data: IDefinitionLinkDto | IDefinitionLinkDto[]): modes.LocationLink | modes.LocationLink[] {
+	private static _reviveLocationLinkDto(data: ILocationLinkDto): languages.LocationLink;
+	private static _reviveLocationLinkDto(data: ILocationLinkDto[]): languages.LocationLink[];
+	private static _reviveLocationLinkDto(data: ILocationLinkDto | ILocationLinkDto[]): languages.LocationLink | languages.LocationLink[] {
 		if (!data) {
-			return <modes.LocationLink>data;
+			return <languages.LocationLink>data;
 		} else if (Array.isArray(data)) {
 			data.forEach(l => MainThreadLanguageFeatures._reviveLocationLinkDto(l));
-			return <modes.LocationLink[]>data;
+			return <languages.LocationLink[]>data;
 		} else {
 			data.uri = URI.revive(data.uri);
-			return <modes.LocationLink>data;
+			return <languages.LocationLink>data;
 		}
 	}
 
@@ -128,18 +142,18 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 	}
 
-	private static _reviveCodeActionDto(data: ReadonlyArray<ICodeActionDto>): modes.CodeAction[] {
+	private static _reviveCodeActionDto(data: ReadonlyArray<ICodeActionDto>): languages.CodeAction[] {
 		if (data) {
 			data.forEach(code => reviveWorkspaceEditDto(code.edit));
 		}
-		return <modes.CodeAction[]>data;
+		return <languages.CodeAction[]>data;
 	}
 
-	private static _reviveLinkDTO(data: ILinkDto): modes.ILink {
+	private static _reviveLinkDTO(data: ILinkDto): languages.ILink {
 		if (data.url && typeof data.url !== 'string') {
 			data.url = URI.revive(data.url);
 		}
-		return <modes.ILink>data;
+		return <languages.ILink>data;
 	}
 
 	private static _reviveCallHierarchyItemDto(data: ICallHierarchyItemDto | undefined): callh.CallHierarchyItem {
@@ -161,9 +175,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- outline
 
 	$registerDocumentSymbolProvider(handle: number, selector: IDocumentFilterDto[], displayName: string): void {
-		this._registrations.set(handle, modes.DocumentSymbolProviderRegistry.register(selector, <modes.DocumentSymbolProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.documentSymbolProvider.register(selector, <languages.DocumentSymbolProvider>{
 			displayName,
-			provideDocumentSymbols: (model: ITextModel, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined> => {
+			provideDocumentSymbols: (model: ITextModel, token: CancellationToken): Promise<languages.DocumentSymbol[] | undefined> => {
 				return this._proxy.$provideDocumentSymbols(handle, model.uri, token);
 			}
 		}));
@@ -173,8 +187,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerCodeLensSupport(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
 
-		const provider = <modes.CodeLensProvider>{
-			provideCodeLenses: async (model: ITextModel, token: CancellationToken): Promise<modes.CodeLensList | undefined> => {
+		const provider = <languages.CodeLensProvider>{
+			provideCodeLenses: async (model: ITextModel, token: CancellationToken): Promise<languages.CodeLensList | undefined> => {
 				const listDto = await this._proxy.$provideCodeLenses(handle, model.uri, token);
 				if (!listDto) {
 					return undefined;
@@ -184,18 +198,18 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					dispose: () => listDto.cacheId && this._proxy.$releaseCodeLenses(handle, listDto.cacheId)
 				};
 			},
-			resolveCodeLens: (_model: ITextModel, codeLens: modes.CodeLens, token: CancellationToken): Promise<modes.CodeLens | undefined> => {
+			resolveCodeLens: (_model: ITextModel, codeLens: languages.CodeLens, token: CancellationToken): Promise<languages.CodeLens | undefined> => {
 				return this._proxy.$resolveCodeLens(handle, codeLens, token);
 			}
 		};
 
 		if (typeof eventHandle === 'number') {
-			const emitter = new Emitter<modes.CodeLensProvider>();
+			const emitter = new Emitter<languages.CodeLensProvider>();
 			this._registrations.set(eventHandle, emitter);
 			provider.onDidChange = emitter.event;
 		}
 
-		this._registrations.set(handle, modes.CodeLensProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, this._languageFeaturesService.codeLensProvider.register(selector, provider));
 	}
 
 	$emitCodeLensEvent(eventHandle: number, event?: any): void {
@@ -208,15 +222,15 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- declaration
 
 	$registerDefinitionSupport(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.DefinitionProviderRegistry.register(selector, <modes.DefinitionProvider>{
-			provideDefinition: (model, position, token): Promise<modes.LocationLink[]> => {
+		this._registrations.set(handle, this._languageFeaturesService.definitionProvider.register(selector, <languages.DefinitionProvider>{
+			provideDefinition: (model, position, token): Promise<languages.LocationLink[]> => {
 				return this._proxy.$provideDefinition(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
 			}
 		}));
 	}
 
 	$registerDeclarationSupport(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.DeclarationProviderRegistry.register(selector, <modes.DeclarationProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.declarationProvider.register(selector, <languages.DeclarationProvider>{
 			provideDeclaration: (model, position, token) => {
 				return this._proxy.$provideDeclaration(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
 			}
@@ -224,16 +238,16 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	}
 
 	$registerImplementationSupport(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.ImplementationProviderRegistry.register(selector, <modes.ImplementationProvider>{
-			provideImplementation: (model, position, token): Promise<modes.LocationLink[]> => {
+		this._registrations.set(handle, this._languageFeaturesService.implementationProvider.register(selector, <languages.ImplementationProvider>{
+			provideImplementation: (model, position, token): Promise<languages.LocationLink[]> => {
 				return this._proxy.$provideImplementation(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
 			}
 		}));
 	}
 
 	$registerTypeDefinitionSupport(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.TypeDefinitionProviderRegistry.register(selector, <modes.TypeDefinitionProvider>{
-			provideTypeDefinition: (model, position, token): Promise<modes.LocationLink[]> => {
+		this._registrations.set(handle, this._languageFeaturesService.typeDefinitionProvider.register(selector, <languages.TypeDefinitionProvider>{
+			provideTypeDefinition: (model, position, token): Promise<languages.LocationLink[]> => {
 				return this._proxy.$provideTypeDefinition(handle, model.uri, position, token).then(MainThreadLanguageFeatures._reviveLocationLinkDto);
 			}
 		}));
@@ -242,8 +256,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- extra info
 
 	$registerHoverProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.HoverProviderRegistry.register(selector, <modes.HoverProvider>{
-			provideHover: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.Hover | undefined> => {
+		this._registrations.set(handle, this._languageFeaturesService.hoverProvider.register(selector, <languages.HoverProvider>{
+			provideHover: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<languages.Hover | undefined> => {
 				return this._proxy.$provideHover(handle, model.uri, position, token);
 			}
 		}));
@@ -252,8 +266,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- debug hover
 
 	$registerEvaluatableExpressionProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.EvaluatableExpressionProviderRegistry.register(selector, <modes.EvaluatableExpressionProvider>{
-			provideEvaluatableExpression: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.EvaluatableExpression | undefined> => {
+		this._registrations.set(handle, this._languageFeaturesService.evaluatableExpressionProvider.register(selector, <languages.EvaluatableExpressionProvider>{
+			provideEvaluatableExpression: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<languages.EvaluatableExpression | undefined> => {
 				return this._proxy.$provideEvaluatableExpression(handle, model.uri, position, token);
 			}
 		}));
@@ -262,8 +276,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- inline values
 
 	$registerInlineValuesProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
-		const provider = <modes.InlineValuesProvider>{
-			provideInlineValues: (model: ITextModel, viewPort: EditorRange, context: modes.InlineValueContext, token: CancellationToken): Promise<modes.InlineValue[] | undefined> => {
+		const provider = <languages.InlineValuesProvider>{
+			provideInlineValues: (model: ITextModel, viewPort: EditorRange, context: languages.InlineValueContext, token: CancellationToken): Promise<languages.InlineValue[] | undefined> => {
 				return this._proxy.$provideInlineValues(handle, model.uri, viewPort, context, token);
 			}
 		};
@@ -274,7 +288,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			provider.onDidChangeInlineValues = emitter.event;
 		}
 
-		this._registrations.set(handle, modes.InlineValuesProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, this._languageFeaturesService.inlineValuesProvider.register(selector, provider));
 	}
 
 	$emitInlineValuesEvent(eventHandle: number, event?: any): void {
@@ -287,8 +301,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- occurrences
 
 	$registerDocumentHighlightProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.DocumentHighlightProviderRegistry.register(selector, <modes.DocumentHighlightProvider>{
-			provideDocumentHighlights: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.DocumentHighlight[] | undefined> => {
+		this._registrations.set(handle, this._languageFeaturesService.documentHighlightProvider.register(selector, <languages.DocumentHighlightProvider>{
+			provideDocumentHighlights: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<languages.DocumentHighlight[] | undefined> => {
 				return this._proxy.$provideDocumentHighlights(handle, model.uri, position, token);
 			}
 		}));
@@ -297,8 +311,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- linked editing
 
 	$registerLinkedEditingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.LinkedEditingRangeProviderRegistry.register(selector, <modes.LinkedEditingRangeProvider>{
-			provideLinkedEditingRanges: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.LinkedEditingRanges | undefined> => {
+		this._registrations.set(handle, this._languageFeaturesService.linkedEditingRangeProvider.register(selector, <languages.LinkedEditingRangeProvider>{
+			provideLinkedEditingRanges: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<languages.LinkedEditingRanges | undefined> => {
 				const res = await this._proxy.$provideLinkedEditingRanges(handle, model.uri, position, token);
 				if (res) {
 					return {
@@ -314,8 +328,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- references
 
 	$registerReferenceSupport(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.ReferenceProviderRegistry.register(selector, <modes.ReferenceProvider>{
-			provideReferences: (model: ITextModel, position: EditorPosition, context: modes.ReferenceContext, token: CancellationToken): Promise<modes.Location[]> => {
+		this._registrations.set(handle, this._languageFeaturesService.referenceProvider.register(selector, <languages.ReferenceProvider>{
+			provideReferences: (model: ITextModel, position: EditorPosition, context: languages.ReferenceContext, token: CancellationToken): Promise<languages.Location[]> => {
 				return this._proxy.$provideReferences(handle, model.uri, position, context, token).then(MainThreadLanguageFeatures._reviveLocationDto);
 			}
 		}));
@@ -324,13 +338,13 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- quick fix
 
 	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, supportsResolve: boolean): void {
-		const provider: modes.CodeActionProvider = {
-			provideCodeActions: async (model: ITextModel, rangeOrSelection: EditorRange | Selection, context: modes.CodeActionContext, token: CancellationToken): Promise<modes.CodeActionList | undefined> => {
+		const provider: languages.CodeActionProvider = {
+			provideCodeActions: async (model: ITextModel, rangeOrSelection: EditorRange | Selection, context: languages.CodeActionContext, token: CancellationToken): Promise<languages.CodeActionList | undefined> => {
 				const listDto = await this._proxy.$provideCodeActions(handle, model.uri, rangeOrSelection, context, token);
 				if (!listDto) {
 					return undefined;
 				}
-				return <modes.CodeActionList>{
+				return <languages.CodeActionList>{
 					actions: MainThreadLanguageFeatures._reviveCodeActionDto(listDto.actions),
 					dispose: () => {
 						if (typeof listDto.cacheId === 'number') {
@@ -345,43 +359,43 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		};
 
 		if (supportsResolve) {
-			provider.resolveCodeAction = async (codeAction: modes.CodeAction, token: CancellationToken): Promise<modes.CodeAction> => {
+			provider.resolveCodeAction = async (codeAction: languages.CodeAction, token: CancellationToken): Promise<languages.CodeAction> => {
 				const data = await this._proxy.$resolveCodeAction(handle, (<ICodeActionDto>codeAction).cacheId!, token);
 				codeAction.edit = reviveWorkspaceEditDto(data);
 				return codeAction;
 			};
 		}
 
-		this._registrations.set(handle, modes.CodeActionProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, this._languageFeaturesService.codeActionProvider.register(selector, provider));
 	}
 
 	// --- formatting
 
 	$registerDocumentFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void {
-		this._registrations.set(handle, modes.DocumentFormattingEditProviderRegistry.register(selector, <modes.DocumentFormattingEditProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.documentFormattingEditProvider.register(selector, <languages.DocumentFormattingEditProvider>{
 			extensionId,
 			displayName,
-			provideDocumentFormattingEdits: (model: ITextModel, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
+			provideDocumentFormattingEdits: (model: ITextModel, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
 				return this._proxy.$provideDocumentFormattingEdits(handle, model.uri, options, token);
 			}
 		}));
 	}
 
 	$registerRangeFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void {
-		this._registrations.set(handle, modes.DocumentRangeFormattingEditProviderRegistry.register(selector, <modes.DocumentRangeFormattingEditProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.documentRangeFormattingEditProvider.register(selector, <languages.DocumentRangeFormattingEditProvider>{
 			extensionId,
 			displayName,
-			provideDocumentRangeFormattingEdits: (model: ITextModel, range: EditorRange, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
+			provideDocumentRangeFormattingEdits: (model: ITextModel, range: EditorRange, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
 				return this._proxy.$provideDocumentRangeFormattingEdits(handle, model.uri, range, options, token);
 			}
 		}));
 	}
 
 	$registerOnTypeFormattingSupport(handle: number, selector: IDocumentFilterDto[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void {
-		this._registrations.set(handle, modes.OnTypeFormattingEditProviderRegistry.register(selector, <modes.OnTypeFormattingEditProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.onTypeFormattingEditProvider.register(selector, <languages.OnTypeFormattingEditProvider>{
 			extensionId,
 			autoFormatTriggerCharacters,
-			provideOnTypeFormattingEdits: (model: ITextModel, position: EditorPosition, ch: string, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
+			provideOnTypeFormattingEdits: (model: ITextModel, position: EditorPosition, ch: string, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
 				return this._proxy.$provideOnTypeFormattingEdits(handle, model.uri, position, ch, options, token);
 			}
 		}));
@@ -398,7 +412,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				if (lastResultId !== undefined) {
 					this._proxy.$releaseWorkspaceSymbols(handle, lastResultId);
 				}
-				lastResultId = result._id;
+				lastResultId = result.cacheId;
 				return MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(result.symbols);
 			}
 		};
@@ -414,26 +428,26 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- rename
 
 	$registerRenameSupport(handle: number, selector: IDocumentFilterDto[], supportResolveLocation: boolean): void {
-		this._registrations.set(handle, modes.RenameProviderRegistry.register(selector, <modes.RenameProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.renameProvider.register(selector, <languages.RenameProvider>{
 			provideRenameEdits: (model: ITextModel, position: EditorPosition, newName: string, token: CancellationToken) => {
 				return this._proxy.$provideRenameEdits(handle, model.uri, position, newName, token).then(reviveWorkspaceEditDto);
 			},
 			resolveRenameLocation: supportResolveLocation
-				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.RenameLocation | undefined> => this._proxy.$resolveRenameLocation(handle, model.uri, position, token)
+				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<languages.RenameLocation | undefined> => this._proxy.$resolveRenameLocation(handle, model.uri, position, token)
 				: undefined
 		}));
 	}
 
 	// --- semantic tokens
 
-	$registerDocumentSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend, eventHandle: number | undefined): void {
+	$registerDocumentSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend, eventHandle: number | undefined): void {
 		let event: Event<void> | undefined = undefined;
 		if (typeof eventHandle === 'number') {
 			const emitter = new Emitter<void>();
 			this._registrations.set(eventHandle, emitter);
 			event = emitter.event;
 		}
-		this._registrations.set(handle, modes.DocumentSemanticTokensProviderRegistry.register(selector, new MainThreadDocumentSemanticTokensProvider(this._proxy, handle, legend, event)));
+		this._registrations.set(handle, this._languageFeaturesService.documentSemanticTokensProvider.register(selector, new MainThreadDocumentSemanticTokensProvider(this._proxy, handle, legend, event)));
 	}
 
 	$emitDocumentSemanticTokensEvent(eventHandle: number): void {
@@ -443,19 +457,19 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 	}
 
-	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void {
-		this._registrations.set(handle, modes.DocumentRangeSemanticTokensProviderRegistry.register(selector, new MainThreadDocumentRangeSemanticTokensProvider(this._proxy, handle, legend)));
+	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend): void {
+		this._registrations.set(handle, this._languageFeaturesService.documentRangeSemanticTokensProvider.register(selector, new MainThreadDocumentRangeSemanticTokensProvider(this._proxy, handle, legend)));
 	}
 
 	// --- suggest
 
-	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange, replace: IRange }, data: ISuggestDataDto): modes.CompletionItem {
+	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange; replace: IRange }, data: ISuggestDataDto): languages.CompletionItem {
 
 		const label = data[ISuggestDataDtoField.label];
 
 		return {
 			label,
-			kind: data[ISuggestDataDtoField.kind] ?? modes.CompletionItemKind.Property,
+			kind: data[ISuggestDataDtoField.kind] ?? languages.CompletionItemKind.Property,
 			tags: data[ISuggestDataDtoField.kindModifier],
 			detail: data[ISuggestDataDtoField.detail],
 			documentation: data[ISuggestDataDtoField.documentation],
@@ -474,10 +488,10 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	}
 
 	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, displayName: string): void {
-		const provider: modes.CompletionItemProvider = {
+		const provider: languages.CompletionItemProvider = {
 			triggerCharacters,
 			_debugDisplayName: displayName,
-			provideCompletionItems: async (model: ITextModel, position: EditorPosition, context: modes.CompletionContext, token: CancellationToken): Promise<modes.CompletionList | undefined> => {
+			provideCompletionItems: async (model: ITextModel, position: EditorPosition, context: languages.CompletionContext, token: CancellationToken): Promise<languages.CompletionList | undefined> => {
 				const result = await this._proxy.$provideCompletionItems(handle, model.uri, position, context, token);
 				if (!result) {
 					return result;
@@ -506,12 +520,12 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				});
 			};
 		}
-		this._registrations.set(handle, modes.CompletionProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, this._languageFeaturesService.completionProvider.register(selector, provider));
 	}
 
 	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[]): void {
-		const provider: modes.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
-			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: modes.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
+		const provider: languages.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
+			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
 				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
 			},
 			handleItemDidShow: async (completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion): Promise<void> => {
@@ -521,18 +535,18 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				this._proxy.$freeInlineCompletionsList(handle, completions.pid);
 			}
 		};
-		this._registrations.set(handle, modes.InlineCompletionsProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, this._languageFeaturesService.inlineCompletionsProvider.register(selector, provider));
 	}
 
 	// --- parameter hints
 
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void {
-		this._registrations.set(handle, modes.SignatureHelpProviderRegistry.register(selector, <modes.SignatureHelpProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.signatureHelpProvider.register(selector, <languages.SignatureHelpProvider>{
 
 			signatureHelpTriggerCharacters: metadata.triggerCharacters,
 			signatureHelpRetriggerCharacters: metadata.retriggerCharacters,
 
-			provideSignatureHelp: async (model: ITextModel, position: EditorPosition, token: CancellationToken, context: modes.SignatureHelpContext): Promise<modes.SignatureHelpResult | undefined> => {
+			provideSignatureHelp: async (model: ITextModel, position: EditorPosition, token: CancellationToken, context: languages.SignatureHelpContext): Promise<languages.SignatureHelpResult | undefined> => {
 				const result = await this._proxy.$provideSignatureHelp(handle, model.uri, position, context, token);
 				if (!result) {
 					return undefined;
@@ -549,21 +563,51 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- inline hints
 
-	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
-		const provider = <modes.InlayHintsProvider>{
-			provideInlayHints: async (model: ITextModel, range: EditorRange, token: CancellationToken): Promise<modes.InlayHint[] | undefined> => {
+	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean, eventHandle: number | undefined, displayName: string | undefined): void {
+		const provider = <languages.InlayHintsProvider>{
+			displayName,
+			provideInlayHints: async (model: ITextModel, range: EditorRange, token: CancellationToken): Promise<languages.InlayHintList | undefined> => {
 				const result = await this._proxy.$provideInlayHints(handle, model.uri, range, token);
-				return result?.hints;
+				if (!result) {
+					return;
+				}
+				return {
+					hints: revive(result.hints),
+					dispose: () => {
+						if (result.cacheId) {
+							this._proxy.$releaseInlayHints(handle, result.cacheId);
+						}
+					}
+				};
 			}
 		};
-
+		if (supportsResolve) {
+			provider.resolveInlayHint = async (hint, token) => {
+				const dto: IInlayHintDto = hint;
+				if (!dto.cacheId) {
+					return hint;
+				}
+				const result = await this._proxy.$resolveInlayHint(handle, dto.cacheId, token);
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				if (!result) {
+					return hint;
+				}
+				return {
+					...hint,
+					tooltip: result.tooltip,
+					label: revive<string | languages.InlayHintLabelPart[]>(result.label)
+				};
+			};
+		}
 		if (typeof eventHandle === 'number') {
 			const emitter = new Emitter<void>();
 			this._registrations.set(eventHandle, emitter);
 			provider.onDidChangeInlayHints = emitter.event;
 		}
 
-		this._registrations.set(handle, modes.InlayHintsProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, this._languageFeaturesService.inlayHintsProvider.register(selector, provider));
 	}
 
 	$emitInlayHintsEvent(eventHandle: number): void {
@@ -576,7 +620,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- links
 
 	$registerDocumentLinkProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean): void {
-		const provider: modes.LinkProvider = {
+		const provider: languages.LinkProvider = {
 			provideLinks: (model, token) => {
 				return this._proxy.$provideDocumentLinks(handle, model.uri, token).then(dto => {
 					if (!dto) {
@@ -585,8 +629,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					return {
 						links: dto.links.map(MainThreadLanguageFeatures._reviveLinkDTO),
 						dispose: () => {
-							if (typeof dto.id === 'number') {
-								this._proxy.$releaseDocumentLinks(handle, dto.id);
+							if (typeof dto.cacheId === 'number') {
+								this._proxy.$releaseDocumentLinks(handle, dto.cacheId);
 							}
 						}
 					};
@@ -604,14 +648,14 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				});
 			};
 		}
-		this._registrations.set(handle, modes.LinkProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, this._languageFeaturesService.linkProvider.register(selector, provider));
 	}
 
 	// --- colors
 
 	$registerDocumentColorProvider(handle: number, selector: IDocumentFilterDto[]): void {
 		const proxy = this._proxy;
-		this._registrations.set(handle, modes.ColorProviderRegistry.register(selector, <modes.DocumentColorProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.colorProvider.register(selector, <languages.DocumentColorProvider>{
 			provideDocumentColors: (model, token) => {
 				return proxy.$provideDocumentColors(handle, model.uri, token)
 					.then(documentColors => {
@@ -644,19 +688,19 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- folding
 
 	$registerFoldingRangeProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
-		const provider = <modes.FoldingRangeProvider>{
+		const provider = <languages.FoldingRangeProvider>{
 			provideFoldingRanges: (model, context, token) => {
 				return this._proxy.$provideFoldingRanges(handle, model.uri, context, token);
 			}
 		};
 
 		if (typeof eventHandle === 'number') {
-			const emitter = new Emitter<modes.FoldingRangeProvider>();
+			const emitter = new Emitter<languages.FoldingRangeProvider>();
 			this._registrations.set(eventHandle, emitter);
 			provider.onDidChange = emitter.event;
 		}
 
-		this._registrations.set(handle, modes.FoldingRangeProviderRegistry.register(selector, provider));
+		this._registrations.set(handle, this._languageFeaturesService.foldingRangeProvider.register(selector, provider));
 	}
 
 	$emitFoldingRangeEvent(eventHandle: number, event?: any): void {
@@ -669,7 +713,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// -- smart select
 
 	$registerSelectionRangeProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, modes.SelectionRangeRegistry.register(selector, {
+		this._registrations.set(handle, this._languageFeaturesService.selectionRangeProvider.register(selector, {
 			provideSelectionRanges: (model, positions, token) => {
 				return this._proxy.$provideSelectionRanges(handle, model.uri, positions, token);
 			}
@@ -776,7 +820,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 
 		if (this._languageService.isRegisteredLanguageId(languageId)) {
-			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageId, configuration, 100));
+			this._registrations.set(handle, this._languageConfigurationService.register(languageId, configuration, 100));
 		}
 	}
 
@@ -817,14 +861,25 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}));
 	}
 
+
+	// --- document drop Edits
+
+	$registerDocumentOnDropProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		this._registrations.set(handle, this._languageFeaturesService.documentOnDropEditProvider.register(selector, {
+			provideDocumentOnDropEdits: async (model, position, dataTransfer, token) => {
+				const dataTransferDto = await DataTransferConverter.toDataTransferDTO(dataTransfer);
+				return this._proxy.$provideDocumentOnDropEdits(handle, model.uri, position, dataTransferDto, token);
+			}
+		}));
+	}
 }
 
-export class MainThreadDocumentSemanticTokensProvider implements modes.DocumentSemanticTokensProvider {
+export class MainThreadDocumentSemanticTokensProvider implements languages.DocumentSemanticTokensProvider {
 
 	constructor(
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		private readonly _handle: number,
-		private readonly _legend: modes.SemanticTokensLegend,
+		private readonly _legend: languages.SemanticTokensLegend,
 		public readonly onDidChange: Event<void> | undefined,
 	) {
 	}
@@ -835,11 +890,11 @@ export class MainThreadDocumentSemanticTokensProvider implements modes.DocumentS
 		}
 	}
 
-	public getLegend(): modes.SemanticTokensLegend {
+	public getLegend(): languages.SemanticTokensLegend {
 		return this._legend;
 	}
 
-	async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<modes.SemanticTokens | modes.SemanticTokensEdits | null> {
+	async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<languages.SemanticTokens | languages.SemanticTokensEdits | null> {
 		const nLastResultId = lastResultId ? parseInt(lastResultId, 10) : 0;
 		const encodedDto = await this._proxy.$provideDocumentSemanticTokens(this._handle, model.uri, nLastResultId, token);
 		if (!encodedDto) {
@@ -862,20 +917,20 @@ export class MainThreadDocumentSemanticTokensProvider implements modes.DocumentS
 	}
 }
 
-export class MainThreadDocumentRangeSemanticTokensProvider implements modes.DocumentRangeSemanticTokensProvider {
+export class MainThreadDocumentRangeSemanticTokensProvider implements languages.DocumentRangeSemanticTokensProvider {
 
 	constructor(
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		private readonly _handle: number,
-		private readonly _legend: modes.SemanticTokensLegend,
+		private readonly _legend: languages.SemanticTokensLegend,
 	) {
 	}
 
-	public getLegend(): modes.SemanticTokensLegend {
+	public getLegend(): languages.SemanticTokensLegend {
 		return this._legend;
 	}
 
-	async provideDocumentRangeSemanticTokens(model: ITextModel, range: EditorRange, token: CancellationToken): Promise<modes.SemanticTokens | null> {
+	async provideDocumentRangeSemanticTokens(model: ITextModel, range: EditorRange, token: CancellationToken): Promise<languages.SemanticTokens | null> {
 		const encodedDto = await this._proxy.$provideDocumentRangeSemanticTokens(this._handle, model.uri, range, token);
 		if (!encodedDto) {
 			return null;

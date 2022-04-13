@@ -18,7 +18,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -30,7 +30,7 @@ export class BrowserWindow extends Disposable {
 		@ILifecycleService private readonly lifecycleService: BrowserLifecycleService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
@@ -112,16 +112,20 @@ export class BrowserWindow extends Disposable {
 
 	private create(): void {
 
-		// Driver
-		if (this.environmentService.options?.developmentOptions?.enableSmokeTestDriver) {
-			(async () => this._register(await registerWindowDriver()))();
-		}
-
 		// Handle open calls
 		this.setupOpenHandlers();
 
 		// Label formatting
 		this.registerLabelFormatters();
+
+		// Smoke Test Driver
+		this.setupDriver();
+	}
+
+	private setupDriver(): void {
+		if (this.environmentService.enableSmokeTestDriver) {
+			registerWindowDriver();
+		}
 	}
 
 	private setupOpenHandlers(): void {
@@ -195,7 +199,7 @@ export class BrowserWindow extends Disposable {
 
 	private registerLabelFormatters() {
 		this._register(this.labelService.registerFormatter({
-			scheme: Schemas.userData,
+			scheme: Schemas.vscodeUserData,
 			priority: true,
 			formatting: {
 				label: '(Settings) ${path}',

@@ -128,20 +128,17 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._linkProviderRegistration?.dispose();
 	}
 
-	private _registerLinkProviderIfNotYetRegistered(): void {
-		if (!this._linkProviderRegistration) {
-			this._linkProviderRegistration = this._extHostLanguageFeatures.registerDocumentLinkProvider(undefined, '*', this._linkProvider);
-		}
-	}
 
-	registerFileSystemProvider(extension: IExtensionDescription, scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean, isReadonly?: boolean } = {}) {
+	registerFileSystemProvider(extension: IExtensionDescription, scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean; isReadonly?: boolean } = {}) {
 
 		if (this._registeredSchemes.has(scheme)) {
 			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
 		}
 
 		//
-		this._registerLinkProviderIfNotYetRegistered();
+		if (!this._linkProviderRegistration) {
+			this._linkProviderRegistration = this._extHostLanguageFeatures.registerDocumentLinkProvider(extension, '*', this._linkProvider);
+		}
 
 		const handle = this._handlePool++;
 		this._linkProvider.add(scheme);
@@ -223,19 +220,19 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		return Promise.resolve(this._getFsProvider(handle).readFile(URI.revive(resource))).then(data => VSBuffer.wrap(data));
 	}
 
-	$writeFile(handle: number, resource: UriComponents, content: VSBuffer, opts: files.FileWriteOptions): Promise<void> {
+	$writeFile(handle: number, resource: UriComponents, content: VSBuffer, opts: files.IFileWriteOptions): Promise<void> {
 		return Promise.resolve(this._getFsProvider(handle).writeFile(URI.revive(resource), content.buffer, opts));
 	}
 
-	$delete(handle: number, resource: UriComponents, opts: files.FileDeleteOptions): Promise<void> {
+	$delete(handle: number, resource: UriComponents, opts: files.IFileDeleteOptions): Promise<void> {
 		return Promise.resolve(this._getFsProvider(handle).delete(URI.revive(resource), opts));
 	}
 
-	$rename(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): Promise<void> {
+	$rename(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.IFileOverwriteOptions): Promise<void> {
 		return Promise.resolve(this._getFsProvider(handle).rename(URI.revive(oldUri), URI.revive(newUri), opts));
 	}
 
-	$copy(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): Promise<void> {
+	$copy(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.IFileOverwriteOptions): Promise<void> {
 		const provider = this._getFsProvider(handle);
 		if (!provider.copy) {
 			throw new Error('FileSystemProvider does not implement "copy"');
@@ -260,7 +257,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		}
 	}
 
-	$open(handle: number, resource: UriComponents, opts: files.FileOpenOptions): Promise<number> {
+	$open(handle: number, resource: UriComponents, opts: files.IFileOpenOptions): Promise<number> {
 		const provider = this._getFsProvider(handle);
 		if (!provider.open) {
 			throw new Error('FileSystemProvider does not implement "open"');

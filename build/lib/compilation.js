@@ -38,7 +38,7 @@ function createCompile(src, build, emitError) {
     const tsb = require('gulp-tsb');
     const sourcemaps = require('gulp-sourcemaps');
     const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
-    const overrideOptions = Object.assign(Object.assign({}, getTypeScriptCompilerOptions(src)), { inlineSources: Boolean(build) });
+    const overrideOptions = { ...getTypeScriptCompilerOptions(src), inlineSources: Boolean(build) };
     if (!build) {
         overrideOptions.inlineSourceMap = true;
     }

@@ -56,6 +56,14 @@ export class TestId {
 	}
 
 	/**
+	 * Cheaply ets whether the ID refers to the root .
+	 */
+	public static root(idString: string) {
+		const idx = idString.indexOf(TestIdPathParts.Delimiter);
+		return idx === -1 ? idString : idString.slice(0, idx);
+	}
+
+	/**
 	 * Creates a test ID from a serialized TestId instance.
 	 */
 	public static fromString(idString: string) {

@@ -334,8 +334,8 @@ export async function getExtensions(extensions: string[], extensionsWorkbenchSer
 		}
 	}
 	if (toQuery.length) {
-		const galleryResult = await extensionsWorkbenchService.queryGallery({ names: toQuery, pageSize: toQuery.length }, CancellationToken.None);
-		result.push(...galleryResult.firstPage);
+		const galleryResult = await extensionsWorkbenchService.getExtensions(toQuery.map(id => ({ id })), CancellationToken.None);
+		result.push(...galleryResult);
 	}
 	return result;
 }

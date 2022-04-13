@@ -54,7 +54,7 @@ export interface INotebookKernel {
 	cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
 }
 
-export interface INotebookTextModelLike { uri: URI; viewType: string; }
+export interface INotebookTextModelLike { uri: URI; viewType: string }
 
 export const INotebookKernelService = createDecorator<INotebookKernelService>('INotebookKernelService');
 
@@ -64,7 +64,7 @@ export interface INotebookKernelService {
 	readonly onDidAddKernel: Event<INotebookKernel>;
 	readonly onDidRemoveKernel: Event<INotebookKernel>;
 	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent>;
-	readonly onDidChangeNotebookAffinity: Event<void>
+	readonly onDidChangeNotebookAffinity: Event<void>;
 
 	registerKernel(kernel: INotebookKernel): IDisposable;
 
@@ -80,6 +80,11 @@ export interface INotebookKernelService {
 	 * but a kernel can be bound to many notebooks (depending on its configuration)
 	 */
 	selectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void;
+
+	/**
+	 * Set the kernel that a notebook should use when it starts up
+	 */
+	preselectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void;
 
 	/**
 	 * Bind a notebook type to a kernel.

@@ -15,7 +15,7 @@ function Get-PipelineArtifact {
 			return
 		}
 
-		$res.value | Where-Object { $_.name -Like $Name }
+		$res.value | Where-Object { $_.name -Like $Name -and $_.name -NotLike "*sbom" }
 	} catch {
 		Write-Warning $_
 	}

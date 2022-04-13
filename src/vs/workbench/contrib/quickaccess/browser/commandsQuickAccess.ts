@@ -11,7 +11,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
 import { DisposableStore, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/commandsQuickAccess';
+import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { Language } from 'vs/base/common/platform';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';

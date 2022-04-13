@@ -8,9 +8,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
-import { ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
+import { ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 
 
 interface IDiffRange {

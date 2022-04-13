@@ -14,7 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { ISerializedTestResults } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ISerializedTestResults } from 'vs/workbench/contrib/testing/common/testTypes';
 import { HydratedTestResult, ITestResult, LiveOutputController, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 
 export const RETAIN_MAX_RESULTS = 128;
@@ -53,7 +53,7 @@ const currentRevision = 1;
 export abstract class BaseTestResultStorage implements ITestResultStorage {
 	declare readonly _serviceBrand: undefined;
 
-	protected readonly stored = new StoredValue<ReadonlyArray<{ rev: number, id: string, bytes: number }>>({
+	protected readonly stored = new StoredValue<ReadonlyArray<{ rev: number; id: string; bytes: number }>>({
 		key: 'storedTestResults',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.MACHINE
@@ -118,7 +118,7 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 	 */
 	public async persist(results: ReadonlyArray<ITestResult>): Promise<void> {
 		const toDelete = new Map(this.stored.get([]).map(({ id, bytes }) => [id, bytes]));
-		const toStore: { rev: number, id: string; bytes: number }[] = [];
+		const toStore: { rev: number; id: string; bytes: number }[] = [];
 		const todo: Promise<unknown>[] = [];
 		let budget = RETAIN_MAX_BYTES;
 

@@ -22,7 +22,7 @@ const localize = nls.loadMessageBundle();
 
 
 interface DidApplyRefactoringCommand_Args {
-	readonly codeAction: InlinedCodeAction
+	readonly codeAction: InlinedCodeAction;
 }
 
 class DidApplyRefactoringCommand implements Command {

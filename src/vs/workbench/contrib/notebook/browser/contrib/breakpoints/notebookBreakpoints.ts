@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
@@ -15,7 +16,7 @@ import { IBreakpoint, IDebugService } from 'vs/workbench/contrib/debug/common/de
 import { Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellUri, NotebookCellsChangeType, NullablePartialNotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -133,23 +134,30 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 	private readonly _pausedCells = new Set<string>();
 
+	private _scheduler: RunOnceScheduler;
+
 	constructor(
 		@IDebugService private readonly _debugService: IDebugService,
-		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super();
 
-		this._register(_debugService.getModel().onDidChangeCallStack(() => this.onDidChangeCallStack()));
+		this._register(_debugService.getModel().onDidChangeCallStack(() => {
+			// First update using the stale callstack if the real callstack is empty, to reduce blinking while stepping.
+			// After not pausing for 2s, update again with the latest callstack.
+			this.onDidChangeCallStack(true);
+			this._scheduler.schedule();
+		}));
+		this._scheduler = this._register(new RunOnceScheduler(() => this.onDidChangeCallStack(false), 2000));
 	}
 
-	private async onDidChangeCallStack(): Promise<void> {
+	private async onDidChangeCallStack(fallBackOnStaleCallstack: boolean): Promise<void> {
 		const newPausedCells = new Set<string>();
 
 		for (const session of this._debugService.getModel().getSessions()) {
 			for (const thread of session.getAllThreads()) {
 				let callStack = thread.getCallStack();
-				if (!callStack.length) {
+				if (fallBackOnStaleCallstack && !callStack.length) {
 					callStack = (thread as Thread).getStaleCallStack();
 				}
 
@@ -176,23 +184,13 @@ class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 	private editIsPaused(cellUri: URI, isPaused: boolean) {
 		const parsed = CellUri.parse(cellUri);
 		if (parsed) {
-			const notebookModel = this._notebookService.getNotebookTextModel(parsed.notebook);
-			const internalMetadata: NullablePartialNotebookCellInternalMetadata = {
-				isPaused
-			};
-			if (isPaused) {
-				this._notebookExecutionStateService.updateNotebookCellExecution(parsed.notebook, parsed.handle, [{
+			const exeState = this._notebookExecutionStateService.getCellExecution(cellUri);
+			if (exeState && (exeState.isPaused !== isPaused || !exeState.didPause)) {
+				exeState.update([{
 					editType: CellExecutionUpdateType.ExecutionState,
-					didPause: true
+					didPause: true,
+					isPaused
 				}]);
-			}
-
-			if (notebookModel?.checkCellExistence(parsed.handle)) {
-				notebookModel?.applyEdits([{
-					editType: CellEditType.PartialInternalMetadata,
-					handle: parsed.handle,
-					internalMetadata,
-				}], true, undefined, () => undefined, undefined);
 			}
 		}
 	}

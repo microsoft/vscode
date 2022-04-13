@@ -37,20 +37,19 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	protected readonly _onDecorationTypeRegistered: Emitter<string> = this._register(new Emitter<string>());
 	public onDecorationTypeRegistered: Event<string> = this._onDecorationTypeRegistered.event;
 
-	private readonly _codeEditors: { [editorId: string]: ICodeEditor; };
-	private readonly _diffEditors: { [editorId: string]: IDiffEditor; };
-	private _globalStyleSheet: GlobalStyleSheet | null;
+	private readonly _codeEditors: { [editorId: string]: ICodeEditor };
+	private readonly _diffEditors: { [editorId: string]: IDiffEditor };
+	protected _globalStyleSheet: GlobalStyleSheet | null;
 	private readonly _decorationOptionProviders = new Map<string, IModelDecorationOptionsProvider>();
 	private readonly _editorStyleSheets = new Map<string, RefCountedStyleSheet>();
 
 	constructor(
-		styleSheet: GlobalStyleSheet | null,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 		this._codeEditors = Object.create(null);
 		this._diffEditors = Object.create(null);
-		this._globalStyleSheet = styleSheet ? styleSheet : null;
+		this._globalStyleSheet = null;
 	}
 
 	addCodeEditor(editor: ICodeEditor): void {
@@ -105,9 +104,13 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 	private _getOrCreateGlobalStyleSheet(): GlobalStyleSheet {
 		if (!this._globalStyleSheet) {
-			this._globalStyleSheet = new GlobalStyleSheet(dom.createStyleSheet());
+			this._globalStyleSheet = this._createGlobalStyleSheet();
 		}
 		return this._globalStyleSheet;
+	}
+
+	protected _createGlobalStyleSheet(): GlobalStyleSheet {
+		return new GlobalStyleSheet(dom.createStyleSheet());
 	}
 
 	private _getOrCreateStyleSheet(editor: ICodeEditor | undefined): GlobalStyleSheet | RefCountedStyleSheet {
@@ -179,7 +182,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		return provider.resolveDecorationCSSRules();
 	}
 
-	private readonly _transientWatchers: { [uri: string]: ModelTransientSettingWatcher; } = {};
+	private readonly _transientWatchers: { [uri: string]: ModelTransientSettingWatcher } = {};
 	private readonly _modelProperties = new Map<string, Map<string, any>>();
 
 	public setModelProperty(resource: URI, key: string, value: any): void {
@@ -249,7 +252,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 export class ModelTransientSettingWatcher {
 	public readonly uri: string;
-	private readonly _values: { [key: string]: any; };
+	private readonly _values: { [key: string]: any };
 
 	constructor(uri: string, model: ITextModel, owner: AbstractCodeEditorService) {
 		this.uri = uri;
@@ -519,7 +522,7 @@ export class DecorationTypeOptionsProvider implements IModelDecorationOptionsPro
 }
 
 
-export const _CSS_MAP: { [prop: string]: string; } = {
+export const _CSS_MAP: { [prop: string]: string } = {
 	color: 'color:{0} !important;',
 	opacity: 'opacity:{0};',
 	backgroundColor: 'background-color:{0};',
@@ -672,7 +675,7 @@ class DecorationCSSRules {
 			hasContent = true;
 		}
 		if (lightCSS.length > 0) {
-			sheet.insertRule(`.vs${this._unThemedSelector} {${lightCSS}}`, 0);
+			sheet.insertRule(`.vs${this._unThemedSelector}, .hc-light${this._unThemedSelector} {${lightCSS}}`, 0);
 			hasContent = true;
 		}
 		if (darkCSS.length > 0) {

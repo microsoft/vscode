@@ -5,8 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
-import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { ExtensionInstallLocation, IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
@@ -15,6 +14,7 @@ import { NativeRemoteExtensionManagementService } from 'vs/workbench/services/ex
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
@@ -53,6 +53,11 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 			return this.remoteExtensionManagementServer;
 		}
 		throw new Error(`Invalid Extension ${extension.location}`);
+	}
+
+	getExtensionInstallLocation(extension: IExtension): ExtensionInstallLocation | null {
+		const server = this.getExtensionManagementServer(extension);
+		return server === this.remoteExtensionManagementServer ? ExtensionInstallLocation.Remote : ExtensionInstallLocation.Local;
 	}
 }
 

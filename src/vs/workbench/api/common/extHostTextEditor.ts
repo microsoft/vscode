@@ -8,7 +8,7 @@ import { illegalArgument, readonly } from 'vs/base/common/errors';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
-import { ISingleEditOperation } from 'vs/editor/common/model';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from 'vs/workbench/api/common/extHostTypes';
@@ -60,7 +60,7 @@ export class TextEditorEdit {
 	private _setEndOfLine: EndOfLine | undefined = undefined;
 	private _finalized: boolean = false;
 
-	constructor(document: vscode.TextDocument, options: { undoStopBefore: boolean; undoStopAfter: boolean; }) {
+	constructor(document: vscode.TextDocument, options: { undoStopBefore: boolean; undoStopAfter: boolean }) {
 		this._document = document;
 		this._documentVersionId = document.version;
 		this._undoStopBefore = options.undoStopBefore;
@@ -431,7 +431,7 @@ export class ExtHostTextEditor {
 				throw readonly('viewColumn');
 			},
 			// --- edit
-			edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
+			edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
 				if (that._disposed) {
 					return Promise.reject(new Error('TextEditor#edit not possible on closed editors'));
 				}
@@ -440,7 +440,7 @@ export class ExtHostTextEditor {
 				return that._applyEdit(edit);
 			},
 			// --- snippet edit
-			insertSnippet(snippet: SnippetString, where?: Position | readonly Position[] | Range | readonly Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
+			insertSnippet(snippet: SnippetString, where?: Position | readonly Position[] | Range | readonly Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
 				if (that._disposed) {
 					return Promise.reject(new Error('TextEditor#insertSnippet not possible on closed editors'));
 				}
@@ -466,7 +466,7 @@ export class ExtHostTextEditor {
 						}
 					}
 				}
-				return _proxy.$tryInsertSnippet(id, snippet.value, ranges, options);
+				return _proxy.$tryInsertSnippet(id, document.getValue().version, snippet.value, ranges, options);
 			},
 			setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): void {
 				const willBeEmpty = (ranges.length === 0);

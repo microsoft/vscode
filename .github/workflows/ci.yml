@@ -13,17 +13,17 @@ on:
 jobs:
   windows:
     name: Windows
-    runs-on: windows-latest
-    timeout-minutes: 40
+    runs-on: windows-2022
+    timeout-minutes: 60
     env:
       CHILD_CONCURRENCY: "1"
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 14
+          node-version: 16
 
       - uses: actions/setup-python@v2
         with:
@@ -69,6 +69,9 @@ jobs:
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
+      - name: Compile Integration Tests
+        run: yarn --cwd test/integration/browser compile
+
       - name: Run Unit Tests (Electron)
         run: .\scripts\test.bat
 
@@ -76,21 +79,18 @@ jobs:
         run: yarn test-node
 
       - name: Run Unit Tests (Browser, Chromium)
-        run: yarn test-browser --browser chromium
-
-      - name: Compile Integration Tests
-        run: yarn --cwd test/integration/browser compile
+        run: yarn test-browser-no-install --browser chromium
 
       - name: Run Integration Tests (Electron)
         run: .\scripts\test-integration.bat
 
       - name: Run Integration Tests (Browser, Firefox)
-        timeout-minutes: 10
-        run: .\resources\server\test\test-web-integration.bat --browser firefox
+        timeout-minutes: 20
+        run: .\scripts\test-web-integration.bat --browser firefox
 
       - name: Run Integration Tests (Remote)
-        timeout-minutes: 10
-        run: .\resources\server\test\test-remote-integration.bat
+        timeout-minutes: 20
+        run: .\scripts\test-remote-integration.bat
 
   linux:
     name: Linux
@@ -99,7 +99,7 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       # TODO: rename azure-pipelines/linux/xvfb.init to github-actions
       - name: Setup Build Environment
@@ -113,7 +113,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 14
+          node-version: 16
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -123,8 +123,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules14-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules14-
+          key: ${{ runner.os }}-cacheNodeModules21-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules21-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -145,6 +145,9 @@ jobs:
 
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
+
+      - name: Compile Integration Tests
+        run: yarn --cwd test/integration/browser compile
 
       - name: Run Unit Tests (Electron)
         id: electron-unit-tests
@@ -156,10 +159,7 @@ jobs:
 
       - name: Run Unit Tests (Browser, Chromium)
         id: browser-unit-tests
-        run: DISPLAY=:10 yarn test-browser --browser chromium
-
-      - name: Compile Integration Tests
-        run: yarn --cwd test/integration/browser compile
+        run: DISPLAY=:10 yarn test-browser-no-install --browser chromium
 
       - name: Run Integration Tests (Electron)
         id: electron-integration-tests
@@ -167,12 +167,12 @@ jobs:
 
       - name: Run Integration Tests (Browser, Chromium)
         id: browser-integration-tests
-        run: DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser chromium
+        run: DISPLAY=:10 ./scripts/test-web-integration.sh --browser chromium
 
       - name: Run Integration Tests (Remote)
         id: electron-remote-integration-tests
-        timeout-minutes: 7
-        run: DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
+        timeout-minutes: 15
+        run: DISPLAY=:10 ./scripts/test-remote-integration.sh
 
   darwin:
     name: macOS
@@ -181,11 +181,11 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 14
+          node-version: 16
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -195,8 +195,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules14-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules14-
+          key: ${{ runner.os }}-cacheNodeModules21-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules21-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -217,6 +217,9 @@ jobs:
 
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
+
+      - name: Compile Integration Tests
+        run: yarn --cwd test/integration/browser compile
 
       # This is required for keytar unittests, otherwise we hit
       # https://github.com/atom/node-keytar/issues/76
@@ -233,20 +236,17 @@ jobs:
         run: yarn test-node
 
       - name: Run Unit Tests (Browser, Chromium)
-        run: DISPLAY=:10 yarn test-browser --browser chromium
-
-      - name: Compile Integration Tests
-        run: yarn --cwd test/integration/browser compile
+        run: DISPLAY=:10 yarn test-browser-no-install --browser chromium
 
       - name: Run Integration Tests (Electron)
         run: DISPLAY=:10 ./scripts/test-integration.sh
 
       - name: Run Integration Tests (Browser, Webkit)
-        run: DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser webkit
+        run: DISPLAY=:10 ./scripts/test-web-integration.sh --browser webkit
 
       - name: Run Integration Tests (Remote)
-        timeout-minutes: 7
-        run: DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
+        timeout-minutes: 15
+        run: DISPLAY=:10 ./scripts/test-remote-integration.sh
 
   hygiene:
     name: Hygiene, Layering and Monaco Editor
@@ -255,11 +255,11 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 14
+          node-version: 16
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -269,8 +269,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules14-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules14-
+          key: ${{ runner.os }}-cacheNodeModules21-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules21-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -289,51 +289,26 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: yarn --frozen-lockfile --network-timeout 180000
 
+      - name: Download Playwright
+        run: yarn playwright-install
+
       - name: Run Hygiene Checks
         run: yarn gulp hygiene
 
       - name: Run Valid Layers Checks
         run: yarn valid-layers-check
 
+      - name: Compile /build/
+        run: yarn --cwd build compile
+
+      - name: Check clean git state
+        run: ./.github/workflows/check-clean-git-state.sh
+
       - name: Run eslint
         run: yarn eslint
-
-      - name: Run Monaco Editor Checks
-        run: yarn monaco-compile-check
 
       - name: Run vscode-dts Compile Checks
         run: yarn vscode-dts-compile-check
 
       - name: Run Trusted Types Checks
         run: yarn tsec-compile-check
-
-      - name: Editor Distro & ESM Bundle
-        run: yarn gulp editor-esm-bundle
-
-      - name: Typings validation prep
-        run: |
-          mkdir typings-test
-
-      - name: Typings validation
-        working-directory: ./typings-test
-        run: |
-          yarn init -yp
-          ../node_modules/.bin/tsc --init
-          echo "import '../out-monaco-editor-core';" > a.ts
-          ../node_modules/.bin/tsc --noEmit
-
-      - name: Webpack Editor
-        working-directory: ./test/monaco
-        run: yarn run bundle
-
-      - name: Compile Editor Tests
-        working-directory: ./test/monaco
-        run: yarn run compile
-
-      - name: Download Playwright
-        run: yarn playwright-install
-
-      - name: Run Editor Tests
-        timeout-minutes: 5
-        working-directory: ./test/monaco
-        run: yarn test

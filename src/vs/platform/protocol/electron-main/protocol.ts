@@ -38,10 +38,10 @@ export interface IProtocolMainService {
 	createIPCObjectUrl<T>(): IIPCObjectUrl<T>;
 
 	/**
-	 * Adds a `URI` as root to the list of allowed
+	 * Adds a path as root to the list of allowed
 	 * resources for file access.
 	 *
-	 * @param root the URI to allow for file access
+	 * @param root the path to allow for file access
 	 */
-	addValidFileRoot(root: URI): IDisposable;
+	addValidFileRoot(root: string): IDisposable;
 }

@@ -27,6 +27,10 @@
 	transition: top 200ms linear;
 }
 
+.monaco-workbench.reduce-motion .monaco-editor .find-widget {
+	transition: top 0ms linear;
+}
+
 .monaco-workbench .simple-find-part.visible {
 	visibility: visible;
 }

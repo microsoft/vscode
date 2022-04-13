@@ -11,7 +11,7 @@ import { coalesce } from '../utils/arrays';
 import { Delayer, setImmediate } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
 import { Disposable } from '../utils/dispose';
-import * as languageModeIds from '../utils/languageModeIds';
+import * as languageModeIds from '../utils/languageIds';
 import { ResourceMap } from '../utils/resourceMap';
 import * as typeConverters from '../utils/typeConverters';
 

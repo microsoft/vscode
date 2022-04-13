@@ -18,7 +18,7 @@ import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/ter
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -38,7 +38,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	onDidChangeTerminalState: Event<vscode.Terminal>;
 	onDidWriteTerminalData: Event<vscode.TerminalDataWriteEvent>;
 
-	createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;
+	createTerminal(name?: string, shellPath?: string, shellArgs?: readonly string[] | string): vscode.Terminal;
 	createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal;
 	createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal;
 	attachPtyToTerminal(id: number, pty: vscode.Pseudoterminal): void;
@@ -57,7 +57,7 @@ export interface ITerminalInternalOptions {
 	 * This location is different from the API location because it can include splitActiveTerminal,
 	 * a property we resolve internally
 	 */
-	location?: TerminalLocation | { viewColumn: number, preserveState?: boolean } | { splitActiveTerminal: boolean };
+	location?: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean };
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
@@ -153,7 +153,7 @@ export class ExtHostTerminal {
 			isExtensionOwnedTerminal: true,
 			useShellEnvironment: withNullAsUndefined(internalOptions?.useShellEnvironment),
 			location: internalOptions?.location || this._serializeParentTerminal(options.location, internalOptions?.resolvedExtHostIdentifier),
-			disablePersistence: withNullAsUndefined(options.disablePersistence)
+			isTransient: withNullAsUndefined(options.isTransient)
 		});
 	}
 
@@ -168,7 +168,7 @@ export class ExtHostTerminal {
 			icon: iconPath,
 			color: ThemeColor.isThemeColor(color) ? color.id : undefined,
 			location: this._serializeParentTerminal(location, parentTerminal),
-			disablePersistence: true
+			isTransient: true
 		});
 		// At this point, the id has been set via `$acceptTerminalOpened`
 		if (typeof this._id === 'string') {
@@ -247,8 +247,7 @@ export class ExtHostTerminal {
 export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	readonly id = 0;
 	readonly shouldPersist = false;
-	private _capabilities: ProcessCapability[] = [];
-	get capabilities(): ProcessCapability[] { return this._capabilities; }
+
 	private readonly _onProcessData = new Emitter<string>();
 	public readonly onProcessData: Event<string> = this._onProcessData.event;
 	private readonly _onProcessReady = new Emitter<IProcessReadyEvent>();
@@ -330,7 +329,7 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 			this._pty.setDimensions?.(initialDimensions);
 		}
 
-		this._onProcessReady.fire({ pid: -1, cwd: '', capabilities: this._capabilities });
+		this._onProcessReady.fire({ pid: -1, cwd: '' });
 	}
 }
 
@@ -633,8 +632,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		this._terminalProcesses.get(id)?.getCwd().then(cwd => this._proxy.$sendProcessProperty(id, { type: ProcessPropertyType.Cwd, value: cwd }));
 	}
 
-	public $acceptProcessRequestLatency(id: number): number {
-		return id;
+	public $acceptProcessRequestLatency(id: number): Promise<number> {
+		return Promise.resolve(id);
 	}
 
 	public registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable {
@@ -702,7 +701,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 		const result: ITerminalLinkDto[] = [];
 		const context: vscode.TerminalLinkContext = { terminal: terminal.value, line };
-		const promises: vscode.ProviderResult<{ provider: vscode.TerminalLinkProvider, links: vscode.TerminalLink[] }>[] = [];
+		const promises: vscode.ProviderResult<{ provider: vscode.TerminalLinkProvider; links: vscode.TerminalLink[] }>[] = [];
 
 		for (const provider of this._linkProviders) {
 			promises.push(Promises.withAsyncBody(async r => {

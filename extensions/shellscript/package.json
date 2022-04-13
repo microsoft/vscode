@@ -76,7 +76,13 @@
       {
         "language": "shellscript",
         "scopeName": "source.shell",
-        "path": "./syntaxes/shell-unix-bash.tmLanguage.json"
+        "path": "./syntaxes/shell-unix-bash.tmLanguage.json",
+        "balancedBracketScopes": [
+          "*"
+        ],
+        "unbalancedBracketScopes": [
+          "meta.scope.case-pattern.shell"
+        ]
       }
     ],
     "configurationDefaults": {

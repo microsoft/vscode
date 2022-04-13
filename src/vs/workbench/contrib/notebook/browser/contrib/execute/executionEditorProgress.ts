@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellExecutionEntry, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export class ExecutionEditorProgressController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.executionEditorProgress';
@@ -19,7 +19,7 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 	) {
 		super();
 
-		this._register(_notebookEditor.onDidChangeVisibleRanges(() => this._update()));
+		this._register(_notebookEditor.onDidScroll(() => this._update()));
 
 		this._register(_notebookExecutionStateService.onDidChangeCellExecution(e => {
 			if (e.notebook.toString() !== this._notebookEditor.textModel?.uri.toString()) {
@@ -40,18 +40,21 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 
 		const executing = this._notebookExecutionStateService.getCellExecutionStatesForNotebook(this._notebookEditor.textModel?.uri)
 			.filter(exe => exe.state === NotebookCellExecutionState.Executing);
-		const executionIsVisible = (exe: ICellExecutionEntry) => {
+		const executionIsVisible = (exe: INotebookCellExecution) => {
 			for (const range of this._notebookEditor.visibleRanges) {
 				for (const cell of this._notebookEditor.getCellsInRange(range)) {
 					if (cell.handle === exe.cellHandle) {
-						return true;
+						const top = this._notebookEditor.getAbsoluteTopOfElement(cell);
+						if (this._notebookEditor.scrollTop < top + 30) {
+							return true;
+						}
 					}
 				}
 			}
 
 			return false;
 		};
-		if (!executing.length || executing.some(executionIsVisible)) {
+		if (!executing.length || executing.some(executionIsVisible) || executing.some(e => e.isPaused)) {
 			this._notebookEditor.hideProgress();
 		} else {
 			this._notebookEditor.showProgress();

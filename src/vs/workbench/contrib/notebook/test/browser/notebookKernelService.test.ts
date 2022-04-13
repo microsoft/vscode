@@ -178,7 +178,7 @@ class TestNotebookKernel implements INotebookKernel {
 		throw new Error('Method not implemented.');
 	}
 
-	constructor(opts?: { languages?: string[], label?: string, viewType?: string }) {
+	constructor(opts?: { languages?: string[]; label?: string; viewType?: string }) {
 		this.supportedLanguages = opts?.languages ?? [PLAINTEXT_LANGUAGE_ID];
 		this.label = opts?.label ?? this.label;
 		this.viewType = opts?.viewType ?? this.viewType;

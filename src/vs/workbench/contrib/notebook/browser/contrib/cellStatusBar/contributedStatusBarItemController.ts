@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
 import { disposableTimeout, Throttler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/notebookVisibleCellObserver';
-import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { INotebookCellStatusBarItemList } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -46,7 +44,7 @@ export class ContributedStatusBarItemController extends Disposable implements IN
 	}
 
 	private _updateVisibleCells(e: {
-		added: CellViewModel[];
+		added: ICellViewModel[];
 		removed: { handle: number }[];
 	}): void {
 		const vm = this._notebookEditor._getViewModel();
@@ -82,7 +80,7 @@ class CellStatusBarHelper extends Disposable {
 	private readonly _updateThrottler = new Throttler();
 
 	constructor(
-		private readonly _notebookViewModel: NotebookViewModel,
+		private readonly _notebookViewModel: INotebookViewModel,
 		private readonly _cell: ICellViewModel,
 		private readonly _notebookCellStatusBarService: INotebookCellStatusBarService
 	) {
@@ -120,7 +118,7 @@ class CellStatusBarHelper extends Disposable {
 			return;
 		}
 
-		const items = flatten(itemLists.map(itemList => itemList.items));
+		const items = itemLists.map(itemList => itemList.items).flat();
 		const newIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items }]);
 
 		this._currentItemLists.forEach(itemList => itemList.dispose && itemList.dispose());

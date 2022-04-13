@@ -35,9 +35,7 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 
 	// --- config
 	sandbox: boolean;
-	driverVerbose: boolean;
 	disableUpdates: boolean;
-	disableKeytar: boolean;
 }
 
 export class EnvironmentMainService extends NativeEnvironmentService implements IEnvironmentMainService {
@@ -59,9 +57,6 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 
 	@memoize
 	get sandbox(): boolean { return !!this.args['__sandbox']; }
-
-	@memoize
-	get driverVerbose(): boolean { return !!this.args['driver-verbose']; }
 
 	@memoize
 	get disableUpdates(): boolean { return !!this.args['disable-updates']; }

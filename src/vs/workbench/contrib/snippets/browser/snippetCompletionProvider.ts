@@ -9,15 +9,16 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/services/language';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { localize } from 'vs/nls';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { isPatternInWord } from 'vs/base/common/filters';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { getWordAtText } from 'vs/editor/common/model/wordHelper';
+import { getWordAtText } from 'vs/editor/common/core/wordHelper';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class SnippetCompletion implements CompletionItem {
 
@@ -25,18 +26,20 @@ export class SnippetCompletion implements CompletionItem {
 	detail: string;
 	insertText: string;
 	documentation?: MarkdownString;
-	range: IRange | { insert: IRange, replace: IRange };
+	range: IRange | { insert: IRange; replace: IRange };
 	sortText: string;
 	kind: CompletionItemKind;
 	insertTextRules: CompletionItemInsertTextRule;
+	extensionId?: ExtensionIdentifier;
 
 	constructor(
 		readonly snippet: Snippet,
-		range: IRange | { insert: IRange, replace: IRange }
+		range: IRange | { insert: IRange; replace: IRange }
 	) {
 		this.label = { label: snippet.prefix, description: snippet.name };
 		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
 		this.insertText = snippet.codeSnippet;
+		this.extensionId = snippet.extensionId;
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.kind = CompletionItemKind.Snippet;
@@ -81,30 +84,36 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		const triggerCharacterLow = context.triggerCharacter?.toLowerCase() ?? '';
 
 
-		for (const snippet of snippets) {
+		snippet: for (const snippet of snippets) {
+
+			if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && !snippet.prefixLow.startsWith(triggerCharacterLow)) {
+				// strict -> when having trigger characters they must prefix-match
+				continue snippet;
+			}
 
 			const word = getWordAtText(1, languageConfig.getWordDefinition(), snippet.prefixLow, 0);
 
 			if (wordUntil && word && !isPatternInWord(wordUntil, 0, wordUntil.length, snippet.prefixLow, 0, snippet.prefixLow.length)) {
 				// when at a word the snippet prefix must match
-				continue;
+				continue snippet;
 			}
 
 
-			for (let pos = Math.max(0, columnOffset - snippet.prefixLow.length); pos < lineContentLow.length; pos++) {
-
-				if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && !snippet.prefixLow.startsWith(triggerCharacterLow)) {
-					// strict -> when having trigger characters they must prefix-match
-					continue;
-				}
+			column: for (let pos = Math.max(0, columnOffset - snippet.prefixLow.length); pos < lineContentLow.length; pos++) {
 
 				if (!isPatternInWord(lineContentLow, pos, columnOffset, snippet.prefixLow, 0, snippet.prefixLow.length)) {
-					continue;
+					continue column;
 				}
 
 				const prefixRestLen = snippet.prefixLow.length - (columnOffset - pos);
 				const endsWithPrefixRest = compareSubstring(lineContentLow, snippet.prefixLow, columnOffset, columnOffset + prefixRestLen, columnOffset - pos);
 				const startPosition = position.with(undefined, pos + 1);
+
+				if (wordUntil && position.equals(startPosition)) {
+					// at word-end but no overlap
+					continue snippet;
+				}
+
 				let endColumn = endsWithPrefixRest === 0 ? position.column + prefixRestLen : position.column;
 
 				// First check if there is anything to the right of the cursor
@@ -176,9 +185,9 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		// validate the `languageId` to ensure this is a user
 		// facing language with a name and the chance to have
 		// snippets, else fall back to the outer language
-		model.tokenizeIfCheap(position.lineNumber);
+		model.tokenization.tokenizeIfCheap(position.lineNumber);
 		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
-		if (!this._languageService.getLanguageName(languageId)){
+		if (!this._languageService.getLanguageName(languageId)) {
 			languageId = model.getLanguageId();
 		}
 		return languageId;

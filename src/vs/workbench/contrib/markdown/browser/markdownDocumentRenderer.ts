@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { hookDomPurifyHrefAndSrcSanitizer } from 'vs/base/browser/dom';
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import * as marked from 'vs/base/common/marked/marked';
+import { marked } from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { ILanguageService } from 'vs/editor/common/services/language';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const DEFAULT_MARKDOWN_STYLES = `
@@ -152,21 +153,7 @@ code > div {
 const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];
 function sanitize(documentContent: string, allowUnknownProtocols: boolean): string {
 
-	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
-	dompurify.addHook('afterSanitizeAttributes', (node) => {
-		// build an anchor to map URLs to
-		const anchor = document.createElement('a');
-
-		// check all href/src attributes for validity
-		for (const attr in ['href', 'src']) {
-			if (node.hasAttribute(attr)) {
-				anchor.href = node.getAttribute(attr) as string;
-				if (!allowedProtocols.includes(anchor.protocol)) {
-					node.removeAttribute(attr);
-				}
-			}
-		}
-	});
+	const hook = hookDomPurifyHrefAndSrcSanitizer(allowedProtocols, true);
 
 	try {
 		return dompurify.sanitize(documentContent, {
@@ -186,7 +173,7 @@ function sanitize(documentContent: string, allowUnknownProtocols: boolean): stri
 			...(allowUnknownProtocols ? { ALLOW_UNKNOWN_PROTOCOLS: true } : {}),
 		});
 	} finally {
-		dompurify.removeHook('afterSanitizeAttributes');
+		hook.dispose();
 	}
 }
 
@@ -203,10 +190,16 @@ export async function renderMarkdownDocument(
 	allowUnknownProtocols: boolean = false,
 ): Promise<string> {
 
-	const highlight = (code: string, lang: string, callback: ((error: any, code: string) => void) | undefined): any => {
+	const highlight = (code: string, lang: string | undefined, callback: ((error: any, code: string) => void) | undefined): any => {
 		if (!callback) {
 			return code;
 		}
+
+		if (typeof lang !== 'string') {
+			callback(null, `<code>${code}</code>`);
+			return '';
+		}
+
 		extensionService.whenInstalledExtensionsRegistered().then(async () => {
 			const languageId = languageService.getLanguageIdByLanguageName(lang);
 			const html = await tokenizeToString(languageService, code, languageId);

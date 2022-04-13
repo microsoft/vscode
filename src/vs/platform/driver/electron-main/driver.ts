@@ -12,7 +12,7 @@ import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import { IPCServer, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { IDriver, IDriverOptions, IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
+import { IDriver, IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
 import { WindowDriverChannelClient } from 'vs/platform/driver/common/driverIpc';
 import { DriverChannel, WindowDriverRegistryChannel } from 'vs/platform/driver/node/driver';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -24,6 +24,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/path';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ILogService } from 'vs/platform/log/common/log';
 
 function isSilentKeyCode(keyCode: KeyCode) {
 	return keyCode < KeyCode.Digit0;
@@ -39,41 +40,35 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 
 	constructor(
 		private windowServer: IPCServer,
-		private options: IDriverOptions,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IFileService private readonly fileService: IFileService,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@ILogService private readonly logService: ILogService
 	) { }
 
-	async registerWindowDriver(windowId: number): Promise<IDriverOptions> {
+	async registerWindowDriver(windowId: number): Promise<void> {
+		this.logService.info(`[driver] registerWindowDriver(${windowId})`);
+
 		this.registeredWindowIds.add(windowId);
 		this.reloadingWindowIds.delete(windowId);
 		this.onDidReloadingChange.fire();
-		return this.options;
 	}
 
 	async reloadWindowDriver(windowId: number): Promise<void> {
+		this.logService.info(`[driver] reloadWindowDriver(${windowId})`);
+
 		this.reloadingWindowIds.add(windowId);
 	}
 
 	async getWindowIds(): Promise<number[]> {
-		return this.windowsMainService.getWindows()
-			.map(w => w.id)
-			.filter(id => this.registeredWindowIds.has(id) && !this.reloadingWindowIds.has(id));
+		const windowIds = this.windowsMainService.getWindows()
+			.map(window => window.id)
+			.filter(windowId => this.registeredWindowIds.has(windowId) && !this.reloadingWindowIds.has(windowId));
+
+		return windowIds;
 	}
 
-	async capturePage(windowId: number): Promise<string> {
-		await this.whenUnfrozen(windowId);
-
-		const window = this.windowsMainService.getWindowById(windowId) ?? this.windowsMainService.getLastActiveWindow(); // fallback to active window to ensure we capture window
-		if (!window?.win) {
-			throw new Error('Invalid window');
-		}
-		const webContents = window.win.webContents;
-		const image = await webContents.capturePage();
-		return image.toPNG().toString('base64');
-	}
 
 	async startTracing(windowId: number, name: string): Promise<void> {
 		// ignore - tracing is not implemented yet
@@ -90,19 +85,21 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		await this.fileService.writeFile(URI.file(join(this.environmentMainService.logsPath, `${name}.png`)), VSBuffer.wrap(buffer));
 	}
 
-	async reloadWindow(windowId: number): Promise<void> {
-		await this.whenUnfrozen(windowId);
-
-		const window = this.windowsMainService.getWindowById(windowId);
-		if (!window) {
+	private async capturePage(windowId: number): Promise<string> {
+		const window = this.windowsMainService.getWindowById(windowId) ?? this.windowsMainService.getLastActiveWindow(); // fallback to active window to ensure we capture window
+		if (!window?.win) {
 			throw new Error('Invalid window');
 		}
-		this.reloadingWindowIds.add(windowId);
-		this.lifecycleMainService.reload(window);
+
+		const webContents = window.win.webContents;
+		const image = await webContents.capturePage();
+		return image.toPNG().toString('base64');
 	}
 
-	exitApplication(): Promise<boolean> {
-		return this.lifecycleMainService.quit();
+	async exitApplication(): Promise<void> {
+		this.logService.info(`[driver] exitApplication()`);
+
+		await this.lifecycleMainService.quit();
 	}
 
 	async dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {
@@ -163,11 +160,6 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		await windowDriver.click(selector, xoffset, yoffset);
 	}
 
-	async doubleClick(windowId: number, selector: string): Promise<void> {
-		const windowDriver = await this.getWindowDriver(windowId);
-		await windowDriver.doubleClick(selector);
-	}
-
 	async setValue(windowId: number, selector: string, text: string): Promise<void> {
 		const windowDriver = await this.getWindowDriver(windowId);
 		await windowDriver.setValue(selector, text);
@@ -188,7 +180,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		return await windowDriver.getElements(selector, recursive);
 	}
 
-	async getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }> {
+	async getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number }> {
 		const windowDriver = await this.getWindowDriver(windowId);
 		return await windowDriver.getElementXY(selector, xoffset, yoffset);
 	}
@@ -237,11 +229,9 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 export async function serve(
 	windowServer: IPCServer,
 	handle: string,
-	environmentMainService: IEnvironmentMainService,
 	instantiationService: IInstantiationService
 ): Promise<IDisposable> {
-	const verbose = environmentMainService.driverVerbose;
-	const driver = instantiationService.createInstance(Driver, windowServer, { verbose });
+	const driver = instantiationService.createInstance(Driver, windowServer);
 
 	const windowDriverRegistryChannel = new WindowDriverRegistryChannel(driver);
 	windowServer.registerChannel('windowDriverRegistry', windowDriverRegistryChannel);

@@ -49,6 +49,15 @@
             "scope": "resource",
             "default": true,
             "description": "%config.gitAuthentication%"
+          },
+          "github.gitProtocol": {
+            "type": "string",
+            "enum": [
+              "https",
+              "ssh"
+            ],
+            "default": "https",
+            "description": "%config.gitProtocol%"
           }
         }
       }
@@ -80,7 +89,7 @@
     "vscode-nls": "^4.1.2"
   },
   "devDependencies": {
-    "@types/node": "14.x"
+    "@types/node": "16.x"
   },
   "repository": {
     "type": "git",

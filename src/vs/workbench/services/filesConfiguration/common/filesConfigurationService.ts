@@ -76,7 +76,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	private autoSaveAfterShortDelayContext: IContextKey<boolean>;
 
-	private currentFilesAssociationConfig: { [key: string]: string; };
+	private currentFilesAssociationConfig: { [key: string]: string };
 
 	private currentHotExitConfig: string;
 

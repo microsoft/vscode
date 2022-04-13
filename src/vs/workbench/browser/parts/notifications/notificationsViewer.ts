@@ -8,7 +8,7 @@ import { clearNode, addDisposableListener, EventType, EventHelper, $, EventLike 
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ButtonBar } from 'vs/base/browser/ui/button/button';
+import { ButtonBar, IButtonOptions } from 'vs/base/browser/ui/button/button';
 import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -453,8 +453,10 @@ export class NotificationTemplateRenderer extends Disposable {
 		const primaryActions = notification.actions ? notification.actions.primary : undefined;
 		if (notification.expanded && isNonEmptyArray(primaryActions)) {
 			const that = this;
+
 			const actionRunner: IActionRunner = new class extends ActionRunner {
 				protected override async runAction(action: IAction): Promise<void> {
+
 					// Run action
 					that.actionRunner.run(action, notification);
 
@@ -464,24 +466,34 @@ export class NotificationTemplateRenderer extends Disposable {
 					}
 				}
 			}();
+
 			const buttonToolbar = this.inputDisposables.add(new ButtonBar(this.template.buttonsContainer));
-			for (const action of primaryActions) {
-				const buttonOptions = { title: true, /* assign titles to buttons in case they overflow */ };
+			for (let i = 0; i < primaryActions.length; i++) {
+				const action = primaryActions[i];
+
+				const options: IButtonOptions = {
+					title: true,  // assign titles to buttons in case they overflow
+					secondary: i > 0
+				};
+
 				const dropdownActions = action instanceof ChoiceAction ? action.menu : undefined;
-				const button = this.inputDisposables.add(
-					dropdownActions
-						? buttonToolbar.addButtonWithDropdown({
-							...buttonOptions,
-							contextMenuProvider: this.contextMenuService,
-							actions: dropdownActions,
-							actionRunner
-						})
-						: buttonToolbar.addButton(buttonOptions));
+				const button = this.inputDisposables.add(dropdownActions ?
+					buttonToolbar.addButtonWithDropdown({
+						...options,
+						contextMenuProvider: this.contextMenuService,
+						actions: dropdownActions,
+						actionRunner
+					}) :
+					buttonToolbar.addButton(options)
+				);
+
 				button.label = action.label;
+
 				this.inputDisposables.add(button.onDidClick(e => {
 					if (e) {
 						EventHelper.stop(e, true);
 					}
+
 					actionRunner.run(action);
 				}));
 

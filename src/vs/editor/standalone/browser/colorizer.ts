@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { IViewLineTokens, LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
+import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ITextModel } from 'vs/editor/common/model';
 import { ColorId, FontStyle, ILanguageIdCodec, ITokenizationSupport, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { ViewLineRenderingData } from 'vs/editor/common/viewModel';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
 
@@ -99,8 +99,8 @@ export class Colorizer {
 
 	public static colorizeModelLine(model: ITextModel, lineNumber: number, tabSize: number = 4): string {
 		const content = model.getLineContent(lineNumber);
-		model.forceTokenization(lineNumber);
-		const tokens = model.getLineTokens(lineNumber);
+		model.tokenization.forceTokenization(lineNumber);
+		const tokens = model.tokenization.getLineTokens(lineNumber);
 		const inflatedTokens = tokens.inflate();
 		return this.colorizeLine(content, model.mightContainNonBasicASCII(), model.mightContainRTL(), inflatedTokens, tabSize);
 	}

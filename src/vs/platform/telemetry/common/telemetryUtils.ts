@@ -6,6 +6,7 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -82,8 +83,8 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 	return configurationService.onDidChangeConfiguration(event => {
 		if (event.source !== ConfigurationTarget.DEFAULT) {
 			type UpdateConfigurationClassification = {
-				configurationSource: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				configurationKeys: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				configurationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				configurationKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};
 			type UpdateConfigurationEvent = {
 				configurationSource: string;
@@ -98,17 +99,17 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 }
 
 /**
- * Determines how telemetry is handled based on the current running configuration.
- * To log telemetry locally, the client must not disable telemetry via the CLI
- * If client is a built product and telemetry is enabled via the product.json, telemetry is supported
- * This function is only used to determine if telemetry contructs should occur, but is not impacted by user configuration
- *
+ * Determines whether or not we support logging telemetry.
+ * This checks if the product is capable of collecting telemetry but not whether or not it can send it
+ * For checking the user setting and what telemetry you can send please check `getTelemetryLevel`.
+ * This returns true if `--disable-telemetry` wasn't used, the product.json allows for telemetry, and we're not testing an extension
+ * If false telemetry is disabled throughout the product
  * @param productService
  * @param environmentService
  * @returns false - telemetry is completely disabled, true - telemetry is logged locally, but may not be sent
  */
 export function supportsTelemetry(productService: IProductService, environmentService: IEnvironmentService): boolean {
-	return !(environmentService.disableTelemetry || !productService.enableTelemetry);
+	return !(environmentService.disableTelemetry || !productService.enableTelemetry || environmentService.extensionTestsLocationURI);
 }
 
 /**
@@ -148,7 +149,7 @@ export interface Measurements {
 	[key: string]: number;
 }
 
-export function validateTelemetryData(data?: any): { properties: Properties, measurements: Measurements } {
+export function validateTelemetryData(data?: any): { properties: Properties; measurements: Measurements } {
 
 	const properties: Properties = Object.create(null);
 	const measurements: Measurements = Object.create(null);
@@ -246,4 +247,16 @@ function flatKeys(result: string[], prefix: string, value: { [key: string]: any 
 	} else {
 		result.push(prefix);
 	}
+}
+
+interface IPathEnvironment {
+	appRoot: string;
+	extensionsPath: string;
+	userDataPath: string;
+	userHome: URI;
+	tmpDir: URI;
+}
+
+export function getPiiPathsFromEnvironment(paths: IPathEnvironment): string[] {
+	return [paths.appRoot, paths.extensionsPath, paths.userHome.fsPath, paths.tmpDir.fsPath, paths.userDataPath];
 }

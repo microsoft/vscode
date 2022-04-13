@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
+'use strict';
 
 process.env.MOCHA_COLORS = '1'; // Force colors (note that this must come before any mocha imports)
 
@@ -24,12 +25,12 @@ const optimist = require('optimist')
 
 
 const TEST_GLOB = '**/test/**/*.test.js';
-const excludeGlob = '**/{browser,electron-sandbox,electron-browser,electron-main,editor/contrib}/**/*.test.js';
+const excludeGlob = '**/{browser,electron-sandbox,electron-browser,electron-main}/**/*.test.js';
 const excludeModules = [
 	'vs/platform/environment/test/node/nativeModules.test.js', // native modules are compiled against Electron and this test would fail with node.js
 	'vs/base/parts/storage/test/node/storage.test.js', // same as above, due to direct dependency to sqlite native module
-	'vs/platform/files/test/common/files.test.js' // TODO@bpasero enable once we ship Electron 16
-]
+	'vs/workbench/contrib/testing/test/common/testResultService.test.js' // flaky (https://github.com/microsoft/vscode/issues/137853)
+];
 
 /**
  * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; }}

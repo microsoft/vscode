@@ -37,9 +37,6 @@ if (process.env['VSCODE_PARENT_PID']) {
 	terminateWhenParentTerminates();
 }
 
-// Configure Crash Reporter
-configureCrashReporter();
-
 // Load AMD entry point
 require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
 
@@ -161,6 +158,9 @@ function pipeLoggingToParent() {
 	 * as well. This is needed since the console methods are "magic" in V8 and
 	 * are the only methods that allow later introspection of logged variables.
 	 *
+	 * The wrapped property is not defined with `writable: false` to avoid
+	 * throwing errors, but rather a no-op setting. See https://github.com/microsoft/vscode-extension-telemetry/issues/88
+	 *
 	 * @param {'log' | 'info' | 'warn' | 'error'} method
 	 * @param {'log' | 'warn' | 'error'} severity
 	 */
@@ -168,17 +168,22 @@ function pipeLoggingToParent() {
 		if (process.env['VSCODE_LOG_NATIVE'] === 'true') {
 			const original = console[method];
 			const stream = method === 'error' || method === 'warn' ? process.stderr : process.stdout;
-			console[method] = function () {
-				safeSendConsoleMessage(severity, safeToArray(arguments));
-
-				isMakingConsoleCall = true;
-				stream.write('\nSTART_NATIVE_LOG\n');
-				original.apply(console, arguments);
-				stream.write('\nEND_NATIVE_LOG\n');
-				isMakingConsoleCall = false;
-			};
+			Object.defineProperty(console, method, {
+				set: () => { },
+				get: () => function () {
+					safeSendConsoleMessage(severity, safeToArray(arguments));
+					isMakingConsoleCall = true;
+					stream.write('\nSTART_NATIVE_LOG\n');
+					original.apply(console, arguments);
+					stream.write('\nEND_NATIVE_LOG\n');
+					isMakingConsoleCall = false;
+				},
+			});
 		} else {
-			console[method] = function () { safeSendConsoleMessage(severity, safeToArray(arguments)); };
+			Object.defineProperty(console, method, {
+				set: () => { },
+				get: () => function () { safeSendConsoleMessage(severity, safeToArray(arguments)); },
+			});
 		}
 	}
 
@@ -199,7 +204,8 @@ function pipeLoggingToParent() {
 		let buf = '';
 
 		Object.defineProperty(stream, 'write', {
-			value: (chunk, encoding, callback) => {
+			set: () => { },
+			get: () => (chunk, encoding, callback) => {
 				if (!isMakingConsoleCall) {
 					buf += chunk.toString(encoding);
 					const eol = buf.length > MAX_STREAM_BUFFER_LENGTH ? buf.length : buf.lastIndexOf('\n');
@@ -255,20 +261,6 @@ function terminateWhenParentTerminates() {
 				process.exit();
 			}
 		}, 5000);
-	}
-}
-
-function configureCrashReporter() {
-	const crashReporterOptionsRaw = process.env['VSCODE_CRASH_REPORTER_START_OPTIONS'];
-	if (typeof crashReporterOptionsRaw === 'string') {
-		try {
-			const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);
-			if (crashReporterOptions && process['crashReporter'] /* Electron only */) {
-				process['crashReporter'].start(crashReporterOptions);
-			}
-		} catch (error) {
-			console.error(error);
-		}
 	}
 }
 

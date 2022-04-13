@@ -3,130 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { deepClone, equals } from 'vs/base/common/objects';
 import { Emitter } from 'vs/base/common/event';
-import { basename, dirname, extname, relativePath, isEqual } from 'vs/base/common/resources';
-import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ILanguageService } from 'vs/editor/common/services/language';
-import { IFileService } from 'vs/platform/files/common/files';
-import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { relativePath } from 'vs/base/common/resources';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IModelService } from 'vs/editor/common/services/model';
-
-export class ResourceContextKey implements IContextKey<URI> {
-
-	// NOTE: DO NOT CHANGE THE DEFAULT VALUE TO ANYTHING BUT
-	// UNDEFINED! IT IS IMPORTANT THAT DEFAULTS ARE INHERITED
-	// FROM THE PARENT CONTEXT AND ONLY UNDEFINED DOES THIS
-
-	static readonly Scheme = new RawContextKey<string>('resourceScheme', undefined, { type: 'string', description: localize('resourceScheme', "The scheme of the rsource") });
-	static readonly Filename = new RawContextKey<string>('resourceFilename', undefined, { type: 'string', description: localize('resourceFilename', "The file name of the resource") });
-	static readonly Dirname = new RawContextKey<string>('resourceDirname', undefined, { type: 'string', description: localize('resourceDirname', "The folder name the resource is contained in") });
-	static readonly Path = new RawContextKey<string>('resourcePath', undefined, { type: 'string', description: localize('resourcePath', "The full path of the resource") });
-	static readonly LangId = new RawContextKey<string>('resourceLangId', undefined, { type: 'string', description: localize('resourceLangId', "The language identifier of the resource") });
-	static readonly Resource = new RawContextKey<URI>('resource', undefined, { type: 'URI', description: localize('resource', "The full value of the resource including scheme and path") });
-	static readonly Extension = new RawContextKey<string>('resourceExtname', undefined, { type: 'string', description: localize('resourceExtname', "The extension name of the resource") });
-	static readonly HasResource = new RawContextKey<boolean>('resourceSet', undefined, { type: 'boolean', description: localize('resourceSet', "Whether a resource is present or not") });
-	static readonly IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', undefined, { type: 'boolean', description: localize('isFileSystemResource', "Whether the resource is backed by a file system provider") });
-
-	private readonly _disposables = new DisposableStore();
-
-	private readonly _resourceKey: IContextKey<URI | null>;
-	private readonly _schemeKey: IContextKey<string | null>;
-	private readonly _filenameKey: IContextKey<string | null>;
-	private readonly _dirnameKey: IContextKey<string | null>;
-	private readonly _pathKey: IContextKey<string | null>;
-	private readonly _langIdKey: IContextKey<string | null>;
-	private readonly _extensionKey: IContextKey<string | null>;
-	private readonly _hasResource: IContextKey<boolean>;
-	private readonly _isFileSystemResource: IContextKey<boolean>;
-
-	constructor(
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IFileService private readonly _fileService: IFileService,
-		@ILanguageService private readonly _languageService: ILanguageService,
-		@IModelService private readonly _modelService: IModelService,
-	) {
-		this._schemeKey = ResourceContextKey.Scheme.bindTo(this._contextKeyService);
-		this._filenameKey = ResourceContextKey.Filename.bindTo(this._contextKeyService);
-		this._dirnameKey = ResourceContextKey.Dirname.bindTo(this._contextKeyService);
-		this._pathKey = ResourceContextKey.Path.bindTo(this._contextKeyService);
-		this._langIdKey = ResourceContextKey.LangId.bindTo(this._contextKeyService);
-		this._resourceKey = ResourceContextKey.Resource.bindTo(this._contextKeyService);
-		this._extensionKey = ResourceContextKey.Extension.bindTo(this._contextKeyService);
-		this._hasResource = ResourceContextKey.HasResource.bindTo(this._contextKeyService);
-		this._isFileSystemResource = ResourceContextKey.IsFileSystemResource.bindTo(this._contextKeyService);
-
-		this._disposables.add(_fileService.onDidChangeFileSystemProviderRegistrations(() => {
-			const resource = this.get();
-			this._isFileSystemResource.set(Boolean(resource && _fileService.hasProvider(resource)));
-		}));
-
-		this._disposables.add(_modelService.onModelAdded(model => {
-			if (isEqual(model.uri, this.get())) {
-				this._setLangId();
-			}
-		}));
-		this._disposables.add(_modelService.onModelLanguageChanged(e => {
-			if (isEqual(e.model.uri, this.get())) {
-				this._setLangId();
-			}
-		}));
-	}
-
-	dispose(): void {
-		this._disposables.dispose();
-	}
-
-	private _setLangId(): void {
-		const value = this.get();
-		if (!value) {
-			this._langIdKey.set(null);
-			return;
-		}
-		const langId = this._modelService.getModel(value)?.getLanguageId() ?? this._languageService.guessLanguageIdByFilepathOrFirstLine(value);
-		this._langIdKey.set(langId);
-	}
-
-	set(value: URI | null) {
-		if (isEqual(this.get(), value ?? undefined)) {
-			return;
-		}
-		this._contextKeyService.bufferChangeEvents(() => {
-			this._resourceKey.set(value);
-			this._schemeKey.set(value ? value.scheme : null);
-			this._filenameKey.set(value ? basename(value) : null);
-			this._dirnameKey.set(value ? dirname(value).fsPath : null);
-			this._pathKey.set(value ? value.fsPath : null);
-			this._setLangId();
-			this._extensionKey.set(value ? extname(value) : null);
-			this._hasResource.set(Boolean(value));
-			this._isFileSystemResource.set(value ? this._fileService.hasProvider(value) : false);
-		});
-	}
-
-	reset(): void {
-		this._contextKeyService.bufferChangeEvents(() => {
-			this._resourceKey.reset();
-			this._schemeKey.reset();
-			this._filenameKey.reset();
-			this._dirnameKey.reset();
-			this._pathKey.reset();
-			this._langIdKey.reset();
-			this._extensionKey.reset();
-			this._hasResource.reset();
-			this._isFileSystemResource.reset();
-		});
-	}
-
-	get(): URI | undefined {
-		return this._resourceKey.get() ?? undefined;
-	}
-}
 
 export class ResourceGlobMatcher extends Disposable {
 

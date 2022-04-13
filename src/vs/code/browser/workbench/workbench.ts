@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isStandalone } from 'vs/base/browser/browser';
-import { streamToBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { parse } from 'vs/base/common/marshalling';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { request } from 'vs/base/parts/request/browser/request';
 import product from 'vs/platform/product/common/product';
-import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
-import { create, ICredentialsProvider, IURLCallbackProvider, IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.api';
+import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/window/common/window';
+import { create, ICredentialsProvider, IURLCallbackProvider, IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.main';
+import { posix } from 'vs/base/common/path';
+import { ltrim } from 'vs/base/common/strings';
 
 interface ICredential {
 	service: string;
@@ -25,12 +26,12 @@ interface ICredential {
 
 class LocalStorageCredentialsProvider implements ICredentialsProvider {
 
-	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
+	private static readonly CREDENTIALS_STORAGE_KEY = 'credentials.provider';
 
 	private readonly authService: string | undefined;
 
 	constructor() {
-		let authSessionInfo: { readonly id: string, readonly accessToken: string, readonly providerId: string, readonly canSignOut?: boolean, readonly scopes: string[][] } | undefined;
+		let authSessionInfo: { readonly id: string; readonly accessToken: string; readonly providerId: string; readonly canSignOut?: boolean; readonly scopes: string[][] } | undefined;
 		const authSessionElement = document.getElementById('vscode-workbench-auth-session');
 		const authSessionElementAttribute = authSessionElement ? authSessionElement.getAttribute('data-settings') : undefined;
 		if (authSessionElementAttribute) {
@@ -57,7 +58,7 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 	private get credentials(): ICredential[] {
 		if (!this._credentials) {
 			try {
-				const serializedCredentials = window.localStorage.getItem(LocalStorageCredentialsProvider.CREDENTIALS_OPENED_KEY);
+				const serializedCredentials = window.localStorage.getItem(LocalStorageCredentialsProvider.CREDENTIALS_STORAGE_KEY);
 				if (serializedCredentials) {
 					this._credentials = JSON.parse(serializedCredentials);
 				}
@@ -74,7 +75,7 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 	}
 
 	private save(): void {
-		window.localStorage.setItem(LocalStorageCredentialsProvider.CREDENTIALS_OPENED_KEY, JSON.stringify(this.credentials));
+		window.localStorage.setItem(LocalStorageCredentialsProvider.CREDENTIALS_STORAGE_KEY, JSON.stringify(this.credentials));
 	}
 
 	async getPassword(service: string, account: string): Promise<string | null> {
@@ -150,7 +151,7 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 		return this.doGetPassword(service);
 	}
 
-	async findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
+	async findCredentials(service: string): Promise<Array<{ account: string; password: string }>> {
 		return this.credentials
 			.filter(credential => credential.service === service)
 			.map(({ account, password }) => ({ account, password }));
@@ -167,99 +168,127 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 	}
 
 	async clear(): Promise<void> {
-		window.localStorage.removeItem(LocalStorageCredentialsProvider.CREDENTIALS_OPENED_KEY);
+		window.localStorage.removeItem(LocalStorageCredentialsProvider.CREDENTIALS_STORAGE_KEY);
 	}
 }
 
-class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvider {
+class LocalStorageURLCallbackProvider extends Disposable implements IURLCallbackProvider {
 
-	static readonly FETCH_INTERVAL = 500; 			// fetch every 500ms
-	static readonly FETCH_TIMEOUT = 5 * 60 * 1000; 	// ...but stop after 5min
+	private static REQUEST_ID = 0;
 
-	static readonly QUERY_KEYS = {
-		REQUEST_ID: 'vscode-requestId',
-		SCHEME: 'vscode-scheme',
-		AUTHORITY: 'vscode-authority',
-		PATH: 'vscode-path',
-		QUERY: 'vscode-query',
-		FRAGMENT: 'vscode-fragment'
-	};
+	private static QUERY_KEYS: ('scheme' | 'authority' | 'path' | 'query' | 'fragment')[] = [
+		'scheme',
+		'authority',
+		'path',
+		'query',
+		'fragment'
+	];
 
 	private readonly _onCallback = this._register(new Emitter<URI>());
 	readonly onCallback = this._onCallback.event;
 
-	create(options?: Partial<UriComponents>): URI {
-		const queryValues: Map<string, string> = new Map();
+	private pendingCallbacks = new Set<number>();
+	private lastTimeChecked = Date.now();
+	private checkCallbacksTimeout: unknown | undefined = undefined;
+	private onDidChangeLocalStorageDisposable: IDisposable | undefined;
 
-		const requestId = generateUuid();
-		queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.REQUEST_ID, requestId);
+	create(options: Partial<UriComponents> = {}): URI {
+		const id = ++LocalStorageURLCallbackProvider.REQUEST_ID;
+		const queryParams: string[] = [`vscode-reqid=${id}`];
 
-		const { scheme, authority, path, query, fragment } = options ? options : { scheme: undefined, authority: undefined, path: undefined, query: undefined, fragment: undefined };
+		for (const key of LocalStorageURLCallbackProvider.QUERY_KEYS) {
+			const value = options[key];
 
-		if (scheme) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.SCHEME, scheme);
+			if (value) {
+				queryParams.push(`vscode-${key}=${encodeURIComponent(value)}`);
+			}
 		}
 
-		if (authority) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.AUTHORITY, authority);
+		// TODO@joao remove eventually
+		// https://github.com/microsoft/vscode-dev/issues/62
+		// https://github.com/microsoft/vscode/blob/159479eb5ae451a66b5dac3c12d564f32f454796/extensions/github-authentication/src/githubServer.ts#L50-L50
+		if (!(options.authority === 'vscode.github-authentication' && options.path === '/dummy')) {
+			const key = `vscode-web.url-callbacks[${id}]`;
+			window.localStorage.removeItem(key);
+
+			this.pendingCallbacks.add(id);
+			this.startListening();
 		}
 
-		if (path) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.PATH, path);
-		}
-
-		if (query) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.QUERY, query);
-		}
-
-		if (fragment) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.FRAGMENT, fragment);
-		}
-
-		// Start to poll on the callback being fired
-		this.periodicFetchCallback(requestId, Date.now());
-
-		return doCreateUri('/callback', queryValues);
+		return URI.parse(window.location.href).with({ path: '/callback', query: queryParams.join('&') });
 	}
 
-	private async periodicFetchCallback(requestId: string, startTime: number): Promise<void> {
+	private startListening(): void {
+		if (this.onDidChangeLocalStorageDisposable) {
+			return;
+		}
 
-		// Ask server for callback results
-		const queryValues: Map<string, string> = new Map();
-		queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.REQUEST_ID, requestId);
+		const fn = () => this.onDidChangeLocalStorage();
+		window.addEventListener('storage', fn);
+		this.onDidChangeLocalStorageDisposable = { dispose: () => window.removeEventListener('storage', fn) };
+	}
 
-		const result = await request({
-			url: doCreateUri('/fetch-callback', queryValues).toString(true)
-		}, CancellationToken.None);
+	private stopListening(): void {
+		this.onDidChangeLocalStorageDisposable?.dispose();
+		this.onDidChangeLocalStorageDisposable = undefined;
+	}
 
-		// Check for callback results
-		const content = await streamToBuffer(result.stream);
-		if (content.byteLength > 0) {
-			try {
-				this._onCallback.fire(URI.revive(JSON.parse(content.toString())));
-			} catch (error) {
-				console.error(error);
+	// this fires every time local storage changes, but we
+	// don't want to check more often than once a second
+	private async onDidChangeLocalStorage(): Promise<void> {
+		const ellapsed = Date.now() - this.lastTimeChecked;
+
+		if (ellapsed > 1000) {
+			this.checkCallbacks();
+		} else if (this.checkCallbacksTimeout === undefined) {
+			this.checkCallbacksTimeout = setTimeout(() => {
+				this.checkCallbacksTimeout = undefined;
+				this.checkCallbacks();
+			}, 1000 - ellapsed);
+		}
+	}
+
+	private checkCallbacks(): void {
+		let pendingCallbacks: Set<number> | undefined;
+
+		for (const id of this.pendingCallbacks) {
+			const key = `vscode-web.url-callbacks[${id}]`;
+			const result = window.localStorage.getItem(key);
+
+			if (result !== null) {
+				try {
+					this._onCallback.fire(URI.revive(JSON.parse(result)));
+				} catch (error) {
+					console.error(error);
+				}
+
+				pendingCallbacks = pendingCallbacks ?? new Set(this.pendingCallbacks);
+				pendingCallbacks.delete(id);
+				window.localStorage.removeItem(key);
 			}
-
-			return; // done
 		}
 
-		// Continue fetching unless we hit the timeout
-		if (Date.now() - startTime < PollingURLCallbackProvider.FETCH_TIMEOUT) {
-			setTimeout(() => this.periodicFetchCallback(requestId, startTime), PollingURLCallbackProvider.FETCH_INTERVAL);
+		if (pendingCallbacks) {
+			this.pendingCallbacks = pendingCallbacks;
+
+			if (this.pendingCallbacks.size === 0) {
+				this.stopListening();
+			}
 		}
+
+		this.lastTimeChecked = Date.now();
 	}
 }
 
 class WorkspaceProvider implements IWorkspaceProvider {
 
-	static QUERY_PARAM_EMPTY_WINDOW = 'ew';
-	static QUERY_PARAM_FOLDER = 'folder';
-	static QUERY_PARAM_WORKSPACE = 'workspace';
+	private static QUERY_PARAM_EMPTY_WINDOW = 'ew';
+	private static QUERY_PARAM_FOLDER = 'folder';
+	private static QUERY_PARAM_WORKSPACE = 'workspace';
 
-	static QUERY_PARAM_PAYLOAD = 'payload';
+	private static QUERY_PARAM_PAYLOAD = 'payload';
 
-	static create(config: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents }) {
+	static create(config: IWorkbenchConstructionOptions & { folderUri?: UriComponents; workspaceUri?: UriComponents }) {
 		let foundWorkspace = false;
 		let workspace: IWorkspace;
 		let payload = Object.create(null);
@@ -270,13 +299,27 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 				// Folder
 				case WorkspaceProvider.QUERY_PARAM_FOLDER:
-					workspace = { folderUri: URI.parse(value) };
+					if (config.remoteAuthority && value.startsWith(posix.sep)) {
+						// when connected to a remote and having a value
+						// that is a path (begins with a `/`), assume this
+						// is a vscode-remote resource as simplified URL.
+						workspace = { folderUri: URI.from({ scheme: Schemas.vscodeRemote, path: value, authority: config.remoteAuthority }) };
+					} else {
+						workspace = { folderUri: URI.parse(value) };
+					}
 					foundWorkspace = true;
 					break;
 
 				// Workspace
 				case WorkspaceProvider.QUERY_PARAM_WORKSPACE:
-					workspace = { workspaceUri: URI.parse(value) };
+					if (config.remoteAuthority && value.startsWith(posix.sep)) {
+						// when connected to a remote and having a value
+						// that is a path (begins with a `/`), assume this
+						// is a vscode-remote resource as simplified URL.
+						workspace = { workspaceUri: URI.from({ scheme: Schemas.vscodeRemote, path: value, authority: config.remoteAuthority }) };
+					} else {
+						workspace = { workspaceUri: URI.parse(value) };
+					}
 					foundWorkspace = true;
 					break;
 
@@ -289,7 +332,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 				// Payload
 				case WorkspaceProvider.QUERY_PARAM_PAYLOAD:
 					try {
-						payload = JSON.parse(value);
+						payload = parse(value); // use marshalling#parse() to revive potential URIs
 					} catch (error) {
 						console.error(error); // possible invalid JSON
 					}
@@ -297,29 +340,29 @@ class WorkspaceProvider implements IWorkspaceProvider {
 			}
 		});
 
-		// If no workspace is provided through the URL, check for config attribute from server
+		// If no workspace is provided through the URL, check for config
+		// attribute from server
 		if (!foundWorkspace) {
 			if (config.folderUri) {
 				workspace = { folderUri: URI.revive(config.folderUri) };
 			} else if (config.workspaceUri) {
 				workspace = { workspaceUri: URI.revive(config.workspaceUri) };
-			} else {
-				workspace = undefined;
 			}
 		}
 
-		return new WorkspaceProvider(workspace, payload);
+		return new WorkspaceProvider(workspace, payload, config);
 	}
 
 	readonly trusted = true;
 
 	private constructor(
 		readonly workspace: IWorkspace,
-		readonly payload: object
+		readonly payload: object,
+		private readonly config: IWorkbenchConstructionOptions
 	) {
 	}
 
-	async open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<boolean> {
+	async open(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<boolean> {
 		if (options?.reuse && !options.payload && this.isSame(this.workspace, workspace)) {
 			return true; // return early if workspace and environment is not changing and we are reusing window
 		}
@@ -331,7 +374,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 				return true;
 			} else {
 				let result;
-				if (isStandalone) {
+				if (isStandalone()) {
 					result = window.open(targetHref, '_blank', 'toolbar=no'); // ensures to open another 'standalone' window!
 				} else {
 					result = window.open(targetHref);
@@ -343,7 +386,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		return false;
 	}
 
-	private createTargetUrl(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): string | undefined {
+	private createTargetUrl(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): string | undefined {
 
 		// Empty
 		let targetHref: string | undefined = undefined;
@@ -353,12 +396,35 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 		// Folder
 		else if (isFolderToOpen(workspace)) {
-			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_FOLDER}=${encodeURIComponent(workspace.folderUri.toString())}`;
+			let queryParamFolder: string;
+			if (this.config.remoteAuthority && workspace.folderUri.scheme === Schemas.vscodeRemote) {
+				// when connected to a remote and having a folder
+				// for that remote, only use the path as query
+				// value to form shorter, nicer URLs.
+				// ensure paths are absolute (begin with `/`)
+				// clipboard: ltrim(workspace.folderUri.path, posix.sep)
+				queryParamFolder = `${posix.sep}${ltrim(workspace.folderUri.path, posix.sep)}`;
+			} else {
+				queryParamFolder = encodeURIComponent(workspace.folderUri.toString(true));
+			}
+
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_FOLDER}=${queryParamFolder}`;
 		}
 
 		// Workspace
 		else if (isWorkspaceToOpen(workspace)) {
-			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_WORKSPACE}=${encodeURIComponent(workspace.workspaceUri.toString())}`;
+			let queryParamWorkspace: string;
+			if (this.config.remoteAuthority && workspace.workspaceUri.scheme === Schemas.vscodeRemote) {
+				// when connected to a remote and having a workspace
+				// for that remote, only use the path as query
+				// value to form shorter, nicer URLs.
+				// ensure paths are absolute (begin with `/`)
+				queryParamWorkspace = `${posix.sep}${ltrim(workspace.workspaceUri.path, posix.sep)}`;
+			} else {
+				queryParamWorkspace = encodeURIComponent(workspace.workspaceUri.toString(true));
+			}
+
+			targetHref = `${document.location.origin}${document.location.pathname}?${WorkspaceProvider.QUERY_PARAM_WORKSPACE}=${queryParamWorkspace}`;
 		}
 
 		// Append payload if any
@@ -426,7 +492,7 @@ function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 	if (!configElement || !configElementAttribute) {
 		throw new Error('Missing web configuration element');
 	}
-	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents } = JSON.parse(configElementAttribute);
+	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents; workspaceUri?: UriComponents } = JSON.parse(configElementAttribute);
 
 	// Create workbench
 	create(document.body, {
@@ -435,7 +501,7 @@ function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 			enabled: config.settingsSyncOptions.enabled,
 		} : undefined,
 		workspaceProvider: WorkspaceProvider.create(config),
-		urlCallbackProvider: new PollingURLCallbackProvider(),
-		credentialsProvider: new LocalStorageCredentialsProvider()
+		urlCallbackProvider: new LocalStorageURLCallbackProvider(),
+		credentialsProvider: config.remoteAuthority ? undefined : new LocalStorageCredentialsProvider() // with a remote, we don't use a local credentials provider
 	});
 })();

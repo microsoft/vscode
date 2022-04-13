@@ -112,7 +112,9 @@ export default class PHPValidationProvider {
 		vscode.workspace.onDidOpenTextDocument(this.triggerValidate, this, subscriptions);
 		vscode.workspace.onDidCloseTextDocument((textDocument) => {
 			this.diagnosticCollection!.delete(textDocument.uri);
-			delete this.delayers![textDocument.uri.toString()];
+			if (this.delayers) {
+				delete this.delayers[textDocument.uri.toString()];
+			}
 		}, null, subscriptions);
 	}
 

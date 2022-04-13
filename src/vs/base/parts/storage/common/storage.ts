@@ -74,7 +74,7 @@ export interface IStorage extends IDisposable {
 	close(): Promise<void>;
 }
 
-enum StorageState {
+export enum StorageState {
 	None,
 	Initialized,
 	Closed

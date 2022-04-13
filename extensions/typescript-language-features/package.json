@@ -8,9 +8,6 @@
   "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enabledApiProposals": [
-    "inlayHints",
-    "languageStatus",
-    "quickPickSeparators",
     "resolvers",
     "workspaceTrust"
   ],
@@ -37,13 +34,14 @@
     "Programming Languages"
   ],
   "dependencies": {
+    "@vscode/extension-telemetry": "0.4.10",
     "jsonc-parser": "^2.2.1",
     "semver": "5.5.1",
-    "vscode-extension-telemetry": "0.4.4",
-    "vscode-nls": "^5.0.0"
+    "vscode-nls": "^5.0.0",
+    "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
-    "@types/node": "14.x",
+    "@types/node": "16.x",
     "@types/semver": "^5.5.0"
   },
   "scripts": {
@@ -638,6 +636,46 @@
             "%format.semicolons.remove%"
           ]
         },
+        "js/ts.implicitProjectConfig.module": {
+          "type": "string",
+          "markdownDescription": "%configuration.implicitProjectConfig.module%",
+          "default": "ESNext",
+          "enum": [
+            "CommonJS",
+            "AMD",
+            "System",
+            "UMD",
+            "ES6",
+            "ES2015",
+            "ES2020",
+            "ESNext",
+            "None",
+            "ES2022",
+            "Node12",
+            "NodeNext"
+          ],
+          "scope": "window"
+        },
+        "js/ts.implicitProjectConfig.target": {
+          "type": "string",
+          "default": "ES2020",
+          "markdownDescription": "%configuration.implicitProjectConfig.target%",
+          "enum": [
+            "ES3",
+            "ES5",
+            "ES6",
+            "ES2015",
+            "ES2016",
+            "ES2017",
+            "ES2018",
+            "ES2019",
+            "ES2020",
+            "ES2021",
+            "ES2022",
+            "ESNext"
+          ],
+          "scope": "window"
+        },
         "javascript.implicitProjectConfig.checkJs": {
           "type": "boolean",
           "default": false,
@@ -728,29 +766,31 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.suggest.completeJSDocs%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "typescript.suggest.completeJSDocs": {
           "type": "boolean",
           "default": true,
           "description": "%configuration.suggest.completeJSDocs%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "javascript.suggest.jsdoc.generateReturns": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "typescript.suggest.jsdoc.generateReturns": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "typescript.locale": {
           "type": "string",
+          "default": "auto",
           "enum": [
+            "auto",
             "de",
             "es",
             "en",
@@ -786,7 +826,12 @@
           ],
           "default": "auto",
           "markdownDescription": "%typescript.preferences.quoteStyle%",
-          "scope": "resource"
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.quoteStyle.auto%",
+            "%typescript.preferences.quoteStyle.single%",
+            "%typescript.preferences.quoteStyle.double%"
+          ],
+          "scope": "language-overridable"
         },
         "typescript.preferences.quoteStyle": {
           "type": "string",
@@ -797,7 +842,12 @@
           ],
           "default": "auto",
           "markdownDescription": "%typescript.preferences.quoteStyle%",
-          "scope": "resource"
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.quoteStyle.auto%",
+            "%typescript.preferences.quoteStyle.single%",
+            "%typescript.preferences.quoteStyle.double%"
+          ],
+          "scope": "language-overridable"
         },
         "javascript.preferences.importModuleSpecifier": {
           "type": "string",
@@ -815,7 +865,7 @@
           ],
           "default": "shortest",
           "description": "%typescript.preferences.importModuleSpecifier%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "typescript.preferences.importModuleSpecifier": {
           "type": "string",
@@ -833,7 +883,7 @@
           ],
           "default": "shortest",
           "description": "%typescript.preferences.importModuleSpecifier%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "javascript.preferences.importModuleSpecifierEnding": {
           "type": "string",
@@ -851,7 +901,7 @@
           ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifierEnding%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "typescript.preferences.importModuleSpecifierEnding": {
           "type": "string",
@@ -869,7 +919,7 @@
           ],
           "default": "auto",
           "description": "%typescript.preferences.importModuleSpecifierEnding%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "javascript.preferences.jsxAttributeCompletionStyle": {
           "type": "string",
@@ -879,13 +929,13 @@
             "none"
           ],
           "markdownEnumDescriptions": [
-            "%typescript.preferences.jsxAttributeCompletionStyle.auto%",
+            "%javascript.preferences.jsxAttributeCompletionStyle.auto%",
             "%typescript.preferences.jsxAttributeCompletionStyle.braces%",
             "%typescript.preferences.jsxAttributeCompletionStyle.none%"
           ],
           "default": "auto",
           "description": "%typescript.preferences.jsxAttributeCompletionStyle%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "typescript.preferences.jsxAttributeCompletionStyle": {
           "type": "string",
@@ -901,7 +951,7 @@
           ],
           "default": "auto",
           "description": "%typescript.preferences.jsxAttributeCompletionStyle%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "typescript.preferences.includePackageJsonAutoImports": {
           "type": "string",
@@ -924,26 +974,26 @@
           "default": true,
           "description": "%typescript.preferences.useAliasesForRenames%",
           "deprecationMessage": "%typescript.preferences.renameShorthandProperties.deprecationMessage%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "typescript.preferences.renameShorthandProperties": {
           "type": "boolean",
           "default": true,
           "description": "%typescript.preferences.useAliasesForRenames%",
           "deprecationMessage": "%typescript.preferences.renameShorthandProperties.deprecationMessage%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "javascript.preferences.useAliasesForRenames": {
           "type": "boolean",
           "default": true,
           "description": "%typescript.preferences.useAliasesForRenames%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "typescript.preferences.useAliasesForRenames": {
           "type": "boolean",
           "default": true,
           "description": "%typescript.preferences.useAliasesForRenames%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "typescript.updateImportsOnFileMove.enabled": {
           "type": "string",
@@ -980,24 +1030,26 @@
         "typescript.autoClosingTags": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.autoClosingTags%"
+          "description": "%typescript.autoClosingTags%",
+          "scope": "language-overridable"
         },
         "javascript.autoClosingTags": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.autoClosingTags%"
+          "description": "%typescript.autoClosingTags%",
+          "scope": "language-overridable"
         },
         "javascript.suggest.enabled": {
           "type": "boolean",
           "default": true,
           "description": "%typescript.suggest.enabled%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "typescript.suggest.enabled": {
           "type": "boolean",
           "default": true,
           "description": "%typescript.suggest.enabled%",
-          "scope": "resource"
+          "scope": "language-overridable"
         },
         "typescript.surveys.enabled": {
           "type": "boolean",
@@ -1127,6 +1179,12 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.suggest.classMemberSnippets.enabled%",
+          "scope": "resource"
+        },
+        "typescript.suggest.objectLiteralMethodSnippets.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.objectLiteralMethodSnippets.enabled%",
           "scope": "resource"
         }
       }

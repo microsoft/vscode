@@ -20,9 +20,10 @@ const helpCategories = {
 export interface Option<OptionType> {
 	type: OptionType;
 	alias?: string;
-	deprecates?: string; // old deprecated id
+	deprecates?: string[]; // old deprecated ids
 	args?: string | string[];
 	description?: string;
+	deprecationMessage?: string;
 	cat?: keyof typeof helpCategories;
 }
 
@@ -49,16 +50,16 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'user-data-dir': { type: 'string', cat: 'o', args: 'dir', description: localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code.") },
 	'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") },
 
-	'extensions-dir': { type: 'string', deprecates: 'extensionHomePath', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
+	'extensions-dir': { type: 'string', deprecates: ['extensionHomePath'], cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
 	'extensions-download-dir': { type: 'string' },
 	'builtin-extensions-dir': { type: 'string' },
 	'list-extensions': { type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
 	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extensions.") },
 	'category': { type: 'string', cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extensions."), args: 'category' },
-	'install-extension': { type: 'string[]', cat: 'e', args: 'extension-id[@version] | path-to-vsix', description: localize('installExtension', "Installs or updates the extension. The identifier of an extension is always `${publisher}.${name}`. Use `--force` argument to update to latest version. To install a specific version provide `@${version}`. For example: 'vscode.csharp@1.2.3'.") },
+	'install-extension': { type: 'string[]', cat: 'e', args: 'ext-id | path', description: localize('installExtension', "Installs or updates an extension. The argument is either an extension id or a path to a VSIX. The identifier of an extension is '${publisher}.${name}'. Use '--force' argument to update to latest version. To install a specific version provide '@${version}'. For example: 'vscode.csharp@1.2.3'.") },
 	'pre-release': { type: 'boolean', cat: 'e', description: localize('install prerelease', "Installs the pre-release version of the extension, when using --install-extension") },
-	'uninstall-extension': { type: 'string[]', cat: 'e', args: 'extension-id', description: localize('uninstallExtension', "Uninstalls an extension.") },
-	'enable-proposed-api': { type: 'string[]', cat: 'e', args: 'extension-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
+	'uninstall-extension': { type: 'string[]', cat: 'e', args: 'ext-id', description: localize('uninstallExtension', "Uninstalls an extension.") },
+	'enable-proposed-api': { type: 'string[]', cat: 'e', args: 'ext-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
 
 	'version': { type: 'boolean', cat: 't', alias: 'v', description: localize('version', "Print version.") },
 	'verbose': { type: 'boolean', cat: 't', description: localize('verbose', "Print verbose output (implies --wait).") },
@@ -69,12 +70,12 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'no-cached-data': { type: 'boolean' },
 	'prof-startup-prefix': { type: 'string' },
 	'prof-v8-extensions': { type: 'boolean' },
-	'disable-extensions': { type: 'boolean', deprecates: 'disableExtensions', cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
-	'disable-extension': { type: 'string[]', cat: 't', args: 'extension-id', description: localize('disableExtension', "Disable an extension.") },
-	'sync': { type: 'string', cat: 't', description: localize('turn sync', "Turn sync on or off."), args: ['on', 'off'] },
+	'disable-extensions': { type: 'boolean', deprecates: ['disableExtensions'], cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
+	'disable-extension': { type: 'string[]', cat: 't', args: 'ext-id', description: localize('disableExtension', "Disable an extension.") },
+	'sync': { type: 'string', cat: 't', description: localize('turn sync', "Turn sync on or off."), args: ['on | off'] },
 
-	'inspect-extensions': { type: 'string', deprecates: 'debugPluginHost', args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
-	'inspect-brk-extensions': { type: 'string', deprecates: 'debugBrkPluginHost', args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
+	'inspect-extensions': { type: 'string', deprecates: ['debugPluginHost'], args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
+	'inspect-brk-extensions': { type: 'string', deprecates: ['debugBrkPluginHost'], args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
 	'disable-gpu': { type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
 	'ms-enable-electron-run-as-node': { type: 'boolean' },
 	'max-memory': { type: 'string', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes)."), args: 'memory' },
@@ -93,11 +94,12 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'debugRenderer': { type: 'boolean' },
 	'inspect-ptyhost': { type: 'string' },
 	'inspect-brk-ptyhost': { type: 'string' },
-	'inspect-search': { type: 'string', deprecates: 'debugSearch' },
-	'inspect-brk-search': { type: 'string', deprecates: 'debugBrkSearch' },
+	'inspect-search': { type: 'string', deprecates: ['debugSearch'] },
+	'inspect-brk-search': { type: 'string', deprecates: ['debugBrkSearch'] },
 	'export-default-configuration': { type: 'string' },
 	'install-source': { type: 'string' },
 	'driver': { type: 'string' },
+	'enable-smoke-test-driver': { type: 'boolean' },
 	'logExtensionHostCommunication': { type: 'boolean' },
 	'skip-release-notes': { type: 'boolean' },
 	'skip-welcome': { type: 'boolean' },
@@ -113,7 +115,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'open-url': { type: 'boolean' },
 	'file-write': { type: 'boolean' },
 	'file-chmod': { type: 'boolean' },
-	'driver-verbose': { type: 'boolean' },
 	'install-builtin-extension': { type: 'string[]' },
 	'force': { type: 'boolean' },
 	'do-not-sync': { type: 'boolean' },
@@ -148,6 +149,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'log-net-log': { type: 'string' },
 	'vmodule': { type: 'string' },
 	'_urls': { type: 'string[]' },
+	'disable-dev-shm-usage': { type: 'boolean' },
 
 	_: { type: 'string[]' } // main arguments
 };
@@ -155,7 +157,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 export interface ErrorReporter {
 	onUnknownOption(id: string): void;
 	onMultipleValues(id: string, usedValue: string): void;
-	onDeprecatedOption(deprecatedId: string, currentId: string): void;
+	onDeprecatedOption(deprecatedId: string, message: string): void;
 }
 
 const ignoringReporter: ErrorReporter = {
@@ -166,7 +168,7 @@ const ignoringReporter: ErrorReporter = {
 
 export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, errorReporter: ErrorReporter = ignoringReporter): T {
 	const alias: { [key: string]: string } = {};
-	const string: string[] = [];
+	const string: string[] = ['_'];
 	const boolean: string[] = [];
 	for (let optionId in options) {
 		const o = options[optionId];
@@ -177,12 +179,12 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		if (o.type === 'string' || o.type === 'string[]') {
 			string.push(optionId);
 			if (o.deprecates) {
-				string.push(o.deprecates);
+				string.push(...o.deprecates);
 			}
 		} else if (o.type === 'boolean') {
 			boolean.push(optionId);
 			if (o.deprecates) {
-				boolean.push(o.deprecates);
+				boolean.push(...o.deprecates);
 			}
 		}
 	}
@@ -204,14 +206,18 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		}
 
 		let val = remainingArgs[optionId];
-		if (o.deprecates && remainingArgs.hasOwnProperty(o.deprecates)) {
-			if (!val) {
-				val = remainingArgs[o.deprecates];
-				if (val) {
-					errorReporter.onDeprecatedOption(o.deprecates, optionId);
+		if (o.deprecates) {
+			for (const deprecatedId of o.deprecates) {
+				if (remainingArgs.hasOwnProperty(deprecatedId)) {
+					if (!val) {
+						val = remainingArgs[deprecatedId];
+						if (val) {
+							errorReporter.onDeprecatedOption(deprecatedId, o.deprecationMessage || localize('deprecated.useInstead', 'Use {0} instead.', optionId));
+						}
+					}
+					delete remainingArgs[deprecatedId];
 				}
 			}
-			delete remainingArgs[o.deprecates];
 		}
 
 		if (typeof val !== 'undefined') {
@@ -226,6 +232,10 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 				}
 			}
 			cleanedArgs[optionId] = val;
+
+			if (o.deprecationMessage) {
+				errorReporter.onDeprecatedOption(optionId, o.deprecationMessage);
+			}
 		}
 		delete remainingArgs[optionId];
 	}
@@ -296,9 +306,8 @@ function wrapText(text: string, columns: number): string[] {
 	return lines;
 }
 
-export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<any>, capabilities?: { noPipe?: boolean, noInputFiles: boolean }): string {
+export function buildHelpMessage(productName: string, executableName: string, version: string, options: OptionDescriptions<any>, capabilities?: { noPipe?: boolean; noInputFiles: boolean }): string {
 	const columns = (process.stdout).isTTY && (process.stdout).columns || 80;
-
 	const inputFiles = capabilities?.noInputFiles !== true ? `[${localize('paths', 'paths')}...]` : '';
 
 	const help = [`${productName} ${version}`];

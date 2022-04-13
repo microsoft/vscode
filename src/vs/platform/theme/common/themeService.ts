@@ -95,7 +95,8 @@ export const FolderThemeIcon = Codicon.folder;
 export function getThemeTypeSelector(type: ColorScheme): string {
 	switch (type) {
 		case ColorScheme.DARK: return 'vs-dark';
-		case ColorScheme.HIGH_CONTRAST: return 'hc-black';
+		case ColorScheme.HIGH_CONTRAST_DARK: return 'hc-black';
+		case ColorScheme.HIGH_CONTRAST_LIGHT: return 'hc-light';
 		default: return 'vs';
 	}
 }
@@ -272,4 +273,29 @@ export class Themable extends Disposable {
 
 		return color ? color.toString() : null;
 	}
+}
+
+export interface IPartsSplash {
+	baseTheme: string;
+	colorInfo: {
+		background: string;
+		foreground: string | undefined;
+		editorBackground: string | undefined;
+		titleBarBackground: string | undefined;
+		activityBarBackground: string | undefined;
+		sideBarBackground: string | undefined;
+		statusBarBackground: string | undefined;
+		statusBarNoFolderBackground: string | undefined;
+		windowBorder: string | undefined;
+	};
+	layoutInfo: {
+		sideBarSide: string;
+		editorPartMinWidth: number;
+		titleBarHeight: number;
+		activityBarWidth: number;
+		sideBarWidth: number;
+		statusBarHeight: number;
+		windowBorder: boolean;
+		windowBorderRadius: string | undefined;
+	} | undefined;
 }

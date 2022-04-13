@@ -441,8 +441,8 @@ function assertConfiguration(result: ParseResult, expected: Tasks.Task[]): void 
 
 	// We can't compare Ids since the parser uses UUID which are random
 	// So create a new map using the name.
-	let actualTasks: { [key: string]: Tasks.Task; } = Object.create(null);
-	let actualId2Name: { [key: string]: string; } = Object.create(null);
+	let actualTasks: { [key: string]: Tasks.Task } = Object.create(null);
+	let actualId2Name: { [key: string]: string } = Object.create(null);
 	let actualTaskGroups = new TaskGroupMap();
 	actual.forEach(task => {
 		assert.ok(!actualTasks[task.configurationProperties.name!]);
@@ -454,7 +454,7 @@ function assertConfiguration(result: ParseResult, expected: Tasks.Task[]): void 
 			actualTaskGroups.add(taskId, task);
 		}
 	});
-	let expectedTasks: { [key: string]: Tasks.Task; } = Object.create(null);
+	let expectedTasks: { [key: string]: Tasks.Task } = Object.create(null);
 	let expectedTaskGroup = new TaskGroupMap();
 	expected.forEach(task => {
 		assert.ok(!expectedTasks[task.configurationProperties.name!]);

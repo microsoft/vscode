@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ILoggerOptions, ILoggerService, ILogService, log, LogLevel } from 'vs/platform/log/common/log';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtHostContext, ExtHostContext, MainThreadLoggerShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainThreadLoggerShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';

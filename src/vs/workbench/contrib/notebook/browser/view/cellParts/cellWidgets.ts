@@ -5,7 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IDimension } from 'vs/editor/common/editorCommon';
+import { IDimension } from 'vs/editor/common/core/dimension';
 
 export interface IClickTarget {
 	type: ClickTargetType;

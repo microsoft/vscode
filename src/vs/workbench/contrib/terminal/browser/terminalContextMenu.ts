@@ -12,7 +12,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 export function openContextMenu(event: MouseEvent, parent: HTMLElement, menu: IMenu, contextMenuService: IContextMenuService, extraActions?: Action[]): void {
 	const standardEvent = new StandardMouseEvent(event);
 
-	const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
+	const anchor: { x: number; y: number } = { x: standardEvent.posx, y: standardEvent.posy };
 	const actions: IAction[] = [];
 
 	const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions);

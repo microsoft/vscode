@@ -5,7 +5,7 @@
 
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions, IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -31,11 +31,13 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
 import { URI } from 'vs/base/common/uri';
 import { StandaloneCodeEditorService } from 'vs/editor/standalone/browser/standaloneCodeEditorService';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 /**
  * Description of an action contribution
@@ -142,7 +144,7 @@ export interface IGlobalEditorOptions {
 	maxTokenizationLineLength?: number;
 	/**
 	 * Theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light'.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
 	 * To switch a theme, use `monaco.editor.setTheme`.
 	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
@@ -175,7 +177,7 @@ export interface IStandaloneEditorConstructionOptions extends IEditorConstructio
 	language?: string;
 	/**
 	 * Initial theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
 	 * To switch a theme, use `monaco.editor.setTheme`.
 	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
@@ -206,7 +208,7 @@ export interface IStandaloneEditorConstructionOptions extends IEditorConstructio
 export interface IStandaloneDiffEditorConstructionOptions extends IDiffEditorConstructionOptions {
 	/**
 	 * Initial theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
 	 * To switch a theme, use `monaco.editor.setTheme`.
 	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
@@ -272,11 +274,12 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		@INotificationService notificationService: INotificationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		const options = { ..._options };
 		options.ariaLabel = options.ariaLabel || StandaloneCodeEditorNLS.editorViewAccessibleLabel;
 		options.ariaLabel = options.ariaLabel + ';' + (StandaloneCodeEditorNLS.accessibilityHelpMessage);
-		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService);
+		super(domElement, options, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
@@ -414,6 +417,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@IModelService modelService: IModelService,
 		@ILanguageService languageService: ILanguageService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, false);
@@ -426,7 +430,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		}
 		const _model: ITextModel | null | undefined = options.model;
 		delete options.model;
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService, accessibilityService, languageConfigurationService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
 
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;

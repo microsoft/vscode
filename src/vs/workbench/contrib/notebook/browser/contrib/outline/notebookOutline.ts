@@ -33,10 +33,11 @@ import { isEqual } from 'vs/base/common/resources';
 import { IdleValue } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import * as marked from 'vs/base/common/marked/marked';
+import { marked } from 'vs/base/common/marked/marked';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { executingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { URI } from 'vs/base/common/uri';
 
 export interface IOutlineMarkerInfo {
 	readonly count: number;
@@ -50,8 +51,9 @@ export class OutlineEntry {
 	private _markerInfo: IOutlineMarkerInfo | undefined;
 
 	get icon(): ThemeIcon {
-		return this.isExecuting ? ThemeIcon.modify(executingStateIcon, 'spin') :
-			this.cell.cellKind === CellKind.Markup ? Codicon.markdown : Codicon.code;
+		return this.isExecuting && this.isPaused ? executingStateIcon :
+			this.isExecuting ? ThemeIcon.modify(executingStateIcon, 'spin') :
+				this.cell.cellKind === CellKind.Markup ? Codicon.markdown : Codicon.code;
 	}
 
 	constructor(
@@ -59,7 +61,8 @@ export class OutlineEntry {
 		readonly level: number,
 		readonly cell: ICellViewModel,
 		readonly label: string,
-		readonly isExecuting: boolean
+		readonly isExecuting: boolean,
+		readonly isPaused: boolean
 	) { }
 
 	addChild(entry: OutlineEntry) {
@@ -222,7 +225,7 @@ class NotebookOutlineAccessibility implements IListAccessibilityProvider<Outline
 }
 
 class NotebookNavigationLabelProvider implements IKeyboardNavigationLabelProvider<OutlineEntry> {
-	getKeyboardNavigationLabel(element: OutlineEntry): { toString(): string | undefined; } | { toString(): string | undefined; }[] | undefined {
+	getKeyboardNavigationLabel(element: OutlineEntry): { toString(): string | undefined } | { toString(): string | undefined }[] | undefined {
 		return element.label;
 	}
 }
@@ -287,6 +290,7 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 
 	readonly onDidChange: Event<OutlineChangeEvent> = this._onDidChange.event;
 
+	private _uri: URI | undefined;
 	private _entries: OutlineEntry[] = [];
 	private _activeEntry?: OutlineEntry;
 	private readonly _entriesDisposables = this._register(new DisposableStore());
@@ -337,7 +341,11 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 			this._onDidChange.fire({});
 		}));
 
-		this._register(_notebookExecutionStateService.onDidChangeCellExecution(() => this._recomputeState()));
+		this._register(_notebookExecutionStateService.onDidChangeCellExecution(e => {
+			if (!!this._editor.textModel && e.affectsNotebook(this._editor.textModel?.uri)) {
+				this._recomputeState();
+			}
+		}));
 
 		this._recomputeState();
 		installSelectionListener();
@@ -381,6 +389,7 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 		this._entriesDisposables.clear();
 		this._activeEntry = undefined;
 		this._entries.length = 0;
+		this._uri = undefined;
 
 		const notebookEditorControl = this._editor.getControl();
 
@@ -391,6 +400,8 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 		if (!notebookEditorControl.hasModel()) {
 			return;
 		}
+
+		this._uri = notebookEditorControl.textModel.uri;
 
 		const notebookEditorWidget: IActiveNotebookEditor = notebookEditorControl;
 
@@ -419,14 +430,15 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 			// cap the amount of characters that we look at and use the following logic
 			// - for MD prefer headings (each header is an entry)
 			// - otherwise use the first none-empty line of the cell (MD or code)
-			let content = cell.getText().substring(0, 10_000);
+			let content = this._getCellFirstNonEmptyLine(cell);
 			let hasHeader = false;
 
 			if (isMarkdown) {
-				for (const token of marked.lexer(content, { gfm: true })) {
+				const fullContent = cell.getText().substring(0, 10_000);
+				for (const token of marked.lexer(fullContent, { gfm: true })) {
 					if (token.type === 'heading') {
 						hasHeader = true;
-						entries.push(new OutlineEntry(entries.length, token.depth, cell, renderMarkdownAsPlaintext({ value: token.text }).trim(), false));
+						entries.push(new OutlineEntry(entries.length, token.depth, cell, renderMarkdownAsPlaintext({ value: token.text }).trim(), false, false));
 					}
 				}
 				if (!hasHeader) {
@@ -441,8 +453,8 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 					preview = localize('empty', "empty cell");
 				}
 
-				const executing = !isMarkdown && !!this._notebookExecutionStateService.getCellExecutionState(cell.uri);
-				entries.push(new OutlineEntry(entries.length, 7, cell, preview, executing));
+				const exeState = !isMarkdown && this._notebookExecutionStateService.getCellExecution(cell.uri);
+				entries.push(new OutlineEntry(entries.length, 7, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
 			}
 
 			if (cell.handle === focused) {
@@ -547,8 +559,25 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 		}
 	}
 
+	private _getCellFirstNonEmptyLine(cell: ICellViewModel) {
+		const textBuffer = cell.textBuffer;
+		for (let i = 0; i < textBuffer.getLineCount(); i++) {
+			const firstNonWhitespace = textBuffer.getLineFirstNonWhitespaceColumn(i + 1);
+			const lineLength = textBuffer.getLineLength(i + 1);
+			if (firstNonWhitespace < lineLength) {
+				return textBuffer.getLineContent(i + 1);
+			}
+		}
+
+		return cell.getText().substring(0, 10_000);
+	}
+
 	get isEmpty(): boolean {
 		return this._entries.length === 0;
+	}
+
+	get uri() {
+		return this._uri;
 	}
 
 	async reveal(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean): Promise<void> {
