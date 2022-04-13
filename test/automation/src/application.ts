@@ -6,6 +6,7 @@
 import { Workbench } from './workbench';
 import { Code, launch, LaunchOptions } from './code';
 import { Logger, measureAndLog } from './logger';
+import { PlaywrightDriver } from './playwrightDriver';
 
 export const enum Quality {
 	Dev,
@@ -145,7 +146,7 @@ export class Application {
 		const driver = code.driver;
 
 		// Web / Legacy: just poll for workbench element
-		if (this.web) {
+		if (this.web || !(driver instanceof PlaywrightDriver)) {
 			await measureAndLog(code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
 		}
 
