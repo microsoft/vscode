@@ -89,6 +89,8 @@ export interface NotebookOptionsChangeEvent {
 	readonly fontSize?: boolean;
 	readonly outputFontSize?: boolean;
 	readonly markupFontSize?: boolean;
+	readonly fontFamily?: boolean;
+	readonly outputFontFamily?: boolean;
 	readonly editorOptionsCustomizations?: boolean;
 	readonly interactiveWindowCollapseCodeCells?: boolean;
 	readonly outputLineHeight?: boolean;
@@ -235,10 +237,11 @@ export class NotebookOptions extends Disposable {
 		const fontSize = e.affectsConfiguration('editor.fontSize');
 		const outputFontSize = e.affectsConfiguration(NotebookSetting.outputFontSize);
 		const markupFontSize = e.affectsConfiguration(NotebookSetting.markupFontSize);
+		const fontFamily = e.affectsConfiguration('editor.fontFamily');
+		const outputFontFamily = e.affectsConfiguration(NotebookSetting.outputFontFamily);
 		const editorOptionsCustomizations = e.affectsConfiguration(NotebookSetting.cellEditorOptionsCustomizations);
 		const interactiveWindowCollapseCodeCells = e.affectsConfiguration(NotebookSetting.interactiveWindowCollapseCodeCells);
 		const outputLineHeight = e.affectsConfiguration(NotebookSetting.outputLineHeight);
-
 
 		if (
 			!cellStatusBarVisibility
@@ -256,6 +259,8 @@ export class NotebookOptions extends Disposable {
 			&& !fontSize
 			&& !outputFontSize
 			&& !markupFontSize
+			&& !fontFamily
+			&& !outputFontFamily
 			&& !editorOptionsCustomizations
 			&& !interactiveWindowCollapseCodeCells
 			&& !outputLineHeight) {
@@ -328,6 +333,10 @@ export class NotebookOptions extends Disposable {
 			configuration.markupFontSize = this.configurationService.getValue<number>(NotebookSetting.markupFontSize);
 		}
 
+		if (outputFontFamily) {
+			configuration.outputFontFamily = this.configurationService.getValue<string>(NotebookSetting.outputFontFamily);
+		}
+
 		if (editorOptionsCustomizations) {
 			configuration.editorOptionsCustomizations = this.configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations);
 		}
@@ -342,7 +351,6 @@ export class NotebookOptions extends Disposable {
 
 		this._layoutConfiguration = Object.freeze(configuration);
 
-		// add new configuration to the event?
 		// trigger event
 		this._onDidChangeOptions.fire({
 			cellStatusBarVisibility,
@@ -360,6 +368,8 @@ export class NotebookOptions extends Disposable {
 			fontSize,
 			outputFontSize,
 			markupFontSize,
+			fontFamily,
+			outputFontFamily,
 			editorOptionsCustomizations,
 			interactiveWindowCollapseCodeCells,
 			outputLineHeight
