@@ -83,6 +83,10 @@ export class WindowDriverChannelClient implements IWindowDriver {
 	getLocalizedStrings(): Promise<ILocalizedStrings> {
 		return this.channel.call('getLocalizedStrings');
 	}
+
+	exitApplication(): Promise<void> {
+		return this.channel.call('exitApplication');
+	}
 }
 
 export class WindowDriverRegistryChannelClient implements IWindowDriverRegistry {

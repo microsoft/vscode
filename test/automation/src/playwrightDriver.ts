@@ -9,7 +9,8 @@ import { IDriver, IWindowDriver } from './driver';
 import { PageFunction } from 'playwright-core/types/structs';
 import { measureAndLog } from './logger';
 import { LaunchOptions } from './code';
-import { teardown } from './playwrightBrowser';
+import { teardown } from './processes';
+import { ChildProcess } from 'child_process';
 
 export class PlaywrightDriver implements IDriver {
 
@@ -36,7 +37,7 @@ export class PlaywrightDriver implements IDriver {
 		private readonly application: playwright.Browser | playwright.ElectronApplication,
 		private readonly context: playwright.BrowserContext,
 		private readonly page: playwright.Page,
-		private readonly serverPid: number | undefined,
+		private readonly serverProcess: ChildProcess | undefined,
 		private readonly options: LaunchOptions
 	) {
 	}
@@ -107,32 +108,28 @@ export class PlaywrightDriver implements IDriver {
 			// Ignore
 		}
 
-		// VSCode shutdown (desktop only)
-		let mainPid: number | undefined = undefined;
-		if (!this.options.web) {
+		// Web: exit via `close` method
+		if (this.options.web) {
 			try {
-				mainPid = await measureAndLog(this._evaluateWithDriver(([driver]) => (driver as unknown as IDriver).exitApplication()), 'driver.exitApplication()', this.options.logger);
+				await measureAndLog(this.application.close(), 'playwright.close()', this.options.logger);
+			} catch (error) {
+				this.options.logger.log(`Error closing appliction (${error})`);
+			}
+		}
+
+		// Desktop: exit via `driver.exitApplication`
+		else {
+			try {
+				await measureAndLog(this._evaluateWithDriver(([driver]) => driver.exitApplication()), 'driver.exitApplication()', this.options.logger);
 			} catch (error) {
 				this.options.logger.log(`Error exiting appliction (${error})`);
 			}
 		}
 
-		// Playwright shutdown
-		try {
-			await Promise.race([
-				measureAndLog(this.application.close(), 'playwright.close()', this.options.logger),
-				new Promise<void>(resolve => setTimeout(() => resolve(), 10000)) // TODO@bpasero mitigate https://github.com/microsoft/vscode/issues/146803
-			]);
-		} catch (error) {
-			this.options.logger.log(`Error closing appliction (${error})`);
+		// Server: via `teardown`
+		if (this.serverProcess) {
+			await measureAndLog(teardown(this.serverProcess, this.options.logger), 'teardown server process', this.options.logger);
 		}
-
-		// Server shutdown
-		if (typeof this.serverPid === 'number') {
-			await measureAndLog(teardown(this.serverPid, this.options.logger), 'teardown server', this.options.logger);
-		}
-
-		return mainPid ?? this.serverPid! /* when running web we must have a server Pid */;
 	}
 
 	async dispatchKeybinding(windowId: number, keybinding: string) {

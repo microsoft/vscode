@@ -59,7 +59,7 @@ export class DriverChannelClient implements IDriver {
 		return this.channel.call('stopTracing', [windowId, name, persist]);
 	}
 
-	exitApplication(): Promise<number> {
+	exitApplication(): Promise<void> {
 		return this.channel.call('exitApplication');
 	}
 
