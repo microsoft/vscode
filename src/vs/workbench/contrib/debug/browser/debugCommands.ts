@@ -406,7 +406,7 @@ CommandsRegistry.registerCommand({
 		if (stoppedChildSession && session.state !== State.Stopped) {
 			session = stoppedChildSession;
 		}
-		await debugService.focusStackFrame(undefined, undefined, session, true);
+		await debugService.focusStackFrame(undefined, undefined, session, { explicit: true });
 		const stackFrame = debugService.getViewModel().focusedStackFrame;
 		if (stackFrame) {
 			await stackFrame.openInEditor(editorService, true);
