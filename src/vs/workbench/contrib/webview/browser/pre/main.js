@@ -368,16 +368,14 @@ const unloadMonitor = new class {
 			}
 
 			switch (this.confirmBeforeClose) {
-				case 'always':
-					{
-						event.preventDefault();
-						event.returnValue = '';
-						return '';
-					}
-				case 'never':
-					{
-						break;
-					}
+				case 'always': {
+					event.preventDefault();
+					event.returnValue = '';
+					return '';
+				}
+				case 'never': {
+					break;
+				}
 				case 'keyboardOnly':
 				default: {
 					if (this.isModifierKeyDown) {
