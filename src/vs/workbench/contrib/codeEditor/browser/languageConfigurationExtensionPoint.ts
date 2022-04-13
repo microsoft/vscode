@@ -19,6 +19,7 @@ import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { hash } from 'vs/base/common/hash';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ITreeSitterService } from 'vs/workbench/services/treeSitter/common/TSService';
 
 interface IRegExp {
 	pattern: string;
@@ -87,6 +88,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 
 	constructor(
 		@ITextMateService textMateService: ITextMateService,
+		@ITreeSitterService treeSitterService: ITreeSitterService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -109,6 +111,9 @@ export class LanguageConfigurationFileHandler extends Disposable {
 		this._register(textMateService.onDidEncounterLanguage((languageId) => {
 			this._loadConfigurationsForMode(languageId);
 		}));
+		// this._register(treeSitterService.onDidEncounterLanguage((languageId) => {
+		// 	this._loadConfigurationsForMode(languageId);
+		// }));
 	}
 
 	private async _loadConfigurationsForMode(languageId: string): Promise<void> {

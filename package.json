@@ -91,7 +91,8 @@
     "xterm-addon-webgl": "0.12.0-beta.27",
     "xterm-headless": "4.19.0-beta.21",
     "yauzl": "^2.9.2",
-    "yazl": "^2.4.3"
+    "yazl": "^2.4.3",
+    "web-tree-sitter": "^0.20.5"
   },
   "devDependencies": {
     "7zip": "0.0.6",

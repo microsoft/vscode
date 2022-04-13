@@ -53,6 +53,12 @@
         ]
       }
     ],
+    "tsGrammars": [
+      {
+        "language": "typescript",
+        "path": "./tree-sitter-typescript.wasm"
+      }
+    ],
     "grammars": [
       {
         "language": "typescript",

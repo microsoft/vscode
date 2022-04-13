@@ -15,6 +15,7 @@ import { IconExtensionPoint } from 'vs/workbench/services/themes/common/iconExte
 import { TokenClassificationExtensionPoints } from 'vs/workbench/services/themes/common/tokenClassificationExtensionPoint';
 import { LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/browser/languageConfigurationExtensionPoint';
 
+
 // --- mainThread participants
 import './mainThreadBulkEdits';
 import './mainThreadCodeInsets';
