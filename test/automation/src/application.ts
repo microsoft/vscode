@@ -16,8 +16,7 @@ export const enum Quality {
 
 export interface ApplicationOptions extends LaunchOptions {
 	quality: Quality;
-	workspacePath: string;
-	waitTime: number;
+	readonly workspacePath: string;
 }
 
 export class Application {
@@ -47,10 +46,6 @@ export class Application {
 
 	get web(): boolean {
 		return !!this.options.web;
-	}
-
-	get legacy(): boolean {
-		return !!this.options.legacy;
 	}
 
 	private _workspacePathOrFolder: string;
@@ -117,9 +112,6 @@ export class Application {
 	}
 
 	private async checkWindowReady(code: Code): Promise<void> {
-
-		// This is legacy and will be removed when our old driver removes
-		await code.waitForWindowIds(ids => ids.length > 0);
 
 		// We need a rendered workbench
 		await this.checkWorkbenchReady(code);

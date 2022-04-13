@@ -45,7 +45,6 @@ const opts = minimist(args, {
 		'remote',
 		'web',
 		'headless',
-		'legacy',
 		'tracing'
 	],
 	default: {
@@ -56,7 +55,6 @@ const opts = minimist(args, {
 	remote?: boolean;
 	headless?: boolean;
 	web?: boolean;
-	legacy?: boolean;
 	tracing?: boolean;
 	build?: string;
 	'stable-build'?: string;
@@ -71,9 +69,9 @@ const logsRootPath = (() => {
 	if (opts.web) {
 		logsName = 'smoke-tests-browser';
 	} else if (opts.remote) {
-		logsName = opts.legacy ? 'smoke-tests-remote-legacy' : 'smoke-tests-remote';
+		logsName = 'smoke-tests-remote';
 	} else {
-		logsName = opts.legacy ? 'smoke-tests-electron-legacy' : 'smoke-tests-electron';
+		logsName = 'smoke-tests-electron';
 	}
 
 	return path.join(logsParentPath, logsName);
@@ -326,13 +324,11 @@ before(async function () {
 		workspacePath,
 		userDataDir,
 		extensionsPath,
-		waitTime: parseInt(opts['wait-time'] || '0') || 20,
 		logger,
 		logsPath: path.join(logsRootPath, 'suite_unknown'),
 		verbose: opts.verbose,
 		remote: opts.remote,
 		web: opts.web,
-		legacy: opts.legacy,
 		tracing: opts.tracing,
 		headless: opts.headless,
 		browser: opts.browser,
@@ -366,7 +362,7 @@ after(async function () {
 	}
 });
 
-describe(`VSCode Smoke Tests (${opts.web ? 'Web' : opts.legacy ? 'Electron (legacy)' : 'Electron'})`, () => {
+describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web) { setupDataLossTests(() => opts['stable-build'] /* Do not change, deferred for a reason! */, logger); }
 	setupPreferencesTests(logger);
 	setupSearchTests(logger);
