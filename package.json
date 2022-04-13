@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.67.0",
-  "distro": "5589eefba75be18bb4b240d9e45efd88efd782e9",
+  "distro": "5c715d21e609df4020231e89b9a0a684dcfa6ffd",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -161,7 +161,6 @@
     "gulp-remote-retry-src": "^0.8.0",
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
-    "gulp-shell": "^0.6.5",
     "gulp-sourcemaps": "^3.0.0",
     "gulp-svgmin": "^4.1.0",
     "gulp-tsb": "4.0.6",

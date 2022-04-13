@@ -109,6 +109,41 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		if (controller) {
 			commentControllerKey.set(controller.contextValue);
 		}
+
+		this.currentThreadListeners();
+	}
+
+	private updateCurrentThread(hasMouse: boolean, hasFocus: boolean) {
+		if (hasMouse || hasFocus) {
+			this.commentService.setCurrentCommentThread(this.commentThread);
+		} else {
+			this.commentService.setCurrentCommentThread(undefined);
+		}
+	}
+
+	private currentThreadListeners() {
+		let hasMouse = false;
+		let hasFocus = false;
+		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_ENTER, (e) => {
+			if ((<any>e).toElement === this.container) {
+				hasMouse = true;
+				this.updateCurrentThread(hasMouse, hasFocus);
+			}
+		}, true));
+		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_LEAVE, (e) => {
+			if ((<any>e).fromElement === this.container) {
+				hasMouse = false;
+				this.updateCurrentThread(hasMouse, hasFocus);
+			}
+		}, true));
+		this._register(dom.addDisposableListener(this.container, dom.EventType.FOCUS_IN, () => {
+			hasFocus = true;
+			this.updateCurrentThread(hasMouse, hasFocus);
+		}, true));
+		this._register(dom.addDisposableListener(this.container, dom.EventType.FOCUS_OUT, () => {
+			hasFocus = false;
+			this.updateCurrentThread(hasMouse, hasFocus);
+		}, true));
 	}
 
 	updateCommentThread(commentThread: languages.CommentThread<T>) {

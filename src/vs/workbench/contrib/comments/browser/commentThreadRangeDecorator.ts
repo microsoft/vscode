@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IRange } from 'vs/editor/common/core/range';
 import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ICommentInfo } from 'vs/workbench/contrib/comments/browser/commentService';
+import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 
 class CommentThreadRangeDecoration implements IModelDeltaDecoration {
 	private _decorationId: string | undefined;
@@ -26,12 +27,16 @@ class CommentThreadRangeDecoration implements IModelDeltaDecoration {
 	}
 }
 
-export class CommentThreadRangeDecorator {
-	public static description = 'comment-thread-range-decorator';
+export class CommentThreadRangeDecorator extends Disposable {
+	private static description = 'comment-thread-range-decorator';
 	private decorationOptions: ModelDecorationOptions;
+	private activeDecorationOptions: ModelDecorationOptions;
 	private decorationIds: string[] = [];
+	private activeDecorationIds: string[] = [];
+	private editor: ICodeEditor | undefined;
 
-	constructor() {
+	constructor(commentService: ICommentService) {
+		super();
 		const decorationOptions: IModelDecorationOptions = {
 			description: CommentThreadRangeDecorator.description,
 			isWholeLine: false,
@@ -40,6 +45,29 @@ export class CommentThreadRangeDecorator {
 		};
 
 		this.decorationOptions = ModelDecorationOptions.createDynamic(decorationOptions);
+
+		const activeDecorationOptions: IModelDecorationOptions = {
+			description: CommentThreadRangeDecorator.description,
+			isWholeLine: false,
+			zIndex: 20,
+			className: 'comment-thread-range-current'
+		};
+
+		this.activeDecorationOptions = ModelDecorationOptions.createDynamic(activeDecorationOptions);
+		this._register(commentService.onDidChangeCurrentCommentThread(thread => {
+			if (!this.editor) {
+				return;
+			}
+			let newDecoration: CommentThreadRangeDecoration[] = [];
+			if (thread) {
+				const range = thread.range;
+				if (!((range.startLineNumber === range.endLineNumber) && (range.startColumn === range.endColumn))) {
+					newDecoration.push(new CommentThreadRangeDecoration(range, this.activeDecorationOptions));
+				}
+			}
+			this.activeDecorationIds = this.editor.deltaDecorations(this.activeDecorationIds, newDecoration);
+			newDecoration.forEach((decoration, index) => decoration.id = this.decorationIds[index]);
+		}));
 	}
 
 	public update(editor: ICodeEditor, commentInfos: ICommentInfo[]) {
@@ -47,6 +75,7 @@ export class CommentThreadRangeDecorator {
 		if (!model) {
 			return;
 		}
+		this.editor = editor;
 
 		const commentThreadRangeDecorations: CommentThreadRangeDecoration[] = [];
 		for (const info of commentInfos) {

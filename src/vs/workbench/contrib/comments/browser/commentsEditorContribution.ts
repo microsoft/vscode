@@ -47,7 +47,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { Position } from 'vs/editor/common/core/position';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CommentThreadRangeDecorator } from 'vs/workbench/contrib/comments/browser/commentThreadRangeDecorator';
-import { commentThreadRangeBackground, commentThreadRangeBorder } from 'vs/workbench/contrib/comments/browser/commentColors';
+import { commentThreadRangeActiveBackground, commentThreadRangeActiveBorder, commentThreadRangeBackground, commentThreadRangeBorder } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 
@@ -343,7 +343,7 @@ export class CommentController implements IEditorContribution {
 			}
 		}));
 
-		this._commentThreadRangeDecorator = new CommentThreadRangeDecorator();
+		this.globalToDispose.add(this._commentThreadRangeDecorator = new CommentThreadRangeDecorator(this.commentService));
 
 		this.globalToDispose.add(this.commentService.onDidDeleteDataProvider(ownerId => {
 			delete this._pendingCommentCache[ownerId];
@@ -1100,6 +1100,20 @@ registerThemingParticipant((theme, collector) => {
 	if (commentThreadRangeBorderColor) {
 		collector.addRule(`.monaco-editor .comment-thread-range {
 		border-color: ${commentThreadRangeBorderColor};
+		border-width: 1px;
+		border-style: solid;
+		box-sizing: border-box; }`);
+	}
+
+	const commentThreadRangeActiveBackgroundColor = theme.getColor(commentThreadRangeActiveBackground);
+	if (commentThreadRangeActiveBackgroundColor) {
+		collector.addRule(`.monaco-editor .comment-thread-range-current { background-color: ${commentThreadRangeActiveBackgroundColor};}`);
+	}
+
+	const commentThreadRangeActiveBorderColor = theme.getColor(commentThreadRangeActiveBorder);
+	if (commentThreadRangeActiveBorderColor) {
+		collector.addRule(`.monaco-editor .comment-thread-range-current {
+		border-color: ${commentThreadRangeActiveBorderColor};
 		border-width: 1px;
 		border-style: solid;
 		box-sizing: border-box; }`);
