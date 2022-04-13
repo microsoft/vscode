@@ -1021,6 +1021,24 @@ onDomReady(() => {
 				});
 			});
 
+			const dragHandler = (/** @type {DragEvent} */ e) => {
+				if (e.defaultPrevented) {
+					// Extension code has already handled this event
+					return;
+				}
+
+				if (!e.dataTransfer) {
+					return;
+				}
+
+				// Only handle drags from outside editor for now
+				if (e.target === contentWindow.document.documentElement) {
+					hostMessaging.postMessage('drag-start');
+				}
+			};
+			contentWindow.addEventListener('dragenter', dragHandler);
+			contentWindow.addEventListener('dragover', dragHandler);
+
 			unloadMonitor.onIframeLoaded(newFrame);
 		}
 	});
