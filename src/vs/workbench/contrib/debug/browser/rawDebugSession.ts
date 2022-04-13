@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
-import { Action } from 'vs/base/common/actions';
+import { toAction } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
 import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { formatPII, isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
@@ -284,7 +284,7 @@ export class RawDebugSession implements IDisposable {
 	 */
 	disconnect(args: DebugProtocol.DisconnectArguments): Promise<any> {
 		const terminateDebuggee = this.capabilities.supportTerminateDebuggee ? args.terminateDebuggee : undefined;
-		const suspendDebuggee = this.capabilities.supportSuspendDebuggee ? args.suspendDebuggee : undefined;
+		const suspendDebuggee = this.capabilities.supportTerminateDebuggee && this.capabilities.supportSuspendDebuggee ? args.suspendDebuggee : undefined;
 		return this.shutdown(undefined, args.restart, terminateDebuggee, suspendDebuggee);
 	}
 
@@ -747,11 +747,7 @@ export class RawDebugSession implements IDisposable {
 			const uri = URI.parse(url);
 			// Use a suffixed id if uri invokes a command, so default 'Open launch.json' command is suppressed on dialog
 			const actionId = uri.scheme === Schemas.command ? 'debug.moreInfo.command' : 'debug.moreInfo';
-			return createErrorWithActions(userMessage, {
-				actions: [new Action(actionId, label, undefined, true, async () => {
-					this.openerService.open(uri, { allowCommands: true });
-				})]
-			});
+			return createErrorWithActions(userMessage, [toAction({ id: actionId, label, run: () => this.openerService.open(uri, { allowCommands: true }) })]);
 		}
 		if (showErrors && error && error.format && error.showUser) {
 			this.notificationService.error(userMessage);

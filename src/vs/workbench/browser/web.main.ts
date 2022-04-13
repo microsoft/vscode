@@ -69,9 +69,9 @@ import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { BrowserCredentialsService } from 'vs/workbench/services/credentials/browser/credentialsService';
 import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { Extensions, IOutputChannelRegistry, IOutputService } from 'vs/workbench/services/output/common/output';
 
 export class BrowserMain extends Disposable {
 
@@ -121,6 +121,7 @@ export class BrowserMain extends Disposable {
 			const openerService = accessor.get(IOpenerService);
 			const productService = accessor.get(IProductService);
 			const outputService = accessor.get(IOutputService);
+			const progessService = accessor.get(IProgressService);
 
 			return {
 				commands: {
@@ -149,6 +150,7 @@ export class BrowserMain extends Disposable {
 
 						throw Error(`Could not create output channel for name: ${name}`);
 					},
+					withProgress: (options, task) => progessService.withProgress(options, task)
 				},
 				shutdown: () => lifecycleService.shutdown()
 			};

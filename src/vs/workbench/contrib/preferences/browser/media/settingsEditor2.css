@@ -39,7 +39,7 @@
 
 .settings-editor > .settings-header > .search-container > .settings-count-widget {
 	position: absolute;
-	right: 35px;
+	right: 46px;
 	top: 0px;
 	margin: 4px 0px;
 }
@@ -55,7 +55,7 @@
 	top: 0;
 	right: 0;
 	height: 100%;
-	width: 30px;
+	width: 43px;
 }
 
 .settings-editor > .settings-header > .search-container > .settings-clear-widget .action-label {

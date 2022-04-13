@@ -96,12 +96,10 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		return image.toPNG().toString('base64');
 	}
 
-	async exitApplication(): Promise<number> {
+	async exitApplication(): Promise<void> {
 		this.logService.info(`[driver] exitApplication()`);
 
-		this.lifecycleMainService.quit();
-
-		return process.pid;
+		await this.lifecycleMainService.quit();
 	}
 
 	async dispatchKeybinding(windowId: number, keybinding: string): Promise<void> {

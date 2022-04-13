@@ -13,19 +13,23 @@ declare module 'vscode' {
 		Error = 3
 	}
 
+	export interface InputBoxValidationMessage {
+		readonly message: string;
+		readonly severity: InputBoxValidationSeverity;
+	}
+
 	export interface InputBoxOptions {
 		/**
 		 * The validation message to display. This will become the new {@link InputBoxOptions#validateInput} upon finalization.
 		 */
-		// TODO@API consider to extract InputBoxValidationMessage
-		validateInput2?(value: string): string | { content: string; severity: InputBoxValidationSeverity } | undefined | null |
-			Thenable<string | { content: string; severity: InputBoxValidationSeverity } | undefined | null>;
+		validateInput2?(value: string): string | InputBoxValidationMessage | undefined | null |
+			Thenable<string | InputBoxValidationMessage | undefined | null>;
 	}
 
 	export interface InputBox {
 		/**
 		 * The validation message to display. This will become the new {@link InputBox#validationMessage} upon finalization.
 		 */
-		validationMessage2: string | { content: string; severity: InputBoxValidationSeverity } | undefined;
+		validationMessage2: string | InputBoxValidationMessage | undefined;
 	}
 }

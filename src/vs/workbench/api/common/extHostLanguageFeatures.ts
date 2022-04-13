@@ -1030,6 +1030,10 @@ class InlineCompletionAdapterBase {
 	public async provideInlineCompletions(resource: URI, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
 		return undefined;
 	}
+
+	public disposeCompletions(pid: number): void { }
+
+	public handleDidShowCompletionItem(pid: number, idx: number): void { }
 }
 
 class InlineCompletionAdapter extends InlineCompletionAdapterBase {
@@ -1104,7 +1108,7 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 		};
 	}
 
-	public disposeCompletions(pid: number) {
+	public override disposeCompletions(pid: number) {
 		this._cache.delete(pid);
 		const d = this._disposables.get(pid);
 		if (d) {
@@ -1113,7 +1117,7 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 		this._disposables.delete(pid);
 	}
 
-	public handleDidShowCompletionItem(pid: number, idx: number): void {
+	public override handleDidShowCompletionItem(pid: number, idx: number): void {
 		const completionItem = this._cache.get(pid, idx);
 		if (completionItem) {
 			InlineCompletionController.get(this._provider).fireOnDidShowCompletionItem({
@@ -1124,8 +1128,10 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 }
 
 class InlineCompletionAdapterNew extends InlineCompletionAdapterBase {
-	private readonly _cache = new Cache<vscode.InlineCompletionItemNew>('InlineCompletionItemNew');
-	private readonly _disposables = new Map<number, DisposableStore>();
+	private readonly _references = new ReferenceMap<{
+		dispose(): void;
+		items: readonly vscode.InlineCompletionItemNew[];
+	}>();
 
 	private readonly isAdditionProposedApiEnabled = isProposedApiEnabled(this.extension, 'inlineCompletionsAdditions');
 
@@ -1170,9 +1176,17 @@ class InlineCompletionAdapterNew extends InlineCompletionAdapterBase {
 		}
 
 		const normalizedResult = isArray(result) ? result : result.items;
+		const commands = isArray(result) ? [] : result.commands || [];
 
-		const pid = this._cache.add(normalizedResult);
 		let disposableStore: DisposableStore | undefined = undefined;
+		const pid = this._references.createReferenceId({
+			dispose() {
+				if (disposableStore) {
+					disposableStore.dispose();
+				}
+			},
+			items: normalizedResult
+		});
 
 		return {
 			pid,
@@ -1181,7 +1195,6 @@ class InlineCompletionAdapterNew extends InlineCompletionAdapterBase {
 				if (item.command) {
 					if (!disposableStore) {
 						disposableStore = new DisposableStore();
-						this._disposables.set(pid, disposableStore);
 					}
 					command = this._commands.toInternal(item.command, disposableStore);
 				}
@@ -1196,25 +1209,48 @@ class InlineCompletionAdapterNew extends InlineCompletionAdapterBase {
 					completeBracketPairs: this.isAdditionProposedApiEnabled ? item.completeBracketPairs : false
 				});
 			}),
+			commands: commands.map(c => {
+				if (!disposableStore) {
+					disposableStore = new DisposableStore();
+				}
+				return this._commands.toInternal(c, disposableStore);
+			})
 		};
 	}
 
-	public disposeCompletions(pid: number) {
-		this._cache.delete(pid);
-		const d = this._disposables.get(pid);
-		if (d) {
-			d.clear();
-		}
-		this._disposables.delete(pid);
+	public override disposeCompletions(pid: number) {
+		const data = this._references.disposeReferenceId(pid);
+		data?.dispose();
 	}
 
-	public handleDidShowCompletionItem(pid: number, idx: number): void {
-		const completionItem = this._cache.get(pid, idx);
+	public override handleDidShowCompletionItem(pid: number, idx: number): void {
+		const completionItem = this._references.get(pid)?.items[idx];
 		if (completionItem) {
-			if (this._provider.handleDidShowCompletionItem && isProposedApiEnabled(this.extension, 'inlineCompletionsAdditions')) {
+			if (this._provider.handleDidShowCompletionItem && this.isAdditionProposedApiEnabled) {
 				this._provider.handleDidShowCompletionItem(completionItem);
 			}
 		}
+	}
+}
+
+class ReferenceMap<T> {
+	private readonly _references = new Map<number, T>();
+	private _idPool = 1;
+
+	createReferenceId(value: T): number {
+		const id = this._idPool++;
+		this._references.set(id, value);
+		return id;
+	}
+
+	disposeReferenceId(referenceId: number): T | undefined {
+		const value = this._references.get(referenceId);
+		this._references.delete(referenceId);
+		return value;
+	}
+
+	get(referenceId: number): T | undefined {
+		return this._references.get(referenceId);
 	}
 }
 
@@ -2194,13 +2230,13 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	}
 
 	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number): void {
-		this._withAdapter(handle, InlineCompletionAdapter, async adapter => {
+		this._withAdapter(handle, InlineCompletionAdapterBase, async adapter => {
 			adapter.handleDidShowCompletionItem(pid, idx);
 		}, undefined, undefined);
 	}
 
 	$freeInlineCompletionsList(handle: number, pid: number): void {
-		this._withAdapter(handle, InlineCompletionAdapter, async adapter => { adapter.disposeCompletions(pid); }, undefined, undefined);
+		this._withAdapter(handle, InlineCompletionAdapterBase, async adapter => { adapter.disposeCompletions(pid); }, undefined, undefined);
 	}
 
 	// --- parameter hints

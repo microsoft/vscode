@@ -22,6 +22,10 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
 import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
 import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
+import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 
 // Actions
 (function registerActions(): void {
@@ -59,8 +63,18 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'workbench.action.quit',
 		weight: KeybindingWeight.WorkbenchContrib,
-		handler(accessor: ServicesAccessor) {
+		async handler(accessor: ServicesAccessor) {
 			const nativeHostService = accessor.get(INativeHostService);
+			const configurationService = accessor.get(IConfigurationService);
+
+			const confirmBeforeClose = configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
+			if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed)) {
+				const confirmed = await NativeWindow.confirmOnShutdown(accessor, ShutdownReason.QUIT);
+				if (!confirmed) {
+					return; // quit prevented by user
+				}
+			}
+
 			nativeHostService.quit();
 		},
 		when: undefined,

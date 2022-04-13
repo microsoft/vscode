@@ -219,9 +219,9 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       exec {.\build\azure-pipelines\win32\listprocesses.bat }
-    displayName: List tasks before smoke test run
+    displayName: Diagnostics before smoke test run
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -236,11 +236,9 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --verbose --tracing --build "$AppRoot" }
+      exec { yarn smoketest-no-compile --tracing --build "$AppRoot" }
     displayName: Run smoke tests (Electron)
-    # Increased timeout because this test downloads stable code
-    # TODO@bpasero reduce timeout and remove --verbose when done
-    timeoutInMinutes: 60
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
@@ -248,18 +246,17 @@ steps:
       $ErrorActionPreference = "Stop"
       $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
       $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --verbose --tracing --remote --build "$AppRoot" }
+      exec { yarn smoketest-no-compile --tracing --remote --build "$AppRoot" }
     displayName: Run smoke tests (Remote)
-    # TODO@bpasero reduce timeout and remove --verbose when done
-    timeoutInMinutes: 60
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       exec {.\build\azure-pipelines\win32\listprocesses.bat }
-    displayName: List tasks after smoke test run
+    displayName: Diagnostics after smoke test run
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - task: PublishPipelineArtifact@0
     inputs:

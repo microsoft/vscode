@@ -13,6 +13,7 @@ import { launch as launchPlaywrightElectron } from './playwrightElectron';
 import { Logger, measureAndLog } from './logger';
 import { copyExtension } from './extensions';
 import * as treekill from 'tree-kill';
+import { teardown } from './processes';
 
 const rootPath = join(__dirname, '../../..');
 
@@ -22,7 +23,7 @@ export interface LaunchOptions {
 	userDataDir: string;
 	readonly extensionsPath: string;
 	readonly logger: Logger;
-	readonly logsPath: string;
+	logsPath: string;
 	readonly verbose?: boolean;
 	readonly extraArgs?: string[];
 	readonly remote?: boolean;
@@ -39,8 +40,8 @@ interface ICodeInstance {
 
 const instances = new Set<ICodeInstance>();
 
-function registerInstance(process: cp.ChildProcess, logger: Logger, type: string, kill: () => Promise<void>) {
-	const instance = { kill };
+function registerInstance(process: cp.ChildProcess, logger: Logger, type: string) {
+	const instance = { kill: () => teardown(process, logger) };
 	instances.add(instance);
 
 	process.stdout?.on('data', data => logger.log(`[${type}] stdout: ${data}`));
@@ -53,7 +54,7 @@ function registerInstance(process: cp.ChildProcess, logger: Logger, type: string
 	});
 }
 
-async function teardown(signal?: number) {
+async function teardownAll(signal?: number) {
 	stopped = true;
 
 	for (const instance of instances) {
@@ -66,9 +67,9 @@ async function teardown(signal?: number) {
 }
 
 let stopped = false;
-process.on('exit', () => teardown());
-process.on('SIGINT', () => teardown(128 + 2)); 	 // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
-process.on('SIGTERM', () => teardown(128 + 15)); // same as above
+process.on('exit', () => teardownAll());
+process.on('SIGINT', () => teardownAll(128 + 2)); 	 // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+process.on('SIGTERM', () => teardownAll(128 + 15)); // same as above
 
 export async function launch(options: LaunchOptions): Promise<Code> {
 	if (stopped) {
@@ -79,25 +80,26 @@ export async function launch(options: LaunchOptions): Promise<Code> {
 
 	// Browser smoke tests
 	if (options.web) {
-		const { serverProcess, client, driver, kill } = await measureAndLog(launchPlaywrightBrowser(options), 'launch playwright (browser)', options.logger);
-		registerInstance(serverProcess, options.logger, 'server', kill);
+		const { serverProcess, client, driver } = await measureAndLog(launchPlaywrightBrowser(options), 'launch playwright (browser)', options.logger);
+		registerInstance(serverProcess, options.logger, 'server');
 
-		return new Code(client, driver, options.logger);
+		return new Code(client, driver, options.logger, serverProcess);
 	}
 
 	// Electron smoke tests (playwright)
 	else if (!options.legacy) {
-		const { client, driver } = await measureAndLog(launchPlaywrightElectron(options), 'launch playwright (electron)', options.logger);
+		const { electronProcess, client, driver } = await measureAndLog(launchPlaywrightElectron(options), 'launch playwright (electron)', options.logger);
+		registerInstance(electronProcess, options.logger, 'electron');
 
-		return new Code(client, driver, options.logger);
+		return new Code(client, driver, options.logger, electronProcess);
 	}
 
 	// Electron smoke tests (legacy driver)
 	else {
-		const { electronProcess, client, driver, kill } = await measureAndLog(launchElectron(options), 'launch electron', options.logger);
-		registerInstance(electronProcess, options.logger, 'electron', kill);
+		const { electronProcess, client, driver } = await measureAndLog(launchElectron(options), 'launch electron', options.logger);
+		registerInstance(electronProcess, options.logger, 'electron');
 
-		return new Code(client, driver, options.logger);
+		return new Code(client, driver, options.logger, electronProcess);
 	}
 }
 
@@ -109,7 +111,8 @@ export class Code {
 	constructor(
 		private client: IDisposable,
 		driver: IDriver,
-		readonly logger: Logger
+		readonly logger: Logger,
+		private readonly mainProcess: cp.ChildProcess
 	) {
 		this.driver = new Proxy(driver, {
 			get(target, prop) {
@@ -150,13 +153,15 @@ export class Code {
 	}
 
 	async exit(): Promise<void> {
-
-		// Start the exit flow via driver
-		const pid = await measureAndLog(this.driver.exitApplication(), 'driver.exitApplication()', this.logger);
-
 		return measureAndLog(new Promise<void>((resolve, reject) => {
+			const pid = this.mainProcess.pid!;
+
 			let done = false;
 
+			// Start the exit flow via driver
+			this.driver.exitApplication();
+
+			// Await the exit of the application
 			(async () => {
 				let retries = 0;
 				while (!done) {

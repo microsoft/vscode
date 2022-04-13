@@ -14,7 +14,8 @@ import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/brow
 import type { IProductConfiguration } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
-import type { IOutputChannel } from 'vs/workbench/contrib/output/common/output';
+import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
+import type { IOutputChannel } from 'vs/workbench/services/output/common/output';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -73,6 +74,18 @@ export interface IWorkbench {
 		 * @param languageId The identifier of the language associated with the channel.
 		 */
 		createOutputChannel(name: string, languageId?: string): Promise<IOutputChannel>;
+
+		/**
+		 * Show progress in the editor. Progress is shown while running the given callback
+		 * and while the promise it returned isn't resolved nor rejected.
+		 *
+		 * @param task A callback returning a promise.
+		 * @return A promise that resolves to the returned value of the given task result.
+		 */
+		withProgress<R>(
+			options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
+			task: (progress: IProgress<IProgressStep>) => Promise<R>
+		): Promise<R>;
 	};
 
 	/**

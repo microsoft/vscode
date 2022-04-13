@@ -12,7 +12,8 @@ import { mark, PerformanceMark } from 'vs/base/common/performance';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
 import { asArray } from 'vs/base/common/arrays';
-import { IOutputChannel } from 'vs/workbench/contrib/output/common/output';
+import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
+import { IOutputChannel } from 'vs/workbench/services/output/common/output';
 
 let created = false;
 const workbenchPromise = new DeferredPromise<IWorkbench>();
@@ -132,4 +133,16 @@ export namespace window {
 		return workbench.window.createOutputChannel(name, languageId);
 	}
 
+
+	/**
+	 * {@linkcode IWorkbench.window IWorkbench.window.withProgress}
+	 */
+	export async function withProgress<R>(
+		options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
+		task: (progress: IProgress<IProgressStep>) => Promise<R>
+	): Promise<R> {
+		const workbench = await workbenchPromise.p;
+
+		return workbench.window.withProgress(options, task);
+	}
 }

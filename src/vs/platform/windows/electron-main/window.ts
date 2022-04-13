@@ -518,9 +518,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Telemetry
 		type WindowErrorClassification = {
-			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; owner: 'bpasero'; comment: 'The type of window crash to understand the nature of the crash better.' };
-			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; owner: 'bpasero'; comment: 'The reason of the window crash to understand the nature of the crash better.' };
-			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; owner: 'bpasero'; comment: 'The exit code of the window process to understand the nature of the crash better' };
+			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window crash to understand the nature of the crash better.' };
+			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window crash to understand the nature of the crash better.' };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; omment: 'The exit code of the window process to understand the nature of the crash better' };
+			owner: 'bpasero';
+			comment: 'Provides insight into reasons the vscode window crashes.';
 		};
 		type WindowErrorEvent = {
 			type: WindowError;

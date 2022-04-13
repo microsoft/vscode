@@ -10,10 +10,10 @@ import { connect as connectElectronDriver, IDisposable, IDriver } from './driver
 import { ChildProcess, spawn, SpawnOptions } from 'child_process';
 import * as mkdirp from 'mkdirp';
 import { promisify } from 'util';
-import * as kill from 'tree-kill';
+import { teardown } from './processes';
 import { copyExtension } from './extensions';
 import { URI } from 'vscode-uri';
-import { Logger, measureAndLog } from './logger';
+import { measureAndLog } from './logger';
 import type { LaunchOptions } from './code';
 
 const root = join(__dirname, '..', '..', '..');
@@ -72,6 +72,9 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
 		env['TESTRESOLVER_LOGS_FOLDER'] = join(logsPath, 'server');
+		if (options.verbose) {
+			env['TESTRESOLVER_LOG_LEVEL'] = 'trace';
+		}
 	}
 
 	args.push('--enable-proposed-api=vscode.vscode-notebook-tests');
@@ -96,7 +99,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 /**
  * @deprecated should use the playwright based electron support instead
  */
-export async function launch(options: LaunchOptions): Promise<{ electronProcess: ChildProcess; client: IDisposable; driver: IDriver; kill: () => Promise<void> }> {
+export async function launch(options: LaunchOptions): Promise<{ electronProcess: ChildProcess; client: IDisposable; driver: IDriver }> {
 	const { codePath, logger, verbose } = options;
 	const { env, args, electronPath } = await resolveElectronConfiguration(options);
 
@@ -123,8 +126,7 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 			return {
 				electronProcess,
 				client,
-				driver,
-				kill: () => teardown(electronProcess, options.logger)
+				driver
 			};
 		} catch (err) {
 
@@ -147,31 +149,6 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 			}
 		}
 	}
-}
-
-async function teardown(electronProcess: ChildProcess, logger: Logger): Promise<void> {
-	const electronPid = electronProcess.pid;
-	if (typeof electronPid !== 'number') {
-		return;
-	}
-
-	let retries = 0;
-	while (retries < 3) {
-		retries++;
-
-		try {
-			return await promisify(kill)(electronPid);
-		} catch (error) {
-			try {
-				process.kill(electronPid, 0); // throws an exception if the process doesn't exist anymore
-				logger.log(`Error tearing down electron client (pid: ${electronPid}, attempt: ${retries}): ${error}`);
-			} catch (error) {
-				return; // Expected when process is gone
-			}
-		}
-	}
-
-	logger.log(`Gave up tearing down electron client after ${retries} attempts...`);
 }
 
 export function getDevElectronPath(): string {

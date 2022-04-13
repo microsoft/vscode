@@ -9,21 +9,24 @@ import type { LaunchOptions } from './code';
 import { PlaywrightDriver } from './playwrightDriver';
 import { IElectronConfiguration, resolveElectronConfiguration } from './electron';
 import { measureAndLog } from './logger';
+import { ChildProcess } from 'child_process';
 
-export async function launch(options: LaunchOptions): Promise<{ client: IDisposable; driver: IDriver }> {
+export async function launch(options: LaunchOptions): Promise<{ electronProcess: ChildProcess; client: IDisposable; driver: IDriver }> {
 
 	// Resolve electron config and update
 	const { electronPath, args, env } = await resolveElectronConfiguration(options);
-	args.push('--enable-smoke-test-driver', 'true');
+	args.push('--enable-smoke-test-driver');
 
 	// Launch electron via playwright
 	const { electron, context, page } = await launchElectron({ electronPath, args, env }, options);
+	const electronProcess = electron.process();
 
 	return {
+		electronProcess,
 		client: {
 			dispose: () => { /* there is no client to dispose for electron, teardown is triggered via exitApplication call */ }
 		},
-		driver: new PlaywrightDriver(electron, context, page, undefined /* no server */, options)
+		driver: new PlaywrightDriver(electron, context, page, undefined /* no server process */, options)
 	};
 }
 

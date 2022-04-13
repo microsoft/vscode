@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Suite, Context } from 'mocha';
+import { dirname, join } from 'path';
 import { Application, ApplicationOptions, Logger } from '../../automation';
 
 export function describeRepeat(n: number, description: string, callback: (this: Suite) => void): void {
@@ -86,9 +87,20 @@ export function installDiagnosticsHandler(logger: Logger, appFn?: () => Applicat
 	});
 }
 
+let logsCounter = 1;
+
+export function suiteLogsPath(options: ApplicationOptions, suiteName: string): string {
+	return join(dirname(options.logsPath), `${logsCounter++}_suite_${suiteName.replace(/[^a-z0-9\-]/ig, '_')}`);
+}
+
 function installAppBeforeHandler(optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions) {
 	before(async function () {
-		this.app = createApp(this.defaultOptions, optionsTransform);
+		const suiteName = this.test?.parent?.title ?? 'unknown';
+
+		this.app = createApp({
+			...this.defaultOptions,
+			logsPath: suiteLogsPath(this.defaultOptions, suiteName)
+		}, optionsTransform);
 		await this.app.start();
 	});
 }
