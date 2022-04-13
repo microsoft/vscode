@@ -37,7 +37,9 @@ declare module 'vscode' {
 		 * If inline completions are enabled, this method will be called whenever the user stopped typing.
 		 * It will also be called when the user explicitly triggers inline completions or asks for the next or previous inline completion.
 		 * `context.triggerKind` can be used to distinguish between these scenarios.
-		*/
+		 */
+		// TODO@API clarify "or asks for the next or previous inline completion"? Why would I return N items in the first place?
+		// TODO@API jsdoc for args, return-type
 		provideInlineCompletionItems(document: TextDocument, position: Position, context: InlineCompletionContextNew, token: CancellationToken): ProviderResult<InlineCompletionListNew | InlineCompletionItemNew[]>;
 	}
 
@@ -70,12 +72,12 @@ declare module 'vscode' {
 		/**
 		 * The range that will be replaced if this completion item is accepted.
 		 */
-		range: Range;
+		readonly range: Range;
 
 		/**
 		 * The text the range will be replaced with if this completion is accepted.
 		 */
-		text: string;
+		readonly text: string;
 	}
 
 	/**
@@ -110,6 +112,7 @@ declare module 'vscode' {
 		 */
 		commands?: Command[];
 
+		// TODO@API jsdocs
 		constructor(items: InlineCompletionItemNew[], commands?: Command[]);
 	}
 
@@ -126,7 +129,9 @@ declare module 'vscode' {
 		insertText: string | SnippetString;
 
 		/**
-		 * A text that is used to decide if this inline completion should be shown.
+		 * A text that is used to decide if this inline completion should be shown. When `falsy`
+		 * the {@link InlineCompletionItemNew.insertText} is used.
+		 *
 		 * An inline completion is shown if the text to replace is a prefix of the filter text.
 		 */
 		filterText?: string;
@@ -135,6 +140,7 @@ declare module 'vscode' {
 		 * The range to replace.
 		 * Must begin and end on the same line.
 		 *
+		 * TODO@API caching is an imlementation detail. drop that explanation?
 		 * Prefer replacements over insertions to avoid cache invalidation:
 		 * Instead of reporting a completion that inserts an extension at the end of a word,
 		 * the whole word (or even the whole line) should be replaced with the extended word (or extended line) to improve the UX.
