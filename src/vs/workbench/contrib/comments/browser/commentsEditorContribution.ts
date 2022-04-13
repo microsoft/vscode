@@ -49,6 +49,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CommentThreadRangeDecorator } from 'vs/workbench/contrib/comments/browser/commentThreadRangeDecorator';
 import { commentThreadRangeBackground, commentThreadRangeBorder } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
+import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 
 export const ID = 'editor.contrib.review';
 
@@ -633,11 +634,22 @@ export class CommentController implements IEditorContribution {
 		}));
 
 		this.beginCompute().then(() => {
-			if (this._commentWidgets.length
-				&& (this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).openView === 'file')) {
-				this.viewsService.openView(COMMENTS_VIEW_ID);
-			}
+			return this.openCommentsView();
 		});
+	}
+
+	private async openCommentsView() {
+		if (this._commentWidgets.length) {
+			if (this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).openView === 'file') {
+				return this.viewsService.openView(COMMENTS_VIEW_ID);
+			} else if (this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).openView === 'firstFile') {
+				const hasShownView = this.viewsService.getViewWithId<CommentsPanel>(COMMENTS_VIEW_ID)?.hasRendered;
+				if (!hasShownView) {
+					return this.viewsService.openView(COMMENTS_VIEW_ID);
+				}
+			}
+		}
+		return undefined;
 	}
 
 	private displayCommentThread(owner: string, thread: languages.CommentThread, pendingComment: string | null): void {
