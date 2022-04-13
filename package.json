@@ -161,7 +161,6 @@
     "gulp-remote-retry-src": "^0.8.0",
     "gulp-rename": "^1.2.0",
     "gulp-replace": "^0.5.4",
-    "gulp-shell": "^0.6.5",
     "gulp-sourcemaps": "^3.0.0",
     "gulp-svgmin": "^4.1.0",
     "gulp-tsb": "4.0.6",
