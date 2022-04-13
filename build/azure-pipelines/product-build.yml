@@ -129,6 +129,8 @@ variables:
     value: microsoft/vscode-distro
   - name: skipComponentGovernanceDetection
     value: true
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
 
 resources:
   containers:
