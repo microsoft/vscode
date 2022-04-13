@@ -16,6 +16,8 @@ import type { ICredentialsProvider } from 'vs/platform/credentials/common/creden
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import type { IOutputChannel } from 'vs/workbench/services/output/common/output';
+import { IObservableValue } from 'vs/base/common/observableValue';
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -63,6 +65,11 @@ export interface IWorkbench {
 		 * workbench.
 		 */
 		openUri(target: URI): Promise<boolean>;
+
+		/**
+		 * Current workbench telemetry level.
+		 */
+		readonly telemetryLevel: IObservableValue<TelemetryLevel>;
 	};
 
 	window: {

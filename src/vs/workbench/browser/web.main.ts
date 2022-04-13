@@ -70,6 +70,7 @@ import { BrowserCredentialsService } from 'vs/workbench/services/credentials/bro
 import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { Extensions, IOutputChannelRegistry, IOutputService } from 'vs/workbench/services/output/common/output';
 
@@ -121,6 +122,7 @@ export class BrowserMain extends Disposable {
 			const openerService = accessor.get(IOpenerService);
 			const productService = accessor.get(IProductService);
 			const outputService = accessor.get(IOutputService);
+			const telemetryService = accessor.get(ITelemetryService);
 			const progessService = accessor.get(IProgressService);
 
 			return {
@@ -136,7 +138,8 @@ export class BrowserMain extends Disposable {
 					},
 					async openUri(uri: URI): Promise<boolean> {
 						return openerService.open(uri, {});
-					}
+					},
+					telemetryLevel: telemetryService.telemetryLevel,
 				},
 				window: {
 					createOutputChannel: (name, languageId) => {
