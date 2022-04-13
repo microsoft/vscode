@@ -53,7 +53,7 @@ import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCo
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
+import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';

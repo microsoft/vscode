@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
-import { OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK } from 'vs/workbench/contrib/output/common/output';
+import { OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -27,7 +27,6 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IOutputChannelDescriptor, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
