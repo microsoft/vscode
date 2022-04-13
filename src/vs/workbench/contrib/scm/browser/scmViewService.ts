@@ -87,10 +87,12 @@ export class SCMViewService implements ISCMViewService {
 				repositoryView.selectionIndex = -1;
 				removed.add(repositoryView.repository);
 			}
-			// !Selected -> Selected
-			if (set.has(repositoryView.repository) && repositoryView.selectionIndex === -1) {
+			// Selected | !Selected -> Selected
+			if (set.has(repositoryView.repository)) {
+				if (repositoryView.selectionIndex === -1) {
+					added.add(repositoryView.repository);
+				}
 				repositoryView.selectionIndex = visibleRepositories.indexOf(repositoryView.repository);
-				added.add(repositoryView.repository);
 			}
 		}
 
@@ -119,20 +121,21 @@ export class SCMViewService implements ISCMViewService {
 					return e;
 				}
 
-				// Remove "pairs" of repositories that appear both in the "added" and "removed"
-				// iterators. We have to do this in order to handle the scenario in which the
-				// following events are debounced:
-				// - added repository "foo"
-				// - removed repository "foo"
-				// - added repository "foo"
-				const added = new Set<ISCMRepository>();
-				const removed = new Set<ISCMRepository>(Iterable.concat(last.removed, e.removed));
+				const added = new Set(last.added);
+				const removed = new Set(last.removed);
 
-				for (const repository of Iterable.concat(last.added, e.added)) {
-					if (!removed.has(repository)) {
-						added.add(repository);
-					} else {
+				for (const repository of e.added) {
+					if (removed.has(repository)) {
 						removed.delete(repository);
+					} else {
+						added.add(repository);
+					}
+				}
+				for (const repository of e.removed) {
+					if (added.has(repository)) {
+						added.delete(repository);
+					} else {
+						removed.add(repository);
 					}
 				}
 
