@@ -42,7 +42,7 @@ export interface IWorkbench {
 		 * @returns the scheme to use for opening the associated desktop
 		 * experience via protocol handler.
 		 */
-		readonly uriScheme: string;
+		readonly uriScheme: Promise<string>;
 
 		/**
 		 * Retrieve performance marks that have been collected during startup. This function

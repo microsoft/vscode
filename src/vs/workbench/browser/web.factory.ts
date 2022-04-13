@@ -106,11 +106,11 @@ export namespace env {
 	/**
 	 * {@linkcode IWorkbench.env IWorkbench.env.getUriScheme}
 	 */
-	export async function getUriScheme(): Promise<string> {
+	export const uriScheme = ((async () => {
 		const workbench = await workbenchPromise.p;
 
 		return workbench.env.uriScheme;
-	}
+	})());
 
 	/**
 	 * {@linkcode IWorkbench.env IWorkbench.env.openUri}

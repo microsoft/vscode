@@ -124,7 +124,7 @@ export class BrowserMain extends Disposable {
 					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
 				},
 				env: {
-					uriScheme: productService.urlProtocol,
+					uriScheme: Promise.resolve(productService.urlProtocol),
 					async retrievePerformanceMarks() {
 						await timerService.whenReady();
 
