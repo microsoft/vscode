@@ -125,16 +125,14 @@ export class SCMViewService implements ISCMViewService {
 				// - added repository "foo"
 				// - removed repository "foo"
 				// - added repository "foo"
-				const added: ISCMRepository[] = [];
-				const removed = [...Iterable.concat(last.removed, e.removed)];
+				const added = new Set<ISCMRepository>();
+				const removed = new Set<ISCMRepository>(Iterable.concat(last.removed, e.removed));
 
 				for (const repository of Iterable.concat(last.added, e.added)) {
-					const index = removed.findIndex(r => r === repository);
-
-					if (index === -1) {
-						added.push(repository);
+					if (!removed.has(repository)) {
+						added.add(repository);
 					} else {
-						removed.splice(index, 1);
+						removed.delete(repository);
 					}
 				}
 
