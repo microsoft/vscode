@@ -161,6 +161,39 @@ const languageMappingForCompletionProviders: Map<string, string> = new Map<strin
 const completionProvidersMapping: Map<string, vscode.Disposable> = new Map<string, vscode.Disposable>();
 
 function registerCompletionProviders(context: vscode.ExtensionContext) {
+
+	// TODO@rzhao271 add settings & do this properly
+	const provider = new DefaultCompletionItemProvider();
+	vscode.languages.registerInlineCompletionItemProviderNew({ language: 'html' }, {
+		async provideInlineCompletionItems(document: vscode.TextDocument, position: vscode.Position, context: vscode.InlineCompletionContextNew, token: vscode.CancellationToken) {
+			const items = await provider.provideCompletionItems(document, position, token, { triggerCharacter: undefined, triggerKind: vscode.CompletionTriggerKind.Invoke });
+			if (!items) {
+				return undefined;
+			}
+			const item = items.items[0];
+			if (!item) {
+				return undefined;
+			}
+			const range = item.range as vscode.Range;
+
+			if (document.getText(range) !== item.label) {
+				// We only want to show an inline completion if we are really sure the user meant emmet.
+				// If the user types `d`, we don't want to suggest `<div></div>`.
+				return undefined;
+			}
+
+			return [
+				{
+					insertText: item.insertText as any,
+					filterText: item.label as any,
+					range
+				}
+			];
+		}
+	});
+
+	return;
+
 	let completionProvider = new DefaultCompletionItemProvider();
 	let includedLanguages = getMappingForIncludedLanguages();
 
