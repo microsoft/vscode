@@ -12204,17 +12204,10 @@ xtend@~2.1.1:
   dependencies:
     object-keys "~0.4.0"
 
-<<<<<<< HEAD
-xterm-addon-search@0.9.0-beta.19:
-  version "0.9.0-beta.19"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.9.0-beta.19.tgz#89bba6652c3c3daf252ef83edc6594c936aa077a"
-  integrity sha512-ziPyud4LaC2d6Hr2sXxyDvKkSOJQIscwKFiC/iyCW0Tzy3J+D80wDdNdV3hz+Ob+Kqhwg+orYkNfAyEYnsH88Q==
-=======
 xterm-addon-search@0.9.0-beta.20:
   version "0.9.0-beta.20"
   resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.9.0-beta.20.tgz#53e0694d27bebba2b955a0ff58e1fc07670dbfb0"
   integrity sha512-kKa43yZIZ6H0tgSoRTgsdLjrml1rGfB/V4fP3sFuEFnboHB0UNBEYssTVW3Mf5Uhxp0waHS/MU0zdnkyRDlC1Q==
->>>>>>> main
 
 xterm-addon-serialize@0.7.0-beta.12:
   version "0.7.0-beta.12"
