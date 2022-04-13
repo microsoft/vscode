@@ -15,16 +15,12 @@ steps:
       artifact: Compilation
       path: $(Build.ArtifactStagingDirectory)
     displayName: Download compilation output
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - script: |
       set -e
       tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
     displayName: Extract compilation output
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
 
-  # Set up the credentials to retrieve distro repo and setup git persona
-  # to create a merge commit for when we merge distro into oss
   - script: |
       set -e
       cat << EOF > ~/.netrc
@@ -122,7 +118,6 @@ steps:
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
     displayName: Build client
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - script: |
       set -e
@@ -136,34 +131,13 @@ steps:
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
     displayName: Build Server
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - script: |
       set -e
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     displayName: Download Electron and Playwright
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-  - download: current
-    artifact: unsigned_vscode_client_darwin_x64_archive
-    displayName: Download x64 artifact
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
-
-  - download: current
-    artifact: unsigned_vscode_client_darwin_arm64_archive
-    displayName: Download arm64 artifact
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
-
-  - script: |
-      set -e
-      cp $(Pipeline.Workspace)/unsigned_vscode_client_darwin_x64_archive/VSCode-darwin-x64.zip $(agent.builddirectory)/VSCode-darwin-x64.zip
-      cp $(Pipeline.Workspace)/unsigned_vscode_client_darwin_arm64_archive/VSCode-darwin-arm64.zip $(agent.builddirectory)/VSCode-darwin-arm64.zip
-      unzip $(agent.builddirectory)/VSCode-darwin-x64.zip -d $(agent.builddirectory)/VSCode-darwin-x64
-      unzip $(agent.builddirectory)/VSCode-darwin-arm64.zip -d $(agent.builddirectory)/VSCode-darwin-arm64
-      DEBUG=* node build/darwin/create-universal-app.js
-    displayName: Create Universal App
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
+    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   # Setting hardened entitlements is a requirement for:
   # * Apple notarization
@@ -311,7 +285,6 @@ steps:
       set -e
       pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
     displayName: Archive build
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
@@ -322,22 +295,18 @@ steps:
       # package Remote Extension Host (Web)
       pushd .. && mv vscode-reh-web-darwin-$(VSCODE_ARCH) vscode-server-darwin-$(VSCODE_ARCH)-web && zip -Xry vscode-server-darwin-$(VSCODE_ARCH)-web.zip vscode-server-darwin-$(VSCODE_ARCH)-web && popd
     displayName: Prepare to publish servers
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
     artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
     displayName: Publish client archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH).zip
     artifact: vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web.zip
     artifact: vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish web server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - task: AzureCLI@2
     inputs:
@@ -367,21 +336,21 @@ steps:
     inputs:
       BuildDropPath: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
       PackageName: Visual Studio Code
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)/_manifest
     displayName: Publish SBOM (client)
     artifact: vscode_client_darwin_$(VSCODE_ARCH)_sbom
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
     displayName: Generate SBOM (server)
     inputs:
       BuildDropPath: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
       PackageName: Visual Studio Code Server
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)/_manifest
     displayName: Publish SBOM (server)
     artifact: vscode_server_darwin_$(VSCODE_ARCH)_sbom
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))

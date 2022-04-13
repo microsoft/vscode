@@ -118,7 +118,7 @@ variables:
   - name: VSCODE_STEP_ON_IT
     value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
   - name: VSCODE_BUILD_MACOS_UNIVERSAL
-    value: ${{ and(eq(variables['VSCODE_PUBLISH'], true), eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
+    value: ${{ and(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
   - name: AZURE_CDN_URL
     value: https://az764295.vo.msecnd.net
   - name: AZURE_DOCUMENTDB_ENDPOINT
@@ -348,7 +348,7 @@ stages:
                 variables:
                   VSCODE_ARCH: universal
                 steps:
-                  - template: darwin/product-build-darwin.yml
+                  - template: darwin/product-build-darwin-universal.yml
               - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
                   - job: macOSUniversalSign
                     dependsOn:
