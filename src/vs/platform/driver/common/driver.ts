@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-
 // !! Do not remove the following START and END markers, they are parsed by the smoketest build
 
 //*START
@@ -39,22 +37,21 @@ export interface ILocalizedStrings {
 export interface IDriver {
 	readonly _serviceBrand: undefined;
 
-	getWindowIds(): Promise<number[]>;
-	startTracing(windowId: number, name: string): Promise<void>;
-	stopTracing(windowId: number, name: string, persist: boolean): Promise<void>;
+	startTracing(name: string): Promise<void>;
+	stopTracing(name: string, persist: boolean): Promise<void>;
 	exitApplication(): Promise<void>;
-	dispatchKeybinding(windowId: number, keybinding: string): Promise<void>;
-	click(windowId: number, selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
-	setValue(windowId: number, selector: string, text: string): Promise<void>;
-	getTitle(windowId: number): Promise<string>;
-	isActiveElement(windowId: number, selector: string): Promise<boolean>;
-	getElements(windowId: number, selector: string, recursive?: boolean): Promise<IElement[]>;
-	getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number }>;
-	typeInEditor(windowId: number, selector: string, text: string): Promise<void>;
-	getTerminalBuffer(windowId: number, selector: string): Promise<string[]>;
-	writeInTerminal(windowId: number, selector: string, text: string): Promise<void>;
-	getLocaleInfo(windowId: number): Promise<ILocaleInfo>;
-	getLocalizedStrings(windowId: number): Promise<ILocalizedStrings>;
+	dispatchKeybinding(keybinding: string): Promise<void>;
+	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
+	setValue(selector: string, text: string): Promise<void>;
+	getTitle(): Promise<string>;
+	isActiveElement(selector: string): Promise<boolean>;
+	getElements(selector: string, recursive?: boolean): Promise<IElement[]>;
+	getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number }>;
+	typeInEditor(selector: string, text: string): Promise<void>;
+	getTerminalBuffer(selector: string): Promise<string[]>;
+	writeInTerminal(selector: string, text: string): Promise<void>;
+	getLocaleInfo(): Promise<ILocaleInfo>;
+	getLocalizedStrings(): Promise<ILocalizedStrings>;
 }
 
 export interface IWindowDriver {
@@ -72,11 +69,3 @@ export interface IWindowDriver {
 	exitApplication(): Promise<void>;
 }
 //*END
-
-export const ID = 'driverService';
-export const IDriver = createDecorator<IDriver>(ID);
-
-export interface IWindowDriverRegistry {
-	registerWindowDriver(windowId: number): Promise<void>;
-	reloadWindowDriver(windowId: number): Promise<void>;
-}

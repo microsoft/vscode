@@ -42,11 +42,7 @@ export class PlaywrightDriver implements IDriver {
 	) {
 	}
 
-	async getWindowIds() {
-		return [1];
-	}
-
-	async startTracing(windowId: number, name: string): Promise<void> {
+	async startTracing(name: string): Promise<void> {
 		if (!this.options.tracing) {
 			return; // tracing disabled
 		}
@@ -58,7 +54,7 @@ export class PlaywrightDriver implements IDriver {
 		}
 	}
 
-	async stopTracing(windowId: number, name: string, persist: boolean): Promise<void> {
+	async stopTracing(name: string, persist: boolean): Promise<void> {
 		if (!this.options.tracing) {
 			return; // tracing disabled
 		}
@@ -132,7 +128,7 @@ export class PlaywrightDriver implements IDriver {
 		}
 	}
 
-	async dispatchKeybinding(windowId: number, keybinding: string) {
+	async dispatchKeybinding(keybinding: string) {
 		const chords = keybinding.split(' ');
 		for (let i = 0; i < chords.length; i++) {
 			const chord = chords[i];
@@ -162,48 +158,48 @@ export class PlaywrightDriver implements IDriver {
 		await this.timeout(100);
 	}
 
-	async click(windowId: number, selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
-		const { x, y } = await this.getElementXY(windowId, selector, xoffset, yoffset);
+	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
+		const { x, y } = await this.getElementXY(selector, xoffset, yoffset);
 		await this.page.mouse.click(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
 	}
 
-	async setValue(windowId: number, selector: string, text: string) {
+	async setValue(selector: string, text: string) {
 		return this.page.evaluate(([driver, selector, text]) => driver.setValue(selector, text), [await this._getDriverHandle(), selector, text] as const);
 	}
 
-	async getTitle(windowId: number) {
+	async getTitle() {
 		return this._evaluateWithDriver(([driver]) => driver.getTitle());
 	}
 
-	async isActiveElement(windowId: number, selector: string) {
+	async isActiveElement(selector: string) {
 		return this.page.evaluate(([driver, selector]) => driver.isActiveElement(selector), [await this._getDriverHandle(), selector] as const);
 	}
 
-	async getElements(windowId: number, selector: string, recursive: boolean = false) {
+	async getElements(selector: string, recursive: boolean = false) {
 		return this.page.evaluate(([driver, selector, recursive]) => driver.getElements(selector, recursive), [await this._getDriverHandle(), selector, recursive] as const);
 	}
 
-	async getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number) {
+	async getElementXY(selector: string, xoffset?: number, yoffset?: number) {
 		return this.page.evaluate(([driver, selector, xoffset, yoffset]) => driver.getElementXY(selector, xoffset, yoffset), [await this._getDriverHandle(), selector, xoffset, yoffset] as const);
 	}
 
-	async typeInEditor(windowId: number, selector: string, text: string) {
+	async typeInEditor(selector: string, text: string) {
 		return this.page.evaluate(([driver, selector, text]) => driver.typeInEditor(selector, text), [await this._getDriverHandle(), selector, text] as const);
 	}
 
-	async getTerminalBuffer(windowId: number, selector: string) {
+	async getTerminalBuffer(selector: string) {
 		return this.page.evaluate(([driver, selector]) => driver.getTerminalBuffer(selector), [await this._getDriverHandle(), selector] as const);
 	}
 
-	async writeInTerminal(windowId: number, selector: string, text: string) {
+	async writeInTerminal(selector: string, text: string) {
 		return this.page.evaluate(([driver, selector, text]) => driver.writeInTerminal(selector, text), [await this._getDriverHandle(), selector, text] as const);
 	}
 
-	async getLocaleInfo(windowId: number) {
+	async getLocaleInfo() {
 		return this._evaluateWithDriver(([driver]) => driver.getLocaleInfo());
 	}
 
-	async getLocalizedStrings(windowId: number) {
+	async getLocalizedStrings() {
 		return this._evaluateWithDriver(([driver]) => driver.getLocalizedStrings());
 	}
 

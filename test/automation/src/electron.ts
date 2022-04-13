@@ -4,13 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { join } from 'path';
-import { platform } from 'os';
-import { tmpName } from 'tmp';
-import { connect as connectElectronDriver, IDisposable, IDriver } from './driver';
-import { ChildProcess, spawn, SpawnOptions } from 'child_process';
 import * as mkdirp from 'mkdirp';
-import { promisify } from 'util';
-import { teardown } from './processes';
 import { copyExtension } from './extensions';
 import { URI } from 'vscode-uri';
 import { measureAndLog } from './logger';
@@ -96,61 +90,6 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 	};
 }
 
-/**
- * @deprecated should use the playwright based electron support instead
- */
-export async function launch(options: LaunchOptions): Promise<{ electronProcess: ChildProcess; client: IDisposable; driver: IDriver }> {
-	const { codePath, logger, verbose } = options;
-	const { env, args, electronPath } = await resolveElectronConfiguration(options);
-
-	const driverIPCHandle = await measureAndLog(createDriverHandle(), 'createDriverHandle', logger);
-	args.push('--driver', driverIPCHandle);
-
-	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
-
-	const spawnOptions: SpawnOptions = { env };
-
-	if (verbose) {
-		spawnOptions.stdio = ['ignore', 'inherit', 'inherit'];
-	}
-
-	const electronProcess = spawn(electronPath, args, spawnOptions);
-
-	logger.log(`Started electron for desktop smoke tests on pid ${electronProcess.pid}`);
-
-	let retries = 0;
-
-	while (true) {
-		try {
-			const { client, driver } = await measureAndLog(connectElectronDriver(outPath, driverIPCHandle), 'connectElectronDriver()', logger);
-			return {
-				electronProcess,
-				client,
-				driver
-			};
-		} catch (err) {
-
-			// give up
-			if (++retries > 30) {
-				logger.log(`Error connecting driver: ${err}. Giving up...`);
-
-				await measureAndLog(teardown(electronProcess, logger), 'Kill Electron after failing to connect', logger);
-
-				throw err;
-			}
-
-			// retry
-			else {
-				if ((err as NodeJS.ErrnoException).code !== 'ENOENT' /* ENOENT is expected for as long as the server has not started on the socket */) {
-					logger.log(`Error connecting driver: ${err}. Attempting to retry...`);
-				}
-
-				await new Promise(resolve => setTimeout(resolve, 1000));
-			}
-		}
-	}
-}
-
 export function getDevElectronPath(): string {
 	const buildPath = join(root, '.build');
 	const product = require(join(root, 'product.json'));
@@ -191,29 +130,4 @@ export function getBuildVersion(root: string): string {
 		default:
 			return require(join(root, 'resources', 'app', 'package.json')).version;
 	}
-}
-
-function getDevOutPath(): string {
-	return join(root, 'out');
-}
-
-function getBuildOutPath(root: string): string {
-	switch (process.platform) {
-		case 'darwin':
-			return join(root, 'Contents', 'Resources', 'app', 'out');
-		default:
-			return join(root, 'resources', 'app', 'out');
-	}
-}
-
-async function createDriverHandle(): Promise<string> {
-
-	// Windows
-	if ('win32' === platform()) {
-		const name = [...Array(15)].map(() => Math.random().toString(36)[3]).join('');
-		return `\\\\.\\pipe\\${name}`;
-	}
-
-	// Posix
-	return promisify(tmpName)();
 }

@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as playwright from '@playwright/test';
-import { IDriver, IDisposable } from './driver';
+import { IDriver } from './driver';
 import type { LaunchOptions } from './code';
 import { PlaywrightDriver } from './playwrightDriver';
 import { IElectronConfiguration, resolveElectronConfiguration } from './electron';
 import { measureAndLog } from './logger';
 import { ChildProcess } from 'child_process';
 
-export async function launch(options: LaunchOptions): Promise<{ electronProcess: ChildProcess; client: IDisposable; driver: IDriver }> {
+export async function launch(options: LaunchOptions): Promise<{ electronProcess: ChildProcess; driver: IDriver }> {
 
 	// Resolve electron config and update
 	const { electronPath, args, env } = await resolveElectronConfiguration(options);
@@ -23,9 +23,6 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 
 	return {
 		electronProcess,
-		client: {
-			dispose: () => { /* there is no client to dispose for electron, teardown is triggered via exitApplication call */ }
-		},
 		driver: new PlaywrightDriver(electron, context, page, undefined /* no server process */, options)
 	};
 }

@@ -48,10 +48,6 @@ export class Application {
 		return !!this.options.web;
 	}
 
-	get legacy(): boolean {
-		return !!this.options.legacy;
-	}
-
 	private _workspacePathOrFolder: string;
 	get workspacePathOrFolder(): string {
 		return this._workspacePathOrFolder;
@@ -116,9 +112,6 @@ export class Application {
 	}
 
 	private async checkWindowReady(code: Code): Promise<void> {
-
-		// This is legacy and will be removed when our old driver removes
-		await code.waitForWindowIds(ids => ids.length > 0);
 
 		// We need a rendered workbench
 		await measureAndLog(code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);

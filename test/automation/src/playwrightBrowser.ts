@@ -8,7 +8,7 @@ import { ChildProcess, spawn } from 'child_process';
 import { join } from 'path';
 import { mkdir } from 'fs';
 import { promisify } from 'util';
-import { IDriver, IDisposable } from './driver';
+import { IDriver } from './driver';
 import { URI } from 'vscode-uri';
 import { Logger, measureAndLog } from './logger';
 import type { LaunchOptions } from './code';
@@ -18,7 +18,7 @@ const root = join(__dirname, '..', '..', '..');
 
 let port = 9000;
 
-export async function launch(options: LaunchOptions): Promise<{ serverProcess: ChildProcess; client: IDisposable; driver: IDriver }> {
+export async function launch(options: LaunchOptions): Promise<{ serverProcess: ChildProcess; driver: IDriver }> {
 
 	// Launch server
 	const { serverProcess, endpoint } = await launchServer(options);
@@ -28,9 +28,6 @@ export async function launch(options: LaunchOptions): Promise<{ serverProcess: C
 
 	return {
 		serverProcess,
-		client: {
-			dispose: () => { /* there is no client to dispose for browser, teardown is triggered via exitApplication call */ }
-		},
 		driver: new PlaywrightDriver(browser, context, page, serverProcess, options)
 	};
 }
