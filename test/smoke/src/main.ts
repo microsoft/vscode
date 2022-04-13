@@ -324,7 +324,6 @@ before(async function () {
 		workspacePath,
 		userDataDir,
 		extensionsPath,
-		waitTime: parseInt(opts['wait-time'] || '0') || 20,
 		logger,
 		logsPath: path.join(logsRootPath, 'suite_unknown'),
 		verbose: opts.verbose,

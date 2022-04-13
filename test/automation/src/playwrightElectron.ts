@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as playwright from '@playwright/test';
-import { IDriver } from './driver';
 import type { LaunchOptions } from './code';
 import { PlaywrightDriver } from './playwrightDriver';
 import { IElectronConfiguration, resolveElectronConfiguration } from './electron';
 import { measureAndLog } from './logger';
 import { ChildProcess } from 'child_process';
 
-export async function launch(options: LaunchOptions): Promise<{ electronProcess: ChildProcess; driver: IDriver }> {
+export async function launch(options: LaunchOptions): Promise<{ electronProcess: ChildProcess; driver: PlaywrightDriver }> {
 
 	// Resolve electron config and update
 	const { electronPath, args, env } = await resolveElectronConfiguration(options);

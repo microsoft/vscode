@@ -17,14 +17,7 @@ export interface IElement {
 }
 
 export interface ILocaleInfo {
-	/**
-	 * The UI language used.
-	 */
 	language: string;
-
-	/**
-	 * The requested locale
-	 */
 	locale?: string;
 }
 
@@ -32,26 +25,6 @@ export interface ILocalizedStrings {
 	open: string;
 	close: string;
 	find: string;
-}
-
-export interface IDriver {
-	readonly _serviceBrand: undefined;
-
-	startTracing(name: string): Promise<void>;
-	stopTracing(name: string, persist: boolean): Promise<void>;
-	exitApplication(): Promise<void>;
-	dispatchKeybinding(keybinding: string): Promise<void>;
-	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
-	setValue(selector: string, text: string): Promise<void>;
-	getTitle(): Promise<string>;
-	isActiveElement(selector: string): Promise<boolean>;
-	getElements(selector: string, recursive?: boolean): Promise<IElement[]>;
-	getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number }>;
-	typeInEditor(selector: string, text: string): Promise<void>;
-	getTerminalBuffer(selector: string): Promise<string[]>;
-	writeInTerminal(selector: string, text: string): Promise<void>;
-	getLocaleInfo(): Promise<ILocaleInfo>;
-	getLocalizedStrings(): Promise<ILocalizedStrings>;
 }
 
 export interface IWindowDriver {

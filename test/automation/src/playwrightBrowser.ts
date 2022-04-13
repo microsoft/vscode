@@ -8,7 +8,6 @@ import { ChildProcess, spawn } from 'child_process';
 import { join } from 'path';
 import { mkdir } from 'fs';
 import { promisify } from 'util';
-import { IDriver } from './driver';
 import { URI } from 'vscode-uri';
 import { Logger, measureAndLog } from './logger';
 import type { LaunchOptions } from './code';
@@ -18,7 +17,7 @@ const root = join(__dirname, '..', '..', '..');
 
 let port = 9000;
 
-export async function launch(options: LaunchOptions): Promise<{ serverProcess: ChildProcess; driver: IDriver }> {
+export async function launch(options: LaunchOptions): Promise<{ serverProcess: ChildProcess; driver: PlaywrightDriver }> {
 
 	// Launch server
 	const { serverProcess, endpoint } = await launchServer(options);

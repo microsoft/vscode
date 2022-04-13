@@ -15,8 +15,7 @@ export const enum Quality {
 
 export interface ApplicationOptions extends LaunchOptions {
 	quality: Quality;
-	workspacePath: string;
-	waitTime: number;
+	readonly workspacePath: string;
 }
 
 export class Application {

@@ -6,13 +6,14 @@
 import { join } from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
-import { IDriver, IElement, ILocalizedStrings, ILocaleInfo } from './driver';
+import { IElement, ILocalizedStrings, ILocaleInfo } from './driver';
 import { launch as launchPlaywrightBrowser } from './playwrightBrowser';
 import { launch as launchPlaywrightElectron } from './playwrightElectron';
 import { Logger, measureAndLog } from './logger';
 import { copyExtension } from './extensions';
 import * as treekill from 'tree-kill';
 import { teardown } from './processes';
+import { PlaywrightDriver } from './playwrightDriver';
 
 const rootPath = join(__dirname, '../../..');
 
@@ -95,10 +96,10 @@ export async function launch(options: LaunchOptions): Promise<Code> {
 
 export class Code {
 
-	readonly driver: IDriver;
+	readonly driver: PlaywrightDriver;
 
 	constructor(
-		driver: IDriver,
+		driver: PlaywrightDriver,
 		readonly logger: Logger,
 		private readonly mainProcess: cp.ChildProcess
 	) {

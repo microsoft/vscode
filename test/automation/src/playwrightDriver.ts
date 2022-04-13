@@ -5,14 +5,14 @@
 
 import * as playwright from '@playwright/test';
 import { join } from 'path';
-import { IDriver, IWindowDriver } from './driver';
+import { IWindowDriver } from './driver';
 import { PageFunction } from 'playwright-core/types/structs';
 import { measureAndLog } from './logger';
 import { LaunchOptions } from './code';
 import { teardown } from './processes';
 import { ChildProcess } from 'child_process';
 
-export class PlaywrightDriver implements IDriver {
+export class PlaywrightDriver {
 
 	private static traceCounter = 1;
 	private static screenShotCounter = 1;
@@ -30,8 +30,6 @@ export class PlaywrightDriver implements IDriver {
 		home: 'Home',
 		esc: 'Escape'
 	};
-
-	_serviceBrand: undefined;
 
 	constructor(
 		private readonly application: playwright.Browser | playwright.ElectronApplication,
@@ -116,7 +114,7 @@ export class PlaywrightDriver implements IDriver {
 		// Desktop: exit via `driver.exitApplication`
 		else {
 			try {
-				await measureAndLog(this._evaluateWithDriver(([driver]) => driver.exitApplication()), 'driver.exitApplication()', this.options.logger);
+				await measureAndLog(this.evaluateWithDriver(([driver]) => driver.exitApplication()), 'driver.exitApplication()', this.options.logger);
 			} catch (error) {
 				this.options.logger.log(`Error exiting appliction (${error})`);
 			}
@@ -164,54 +162,54 @@ export class PlaywrightDriver implements IDriver {
 	}
 
 	async setValue(selector: string, text: string) {
-		return this.page.evaluate(([driver, selector, text]) => driver.setValue(selector, text), [await this._getDriverHandle(), selector, text] as const);
+		return this.page.evaluate(([driver, selector, text]) => driver.setValue(selector, text), [await this.getDriverHandle(), selector, text] as const);
 	}
 
 	async getTitle() {
-		return this._evaluateWithDriver(([driver]) => driver.getTitle());
+		return this.evaluateWithDriver(([driver]) => driver.getTitle());
 	}
 
 	async isActiveElement(selector: string) {
-		return this.page.evaluate(([driver, selector]) => driver.isActiveElement(selector), [await this._getDriverHandle(), selector] as const);
+		return this.page.evaluate(([driver, selector]) => driver.isActiveElement(selector), [await this.getDriverHandle(), selector] as const);
 	}
 
 	async getElements(selector: string, recursive: boolean = false) {
-		return this.page.evaluate(([driver, selector, recursive]) => driver.getElements(selector, recursive), [await this._getDriverHandle(), selector, recursive] as const);
+		return this.page.evaluate(([driver, selector, recursive]) => driver.getElements(selector, recursive), [await this.getDriverHandle(), selector, recursive] as const);
 	}
 
 	async getElementXY(selector: string, xoffset?: number, yoffset?: number) {
-		return this.page.evaluate(([driver, selector, xoffset, yoffset]) => driver.getElementXY(selector, xoffset, yoffset), [await this._getDriverHandle(), selector, xoffset, yoffset] as const);
+		return this.page.evaluate(([driver, selector, xoffset, yoffset]) => driver.getElementXY(selector, xoffset, yoffset), [await this.getDriverHandle(), selector, xoffset, yoffset] as const);
 	}
 
 	async typeInEditor(selector: string, text: string) {
-		return this.page.evaluate(([driver, selector, text]) => driver.typeInEditor(selector, text), [await this._getDriverHandle(), selector, text] as const);
+		return this.page.evaluate(([driver, selector, text]) => driver.typeInEditor(selector, text), [await this.getDriverHandle(), selector, text] as const);
 	}
 
 	async getTerminalBuffer(selector: string) {
-		return this.page.evaluate(([driver, selector]) => driver.getTerminalBuffer(selector), [await this._getDriverHandle(), selector] as const);
+		return this.page.evaluate(([driver, selector]) => driver.getTerminalBuffer(selector), [await this.getDriverHandle(), selector] as const);
 	}
 
 	async writeInTerminal(selector: string, text: string) {
-		return this.page.evaluate(([driver, selector, text]) => driver.writeInTerminal(selector, text), [await this._getDriverHandle(), selector, text] as const);
+		return this.page.evaluate(([driver, selector, text]) => driver.writeInTerminal(selector, text), [await this.getDriverHandle(), selector, text] as const);
 	}
 
 	async getLocaleInfo() {
-		return this._evaluateWithDriver(([driver]) => driver.getLocaleInfo());
+		return this.evaluateWithDriver(([driver]) => driver.getLocaleInfo());
 	}
 
 	async getLocalizedStrings() {
-		return this._evaluateWithDriver(([driver]) => driver.getLocalizedStrings());
+		return this.evaluateWithDriver(([driver]) => driver.getLocalizedStrings());
 	}
 
-	private async _evaluateWithDriver<T>(pageFunction: PageFunction<playwright.JSHandle<IWindowDriver>[], T>) {
-		return this.page.evaluate(pageFunction, [await this._getDriverHandle()]);
+	private async evaluateWithDriver<T>(pageFunction: PageFunction<playwright.JSHandle<IWindowDriver>[], T>) {
+		return this.page.evaluate(pageFunction, [await this.getDriverHandle()]);
 	}
 
 	private timeout(ms: number): Promise<void> {
 		return new Promise<void>(resolve => setTimeout(resolve, ms));
 	}
 
-	private async _getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
+	private async getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
 		return this.page.evaluateHandle('window.driver');
 	}
 }
