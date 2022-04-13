@@ -10,6 +10,8 @@ import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class TerminalFindWidget extends SimpleFindWidget {
 	protected _findInputFocused: IContextKey<boolean>;
@@ -21,7 +23,9 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@IContextViewService _contextViewService: IContextViewService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super(_contextViewService, _contextKeyService, findState, { showOptionButtons: true, showResultCount: true });
 
@@ -31,15 +35,25 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._findInputFocused = TerminalContextKeys.findInputFocus.bindTo(this._contextKeyService);
 		this._findWidgetFocused = TerminalContextKeys.findFocus.bindTo(this._contextKeyService);
 		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(_contextKeyService);
+		this._register(this._themeService.onDidColorThemeChange(() => {
+			if (this._findWidgetVisible) {
+				this.find(true, true);
+			}
+		}));
+		this._register(this._configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('workbench.colorCustomizations') && this._findWidgetVisible) {
+				this.find(true, true);
+			}
+		}));
 	}
 
-	find(previous: boolean) {
+	find(previous: boolean, update?: boolean) {
 		const instance = this._terminalService.activeInstance;
 		if (!instance) {
 			return;
 		}
 		if (previous) {
-			instance.xterm?.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+			instance.xterm?.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: update });
 		} else {
 			instance.xterm?.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
 		}
