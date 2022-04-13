@@ -63,7 +63,6 @@ function getDependencies(buildDir, applicationName, arch) {
     return sortedDependencies;
 }
 exports.getDependencies = getDependencies;
-// Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/calculate_package_deps.py.
 function calculatePackageDeps(binaryPath) {
     try {
         if (!((0, fs_1.statSync)(binaryPath).mode & fs_1.constants.S_IXUSR)) {
