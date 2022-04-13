@@ -339,7 +339,7 @@ stages:
                     steps:
                       - template: darwin/product-build-darwin-sign.yml
 
-          - ${{ if eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true)) }}:
               - job: macOSUniversal
                 dependsOn:
                   - macOS

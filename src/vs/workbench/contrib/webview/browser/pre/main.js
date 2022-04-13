@@ -1027,12 +1027,12 @@ onDomReady(() => {
 					return;
 				}
 
-				if (!e.dataTransfer) {
+				if (!e.dataTransfer || e.shiftKey) {
 					return;
 				}
 
 				// Only handle drags from outside editor for now
-				if (e.target === contentWindow.document.documentElement) {
+				if (e.dataTransfer.items.length && Array.prototype.every.call(e.dataTransfer.items, item => item.kind === 'file')) {
 					hostMessaging.postMessage('drag-start');
 				}
 			};
