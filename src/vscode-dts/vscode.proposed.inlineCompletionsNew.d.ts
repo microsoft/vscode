@@ -59,7 +59,7 @@ declare module 'vscode' {
 		 * the inline completion must also replace `.` and start with `.log`, for example `.log()`.
 		 *
 		 * Inline completion providers are requested again whenever the selected item changes.
-		*/
+		 */
 		readonly selectedCompletionInfo: SelectedCompletionInfoNew | undefined;
 	}
 
@@ -69,12 +69,12 @@ declare module 'vscode' {
 	export interface SelectedCompletionInfoNew {
 		/**
 		 * The range that will be replaced if this completion item is accepted.
-		*/
+		 */
 		range: Range;
 
 		/**
 		 * The text the range will be replaced with if this completion is accepted.
-		*/
+		 */
 		text: string;
 	}
 
@@ -122,13 +122,7 @@ declare module 'vscode' {
 		/**
 		 * The text to replace the range with. Must be set.
 		 * Is used both for the preview and the accept operation.
-		 *
-		 * The text the range refers to must be a subword of this value (`AB` and `BEF` are subwords of `ABCDEF`, but `Ab` is not).
-		 * Additionally, if possible, it should be a prefix of this value for a better user-experience.
-		 *
-		 * However, any indentation of the text to replace does not matter for the subword constraint.
-		 * Thus, `  B` can be replaced with ` ABC`, effectively removing a whitespace and inserting `A` and `C`.
-		*/
+		 */
 		insertText: string | SnippetString;
 
 		/**
@@ -145,7 +139,7 @@ declare module 'vscode' {
 		 * Instead of reporting a completion that inserts an extension at the end of a word,
 		 * the whole word (or even the whole line) should be replaced with the extended word (or extended line) to improve the UX.
 		 * That way, when the user presses backspace, the cache can be reused and there is no flickering.
-		*/
+		 */
 		range?: Range;
 
 		/**
