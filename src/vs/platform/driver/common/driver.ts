@@ -42,7 +42,7 @@ export interface IDriver {
 	getWindowIds(): Promise<number[]>;
 	startTracing(windowId: number, name: string): Promise<void>;
 	stopTracing(windowId: number, name: string, persist: boolean): Promise<void>;
-	exitApplication(): Promise<number /* main PID */>;
+	exitApplication(): Promise<void>;
 	dispatchKeybinding(windowId: number, keybinding: string): Promise<void>;
 	click(windowId: number, selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
 	setValue(windowId: number, selector: string, text: string): Promise<void>;
@@ -69,6 +69,7 @@ export interface IWindowDriver {
 	writeInTerminal(selector: string, text: string): Promise<void>;
 	getLocaleInfo(): Promise<ILocaleInfo>;
 	getLocalizedStrings(): Promise<ILocalizedStrings>;
+	exitApplication(): Promise<void>;
 }
 //*END
 

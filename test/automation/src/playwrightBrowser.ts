@@ -10,7 +10,6 @@ import { mkdir } from 'fs';
 import { promisify } from 'util';
 import { IDriver, IDisposable } from './driver';
 import { URI } from 'vscode-uri';
-import * as kill from 'tree-kill';
 import { Logger, measureAndLog } from './logger';
 import type { LaunchOptions } from './code';
 import { PlaywrightDriver } from './playwrightDriver';
@@ -19,7 +18,7 @@ const root = join(__dirname, '..', '..', '..');
 
 let port = 9000;
 
-export async function launch(options: LaunchOptions): Promise<{ serverProcess: ChildProcess; client: IDisposable; driver: IDriver; kill: () => Promise<void> }> {
+export async function launch(options: LaunchOptions): Promise<{ serverProcess: ChildProcess; client: IDisposable; driver: IDriver }> {
 
 	// Launch server
 	const { serverProcess, endpoint } = await launchServer(options);
@@ -32,8 +31,7 @@ export async function launch(options: LaunchOptions): Promise<{ serverProcess: C
 		client: {
 			dispose: () => { /* there is no client to dispose for browser, teardown is triggered via exitApplication call */ }
 		},
-		driver: new PlaywrightDriver(browser, context, page, serverProcess.pid, options),
-		kill: () => teardown(serverProcess.pid, options.logger)
+		driver: new PlaywrightDriver(browser, context, page, serverProcess, options)
 	};
 }
 
@@ -143,30 +141,6 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	await measureAndLog(page.goto(`${endpoint}&${workspacePath.endsWith('.code-workspace') ? 'workspace' : 'folder'}=${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
 
 	return { browser, context, page };
-}
-
-export async function teardown(serverPid: number | undefined, logger: Logger): Promise<void> {
-	if (typeof serverPid !== 'number') {
-		return;
-	}
-
-	let retries = 0;
-	while (retries < 3) {
-		retries++;
-
-		try {
-			return await promisify(kill)(serverPid);
-		} catch (error) {
-			try {
-				process.kill(serverPid, 0); // throws an exception if the process doesn't exist anymore
-				logger.log(`Error tearing down server (pid: ${serverPid}, attempt: ${retries}): ${error}`);
-			} catch (error) {
-				return; // Expected when process is gone
-			}
-		}
-	}
-
-	logger.log(`Gave up tearing down server after ${retries} attempts...`);
 }
 
 function waitForEndpoint(server: ChildProcess, logger: Logger): Promise<string> {
