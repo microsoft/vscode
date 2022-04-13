@@ -9,6 +9,14 @@ const child_process_1 = require("child_process");
 const fs_1 = require("fs");
 const path = require("path");
 const dep_lists_1 = require("./dep-lists");
+// A flag that can easily be toggled.
+// Make sure to compile the build directory after toggling the value.
+// If false, we warn about new dependencies if they show up
+// while running the rpm prepare package task for a release.
+// If true, we fail the build if there are new dependencies found during that task.
+// The reference dependencies, which one has to update when the new dependencies
+// are valid, are in dep-lists.ts
+const FAIL_BUILD_FOR_NEW_DEPENDENCIES = true;
 function getDependencies(buildDir, applicationName) {
     // Get the files for which we want to find dependencies.
     const nativeModulesPath = path.join(buildDir, 'resources', 'app', 'node_modules.asar.unpacked');
@@ -41,14 +49,20 @@ function getDependencies(buildDir, applicationName) {
         return !dep_lists_1.bundledDeps.some(bundledDep => dependency.startsWith(bundledDep));
     });
     if (JSON.stringify(sortedDependencies) !== JSON.stringify(dep_lists_1.referenceGeneratedDeps)) {
-        // Don't fail the build for now.
-        console.warn('The dependencies list has changed. ' +
-            'Printing newer dependencies list that one can use to compare against referenceGeneratedDeps:');
-        console.warn(sortedDependencies.join('\n'));
+        const failMessage = 'The dependencies list has changed. '
+            + 'Printing newer dependencies list that one can use to compare against referenceGeneratedDeps:'
+            + sortedDependencies.join('\n');
+        if (FAIL_BUILD_FOR_NEW_DEPENDENCIES) {
+            throw new Error(failMessage);
+        }
+        else {
+            console.warn(failMessage);
+        }
     }
     return sortedDependencies;
 }
 exports.getDependencies = getDependencies;
+// Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/calculate_package_deps.py.
 function calculatePackageDeps(binaryPath) {
     try {
         if (!((0, fs_1.statSync)(binaryPath).mode & fs_1.constants.S_IXUSR)) {
