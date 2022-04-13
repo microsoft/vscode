@@ -265,7 +265,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		return controller;
 	}
 
-	createNotebookProxyController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler: () => vscode.NotebookController | Thenable<vscode.NotebookController>): vscode.NotebookProxyController {
+	createNotebookProxyController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler: () => vscode.NotebookController | string | Thenable<vscode.NotebookController | string>): vscode.NotebookProxyController {
 		const handle = this._handlePool++;
 
 		let isDisposed = false;
@@ -461,8 +461,14 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const controller = await obj.controller.resolveHandler();
 		let matchedKernelData: IKernelData | undefined;
 		this._kernelData.forEach(d => {
-			if (d.controller.id === controller.id) {
-				matchedKernelData = d;
+			if (typeof controller === 'string') {
+				if (d.controller.id === controller) {
+					matchedKernelData = d;
+				}
+			} else {
+				if (d.controller.id === controller.id) {
+					matchedKernelData = d;
+				}
 			}
 		});
 

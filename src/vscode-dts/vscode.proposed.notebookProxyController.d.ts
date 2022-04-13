@@ -40,7 +40,7 @@ declare module 'vscode' {
 		 */
 		kind?: string;
 
-		resolveHandler: () => NotebookController | Thenable<NotebookController>;
+		resolveHandler: () => NotebookController | string | Thenable<NotebookController | string>;
 
 		readonly onDidChangeSelectedNotebooks: Event<{ readonly notebook: NotebookDocument; readonly selected: boolean }>;
 
@@ -51,6 +51,6 @@ declare module 'vscode' {
 	}
 
 	export namespace notebooks {
-		export function createNotebookProxyController(id: string, notebookType: string, label: string, resolveHandler: () => NotebookController | Thenable<NotebookController>): NotebookProxyController;
+		export function createNotebookProxyController(id: string, notebookType: string, label: string, resolveHandler: () => NotebookController | string | Thenable<NotebookController | string>): NotebookProxyController;
 	}
 }
