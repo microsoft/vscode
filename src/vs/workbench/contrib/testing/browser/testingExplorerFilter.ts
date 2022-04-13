@@ -66,9 +66,8 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 		container.appendChild(wrapper);
 
 		const history = this.history.get([]);
-		const previousValue = history ? history[history.length - 1] : null;
-		if (previousValue) {
-			this.state.setText(previousValue);
+		if (history.length) {
+			this.state.setText(history[history.length - 1]);
 		}
 
 		const input = this.input = this._register(this.instantiationService.createInstance(ContextScopedSuggestEnabledInputWithHistory, {
@@ -95,7 +94,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 				value: this.state.text.value,
 				placeholderText: localize('testExplorerFilter', "Filter (e.g. text, !exclude, @tag)"),
 			},
-			history: history
+			history
 		}));
 		this._register(attachSuggestEnabledInputBoxStyler(input, this.themeService));
 
