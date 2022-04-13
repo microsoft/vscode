@@ -119,10 +119,26 @@ export class SCMViewService implements ISCMViewService {
 					return e;
 				}
 
-				return {
-					added: Iterable.concat(last.added, e.added),
-					removed: Iterable.concat(last.removed, e.removed),
-				};
+				// Remove "pairs" of repositories that appear both in the "added" and "removed"
+				// iterators. We have to do this in order to handle the scenario in which the
+				// following events are debounced:
+				// - added repository "foo"
+				// - removed repository "foo"
+				// - added repository "foo"
+				const added: ISCMRepository[] = [];
+				const removed = [...Iterable.concat(last.removed, e.removed)];
+
+				for (const repository of Iterable.concat(last.added, e.added)) {
+					const index = removed.findIndex(r => r === repository);
+
+					if (index === -1) {
+						added.push(repository);
+					} else {
+						removed.splice(index, 1);
+					}
+				}
+
+				return { added, removed };
 			}, 0)
 	);
 

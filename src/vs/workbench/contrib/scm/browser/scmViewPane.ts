@@ -1154,9 +1154,7 @@ class ViewModel {
 	}
 
 	private _onDidChangeVisibleRepositories({ added, removed }: ISCMViewVisibleRepositoryChangeEvent): void {
-		console.log('onDidChangeVisibleRepositories');
 		for (const repository of added) {
-			console.log('added: ', repository.provider.rootUri?.fsPath);
 			const disposable = combinedDisposable(
 				repository.provider.groups.onDidSplice(splice => this._onDidSpliceGroups(item, splice)),
 				repository.input.onDidChangeVisibility(() => this.refresh(item)),
@@ -1178,13 +1176,11 @@ class ViewModel {
 		}
 
 		for (const repository of removed) {
-			console.log('removed: ', repository.provider.rootUri?.fsPath);
 			const item = this.items.get(repository)!;
 			item.dispose();
 			this.items.delete(repository);
 		}
 
-		console.log('refresh...');
 		this.refresh();
 	}
 
@@ -1280,14 +1276,11 @@ class ViewModel {
 		const focusedInput = this.inputRenderer.getFocusedInput();
 
 		if (!this.alwaysShowRepositories && (this.items.size === 1 && (!item || isRepositoryItem(item)))) {
-			console.log('1!');
 			const item = Iterable.first(this.items.values())!;
 			this.tree.setChildren(null, this.render(item, this.treeViewState).children);
 		} else if (item) {
-			console.log('2!');
 			this.tree.setChildren(item.element, this.render(item, this.treeViewState).children);
 		} else {
-			console.log('3!');
 			const items = coalesce(this.scmViewService.visibleRepositories.map(r => this.items.get(r)));
 			this.tree.setChildren(null, items.map(item => this.render(item, this.treeViewState)));
 		}
