@@ -128,7 +128,7 @@ export class PlaywrightDriver implements IDriver {
 
 		// Server: via `teardown`
 		if (this.serverProcess) {
-			await measureAndLog(teardown(this.serverProcess, this.options.logger), 'teardown main process', this.options.logger);
+			await measureAndLog(teardown(this.serverProcess, this.options.logger), 'teardown server process', this.options.logger);
 		}
 	}
 
