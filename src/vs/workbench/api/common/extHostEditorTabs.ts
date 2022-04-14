@@ -321,26 +321,26 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 		// Construct the tab change event based on the operation
 		switch (operation.kind) {
 			case TabModelOperationKind.TAB_OPEN:
-				this._onDidChangeTabs.fire({
-					added: [tab.apiObject],
-					removed: [],
+				this._onDidChangeTabs.fire(Object.freeze({
+					opened: [tab.apiObject],
+					closed: [],
 					changed: []
-				});
+				}));
 				return;
 			case TabModelOperationKind.TAB_CLOSE:
-				this._onDidChangeTabs.fire({
-					added: [],
-					removed: [tab.apiObject],
+				this._onDidChangeTabs.fire(Object.freeze({
+					opened: [],
+					closed: [tab.apiObject],
 					changed: []
-				});
+				}));
 				return;
 			case TabModelOperationKind.TAB_MOVE:
 			case TabModelOperationKind.TAB_UPDATE:
-				this._onDidChangeTabs.fire({
-					added: [],
-					removed: [],
+				this._onDidChangeTabs.fire(Object.freeze({
+					opened: [],
+					closed: [],
 					changed: [tab.apiObject]
-				});
+				}));
 				return;
 		}
 	}
