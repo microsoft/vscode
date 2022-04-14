@@ -162,6 +162,25 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * An event describing changes to tab groups.
+	 */
+	export interface TabGroupChangeEvent {
+		/**
+		 * Tab groups that have been opened.
+		 */
+		readonly opened: readonly TabGroup[];
+		/**
+		 * Tab groups that have been closed.
+		 */
+		readonly closed: readonly TabGroup[];
+		/**
+		 * Tab groups that have changed, e.g have changed
+		 * their {@link TabGroup.isActive active} state.
+		 */
+		readonly changed: readonly TabGroup[];
+	}
+
+	/**
 	 * Represents a group of tabs. A tab group itself consists of multiple tab
 	 */
 	export interface TabGroup {
@@ -209,8 +228,7 @@ declare module 'vscode' {
 		/**
 		 * An {@link Event event} which fires when {@link TabGroup tab groups} have changed.
 		 */
-		// TODO@API consider `TabGroupChangeEvent` similar to `TabChangeEvent`
-		readonly onDidChangeTabGroups: Event<readonly TabGroup[]>;
+		readonly onDidChangeTabGroups: Event<TabGroupChangeEvent>;
 
 		/**
 		 * An {@link Event event} which fires when {@link Tab tabs} have changed.
