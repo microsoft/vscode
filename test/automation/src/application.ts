@@ -6,7 +6,6 @@
 import { Workbench } from './workbench';
 import { Code, launch, LaunchOptions } from './code';
 import { Logger, measureAndLog } from './logger';
-import { PlaywrightDriver } from './playwrightDriver';
 
 export const enum Quality {
 	Dev,
@@ -135,10 +134,9 @@ export class Application {
 	}
 
 	private async checkWorkbenchReady(code: Code): Promise<void> {
-		const driver = code.driver;
 
 		// Web / Legacy: just poll for workbench element
-		if (this.web || !(driver instanceof PlaywrightDriver)) {
+		if (this.web) {
 			await measureAndLog(code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
 		}
 
@@ -151,7 +149,7 @@ export class Application {
 			} catch (error) {
 				this.logger.log(`checkWindowReady: giving up after 10s, reloading window and trying again...`);
 
-				await driver.reload();
+				await code.driver.reload();
 
 				return this.checkWorkbenchReady(code);
 			}
