@@ -904,7 +904,7 @@ var requirejs = (function() {
 		}
 
 		this._preloadsCache.clear();
-		if (this._currentKernel && this._currentKernel.type === NotebookKernelType.Resolved) {
+		if (this._currentKernel?.type === NotebookKernelType.Resolved) {
 			this._updatePreloadsFromKernel(this._currentKernel);
 		}
 
@@ -1401,7 +1401,7 @@ var requirejs = (function() {
 		const previousKernel = this._currentKernel;
 		this._currentKernel = kernel;
 
-		if (previousKernel && previousKernel.type === NotebookKernelType.Resolved && previousKernel.preloadUris.length > 0) {
+		if (previousKernel?.type === NotebookKernelType.Resolved && previousKernel.preloadUris.length > 0) {
 			this.webview?.reload(); // preloads will be restored after reload
 		} else if (kernel?.type === NotebookKernelType.Resolved) {
 			this._updatePreloadsFromKernel(kernel);
@@ -1434,7 +1434,7 @@ var requirejs = (function() {
 
 		const mixedResourceRoots = [
 			...(this.localResourceRootsCache || []),
-			...(this._currentKernel && this._currentKernel.type === NotebookKernelType.Resolved ? [this._currentKernel.localResourceRoot] : []),
+			...(this._currentKernel?.type === NotebookKernelType.Resolved ? [this._currentKernel.localResourceRoot] : []),
 		];
 
 		this.webview.localResourcesRoot = mixedResourceRoots;
