@@ -604,9 +604,9 @@ export class SettingsEditor2 extends EditorPane {
 
 		const actionBar = this._register(new ActionBar(this.controlsElement, {
 			animated: false,
-			actionViewItemProvider: (_action) => {
-				if (_action.id === filterAction.id) {
-					return this.instantiationService.createInstance(SettingsSearchFilterDropdownMenuActionViewItem, _action, this.actionRunner, this.searchWidget);
+			actionViewItemProvider: (action) => {
+				if (action.id === filterAction.id) {
+					return this.instantiationService.createInstance(SettingsSearchFilterDropdownMenuActionViewItem, action, this.actionRunner, this.searchWidget);
 				}
 				return undefined;
 			}
