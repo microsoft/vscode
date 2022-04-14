@@ -19,6 +19,7 @@ import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const $ = dom.$;
 
@@ -32,6 +33,7 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 
 	constructor(
 		private editor: ICodeEditor,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -53,7 +55,7 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 		const model = this.editor.getModel();
 
 		if (model && model.uri.scheme === Schemas.untitled && model.getLanguageId() === PLAINTEXT_LANGUAGE_ID && configValue === 'text') {
-			this.untitledTextHintContentWidget = new UntitledTextEditorHintContentWidget(this.editor, this.commandService, this.configurationService, this.keybindingService);
+			this.untitledTextHintContentWidget = new UntitledTextEditorHintContentWidget(this.editor, this.editorGroupsService, this.commandService, this.configurationService, this.keybindingService);
 		}
 	}
 
@@ -72,6 +74,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		private readonly editorGroupsService: IEditorGroupsService,
 		private readonly commandService: ICommandService,
 		private readonly configurationService: IConfigurationService,
 		private readonly keybindingService: IKeybindingService,
@@ -153,6 +156,13 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 
 			const chooseEditorOnClickOrTap = async (e: MouseEvent) => {
 				e.stopPropagation();
+				const activeEditorInput = this.editorGroupsService.activeGroup.activeEditor;
+
+				// Close the active editor as long as it is untitled (swap the editors out)
+				if (activeEditorInput !== null && activeEditorInput.resource?.scheme === Schemas.untitled) {
+					this.editorGroupsService.activeGroup.closeEditor(activeEditorInput, { preserveFocus: true });
+				}
+
 				await this.commandService.executeCommand('welcome.showNewFileEntries', { from: 'hint' });
 			};
 			this.toDispose.push(dom.addDisposableListener(chooseEditor, 'click', chooseEditorOnClickOrTap));
