@@ -39,8 +39,11 @@ fi
 if [[ -o "login" &&  -f $__vsc_path/.zlogin ]]; then
 	. $__vsc_path/.zlogin
 fi
-if [ -f ~/.zshrc ]; then
-	. ~/.zshrc
+if [ -f ~/etc/zshrc ]; then
+	. ~/etc/zshrc
+fi
+if [ -f $__vsc_path/.zshrc ]; then
+	. $__vsc_path/.zshrc
 fi
 
 # Shell integration was disabled by the shell, exit without warning assuming either the shell has
