@@ -126,7 +126,10 @@ export class BrowserMain extends Disposable {
 					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
 				},
 				env: {
-					uriScheme: productService.urlProtocol,
+					telemetryLevel: telemetryService.telemetryLevel,
+					async getUriScheme(): Promise<string> {
+						return productService.urlProtocol;
+					},
 					async retrievePerformanceMarks() {
 						await timerService.whenReady();
 
@@ -134,8 +137,7 @@ export class BrowserMain extends Disposable {
 					},
 					async openUri(uri: URI): Promise<boolean> {
 						return openerService.open(uri, {});
-					},
-					telemetryLevel: telemetryService.telemetryLevel,
+					}
 				},
 				window: {
 					withProgress: (options, task) => progessService.withProgress(options, task)

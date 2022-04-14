@@ -111,7 +111,7 @@ export namespace env {
 	export async function getUriScheme(): Promise<string> {
 		const workbench = await workbenchPromise.p;
 
-		return workbench.env.uriScheme;
+		return workbench.env.getUriScheme();
 	}
 
 	/**
