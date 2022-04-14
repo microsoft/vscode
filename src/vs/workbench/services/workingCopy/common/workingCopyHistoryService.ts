@@ -76,7 +76,10 @@ export class WorkingCopyHistoryModel {
 
 	private historyEntriesNameMatcher: RegExp | undefined = undefined;
 
-	private shouldStore: boolean = false;
+	private versionId = 0;
+	private storedVersionId = this.versionId;
+
+	private readonly storeLimiter = new Limiter(1);
 
 	constructor(
 		workingCopyResource: URI,
@@ -170,8 +173,8 @@ export class WorkingCopyHistoryModel {
 		};
 		this.entries.push(entry);
 
-		// Mark as in need to be stored to disk
-		this.shouldStore = true;
+		// Update version ID of model to use for storing later
+		this.versionId++;
 
 		// Events
 		this.entryAddedEmitter.fire({ entry });
@@ -188,8 +191,8 @@ export class WorkingCopyHistoryModel {
 		// Update entry
 		entry.timestamp = timestamp;
 
-		// Mark as in need to be stored to disk
-		this.shouldStore = true;
+		// Update version ID of model to use for storing later
+		this.versionId++;
 
 		// Events
 		this.entryReplacedEmitter.fire({ entry });
@@ -217,8 +220,8 @@ export class WorkingCopyHistoryModel {
 		// Remove from model
 		this.entries.splice(index, 1);
 
-		// Mark as in need to be stored to disk
-		this.shouldStore = true;
+		// Update version ID of model to use for storing later
+		this.versionId++;
 
 		// Events
 		this.entryRemovedEmitter.fire({ entry });
@@ -248,8 +251,8 @@ export class WorkingCopyHistoryModel {
 		// Update entry
 		entry.source = properties.source;
 
-		// Mark as in need to be stored to disk
-		this.shouldStore = true;
+		// Update version ID of model to use for storing later
+		this.versionId++;
 
 		// Events
 		this.entryChangedEmitter.fire({ entry });
@@ -384,11 +387,28 @@ export class WorkingCopyHistoryModel {
 	}
 
 	async store(token: CancellationToken): Promise<void> {
-		const historyEntriesFolder = assertIsDefined(this.historyEntriesFolder);
-
-		if (!this.shouldStore) {
-			return; // fast return to avoid disk access when nothing changed
+		if (!this.shouldStore()) {
+			return;
 		}
+
+		// Use a `Limiter` to prevent multiple `store` operations
+		// potentially running at the same time
+
+		await this.storeLimiter.queue(async () => {
+			if (token.isCancellationRequested || !this.shouldStore()) {
+				return;
+			}
+
+			return this.doStore(token);
+		});
+	}
+
+	private shouldStore(): boolean {
+		return this.storedVersionId !== this.versionId;
+	}
+
+	private async doStore(token: CancellationToken): Promise<void> {
+		const historyEntriesFolder = assertIsDefined(this.historyEntriesFolder);
 
 		// Make sure to await resolving when persisting
 		await this.resolveEntriesOnce();
@@ -401,6 +421,7 @@ export class WorkingCopyHistoryModel {
 		await this.cleanUpEntries();
 
 		// Without entries, remove the history folder
+		const storedVersion = this.versionId;
 		if (this.entries.length === 0) {
 			try {
 				await this.fileService.del(historyEntriesFolder, { recursive: true });
@@ -414,8 +435,8 @@ export class WorkingCopyHistoryModel {
 			await this.writeEntriesFile();
 		}
 
-		// Mark as being up to date on disk
-		this.shouldStore = false;
+		// Mark as stored version
+		this.storedVersionId = storedVersion;
 	}
 
 	private async cleanUpEntries(): Promise<void> {

@@ -180,7 +180,7 @@ export const enum LifecyclePhase {
 	Eventually = 4
 }
 
-export function LifecyclePhaseToString(phase: LifecyclePhase) {
+export function LifecyclePhaseToString(phase: LifecyclePhase): string {
 	switch (phase) {
 		case LifecyclePhase.Starting: return 'Starting';
 		case LifecyclePhase.Ready: return 'Ready';
