@@ -60,10 +60,6 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			}
 		}
 
-		if (!(capabilities & EditorInputCapabilities.Readonly)) {
-			capabilities |= EditorInputCapabilities.CanDropIntoEditor;
-		}
-
 		return capabilities;
 	}
 
