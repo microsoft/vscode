@@ -38,7 +38,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: '_notebook.selectKernel',
+			id: SELECT_KERNEL_ID,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
 			// precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
@@ -381,7 +381,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 					tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
 					command: SELECT_KERNEL_ID,
 				},
-				'_notebook.selectKernel',
+				SELECT_KERNEL_ID,
 				StatusbarAlignment.RIGHT,
 				10
 			));
@@ -399,7 +399,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 					command: SELECT_KERNEL_ID,
 					backgroundColor: { id: 'statusBarItem.prominentBackground' }
 				},
-				'_notebook.selectKernel',
+				SELECT_KERNEL_ID,
 				StatusbarAlignment.RIGHT,
 				10
 			));

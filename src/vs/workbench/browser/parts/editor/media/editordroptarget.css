@@ -28,7 +28,7 @@
 
 #monaco-workbench-editor-drop-overlay .editor-group-overlay-drop-into-prompt {
 	text-align: center;
-	padding: 1em;
+	padding: 0.6em;
 	opacity: 0; /* hidden initially */
 	transition: opacity 150ms ease-out;
 }
