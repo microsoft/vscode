@@ -6,14 +6,14 @@
 import 'vs/css!./notebookKernelActionViewItem';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Action, IAction } from 'vs/base/common/actions';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { INotebookKernelMatchResult, INotebookKernelService, ProxyKernelState } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelMatchResult, INotebookKernelService, NotebookKernelType, ProxyKernelState } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { Event } from 'vs/base/common/event';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export class NotebooKernelActionViewItem extends ActionViewItem {
 
@@ -77,7 +77,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 				// special UI for selected kernel?
 			}
 
-			if ('resolveKernel' in selectedOrSuggested) {
+			if (selectedOrSuggested.type === NotebookKernelType.Proxy) {
 				if (selectedOrSuggested.connectionState === ProxyKernelState.Initializing) {
 					this._action.label = localize('initializing', "Initializing...");
 				} else {
