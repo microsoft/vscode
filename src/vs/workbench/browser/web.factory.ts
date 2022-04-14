@@ -13,9 +13,9 @@ import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
 import { asArray } from 'vs/base/common/arrays';
 import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
-import { IOutputChannel } from 'vs/workbench/services/output/common/output';
 import { IObservableValue } from 'vs/base/common/observableValue';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { LogLevel } from 'vs/platform/log/common/log';
 
 let created = false;
 const workbenchPromise = new DeferredPromise<IWorkbench>();
@@ -131,12 +131,12 @@ export namespace env {
 export namespace window {
 
 	/**
-	 * {@linkcode IWorkbench.window IWorkbench.window.createOutputChannel}
+	 * {@linkcode IWorkbench.window IWorkbench.window.log}
 	 */
-	export async function createOutputChannel(name: string, languageId?: string): Promise<IOutputChannel> {
+	export async function log(id: string, level: LogLevel, message: string) {
 		const workbench = await workbenchPromise.p;
 
-		return workbench.window.createOutputChannel(name, languageId);
+		return workbench.window.log(id, level, message);
 	}
 
 	/**

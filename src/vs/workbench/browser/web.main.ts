@@ -6,7 +6,7 @@
 import { mark } from 'vs/base/common/performance';
 import { domContentLoaded, detectFullscreen, getCookieValue } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILogService, ConsoleLogger, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
+import { ILogService, ConsoleLogger, MultiplexLogService, getLogLevel, LogLevel } from 'vs/platform/log/common/log';
 import { ConsoleLogInAutomationLogger } from 'vs/platform/log/browser/log';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { BrowserWorkbenchEnvironmentService, IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
@@ -24,7 +24,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas, connectionTokenCookieName } from 'vs/base/common/network';
 import { IAnyWorkspaceIdentifier, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { CancellationError, getErrorMessage, isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { setFullscreen } from 'vs/base/browser/browser';
 import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -69,10 +69,12 @@ import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { BrowserCredentialsService } from 'vs/workbench/services/credentials/browser/credentialsService';
 import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { Extensions, IOutputChannelRegistry, IOutputService } from 'vs/workbench/services/output/common/output';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
+import { createCancelablePromise, timeout } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class BrowserMain extends Disposable {
 
@@ -120,11 +122,8 @@ export class BrowserMain extends Disposable {
 			const timerService = accessor.get(ITimerService);
 			const openerService = accessor.get(IOpenerService);
 			const productService = accessor.get(IProductService);
-			const outputService = accessor.get(IOutputService);
 			const telemetryService = accessor.get(ITelemetryService);
 			const progessService = accessor.get(IProgressService);
-
-			let outputChannelCounter = 0;
 
 			return {
 				commands: {
@@ -146,15 +145,35 @@ export class BrowserMain extends Disposable {
 					}
 				},
 				window: {
-					createOutputChannel: async (name: string, languageId?: string) => {
-						const id = `web-embedder-${++outputChannelCounter}`;
-						Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label: name, log: false, languageId });
-						const channel = outputService.getChannel(id);
-						if (channel) {
-							return channel;
+					log: async (id, level, message) => {
+						const logMessage = `${id}: ${message}`;
+						switch (level) {
+							case LogLevel.Trace: {
+								services.embedderLogService.trace(logMessage);
+								break;
+							}
+							case LogLevel.Debug: {
+								services.embedderLogService.debug(logMessage);
+								break;
+							}
+							case LogLevel.Info: {
+								services.embedderLogService.info(logMessage);
+								break;
+							}
+							case LogLevel.Warning: {
+								services.embedderLogService.warn(logMessage);
+								break;
+							}
+							case LogLevel.Error: {
+								services.embedderLogService.error(logMessage);
+								break;
+							}
+							case LogLevel.Critical: {
+								services.embedderLogService.critical(logMessage);
+								break;
+							}
+							default: break;
 						}
-
-						throw Error(`Could not create output channel for name: ${name}`);
 					},
 					withProgress: (options, task) => progessService.withProgress(options, task)
 				},
@@ -170,7 +189,7 @@ export class BrowserMain extends Disposable {
 		this._register(workbench.onDidShutdown(() => this.dispose()));
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection; configurationService: IWorkbenchConfigurationService; logService: ILogService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection; configurationService: IWorkbenchConfigurationService; logService: ILogService; embedderLogService: ILogService }> {
 		const serviceCollection = new ServiceCollection();
 
 
@@ -223,10 +242,15 @@ export class BrowserMain extends Disposable {
 		const remoteAgentService = this._register(new RemoteAgentService(this.configuration.webSocketFactory, environmentService, productService, remoteAuthorityResolverService, signService, logService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
+		// Embedder Log
+		const embedderLogService = new BufferLogService(getLogLevel(environmentService));
+
 		// Files
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IWorkbenchFileService, fileService);
-		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, logsPath);
+		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, embedderLogService, logsPath);
+
+		this.registerEmbedderLogChannel(environmentService, fileService, logService);
 
 		// URI Identity
 		const uriIdentityService = new UriIdentityService(fileService);
@@ -315,10 +339,10 @@ export class BrowserMain extends Disposable {
 			mark('code/didInitRequiredUserData');
 		}
 
-		return { serviceCollection, configurationService, logService };
+		return { serviceCollection, configurationService, logService, embedderLogService };
 	}
 
-	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IWorkbenchFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {
+	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IWorkbenchFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, embedderLogService: BufferLogService, logsPath: URI): Promise<void> {
 
 		// IndexedDB is used for logging and user data
 		let indexedDB: IndexedDB | undefined;
@@ -340,6 +364,9 @@ export class BrowserMain extends Disposable {
 		} else {
 			fileService.registerProvider(logsPath.scheme, new InMemoryFileSystemProvider());
 		}
+
+		embedderLogService.logger = new FileLogger('webEmbedder', environmentService.webEmbedderLogResource, embedderLogService.getLevel(), false, fileService);
+
 		logService.logger = new MultiplexLogService(coalesce([
 			new ConsoleLogger(logService.getLevel()),
 			new FileLogger('window', environmentService.logFile, logService.getLevel(), false, fileService),
@@ -464,5 +491,39 @@ export class BrowserMain extends Disposable {
 		}
 
 		return { id: 'empty-window' };
+	}
+
+	private async registerEmbedderLogChannel(environmentService: IWorkbenchEnvironmentService, fileService: FileService, windowLogService: ILogService): Promise<void> {
+		const id = 'webEmbedderLog';
+		const label = 'vscode.dev';
+		const file = environmentService.webEmbedderLogResource;
+
+		const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
+		try {
+			const promise = createCancelablePromise(token => this.whenFileExists(file, 1, token, fileService, windowLogService));
+			this._register(toDisposable(() => promise.cancel()));
+			await promise;
+			outputChannelRegistry.registerChannel({ id, label, file, log: true });
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				windowLogService.error('Error while registering log channel', file.toString(), getErrorMessage(error));
+			}
+		}
+	}
+
+	private async whenFileExists(file: URI, trial: number, token: CancellationToken, fileService: FileService, windowLogService: ILogService): Promise<void> {
+		const exists = await fileService.exists(file);
+		if (exists) {
+			return;
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (trial > 10) {
+			throw new Error(`Timed out while waiting for file to be created`);
+		}
+		windowLogService.debug(`[Registering Log Channel] File does not exist. Waiting for 1s to retry.`, file.toString());
+		await timeout(1000, token);
+		await this.whenFileExists(file, trial + 1, token, fileService, windowLogService);
 	}
 }

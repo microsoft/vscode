@@ -15,7 +15,6 @@ import type { IProductConfiguration } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
-import type { IOutputChannel } from 'vs/workbench/services/output/common/output';
 import { IObservableValue } from 'vs/base/common/observableValue';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 
@@ -75,13 +74,13 @@ export interface IWorkbench {
 	window: {
 
 		/**
-		 * Creates a new output channel with the given name and language id
-		 * If language id is not provided, then **Log** is used as default language id.
+		 * Record log messages to be displayed in `Log (vscode.dev)`
 		 *
-		 * @param name Human-readable string which will be used to represent the channel in the UI.
-		 * @param languageId The identifier of the language associated with the channel.
+		 * @param id Human-readable name associated with your log message.
+		 * @param level The log level of the message to be printed.
+		 * @param message The log to be printed.
 		 */
-		createOutputChannel(name: string, languageId?: string): Promise<IOutputChannel>;
+		log(id: string, level: LogLevel, message: string): Promise<void>;
 
 		/**
 		 * Show progress in the editor. Progress is shown while running the given callback
