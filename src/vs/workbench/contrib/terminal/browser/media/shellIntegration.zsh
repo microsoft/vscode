@@ -19,24 +19,25 @@ fi
 # if ZDOTDIR is undefined, use HOME
 local __vsc_path=$ZDOTDIR
 if [ -z "${ZDOTDIR}" ]; then
-	__vsc_path="~"
+	__vsc_path=$HOME
 else
 	VSCODE_SHELL_HIDE_WELCOME=""
 fi
-if [ -f __vsc_path/.zshenv ]; then
-	. __vsc_path/.zshenv
+
+if [ -f $__vsc_path/.zshenv ]; then
+	. $__vsc_path/.zshenv
 fi
 if [[ -o "login" &&  -f ~/etc/zprofile ]]; then
 	. ~/etc/zprofile
 fi
-if [[ -o "login" &&  -f __vsc_path/.zprofile ]]; then
-	. __vsc_path/.zprofile
+if [[ -o "login" &&  -f $__vsc_path/.zprofile ]]; then
+	. $__vsc_path/.zprofile
 fi
 if [[ -o "login" &&  -f /etc/zlogin ]]; then
 	. ~/etc/zlogin
 fi
-if [[ -o "login" &&  -f __vsc_path/.zlogin ]]; then
-	. __vsc_path/.zlogin
+if [[ -o "login" &&  -f $__vsc_path/.zlogin ]]; then
+	. $__vsc_path/.zlogin
 fi
 if [ -f ~/.zshrc ]; then
 	. ~/.zshrc
