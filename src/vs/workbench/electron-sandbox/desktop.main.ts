@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import product from 'vs/platform/product/common/product';
 import { INativeWindowConfiguration, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { Workbench } from 'vs/workbench/browser/workbench';
@@ -129,7 +130,7 @@ export class DesktopMain extends Disposable {
 	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {
 
 		// Workbench Lifecycle
-		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), 'join.closeStorage')));
+		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), { id: 'join.closeStorage', label: localize('join.closeStorage', "Saving UI state") })));
 		this._register(workbench.onDidShutdown(() => this.dispose()));
 	}
 

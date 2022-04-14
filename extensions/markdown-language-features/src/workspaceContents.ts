@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { coalesce } from './util/arrays';
 import { Disposable } from './util/dispose';
 import { isMarkdownFile } from './util/file';
 import { InMemoryDocument } from './util/inMemoryDocument';
+import { Limiter } from './util/limiter';
 
 /**
  * Minimal version of {@link vscode.TextLine}. Used for mocking out in testing.
@@ -68,15 +70,14 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 	 */
 	async getAllMarkdownDocuments(): Promise<SkinnyTextDocument[]> {
 		const maxConcurrent = 20;
-		const docList: SkinnyTextDocument[] = [];
+
 		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
 
-		for (let i = 0; i < resources.length; i += maxConcurrent) {
-			const resourceBatch = resources.slice(i, i + maxConcurrent);
-			const documentBatch = (await Promise.all(resourceBatch.map(x => this.getMarkdownDocument(x)))).filter((doc) => !!doc) as SkinnyTextDocument[];
-			docList.push(...documentBatch);
-		}
-		return docList;
+		const limiter = new Limiter<SkinnyTextDocument | undefined>(maxConcurrent);
+		const results = await Promise.all(resources.map(resource => {
+			return limiter.queue(() => this.getMarkdownDocument(resource));
+		}));
+		return coalesce(results);
 	}
 
 	public get onDidChangeMarkdownDocument() {

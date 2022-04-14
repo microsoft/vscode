@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { DEFAULT_EDITOR_ASSOCIATION, findViewStateForEditor, GroupIdentifier, IUntitledTextResourceEditorInput, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, findViewStateForEditor, GroupIdentifier, IUntitledTextResourceEditorInput, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
@@ -114,6 +114,11 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 
 	getLanguageId(): string | undefined {
 		return this.model.getLanguageId();
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		const capabilities = super.capabilities;
+		return capabilities | EditorInputCapabilities.CanDropIntoEditor;
 	}
 
 	override async resolve(): Promise<IUntitledTextEditorModel> {

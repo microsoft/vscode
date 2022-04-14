@@ -350,7 +350,7 @@ export class DebugSession implements IDebugSession {
 	/**
 	 * end the current debug adapter session
 	 */
-	async disconnect(restart = false): Promise<void> {
+	async disconnect(restart = false, suspend = false): Promise<void> {
 		if (!this.raw) {
 			// Adapter went down but it did not send a 'terminated' event, simulate like the event has been sent
 			this.onDidExitAdapter();
@@ -358,9 +358,10 @@ export class DebugSession implements IDebugSession {
 
 		this.cancelAllRequests();
 		if (this._options.lifecycleManagedByParent && this.parentSession) {
-			await this.parentSession.disconnect(restart);
+			await this.parentSession.disconnect(restart, suspend);
 		} else if (this.raw) {
-			await this.raw.disconnect({ restart, terminateDebuggee: false });
+			// TODO terminateDebuggee should be undefined by default?
+			await this.raw.disconnect({ restart, terminateDebuggee: false, suspendDebuggee: suspend });
 		}
 
 		if (!restart) {
@@ -1003,7 +1004,7 @@ export class DebugSession implements IDebugSession {
 				this.passFocusScheduler.cancel();
 				if (focusedThread && event.body.threadId === focusedThread.threadId) {
 					// De-focus the thread in case it was focused
-					this.debugService.focusStackFrame(undefined, undefined, viewModel.focusedSession, false);
+					this.debugService.focusStackFrame(undefined, undefined, viewModel.focusedSession, { explicit: false });
 				}
 			}
 		}));
@@ -1070,7 +1071,7 @@ export class DebugSession implements IDebugSession {
 					// only log telemetry events from debug adapter if the debug extension provided the telemetry key
 					// and the user opted in telemetry
 					const telemetryEndpoint = this.raw.dbgr.getCustomTelemetryEndpoint();
-					if (telemetryEndpoint && this.telemetryService.telemetryLevel !== TelemetryLevel.NONE) {
+					if (telemetryEndpoint && this.telemetryService.telemetryLevel.value !== TelemetryLevel.NONE) {
 						// __GDPR__TODO__ We're sending events in the name of the debug extension and we can not ensure that those are declared correctly.
 						let data = event.body.data;
 						if (!telemetryEndpoint.sendErrorTelemetry && event.body.data) {

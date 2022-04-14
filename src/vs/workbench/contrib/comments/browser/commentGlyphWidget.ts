@@ -62,7 +62,7 @@ export class CommentGlyphWidget {
 
 		return {
 			position: {
-				lineNumber: range ? range.startLineNumber : this._lineNumber,
+				lineNumber: range ? range.endLineNumber : this._lineNumber,
 				column: 1
 			},
 			preference: [ContentWidgetPositionPreference.EXACT]

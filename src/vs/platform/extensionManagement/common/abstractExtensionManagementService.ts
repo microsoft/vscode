@@ -6,7 +6,7 @@
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled, getErrorMessage } from 'vs/base/common/errors';
+import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
@@ -671,7 +671,7 @@ export abstract class AbstractExtensionTask<T> {
 				return new Promise((c, e) => {
 					const disposable = token.onCancellationRequested(() => {
 						disposable.dispose();
-						e(canceled());
+						e(new CancellationError());
 					});
 				});
 			});

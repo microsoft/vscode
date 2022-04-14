@@ -45,7 +45,6 @@ const opts = minimist(args, {
 		'remote',
 		'web',
 		'headless',
-		'legacy',
 		'tracing'
 	],
 	default: {
@@ -56,7 +55,6 @@ const opts = minimist(args, {
 	remote?: boolean;
 	headless?: boolean;
 	web?: boolean;
-	legacy?: boolean;
 	tracing?: boolean;
 	build?: string;
 	'stable-build'?: string;
@@ -64,16 +62,16 @@ const opts = minimist(args, {
 	electronArgs?: string;
 };
 
-const logsPath = (() => {
+const logsRootPath = (() => {
 	const logsParentPath = path.join(rootPath, '.build', 'logs');
 
 	let logsName: string;
 	if (opts.web) {
 		logsName = 'smoke-tests-browser';
 	} else if (opts.remote) {
-		logsName = opts.legacy ? 'smoke-tests-remote-legacy' : 'smoke-tests-remote';
+		logsName = 'smoke-tests-remote';
 	} else {
-		logsName = opts.legacy ? 'smoke-tests-electron-legacy' : 'smoke-tests-electron';
+		logsName = 'smoke-tests-electron';
 	}
 
 	return path.join(logsParentPath, logsName);
@@ -89,12 +87,12 @@ function createLogger(): Logger {
 		loggers.push(new ConsoleLogger());
 	}
 
-	// Prepare logs path
-	fs.rmSync(logsPath, { recursive: true, force: true, maxRetries: 3 });
-	mkdirp.sync(logsPath);
+	// Prepare logs rot path
+	fs.rmSync(logsRootPath, { recursive: true, force: true, maxRetries: 3 });
+	mkdirp.sync(logsRootPath);
 
 	// Always log to log file
-	loggers.push(new FileLogger(path.join(logsPath, 'smoke-test-runner.log')));
+	loggers.push(new FileLogger(path.join(logsRootPath, 'smoke-test-runner.log')));
 
 	return new MultiLogger(loggers);
 }
@@ -316,7 +314,7 @@ async function setup(): Promise<void> {
 	logger.log('Smoketest setup done!\n');
 }
 
-// Before main suite (before all tests)
+// Before all tests run setup
 before(async function () {
 	this.timeout(5 * 60 * 1000); // increase since we download VSCode
 
@@ -326,17 +324,15 @@ before(async function () {
 		workspacePath,
 		userDataDir,
 		extensionsPath,
-		waitTime: parseInt(opts['wait-time'] || '0') || 20,
 		logger,
-		logsPath,
+		logsPath: path.join(logsRootPath, 'suite_unknown'),
 		verbose: opts.verbose,
 		remote: opts.remote,
 		web: opts.web,
-		legacy: opts.legacy,
 		tracing: opts.tracing,
 		headless: opts.headless,
 		browser: opts.browser,
-		extraArgs: (opts.electronArgs || '').split(' ').map(a => a.trim()).filter(a => !!a)
+		extraArgs: (opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg)
 	};
 
 	await setup();
@@ -366,7 +362,7 @@ after(async function () {
 	}
 });
 
-describe(`VSCode Smoke Tests (${opts.web ? 'Web' : opts.legacy ? 'Electron (legacy)' : 'Electron'})`, () => {
+describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web) { setupDataLossTests(() => opts['stable-build'] /* Do not change, deferred for a reason! */, logger); }
 	setupPreferencesTests(logger);
 	setupSearchTests(logger);
@@ -374,7 +370,7 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : opts.legacy ? 'Electron (lega
 	setupLanguagesTests(logger);
 	if (opts.web) { setupTerminalTests(logger); } // Tests require playwright driver (https://github.com/microsoft/vscode/issues/146811)
 	setupStatusbarTests(logger);
-	if (quality !== Quality.Dev && !opts.remote) { setupExtensionTests(logger); } // https://github.com/microsoft/vscode/issues/146800
+	if (quality !== Quality.Dev) { setupExtensionTests(logger); }
 	setupMultirootTests(logger);
 	if (!opts.web && !opts.remote && quality !== Quality.Dev) { setupLocalizationTests(logger); }
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }

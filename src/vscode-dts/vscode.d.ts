@@ -8066,6 +8066,19 @@ declare module 'vscode' {
 		 *   `package.json`, any `ArrayBuffer` values that appear in `message` will be more
 		 *   efficiently transferred to the webview and will also be correctly recreated inside
 		 *   of the webview.
+		 *
+		 * @return A promise that resolves when the message is posted to a webview or when it is
+		 * dropped because the message was not deliverable.
+		 *
+		 *   Returns `true` if the message was posted to the webview. Messages can only be posted to
+		 * live webviews (i.e. either visible webviews or hidden webviews that set `retainContextWhenHidden`).
+		 *
+		 *   A response of `true` does not mean that the message was actually received by the webview.
+		 *   For example, no message listeners may be have been hooked up inside the webview or the webview may
+		 *   have been destroyed after the message was posted but before it was received.
+		 *
+		 *   If you want confirm that a message as actually received, you can try having your webview posting a
+		 *   confirmation message back to your extension.
 		 */
 		postMessage(message: any): Thenable<boolean>;
 
@@ -8885,7 +8898,7 @@ declare module 'vscode' {
 		 *   }
 		 * });
 		 *
-		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://my.extension/did-authenticate`));
+		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse(vscode.env.uriScheme + '://my.extension/did-authenticate'));
 		 * await vscode.env.openExternal(callableUri);
 		 * ```
 		 *
@@ -11406,11 +11419,18 @@ declare module 'vscode' {
 		 * By default, all opened {@link workspace.workspaceFolders workspace folders} will be watched
 		 * for file changes recursively.
 		 *
-		 * Additional folders can be added for file watching by providing a {@link RelativePattern} with
-		 * a `base` that is outside of any of the currently opened workspace folders. If the `pattern` is
-		 * complex (e.g. contains `**` or path segments), the folder will be watched recursively and
-		 * otherwise will be watched non-recursively (i.e. only changes to the first level of the path
-		 * will be reported).
+		 * Additional paths can be added for file watching by providing a {@link RelativePattern} with
+		 * a `base` path to watch. If the `pattern` is complex (e.g. contains `**` or path segments),
+		 * the path will be watched recursively and otherwise will be watched non-recursively (i.e. only
+		 * changes to the first level of the path will be reported).
+		 *
+		 * *Note* that requests for recursive file watchers for a `base` path that is inside the opened
+		 * workspace are ignored given all opened {@link workspace.workspaceFolders workspace folders} are
+		 * watched for file changes recursively by default. Non-recursive file watchers however are always
+		 * supported, even inside the opened workspace because they allow to bypass the configured settings
+		 * for excludes (`files.watcherExclude`). If you need to watch in a location that is typically
+		 * excluded (for example `node_modules` or `.git` folder), then you can use a non-recursive watcher
+		 * in the workspace for this purpose.
 		 *
 		 * If possible, keep the use of recursive watchers to a minimum because recursive file watching
 		 * is quite resource intense.

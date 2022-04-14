@@ -107,39 +107,6 @@ suite('History Storage', () => {
 		assertRestoring(ro, 'authority');
 	});
 
-	test('open 1_33', () => {
-		const v1_33 = `{
-			"workspaces3": [
-				{
-					"id": "53b714b46ef1a2d4346568b4f591028c",
-					"configURIPath": "file:///home/user/workspaces/testing/custom.code-workspace"
-				},
-				"file:///home/user/workspaces/testing/folding"
-			],
-			"files2": [
-				"file:///home/user/.config/code-oss-dev/storage.json"
-			],
-			"workspaceLabels": [
-				null,
-				"abc"
-			],
-			"fileLabels": [
-				"def"
-			]
-		}`;
-
-		let windowsState = restoreRecentlyOpened(JSON.parse(v1_33), new NullLogService());
-		let expected: IRecentlyOpened = {
-			files: [{ label: 'def', fileUri: URI.parse('file:///home/user/.config/code-oss-dev/storage.json') }],
-			workspaces: [
-				{ workspace: { id: '53b714b46ef1a2d4346568b4f591028c', configPath: URI.parse('file:///home/user/workspaces/testing/custom.code-workspace') } },
-				{ label: 'abc', folderUri: URI.parse('file:///home/user/workspaces/testing/folding') }
-			]
-		};
-
-		assertEqualRecentlyOpened(windowsState, expected, 'v1_33');
-	});
-
 	test('open 1_55', () => {
 		const v1_55 = `{
 			"entries": [

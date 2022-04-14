@@ -21,7 +21,6 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { flatten } from 'vs/base/common/arrays';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
-import { canceled } from 'vs/base/common/errors';
 import { IUserDataSyncEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { Promises } from 'vs/base/common/async';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
@@ -31,6 +30,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { isUndefined } from 'vs/base/common/types';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationError } from 'vs/base/common/errors';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
 
@@ -368,7 +368,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				case 1:
 					return true;
 			}
-			throw canceled();
+			throw new CancellationError();
 		}
 		return false;
 	}
@@ -402,7 +402,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			});
 
 			if (trustState === undefined) {
-				throw canceled();
+				throw new CancellationError();
 			}
 		}
 	}
@@ -462,7 +462,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			// Unfortunately ICommandService cannot be used directly due to cyclic dependencies
 			this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('extension.open', extension.identifier.id, 'extensionPack'));
 		}
-		throw canceled();
+		throw new CancellationError();
 
 	}
 

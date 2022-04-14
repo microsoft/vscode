@@ -93,7 +93,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		}
 
 		const position = selection.getStartPosition();
-		model.tokenizeIfCheap(position.lineNumber);
+		model.tokenization.tokenizeIfCheap(position.lineNumber);
 		const languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
 		const syntax = languageId.split('.').pop();
 

@@ -850,7 +850,7 @@ export class ModelSemanticColoring extends Disposable {
 			// there is no provider
 			if (this._currentDocumentResponse) {
 				// there are semantic tokens set
-				this._model.setSemanticTokens(null, false);
+				this._model.tokenization.setSemanticTokens(null, false);
 			}
 			return;
 		}
@@ -925,11 +925,11 @@ export class ModelSemanticColoring extends Disposable {
 			return;
 		}
 		if (!provider || !styling) {
-			this._model.setSemanticTokens(null, false);
+			this._model.tokenization.setSemanticTokens(null, false);
 			return;
 		}
 		if (!tokens) {
-			this._model.setSemanticTokens(null, true);
+			this._model.tokenization.setSemanticTokens(null, true);
 			rescheduleIfNeeded();
 			return;
 		}
@@ -937,7 +937,7 @@ export class ModelSemanticColoring extends Disposable {
 		if (isSemanticTokensEdits(tokens)) {
 			if (!currentResponse) {
 				// not possible!
-				this._model.setSemanticTokens(null, true);
+				this._model.tokenization.setSemanticTokens(null, true);
 				return;
 			}
 			if (tokens.edits.length === 0) {
@@ -1006,9 +1006,9 @@ export class ModelSemanticColoring extends Disposable {
 				}
 			}
 
-			this._model.setSemanticTokens(result, true);
+			this._model.tokenization.setSemanticTokens(result, true);
 		} else {
-			this._model.setSemanticTokens(null, true);
+			this._model.tokenization.setSemanticTokens(null, true);
 		}
 
 		rescheduleIfNeeded();

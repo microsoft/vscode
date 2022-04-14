@@ -52,6 +52,10 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 					}
 				}
 
+				if (triggerRef.link.href.kind === 'external') {
+					return { range: triggerRef.link.source.hrefRange, placeholder: document.getText(triggerRef.link.source.hrefRange) };
+				}
+
 				const { fragmentRange } = triggerRef.link.source;
 				if (fragmentRange) {
 					const declaration = this.findHeaderDeclaration(allRefsInfo.references);
@@ -98,7 +102,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 							continue;
 						}
 					}
-					edit.replace(ref.link.source.resource, ref.link.source.fragmentRange ?? ref.location.range, isRefRename && !ref.link.source.fragmentRange ? newName : slug);
+					edit.replace(ref.link.source.resource, ref.link.source.fragmentRange ?? ref.location.range, isRefRename && !ref.link.source.fragmentRange || ref.link.href.kind === 'external' ? newName : slug);
 					break;
 			}
 		}

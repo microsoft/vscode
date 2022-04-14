@@ -6,7 +6,6 @@
 import { Workbench } from './workbench';
 import { Code, launch, LaunchOptions } from './code';
 import { Logger, measureAndLog } from './logger';
-import { PlaywrightDriver } from './playwrightDriver';
 
 export const enum Quality {
 	Dev,
@@ -16,8 +15,7 @@ export const enum Quality {
 
 export interface ApplicationOptions extends LaunchOptions {
 	quality: Quality;
-	workspacePath: string;
-	waitTime: number;
+	readonly workspacePath: string;
 }
 
 export class Application {
@@ -47,10 +45,6 @@ export class Application {
 
 	get web(): boolean {
 		return !!this.options.web;
-	}
-
-	get legacy(): boolean {
-		return !!this.options.legacy;
 	}
 
 	private _workspacePathOrFolder: string;
@@ -118,9 +112,6 @@ export class Application {
 
 	private async checkWindowReady(code: Code): Promise<void> {
 
-		// This is legacy and will be removed when our old driver removes
-		await code.waitForWindowIds(ids => ids.length > 0);
-
 		// We need a rendered workbench
 		await this.checkWorkbenchReady(code);
 
@@ -143,10 +134,9 @@ export class Application {
 	}
 
 	private async checkWorkbenchReady(code: Code): Promise<void> {
-		const driver = code.driver;
 
 		// Web / Legacy: just poll for workbench element
-		if (this.web || !(driver instanceof PlaywrightDriver)) {
+		if (this.web) {
 			await measureAndLog(code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
 		}
 
@@ -159,7 +149,7 @@ export class Application {
 			} catch (error) {
 				this.logger.log(`checkWindowReady: giving up after 10s, reloading window and trying again...`);
 
-				await driver.reload();
+				await code.driver.reload();
 
 				return this.checkWorkbenchReady(code);
 			}

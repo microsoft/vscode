@@ -24,7 +24,7 @@ import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/pla
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { UnknownErrorEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
+import { ErrorPlaceholderEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
@@ -2018,7 +2018,7 @@ suite('EditorService', () => {
 		failingInput.setFailToOpen();
 
 		let failingEditor = await service.openEditor(failingInput);
-		assert.ok(failingEditor instanceof UnknownErrorEditor);
+		assert.ok(failingEditor instanceof ErrorPlaceholderEditor);
 	});
 
 	test('openEditor shows placeholder when restoring fails', async function () {
@@ -2032,7 +2032,7 @@ suite('EditorService', () => {
 
 		failingInput.setFailToOpen();
 		let failingEditor = await service.openEditor(failingInput);
-		assert.ok(failingEditor instanceof UnknownErrorEditor);
+		assert.ok(failingEditor instanceof ErrorPlaceholderEditor);
 	});
 
 	test('save, saveAll, revertAll', async function () {
