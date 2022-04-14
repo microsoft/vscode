@@ -10,7 +10,7 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as languages from 'vs/editor/common/languages';
-import { NullState, nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
+import { NullState, nullTokenizeEncoded, nullTokenize } from 'vs/editor/common/languages/nullTokenize';
 import { TokenTheme } from 'vs/editor/common/languages/supports/tokenization';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
@@ -479,6 +479,9 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 	}
 
 	public tokenize(line: string, hasEOL: boolean, lineState: languages.IState): languages.TokenizationResult {
+		if (line.length >= this._maxTokenizationLineLength) {
+			return nullTokenize(this._languageId, lineState);
+		}
 		const tokensCollector = new MonarchClassicTokensCollector();
 		const endLineState = this._tokenize(line, hasEOL, <MonarchLineState>lineState, tokensCollector);
 		return tokensCollector.finalize(endLineState);

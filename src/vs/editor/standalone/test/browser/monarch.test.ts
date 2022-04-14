@@ -299,12 +299,14 @@ suite('Monarch', () => {
 		languageService.dispose();
 	});
 
-	test('microsoft/monaco-editor#3025: Check maxTokenizationLineLength before tokenizing', () => {
+	test('microsoft/monaco-editor#3025: Check maxTokenizationLineLength before tokenizing', async () => {
 		const configurationService = new StandaloneConfigurationService();
 		const languageService = new LanguageService();
 
+		// Set maxTokenizationLineLength to 4 so that "ham" works but "hamham" would fail
+		await configurationService.updateValue('editor.maxTokenizationLineLength', 4);
+
 		const tokenizer = createMonarchTokenizer(languageService, 'test', {
-			maxTokenizationLineLength: 4,
 			tokenizer: {
 				root: [
 					{
