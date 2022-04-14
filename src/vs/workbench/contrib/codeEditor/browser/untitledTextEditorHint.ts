@@ -156,14 +156,14 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 
 			const chooseEditorOnClickOrTap = async (e: MouseEvent) => {
 				e.stopPropagation();
+
 				const activeEditorInput = this.editorGroupsService.activeGroup.activeEditor;
+				const newEditorSelected = await this.commandService.executeCommand('welcome.showNewFileEntries', { from: 'hint' });
 
 				// Close the active editor as long as it is untitled (swap the editors out)
-				if (activeEditorInput !== null && activeEditorInput.resource?.scheme === Schemas.untitled) {
+				if (newEditorSelected && activeEditorInput !== null && activeEditorInput.resource?.scheme === Schemas.untitled) {
 					this.editorGroupsService.activeGroup.closeEditor(activeEditorInput, { preserveFocus: true });
 				}
-
-				await this.commandService.executeCommand('welcome.showNewFileEntries', { from: 'hint' });
 			};
 			this.toDispose.push(dom.addDisposableListener(chooseEditor, 'click', chooseEditorOnClickOrTap));
 			this.toDispose.push(dom.addDisposableListener(chooseEditor, GestureEventType.Tap, chooseEditorOnClickOrTap));
