@@ -9,6 +9,7 @@ import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAU
 import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { Codicon } from 'vs/base/common/codicons';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
@@ -37,6 +38,27 @@ const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.sendKeybindingsToShell', "Dispatches most keybindings to the terminal instead of the workbench, overriding `#terminal.integrated.commandsToSkipShell#`, which can be used alternatively for fine tuning."),
 			type: 'boolean',
 			default: false
+		},
+		[TerminalSettingId.TabsDefaultColor]: {
+			description: localize('terminal.integrated.tabs.defaultColor', "Controls the terminal tab icon's default color."),
+			type: 'string',
+			enum: [
+				'terminal.ansiBlack',
+				'terminal.ansiRed',
+				'terminal.ansiGreen',
+				'terminal.ansiYellow',
+				'terminal.ansiBlue',
+				'terminal.ansiMagenta',
+				'terminal.ansiCyan',
+				'terminal.ansiWhite'
+			],
+			default: undefined,
+		},
+		[TerminalSettingId.TabsDefaultIcon]: {
+			description: localize('terminal.integrated.tabs.defaultIcon', "Controls the terminal tab's default icon."),
+			type: 'string',
+			enum: Codicon.getAll().map(icon => icon.id),
+			default: undefined,
 		},
 		[TerminalSettingId.TabsEnabled]: {
 			description: localize('terminal.integrated.tabs.enabled', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),

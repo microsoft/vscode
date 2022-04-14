@@ -16,6 +16,7 @@ import { IShellLaunchConfig, ITerminalProfile, ITerminalProfileObject, TerminalI
 import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
 import { Codicon } from 'vs/base/common/codicons';
+import { getIconRegistry, IIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { debounce } from 'vs/base/common/decorators';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -50,6 +51,8 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	declare _serviceBrand: undefined;
 
 	private _primaryBackendOs: OperatingSystem | undefined;
+
+	private readonly _iconRegistry: IIconRegistry = getIconRegistry();
 
 	private _defaultProfileName: string | undefined;
 	get defaultProfileName(): string | undefined { return this._defaultProfileName; }
@@ -135,7 +138,10 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
-		shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon) || this._getCustomIcon(resolvedProfile.icon) || Codicon.terminal;
+		shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon)
+			|| this._getCustomIcon(resolvedProfile.icon)
+			|| this._iconRegistry.getIcon(this._configurationService.getValue(TerminalSettingId.TabsDefaultIcon))
+			|| Codicon.terminal;
 
 		// Override the name if specified
 		if (resolvedProfile.overrideName) {
@@ -143,7 +149,9 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 
 		// Apply the color
-		shellLaunchConfig.color = shellLaunchConfig.color || resolvedProfile.color;
+		shellLaunchConfig.color = shellLaunchConfig.color
+			|| resolvedProfile.color
+			|| this._configurationService.getValue(TerminalSettingId.TabsDefaultColor);
 
 		// Resolve useShellEnvironment based on the setting if it's not set
 		if (shellLaunchConfig.useShellEnvironment === undefined) {
