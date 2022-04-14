@@ -1134,7 +1134,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				extHostApiDeprecation.report('notebookConcatTextDocument', extension, 'This proposal is not on track for finalization and will be removed.');
 				return new ExtHostNotebookConcatDocument(extHostNotebookDocuments, extHostDocuments, notebook, selector);
 			},
-			createNotebookProxyController(id: string, notebookType: string, label: string, handler: () => vscode.NotebookController | Thenable<vscode.NotebookController>) {
+			createNotebookProxyController(id: string, notebookType: string, label: string, handler: () => vscode.NotebookController | string | Thenable<vscode.NotebookController | string>) {
 				checkProposedApiEnabled(extension, 'notebookProxyController');
 				return extHostNotebookKernels.createNotebookProxyController(extension, id, notebookType, label, handler);
 			}
