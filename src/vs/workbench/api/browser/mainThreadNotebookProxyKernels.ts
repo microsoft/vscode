@@ -9,6 +9,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { INotebookKernelService, INotebookProxyKernel, INotebookProxyKernelChangeEvent, ProxyKernelState, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { ExtHostContext, ExtHostNotebookProxyKernelsShape, INotebookProxyKernelDto, MainContext, MainThreadNotebookProxyKernelsShape } from '../common/extHost.protocol';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 abstract class MainThreadProxyKernel implements INotebookProxyKernel {
 	readonly type: NotebookKernelType.Proxy = NotebookKernelType.Proxy;
@@ -92,12 +93,19 @@ export class MainThreadNotebookProxyKernels implements MainThreadNotebookProxyKe
 		const that = this;
 		const proxyKernel = new class extends MainThreadProxyKernel {
 			async resolveKernel(): Promise<string | null> {
-				this.connectionState = ProxyKernelState.Initializing;
-				this._onDidChange.fire({ connectionState: true });
-				const delegateKernel = await that._proxyKernelProxy.$resolveKernel(handle);
-				this.connectionState = ProxyKernelState.Connected;
-				this._onDidChange.fire({ connectionState: true });
-				return delegateKernel;
+				try {
+					this.connectionState = ProxyKernelState.Initializing;
+					this._onDidChange.fire({ connectionState: true });
+					const delegateKernel = await that._proxyKernelProxy.$resolveKernel(handle);
+					this.connectionState = ProxyKernelState.Connected;
+					this._onDidChange.fire({ connectionState: true });
+					return delegateKernel;
+				} catch (err) {
+					onUnexpectedError(err);
+					this.connectionState = ProxyKernelState.Disconnected;
+					this._onDidChange.fire({ connectionState: true });
+					return null;
+				}
 			}
 		}(data);
 
