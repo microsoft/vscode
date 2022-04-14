@@ -40,18 +40,6 @@ interface IToken {
 	sessionId: string; // The account id + the scope
 }
 
-interface ITokenClaims {
-	tid: string;
-	email?: string;
-	unique_name?: string;
-	exp?: number;
-	preferred_username?: string;
-	oid?: string;
-	altsecid?: string;
-	ipd?: string;
-	scp: string;
-}
-
 interface IStoredSession {
 	id: string;
 	refreshToken: string;
@@ -153,7 +141,16 @@ export class AzureActiveDirectoryService {
 				} else {
 					vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
 					Logger.error(e);
-					await this.removeSession(session.id);
+					await this.removeSessionByIToken({
+						accessToken: undefined,
+						refreshToken: session.refreshToken,
+						account: {
+							label: session.account.label ?? session.account.displayName!,
+							id: session.account.id
+						},
+						scope: session.scope,
+						sessionId: session.id
+					});
 				}
 			}
 		});
@@ -386,27 +383,16 @@ export class AzureActiveDirectoryService {
 			});
 	}
 
-	public async removeSession(sessionId: string, writeToDisk: boolean = true): Promise<vscode.AuthenticationSession | undefined> {
+	public removeSessionById(sessionId: string, writeToDisk: boolean = true): Promise<vscode.AuthenticationSession | undefined> {
 		Logger.info(`Logging out of session '${sessionId}'`);
 		const tokenIndex = this._tokens.findIndex(token => token.sessionId === sessionId);
 		if (tokenIndex === -1) {
 			Logger.info(`Session not found '${sessionId}'`);
-			return undefined;
+			return Promise.resolve(undefined);
 		}
 
-		const token = this._tokens[tokenIndex];
-		this._tokens.splice(tokenIndex, 1);
-		this.removeSessionTimeout(sessionId);
-
-		if (writeToDisk) {
-			await this._tokenStorage.delete(sessionId);
-		}
-
-		const session = this.convertToSessionSync(token);
-		Logger.info(`Sending change event for session that was removed with scopes: ${token.scope}`);
-		onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
-		Logger.info(`Logged out of session '${sessionId}' with scopes: ${token.scope}`);
-		return session;
+		const token = this._tokens.splice(tokenIndex, 1)[0];
+		return this.removeSessionByIToken(token, writeToDisk);
 	}
 
 	public async clearSessions() {
@@ -419,6 +405,25 @@ export class AzureActiveDirectoryService {
 		});
 
 		this._refreshTimeouts.clear();
+	}
+
+	private async removeSessionByIToken(token: IToken, writeToDisk: boolean = true): Promise<vscode.AuthenticationSession | undefined> {
+		this.removeSessionTimeout(token.sessionId);
+
+		if (writeToDisk) {
+			await this._tokenStorage.delete(token.sessionId);
+		}
+
+		const tokenIndex = this._tokens.findIndex(t => t.sessionId === token.sessionId);
+		if (tokenIndex !== -1) {
+			this._tokens.splice(tokenIndex, 1);
+		}
+
+		const session = this.convertToSessionSync(token);
+		Logger.info(`Sending change event for session that was removed with scopes: ${token.scope}`);
+		onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+		Logger.info(`Logged out of session '${token.sessionId}' with scopes: ${token.scope}`);
+		return session;
 	}
 
 	//#endregion
@@ -435,7 +440,7 @@ export class AzureActiveDirectoryService {
 			} catch (e) {
 				if (e.message !== REFRESH_NETWORK_FAILURE) {
 					vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
-					await this.removeSession(sessionId);
+					await this.removeSessionById(sessionId);
 				}
 			}
 		}, timeout));
@@ -792,7 +797,7 @@ export class AzureActiveDirectoryService {
 					// Network failures will automatically retry on next poll.
 					if (e.message !== REFRESH_NETWORK_FAILURE) {
 						vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
-						await this.removeSession(session.id);
+						await this.removeSessionById(session.id);
 					}
 					return;
 				}
@@ -801,7 +806,7 @@ export class AzureActiveDirectoryService {
 
 		for (const { value } of e.removed) {
 			Logger.info(`Session removed in another window with scopes: ${value.scope}`);
-			const session = await this.removeSession(value.id, false);
+			const session = await this.removeSessionById(value.id, false);
 			if (session) {
 				removed.push(session);
 			}
