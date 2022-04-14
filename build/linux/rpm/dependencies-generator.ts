@@ -8,7 +8,8 @@
 import { spawnSync } from 'child_process';
 import { constants, statSync } from 'fs';
 import path = require('path');
-import { additionalDeps, bundledDeps, referenceGeneratedDeps } from './dep-lists';
+import { additionalDeps, bundledDeps, referenceGeneratedDepsByArch } from './dep-lists';
+import { ArchString } from './types';
 
 // A flag that can easily be toggled.
 // Make sure to compile the build directory after toggling the value.
@@ -19,7 +20,7 @@ import { additionalDeps, bundledDeps, referenceGeneratedDeps } from './dep-lists
 // are valid, are in dep-lists.ts
 const FAIL_BUILD_FOR_NEW_DEPENDENCIES: boolean = true;
 
-export function getDependencies(buildDir: string, applicationName: string): string[] {
+export function getDependencies(buildDir: string, applicationName: string, arch: ArchString): string[] {
 	// Get the files for which we want to find dependencies.
 	const nativeModulesPath = path.join(buildDir, 'resources', 'app', 'node_modules.asar.unpacked');
 	const findResult = spawnSync('find', [nativeModulesPath, '-name', '*.node']);
@@ -58,6 +59,7 @@ export function getDependencies(buildDir: string, applicationName: string): stri
 		return !bundledDeps.some(bundledDep => dependency.startsWith(bundledDep));
 	});
 
+	const referenceGeneratedDeps = referenceGeneratedDepsByArch[arch];
 	if (JSON.stringify(sortedDependencies) !== JSON.stringify(referenceGeneratedDeps)) {
 		const failMessage = 'The dependencies list has changed. '
 			+ 'Printing newer dependencies list that one can use to compare against referenceGeneratedDeps:'

@@ -17,7 +17,7 @@ const dep_lists_1 = require("./dep-lists");
 // The reference dependencies, which one has to update when the new dependencies
 // are valid, are in dep-lists.ts
 const FAIL_BUILD_FOR_NEW_DEPENDENCIES = true;
-function getDependencies(buildDir, applicationName) {
+function getDependencies(buildDir, applicationName, arch) {
     // Get the files for which we want to find dependencies.
     const nativeModulesPath = path.join(buildDir, 'resources', 'app', 'node_modules.asar.unpacked');
     const findResult = (0, child_process_1.spawnSync)('find', [nativeModulesPath, '-name', '*.node']);
@@ -48,7 +48,8 @@ function getDependencies(buildDir, applicationName) {
     sortedDependencies = sortedDependencies.filter(dependency => {
         return !dep_lists_1.bundledDeps.some(bundledDep => dependency.startsWith(bundledDep));
     });
-    if (JSON.stringify(sortedDependencies) !== JSON.stringify(dep_lists_1.referenceGeneratedDeps)) {
+    const referenceGeneratedDeps = dep_lists_1.referenceGeneratedDepsByArch[arch];
+    if (JSON.stringify(sortedDependencies) !== JSON.stringify(referenceGeneratedDeps)) {
         const failMessage = 'The dependencies list has changed. '
             + 'Printing newer dependencies list that one can use to compare against referenceGeneratedDeps:'
             + sortedDependencies.join('\n');
