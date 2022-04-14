@@ -982,6 +982,17 @@ export interface INotebookKernelDto2 {
 	preloads?: { uri: UriComponents; provides: string[] }[];
 }
 
+export interface INotebookProxyKernelDto {
+	id: string;
+	notebookType: string;
+	extensionId: ExtensionIdentifier;
+	extensionLocation: UriComponents;
+	label: string;
+	detail?: string;
+	description?: string;
+	kind?: string;
+}
+
 export interface ICellExecuteOutputEditDto {
 	editType: CellExecutionUpdateType.Output;
 	append?: boolean;
@@ -1013,6 +1024,12 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$createExecution(handle: number, controllerId: string, uri: UriComponents, cellHandle: number): void;
 	$updateExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void;
 	$completeExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void;
+}
+
+export interface MainThreadNotebookProxyKernelsShape extends IDisposable {
+	$addProxyKernel(handle: number, data: INotebookProxyKernelDto): Promise<void>;
+	$updateProxyKernel(handle: number, data: Partial<INotebookProxyKernelDto>): void;
+	$removeProxyKernel(handle: number): void;
 }
 
 export interface MainThreadNotebookRenderersShape extends IDisposable {
@@ -2103,6 +2120,10 @@ export interface ExtHostNotebookKernelsShape {
 	$cellExecutionChanged(uri: UriComponents, cellHandle: number, state: notebookCommon.NotebookCellExecutionState | undefined): void;
 }
 
+export interface ExtHostNotebookProxyKernelsShape {
+	$resolveKernel(handle: number): Promise<string | null>;
+}
+
 export interface ExtHostInteractiveShape {
 	$willAddInteractiveDocument(uri: UriComponents, eol: string, languageId: string, notebookUri: UriComponents): void;
 	$willRemoveInteractiveDocument(uri: UriComponents, notebookUri: UriComponents): void;
@@ -2279,6 +2300,7 @@ export const MainContext = {
 	MainThreadNotebookDocuments: createProxyIdentifier<MainThreadNotebookDocumentsShape>('MainThreadNotebookDocumentsShape'),
 	MainThreadNotebookEditors: createProxyIdentifier<MainThreadNotebookEditorsShape>('MainThreadNotebookEditorsShape'),
 	MainThreadNotebookKernels: createProxyIdentifier<MainThreadNotebookKernelsShape>('MainThreadNotebookKernels'),
+	MainThreadNotebookProxyKernels: createProxyIdentifier<MainThreadNotebookProxyKernelsShape>('MainThreadNotebookProxyKernels'),
 	MainThreadNotebookRenderers: createProxyIdentifier<MainThreadNotebookRenderersShape>('MainThreadNotebookRenderers'),
 	MainThreadInteractive: createProxyIdentifier<MainThreadInteractiveShape>('MainThreadInteractive'),
 	MainThreadTheming: createProxyIdentifier<MainThreadThemingShape>('MainThreadTheming'),
@@ -2331,6 +2353,7 @@ export const ExtHostContext = {
 	ExtHostNotebookDocuments: createProxyIdentifier<ExtHostNotebookDocumentsShape>('ExtHostNotebookDocuments'),
 	ExtHostNotebookEditors: createProxyIdentifier<ExtHostNotebookEditorsShape>('ExtHostNotebookEditors'),
 	ExtHostNotebookKernels: createProxyIdentifier<ExtHostNotebookKernelsShape>('ExtHostNotebookKernels'),
+	ExtHostNotebookProxyKernels: createProxyIdentifier<ExtHostNotebookProxyKernelsShape>('ExtHostNotebookProxyKernels'),
 	ExtHostNotebookRenderers: createProxyIdentifier<ExtHostNotebookRenderersShape>('ExtHostNotebookRenderers'),
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
