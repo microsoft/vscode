@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { Limiter } from 'vs/base/common/async';
 import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -65,7 +66,7 @@ export class NativeWorkingCopyHistoryService extends WorkingCopyHistoryService {
 			}
 
 			await Promise.all(promises);
-		})(), 'join.workingCopyHistory');
+		})(), { id: 'join.workingCopyHistory', label: localize('join.workingCopyHistory', "Saving local history") });
 	}
 }
 

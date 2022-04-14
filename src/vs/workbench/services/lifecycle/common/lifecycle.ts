@@ -65,6 +65,11 @@ export interface BeforeShutdownErrorEvent {
 	readonly error: Error;
 }
 
+export interface IWillShutdownEventJoiner {
+	id: string;
+	label: string;
+}
+
 /**
  * An event that is send out when the window closes. Clients have a chance to join the closing
  * by providing a promise from the join method. Returning a promise is useful in cases of long
@@ -90,10 +95,15 @@ export interface WillShutdownEvent {
 	 * Allows to join the shutdown. The promise can be a long running operation but it
 	 * will block the application from closing.
 	 *
-	 * @param id to identify the join operation in case it takes very long or never
+	 * @param joiner to identify the join operation in case it takes very long or never
 	 * completes.
 	 */
-	join(promise: Promise<void>, id: string): void;
+	join(promise: Promise<void>, joiner: IWillShutdownEventJoiner): void;
+
+	/**
+	 * Allows to access the joiners that have not finished joining this event.
+	 */
+	joiners(): IWillShutdownEventJoiner[];
 
 	/**
 	 * Allows to enforce the shutdown, even when there are
