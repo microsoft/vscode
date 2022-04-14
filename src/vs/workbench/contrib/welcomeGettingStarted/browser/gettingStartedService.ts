@@ -340,7 +340,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				}
 
 				if (step.media.image) {
-					const altText = (step.media as any).altText;
+					const altText = step.media.altText;
 					if (altText === undefined) {
 						console.error('Walkthrough item:', fullyQualifiedID, 'is missing altText for its media element.');
 					}
