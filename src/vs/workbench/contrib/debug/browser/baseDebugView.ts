@@ -157,9 +157,9 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 	renderTemplate(container: HTMLElement): IExpressionTemplateData {
 		const expression = dom.append(container, $('.expression'));
 		const name = dom.append(expression, $('span.name'));
-		const value = dom.append(expression, $('span.value'));
 		const lazyButton = dom.append(expression, $('span.lazy-button'));
 		lazyButton.classList.add(...Codicon.eye.classNamesArray);
+		const value = dom.append(expression, $('span.value'));
 
 		const label = new HighlightedLabel(name);
 
