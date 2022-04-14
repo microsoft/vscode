@@ -306,13 +306,19 @@ stages:
           BUILDSECMON_OPT_IN: true
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
-              - job: macOS
+              - job: macOSTest
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: x64
                 steps:
-                  - template: darwin/product-build-darwin.yml
-              - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
+                  - template: darwin/product-build-darwin-test.yml
+              - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
+                  - job: macOS
+                    timeoutInMinutes: 90
+                    variables:
+                      VSCODE_ARCH: x64
+                    steps:
+                      - template: darwin/product-build-darwin.yml
                   - job: macOSSign
                     dependsOn:
                       - macOS
@@ -329,7 +335,7 @@ stages:
                   VSCODE_ARCH: arm64
                 steps:
                   - template: darwin/product-build-darwin.yml
-              - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
+              - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
                   - job: macOSARM64Sign
                     dependsOn:
                       - macOSARM64
@@ -349,7 +355,7 @@ stages:
                   VSCODE_ARCH: universal
                 steps:
                   - template: darwin/product-build-darwin-universal.yml
-              - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
+              - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
                   - job: macOSUniversalSign
                     dependsOn:
                       - macOSUniversal
