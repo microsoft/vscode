@@ -29,12 +29,12 @@ interface IDropOperation {
 	splitDirection?: GroupDirection;
 }
 
-function isDropIntoEditorEnabled(configurationService: IConfigurationService) {
+function isDropIntoEditorEnabledGlobally(configurationService: IConfigurationService) {
 	return configurationService.getValue<boolean>('workbench.editor.dropIntoEditor.enabled');
 }
 
-function isDragIntoEditorEvent(configurationService: IConfigurationService, e: DragEvent): boolean {
-	return isDropIntoEditorEnabled(configurationService) && e.shiftKey;
+function isDragIntoEditorEvent(e: DragEvent): boolean {
+	return e.shiftKey;
 }
 
 class DropOverlay extends Themable {
@@ -54,6 +54,8 @@ class DropOverlay extends Themable {
 	private readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 	private readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedTreeItemsIdentifier>();
 
+	private readonly enableDropIntoEditor: boolean;
+
 	constructor(
 		private accessor: IEditorGroupsAccessor,
 		private groupView: IEditorGroupView,
@@ -68,6 +70,8 @@ class DropOverlay extends Themable {
 		super(themeService);
 
 		this.cleanupOverlayScheduler = this._register(new RunOnceScheduler(() => this.dispose(), 300));
+
+		this.enableDropIntoEditor = isDropIntoEditorEnabledGlobally(this.configurationService) && this.isDropIntoActiveEditorEnabled();
 
 		this.create();
 	}
@@ -97,7 +101,7 @@ class DropOverlay extends Themable {
 		this.overlay.classList.add('editor-group-overlay-indicator');
 		container.appendChild(this.overlay);
 
-		if (isDropIntoEditorEnabled(this.configurationService)) {
+		if (this.enableDropIntoEditor) {
 			this.dropIntoPromptElement = document.createElement('span');
 			this.dropIntoPromptElement.classList.add('editor-group-overlay-drop-into-prompt');
 			this.dropIntoPromptElement.textContent = localize('dropIntoEditorPrompt', "Hold shift to drop into editor");
@@ -129,7 +133,7 @@ class DropOverlay extends Themable {
 		this._register(new DragAndDropObserver(container, {
 			onDragEnter: e => undefined,
 			onDragOver: e => {
-				if (isDragIntoEditorEvent(this.configurationService, e)) {
+				if (this.enableDropIntoEditor && isDragIntoEditorEvent(e)) {
 					this.dispose();
 					return;
 				}
@@ -207,6 +211,10 @@ class DropOverlay extends Themable {
 				this.cleanupOverlayScheduler.schedule();
 			}
 		}));
+	}
+
+	private isDropIntoActiveEditorEnabled(): boolean {
+		return !!this.groupView.activeEditor?.hasCapability(EditorInputCapabilities.CanDropIntoEditor);
 	}
 
 	private findSourceGroupView(): IEditorGroupView | undefined {
@@ -588,7 +596,7 @@ export class EditorDropTarget extends Themable {
 	}
 
 	private onDragEnter(event: DragEvent): void {
-		if (isDragIntoEditorEvent(this.configurationService, event)) {
+		if (isDropIntoEditorEnabledGlobally(this.configurationService) && isDragIntoEditorEvent(event)) {
 			return;
 		}
 

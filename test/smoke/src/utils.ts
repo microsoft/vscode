@@ -149,6 +149,21 @@ export function timeout(i: number) {
 	});
 }
 
+export async function retryWithRestart(app: Application, testFn: () => Promise<unknown>, retries = 3, timeoutMs = 20000): Promise<unknown> {
+	for (let i = 0; i < retries; i++) {
+		const result = await Promise.race([
+			testFn().then(() => true, error => { throw error; }),
+			timeout(timeoutMs).then(() => false)
+		]);
+
+		if (result) {
+			return;
+		}
+
+		await app.restart();
+	}
+}
+
 export interface ITask<T> {
 	(): T;
 }

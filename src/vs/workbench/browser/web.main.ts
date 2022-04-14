@@ -133,6 +133,9 @@ export class BrowserMain extends Disposable {
 				env: {
 					uriScheme: productService.urlProtocol,
 					telemetryLevel: telemetryService.telemetryLevel,
+					async getUriScheme(): Promise<string> {
+						return productService.urlProtocol;
+					},
 					async retrievePerformanceMarks() {
 						await timerService.whenReady();
 
@@ -143,7 +146,7 @@ export class BrowserMain extends Disposable {
 					}
 				},
 				window: {
-					createOutputChannel: async (name, languageId) => {
+					createOutputChannel: async (name: string, languageId?: string) => {
 						const id = `web-embedder-${++outputChannelCounter}`;
 						Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label: name, log: false, languageId });
 						const channel = outputService.getChannel(id);
