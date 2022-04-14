@@ -73,6 +73,7 @@ export interface IWorkbench {
 	};
 
 	window: {
+
 		/**
 		 * Creates a new output channel with the given name and language id
 		 * If language id is not provided, then **Log** is used as default language id.

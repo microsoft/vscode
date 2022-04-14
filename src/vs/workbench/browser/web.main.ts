@@ -77,7 +77,6 @@ import { Extensions, IOutputChannelRegistry, IOutputService } from 'vs/workbench
 export class BrowserMain extends Disposable {
 
 	private readonly onWillShutdownDisposables = this._register(new DisposableStore());
-	private _outputChannelCounter = 0;
 
 	constructor(
 		private readonly domElement: HTMLElement,
@@ -125,12 +124,15 @@ export class BrowserMain extends Disposable {
 			const telemetryService = accessor.get(ITelemetryService);
 			const progessService = accessor.get(IProgressService);
 
+			let outputChannelCounter = 0;
+
 			return {
 				commands: {
 					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
 				},
 				env: {
 					uriScheme: productService.urlProtocol,
+					telemetryLevel: telemetryService.telemetryLevel,
 					async retrievePerformanceMarks() {
 						await timerService.whenReady();
 
@@ -138,17 +140,15 @@ export class BrowserMain extends Disposable {
 					},
 					async openUri(uri: URI): Promise<boolean> {
 						return openerService.open(uri, {});
-					},
-					telemetryLevel: telemetryService.telemetryLevel,
+					}
 				},
 				window: {
-					createOutputChannel: (name, languageId) => {
-						this._outputChannelCounter++;
-						const id = `web-embedder-${this._outputChannelCounter}`;
+					createOutputChannel: async (name, languageId) => {
+						const id = `web-embedder-${++outputChannelCounter}`;
 						Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label: name, log: false, languageId });
 						const channel = outputService.getChannel(id);
 						if (channel) {
-							return Promise.resolve(channel);
+							return channel;
 						}
 
 						throw Error(`Could not create output channel for name: ${name}`);

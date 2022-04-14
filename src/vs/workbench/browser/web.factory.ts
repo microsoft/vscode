@@ -129,6 +129,7 @@ export namespace env {
 }
 
 export namespace window {
+
 	/**
 	 * {@linkcode IWorkbench.window IWorkbench.window.createOutputChannel}
 	 */
@@ -137,7 +138,6 @@ export namespace window {
 
 		return workbench.window.createOutputChannel(name, languageId);
 	}
-
 
 	/**
 	 * {@linkcode IWorkbench.window IWorkbench.window.withProgress}
