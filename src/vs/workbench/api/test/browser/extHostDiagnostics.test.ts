@@ -392,6 +392,7 @@ suite('ExtHostDiagnostics', () => {
 			set(): any {
 				return null;
 			}
+			dispose() { }
 			assertRegistered(): void {
 
 			}
@@ -444,6 +445,7 @@ suite('ExtHostDiagnostics', () => {
 			set(): any {
 				return null;
 			}
+			dispose() { }
 			assertRegistered(): void {
 
 			}
@@ -484,6 +486,7 @@ suite('ExtHostDiagnostics', () => {
 			set(): any {
 				return null;
 			}
+			dispose() { }
 			assertRegistered(): void {
 
 			}

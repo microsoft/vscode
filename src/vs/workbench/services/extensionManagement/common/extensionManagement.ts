@@ -140,8 +140,6 @@ export interface IWorkbenchExtensionEnablementService {
 
 export interface IScannedExtension extends IExtension {
 	readonly metadata?: Metadata;
-	readonly isValid: boolean;
-	readonly validationMessages: readonly string[];
 }
 
 export type ScanOptions = { readonly bailOut?: boolean; readonly skipInvalidExtensions?: boolean };

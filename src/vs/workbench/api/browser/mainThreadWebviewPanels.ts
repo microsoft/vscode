@@ -174,8 +174,10 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		} as const;
 
 		type Classification = {
-			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'mjbvz'; comment: 'Id of the extension that created the webview panel' };
-			viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'mjbvz'; comment: 'Id of the webview' };
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the extension that created the webview panel' };
+			viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the webview' };
+			owner: 'mjbvz';
+			comment: 'Triggered when a webview is created. Records the type of webview and the extension which created it';
 		};
 
 		this._telemetryService.publicLog2<typeof payload, Classification>('webviews:createWebviewPanel', payload);

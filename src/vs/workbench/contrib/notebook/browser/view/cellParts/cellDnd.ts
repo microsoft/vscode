@@ -78,7 +78,7 @@ export class CellDragAndDropController extends Disposable {
 		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_START, this.onGlobalDragStart.bind(this), true));
 		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_END, this.onGlobalDragEnd.bind(this), true));
 
-		const addCellDragListener = (eventType: string, handler: (e: CellDragEvent) => void) => {
+		const addCellDragListener = (eventType: string, handler: (e: CellDragEvent) => void, useCapture = false) => {
 			this._register(DOM.addDisposableListener(
 				notebookEditor.getDomNode(),
 				eventType,
@@ -87,14 +87,21 @@ export class CellDragAndDropController extends Disposable {
 					if (cellDragEvent) {
 						handler(cellDragEvent);
 					}
-				}));
+				}, useCapture));
 		};
 
 		addCellDragListener(DOM.EventType.DRAG_OVER, event => {
+			if (!this.currentDraggedCell) {
+				return;
+			}
 			event.browserEvent.preventDefault();
+			event.browserEvent.stopImmediatePropagation();
 			this.onCellDragover(event);
-		});
+		}, true);
 		addCellDragListener(DOM.EventType.DROP, event => {
+			if (!this.currentDraggedCell) {
+				return;
+			}
 			event.browserEvent.preventDefault();
 			this.onCellDrop(event);
 		});

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ModifierKeyEmitter } from 'vs/base/browser/dom';
+import { createStyleSheet, isInShadowDOM, ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -85,10 +85,11 @@ class ActiveInlayHintInfo {
 	constructor(readonly part: RenderedInlayHintLabelPart, readonly hasTriggerModifier: boolean) { }
 }
 
-const enum InlayHintRenderMode {
-	InjectedText,
-	TrackingOnly
-}
+type InlayHintDecorationRenderInfo = {
+	item: InlayHintItem;
+	decoration: IModelDeltaDecoration;
+	classNameRef: ClassNameReference;
+};
 
 // --- controller
 
@@ -97,6 +98,7 @@ export class InlayHintsController implements IEditorContribution {
 	static readonly ID: string = 'editor.contrib.InlayHints';
 
 	private static readonly _MAX_DECORATORS = 1500;
+	private static readonly _renderModeCssVariable: any = '--inlay-hints-render-mode';
 
 	static get(editor: ICodeEditor): InlayHintsController | undefined {
 		return editor.getContribution<InlayHintsController>(InlayHintsController.ID) ?? undefined;
@@ -105,10 +107,10 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
 	private readonly _debounceInfo: IFeatureDebounceInformation;
-	private readonly _decorationsMetadata = new Map<string, { item: InlayHintItem; classNameRef: IDisposable }>();
+	private readonly _decorationsMetadata = new Map<string, InlayHintDecorationRenderInfo>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
+	private readonly _styleElement: HTMLStyleElement;
 
-	private _renderMode = InlayHintRenderMode.InjectedText;
 	private _activeInlayHintPart?: ActiveInlayHintInfo;
 
 	constructor(
@@ -120,6 +122,7 @@ export class InlayHintsController implements IEditorContribution {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
+		this._styleElement = createStyleSheet(isInShadowDOM(this._editor.getContainerDomNode()) ? this._editor.getContainerDomNode() : undefined);
 		this._debounceInfo = _featureDebounce.for(_languageFeaturesService.inlayHintsProvider, 'InlayHint', { min: 25 });
 		this._disposables.add(_languageFeaturesService.inlayHintsProvider.onDidChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
@@ -130,12 +133,14 @@ export class InlayHintsController implements IEditorContribution {
 			}
 		}));
 		this._update();
+
 	}
 
 	dispose(): void {
 		this._sessionDisposables.dispose();
 		this._removeAllDecorations();
 		this._disposables.dispose();
+		this._styleElement.remove();
 	}
 
 	private _update(): void {
@@ -228,22 +233,27 @@ export class InlayHintsController implements IEditorContribution {
 		}));
 
 		if (!options.toggle) {
-			this._renderMode = InlayHintRenderMode.InjectedText;
+			this._editor.getContainerDomNode().style.setProperty(InlayHintsController._renderModeCssVariable, 'inherit');
+
 		} else {
-			let defaultMode: InlayHintRenderMode;
-			let altMode: InlayHintRenderMode;
-			if (options.toggle === 'show') {
-				defaultMode = InlayHintRenderMode.TrackingOnly;
-				altMode = InlayHintRenderMode.InjectedText;
+			type Modes = 'inherit' | 'none';
+			let defaultMode: Modes;
+			let altMode: Modes;
+			if (options.toggle === 'hide') {
+				defaultMode = 'inherit';
+				altMode = 'none';
 			} else {
-				defaultMode = InlayHintRenderMode.InjectedText;
-				altMode = InlayHintRenderMode.TrackingOnly;
+				defaultMode = 'none';
+				altMode = 'inherit';
 			}
-			this._renderMode = defaultMode;
+			this._editor.getContainerDomNode().style.setProperty(InlayHintsController._renderModeCssVariable, defaultMode);
+			let renderMode = defaultMode;
 			this._sessionDisposables.add(ModifierKeyEmitter.getInstance().event(e => {
-				this._renderMode = e.altKey && e.ctrlKey ? altMode : defaultMode;
-				const ranges = this._getHintsRanges();
-				this._updateHintsDecorators(ranges, ranges.map(this._getInlineHintsForRange, this).flat());
+				const newRenderMode = e.altKey && e.ctrlKey ? altMode : defaultMode;
+				if (newRenderMode !== renderMode) {
+					this._editor.getContainerDomNode().style.setProperty(InlayHintsController._renderModeCssVariable, newRenderMode);
+					renderMode = newRenderMode;
+				}
 			}));
 		}
 
@@ -411,7 +421,7 @@ export class InlayHintsController implements IEditorContribution {
 	private _updateHintsDecorators(ranges: readonly Range[], items: readonly InlayHintItem[]): void {
 
 		// utils to collect/create injected text decorations
-		const newDecorationsData: { item: InlayHintItem; decoration: IModelDeltaDecoration; classNameRef: IDisposable }[] = [];
+		const newDecorationsData: InlayHintDecorationRenderInfo[] = [];
 		const addInjectedText = (item: InlayHintItem, ref: ClassNameReference, content: string, cursorStops: InjectedTextCursorStops, attachedData?: RenderedInlayHintLabelPart): void => {
 			const opts: InjectedTextOptions = {
 				content,
@@ -431,7 +441,7 @@ export class InlayHintsController implements IEditorContribution {
 						showIfCollapsed: item.anchor.range.isEmpty(), // "original" range is empty
 						collapseOnReplaceEdit: !item.anchor.range.isEmpty(),
 						stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
-						[item.anchor.direction]: this._renderMode === InlayHintRenderMode.InjectedText ? opts : undefined
+						[item.anchor.direction]: opts
 					}
 				}
 			});
@@ -545,8 +555,14 @@ export class InlayHintsController implements IEditorContribution {
 		const newDecorationIds = this._editor.deltaDecorations(decorationIdsToReplace, newDecorationsData.map(d => d.decoration));
 		for (let i = 0; i < newDecorationIds.length; i++) {
 			const data = newDecorationsData[i];
-			this._decorationsMetadata.set(newDecorationIds[i], { item: data.item, classNameRef: data.classNameRef });
+			this._decorationsMetadata.set(newDecorationIds[i], data);
 		}
+
+		const allClassNames: string[] = [];
+		for (let data of this._decorationsMetadata.values()) {
+			allClassNames.push(`.${data.classNameRef.className}`);
+		}
+		this._styleElement.textContent = `${allClassNames.join(', ')} { display: var(${InlayHintsController._renderModeCssVariable}) !important; }`;
 	}
 
 	private _fillInColors(props: CssProperties, hint: languages.InlayHint): void {

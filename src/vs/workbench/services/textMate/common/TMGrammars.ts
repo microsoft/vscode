@@ -22,6 +22,8 @@ export interface ITMSyntaxExtensionPoint {
 	embeddedLanguages: IEmbeddedLanguagesMap;
 	tokenTypes: TokenTypesContribution;
 	injectTo: string[];
+	balancedBracketScopes: string[];
+	unbalancedBracketScopes: string[];
 }
 
 export const grammarsExtPoint: IExtensionPoint<ITMSyntaxExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>({
@@ -64,7 +66,23 @@ export const grammarsExtPoint: IExtensionPoint<ITMSyntaxExtensionPoint[]> = Exte
 					items: {
 						type: 'string'
 					}
-				}
+				},
+				balancedBracketScopes: {
+					description: nls.localize('vscode.extension.contributes.grammars.balancedBracketScopes', 'Defines which scope names contain balanced brackets.'),
+					type: 'array',
+					items: {
+						type: 'string'
+					},
+					default: ['*'],
+				},
+				unbalancedBracketScopes: {
+					description: nls.localize('vscode.extension.contributes.grammars.unbalancedBracketScopes', 'Defines which scope names do not contain balanced brackets.'),
+					type: 'object',
+					items: {
+						type: 'string'
+					},
+					default: [],
+				},
 			},
 			required: ['scopeName', 'path']
 		}

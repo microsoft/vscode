@@ -62,6 +62,9 @@ export class ContextMenuController implements IEditorContribution {
 			}
 		}));
 		this._toDispose.add(this._editor.onKeyDown((e: IKeyboardEvent) => {
+			if (!this._editor.getOption(EditorOption.contextmenu)) {
+				return; // Context menu is turned off through configuration
+			}
 			if (e.keyCode === KeyCode.ContextMenu) {
 				// Chrome is funny like that
 				e.preventDefault();

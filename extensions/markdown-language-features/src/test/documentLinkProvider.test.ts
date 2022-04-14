@@ -213,6 +213,26 @@ suite('markdown.DocumentLinkProvider', () => {
 		assert.strictEqual(links.length, 0);
 	});
 
+	test('Should not consider link references in code fenced with backticks (#146714)', async () => {
+		const text = joinLines(
+			'```',
+			'[a] [bb]',
+			'```');
+		const links = await getLinksForFile(text);
+		assert.strictEqual(links.length, 0);
+	});
+
+	test('Should not consider reference sources in code fenced with backticks (#146714)', async () => {
+		const text = joinLines(
+			'```',
+			'[a]: http://example.com;',
+			'[b]: <http://example.com>;',
+			'[c]: (http://example.com);',
+			'```');
+		const links = await getLinksForFile(text);
+		assert.strictEqual(links.length, 0);
+	});
+
 	test('Should not consider links in multiline inline code span between between text', async () => {
 		const text = joinLines(
 			'[b](https://1.com) `[b](https://2.com)',

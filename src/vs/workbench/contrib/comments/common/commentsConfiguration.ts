@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 export interface ICommentsConfiguration {
-	openView: 'never' | 'file';
+	openView: 'never' | 'file' | 'firstFile';
 	useRelativeTime: boolean;
 }
 

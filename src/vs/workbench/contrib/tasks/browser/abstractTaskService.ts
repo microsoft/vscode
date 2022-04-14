@@ -41,7 +41,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IOutputService, IOutputChannel } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService, IOutputChannel } from 'vs/workbench/services/output/common/output';
 
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
