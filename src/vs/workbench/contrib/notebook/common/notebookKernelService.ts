@@ -74,6 +74,7 @@ export interface INotebookProxyKernel {
 	readonly id: string;
 	readonly viewType: string;
 	readonly extension: ExtensionIdentifier;
+	readonly preloadProvides: string[];
 	readonly onDidChange: Event<Readonly<INotebookProxyKernelChangeEvent>>;
 	label: string;
 	description?: string;
@@ -98,8 +99,7 @@ export interface INotebookKernelService {
 	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent>;
 	readonly onDidChangeNotebookAffinity: Event<void>;
 
-	registerKernel(kernel: IResolvedNotebookKernel): IDisposable;
-	registerProxyKernel(proxyKernel: INotebookProxyKernel): IDisposable;
+	registerKernel(kernel: INotebookKernel): IDisposable;
 
 	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult;
 

@@ -6,7 +6,7 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel, ISelectedNotebooksChangeEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike, INotebookProxyKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, ISelectedNotebooksChangeEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { LRUCache, ResourceMap } from 'vs/base/common/map';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
@@ -139,32 +139,6 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	}
 
 	registerKernel(kernel: INotebookKernel): IDisposable {
-		if (this._kernels.has(kernel.id)) {
-			throw new Error(`NOTEBOOK CONTROLLER with id '${kernel.id}' already exists`);
-		}
-
-		this._kernels.set(kernel.id, new KernelInfo(kernel));
-		this._onDidAddKernel.fire(kernel);
-
-		// auto associate the new kernel to existing notebooks it was
-		// associated to in the past.
-		for (const notebook of this._notebookService.getNotebookTextModels()) {
-			this._tryAutoBindNotebook(notebook, kernel);
-		}
-
-		return toDisposable(() => {
-			if (this._kernels.delete(kernel.id)) {
-				this._onDidRemoveKernel.fire(kernel);
-			}
-			for (const [key, candidate] of Array.from(this._notebookBindings)) {
-				if (candidate === kernel.id) {
-					this._onDidChangeNotebookKernelBinding.fire({ notebook: NotebookTextModelLikeId.obj(key).uri, oldKernel: kernel.id, newKernel: undefined });
-				}
-			}
-		});
-	}
-
-	registerProxyKernel(kernel: INotebookProxyKernel): IDisposable {
 		if (this._kernels.has(kernel.id)) {
 			throw new Error(`NOTEBOOK CONTROLLER with id '${kernel.id}' already exists`);
 		}
