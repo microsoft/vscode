@@ -418,7 +418,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			this._register(addDisposableListener(layoutDropdownContainer, EventType.CONTEXT_MENU, e => {
 				EventHelper.stop(e);
 
-				this.onLayoutControlContextMenu(e);
+				this.onLayoutControlContextMenu(e, layoutDropdownContainer);
 			}));
 
 
@@ -530,7 +530,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		});
 	}
 
-	private onLayoutControlContextMenu(e: MouseEvent): void {
+	private onLayoutControlContextMenu(e: MouseEvent, el: HTMLElement): void {
 		// Find target anchor
 		const event = new StandardMouseEvent(e);
 		const anchor = { x: event.posx, y: event.posy };
@@ -548,6 +548,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => actions,
+			domForShadowRoot: el
 		});
 	}
 
