@@ -362,7 +362,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 					};
 				}
 
-				// Legacy media config
+				// Legacy media config (only in use by remote-wsl at the moment)
 				else {
 					const legacyMedia = step.media as unknown as { path: string; altText: string };
 					if (typeof legacyMedia.path === 'string' && legacyMedia.path.endsWith('.md')) {
