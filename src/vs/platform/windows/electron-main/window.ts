@@ -245,6 +245,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				if (!isMacintosh) {
 					options.frame = false;
 				}
+
+				if (isWindows) {
+					options.titleBarOverlay = true;
+				}
 			}
 
 			// Create the browser window
