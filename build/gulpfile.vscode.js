@@ -50,7 +50,6 @@ const vscodeEntryPoints = _.flatten([
 const vscodeResources = [
 	'out-build/main.js',
 	'out-build/cli.js',
-	'out-build/driver.js',
 	'out-build/bootstrap.js',
 	'out-build/bootstrap-fork.js',
 	'out-build/bootstrap-amd.js',

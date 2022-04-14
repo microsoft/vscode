@@ -12,7 +12,7 @@ import { getZoomFactor } from 'vs/base/browser/browser';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, toAction } from 'vs/base/common/actions';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
@@ -411,8 +411,15 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.layoutToolbar = new ToolBar(layoutDropdownContainer, this.contextMenuService, {
 				actionViewItemProvider: action => {
 					return createActionViewItem(this.instantiationService, action);
-				}
+				},
+				allowContextMenu: true
 			});
+
+			this._register(addDisposableListener(layoutDropdownContainer, EventType.CONTEXT_MENU, e => {
+				EventHelper.stop(e);
+
+				this.onLayoutControlContextMenu(e);
+			}));
 
 
 			const menu = this._register(this.menuService.createMenu(MenuId.LayoutControlMenu, this.contextKeyService));
@@ -507,7 +514,6 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private onContextMenu(e: MouseEvent): void {
-
 		// Find target anchor
 		const event = new StandardMouseEvent(e);
 		const anchor = { x: event.posx, y: event.posy };
@@ -521,6 +527,27 @@ export class TitlebarPart extends Part implements ITitleService {
 			getAnchor: () => anchor,
 			getActions: () => actions,
 			onHide: () => dispose(actionsDisposable)
+		});
+	}
+
+	private onLayoutControlContextMenu(e: MouseEvent): void {
+		// Find target anchor
+		const event = new StandardMouseEvent(e);
+		const anchor = { x: event.posx, y: event.posy };
+
+		const actions: IAction[] = [];
+		actions.push(toAction({
+			id: 'layoutControl.hide',
+			label: localize('layoutControl.hide', "Hide Layout Control"),
+			run: () => {
+				this.configurationService.updateValue('workbench.layoutControl.enabled', false);
+			}
+		}));
+
+		// Show it
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => actions,
 		});
 	}
 

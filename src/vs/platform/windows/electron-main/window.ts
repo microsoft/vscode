@@ -545,7 +545,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 
 				// If we run smoke tests, we never want to show a blocking dialog
-				if (this.environmentMainService.driverHandle) {
+				if (this.environmentMainService.args['enable-smoke-test-driver']) {
 					this.destroyWindow(false);
 					return;
 				}

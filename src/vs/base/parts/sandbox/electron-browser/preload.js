@@ -9,10 +9,6 @@
 
 	const { ipcRenderer, webFrame, contextBridge } = require('electron');
 
-	/**
-	 * @typedef {import('../common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
-	 */
-
 	//#region Utilities
 
 	/**
@@ -53,50 +49,13 @@
 		return undefined;
 	}
 
-	/**
-	 * @param {string} channel
-	 * @param {number} retryDelay
-	 * @returns {Promise<ISandboxConfiguration>}
-	 */
-	async function invokeWithRetry(channel, retryDelay) {
-		let timeoutHandle;
-
-		// A timeout promise that resolves after `retryDelay`
-		const timeout = new Promise(resolve => {
-			timeoutHandle = setTimeout(() => {
-				resolve();
-			}, retryDelay);
-		});
-
-		// A first `invoke` call that clears the timeout
-		const firstInvoke = ((async () => {
-			try {
-				return await ipcRenderer.invoke(channel);
-			} finally {
-				clearTimeout(timeoutHandle);
-			}
-		})());
-
-		// Race the `invoke` to the `setTimeout`
-		const result = await Promise.race([
-			firstInvoke,
-			timeout
-		]);
-
-		// If we have a result, return immediately
-		if (result) {
-			return result;
-		}
-
-		console.warn(`[preload] ipcRenderer.invoke(${channel}) did not return after ${retryDelay}ms. Retrying once...`);
-
-		// Otherwise, we retry once on the same channel
-		return ipcRenderer.invoke(channel);
-	}
-
 	//#endregion
 
 	//#region Resolve Configuration
+
+	/**
+	 * @typedef {import('../common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 */
 
 	/** @type {ISandboxConfiguration | undefined} */
 	let configuration = undefined;
@@ -112,14 +71,7 @@
 			if (validateIPC(windowConfigIpcChannel)) {
 
 				// Resolve configuration from electron-main
-				//
-				// TODO@electron there seems to be a condition where an early
-				// `ipcRenderer.invoke` call does not return when running in
-				// smoke tests where a debugger is attached. The workaround
-				// here is to retry the call, but the underlying reasons are
-				// not yet understood.
-				// (https://github.com/microsoft/vscode/issues/146785)
-				configuration = await invokeWithRetry(windowConfigIpcChannel, 5000);
+				configuration = await ipcRenderer.invoke(windowConfigIpcChannel);
 
 				// Apply `userEnv` directly
 				Object.assign(process.env, configuration.userEnv);

@@ -8,7 +8,6 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
@@ -1065,10 +1064,10 @@ export class SearchView extends ViewPane {
 
 		this.inputPatternExcludes.setWidth(this.size.width - 28 /* container margin */);
 		this.inputPatternIncludes.setWidth(this.size.width - 28 /* container margin */);
-		const widgetHeight = dom.getTotalHeight(this.searchWidget.domNode);
+
+		const widgetHeight = dom.getTotalHeight(this.searchWidgetsContainerElement);
 		const messagesHeight = dom.getTotalHeight(this.messagesElement);
-		const margin = 25;
-		this.tree.layout(this.size.height - widgetHeight - messagesHeight - margin, this.size.width - 28);
+		this.tree.layout(this.size.height - widgetHeight - messagesHeight, this.size.width - 28);
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -1285,7 +1284,7 @@ export class SearchView extends ViewPane {
 		}
 
 		if (!skipLayout && this.size) {
-			this.layout(this._orientation === Orientation.VERTICAL ? this.size.height : this.size.width);
+			this.reLayout();
 		}
 	}
 

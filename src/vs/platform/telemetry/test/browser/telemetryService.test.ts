@@ -800,15 +800,15 @@ suite('TelemetryService', () => {
 			}
 		}(), TestProductService);
 
-		assert.strictEqual(service.telemetryLevel, TelemetryLevel.NONE);
+		assert.strictEqual(service.telemetryLevel.value, TelemetryLevel.NONE);
 
 		telemetryLevel = TelemetryConfiguration.ON;
 		emitter.fire({});
-		assert.strictEqual(service.telemetryLevel, TelemetryLevel.USAGE);
+		assert.strictEqual(service.telemetryLevel.value, TelemetryLevel.USAGE);
 
 		telemetryLevel = TelemetryConfiguration.ERROR;
 		emitter.fire({});
-		assert.strictEqual(service.telemetryLevel, TelemetryLevel.ERROR);
+		assert.strictEqual(service.telemetryLevel.value, TelemetryLevel.ERROR);
 
 		service.dispose();
 	});

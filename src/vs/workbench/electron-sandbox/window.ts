@@ -63,7 +63,7 @@ import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { registerLegacyWindowDriver, registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
+import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 
 export class NativeWindow extends Disposable {
 
@@ -640,25 +640,18 @@ export class NativeWindow extends Disposable {
 		}
 
 		// Smoke Test Driver
-		this.setupDriver();
+		if (this.environmentService.enableSmokeTestDriver) {
+			this.setupDriver();
+		}
 	}
 
 	private setupDriver(): void {
-
-		// Modern Driver
-		if (this.environmentService.enableSmokeTestDriver) {
-			const that = this;
-			registerWindowDriver({
-				async exitApplication(): Promise<void> {
-					return that.nativeHostService.quit();
-				}
-			});
-		}
-
-		// Legacy Driver (TODO@bpasero remove me eventually)
-		else if (this.environmentService.args.driver) {
-			this.instantiationService.invokeFunction(async accessor => this._register(await registerLegacyWindowDriver(accessor, this.nativeHostService.windowId)));
-		}
+		const that = this;
+		registerWindowDriver({
+			async exitApplication(): Promise<void> {
+				return that.nativeHostService.quit();
+			}
+		});
 	}
 
 	private setupOpenHandlers(): void {

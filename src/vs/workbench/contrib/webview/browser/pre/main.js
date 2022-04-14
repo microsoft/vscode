@@ -368,16 +368,14 @@ const unloadMonitor = new class {
 			}
 
 			switch (this.confirmBeforeClose) {
-				case 'always':
-					{
-						event.preventDefault();
-						event.returnValue = '';
-						return '';
-					}
-				case 'never':
-					{
-						break;
-					}
+				case 'always': {
+					event.preventDefault();
+					event.returnValue = '';
+					return '';
+				}
+				case 'never': {
+					break;
+				}
 				case 'keyboardOnly':
 				default: {
 					if (this.isModifierKeyDown) {
@@ -679,6 +677,22 @@ const handleInnerScroll = (event) => {
 		isHandlingScroll = false;
 	});
 };
+
+function handleInnerDragStartEvent(/** @type {DragEvent} */ e) {
+	if (e.defaultPrevented) {
+		// Extension code has already handled this event
+		return;
+	}
+
+	if (!e.dataTransfer || e.shiftKey) {
+		return;
+	}
+
+	// Only handle drags from outside editor for now
+	if (e.dataTransfer.items.length && Array.prototype.every.call(e.dataTransfer.items, item => item.kind === 'file')) {
+		hostMessaging.postMessage('drag-start');
+	}
+}
 
 /**
  * @param {() => void} callback
@@ -1021,23 +1035,8 @@ onDomReady(() => {
 				});
 			});
 
-			const dragHandler = (/** @type {DragEvent} */ e) => {
-				if (e.defaultPrevented) {
-					// Extension code has already handled this event
-					return;
-				}
-
-				if (!e.dataTransfer) {
-					return;
-				}
-
-				// Only handle drags from outside editor for now
-				if (e.target === contentWindow.document.documentElement) {
-					hostMessaging.postMessage('drag-start');
-				}
-			};
-			contentWindow.addEventListener('dragenter', dragHandler);
-			contentWindow.addEventListener('dragover', dragHandler);
+			contentWindow.addEventListener('dragenter', handleInnerDragStartEvent);
+			contentWindow.addEventListener('dragover', handleInnerDragStartEvent);
 
 			unloadMonitor.onIframeLoaded(newFrame);
 		}
@@ -1124,6 +1123,11 @@ onDomReady(() => {
 				break;
 		}
 	};
+
+	// Also forward events before the contents of the webview have loaded
+	window.addEventListener('keydown', handleInnerKeydown);
+	window.addEventListener('dragenter', handleInnerDragStartEvent);
+	window.addEventListener('dragover', handleInnerDragStartEvent);
 
 	hostMessaging.signalReady();
 });
