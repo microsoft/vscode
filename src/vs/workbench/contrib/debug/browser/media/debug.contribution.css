@@ -130,10 +130,6 @@
 	display: inline;
 }
 
-.monaco-workbench .monaco-list-row .expression.lazy .value {
-	display: none;
-}
-
 .monaco-workbench .debug-inline-value {
 	background-color: var(--vscode-editor-inlineValuesBackground);
 	color: var(--vscode-editor-inlineValuesForeground);
