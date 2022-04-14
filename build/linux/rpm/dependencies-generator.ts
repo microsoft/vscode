@@ -62,7 +62,7 @@ export function getDependencies(buildDir: string, applicationName: string, arch:
 	const referenceGeneratedDeps = referenceGeneratedDepsByArch[arch];
 	if (JSON.stringify(sortedDependencies) !== JSON.stringify(referenceGeneratedDeps)) {
 		const failMessage = 'The dependencies list has changed. '
-			+ 'Printing newer dependencies list that one can use to compare against referenceGeneratedDeps:'
+			+ 'Printing newer dependencies list that one can use to compare against referenceGeneratedDeps:\n'
 			+ sortedDependencies.join('\n');
 		if (FAIL_BUILD_FOR_NEW_DEPENDENCIES) {
 			throw new Error(failMessage);
@@ -91,11 +91,6 @@ function calculatePackageDeps(binaryPath: string): Set<string> {
 	}
 
 	const requires = new Set(findRequiresResult.stdout.toString('utf-8').trimEnd().split('\n'));
-
-	// we only need to use provides to check for newer dependencies
-	// const provides = readFileSync('dist_package_provides.json');
-	// const jsonProvides = JSON.parse(provides.toString('utf-8'));
-
 	return requires;
 }
 

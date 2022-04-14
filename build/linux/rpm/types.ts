@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export type ArchString = 'amd64' | 'armhf' | 'arm64';
+export type ArchString = 'x86_64' | 'armv7hl' | 'aarch64';
