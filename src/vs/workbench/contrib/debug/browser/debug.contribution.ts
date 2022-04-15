@@ -558,5 +558,10 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('debug.disassemblyView.showSourceCode', "Show Source Code in Disassembly View.")
 		},
+		'debug.autoExpandLazyVariables': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('debug.autoExpandLazyVariables', "Automatically show values for variables that are lazily resolved by the debugger, such as getters.")
+		}
 	}
 });
