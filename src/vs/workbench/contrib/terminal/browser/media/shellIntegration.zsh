@@ -13,7 +13,6 @@ builtin unset ZDOTDIR
 VSCODE_SHELL_INTEGRATION=1
 
 export RCS="1"
-export GLOBAL_RCS="1"
 
 # this is where ZDOTDIR gets set for the user
 if [ -f /etc/zshenv ]; then
@@ -45,7 +44,6 @@ fi
 # login is handled automatically
 
 builtin unset RCS
-builtin unset GLOBAL_RCS
 
 # Shell integration was disabled by the shell, exit without warning assuming either the shell has
 # explicitly disabled shell integration as it's incompatible or it implements the protocol.
