@@ -511,6 +511,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('debug.focusWindowOnBreak', "Controls whether the workbench window should be focused when the debugger breaks."),
 			default: true
 		},
+		'debug.focusEditorOnBreak': {
+			type: 'boolean',
+			description: nls.localize('debug.focusEditorOnBreak', "Controls whether the editor should be focused when the debugger breaks."),
+			default: true
+		},
 		'debug.onTaskErrors': {
 			enum: ['debugAnyway', 'showErrors', 'prompt', 'abort'],
 			enumDescriptions: [nls.localize('debugAnyway', "Ignore task errors and start debugging."), nls.localize('showErrors', "Show the Problems view and do not start debugging."), nls.localize('prompt', "Prompt user."), nls.localize('cancel', "Cancel debugging.")],
