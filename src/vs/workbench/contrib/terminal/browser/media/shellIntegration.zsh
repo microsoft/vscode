@@ -12,6 +12,9 @@ builtin unset ZDOTDIR
 # as disable it by unsetting the variable.
 VSCODE_SHELL_INTEGRATION=1
 
+export RCS="1"
+export GLOBAL_RCS="1"
+
 # this is where ZDOTDIR gets set for the user
 if [ -f /etc/zshenv ]; then
 	. /etc/zshenv
@@ -33,18 +36,16 @@ fi
 if [[ -n "${RCS}" && -o "login" &&  -f $__vsc_path/.zprofile ]]; then
 	. $__vsc_path/.zprofile
 fi
-if [[ -n "${RCS}" && -n "${GLOBAL_RCS}" && -o "login" &&  -f /etc/zlogin ]]; then
-	. /etc/zlogin
-fi
-if [[ -n "${RCS}" && -o "login" &&  -f $__vsc_path/.zlogin ]]; then
-	. $__vsc_path/.zlogin
-fi
 if [[ -n "${RCS}" && -n "${GLOBAL_RCS}" && -f /etc/zshrc ]]; then
 	. /etc/zshrc
 fi
 if [[ -n "${RCS}" && -f $__vsc_path/.zshrc ]]; then
 	. $__vsc_path/.zshrc
 fi
+# login is handled automatically
+
+builtin unset RCS
+builtin unset GLOBAL_RCS
 
 # Shell integration was disabled by the shell, exit without warning assuming either the shell has
 # explicitly disabled shell integration as it's incompatible or it implements the protocol.
