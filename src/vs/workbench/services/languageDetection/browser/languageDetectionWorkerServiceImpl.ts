@@ -147,14 +147,14 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		return biases;
 	}
 
-	async detectLanguage(resource: URI): Promise<string | undefined> {
+	async detectLanguage(resource: URI, supportedLangs?: string[]): Promise<string | undefined> {
 		const useHistory = this._configurationService.getValue<string[]>(LanguageDetectionService.historyBasedEnablementConfig);
 		const preferHistory = this._configurationService.getValue<boolean>(LanguageDetectionService.preferHistoryConfig);
 		if (useHistory) {
 			await this.resolveWorkspaceLanguageIds();
 		}
 		const biases = useHistory ? this.getLanguageBiases() : undefined;
-		const language = await this._languageDetectionWorkerClient.detectLanguage(resource, biases, preferHistory);
+		const language = await this._languageDetectionWorkerClient.detectLanguage(resource, biases, preferHistory, supportedLangs);
 
 		if (language) {
 			return this.getLanguageId(language);
@@ -306,9 +306,9 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		});
 	}
 
-	public async detectLanguage(resource: URI, langBiases: Record<string, number> | undefined, preferHistory: boolean): Promise<string | undefined> {
+	public async detectLanguage(resource: URI, langBiases: Record<string, number> | undefined, preferHistory: boolean, supportedLangs?: string[]): Promise<string | undefined> {
 		await this._withSyncedResources([resource]);
-		return (await this._getProxy()).detectLanguage(resource.toString(), langBiases, preferHistory);
+		return (await this._getProxy()).detectLanguage(resource.toString(), langBiases, preferHistory, supportedLangs);
 	}
 }
 
