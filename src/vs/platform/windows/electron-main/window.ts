@@ -183,7 +183,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				backgroundColor: this.themeMainService.getBackgroundColor(),
 				minWidth: WindowMinimumSize.WIDTH,
 				minHeight: WindowMinimumSize.HEIGHT,
-				show: !isFullscreenOrMaximized,
+				show: false,
 				title: this.productService.nameLong,
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
@@ -282,6 +282,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 			}
 
+
 			if (isFullscreenOrMaximized) {
 				mark('code/willMaximizeCodeWindow');
 				this._win.maximize();
@@ -290,14 +291,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					this.setFullScreen(true);
 				}
 
-				if (!this._win.isVisible()) {
-					this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
-				}
 				mark('code/didMaximizeCodeWindow');
 			}
 
 			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 		}
+
+
+		this._win.once('ready-to-show', ()=>{
+			this._win.show()
+		})
 		//#endregion
 
 		// respect configured menu bar visibility
