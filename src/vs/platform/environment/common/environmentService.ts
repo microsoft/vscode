@@ -235,9 +235,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get disableTelemetry(): boolean { return !!this.args['disable-telemetry']; }
 
 	@memoize
-	get webEmbedderLogResource(): URI { return URI.file(join(this.logsPath, 'webembedder.log')); }
-
-	@memoize
 	get disableWorkspaceTrust(): boolean { return !!this.args['disable-workspace-trust']; }
 
 	get args(): NativeParsedArgs { return this._args; }

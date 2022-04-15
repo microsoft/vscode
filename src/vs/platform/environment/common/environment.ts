@@ -87,9 +87,6 @@ export interface IEnvironmentService {
 	telemetryLogResource: URI;
 	serviceMachineIdResource: URI;
 
-	// --- web
-	webEmbedderLogResource: URI;
-
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
 	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.

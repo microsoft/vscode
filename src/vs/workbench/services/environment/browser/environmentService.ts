@@ -213,9 +213,6 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	@memoize
 	get disableWorkspaceTrust(): boolean { return !this.options.enableWorkspaceTrust; }
 
-	@memoize
-	get webEmbedderLogResource(): URI { return joinPath(this.logsHome, 'webembedder.log'); }
-
 	private payload: Map<string, string> | undefined;
 
 	constructor(
