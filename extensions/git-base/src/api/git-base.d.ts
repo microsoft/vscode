@@ -33,6 +33,7 @@ export interface PickRemoteSourceOptions {
 	readonly providerLabel?: (provider: RemoteSourceProvider) => string;
 	readonly urlLabel?: string;
 	readonly providerName?: string;
+	readonly title?: string;
 	readonly branch?: boolean; // then result is PickRemoteSourceResult
 }
 

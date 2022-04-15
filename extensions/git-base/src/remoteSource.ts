@@ -83,6 +83,7 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions = {}): Promise<string | PickRemoteSourceResult | undefined> {
 	const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteSourceProvider; url?: string })>();
 	quickpick.ignoreFocusOut = true;
+	quickpick.title = options.title;
 
 	if (options.providerName) {
 		const provider = model.getRemoteProviders()
