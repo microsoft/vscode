@@ -16,6 +16,7 @@ async function retry(setup: () => Promise<any>, attempt: () => Promise<any>) {
 	while (true) {
 		await setup();
 
+
 		try {
 			await attempt();
 			return;
