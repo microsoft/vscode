@@ -1080,16 +1080,19 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private async handleExplorerDrop(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const elementsData = FileDragAndDrop.getStatsFromDragAndDropData(data);
-		const items = distinctParents(elementsData, s => s.resource);
+		const distinctItems = new Set(elementsData);
 
 		if (this.configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting.operateAsGroup) {
-			for (const item of items) {
+			for (const item of distinctItems) {
 				const nestedChildren = item.nestedChildren;
 				if (nestedChildren) {
-					items.push(...nestedChildren);
+					for (const child of nestedChildren) {
+						distinctItems.add(child);
+					}
 				}
 			}
 		}
+		const items = distinctParents([...distinctItems], s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
 		// Handle confirm setting

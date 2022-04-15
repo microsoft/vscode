@@ -73,8 +73,8 @@ export class Terminal {
 			await this.code.dispatchKeybinding('enter');
 			await this.quickinput.waitForQuickInputClosed();
 		}
-		if (commandId === TerminalCommandId.Show) {
-			return await this._waitForTerminal(undefined);
+		if (commandId === TerminalCommandId.Show || commandId === TerminalCommandId.CreateNewEditor || commandId === TerminalCommandId.CreateNew || commandId === TerminalCommandId.NewWithProfile) {
+			return await this._waitForTerminal(commandId === TerminalCommandId.CreateNewEditor ? 'editor' : 'panel');
 		}
 	}
 

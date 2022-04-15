@@ -43,14 +43,14 @@ import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/brow
 import { AbstractSettingRenderer, HeightChangeParams, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveConfiguredUntrustedSettings, createTocTreeForExtensionSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IOpenSettingsOptions, IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { preferencesClearInputIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
+import { preferencesClearInputIcon, preferencesFilterIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
@@ -58,6 +58,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Color } from 'vs/base/common/color';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { SettingsSearchFilterDropdownMenuActionViewItem } from 'vs/workbench/contrib/preferences/browser/settingsSearchMenu';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -152,7 +153,7 @@ export class SettingsEditor2 extends EditorPane {
 	private controlsElement!: HTMLElement;
 	private settingsTargetsWidget!: SettingsTargetsWidget;
 
-	private splitView!: SplitView;
+	private splitView!: SplitView<number>;
 
 	private settingsTreeContainer!: HTMLElement;
 	private settingsTree!: SettingsTree;
@@ -411,7 +412,7 @@ export class SettingsEditor2 extends EditorPane {
 			return;
 		}
 
-		this.layoutTrees(dimension);
+		this.layoutSplitView(dimension);
 
 		const innerWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on left and right;
 		// minus padding inside inputbox, countElement width, controls width, extra padding before countElement
@@ -499,11 +500,11 @@ export class SettingsEditor2 extends EditorPane {
 	clearSearchFilters(): void {
 		let query = this.searchWidget.getValue();
 
-		SettingsEditor2.SUGGESTIONS.forEach(suggestion => {
-			query = query.replace(suggestion, '');
+		const splitQuery = query.split(' ').filter(word => {
+			return word.length && !SettingsEditor2.SUGGESTIONS.some(suggestion => word.startsWith(suggestion));
 		});
 
-		this.searchWidget.setValue(query.trim());
+		this.searchWidget.setValue(splitQuery.join(' '));
 	}
 
 	private updateInputAriaLabel() {
@@ -525,7 +526,7 @@ export class SettingsEditor2 extends EditorPane {
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 
 		const clearInputAction = new Action(SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Settings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false, async () => this.clearSearchResults());
-
+		const filterAction = new Action(SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, localize('filterInput', "Filter Settings"), ThemeIcon.asClassName(preferencesFilterIcon));
 		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
 			triggerCharacters: ['@', ':'],
 			provideResults: (query: string) => {
@@ -533,9 +534,10 @@ export class SettingsEditor2 extends EditorPane {
 				// for the ':' trigger, only return suggestions if there was a '@' before it in the same word.
 				const queryParts = query.split(/\s/g);
 				if (queryParts[queryParts.length - 1].startsWith(`@${LANGUAGE_SETTING_TAG}`)) {
-					return this.languageService.getRegisteredLanguageIds().map(languageId => {
+					const sortedLanguages = this.languageService.getRegisteredLanguageIds().map(languageId => {
 						return `@${LANGUAGE_SETTING_TAG}${languageId} `;
 					}).sort();
+					return sortedLanguages.filter(langFilter => !query.includes(langFilter));
 				} else if (queryParts[queryParts.length - 1].startsWith('@')) {
 					return SettingsEditor2.SUGGESTIONS.filter(tag => !query.includes(tag)).map(tag => tag.endsWith(':') ? tag : tag + ' ');
 				}
@@ -603,10 +605,15 @@ export class SettingsEditor2 extends EditorPane {
 
 		const actionBar = this._register(new ActionBar(this.controlsElement, {
 			animated: false,
-			actionViewItemProvider: (_action) => { return undefined; }
+			actionViewItemProvider: (action) => {
+				if (action.id === filterAction.id) {
+					return this.instantiationService.createInstance(SettingsSearchFilterDropdownMenuActionViewItem, action, this.actionRunner, this.searchWidget);
+				}
+				return undefined;
+			}
 		}));
 
-		actionBar.push([clearInputAction], { label: false, icon: true });
+		actionBar.push([clearInputAction, filterAction], { label: false, icon: true });
 	}
 
 	private onDidSettingsTargetChange(target: SettingsTarget): void {
@@ -712,8 +719,9 @@ export class SettingsEditor2 extends EditorPane {
 			element: this.tocTreeContainer,
 			minimumSize: SettingsEditor2.TOC_MIN_WIDTH,
 			maximumSize: Number.POSITIVE_INFINITY,
-			layout: (width) => {
+			layout: (width, _, height) => {
 				this.tocTreeContainer.style.width = `${width}px`;
+				this.tocTree.layout(height, width);
 			}
 		}, startingWidth, undefined, true);
 		this.splitView.addView({
@@ -721,8 +729,9 @@ export class SettingsEditor2 extends EditorPane {
 			element: this.settingsTreeContainer,
 			minimumSize: SettingsEditor2.EDITOR_MIN_WIDTH,
 			maximumSize: Number.POSITIVE_INFINITY,
-			layout: (width) => {
+			layout: (width, _, height) => {
 				this.settingsTreeContainer.style.width = `${width}px`;
+				this.settingsTree.layout(height, width);
 			}
 		}, Sizing.Distribute, undefined, true);
 		this._register(this.splitView.onDidSashReset(() => {
@@ -1006,6 +1015,27 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private reportModifiedSetting(props: { key: string; query: string; searchResults: ISearchResult[] | null; rawResults: ISearchResult[] | null; showConfiguredOnly: boolean; isReset: boolean; settingsTarget: SettingsTarget }): void {
+		type SettingsEditorModifiedSettingEvent = {
+			key: string;
+			groupId: string | undefined;
+			nlpIndex: number | undefined;
+			displayIndex: number | undefined;
+			showConfiguredOnly: boolean;
+			isReset: boolean;
+			target: string;
+		};
+		type SettingsEditorModifiedSettingClassification = {
+			key: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The setting that is being modified.' };
+			groupId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the setting is from the local search or remote search provider, if applicable.' };
+			nlpIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The index of the setting in the remote search provider results, if applicable.' };
+			displayIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The index of the setting in the combined search results, if applicable.' };
+			showConfiguredOnly: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is in the modified view, which shows configured settings only.' };
+			isReset: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies whether a setting was reset to its default value.' };
+			target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The scope of the setting, such as user or workspace.' };
+			owner: 'rzhao271';
+			comment: 'Event which fires when the user modifies a setting in the settings editor';
+		};
+
 		this.pendingSettingUpdate = null;
 
 		let groupId: string | undefined = undefined;
@@ -1048,18 +1078,7 @@ export class SettingsEditor2 extends EditorPane {
 			target: reportedTarget
 		};
 
-		/* __GDPR__
-			"settingsEditor.settingModified" : {
-				"key" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "The setting that is being modified." },
-				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "Whether the setting is from the local search or remote search provider, if applicable." },
-				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The index of the setting in the remote search provider results, if applicable." },
-				"displayIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The index of the setting in the combined search results, if applicable." },
-				"showConfiguredOnly" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "Whether the user is in the modified view, which shows configured settings only." },
-				"isReset" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "Identifies whether a setting was reset to its default value." },
-				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "The scope of the setting, such as user or workspace." }
-			}
-		*/
-		this.telemetryService.publicLog('settingsEditor.settingModified', data);
+		this.telemetryService.publicLog2<SettingsEditorModifiedSettingEvent, SettingsEditorModifiedSettingClassification>('settingsEditor.settingModified', data);
 	}
 
 	private onSearchModeToggled(): void {
@@ -1269,7 +1288,7 @@ export class SettingsEditor2 extends EditorPane {
 		await this.triggerSearch(query.replace(/\u203A/g, ' '));
 
 		if (query && this.searchResultModel) {
-			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(query, this.searchResultModel!.getUniqueResults()));
+			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(this.searchResultModel!.getUniqueResults()));
 		}
 	}
 
@@ -1293,6 +1312,8 @@ export class SettingsEditor2 extends EditorPane {
 			parsedQuery.idFilters!.forEach(id => this.viewState.idFilters!.add(id));
 			this.viewState.languageFilter = parsedQuery.languageFilter;
 		}
+
+		this.settingsTargetsWidget.updateLanguageFilterIndicators(this.viewState.languageFilter);
 
 		if (query && query !== '@') {
 			query = this.parseSettingFromJSON(query) || query;
@@ -1358,7 +1379,22 @@ export class SettingsEditor2 extends EditorPane {
 		return filterModel;
 	}
 
-	private reportFilteringUsed(query: string, results: ISearchResult[]): void {
+	private reportFilteringUsed(results: ISearchResult[]): void {
+		type SettingsEditorFilterEvent = {
+			'durations.nlpResult': number | undefined;
+			'counts.nlpResult': number | undefined;
+			'counts.filterResult': number | undefined;
+			'requestCount': number | undefined;
+		};
+		type SettingsEditorFilterClassification = {
+			'durations.nlpResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'How long the remote search provider took, if applicable.' };
+			'counts.nlpResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'The number of matches found by the remote search provider, if applicable.' };
+			'counts.filterResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'The number of matches found by the local search provider, if applicable.' };
+			'requestCount': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'The number of requests sent to Bing, if applicable.' };
+			owner: 'rzhao271';
+			comment: 'Tracks the number of requests and performance of the built-in search providers';
+		};
+
 		const nlpResult = results[SearchResultIdx.Remote];
 		const nlpMetadata = nlpResult?.metadata;
 
@@ -1380,20 +1416,13 @@ export class SettingsEditor2 extends EditorPane {
 		const requestCount = nlpMetadata?.requestCount;
 
 		const data = {
-			durations: duration,
-			counts,
+			'durations.nlpResult': duration.nlpResult,
+			'counts.nlpResult': counts['nlpResult'],
+			'counts.filterResult': counts['filterResult'],
 			requestCount
 		};
 
-		/* __GDPR__
-			"settingsEditor.filter" : {
-				"durations.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "How long the remote search provider took, if applicable." },
-				"counts.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The number of matches found by the remote search provider, if applicable." },
-				"counts.filterResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The number of matches found by the local search provider, if applicable." },
-				"requestCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The number of requests sent to Bing, if applicable." }
-			}
-		*/
-		this.telemetryService.publicLog('settingsEditor.filter', data);
+		this.telemetryService.publicLog2<SettingsEditorFilterEvent, SettingsEditorFilterClassification>('settingsEditor.filter', data);
 	}
 
 	private triggerFilterPreferences(query: string): Promise<void> {
@@ -1518,15 +1547,17 @@ export class SettingsEditor2 extends EditorPane {
 				if (isCancellationError(err)) {
 					return Promise.reject(err);
 				} else {
-					/* __GDPR__
-						"settingsEditor.searchError" : {
-							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight", "owner": "rzhao271", comment: "The error message of the search error." }
-						}
-					*/
+					type SettingsSearchErrorEvent = {
+						'message': string;
+					};
+					type SettingsSearchErrorClassification = {
+						'message': { 'classification': 'CallstackOrException'; 'purpose': 'FeatureInsight'; 'owner': 'rzhao271'; 'comment': 'The error message of the search error.' };
+					};
+
 					const message = getErrorMessage(err).trim();
 					if (message && message !== 'Error') {
 						// "Error" = any generic network error
-						this.telemetryService.publicLogError('settingsEditor.searchError', { message });
+						this.telemetryService.publicLogError2<SettingsSearchErrorEvent, SettingsSearchErrorClassification>('settingsEditor.searchError', { message });
 						this.logService.info('Setting search error: ' + message);
 					}
 					return null;
@@ -1534,23 +1565,16 @@ export class SettingsEditor2 extends EditorPane {
 			});
 	}
 
-	private layoutTrees(dimension: DOM.Dimension): void {
+	private layoutSplitView(dimension: DOM.Dimension): void {
 		const listHeight = dimension.height - (72 + 11 + 14 /* header height + editor padding */);
-		const settingsTreeHeight = listHeight;
-		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
-		this.settingsTree.layout(settingsTreeHeight, dimension.width);
 
-		const tocTreeHeight = settingsTreeHeight;
-		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
-		this.tocTree.layout(tocTreeHeight);
-
-		this.splitView.el.style.height = `${settingsTreeHeight}px`;
+		this.splitView.el.style.height = `${listHeight}px`;
 
 		// We call layout first so the splitView has an idea of how much
 		// space it has, otherwise setViewVisible results in the first panel
 		// showing up at the minimum size whenever the Settings editor
 		// opens for the first time.
-		this.splitView.layout(this.bodyContainer.clientWidth);
+		this.splitView.layout(this.bodyContainer.clientWidth, listHeight);
 
 		const firstViewWasVisible = this.splitView.isViewVisible(0);
 		const firstViewVisible = this.bodyContainer.clientWidth >= SettingsEditor2.NARROW_TOTAL_WIDTH;

@@ -66,6 +66,7 @@ function isTimelineItem(item: TreeElement | undefined): item is TimelineItem {
 
 function updateRelativeTime(item: TimelineItem, lastRelativeTime: string | undefined): string | undefined {
 	item.relativeTime = isTimelineItem(item) ? fromNow(item.timestamp) : undefined;
+	item.relativeTimeFullWord = isTimelineItem(item) ? fromNow(item.timestamp, false, true) : undefined;
 	if (lastRelativeTime === undefined || item.relativeTime !== lastRelativeTime) {
 		lastRelativeTime = item.relativeTime;
 		item.hideRelativeTime = false;
@@ -196,6 +197,7 @@ class LoadMoreCommand {
 	readonly iconDark = undefined;
 	readonly source = undefined;
 	readonly relativeTime = undefined;
+	readonly relativeTimeFullWord = undefined;
 	readonly hideRelativeTime = undefined;
 
 	constructor(loading: boolean) {
@@ -569,9 +571,10 @@ export class TimelinePane extends ViewPane {
 			}
 		}
 		request?.tokenSource.dispose(true);
-
+		options.cacheResults = true;
+		options.resetCache = reset;
 		request = this.timelineService.getTimeline(
-			source, uri, options, new CancellationTokenSource(), { cacheResults: true, resetCache: reset }
+			source, uri, options, new CancellationTokenSource()
 		);
 
 		if (request === undefined) {
@@ -762,15 +765,16 @@ export class TimelinePane extends ViewPane {
 		}
 
 		this._visibleItemCount = count;
-
-		if (more) {
-			yield {
-				element: new LoadMoreCommand(this.pendingRequests.size !== 0)
-			};
-		} else if (this.pendingRequests.size !== 0) {
-			yield {
-				element: new LoadMoreCommand(true)
-			};
+		if (count > 0) {
+			if (more) {
+				yield {
+					element: new LoadMoreCommand(this.pendingRequests.size !== 0)
+				};
+			} else if (this.pendingRequests.size !== 0) {
+				yield {
+					element: new LoadMoreCommand(true)
+				};
+			}
 		}
 	}
 
@@ -1171,6 +1175,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		});
 
 		template.timestamp.textContent = item.relativeTime ?? '';
+		template.timestamp.ariaLabel = item.relativeTimeFullWord ?? '';
 		template.timestamp.parentElement!.classList.toggle('timeline-timestamp--duplicate', isTimelineItem(item) && item.hideRelativeTime);
 
 		template.actionBar.context = { uri: this.uri, item: item } as TimelineActionContext;

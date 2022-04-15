@@ -22,7 +22,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
 import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext, IsFullscreenContext } from 'vs/workbench/common/contextkeys';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext, IsFullscreenContext, PanelPositionContext } from 'vs/workbench/common/contextkeys';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -223,7 +223,7 @@ MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
 	title: localize('configureLayout', "Configure Layout"),
 	icon: configureLayoutIcon,
 	group: '1_workbench_layout',
-	when: ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'menu')
+	when: ContextKeyExpr.equals('config.workbench.layoutControl.type', 'menu')
 });
 
 
@@ -271,6 +271,28 @@ MenuRegistry.appendMenuItems([{
 		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 		order: 1
 	}
+}, {
+	id: MenuId.ViewTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: ToggleSidebarPositionAction.ID,
+			title: localize('move second sidebar left', "Move Secondary Side Bar Left")
+		},
+		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
+		order: 1
+	}
+}, {
+	id: MenuId.ViewTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: ToggleSidebarPositionAction.ID,
+			title: localize('move second sidebar right', "Move Secondary Side Bar Right")
+		},
+		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
+		order: 1
+	}
 }]);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
@@ -308,12 +330,8 @@ registerAction2(class extends Action2 {
 			category: CATEGORIES.View,
 			f1: true,
 			toggled: EditorAreaVisibleContext,
-			// Remove from appearance menu
-			// menu: [{
-			// 	id: MenuId.MenubarAppearanceMenu,
-			// 	group: '2_workbench_layout',
-			// 	order: 5
-			// }]
+			// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
+			precondition: ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), PanelPositionContext.notEqualsTo('bottom'))
 		});
 	}
 
@@ -364,7 +382,7 @@ MenuRegistry.appendMenuItems([
 			group: '3_workbench_layout_move',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
-				title: localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+				title: localize('compositePart.hideSideBarLabel', "Hide Primary Side Bar"),
 			},
 			when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 			order: 2
@@ -375,7 +393,7 @@ MenuRegistry.appendMenuItems([
 			group: '3_workbench_layout_move',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
-				title: localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+				title: localize('compositePart.hideSideBarLabel', "Hide Primary Side Bar"),
 			},
 			when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 			order: 2
@@ -412,7 +430,7 @@ MenuRegistry.appendMenuItems([
 				icon: panelLeftIcon,
 				toggled: SideBarVisibleContext
 			},
-			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')),
+			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')),
 			order: 0
 		}
 	}, {
@@ -425,7 +443,7 @@ MenuRegistry.appendMenuItems([
 				icon: panelRightIcon,
 				toggled: SideBarVisibleContext
 			},
-			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')),
+			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')),
 			order: 2
 		}
 	}
@@ -483,13 +501,7 @@ registerAction2(class extends Action2 {
 				original: 'Toggle Tab Visibility'
 			},
 			category: CATEGORIES.View,
-			f1: true,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: undefined,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyW, },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyW, }
-			}
+			f1: true
 		});
 	}
 
@@ -1178,7 +1190,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				},
 				{
 					id: MenuId.LayoutControlMenu,
-					when: ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'both'),
+					when: ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both'),
 					group: 'z_end'
 				}
 			]

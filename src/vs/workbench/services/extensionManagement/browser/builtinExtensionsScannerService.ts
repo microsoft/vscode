@@ -58,6 +58,8 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 					readmeUrl: e.readmePath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.readmePath) : undefined,
 					changelogUrl: e.changelogPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.changelogPath) : undefined,
 					targetPlatform: TargetPlatform.WEB,
+					validations: [],
+					isValid: true
 				}));
 			}
 		}

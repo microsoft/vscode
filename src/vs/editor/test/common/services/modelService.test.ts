@@ -20,14 +20,13 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from 'vs/editor/common/languages';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Barrier, timeout } from 'vs/base/common/async';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
@@ -37,32 +36,30 @@ import { LanguageFeatureDebounceService } from 'vs/editor/common/services/langua
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 const GENERATE_TESTS = false;
 
 suite('ModelService', () => {
 	let disposables: DisposableStore;
-	let modelService: ModelService;
+	let modelService: IModelService;
+	let instantiationService: TestInstantiationService;
 
 	setup(() => {
 		disposables = new DisposableStore();
+
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 		configService.setUserConfiguration('files', { 'eol': '\r\n' }, URI.file(platform.isWindows ? 'c:\\myroot' : '/myroot'));
 
-		const dialogService = new TestDialogService();
-		const logService = new NullLogService();
-		modelService = disposables.add(new ModelService(
-			configService,
-			new TestTextResourcePropertiesService(configService),
-			new TestThemeService(),
-			logService,
-			new UndoRedoService(dialogService, new TestNotificationService()),
-			disposables.add(new LanguageService()),
-			new TestLanguageConfigurationService(),
-			new LanguageFeatureDebounceService(logService),
-			new LanguageFeaturesService()
-		));
+		const serviceCollection = new ServiceCollection([
+			IConfigurationService, configService
+		]);
+
+		instantiationService = createModelServices(disposables, serviceCollection);
+		modelService = instantiationService.get(IModelService);
 	});
 
 	teardown(() => {
@@ -447,7 +444,7 @@ suite('ModelSemanticColoring', () => {
 	test('DocumentSemanticTokens should be fetched when the result is empty if there are pending changes', async () => {
 		await runWithFakedTimers({}, async () => {
 
-			disposables.add(ModesRegistry.registerLanguage({ id: 'testMode' }));
+			disposables.add(languageService.registerLanguage({ id: 'testMode' }));
 
 			const inFirstCall = new Barrier();
 			const delayFirstResult = new Barrier();
@@ -502,7 +499,7 @@ suite('ModelSemanticColoring', () => {
 		await runWithFakedTimers({}, async () => {
 
 			let callCount = 0;
-			disposables.add(ModesRegistry.registerLanguage({ id: 'testMode2' }));
+			disposables.add(languageService.registerLanguage({ id: 'testMode2' }));
 			disposables.add(languageFeaturesService.documentSemanticTokensProvider.register('testMode2', new class implements DocumentSemanticTokensProvider {
 				getLegend(): SemanticTokensLegend {
 					return { tokenTypes: ['class1'], tokenModifiers: [] };

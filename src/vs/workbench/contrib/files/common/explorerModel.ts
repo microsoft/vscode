@@ -301,7 +301,9 @@ export class ExplorerItem {
 		const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.experimental.fileNesting;
 
 		// fast path when the children can be resolved sync
-		if (nestingConfig.enabled && this.nestedChildren) { return this.nestedChildren; }
+		if (nestingConfig.enabled && this.nestedChildren) {
+			return this.nestedChildren;
+		}
 
 		return (async () => {
 			if (!this._isDirectoryResolved) {
@@ -372,7 +374,10 @@ export class ExplorerItem {
 				.filter(entry =>
 					typeof (entry[0]) === 'string' && typeof (entry[1]) === 'string' && entry[0] && entry[1])
 				.map(([parentPattern, childrenPatterns]) =>
-					[parentPattern.trim(), childrenPatterns.split(',').map(p => this.getPlatformAwareName(p.trim().replace(/\u200b/g, '')))] as [string, string[]]);
+					[
+						this.getPlatformAwareName(parentPattern.trim()),
+						childrenPatterns.split(',').map(p => this.getPlatformAwareName(p.trim().replace(/\u200b/g, '')))
+					] as [string, string[]]);
 
 			this.root._fileNester = new ExplorerFileNestingTrie(patterns);
 		}
@@ -383,11 +388,13 @@ export class ExplorerItem {
 	 * Removes a child element from this folder.
 	 */
 	removeChild(child: ExplorerItem): void {
+		this.nestedChildren = undefined;
 		this.children.delete(this.getPlatformAwareName(child.name));
 	}
 
 	forgetChildren(): void {
 		this.children.clear();
+		this.nestedChildren = undefined;
 		this._isDirectoryResolved = false;
 		this._fileNester = undefined;
 	}
@@ -400,6 +407,9 @@ export class ExplorerItem {
 	 * Moves this element under a new parent element.
 	 */
 	move(newParent: ExplorerItem): void {
+		if (this.nestedParent) {
+			this.nestedParent.removeChild(this);
+		}
 		if (this._parent) {
 			this._parent.removeChild(this);
 		}

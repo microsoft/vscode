@@ -165,6 +165,21 @@ suite('SnippetController2', function () {
 		// assertContextKeys(contextKeys, false, false, false);
 	});
 
+	test('insert, nested trivial snippet', function () {
+		const ctrl = instaService.createInstance(SnippetController2, editor);
+		ctrl.insert('${1:foo}bar$0');
+		assertContextKeys(contextKeys, true, false, true);
+		assertSelections(editor, new Selection(1, 1, 1, 4), new Selection(2, 5, 2, 8));
+
+		ctrl.insert('FOO$0');
+		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
+		assertContextKeys(contextKeys, true, false, true);
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+		assertContextKeys(contextKeys, false, false, false);
+	});
+
 	test('insert, nested snippet', function () {
 		const ctrl = instaService.createInstance(SnippetController2, editor);
 		ctrl.insert('${1:foobar}$0');
@@ -452,6 +467,25 @@ suite('SnippetController2', function () {
 
 		ctrl.insert('\nfoo');
 		assertSelections(editor, new Selection(2, 8, 2, 8));
+	});
+
+	test('issue #145727: insertSnippet can put snippet selections in wrong positions (1 of 2)', function () {
+		const ctrl = instaService.createInstance(SnippetController2, editor);
+		model.setValue('');
+		CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+
+		ctrl.insert('\naProperty: aClass<${2:boolean}> = new aClass<${2:boolean}>();\n', { adjustWhitespace: false });
+		assertSelections(editor, new Selection(2, 19, 2, 26), new Selection(2, 41, 2, 48));
+	});
+
+	test('issue #145727: insertSnippet can put snippet selections in wrong positions (2 of 2)', function () {
+		const ctrl = instaService.createInstance(SnippetController2, editor);
+		model.setValue('');
+		CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+
+		ctrl.insert('\naProperty: aClass<${2:boolean}> = new aClass<${2:boolean}>();\n');
+		// This will insert \n    aProperty....
+		assertSelections(editor, new Selection(2, 23, 2, 30), new Selection(2, 45, 2, 52));
 	});
 
 	test('leading TAB by snippets won\'t replace by spaces #101870', function () {

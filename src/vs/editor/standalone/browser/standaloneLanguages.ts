@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as model from 'vs/editor/common/model';
 import * as languages from 'vs/editor/common/languages';
 import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/languages/language';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
@@ -28,6 +28,8 @@ import { LanguageSelector } from 'vs/editor/common/languageSelector';
  * Register information about a new language.
  */
 export function register(language: ILanguageExtensionPoint): void {
+	// Intentionally using the `ModesRegistry` here to avoid
+	// instantiating services too quickly in the standalone editor.
 	ModesRegistry.registerLanguage(language);
 }
 
@@ -70,7 +72,8 @@ export function setLanguageConfiguration(languageId: string, configuration: Lang
 	if (!languageService.isRegisteredLanguageId(languageId)) {
 		throw new Error(`Cannot set configuration for unknown language ${languageId}`);
 	}
-	return LanguageConfigurationRegistry.register(languageId, configuration, 100);
+	const languageConfigurationService = StandaloneServices.get(ILanguageConfigurationService);
+	return languageConfigurationService.register(languageId, configuration, 100);
 }
 
 /**

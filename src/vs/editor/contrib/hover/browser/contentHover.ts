@@ -524,6 +524,12 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 
 		const model = editor.getModel();
 		const lineNumber = anchor.range.startLineNumber;
+
+		if (lineNumber > model.getLineCount()) {
+			// invalid line
+			return [];
+		}
+
 		const maxColumn = model.getLineMaxColumn(lineNumber);
 		return editor.getLineDecorations(lineNumber).filter((d) => {
 			if (d.options.isWholeLine) {

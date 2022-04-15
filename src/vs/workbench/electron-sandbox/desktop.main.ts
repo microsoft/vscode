@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import product from 'vs/platform/product/common/product';
 import { INativeWindowConfiguration, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { Workbench } from 'vs/workbench/browser/workbench';
@@ -43,7 +44,6 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 import { safeStringify } from 'vs/base/common/objects';
 import { ISharedProcessWorkerWorkbenchService, SharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
 import { isCI, isMacintosh } from 'vs/base/common/platform';
@@ -115,11 +115,6 @@ export class DesktopMain extends Disposable {
 
 		// Window
 		this._register(instantiationService.createInstance(NativeWindow));
-
-		// Driver
-		if (this.configuration.driver) {
-			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
-		}
 	}
 
 	private getExtraClasses(): string[] {
@@ -135,7 +130,7 @@ export class DesktopMain extends Disposable {
 	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {
 
 		// Workbench Lifecycle
-		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), 'join.closeStorage')));
+		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), { id: 'join.closeStorage', label: localize('join.closeStorage', "Saving UI state") })));
 		this._register(workbench.onDidShutdown(() => this.dispose()));
 	}
 

@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import * as performance from 'vs/base/common/performance';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
@@ -23,7 +21,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtHostRpcService, ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IURITransformerService, URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostExtensionService, IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 
 export interface IExitFn {
 	(code?: number): any;
@@ -35,12 +32,10 @@ export interface IConsolePatchFn {
 
 export class ExtensionHostMain {
 
-	private _isTerminating: boolean;
 	private readonly _hostUtils: IHostUtils;
 	private readonly _rpcProtocol: RPCProtocol;
 	private readonly _extensionService: IExtHostExtensionService;
 	private readonly _logService: ILogService;
-	private readonly _disposables = new DisposableStore();
 
 	constructor(
 		protocol: IMessagePassingProtocol,
@@ -49,7 +44,6 @@ export class ExtensionHostMain {
 		uriTransformer: IURITransformer | null,
 		messagePorts?: ReadonlyMap<string, MessagePort>
 	) {
-		this._isTerminating = false;
 		this._hostUtils = hostUtils;
 		this._rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
 
@@ -66,9 +60,6 @@ export class ExtensionHostMain {
 		const instaService: IInstantiationService = new InstantiationService(services, true);
 
 		// ugly self - inject
-		this._disposables.add(instaService.invokeFunction(accessor => accessor.get(IExtHostTerminalService)));
-		this._disposables.add(instaService.invokeFunction(accessor => accessor.get(IExtHostExtensionService)));
-
 		this._logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
 
 		performance.mark(`code/extHost/didCreateServices`);
@@ -125,36 +116,7 @@ export class ExtensionHostMain {
 	}
 
 	terminate(reason: string): void {
-		if (this._isTerminating) {
-			// we are already shutting down...
-			return;
-		}
-		this._isTerminating = true;
-		this._logService.info(`extension host terminating: ${reason}`);
-		this._logService.flush();
-
-		this._disposables.dispose();
-
-		errors.setUnexpectedErrorHandler((err) => {
-			this._logService.error(err);
-		});
-
-		// Invalidate all proxies
-		this._rpcProtocol.dispose();
-
-		const extensionsDeactivated = this._extensionService.deactivateAll();
-
-		// Give extensions at most 5 seconds to wrap up any async deactivate, then exit
-		Promise.race([timeout(5000), extensionsDeactivated]).finally(() => {
-			if (this._hostUtils.pid) {
-				this._logService.info(`Extension host with pid ${this._hostUtils.pid} exiting with code 0`);
-			} else {
-				this._logService.info(`Extension host exiting with code 0`);
-			}
-			this._logService.flush();
-			this._logService.dispose();
-			this._hostUtils.exit(0);
-		});
+		this._extensionService.terminate(reason);
 	}
 
 	private static _transform(initData: IExtensionHostInitData, rpcProtocol: RPCProtocol): IExtensionHostInitData {

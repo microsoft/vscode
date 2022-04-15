@@ -640,9 +640,11 @@ export interface IEditorGroup {
 	 * Closes specific editors in this group. This may trigger a confirmation dialog if
 	 * there are dirty editors and thus returns a promise as value.
 	 *
-	 * @returns a promise when all editors are closed.
+	 * @returns a promise whether the editors were closed or not. If `true`, the editors
+	 * were closed and if `false` there was a veto closing the editors, e.g. when one
+	 * is dirty.
 	 */
-	closeEditors(editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void>;
+	closeEditors(editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<boolean>;
 
 	/**
 	 * Closes all editors from the group. This may trigger a confirmation dialog if
@@ -650,7 +652,7 @@ export interface IEditorGroup {
 	 *
 	 * @returns a promise when all editors are closed.
 	 */
-	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void>;
+	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean>;
 
 	/**
 	 * Replaces editors in this group with the provided replacement.

@@ -17,10 +17,12 @@ import { Position } from 'vs/editor/common/core/position';
 import { ICommand, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { EnterAction, IndentAction, StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { getIndentationAtPosition } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
+import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from 'vs/editor/common/languages/autoIndent';
+import { getEnterAction } from 'vs/editor/common/languages/enterAction';
 
 export class TypeOperations {
 
@@ -38,7 +40,7 @@ export class TypeOperations {
 				insertSpaces: config.insertSpaces,
 				useTabStops: config.useTabStops,
 				autoIndent: config.autoIndent
-			});
+			}, config.languageConfigurationService);
 		}
 		return commands;
 	}
@@ -53,7 +55,7 @@ export class TypeOperations {
 				insertSpaces: config.insertSpaces,
 				useTabStops: config.useTabStops,
 				autoIndent: config.autoIndent
-			});
+			}, config.languageConfigurationService);
 		}
 		return commands;
 	}
@@ -153,7 +155,7 @@ export class TypeOperations {
 		let action: IndentAction | EnterAction | null = null;
 		let indentation: string = '';
 
-		const expectedIndentAction = LanguageConfigurationRegistry.getInheritIndentForLine(config.autoIndent, model, lineNumber, false);
+		const expectedIndentAction = getInheritIndentForLine(config.autoIndent, model, lineNumber, false, config.languageConfigurationService);
 		if (expectedIndentAction) {
 			action = expectedIndentAction.action;
 			indentation = expectedIndentAction.indentation;
@@ -173,7 +175,7 @@ export class TypeOperations {
 			}
 
 			const maxColumn = model.getLineMaxColumn(lastLineNumber);
-			const expectedEnterAction = LanguageConfigurationRegistry.getEnterAction(config.autoIndent, model, new Range(lastLineNumber, maxColumn, lastLineNumber, maxColumn));
+			const expectedEnterAction = getEnterAction(config.autoIndent, model, new Range(lastLineNumber, maxColumn, lastLineNumber, maxColumn), config.languageConfigurationService);
 			if (expectedEnterAction) {
 				indentation = expectedEnterAction.indentation + expectedEnterAction.appendText;
 			}
@@ -225,7 +227,7 @@ export class TypeOperations {
 
 				const lineText = model.getLineContent(selection.startLineNumber);
 
-				if (/^\s*$/.test(lineText) && model.isCheapToTokenize(selection.startLineNumber)) {
+				if (/^\s*$/.test(lineText) && model.tokenization.isCheapToTokenize(selection.startLineNumber)) {
 					let goodIndent = this._goodIndentForLine(config, model, selection.startLineNumber);
 					goodIndent = goodIndent || '\t';
 					const possibleTypeText = config.normalizeIndentation(goodIndent);
@@ -253,7 +255,7 @@ export class TypeOperations {
 					insertSpaces: config.insertSpaces,
 					useTabStops: config.useTabStops,
 					autoIndent: config.autoIndent
-				});
+				}, config.languageConfigurationService);
 			}
 		}
 		return commands;
@@ -298,13 +300,13 @@ export class TypeOperations {
 		if (config.autoIndent === EditorAutoIndentStrategy.None) {
 			return TypeOperations._typeCommand(range, '\n', keepPosition);
 		}
-		if (!model.isCheapToTokenize(range.getStartPosition().lineNumber) || config.autoIndent === EditorAutoIndentStrategy.Keep) {
+		if (!model.tokenization.isCheapToTokenize(range.getStartPosition().lineNumber) || config.autoIndent === EditorAutoIndentStrategy.Keep) {
 			const lineText = model.getLineContent(range.startLineNumber);
 			const indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
 			return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
 		}
 
-		const r = LanguageConfigurationRegistry.getEnterAction(config.autoIndent, model, range);
+		const r = getEnterAction(config.autoIndent, model, range, config.languageConfigurationService);
 		if (r) {
 			if (r.indentAction === IndentAction.None) {
 				// Nothing special
@@ -336,7 +338,7 @@ export class TypeOperations {
 		const indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
 
 		if (config.autoIndent >= EditorAutoIndentStrategy.Full) {
-			const ir = LanguageConfigurationRegistry.getIndentForEnter(config.autoIndent, model, range, {
+			const ir = getIndentForEnter(config.autoIndent, model, range, {
 				unshiftIndent: (indent) => {
 					return TypeOperations.unshiftIndent(config, indent);
 				},
@@ -346,7 +348,7 @@ export class TypeOperations {
 				normalizeIndentation: (indent) => {
 					return config.normalizeIndentation(indent);
 				}
-			});
+			}, config.languageConfigurationService);
 
 			if (ir) {
 				let oldEndViewColumn = config.visibleColumnFromColumn(model, range.getEndPosition());
@@ -383,7 +385,7 @@ export class TypeOperations {
 		}
 
 		for (let i = 0, len = selections.length; i < len; i++) {
-			if (!model.isCheapToTokenize(selections[i].getEndPosition().lineNumber)) {
+			if (!model.tokenization.isCheapToTokenize(selections[i].getEndPosition().lineNumber)) {
 				return false;
 			}
 		}
@@ -392,15 +394,15 @@ export class TypeOperations {
 	}
 
 	private static _runAutoIndentType(config: CursorConfiguration, model: ITextModel, range: Range, ch: string): ICommand | null {
-		const currentIndentation = LanguageConfigurationRegistry.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
-		const actualIndentation = LanguageConfigurationRegistry.getIndentActionForType(config.autoIndent, model, range, ch, {
+		const currentIndentation = getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
+		const actualIndentation = getIndentActionForType(config.autoIndent, model, range, ch, {
 			shiftIndent: (indentation) => {
 				return TypeOperations.shiftIndent(config, indentation);
 			},
 			unshiftIndent: (indentation) => {
 				return TypeOperations.unshiftIndent(config, indentation);
 			},
-		});
+		}, config.languageConfigurationService);
 
 		if (actualIndentation === null) {
 			return null;
@@ -640,13 +642,13 @@ export class TypeOperations {
 				}
 			}
 
-			if (!model.isCheapToTokenize(lineNumber)) {
+			if (!model.tokenization.isCheapToTokenize(lineNumber)) {
 				// Do not force tokenization
 				return null;
 			}
 
-			model.forceTokenization(lineNumber);
-			const lineTokens = model.getLineTokens(lineNumber);
+			model.tokenization.forceTokenization(lineNumber);
+			const lineTokens = model.tokenization.getLineTokens(lineNumber);
 			const scopedLineTokens = createScopedLineTokens(lineTokens, beforeColumn - 1);
 			if (!pair.shouldAutoClose(scopedLineTokens, beforeColumn - scopedLineTokens.firstCharOffset)) {
 				return null;
@@ -662,7 +664,7 @@ export class TypeOperations {
 			//
 			const neutralCharacter = pair.findNeutralCharacter();
 			if (neutralCharacter) {
-				const tokenType = model.getTokenTypeIfInsertingCharacter(lineNumber, beforeColumn, neutralCharacter);
+				const tokenType = model.tokenization.getTokenTypeIfInsertingCharacter(lineNumber, beforeColumn, neutralCharacter);
 				if (!pair.isOK(tokenType)) {
 					return null;
 				}
@@ -755,7 +757,7 @@ export class TypeOperations {
 	}
 
 	private static _isTypeInterceptorElectricChar(config: CursorConfiguration, model: ITextModel, selections: Selection[]) {
-		if (selections.length === 1 && model.isCheapToTokenize(selections[0].getEndPosition().lineNumber)) {
+		if (selections.length === 1 && model.tokenization.isCheapToTokenize(selections[0].getEndPosition().lineNumber)) {
 			return true;
 		}
 		return false;
@@ -767,8 +769,8 @@ export class TypeOperations {
 		}
 
 		const position = selection.getPosition();
-		model.forceTokenization(position.lineNumber);
-		const lineTokens = model.getLineTokens(position.lineNumber);
+		model.tokenization.forceTokenization(position.lineNumber);
+		const lineTokens = model.tokenization.getLineTokens(position.lineNumber);
 
 		let electricAction: IElectricAction | null;
 		try {

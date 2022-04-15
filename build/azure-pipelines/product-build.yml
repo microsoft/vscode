@@ -77,6 +77,10 @@ parameters:
     displayName: "Publish to builds.code.visualstudio.com"
     type: boolean
     default: true
+  - name: VSCODE_PUBLISH_TO_MOONCAKE
+    displayName: "Publish to Azure China"
+    type: boolean
+    default: true
   - name: VSCODE_RELEASE
     displayName: "Release build if successful"
     type: boolean
@@ -107,12 +111,14 @@ variables:
     value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
   - name: VSCODE_PUBLISH
     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
+  - name: VSCODE_PUBLISH_TO_MOONCAKE
+    value: ${{ eq(parameters.VSCODE_PUBLISH_TO_MOONCAKE, true) }}
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
   - name: VSCODE_STEP_ON_IT
     value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
   - name: VSCODE_BUILD_MACOS_UNIVERSAL
-    value: ${{ and(eq(variables['VSCODE_PUBLISH'], true), eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
+    value: ${{ and(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
   - name: AZURE_CDN_URL
     value: https://az764295.vo.msecnd.net
   - name: AZURE_DOCUMENTDB_ENDPOINT
@@ -122,6 +128,8 @@ variables:
   - name: VSCODE_MIXIN_REPO
     value: microsoft/vscode-distro
   - name: skipComponentGovernanceDetection
+    value: true
+  - name: Codeql.SkipTaskAutoInjection
     value: true
 
 resources:
@@ -298,13 +306,19 @@ stages:
           BUILDSECMON_OPT_IN: true
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
-              - job: macOS
+              - job: macOSTest
                 timeoutInMinutes: 90
                 variables:
                   VSCODE_ARCH: x64
                 steps:
-                  - template: darwin/product-build-darwin.yml
-              - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
+                  - template: darwin/product-build-darwin-test.yml
+              - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
+                  - job: macOS
+                    timeoutInMinutes: 90
+                    variables:
+                      VSCODE_ARCH: x64
+                    steps:
+                      - template: darwin/product-build-darwin.yml
                   - job: macOSSign
                     dependsOn:
                       - macOS
@@ -321,7 +335,7 @@ stages:
                   VSCODE_ARCH: arm64
                 steps:
                   - template: darwin/product-build-darwin.yml
-              - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
+              - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
                   - job: macOSARM64Sign
                     dependsOn:
                       - macOSARM64
@@ -331,7 +345,7 @@ stages:
                     steps:
                       - template: darwin/product-build-darwin-sign.yml
 
-          - ${{ if eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true)) }}:
               - job: macOSUniversal
                 dependsOn:
                   - macOS
@@ -340,8 +354,8 @@ stages:
                 variables:
                   VSCODE_ARCH: universal
                 steps:
-                  - template: darwin/product-build-darwin.yml
-              - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
+                  - template: darwin/product-build-darwin-universal.yml
+              - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
                   - job: macOSUniversalSign
                     dependsOn:
                       - macOSUniversal

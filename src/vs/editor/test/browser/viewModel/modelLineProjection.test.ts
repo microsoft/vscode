@@ -352,7 +352,7 @@ suite('SplitLinesCollection', () => {
 		languageRegistration = languages.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
 		model = createTextModel(_text.join('\n'), LANGUAGE_ID);
 		// force tokenization
-		model.forceTokenization(model.getLineCount());
+		model.tokenization.forceTokenization(model.getLineCount());
 	});
 
 	teardown(() => {
@@ -988,8 +988,10 @@ function createLineBreakData(breakingLengths: number[], breakingOffsetsVisibleCo
 
 function createModel(text: string): ISimpleModel {
 	return {
-		getLineTokens: (lineNumber: number) => {
-			return null!;
+		tokenization: {
+			getLineTokens: (lineNumber: number) => {
+				return null!;
+			},
 		},
 		getLineContent: (lineNumber: number) => {
 			return text;

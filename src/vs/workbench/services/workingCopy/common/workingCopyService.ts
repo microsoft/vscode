@@ -193,7 +193,7 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		});
 	}
 
-	private unregisterWorkingCopy(workingCopy: IWorkingCopy): void {
+	protected unregisterWorkingCopy(workingCopy: IWorkingCopy): void {
 
 		// Registry (all)
 		this._workingCopies.delete(workingCopy);

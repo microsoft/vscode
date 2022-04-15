@@ -10,6 +10,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { assertType } from 'vs/base/common/types';
 import { Mimes } from 'vs/base/common/mime';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { CancellationError } from 'vs/base/common/errors';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -563,6 +564,14 @@ suite('ExtHostTypes', function () {
 		const error = types.FileSystemError.Unavailable('foo');
 		assert.ok(error instanceof Error);
 		assert.ok(error instanceof types.FileSystemError);
+	});
+
+	test('CancellationError', function () {
+		// The CancellationError-type is used internally and exported as API. Make sure that at
+		// its name and message are `Canceled`
+		const err = new CancellationError();
+		assert.strictEqual(err.name, 'Canceled');
+		assert.strictEqual(err.message, 'Canceled');
 	});
 
 	test('CodeActionKind contains', () => {

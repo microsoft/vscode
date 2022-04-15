@@ -485,7 +485,6 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 					inlineWidget
 				};
 			});
-
 		} finally {
 			this.ignoreDecorationsChangedEvent = false;
 		}
@@ -511,6 +510,12 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 				inlineWidget
 			};
 		});
+
+		for (const d of this.breakpointDecorations) {
+			if (d.inlineWidget) {
+				this.editor.layoutContentWidget(d.inlineWidget);
+			}
+		}
 	}
 
 	private async onModelDecorationsChanged(): Promise<void> {

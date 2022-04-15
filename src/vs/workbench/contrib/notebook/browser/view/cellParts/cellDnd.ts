@@ -68,7 +68,7 @@ export class CellDragAndDropController extends Disposable {
 	private readonly listOnWillScrollListener = this._register(new MutableDisposable());
 
 	constructor(
-		private readonly notebookEditor: INotebookEditorDelegate,
+		private notebookEditor: INotebookEditorDelegate,
 		private readonly notebookListContainer: HTMLElement
 	) {
 		super();
@@ -78,7 +78,7 @@ export class CellDragAndDropController extends Disposable {
 		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_START, this.onGlobalDragStart.bind(this), true));
 		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_END, this.onGlobalDragEnd.bind(this), true));
 
-		const addCellDragListener = (eventType: string, handler: (e: CellDragEvent) => void) => {
+		const addCellDragListener = (eventType: string, handler: (e: CellDragEvent) => void, useCapture = false) => {
 			this._register(DOM.addDisposableListener(
 				notebookEditor.getDomNode(),
 				eventType,
@@ -87,14 +87,21 @@ export class CellDragAndDropController extends Disposable {
 					if (cellDragEvent) {
 						handler(cellDragEvent);
 					}
-				}));
+				}, useCapture));
 		};
 
 		addCellDragListener(DOM.EventType.DRAG_OVER, event => {
+			if (!this.currentDraggedCell) {
+				return;
+			}
 			event.browserEvent.preventDefault();
+			event.browserEvent.stopImmediatePropagation();
 			this.onCellDragover(event);
-		});
+		}, true);
 		addCellDragListener(DOM.EventType.DROP, event => {
+			if (!this.currentDraggedCell) {
+				return;
+			}
 			event.browserEvent.preventDefault();
 			this.onCellDrop(event);
 		});
@@ -406,6 +413,11 @@ export class CellDragAndDropController extends Disposable {
 
 		return this.getDropInsertDirection(dragPosRatio);
 	}
+
+	override dispose() {
+		this.notebookEditor = null!;
+		super.dispose();
+	}
 }
 
 export function performCellDropEdits(editor: INotebookEditorDelegate, draggedCell: ICellViewModel, dropDirection: 'above' | 'below', draggedOverCell: ICellViewModel): void {
@@ -427,12 +439,20 @@ export function performCellDropEdits(editor: INotebookEditorDelegate, draggedCel
 		selections = [editor.getFocus()];
 	}
 
+	let originalFocusIdx = editor.getFocus().start;
+
+	// If the dragged cell is not focused/selected, ignore the current focus/selection and use the dragged idx
+	if (!selections.some(s => s.start <= draggedCellIndex && s.end > draggedCellIndex)) {
+		selections = [{ start: draggedCellIndex, end: draggedCellIndex + 1 }];
+		originalFocusIdx = draggedCellIndex;
+	}
+
 	const droppedInSelection = selections.find(range => range.start <= originalToIdx && range.end > originalToIdx);
 	if (droppedInSelection) {
 		originalToIdx = droppedInSelection.start;
 	}
 
-	const originalFocusIdx = editor.getFocus().start;
+
 	let numCells = 0;
 	let focusNewIdx = originalToIdx;
 	let newInsertionIdx = originalToIdx;
@@ -481,14 +501,11 @@ export function performCellDropEdits(editor: INotebookEditorDelegate, draggedCel
 	const finalSelection = { start: lastEdit.newIdx, end: lastEdit.newIdx + numCells };
 	const finalFocus = { start: focusNewIdx, end: focusNewIdx + 1 };
 
-	// console.log(JSON.stringify(edits));
-	// console.log(JSON.stringify(finalSelection));
-	// console.log(JSON.stringify(finalFocus));
 	editor.textModel!.applyEdits(
 		edits,
 		true,
 		{ kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() },
 		() => ({ kind: SelectionStateType.Index, focus: finalFocus, selections: [finalSelection] }),
-		undefined);
+		undefined, true);
 	editor.revealCellRangeInView(finalSelection);
 }

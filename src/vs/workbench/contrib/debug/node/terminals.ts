@@ -6,6 +6,7 @@
 import * as cp from 'child_process';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import * as platform from 'vs/base/common/platform';
+// import { IProcessTreeNode } from 'windows-process-tree';
 
 function spawnAsPromised(command: string, args: string[]): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -32,8 +33,8 @@ export async function hasChildProcesses(processId: number | undefined): Promise<
 		if (platform.isWindows) {
 			const windowsProcessTree = await import('windows-process-tree');
 			return new Promise<boolean>(resolve => {
-				windowsProcessTree.getProcessTree(processId, (processTree) => {
-					resolve(processTree.children.length > 0);
+				windowsProcessTree.getProcessTree(processId, processTree => {
+					resolve(!!processTree && processTree.children.length > 0);
 				});
 			});
 		} else {
@@ -120,7 +121,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 
 			quote = (s: string) => {
 				s = s.replace(/\"/g, '""');
-				return (s.indexOf(' ') >= 0 || s.indexOf('"') >= 0 || s.length === 0) ? `"${s}"` : s;
+				return (' "><!^&'.split('').some(char => s.includes(char)) || s.length === 0) ? `"${s}"` : s;
 			};
 
 			if (cwd) {
@@ -153,8 +154,8 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 		case ShellType.bash: {
 
 			quote = (s: string) => {
-				s = s.replace(/(["'\\\$])/g, '\\$1');
-				return (s.indexOf(' ') >= 0 || s.indexOf(';') >= 0 || s.length === 0) ? `"${s}"` : s;
+				s = s.replace(/(["'\\\$!><#()\[\]*&^])/g, '\\$1');
+				return (' ;'.split('').some(char => s.includes(char)) || s.length === 0) ? `"${s}"` : s;
 			};
 
 			const hardQuote = (s: string) => {

@@ -226,6 +226,16 @@ export interface IStoredFileWorkingCopySaveOptions extends ISaveOptions {
 	readonly ignoreErrorHandler?: boolean;
 }
 
+export interface IStoredFileWorkingCopyResolver {
+
+	/**
+	 * Resolves the working copy in a safe way from an external
+	 * working copy manager that can make sure multiple parallel
+	 * resolves execute properly.
+	 */
+	(options?: IStoredFileWorkingCopyResolveOptions): Promise<void>;
+}
+
 export interface IStoredFileWorkingCopyResolveOptions {
 
 	/**
@@ -306,6 +316,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		resource: URI,
 		readonly name: string,
 		private readonly modelFactory: IStoredFileWorkingCopyModelFactory<M>,
+		private readonly externalResolver: IStoredFileWorkingCopyResolver,
 		@IFileService fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
@@ -714,6 +725,22 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 		// Emit as event
 		this._onDidChangeContent.fire();
+	}
+
+	private async forceResolveFromFile(): Promise<void> {
+		if (this.isDisposed()) {
+			return; // return early when the working copy is invalid
+		}
+
+		// We go through the resolver to make
+		// sure this kind of `resolve` is properly
+		// running in sequence with any other running
+		// `resolve` if any, including subsequent runs
+		// that are triggered right after.
+
+		await this.externalResolver({
+			forceReadFromFile: true
+		});
 	}
 
 	//#endregion
@@ -1132,7 +1159,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		const softUndo = options?.soft;
 		if (!softUndo) {
 			try {
-				await this.resolve({ forceReadFromFile: true });
+				await this.forceResolveFromFile();
 			} catch (error) {
 
 				// FileNotFound means the file got deleted meanwhile, so ignore it

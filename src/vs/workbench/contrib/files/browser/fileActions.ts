@@ -53,7 +53,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
-export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
+export const NEW_FILE_LABEL = nls.localize('newFile', "New Text File");
 export const NEW_FOLDER_COMMAND_ID = 'explorer.newFolder';
 export const NEW_FOLDER_LABEL = nls.localize('newFolder', "New Folder");
 export const TRIGGER_RENAME_LABEL = nls.localize('rename', "Rename");
@@ -575,7 +575,7 @@ export class FocusFilesExplorer extends Action {
 export class ShowActiveFileInExplorer extends Action {
 
 	static readonly ID = 'workbench.files.action.showActiveFileInExplorer';
-	static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Side Bar");
+	static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Explorer View");
 
 	constructor(
 		id: string,

@@ -18,7 +18,7 @@ export function testCommand(
 	lines: string[],
 	languageId: string | null,
 	selection: Selection,
-	commandFactory: (selection: Selection) => ICommand,
+	commandFactory: (accessor: ServicesAccessor, selection: Selection) => ICommand,
 	expectedLines: string[],
 	expectedSelection: Selection,
 	forceTokenization?: boolean,
@@ -29,17 +29,18 @@ export function testCommand(
 	if (prepare) {
 		instantiationService.invokeFunction(prepare, disposables);
 	}
-	const model = instantiateTextModel(instantiationService, lines.join('\n'), languageId);
+	const model = disposables.add(instantiateTextModel(instantiationService, lines.join('\n'), languageId));
 	const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model));
 	const viewModel = editor.getViewModel()!;
 
 	if (forceTokenization) {
-		model.forceTokenization(model.getLineCount());
+		model.tokenization.forceTokenization(model.getLineCount());
 	}
 
 	viewModel.setSelections('tests', [selection]);
 
-	viewModel.executeCommand(commandFactory(viewModel.getSelection()), 'tests');
+	const command = instantiationService.invokeFunction((accessor) => commandFactory(accessor, viewModel.getSelection()));
+	viewModel.executeCommand(command, 'tests');
 
 	assert.deepStrictEqual(model.getLinesContent(), expectedLines);
 

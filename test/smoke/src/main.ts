@@ -13,7 +13,7 @@ import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
 import * as vscodetest from '@vscode/test-electron';
 import fetch from 'node-fetch';
-import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog } from '../../automation';
+import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog, getDevElectronPath, getBuildElectronPath, getBuildVersion } from '../../automation';
 import { retry, timeout } from './utils';
 
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
@@ -28,7 +28,7 @@ import { setup as setupLocalizationTests } from './areas/workbench/localization.
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 
-const repoPath = path.join(__dirname, '..', '..', '..');
+const rootPath = path.join(__dirname, '..', '..', '..');
 
 const [, , ...args] = process.argv;
 const opts = minimist(args, {
@@ -44,7 +44,8 @@ const opts = minimist(args, {
 		'verbose',
 		'remote',
 		'web',
-		'headless'
+		'headless',
+		'tracing'
 	],
 	default: {
 		verbose: false
@@ -54,11 +55,27 @@ const opts = minimist(args, {
 	remote?: boolean;
 	headless?: boolean;
 	web?: boolean;
+	tracing?: boolean;
 	build?: string;
 	'stable-build'?: string;
 	browser?: string;
 	electronArgs?: string;
 };
+
+const logsRootPath = (() => {
+	const logsParentPath = path.join(rootPath, '.build', 'logs');
+
+	let logsName: string;
+	if (opts.web) {
+		logsName = 'smoke-tests-browser';
+	} else if (opts.remote) {
+		logsName = 'smoke-tests-remote';
+	} else {
+		logsName = 'smoke-tests-electron';
+	}
+
+	return path.join(logsParentPath, logsName);
+})();
 
 const logger = createLogger();
 
@@ -70,10 +87,12 @@ function createLogger(): Logger {
 		loggers.push(new ConsoleLogger());
 	}
 
+	// Prepare logs rot path
+	fs.rmSync(logsRootPath, { recursive: true, force: true, maxRetries: 3 });
+	mkdirp.sync(logsRootPath);
+
 	// Always log to log file
-	const logPath = path.join(repoPath, '.build', 'logs', opts.web ? 'smoke-tests-browser' : opts.remote ? 'smoke-tests-remote' : 'smoke-tests');
-	mkdirp.sync(logPath);
-	loggers.push(new FileLogger(path.join(logPath, 'smoke-test-runner.log')));
+	loggers.push(new FileLogger(path.join(logsRootPath, 'smoke-test-runner.log')));
 
 	return new MultiLogger(loggers);
 }
@@ -122,49 +141,6 @@ function parseVersion(version: string): { major: number; minor: number; patch: n
 // #### Electron Smoke Tests ####
 //
 if (!opts.web) {
-
-	function getDevElectronPath(): string {
-		const buildPath = path.join(repoPath, '.build');
-		const product = require(path.join(repoPath, 'product.json'));
-
-		switch (process.platform) {
-			case 'darwin':
-				return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
-			case 'linux':
-				return path.join(buildPath, 'electron', `${product.applicationName}`);
-			case 'win32':
-				return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
-			default:
-				throw new Error('Unsupported platform.');
-		}
-	}
-
-	function getBuildElectronPath(root: string): string {
-		switch (process.platform) {
-			case 'darwin':
-				return path.join(root, 'Contents', 'MacOS', 'Electron');
-			case 'linux': {
-				const product = require(path.join(root, 'resources', 'app', 'product.json'));
-				return path.join(root, product.applicationName);
-			}
-			case 'win32': {
-				const product = require(path.join(root, 'resources', 'app', 'product.json'));
-				return path.join(root, `${product.nameShort}.exe`);
-			}
-			default:
-				throw new Error('Unsupported platform.');
-		}
-	}
-
-	function getBuildVersion(root: string): string {
-		switch (process.platform) {
-			case 'darwin':
-				return require(path.join(root, 'Contents', 'Resources', 'app', 'package.json')).version;
-			default:
-				return require(path.join(root, 'resources', 'app', 'package.json')).version;
-		}
-	}
-
 	let testCodePath = opts.build;
 	let electronPath: string;
 
@@ -174,7 +150,7 @@ if (!opts.web) {
 	} else {
 		testCodePath = getDevElectronPath();
 		electronPath = testCodePath;
-		process.env.VSCODE_REPOSITORY = repoPath;
+		process.env.VSCODE_REPOSITORY = rootPath;
 		process.env.VSCODE_DEV = '1';
 		process.env.VSCODE_CLI = '1';
 	}
@@ -213,7 +189,7 @@ else {
 	}
 
 	if (!testCodeServerPath) {
-		process.env.VSCODE_REPOSITORY = repoPath;
+		process.env.VSCODE_REPOSITORY = rootPath;
 		process.env.VSCODE_DEV = '1';
 		process.env.VSCODE_CLI = '1';
 
@@ -249,11 +225,6 @@ async function setupRepository(): Promise<void> {
 			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath });
 			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
 		}
-
-		// None of the current smoke tests have a dependency on the packages.
-		// If new smoke tests are added that need the packages, uncomment this.
-		// logger.log('Running yarn...');
-		// cp.execSync('yarn', { cwd: workspacePath, stdio: 'inherit' });
 	}
 }
 
@@ -343,7 +314,7 @@ async function setup(): Promise<void> {
 	logger.log('Smoketest setup done!\n');
 }
 
-// Before main suite (before all tests)
+// Before all tests run setup
 before(async function () {
 	this.timeout(5 * 60 * 1000); // increase since we download VSCode
 
@@ -353,14 +324,15 @@ before(async function () {
 		workspacePath,
 		userDataDir,
 		extensionsPath,
-		waitTime: parseInt(opts['wait-time'] || '0') || 20,
 		logger,
+		logsPath: path.join(logsRootPath, 'suite_unknown'),
 		verbose: opts.verbose,
 		remote: opts.remote,
 		web: opts.web,
+		tracing: opts.tracing,
 		headless: opts.headless,
 		browser: opts.browser,
-		extraArgs: (opts.electronArgs || '').split(' ').map(a => a.trim()).filter(a => !!a)
+		extraArgs: (opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg)
 	};
 
 	await setup();
@@ -392,14 +364,14 @@ after(async function () {
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web) { setupDataLossTests(() => opts['stable-build'] /* Do not change, deferred for a reason! */, logger); }
-	if (!opts.web) { setupPreferencesTests(logger); }
+	setupPreferencesTests(logger);
 	setupSearchTests(logger);
 	setupNotebookTests(logger);
 	setupLanguagesTests(logger);
-	if (opts.web) { setupTerminalTests(logger); } // TODO@daniel TODO@meggan: Enable terminal tests for non-web when the desktop driver is moved to playwright
-	setupStatusbarTests(!!opts.web, logger);
+	if (opts.web) { setupTerminalTests(logger); } // Tests require playwright driver (https://github.com/microsoft/vscode/issues/146811)
+	setupStatusbarTests(logger);
 	if (quality !== Quality.Dev) { setupExtensionTests(logger); }
-	if (!opts.web) { setupMultirootTests(logger); }
+	setupMultirootTests(logger);
 	if (!opts.web && !opts.remote && quality !== Quality.Dev) { setupLocalizationTests(logger); }
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
 });

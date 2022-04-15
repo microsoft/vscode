@@ -8,7 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { InternalTimelineOptions, ITimelineService, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider } from 'vs/workbench/contrib/timeline/common/timeline';
+import { ITimelineService, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider } from 'vs/workbench/contrib/timeline/common/timeline';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { URI } from 'vs/base/common/uri';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -77,12 +77,12 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 	private registerListeners(): void {
 
 		// History changes
-		this._register(this.workingCopyHistoryService.onDidAddEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, false /* entry added */)));
-		this._register(this.workingCopyHistoryService.onDidChangeEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, false /* entry changed */)));
-		this._register(this.workingCopyHistoryService.onDidReplaceEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, true /* entry replaced */)));
-		this._register(this.workingCopyHistoryService.onDidRemoveEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, true /* entry removed */)));
-		this._register(this.workingCopyHistoryService.onDidRemoveEntries(() => this.onDidChangeWorkingCopyHistoryEntry(undefined /* all entries */, true /* entry removed */)));
-		this._register(this.workingCopyHistoryService.onDidMoveEntries(() => this.onDidChangeWorkingCopyHistoryEntry(undefined /* all entries */, true /* entry moved */)));
+		this._register(this.workingCopyHistoryService.onDidAddEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry)));
+		this._register(this.workingCopyHistoryService.onDidChangeEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry)));
+		this._register(this.workingCopyHistoryService.onDidReplaceEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry)));
+		this._register(this.workingCopyHistoryService.onDidRemoveEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry)));
+		this._register(this.workingCopyHistoryService.onDidRemoveEntries(() => this.onDidChangeWorkingCopyHistoryEntry(undefined /* all entries */)));
+		this._register(this.workingCopyHistoryService.onDidMoveEntries(() => this.onDidChangeWorkingCopyHistoryEntry(undefined /* all entries */)));
 
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -92,17 +92,17 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		}));
 	}
 
-	private onDidChangeWorkingCopyHistoryEntry(entry: IWorkingCopyHistoryEntry | undefined, reset: boolean): void {
+	private onDidChangeWorkingCopyHistoryEntry(entry: IWorkingCopyHistoryEntry | undefined): void {
 
 		// Re-emit as timeline change event
 		this._onDidChange.fire({
 			id: LocalHistoryTimeline.ID,
 			uri: entry?.workingCopy.resource,
-			reset
+			reset: true // there is no other way to indicate that items might have been replaced/removed
 		});
 	}
 
-	async provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline> {
+	async provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken): Promise<Timeline> {
 		const items: TimelineItem[] = [];
 
 		// Try to convert the provided `uri` into a form that is likely
@@ -151,7 +151,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		return {
 			handle: entry.id,
 			label: SaveSourceRegistry.getSourceLabel(entry.source),
-			tooltip: new MarkdownString(`$(history) ${LOCAL_HISTORY_DATE_FORMATTER.format(entry.timestamp)}\n\n${SaveSourceRegistry.getSourceLabel(entry.source)}`, { supportThemeIcons: true }),
+			tooltip: new MarkdownString(`$(history) ${LOCAL_HISTORY_DATE_FORMATTER.value.format(entry.timestamp)}\n\n${SaveSourceRegistry.getSourceLabel(entry.source)}`, { supportThemeIcons: true }),
 			source: LocalHistoryTimeline.ID,
 			timestamp: entry.timestamp,
 			themeIcon: LOCAL_HISTORY_ICON_ENTRY,

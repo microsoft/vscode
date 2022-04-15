@@ -12,12 +12,12 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { WorkingCopyHistoryTracker } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryTracker';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor, IWorkingCopyHistoryEvent, IWorkingCopyHistoryService, MAX_PARALLEL_HISTORY_IO_OPS } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
-import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { URI } from 'vs/base/common/uri';
 import { DeferredPromise, Limiter } from 'vs/base/common/async';
 import { dirname, extname, isEqual, joinPath } from 'vs/base/common/resources';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { hash } from 'vs/base/common/hash';
 import { indexOfPath, randomPath } from 'vs/base/common/extpath';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -40,6 +40,17 @@ interface ISerializedWorkingCopyHistoryModelEntry {
 	readonly id: string;
 	readonly timestamp: number;
 	readonly source?: SaveSource;
+}
+
+
+export interface IWorkingCopyHistoryModelOptions {
+
+	/**
+	 * Whether to flush when the model changes. If not
+	 * configured, `model.store()` has to be called
+	 * explicitly.
+	 */
+	flushOnChange: boolean;
 }
 
 export class WorkingCopyHistoryModel {
@@ -65,7 +76,10 @@ export class WorkingCopyHistoryModel {
 
 	private historyEntriesNameMatcher: RegExp | undefined = undefined;
 
-	private shouldStore: boolean = false;
+	private versionId = 0;
+	private storedVersionId = this.versionId;
+
+	private readonly storeLimiter = new Limiter(1);
 
 	constructor(
 		workingCopyResource: URI,
@@ -74,6 +88,7 @@ export class WorkingCopyHistoryModel {
 		private readonly entryChangedEmitter: Emitter<IWorkingCopyHistoryEvent>,
 		private readonly entryReplacedEmitter: Emitter<IWorkingCopyHistoryEvent>,
 		private readonly entryRemovedEmitter: Emitter<IWorkingCopyHistoryEvent>,
+		private readonly options: IWorkingCopyHistoryModelOptions,
 		private readonly fileService: IFileService,
 		private readonly labelService: ILabelService,
 		private readonly logService: ILogService,
@@ -118,15 +133,24 @@ export class WorkingCopyHistoryModel {
 			}
 		}
 
+		let entry: IWorkingCopyHistoryEntry;
+
 		// Replace lastest entry in history
 		if (entryToReplace) {
-			return this.doReplaceEntry(entryToReplace, timestamp, token);
+			entry = await this.doReplaceEntry(entryToReplace, timestamp, token);
 		}
 
 		// Add entry to history
 		else {
-			return this.doAddEntry(source, timestamp, token);
+			entry = await this.doAddEntry(source, timestamp, token);
 		}
+
+		// Flush now if configured
+		if (this.options.flushOnChange && !token.isCancellationRequested) {
+			await this.store(token);
+		}
+
+		return entry;
 	}
 
 	private async doAddEntry(source: SaveSource, timestamp: number, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
@@ -149,8 +173,8 @@ export class WorkingCopyHistoryModel {
 		};
 		this.entries.push(entry);
 
-		// Mark as in need to be stored to disk
-		this.shouldStore = true;
+		// Update version ID of model to use for storing later
+		this.versionId++;
 
 		// Events
 		this.entryAddedEmitter.fire({ entry });
@@ -167,8 +191,8 @@ export class WorkingCopyHistoryModel {
 		// Update entry
 		entry.timestamp = timestamp;
 
-		// Mark as in need to be stored to disk
-		this.shouldStore = true;
+		// Update version ID of model to use for storing later
+		this.versionId++;
 
 		// Events
 		this.entryReplacedEmitter.fire({ entry });
@@ -196,11 +220,16 @@ export class WorkingCopyHistoryModel {
 		// Remove from model
 		this.entries.splice(index, 1);
 
-		// Mark as in need to be stored to disk
-		this.shouldStore = true;
+		// Update version ID of model to use for storing later
+		this.versionId++;
 
 		// Events
 		this.entryRemovedEmitter.fire({ entry });
+
+		// Flush now if configured
+		if (this.options.flushOnChange && !token.isCancellationRequested) {
+			await this.store(token);
+		}
 
 		return true;
 	}
@@ -222,11 +251,16 @@ export class WorkingCopyHistoryModel {
 		// Update entry
 		entry.source = properties.source;
 
-		// Mark as in need to be stored to disk
-		this.shouldStore = true;
+		// Update version ID of model to use for storing later
+		this.versionId++;
 
 		// Events
 		this.entryChangedEmitter.fire({ entry });
+
+		// Flush now if configured
+		if (this.options.flushOnChange && !token.isCancellationRequested) {
+			await this.store(token);
+		}
 	}
 
 	async getEntries(): Promise<readonly IWorkingCopyHistoryEntry[]> {
@@ -353,11 +387,28 @@ export class WorkingCopyHistoryModel {
 	}
 
 	async store(token: CancellationToken): Promise<void> {
-		const historyEntriesFolder = assertIsDefined(this.historyEntriesFolder);
-
-		if (!this.shouldStore) {
-			return; // fast return to avoid disk access when nothing changed
+		if (!this.shouldStore()) {
+			return;
 		}
+
+		// Use a `Limiter` to prevent multiple `store` operations
+		// potentially running at the same time
+
+		await this.storeLimiter.queue(async () => {
+			if (token.isCancellationRequested || !this.shouldStore()) {
+				return;
+			}
+
+			return this.doStore(token);
+		});
+	}
+
+	private shouldStore(): boolean {
+		return this.storedVersionId !== this.versionId;
+	}
+
+	private async doStore(token: CancellationToken): Promise<void> {
+		const historyEntriesFolder = assertIsDefined(this.historyEntriesFolder);
 
 		// Make sure to await resolving when persisting
 		await this.resolveEntriesOnce();
@@ -370,6 +421,7 @@ export class WorkingCopyHistoryModel {
 		await this.cleanUpEntries();
 
 		// Without entries, remove the history folder
+		const storedVersion = this.versionId;
 		if (this.entries.length === 0) {
 			try {
 				await this.fileService.del(historyEntriesFolder, { recursive: true });
@@ -383,8 +435,8 @@ export class WorkingCopyHistoryModel {
 			await this.writeEntriesFile();
 		}
 
-		// Mark as being up to date on disk
-		this.shouldStore = false;
+		// Mark as stored version
+		this.storedVersionId = storedVersion;
 	}
 
 	private async cleanUpEntries(): Promise<void> {
@@ -516,7 +568,7 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 	constructor(
 		@IFileService protected readonly fileService: IFileService,
 		@IRemoteAgentService protected readonly remoteAgentService: IRemoteAgentService,
-		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@ILabelService protected readonly labelService: ILabelService,
 		@ILogService protected readonly logService: ILogService,
@@ -525,8 +577,6 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		super();
 
 		this.resolveLocalHistoryHome();
-
-		this._register(this.fileService.onDidRunOperation(e => this.onDidRunFileOperation(e)));
 	}
 
 	private async resolveLocalHistoryHome(): Promise<void> {
@@ -550,26 +600,18 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		this.localHistoryHome.complete(historyHome);
 	}
 
-	private async onDidRunFileOperation(e: FileOperationEvent): Promise<void> {
-		if (!e.isOperation(FileOperation.MOVE)) {
-			return; // only interested in move operations
-		}
-
-		const source = e.resource;
-		const target = e.target.resource;
-
-		const limiter = new Limiter(MAX_PARALLEL_HISTORY_IO_OPS);
-		const promises = [];
+	async moveEntries(source: URI, target: URI): Promise<URI[]> {
+		const limiter = new Limiter<URI>(MAX_PARALLEL_HISTORY_IO_OPS);
+		const promises: Promise<URI>[] = [];
 
 		for (const [resource, model] of this.models) {
 			if (!this.uriIdentityService.extUri.isEqualOrParent(resource, source)) {
 				continue; // model does not match moved resource
 			}
 
-
 			// Determine new resulting target resource
 			let targetResource: URI;
-			if (isEqual(source, resource)) {
+			if (this.uriIdentityService.extUri.isEqual(source, resource)) {
 				targetResource = target; // file got moved
 			} else {
 				const index = indexOfPath(resource.path, source.path);
@@ -578,28 +620,30 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 
 			// Figure out save source
 			let saveSource: SaveSource;
-			if (isEqual(dirname(resource), dirname(targetResource))) {
+			if (this.uriIdentityService.extUri.isEqual(dirname(resource), dirname(targetResource))) {
 				saveSource = WorkingCopyHistoryService.FILE_RENAMED_SOURCE;
 			} else {
 				saveSource = WorkingCopyHistoryService.FILE_MOVED_SOURCE;
 			}
 
 			// Move entries to target queued
-			promises.push(limiter.queue(() => this.moveEntries(model, saveSource, resource, targetResource)));
+			promises.push(limiter.queue(() => this.doMoveEntries(model, saveSource, resource, targetResource)));
 		}
 
 		if (!promises.length) {
-			return;
+			return [];
 		}
 
 		// Await move operations
-		await Promise.all(promises);
+		const resources = await Promise.all(promises);
 
 		// Events
 		this._onDidMoveEntries.fire();
+
+		return resources;
 	}
 
-	private async moveEntries(model: WorkingCopyHistoryModel, source: SaveSource, sourceWorkingCopyResource: URI, targetWorkingCopyResource: URI): Promise<void> {
+	private async doMoveEntries(model: WorkingCopyHistoryModel, source: SaveSource, sourceWorkingCopyResource: URI, targetWorkingCopyResource: URI): Promise<URI> {
 
 		// Move to target via model
 		await model.moveEntries(targetWorkingCopyResource, source, CancellationToken.None);
@@ -607,6 +651,8 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		// Update model in our map
 		this.models.delete(sourceWorkingCopyResource);
 		this.models.set(targetWorkingCopyResource, model);
+
+		return targetWorkingCopyResource;
 	}
 
 	async addEntry({ resource, source, timestamp }: IWorkingCopyHistoryEntryDescriptor, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined> {
@@ -728,16 +774,15 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 
 		let model = this.models.get(resource);
 		if (!model) {
-			model = this.createModel(resource, historyHome);
+			model = new WorkingCopyHistoryModel(resource, historyHome, this._onDidAddEntry, this._onDidChangeEntry, this._onDidReplaceEntry, this._onDidRemoveEntry, this.getModelOptions(), this.fileService, this.labelService, this.logService, this.configurationService);
 			this.models.set(resource, model);
 		}
 
 		return model;
 	}
 
-	protected createModel(resource: URI, historyHome: URI): WorkingCopyHistoryModel {
-		return new WorkingCopyHistoryModel(resource, historyHome, this._onDidAddEntry, this._onDidChangeEntry, this._onDidReplaceEntry, this._onDidRemoveEntry, this.fileService, this.labelService, this.logService, this.configurationService);
-	}
+	protected abstract getModelOptions(): IWorkingCopyHistoryModelOptions;
+
 }
 
 // Register History Tracker

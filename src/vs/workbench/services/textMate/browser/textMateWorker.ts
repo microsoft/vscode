@@ -25,6 +25,8 @@ export interface IValidGrammarDefinitionDTO {
 	embeddedLanguages: IValidEmbeddedLanguagesMap;
 	tokenTypes: IValidTokenTypeMap;
 	injectTo?: string[];
+	balancedBracketSelectors: string[];
+	unbalancedBracketSelectors: string[];
 }
 
 export interface ICreateData {
@@ -143,6 +145,8 @@ export class TextMateWorker {
 				embeddedLanguages: def.embeddedLanguages,
 				tokenTypes: def.tokenTypes,
 				injectTo: def.injectTo,
+				balancedBracketSelectors: def.balancedBracketSelectors,
+				unbalancedBracketSelectors: def.unbalancedBracketSelectors,
 			};
 		});
 		this._grammarFactory = this._loadTMGrammarFactory(grammarDefinitions);
