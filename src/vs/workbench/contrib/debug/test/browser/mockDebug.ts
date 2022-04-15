@@ -167,6 +167,7 @@ export class MockDebugService implements IDebugService {
 	}
 }
 
+// @ts-ignore
 export class MockSession implements IDebugSession {
 	getMemory(memoryReference: string): IMemoryRegion {
 		throw new Error('Method not implemented.');

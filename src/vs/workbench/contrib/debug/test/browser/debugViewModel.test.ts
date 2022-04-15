@@ -21,6 +21,7 @@ suite('Debug - View Model', () => {
 		assert.strictEqual(model.focusedStackFrame, undefined);
 		assert.strictEqual(model.focusedThread, undefined);
 		const session = new MockSession();
+		// @ts-ignore
 		const thread = new Thread(session, 'myThread', 1);
 		const source = new Source({
 			name: 'internalModule.js',
@@ -28,6 +29,7 @@ suite('Debug - View Model', () => {
 			presentationHint: 'deemphasize'
 		}, 'aDebugSessionId', mockUriIdentityService);
 		const frame = new StackFrame(thread, 1, source, 'app.js', 'normal', { startColumn: 1, startLineNumber: 1, endColumn: 1, endLineNumber: 1 }, 0, true);
+		// @ts-ignore
 		model.setFocus(frame, thread, session, false);
 
 		assert.strictEqual(model.focusedStackFrame!.getId(), frame.getId());
