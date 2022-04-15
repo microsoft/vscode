@@ -166,7 +166,7 @@ import 'vs/workbench/contrib/offline/browser/offline.contribution';
 //
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-import { create, commands, env } from 'vs/workbench/browser/web.factory';
+import { create, commands, env, window } from 'vs/workbench/browser/web.factory';
 import { IWorkbench, ICommand, ICommonTelemetryPropertiesResolver, IDefaultEditor, IDefaultLayout, IDefaultView, IDevelopmentOptions, IExternalUriResolver, IExternalURLOpener, IHomeIndicator, IInitialColorTheme, IPosition, IProductQualityChangeHandler, IRange, IResourceUriProvider, ISettingsSyncOptions, IShowPortCandidate, ITunnel, ITunnelFactory, ITunnelOptions, ITunnelProvider, IWelcomeBanner, IWelcomeBannerAction, IWindowIndicator, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
@@ -180,7 +180,6 @@ import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/url
 import type { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
 // eslint-disable-next-line no-duplicate-imports
 import type { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
-
 
 export {
 
@@ -247,6 +246,9 @@ export {
 	ICommand,
 	commands,
 	Menu,
+
+	// Window
+	window,
 
 	// Branding
 	IHomeIndicator,

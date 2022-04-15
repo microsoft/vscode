@@ -895,7 +895,7 @@ registerAction2(class extends ViewAction<Repl> {
 					session = stopppedChildSession;
 				}
 			}
-			await debugService.focusStackFrame(undefined, undefined, session, true);
+			await debugService.focusStackFrame(undefined, undefined, session, { explicit: true });
 		}
 		// Need to select the session in the view since the focussed session might not have changed
 		await view.selectSession(session);

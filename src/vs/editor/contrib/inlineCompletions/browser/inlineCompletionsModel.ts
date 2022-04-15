@@ -15,7 +15,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
+import { Command, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
 import { BaseGhostTextWidgetModel, GhostText, GhostTextReplacement, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
@@ -32,6 +32,7 @@ import { assertNever } from 'vs/base/common/types';
 import { matchesSubString } from 'vs/base/common/filters';
 import { getReadonlyEmptyArray } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -84,7 +85,8 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 
 		this._register(
 			this.editor.onDidChangeCursorPosition((e) => {
-				if (this.session && !this.session.isValid) {
+				if (e.reason === CursorChangeReason.Explicit ||
+					this.session && !this.session.isValid) {
 					this.hide();
 				}
 			})
@@ -252,6 +254,9 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}));
 
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
+			if (e.reason === CursorChangeReason.Explicit) {
+				return;
+			}
 			// Ghost text depends on the cursor position
 			this.cache.value?.updateRanges();
 			if (this.cache.value) {
@@ -537,6 +542,11 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}
 
 		this.onDidChangeEmitter.fire();
+	}
+
+	public get commands(): Command[] {
+		const lists = new Set(this.cache.value?.completions.map(c => c.inlineCompletion.sourceInlineCompletions) || []);
+		return [...lists].flatMap(l => l.commands || []);
 	}
 }
 

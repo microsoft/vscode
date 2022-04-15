@@ -98,7 +98,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'inspect-brk-search': { type: 'string', deprecates: ['debugBrkSearch'] },
 	'export-default-configuration': { type: 'string' },
 	'install-source': { type: 'string' },
-	'driver': { type: 'string' },
 	'enable-smoke-test-driver': { type: 'boolean' },
 	'logExtensionHostCommunication': { type: 'boolean' },
 	'skip-release-notes': { type: 'boolean' },

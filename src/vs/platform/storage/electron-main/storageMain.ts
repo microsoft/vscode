@@ -222,9 +222,11 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 				this.logService.warn(`[storage main] detected slow close() operation: Time: ${watch.elapsed()}ms, DB size: ${dbSize}b, Large Keys: ${largestEntries}`);
 
 				type StorageSlowCloseClassification = {
-					duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; owner: 'bpasero'; comment: 'The time it took to close the DB in ms.' };
-					size: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; owner: 'bpasero'; comment: 'The size of the DB in bytes.' };
-					largestEntries: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; owner: 'bpasero'; comment: 'The 5 largest keys in the DB.' };
+					duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The time it took to close the DB in ms.' };
+					size: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The size of the DB in bytes.' };
+					largestEntries: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The 5 largest keys in the DB.' };
+					owner: 'bpasero';
+					comment: 'Used to gain insight into reasons a database may be slow. This is used to assist with further optimizations';
 				};
 
 				type StorageSlowCloseEvent = {

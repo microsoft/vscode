@@ -680,6 +680,10 @@ export interface CompletionItem {
 	 * A command that should be run upon acceptance of this item.
 	 */
 	command?: Command;
+	/**
+	 * @internal
+	 */
+	extensionId?: ExtensionIdentifier;
 
 	/**
 	 * @internal
@@ -829,6 +833,10 @@ export interface InlineCompletion {
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 	readonly items: readonly TItem[];
+	/**
+	 * A list of commands associated with the inline completions of this list.
+	 */
+	readonly commands?: Command[];
 }
 
 export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {

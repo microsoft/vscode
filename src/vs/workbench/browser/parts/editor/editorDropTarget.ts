@@ -3,38 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DataTransfers } from 'vs/base/browser/dnd';
+import { addDisposableListener, DragAndDropObserver, EventHelper, EventType, isAncestor } from 'vs/base/browser/dom';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { toDisposable } from 'vs/base/common/lifecycle';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
+import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import 'vs/css!./media/editordroptarget';
 import { localize } from 'vs/nls';
-import { Extensions as DragAndDropExtensions, LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, containsDragType, CodeDataTransfers, DraggedTreeItemsIdentifier, extractTreeDropData, IDragAndDropContributionRegistry } from 'vs/workbench/browser/dnd';
-import { addDisposableListener, EventType, EventHelper, isAncestor, DragAndDropObserver } from 'vs/base/browser/dom';
-import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState } from 'vs/workbench/browser/parts/editor/editor';
-import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorIdentifier, EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { GroupDirection, IEditorGroupsService, IMergeGroupOptions, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
-import { isTemporaryWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+import { isTemporaryWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { CodeDataTransfers, containsDragType, DraggedEditorGroupIdentifier, DraggedEditorIdentifier, DraggedTreeItemsIdentifier, Extensions as DragAndDropExtensions, extractTreeDropData, IDragAndDropContributionRegistry, LocalSelectionTransfer, ResourcesDropHandler } from 'vs/workbench/browser/dnd';
+import { fillActiveEditorViewState, IEditorGroupsAccessor, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BORDER, EDITOR_DROP_INTO_PROMPT_FOREGROUND } from 'vs/workbench/common/theme';
+import { GroupDirection, IEditorGroupsService, IMergeGroupOptions, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
 }
 
-function isDropIntoEditorEnabled(configurationService: IConfigurationService) {
+function isDropIntoEditorEnabledGlobally(configurationService: IConfigurationService) {
 	return configurationService.getValue<boolean>('workbench.editor.dropIntoEditor.enabled');
 }
 
-function isDragIntoEditorEvent(configurationService: IConfigurationService, e: DragEvent): boolean {
-	return isDropIntoEditorEnabled(configurationService) && e.shiftKey;
+function isDragIntoEditorEvent(e: DragEvent): boolean {
+	return e.shiftKey;
 }
 
 class DropOverlay extends Themable {
@@ -54,6 +55,8 @@ class DropOverlay extends Themable {
 	private readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 	private readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedTreeItemsIdentifier>();
 
+	private readonly enableDropIntoEditor: boolean;
+
 	constructor(
 		private accessor: IEditorGroupsAccessor,
 		private groupView: IEditorGroupView,
@@ -68,6 +71,8 @@ class DropOverlay extends Themable {
 		super(themeService);
 
 		this.cleanupOverlayScheduler = this._register(new RunOnceScheduler(() => this.dispose(), 300));
+
+		this.enableDropIntoEditor = isDropIntoEditorEnabledGlobally(this.configurationService) && this.isDropIntoActiveEditorEnabled();
 
 		this.create();
 	}
@@ -97,10 +102,9 @@ class DropOverlay extends Themable {
 		this.overlay.classList.add('editor-group-overlay-indicator');
 		container.appendChild(this.overlay);
 
-		if (isDropIntoEditorEnabled(this.configurationService)) {
-			this.dropIntoPromptElement = document.createElement('span');
+		if (this.enableDropIntoEditor) {
+			this.dropIntoPromptElement = renderFormattedText(localize('dropIntoEditorPrompt', "Hold __shift__ to drop into editor"), {});
 			this.dropIntoPromptElement.classList.add('editor-group-overlay-drop-into-prompt');
-			this.dropIntoPromptElement.textContent = localize('dropIntoEditorPrompt', "Hold shift to drop into editor");
 			this.overlay.appendChild(this.dropIntoPromptElement);
 		}
 
@@ -123,13 +127,27 @@ class DropOverlay extends Themable {
 		overlay.style.outlineOffset = activeContrastBorderColor ? '-2px' : '';
 		overlay.style.outlineStyle = activeContrastBorderColor ? 'dashed' : '';
 		overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : '';
+
+		if (this.dropIntoPromptElement) {
+			this.dropIntoPromptElement.style.backgroundColor = this.getColor(EDITOR_DROP_INTO_PROMPT_BACKGROUND) ?? '';
+			this.dropIntoPromptElement.style.color = this.getColor(EDITOR_DROP_INTO_PROMPT_FOREGROUND) ?? '';
+
+			const borderColor = this.getColor(EDITOR_DROP_INTO_PROMPT_BORDER);
+			if (borderColor) {
+				this.dropIntoPromptElement.style.borderWidth = '1px';
+				this.dropIntoPromptElement.style.borderStyle = 'solid';
+				this.dropIntoPromptElement.style.borderColor = borderColor;
+			} else {
+				this.dropIntoPromptElement.style.borderWidth = '0';
+			}
+		}
 	}
 
 	private registerListeners(container: HTMLElement): void {
 		this._register(new DragAndDropObserver(container, {
 			onDragEnter: e => undefined,
 			onDragOver: e => {
-				if (isDragIntoEditorEvent(this.configurationService, e)) {
+				if (this.enableDropIntoEditor && isDragIntoEditorEvent(e)) {
 					this.dispose();
 					return;
 				}
@@ -207,6 +225,10 @@ class DropOverlay extends Themable {
 				this.cleanupOverlayScheduler.schedule();
 			}
 		}));
+	}
+
+	private isDropIntoActiveEditorEnabled(): boolean {
+		return !!this.groupView.activeEditor?.hasCapability(EditorInputCapabilities.CanDropIntoEditor);
 	}
 
 	private findSourceGroupView(): IEditorGroupView | undefined {
@@ -588,7 +610,7 @@ export class EditorDropTarget extends Themable {
 	}
 
 	private onDragEnter(event: DragEvent): void {
-		if (isDragIntoEditorEvent(this.configurationService, event)) {
+		if (isDropIntoEditorEnabledGlobally(this.configurationService) && isDragIntoEditorEvent(event)) {
 			return;
 		}
 

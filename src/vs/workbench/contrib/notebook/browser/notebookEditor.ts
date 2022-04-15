@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, toAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IErrorWithActions } from 'vs/base/common/errorMessage';
+import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { extname, isEqual } from 'vs/base/common/resources';
@@ -289,8 +289,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 				}
 			}
 		} catch (e) {
-			const error: Error & IErrorWithActions = e instanceof Error ? e : new Error(e.message);
-			error.actions = [
+			const error = createErrorWithActions(e instanceof Error ? e : new Error(e.message), [
 				toAction({
 					id: 'workbench.notebook.action.openInTextEditor', label: localize('notebookOpenInTextEditor', "Open in Text Editor"), run: async () => {
 						const activeEditorPane = this._editorService.activeEditorPane;
@@ -317,7 +316,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 						return;
 					}
 				})
-			];
+			]);
 
 			throw error;
 		}

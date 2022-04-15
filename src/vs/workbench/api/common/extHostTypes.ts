@@ -1643,8 +1643,11 @@ export class InlineSuggestionNew implements vscode.InlineCompletionItemNew {
 export class InlineSuggestionsNew implements vscode.InlineCompletionListNew {
 	items: vscode.InlineCompletionItemNew[];
 
-	constructor(items: vscode.InlineCompletionItemNew[]) {
+	commands: vscode.Command[] | undefined;
+
+	constructor(items: vscode.InlineCompletionItemNew[], commands?: vscode.Command[]) {
 		this.items = items;
+		this.commands = commands;
 	}
 }
 

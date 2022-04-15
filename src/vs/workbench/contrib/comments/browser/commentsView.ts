@@ -120,7 +120,7 @@ export class CommentsPanel extends ViewPane {
 
 		const focusColor = theme.getColor(focusBorder);
 		if (focusColor) {
-			content.push(`.comments-panel .commenst-panel-container a:focus { outline-color: ${focusColor}; }`);
+			content.push(`.comments-panel .comments-panel-container a:focus { outline-color: ${focusColor}; }`);
 		}
 
 		const codeTextForegroundColor = theme.getColor(textPreformatForeground);
@@ -145,6 +145,10 @@ export class CommentsPanel extends ViewPane {
 			this.tree.domFocus();
 			this.tree.focusFirst();
 		}
+	}
+
+	public get hasRendered(): boolean {
+		return !!this.tree;
 	}
 
 	public override layoutBody(height: number, width: number): void {

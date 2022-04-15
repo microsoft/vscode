@@ -26,14 +26,25 @@ import { Link } from 'vs/platform/opener/browser/link';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { editorErrorForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Codicon } from 'vs/base/common/codicons';
+import { FileChangeType, FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
 
 export interface IEditorPlaceholderContents {
 	icon: string;
 	label: string;
-	actions: ReadonlyArray<{ label: string; run: () => unknown }>;
+	actions: IEditorPlaceholderContentsAction[];
 }
 
-export abstract class EditorPlaceholderPane extends EditorPane {
+export interface IEditorPlaceholderContentsAction {
+	label: string;
+	run: () => unknown;
+}
+
+export interface IErrorEditorPlaceholderOptions extends IEditorOptions {
+	error?: Error;
+}
+
+export abstract class EditorPlaceholder extends EditorPane {
 
 	private container: HTMLElement | undefined;
 	private scrollbar: DomScrollableElement | undefined;
@@ -80,12 +91,9 @@ export abstract class EditorPlaceholderPane extends EditorPane {
 		// Reset any previous contents
 		clearNode(container);
 
-		// Update ARIA label
-		container.setAttribute('aria-label', computeEditorAriaLabel(input, undefined, this.group, undefined));
-
 		// Delegate to implementation for contents
 		const disposables = new DisposableStore();
-		const { icon, label, actions } = await this.getContents(input, options);
+		const { icon, label, actions } = await this.getContents(input, options, disposables);
 
 		// Icon
 		const iconContainer = container.appendChild($('.editor-placeholder-icon-container'));
@@ -97,6 +105,9 @@ export abstract class EditorPlaceholderPane extends EditorPane {
 		const labelWidget = document.createElement('span');
 		labelWidget.textContent = label;
 		labelContainer.appendChild(labelWidget);
+
+		// ARIA label
+		container.setAttribute('aria-label', `${computeEditorAriaLabel(input, undefined, this.group, undefined)}, ${label}`);
 
 		// Actions
 		const actionsContainer = container.appendChild($('.editor-placeholder-actions-container'));
@@ -115,7 +126,7 @@ export abstract class EditorPlaceholderPane extends EditorPane {
 		return disposables;
 	}
 
-	protected abstract getContents(input: EditorInput, options: IEditorOptions | undefined): Promise<IEditorPlaceholderContents>;
+	protected abstract getContents(input: EditorInput, options: IEditorOptions | undefined, disposables: DisposableStore): Promise<IEditorPlaceholderContents>;
 
 	override clearInput(): void {
 		if (this.container) {
@@ -153,12 +164,12 @@ export abstract class EditorPlaceholderPane extends EditorPane {
 	}
 }
 
-export class WorkspaceTrustRequiredEditor extends EditorPlaceholderPane {
+export class WorkspaceTrustRequiredPlaceholderEditor extends EditorPlaceholder {
 
 	static readonly ID = 'workbench.editors.workspaceTrustRequiredEditor';
 	private static readonly LABEL = localize('trustRequiredEditor', "Workspace Trust Required");
 
-	static readonly DESCRIPTOR = EditorPaneDescriptor.create(WorkspaceTrustRequiredEditor, WorkspaceTrustRequiredEditor.ID, WorkspaceTrustRequiredEditor.LABEL);
+	static readonly DESCRIPTOR = EditorPaneDescriptor.create(WorkspaceTrustRequiredPlaceholderEditor, WorkspaceTrustRequiredPlaceholderEditor.ID, WorkspaceTrustRequiredPlaceholderEditor.LABEL);
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -168,11 +179,11 @@ export class WorkspaceTrustRequiredEditor extends EditorPlaceholderPane {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(WorkspaceTrustRequiredEditor.ID, telemetryService, themeService, storageService, instantiationService);
+		super(WorkspaceTrustRequiredPlaceholderEditor.ID, telemetryService, themeService, storageService, instantiationService);
 	}
 
 	override getTitle(): string {
-		return WorkspaceTrustRequiredEditor.LABEL;
+		return WorkspaceTrustRequiredPlaceholderEditor.LABEL;
 	}
 
 	protected async getContents(): Promise<IEditorPlaceholderContents> {
@@ -191,84 +202,67 @@ export class WorkspaceTrustRequiredEditor extends EditorPlaceholderPane {
 	}
 }
 
-abstract class AbstractErrorEditor extends EditorPlaceholderPane {
+export class ErrorPlaceholderEditor extends EditorPlaceholder {
+
+	private static readonly ID = 'workbench.editors.errorEditor';
+	private static readonly LABEL = localize('errorEditor', "Error Editor");
+
+	static readonly DESCRIPTOR = EditorPaneDescriptor.create(ErrorPlaceholderEditor, ErrorPlaceholderEditor.ID, ErrorPlaceholderEditor.LABEL);
 
 	constructor(
-		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IFileService private readonly fileService: IFileService
 	) {
-		super(id, telemetryService, themeService, storageService, instantiationService);
+		super(ErrorPlaceholderEditor.ID, telemetryService, themeService, storageService, instantiationService);
 	}
 
-	protected abstract getErrorMessage(): string;
-
-	protected async getContents(): Promise<IEditorPlaceholderContents> {
+	protected async getContents(input: EditorInput, options: IErrorEditorPlaceholderOptions, disposables: DisposableStore): Promise<IEditorPlaceholderContents> {
+		const resource = input.resource;
 		const group = this.group;
-		const input = this.input;
+		const error = options.error;
+		const isFileNotFound = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
 
-		return {
-			icon: '$(error)',
-			label: this.getErrorMessage(),
-			actions: group && input ? [
+		// Error Label
+		let label: string;
+		if (isFileNotFound) {
+			label = localize('unavailableResourceErrorEditorText', "The editor could not be opened because the file was not found.");
+		} else if (error) {
+			label = localize('unknownErrorEditorTextWithError', "The editor could not be opened due to an unexpected error: {0}", toErrorMessage(error));
+		} else {
+			label = localize('unknownErrorEditorTextWithoutError', "The editor could not be opened due to an unexpected error.");
+		}
+
+		// Actions
+		let actions: IEditorPlaceholderContentsAction[] | undefined = undefined;
+		if (isErrorWithActions(error) && error.actions.length > 0) {
+			actions = error.actions.map(action => {
+				return {
+					label: action.label,
+					run: () => action.run()
+				};
+			});
+		} else if (group) {
+			actions = [
 				{
 					label: localize('retry', "Try Again"),
-					run: () => group.openEditor(input, { ...this.options, source: EditorOpenSource.USER /* explicit user gesture */ })
+					run: () => group.openEditor(input, { ...options, source: EditorOpenSource.USER /* explicit user gesture */ })
 				}
-			] : []
-		};
-	}
-}
+			];
+		}
 
-export class UnknownErrorEditor extends AbstractErrorEditor {
+		// Auto-reload when file is added
+		if (group && isFileNotFound && resource && this.fileService.hasProvider(resource)) {
+			disposables.add(this.fileService.onDidFilesChange(e => {
+				if (e.contains(resource, FileChangeType.ADDED, FileChangeType.UPDATED)) {
+					group.openEditor(input, options);
+				}
+			}));
+		}
 
-	private static readonly ID = 'workbench.editors.unknownErrorEditor';
-	private static readonly LABEL = localize('unknownErrorEditor', "Unknown Error Editor");
-
-	static readonly DESCRIPTOR = EditorPaneDescriptor.create(UnknownErrorEditor, UnknownErrorEditor.ID, UnknownErrorEditor.LABEL);
-
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		super(UnknownErrorEditor.ID, telemetryService, themeService, storageService, instantiationService);
-	}
-
-	override getTitle(): string {
-		return UnknownErrorEditor.LABEL;
-	}
-
-	protected override getErrorMessage(): string {
-		return localize('unknownErrorEditorText', "The editor could not be opened due to an unexpected error.");
-	}
-}
-
-export class UnavailableResourceErrorEditor extends AbstractErrorEditor {
-
-	private static readonly ID = 'workbench.editors.unavailableResourceErrorEditor';
-	private static readonly LABEL = localize('unavailableResourceErrorEditor', "Unavailable Resource Error Editor");
-
-	static readonly DESCRIPTOR = EditorPaneDescriptor.create(UnavailableResourceErrorEditor, UnavailableResourceErrorEditor.ID, UnavailableResourceErrorEditor.LABEL);
-
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		super(UnavailableResourceErrorEditor.ID, telemetryService, themeService, storageService, instantiationService);
-	}
-
-	override getTitle(): string {
-		return UnavailableResourceErrorEditor.LABEL;
-	}
-
-	protected override getErrorMessage(): string {
-		return localize('unavailableResourceErrorEditorText', "The editor could not be opened because the file was not found.");
+		return { icon: '$(error)', label, actions: actions ?? [] };
 	}
 }
 

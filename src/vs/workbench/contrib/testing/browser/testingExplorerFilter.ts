@@ -65,6 +65,11 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 		const wrapper = this.wrapper = dom.$('.testing-filter-wrapper');
 		container.appendChild(wrapper);
 
+		const history = this.history.get([]);
+		if (history.length) {
+			this.state.setText(history[history.length - 1]);
+		}
+
 		const input = this.input = this._register(this.instantiationService.createInstance(ContextScopedSuggestEnabledInputWithHistory, {
 			id: 'testing.explorer.filter',
 			ariaLabel: localize('testExplorerFilterLabel', "Filter text for tests in the explorer"),
@@ -89,7 +94,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 				value: this.state.text.value,
 				placeholderText: localize('testExplorerFilter', "Filter (e.g. text, !exclude, @tag)"),
 			},
-			history: this.history.get([])
+			history
 		}));
 		this._register(attachSuggestEnabledInputBoxStyler(input, this.themeService));
 

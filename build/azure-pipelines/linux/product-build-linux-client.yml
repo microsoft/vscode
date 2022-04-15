@@ -263,7 +263,7 @@ steps:
       lsof | wc -l
     displayName: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       set -e
@@ -276,9 +276,8 @@ steps:
   - script: |
       set -e
       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-      yarn smoketest-no-compile --verbose --tracing --build "$APP_PATH"
-    # TODO@bpasero reduce timeout and remove --verbose when done
-    timeoutInMinutes: 60
+      yarn smoketest-no-compile --tracing --build "$APP_PATH"
+    timeoutInMinutes: 20
     displayName: Run smoke tests (Electron)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -286,9 +285,8 @@ steps:
       set -e
       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
-      yarn smoketest-no-compile --verbose --tracing --remote --build "$APP_PATH"
-    # TODO@bpasero reduce timeout and remove --verbose when done
-    timeoutInMinutes: 60
+      yarn smoketest-no-compile --tracing --remote --build "$APP_PATH"
+    timeoutInMinutes: 20
     displayName: Run smoke tests (Remote)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -299,7 +297,7 @@ steps:
       lsof | wc -l
     displayName: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - task: PublishPipelineArtifact@0
     inputs:
