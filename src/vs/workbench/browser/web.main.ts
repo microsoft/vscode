@@ -6,7 +6,7 @@
 import { mark } from 'vs/base/common/performance';
 import { domContentLoaded, detectFullscreen, getCookieValue } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILogService, ConsoleLogger, MultiplexLogService, getLogLevel, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService, ConsoleLogger, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { ConsoleLogInAutomationLogger } from 'vs/platform/log/browser/log';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { BrowserWorkbenchEnvironmentService, IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
@@ -71,8 +71,8 @@ import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostServic
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputChannelRegistry, Extensions, IOutputChannel, IOutputService } from 'vs/workbench/services/output/common/output';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
+import { WebEmbedderLog } from 'vs/workbench/browser/parts/log/webEmbedderLog';
 
 export class BrowserMain extends Disposable {
 
@@ -124,6 +124,8 @@ export class BrowserMain extends Disposable {
 			const progessService = accessor.get(IProgressService);
 			const outputService = accessor.get(IOutputService);
 
+			const webEmbedderLogger = new WebEmbedderLog(outputService);
+
 			return {
 				commands: {
 					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
@@ -145,35 +147,7 @@ export class BrowserMain extends Disposable {
 				},
 				window: {
 					log: async (id, level, message) => {
-						const logger = await this.getEmbedderLogChannel(outputService);
-						const logMessage = `${id}: ${message}`;
-						switch (level) {
-							case LogLevel.Trace: {
-								logger.append(logMessage);
-								break;
-							}
-							case LogLevel.Debug: {
-								logger.append(logMessage);
-								break;
-							}
-							case LogLevel.Info: {
-								logger.append(logMessage);
-								break;
-							}
-							case LogLevel.Warning: {
-								logger.append(logMessage);
-								break;
-							}
-							case LogLevel.Error: {
-								logger.append(logMessage);
-								break;
-							}
-							case LogLevel.Critical: {
-								logger.append(logMessage);
-								break;
-							}
-							default: break;
-						}
+						webEmbedderLogger.log(id, level, message);
 					},
 					withProgress: (options, task) => progessService.withProgress(options, task)
 				},
@@ -484,18 +458,5 @@ export class BrowserMain extends Disposable {
 		}
 
 		return { id: 'empty-window' };
-	}
-
-	private async getEmbedderLogChannel(outputService: IOutputService): Promise<IOutputChannel> {
-		const id = 'webEmbedderLog';
-		const label = 'vscode.dev';
-
-		const channel = outputService.getChannel(id);
-		if (channel) {
-			return Promise.resolve(channel);
-		}
-
-		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, log: true });
-		return outputService.getChannel(id)!;
 	}
 }
