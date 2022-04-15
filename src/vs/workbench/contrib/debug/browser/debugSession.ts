@@ -172,6 +172,11 @@ export class DebugSession implements IDebugSession {
 		return this._options.debugUI?.simple ?? false;
 	}
 
+	get autoExpandLazyVariables(): boolean {
+		// This tiny helper avoids converting the entire debug model to use service injection
+		return this.configurationService.getValue<IDebugConfiguration>('debug').autoExpandLazyVariables;
+	}
+
 	setConfiguration(configuration: { resolved: IConfig; unresolved: IConfig | undefined }) {
 		this._configuration = configuration;
 	}
@@ -958,7 +963,8 @@ export class DebugSession implements IDebugSession {
 						const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 						if (!focusedStackFrame || focusedStackFrame.thread.session === this) {
 							// Only take focus if nothing is focused, or if the focus is already on the current session
-							await this.debugService.focusStackFrame(undefined, thread);
+							const preserveFocus = !this.configurationService.getValue<IDebugConfiguration>('debug').focusEditorOnBreak;
+							await this.debugService.focusStackFrame(undefined, thread, undefined, { preserveFocus });
 						}
 
 						if (thread.stoppedDetails) {
