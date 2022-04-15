@@ -75,6 +75,8 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 			return [];
 		}
 
+		query += ` fork:true`;
+
 		const raw = await octokit.search.repos({ q: query, sort: 'stars' });
 		return raw.data.items.map(asRemoteSource);
 	}
