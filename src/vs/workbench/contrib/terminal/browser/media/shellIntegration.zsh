@@ -13,8 +13,8 @@ builtin unset ZDOTDIR
 VSCODE_SHELL_INTEGRATION=1
 
 # this is where ZDOTDIR gets set for the user
-if [ -f ~/etc/zshenv ]; then
-	. ~/etc/zshenv
+if [ -f /etc/zshenv ]; then
+	. /etc/zshenv
 fi
 # if ZDOTDIR is undefined, use HOME
 local __vsc_path=$ZDOTDIR
@@ -24,25 +24,25 @@ else
 	VSCODE_SHELL_HIDE_WELCOME=""
 fi
 
-if [ -f $__vsc_path/.zshenv ]; then
+if [[ -n "${RCS}" && -f $__vsc_path/.zshenv ]]; then
 	. $__vsc_path/.zshenv
 fi
-if [[ -o "login" &&  -f ~/etc/zprofile ]]; then
-	. ~/etc/zprofile
+if [[ -n "${RCS}" && -n "${GLOBAL_RCS}" && -o "login" &&  -f /etc/zprofile ]]; then
+	. /etc/zprofile
 fi
-if [[ -o "login" &&  -f $__vsc_path/.zprofile ]]; then
+if [[ -n "${RCS}" && -o "login" &&  -f $__vsc_path/.zprofile ]]; then
 	. $__vsc_path/.zprofile
 fi
-if [[ -o "login" &&  -f /etc/zlogin ]]; then
-	. ~/etc/zlogin
+if [[ -n "${RCS}" && -n "${GLOBAL_RCS}" && -o "login" &&  -f /etc/zlogin ]]; then
+	. /etc/zlogin
 fi
-if [[ -o "login" &&  -f $__vsc_path/.zlogin ]]; then
+if [[ -n "${RCS}" && -o "login" &&  -f $__vsc_path/.zlogin ]]; then
 	. $__vsc_path/.zlogin
 fi
-if [ -f ~/etc/zshrc ]; then
-	. ~/etc/zshrc
+if [[ -n "${RCS}" && -n "${GLOBAL_RCS}" && -f /etc/zshrc ]]; then
+	. /etc/zshrc
 fi
-if [ -f $__vsc_path/.zshrc ]; then
+if [[ -n "${RCS}" && -f $__vsc_path/.zshrc ]]; then
 	. $__vsc_path/.zshrc
 fi
 
