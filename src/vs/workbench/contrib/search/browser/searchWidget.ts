@@ -24,7 +24,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { attachFindReplaceInputBoxStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachFindReplaceInputBoxStyler, attachInputBoxStyler, attachToggleStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { appendKeyBindingLabel, isSearchViewFocused, getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
@@ -357,13 +357,17 @@ export class SearchWidget extends Widget {
 
 		this.showContextToggle = new Toggle({
 			isChecked: false,
-			title: appendKeyBindingLabel(nls.localize('showContext', "Toggle Context Lines"), this.keybindingService.lookupKeybinding(ToggleSearchEditorContextLinesCommandId), this.keybindingService),
-			icon: searchShowContextIcon
+			title: appendKeyBindingLabel(nls.localize('showContext', "Context Lines"), this.keybindingService.lookupKeybinding(ToggleSearchEditorContextLinesCommandId), this.keybindingService),
+			icon: searchShowContextIcon,
+			inputActiveOptionBorder: inputOptions.inputActiveOptionBorder,
+			inputActiveOptionForeground: inputOptions.inputActiveOptionForeground,
+			inputActiveOptionBackground: inputOptions.inputActiveOptionBackground
 		});
-		this._register(this.showContextToggle.onChange(() => this.onContextLinesChanged()));
 
 		if (options.showContextToggle) {
-			this.contextLinesInput = new InputBox(searchInputContainer, this.contextViewService, { type: 'number' });
+			this._register(attachToggleStyler(this.showContextToggle, this.themeService));
+			dom.append(searchInputContainer, this.showContextToggle.domNode);
+			this.contextLinesInput = new InputBox(searchInputContainer, this.contextViewService, { type: 'number', tooltip: nls.localize('contextLineNumber', 'Number Of Context Lines') });
 			this.contextLinesInput.element.classList.add('context-lines-input');
 			this.contextLinesInput.value = '' + (this.configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor.defaultNumberOfContextLines ?? 1);
 			this._register(this.contextLinesInput.onDidChange((value: string) => {
@@ -373,7 +377,18 @@ export class SearchWidget extends Widget {
 				this.onContextLinesChanged();
 			}));
 			this._register(attachInputBoxStyler(this.contextLinesInput, this.themeService));
-			dom.append(searchInputContainer, this.showContextToggle.domNode);
+			this._register(this.showContextToggle.onChange(viaKeyboard => {
+				this.onContextLinesChanged();
+				if (!viaKeyboard) {
+					if (this.showContextToggle.checked) {
+						this.contextLinesInput.setEnabled(true);
+						this.contextLinesInput.focus();
+					} else {
+						this.contextLinesInput.focus();
+						this.contextLinesInput.setEnabled(false);
+					}
+				}
+			}));
 		}
 	}
 
