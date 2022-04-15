@@ -42,6 +42,7 @@ export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedE
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
 export const CLOSE_EDITORS_AND_GROUP_COMMAND_ID = 'workbench.action.closeEditorsAndGroup';
 export const CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID = 'workbench.action.closeEditorsToTheRight';
+export const CLOSE_EDITORS_SAME_TYPE_COMMAND_ID = 'workbench.action.closeEditorsSameType';
 export const CLOSE_EDITOR_COMMAND_ID = 'workbench.action.closeActiveEditor';
 export const CLOSE_PINNED_EDITOR_COMMAND_ID = 'workbench.action.closeActivePinnedEditor';
 export const CLOSE_EDITOR_GROUP_COMMAND_ID = 'workbench.action.closeGroup';
@@ -931,6 +932,26 @@ function registerCloseEditorCommands() {
 				}
 
 				await group.closeEditors({ direction: CloseDirection.RIGHT, except: editor, excludeSticky: true }, { preserveFocus: context?.preserveFocus });
+			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: CLOSE_EDITORS_SAME_TYPE_COMMAND_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: async (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+			if (group && editor) {
+				// TODO!!
+				// if (group.activeEditor) {
+				// 	group.pinEditor(group.activeEditor);
+				// }
+
+				// await group.closeEditors({ direction: CloseDirection.RIGHT, except: editor, excludeSticky: true }, { preserveFocus: context?.preserveFocus });
 			}
 		}
 	});
