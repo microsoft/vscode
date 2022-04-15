@@ -18,7 +18,9 @@ function asRemoteSource(raw: any): RemoteSource {
 	const protocol = workspace.getConfiguration('github').get<'https' | 'ssh'>('gitProtocol');
 	return {
 		name: `$(github) ${raw.full_name}`,
-		description: raw.description || undefined,
+		description: `${raw.stargazers_count > 0 ? `$(star-full) ${raw.stargazers_count}` : ''
+			}`,
+		detail: raw.description || undefined,
 		url: protocol === 'https' ? raw.clone_url : raw.ssh_url
 	};
 }

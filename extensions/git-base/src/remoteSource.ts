@@ -59,6 +59,7 @@ class RemoteSourceProviderQuickPick {
 				this.quickpick.items = remoteSources.map(remoteSource => ({
 					label: remoteSource.name,
 					description: remoteSource.description || (typeof remoteSource.url === 'string' ? remoteSource.url : remoteSource.url[0]),
+					detail: remoteSource.detail,
 					remoteSource,
 					alwaysShow: true
 				}));

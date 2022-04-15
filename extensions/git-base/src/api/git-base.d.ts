@@ -45,6 +45,7 @@ export interface PickRemoteSourceResult {
 export interface RemoteSource {
 	readonly name: string;
 	readonly description?: string;
+	readonly detail?: string;
 	readonly url: string | string[];
 }
 
