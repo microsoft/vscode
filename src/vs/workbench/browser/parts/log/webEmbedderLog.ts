@@ -5,12 +5,14 @@
 
 import { LogLevel, LogLevelToString } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from 'vs/workbench/services/output/common/output';
 
-export class WebEmbedderLog {
+export class WebEmbedderLog extends Disposable {
 	private _outputService: IOutputService;
 
 	constructor(@IOutputService outputService: IOutputService) {
+		super();
 		this._outputService = outputService;
 	}
 
@@ -21,8 +23,9 @@ export class WebEmbedderLog {
 		logger.append(logMessage);
 	}
 
-	public async dispose() {
+	public override async dispose() {
 		(await this.getEmbedderLogChannel()).dispose();
+		super.dispose();
 	}
 
 	private async getEmbedderLogChannel(): Promise<IOutputChannel> {
