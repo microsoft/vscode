@@ -247,7 +247,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 
 				if (isWindows) {
-					options.titleBarOverlay = true;
+					options.titleBarOverlay = {
+						height: 30
+					};
 				}
 			}
 

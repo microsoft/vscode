@@ -3,26 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+ /* Root Element */
 .monaco-workbench .part.titlebar > .titlebar-container {
 	box-sizing: border-box;
-	width: 100%;
-	padding: 0 70px;
 	overflow: hidden;
 	flex-shrink: 0;
 	align-items: center;
 	justify-content: center;
 	user-select: none;
 	-webkit-user-select: none;
-	zoom: 1; /* prevent zooming */
-	line-height: 22px;
-	height: 22px;
 	display: flex;
-}
-
-.monaco-workbench .part.titlebar > .titlebar-container {
 	transform-origin: 0 0;
+	height: 100%;
+	width: 100%;
 }
 
+/* Account for zooming */
+.monaco-workbench .part.titlebar > .titlebar-container.counter-zoom {
+	height: calc(100% * var(--zoom-factor));
+	width: calc(100% * var(--zoom-factor));
+	transform: scale(calc(1.0 / var(--zoom-factor)));
+}
+
+/* Platform specific root element */
+.monaco-workbench.mac .part.titlebar > .titlebar-container {
+	line-height: 22px;
+	padding: 0 70px;
+}
+
+.monaco-workbench.web .part.titlebar > .titlebar-container,
+.monaco-workbench.windows .part.titlebar > .titlebar-container,
+.monaco-workbench.linux .part.titlebar > .titlebar-container {
+	padding: 0;
+	height: 30px;
+	line-height: 30px;
+	justify-content: left;
+	overflow: visible;
+}
+.monaco-workbench.windows .part.titlebar > .titlebar-container,
+.monaco-workbench.linux .part.titlebar > .titlebar-container {
+	padding-right: calc((100vw - env(titlebar-area-width, calc(100vw - 138px / var(--zoom-factor)))));
+}
+.monaco-workbench.windows .part.titlebar > .titlebar-container.counter-zoom,
+.monaco-workbench.linux .part.titlebar > .titlebar-container.counter-zoom {
+	padding-right: calc(var(--zoom-factor) * (100vw - env(titlebar-area-width, calc(100vw - 138px / var(--zoom-factor)))));
+}
+
+.monaco-workbench.web .part.titlebar > .titlebar-container {
+	padding-right: calc((var(--zoom-factor) * (100vw - env(titlebar-area-width, 100vw))));
+}
+
+.monaco-workbench.web .part.titlebar > .titlebar-container.counter-zoom {
+	padding-right: calc(((100vw - env(titlebar-area-width, 100vw))));
+}
+
+/* Draggable region */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-drag-region {
 	top: 0;
 	left: 0;
@@ -33,6 +68,7 @@
 	-webkit-app-region: drag;
 }
 
+/* Window title text */
 .monaco-workbench .part.titlebar > .titlebar-container > .window-title {
 	flex: 0 1 auto;
 	font-size: 12px;
@@ -41,18 +77,6 @@
 	text-overflow: ellipsis;
 	margin-left: auto;
 	margin-right: auto;
-	zoom: 1; /* prevent zooming */
-}
-
-/* Windows/Linux: Rules for custom title (icon, window controls)  */
-.monaco-workbench.web .part.titlebar > .titlebar-container,
-.monaco-workbench.windows .part.titlebar > .titlebar-container,
-.monaco-workbench.linux .part.titlebar > .titlebar-container {
-	padding: 0;
-	height: 30px;
-	line-height: 30px;
-	justify-content: left;
-	overflow: visible;
 }
 
 .monaco-workbench.web .part.titlebar > .titlebar-container > .window-title,
@@ -61,15 +85,17 @@
 	cursor: default;
 }
 
+.monaco-workbench.linux .part.titlebar > .titlebar-container > .window-title {
+	font-size: inherit; /* see #55435 */
+}
+
+/* Menubar */
 .monaco-workbench .part.titlebar > .titlebar-container > .menubar {
 	/* move menubar above drag region as negative z-index on drag region cause greyscale AA */
 	z-index: 2500;
 }
 
-.monaco-workbench.linux .part.titlebar > .titlebar-container > .window-title {
-	font-size: inherit;
-}
-
+/* Resizer */
 .monaco-workbench.windows .part.titlebar > .titlebar-container > .resizer,
 .monaco-workbench.linux .part.titlebar > .titlebar-container > .resizer {
 	-webkit-app-region: no-drag;
@@ -84,6 +110,7 @@
 	display: none;
 }
 
+/* App Icon */
 .monaco-workbench .part.titlebar > .titlebar-container > .window-appicon {
 	width: 35px;
 	height: 100%;
@@ -97,6 +124,14 @@
 	background-repeat: no-repeat;
 	background-position: center center;
 	background-size: 16px;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .window-appicon.codicon {
+	line-height: 30px;
+}
+
+.monaco-workbench.fullscreen .part.titlebar > .titlebar-container > .window-appicon {
+	display: none;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container .window-appicon > .home-bar-icon-badge {
@@ -115,71 +150,29 @@
 	border-left: 1px solid transparent;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .window-appicon.codicon {
-	line-height: 30px;
-}
-
-.monaco-workbench.fullscreen .part.titlebar > .titlebar-container > .window-appicon {
-	display: none;
-}
-
-.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container {
+/* Window Controls (Minimize, Max/Restore, Close) */
+.monaco-workbench .part.titlebar > .window-controls-container {
 	display: flex;
 	flex-grow: 0;
 	flex-shrink: 0;
 	text-align: center;
-	position: relative;
+	position: absolute;
+	top: 0;
+	right: 0;
 	z-index: 3000;
 	-webkit-app-region: no-drag;
-	height: 100%;
-	min-width: 138px;
-	margin-left: auto;
+	height: 30px;
+	width: 138px;
+	zoom: calc(1 / var(--zoom-factor));
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container.show-layout-control {
-	min-width: 160px;
-}
-
-.monaco-workbench.web .part.titlebar > .titlebar-container > .window-controls-container.show-layout-control {
-	min-width: 28px;
-	padding-right: 8px;
-}
-
-.monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .window-controls-container {
-	position: absolute;
-	right: 8px;
-	min-width: 28px;
-	display: none;
-}
-
-.monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .window-controls-container.show-layout-control {
-	display: flex;
-}
-
-.monaco-workbench.fullscreen .part.titlebar > .titlebar-container > .window-controls-container {
+.monaco-workbench.fullscreen .part.titlebar > .window-controls-container {
 	display: none;
 	background-color: transparent;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container > .layout-dropdown-container {
-	padding-right: 2px;
-	display: none;
-}
-
-.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container.show-layout-control > .layout-dropdown-container {
-	display: flex;
-	justify-content: center;
-}
-
-.monaco-workbench:not(.mac):not(.web) .part.titlebar > .titlebar-container > .window-controls-container.show-layout-control > .layout-dropdown-container {
-	min-width: 46px;
-}
-
-.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container.show-layout-control > .layout-dropdown-container .codicon {
-	color: inherit;
-}
-
-.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container > .window-icon {
+/* Window Control Icons */
+.monaco-workbench .part.titlebar > .window-controls-container > .window-icon {
 	display: inline-block;
 	line-height: 30px;
 	height: 100%;
@@ -187,18 +180,47 @@
 	font-size: 16px;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container > .window-icon:hover {
+.monaco-workbench .part.titlebar > .window-controls-container > .window-icon:hover {
 	background-color: rgba(255, 255, 255, 0.1);
 }
 
-.monaco-workbench .part.titlebar.light > .titlebar-container > .window-controls-container > .window-icon:hover {
+.monaco-workbench .part.titlebar.light > .window-controls-container > .window-icon:hover {
 	background-color: rgba(0, 0, 0, 0.1);
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container > .window-icon.window-close:hover {
+.monaco-workbench .part.titlebar > .window-controls-container > .window-icon.window-close:hover {
 	background-color: rgba(232, 17, 35, 0.9);
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container .window-icon.window-close:hover {
+.monaco-workbench .part.titlebar > .window-controls-container .window-icon.window-close:hover {
 	color: white;
+}
+
+/* Layout Controls */
+.monaco-workbench .part.titlebar > .titlebar-container > .layout-controls-container {
+	display: none;
+	padding-right: 2px;
+	flex-grow: 0;
+	flex-shrink: 0;
+	text-align: center;
+	position: relative;
+	z-index: 3000;
+	-webkit-app-region: no-drag;
+	height: 100%;
+	margin-left: auto;
+	min-width: 28px;
+}
+
+.monaco-workbench.mac:not(.web) .part.titlebar > .layout-controls-container {
+	position: absolute;
+	right: 8px;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .layout-controls-container.show-layout-control {
+	display: flex;
+	justify-content: center;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .layout-controls-container .codicon {
+	color: inherit;
 }

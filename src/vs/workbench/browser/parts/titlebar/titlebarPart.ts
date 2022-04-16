@@ -25,7 +25,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 import { URI } from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
-import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame, prepend } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame, prepend, IDomNodePagePosition } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template } from 'vs/base/common/labels';
@@ -57,7 +57,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	get minimumHeight(): number { return 30 / (this.currentMenubarVisibility === 'hidden' ? getZoomFactor() : 1); }
+	get minimumHeight(): number { return 30 / (this.currentMenubarVisibility === 'hidden' || getZoomFactor() < 1 ? getZoomFactor() : 1); }
 	get maximumHeight(): number { return this.minimumHeight; }
 
 	//#endregion
@@ -74,7 +74,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	protected appIcon: HTMLElement | undefined;
 	private appIconBadge: HTMLElement | undefined;
 	protected menubar?: HTMLElement;
-	protected windowControls: HTMLElement | undefined;
+	protected layoutControls: HTMLElement | undefined;
 	private layoutToolbar: ToolBar | undefined;
 	protected lastLayoutDimensions: Dimension | undefined;
 	private titleBarStyle: 'native' | 'custom';
@@ -150,8 +150,8 @@ export class TitlebarPart extends Part implements ITitleService {
 			}
 		}
 
-		if (this.titleBarStyle !== 'native' && this.windowControls && event.affectsConfiguration('workbench.layoutControl.enabled')) {
-			this.windowControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
+		if (this.titleBarStyle !== 'native' && this.layoutControls && event.affectsConfiguration('workbench.layoutControl.enabled')) {
+			this.layoutControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
 		}
 	}
 
@@ -404,21 +404,20 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		if (this.titleBarStyle !== 'native') {
-			this.windowControls = append(this.rootContainer, $('div.window-controls-container'));
-			this.windowControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
+			this.layoutControls = append(this.rootContainer, $('div.layout-controls-container'));
+			this.layoutControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
 
-			const layoutDropdownContainer = append(this.windowControls, $('div.layout-dropdown-container'));
-			this.layoutToolbar = new ToolBar(layoutDropdownContainer, this.contextMenuService, {
+			this.layoutToolbar = new ToolBar(this.layoutControls, this.contextMenuService, {
 				actionViewItemProvider: action => {
 					return createActionViewItem(this.instantiationService, action);
 				},
 				allowContextMenu: true
 			});
 
-			this._register(addDisposableListener(layoutDropdownContainer, EventType.CONTEXT_MENU, e => {
+			this._register(addDisposableListener(this.layoutControls, EventType.CONTEXT_MENU, e => {
 				EventHelper.stop(e);
 
-				this.onLayoutControlContextMenu(e, layoutDropdownContainer);
+				this.onLayoutControlContextMenu(e, this.layoutControls!);
 			}));
 
 
@@ -573,6 +572,16 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.title.style.transform = 'translate(-50%, 0)';
 	}
 
+	protected getTitlebarAreaRect(): IDomNodePagePosition {
+		const nav = navigator as { windowControlsOverlay?: { getTitlebarAreaRect: () => DOMRect } };
+
+		if (typeof nav.windowControlsOverlay === undefined || typeof nav.windowControlsOverlay!.getTitlebarAreaRect === undefined) {
+			this.element.getBoundingClientRect();
+		}
+
+		return nav.windowControlsOverlay!.getTitlebarAreaRect();
+	}
+
 	protected get currentMenubarVisibility(): MenuBarVisibility {
 		return getMenuBarVisibility(this.configurationService);
 	}
@@ -585,16 +594,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.lastLayoutDimensions = dimension;
 
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
-			// Only prevent zooming behavior on macOS or when the menubar is not visible
-			if ((!isWeb && isMacintosh) || this.currentMenubarVisibility === 'hidden') {
-				this.rootContainer.style.height = `${100.0 * getZoomFactor()}%`;
-				this.rootContainer.style.width = `${100.0 * getZoomFactor()}%`;
-				this.rootContainer.style.transform = `scale(${1 / getZoomFactor()})`;
-			} else {
-				this.rootContainer.style.height = '100%';
-				this.rootContainer.style.width = '100%';
-				this.rootContainer.style.transform = '';
-			}
+			// Prevent zooming behavior if any of the following conditions are met:
+			// 1. Native macOS
+			// 2. Menubar is hidden
+			// 3. Shrinking below the window control size (zoom < 1)
+			const zoomFactor = getZoomFactor();
+			this.element.style.setProperty('--zoom-factor', zoomFactor.toString());
+			this.rootContainer.classList.toggle('counter-zoom', zoomFactor < 1 || (!isWeb && isMacintosh) || this.currentMenubarVisibility === 'hidden');
 
 			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
 
