@@ -944,15 +944,16 @@ function registerCloseEditorCommands() {
 		handler: async (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 
-			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
-			if (group && editor) {
-				// TODO!!
-				// if (group.activeEditor) {
-				// 	group.pinEditor(group.activeEditor);
-				// }
+			const { editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
 
-				// await group.closeEditors({ direction: CloseDirection.RIGHT, except: editor, excludeSticky: true }, { preserveFocus: context?.preserveFocus });
-			}
+			return Promise.all(getEditorsContext(accessor, resourceOrContext, context).groups.map(async group => {
+				if (editor && group) {
+					const editor_extension = editor.getName().substring(editor.getName().lastIndexOf('.'));
+					const editorsToClose = group.editors
+						.filter(editor => editor.getName().substring(editor.getName().lastIndexOf('.')) === editor_extension);
+					await group.closeEditors(editorsToClose, { preserveFocus: context?.preserveFocus });
+				}
+			}));
 		}
 	});
 
