@@ -167,8 +167,9 @@ export class MockDebugService implements IDebugService {
 	}
 }
 
-// @ts-ignore
 export class MockSession implements IDebugSession {
+	readonly autoExpandLazyVariables = false;
+
 	getMemory(memoryReference: string): IMemoryRegion {
 		throw new Error('Method not implemented.');
 	}
