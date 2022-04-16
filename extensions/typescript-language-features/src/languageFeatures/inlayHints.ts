@@ -22,6 +22,10 @@ const inlayHintSettingNames = [
 	InlayHintSettingNames.propertyDeclarationTypesEnabled,
 	InlayHintSettingNames.functionLikeReturnTypesEnabled,
 	InlayHintSettingNames.enumMemberValuesEnabled,
+	InlayHintSettingNames.tupleElementAccessEnabled,
+	InlayHintSettingNames.tupleLiteralEnabled,
+	InlayHintSettingNames.tupleBindingEnabled,
+	InlayHintSettingNames.tupleBindingSupressWhenVariableMatchesName,
 ];
 
 class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHintsProvider {
@@ -91,6 +95,9 @@ function fromProtocolInlayHintKind(kind: Proto.InlayHintKind): vscode.InlayHintK
 		case 'Parameter': return vscode.InlayHintKind.Parameter;
 		case 'Type': return vscode.InlayHintKind.Type;
 		case 'Enum': return undefined;
+		// TODO: wait for typescript server proto definition changes
+		// @ts-expect-error
+		case 'Tuple': return vscode.InlayHintKind.Parameter;
 		default: return undefined;
 	}
 }
@@ -105,7 +112,11 @@ function areInlayHintsEnabledForFile(language: LanguageDescription, document: vs
 		preferences.includeInlayFunctionLikeReturnTypeHints ||
 		preferences.includeInlayFunctionParameterTypeHints ||
 		preferences.includeInlayPropertyDeclarationTypeHints ||
-		preferences.includeInlayVariableTypeHints;
+		preferences.includeInlayVariableTypeHints ||
+		preferences.includeInlayTupleElementAccessLabelHints ||
+		preferences.includeInlayTupleLiteralLabelHints ||
+		preferences.includeInlayTupleBindingLabelHints ||
+		preferences.includeInlayTupleBindingLabelHintsWhenVariableNameDoesntMatchLabel;
 }
 
 export function register(

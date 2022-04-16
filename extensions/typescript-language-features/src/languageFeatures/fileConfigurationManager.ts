@@ -214,6 +214,10 @@ export class InlayHintSettingNames {
 	static readonly propertyDeclarationTypesEnabled = 'inlayHints.propertyDeclarationTypes.enabled';
 	static readonly functionLikeReturnTypesEnabled = 'inlayHints.functionLikeReturnTypes.enabled';
 	static readonly enumMemberValuesEnabled = 'inlayHints.enumMemberValues.enabled';
+	static readonly tupleElementAccessEnabled = 'inlayHints.tupleElementAccess.enabled';
+	static readonly tupleLiteralEnabled = 'inlayHints.tupleLiteral.enabled';
+	static readonly tupleBindingEnabled = 'inlayHints.tupleBinding.enabled';
+	static readonly tupleBindingSupressWhenVariableMatchesName = 'inlayHints.tupleBinding.suppressWhenVariableMatchesName';
 }
 
 export function getInlayHintsPreferences(config: vscode.WorkspaceConfiguration) {
@@ -225,6 +229,10 @@ export function getInlayHintsPreferences(config: vscode.WorkspaceConfiguration) 
 		includeInlayPropertyDeclarationTypeHints: config.get<boolean>(InlayHintSettingNames.propertyDeclarationTypesEnabled, false),
 		includeInlayFunctionLikeReturnTypeHints: config.get<boolean>(InlayHintSettingNames.functionLikeReturnTypesEnabled, false),
 		includeInlayEnumMemberValueHints: config.get<boolean>(InlayHintSettingNames.enumMemberValuesEnabled, false),
+		includeInlayTupleElementAccessLabelHints: config.get<boolean>(InlayHintSettingNames.tupleElementAccessEnabled, false),
+		includeInlayTupleLiteralLabelHints: config.get<boolean>(InlayHintSettingNames.tupleLiteralEnabled, false),
+		includeInlayTupleBindingLabelHints: config.get<boolean>(InlayHintSettingNames.tupleBindingEnabled, false),
+		includeInlayTupleBindingLabelHintsWhenVariableNameDoesntMatchLabel: config.get<boolean>(InlayHintSettingNames.tupleBindingSupressWhenVariableMatchesName, true),
 	} as const;
 }
 

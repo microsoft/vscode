@@ -318,6 +318,26 @@
           "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
           "scope": "resource"
         },
+        "typescript.inlayHints.tupleElementAccess.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource"
+        },
+        "typescript.inlayHints.tupleLiteral.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource"
+        },
+        "typescript.inlayHints.tupleBinding.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource"
+        },
+        "typescript.inlayHints.tupleBinding.suppressWhenVariableMatchesName": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource"
+        },
         "javascript.inlayHints.parameterNames.enabled": {
           "type": "string",
           "enum": [
