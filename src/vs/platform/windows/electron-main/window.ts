@@ -282,7 +282,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 			}
 
-
 			if (isFullscreenOrMaximized) {
 				mark('code/willMaximizeCodeWindow');
 				this._win.maximize();
