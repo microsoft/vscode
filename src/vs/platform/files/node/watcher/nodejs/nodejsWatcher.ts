@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
+import { patternsEquals } from 'vs/base/common/glob';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isLinux } from 'vs/base/common/platform';
 import { IDiskFileChange, ILogMessage, INonRecursiveWatchRequest, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
@@ -50,12 +50,12 @@ export class NodeJSWatcher extends Disposable implements INonRecursiveWatcher {
 			}
 
 			// Re-watch path if excludes or includes have changed
-			return !equals(watcher.request.excludes, request.excludes) || !equals(watcher.request.includes, request.includes);
+			return !patternsEquals(watcher.request.excludes, request.excludes) || !patternsEquals(watcher.request.includes, request.includes);
 		});
 
 		// Gather paths that we should stop watching
 		const pathsToStopWatching = Array.from(this.watchers.values()).filter(({ request }) => {
-			return !normalizedRequests.find(normalizedRequest => normalizedRequest.path === request.path && equals(normalizedRequest.excludes, request.excludes) && equals(normalizedRequest.includes, request.includes));
+			return !normalizedRequests.find(normalizedRequest => normalizedRequest.path === request.path && patternsEquals(normalizedRequest.excludes, request.excludes) && patternsEquals(normalizedRequest.includes, request.includes));
 		}).map(({ request }) => request.path);
 
 		// Logging

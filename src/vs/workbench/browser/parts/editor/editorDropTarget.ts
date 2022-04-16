@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/editordroptarget';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { addDisposableListener, DragAndDropObserver, EventHelper, EventType, isAncestor } from 'vs/base/browser/dom';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
@@ -10,7 +11,6 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
-import 'vs/css!./media/editordroptarget';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -47,7 +47,9 @@ class DropOverlay extends Themable {
 	private dropIntoPromptElement?: HTMLSpanElement;
 
 	private currentDropOperation: IDropOperation | undefined;
+
 	private _disposed: boolean | undefined;
+	get disposed(): boolean { return !!this._disposed; }
 
 	private cleanupOverlayScheduler: RunOnceScheduler;
 
@@ -75,10 +77,6 @@ class DropOverlay extends Themable {
 		this.enableDropIntoEditor = isDropIntoEditorEnabledGlobally(this.configurationService) && this.isDropIntoActiveEditorEnabled();
 
 		this.create();
-	}
-
-	get disposed(): boolean {
-		return !!this._disposed;
 	}
 
 	private create(): void {

@@ -2032,7 +2032,7 @@ declare module 'vscode' {
 	 * (like `**​/*.{ts,js}` or `*.{ts,js}`) or a {@link RelativePattern relative pattern}.
 	 *
 	 * Glob patterns can have the following syntax:
-	 * * `*` to match one or more characters in a path segment
+	 * * `*` to match zero or more characters in a path segment
 	 * * `?` to match on one character in a path segment
 	 * * `**` to match any number of path segments, including none
 	 * * `{}` to group conditions (e.g. `**​/*.{ts,js}` matches all TypeScript and JavaScript files)
