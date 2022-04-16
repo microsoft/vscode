@@ -11183,6 +11183,10 @@ declare module 'vscode' {
 		/**
 		 * A human-readable string which will be used to describe the
 		 * operation.
+		 *
+		 * It would always be used as a prefix in later progress reports once given.
+		 *
+		 * Leave it as `undefined` or empty string if you don't need prefix.
 		 */
 		title?: string;
 
