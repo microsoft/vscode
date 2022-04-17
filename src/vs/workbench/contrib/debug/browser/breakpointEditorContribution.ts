@@ -267,7 +267,9 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 						}
 					} else {
 						const enabled = breakpoints.some(bp => bp.enabled);
-						if (!enabled) {
+						const isShiftPressed = e.event.shiftKey;
+
+						if (!enabled || isShiftPressed) {
 							breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp));
 						} else {
 							breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
