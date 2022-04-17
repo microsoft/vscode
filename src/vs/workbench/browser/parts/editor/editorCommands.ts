@@ -950,7 +950,7 @@ function registerCloseEditorCommands() {
 				if (editor && group) {
 					const editor_extension = editor.getName().substring(editor.getName().lastIndexOf('.'));
 					const editorsToClose = group.editors
-						.filter(editor => editor.getName().substring(editor.getName().lastIndexOf('.')) === editor_extension);
+						.filter(editor => editor.getName().substring(editor.getName().lastIndexOf('.')) === editor_extension && !group.isSticky(editor));
 					await group.closeEditors(editorsToClose, { preserveFocus: context?.preserveFocus });
 				}
 			}));

@@ -376,17 +376,6 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	}
 });
 
-// Don't need here - more of a main menu item
-// MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-// 	group: '4_close',
-// 	order: 50,
-// 	command: {
-// 		id: CLOSE_EDITORS_SAME_TYPE_COMMAND_ID,
-// 		title: nls.localize('closeSameType', "Close Same Type")
-// 	},
-// 	when: // use ResourceContextKey
-// });
-
 // Menu registration - explorer
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
