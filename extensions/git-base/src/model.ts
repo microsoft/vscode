@@ -5,12 +5,13 @@
 
 import { EventEmitter, Disposable } from 'vscode';
 import { toDisposable } from './util';
-import { RemoteSourceProvider } from './api/git-base';
+import { RecentRemoteSourceProvider, RemoteSourceProvider } from './api/git-base';
 import { IRemoteSourceProviderRegistry } from './remoteProvider';
 
 export class Model implements IRemoteSourceProviderRegistry {
 
 	private remoteSourceProviders = new Set<RemoteSourceProvider>();
+	private recentRemoteSourceProviders = new Set<RemoteSourceProvider>();
 
 	private _onDidAddRemoteSourceProvider = new EventEmitter<RemoteSourceProvider>();
 	readonly onDidAddRemoteSourceProvider = this._onDidAddRemoteSourceProvider.event;
@@ -26,6 +27,18 @@ export class Model implements IRemoteSourceProviderRegistry {
 			this.remoteSourceProviders.delete(provider);
 			this._onDidRemoveRemoteSourceProvider.fire(provider);
 		});
+	}
+
+	registerRecentRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
+		this.recentRemoteSourceProviders.add(provider);
+
+		return toDisposable(() => {
+			this.recentRemoteSourceProviders.delete(provider);
+		});
+	}
+
+	getRecentRemoteProviders(): RecentRemoteSourceProvider[] {
+		return [...this.recentRemoteSourceProviders.values()];
 	}
 
 	getRemoteProviders(): RemoteSourceProvider[] {

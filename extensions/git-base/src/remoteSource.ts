@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { QuickPickItem, window, QuickPick } from 'vscode';
+import { QuickPickItem, window, QuickPick, QuickPickItemKind } from 'vscode';
 import * as nls from 'vscode-nls';
 import { RemoteSourceProvider, RemoteSource, PickRemoteSourceOptions, PickRemoteSourceResult } from './api/git-base';
 import { Model } from './model';
@@ -99,10 +99,28 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 		}
 	}
 
-	const providers = model.getRemoteProviders()
+	const remoteProviders = model.getRemoteProviders()
 		.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + (options.providerLabel ? options.providerLabel(provider) : provider.name), alwaysShow: true, provider }));
 
-	quickpick.placeholder = options.placeholder ?? (providers.length === 0
+	const recentSources: (QuickPickItem & { url?: string })[] = [];
+	const recentRemoteProviders = model.getRecentRemoteProviders();
+	for (const provider of recentRemoteProviders) {
+		const sources = (await provider.getRemoteSources() ?? []).map((item) => {
+			return {
+				...item,
+				label: (item.icon ? `$(${item.icon}) ` : '') + item.name,
+				url: typeof item.url === 'string' ? item.url : item.url[0]
+			};
+		});
+		recentSources.push(...sources);
+	}
+	if (recentSources.length > 0) {
+		recentSources.unshift({ kind: QuickPickItemKind.Separator, label: localize('recently opened', 'recently opened') });
+	}
+
+	const items = [...remoteProviders, ...recentSources];
+
+	quickpick.placeholder = options.placeholder ?? (remoteProviders.length === 0
 		? localize('provide url', "Provide repository URL")
 		: localize('provide url or pick', "Provide repository URL or pick a repository source."));
 
@@ -114,9 +132,10 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 				alwaysShow: true,
 				url: value
 			},
-			...providers];
+			...items
+			];
 		} else {
-			quickpick.items = providers;
+			quickpick.items = items;
 		}
 	};
 
