@@ -7,9 +7,6 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
-	// TODO@API name alternatives for TabKind: TabInput, TabOptions,
-
-
 	/**
 	 * The tab represents a single text based resource
 	 */
