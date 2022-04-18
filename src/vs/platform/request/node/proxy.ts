@@ -18,6 +18,34 @@ function getSystemProxyURI(requestURL: Url, env: typeof process.env): string | n
 	return null;
 }
 
+function applySystemNoProxyRules(requestURL: Url, proxyURl: string | null, env: typeof process.env): string | null {
+	const noProxy = env.NO_PROXY || env.no_proxy || null;
+	if (!noProxy) {
+		return proxyURl;
+	}
+
+	const rules = noProxy.split(/[\s,]+/);
+	if (rules[0] === '*') {
+		return null;
+	}
+
+	for (const rule of rules) {
+		const ruleMatch = rule.match(/^(.+?)(?::(\d+))?$/);
+		if (!ruleMatch || !ruleMatch[1]) {
+			continue;
+		}
+
+		const ruleHost = ruleMatch[1].replace(/^\.*/, '.');
+		const rulePort = ruleMatch[2];
+		const requestURLHost = requestURL.hostname!.replace(/^\.*/, '.');
+		if (requestURLHost.endsWith(ruleHost) && (!rulePort || requestURL.port && requestURL.port === rulePort)) {
+			return null;
+		}
+	}
+
+	return proxyURl;
+}
+
 export interface IOptions {
 	proxyUrl?: string;
 	strictSSL?: boolean;
@@ -25,7 +53,7 @@ export interface IOptions {
 
 export async function getProxyAgent(rawRequestURL: string, env: typeof process.env, options: IOptions = {}): Promise<Agent> {
 	const requestURL = parseUrl(rawRequestURL);
-	const proxyURL = options.proxyUrl || getSystemProxyURI(requestURL, env);
+	const proxyURL = options.proxyUrl || applySystemNoProxyRules(requestURL, getSystemProxyURI(requestURL, env), env);
 
 	if (!proxyURL) {
 		return null;
