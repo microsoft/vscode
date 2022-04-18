@@ -102,9 +102,9 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 	const providers = model.getRemoteProviders()
 		.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + (options.providerLabel ? options.providerLabel(provider) : provider.name), alwaysShow: true, provider }));
 
-	quickpick.placeholder = providers.length === 0
+	quickpick.placeholder = options.placeholder ?? (providers.length === 0
 		? localize('provide url', "Provide repository URL")
-		: localize('provide url or pick', "Provide repository URL or pick a repository source.");
+		: localize('provide url or pick', "Provide repository URL or pick a repository source."));
 
 	const updatePicks = (value?: string) => {
 		if (value) {

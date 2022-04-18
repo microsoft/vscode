@@ -34,6 +34,7 @@ export interface PickRemoteSourceOptions {
 	readonly urlLabel?: string;
 	readonly providerName?: string;
 	readonly title?: string;
+	readonly placeholder?: string;
 	readonly branch?: boolean; // then result is PickRemoteSourceResult
 }
 
