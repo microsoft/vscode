@@ -47,6 +47,9 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 		}
 	}
 
+	/**
+	 * The created action appends a query to the search widget search string. It optionally triggers suggestions.
+	 */
 	private createAction(id: string, label: string, tooltip: string, queryToAppend: string, triggerSuggest: boolean): IAction {
 		return {
 			id,
@@ -60,24 +63,30 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 		};
 	}
 
-	private createModifiedAction(): IAction {
-		// The modified action works slightly differently than the other actions.
-		// It is more like a checkbox on/off toggle.
-		const queryContainsModifiedTag = this.searchWidget.getValue().split(' ').some(word => word === `@${MODIFIED_SETTING_TAG}`);
+	/**
+	 * The created action appends a query to the search widget search string, if the query does not exist.
+	 * Otherwise, it removes the query from the search widget search string.
+	 * The action does not trigger suggestions after adding or removing the query.
+	 */
+	private createToggleAction(id: string, label: string, tooltip: string, queryToAppend: string): IAction {
+		const splitCurrentQuery = this.searchWidget.getValue().split(' ');
+		const queryContainsQueryToAppend = splitCurrentQuery.includes(queryToAppend);
 		return {
-			id: 'modifiedSettingsSearch',
-			label: localize('modifiedSettingsSearch', "Modified"),
-			tooltip: localize('modifiedSettingsSearchTooltip', "View modified settings only"),
+			id,
+			label,
+			tooltip,
 			class: undefined,
 			enabled: true,
-			checked: queryContainsModifiedTag,
+			checked: queryContainsQueryToAppend,
 			run: () => {
-				// Append the tag, otherwise remove it from the query.
-				if (!queryContainsModifiedTag) {
-					this.searchWidget.setValue(this.searchWidget.getValue().trimEnd() + ` @${MODIFIED_SETTING_TAG}`);
+				if (!queryContainsQueryToAppend) {
+					const trimmedCurrentQuery = this.searchWidget.getValue().trimEnd();
+					const newQuery = trimmedCurrentQuery ? trimmedCurrentQuery + ' ' + queryToAppend : queryToAppend;
+					this.searchWidget.setValue(newQuery);
 				} else {
-					const queryWithoutModifiedTag = this.searchWidget.getValue().split(' ').filter(word => word !== `@${MODIFIED_SETTING_TAG}`).join(' ');
-					this.searchWidget.setValue(queryWithoutModifiedTag);
+					const queryWithRemovedTags = this.searchWidget.getValue().split(' ')
+						.filter(word => word !== queryToAppend).join(' ');
+					this.searchWidget.setValue(queryWithRemovedTags);
 				}
 				this.searchWidget.focus();
 			},
@@ -87,7 +96,12 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 
 	getActions(): IAction[] {
 		return [
-			this.createModifiedAction(),
+			this.createToggleAction(
+				'modifiedSettingsSearch',
+				localize('modifiedSettingsSearch', "Modified"),
+				localize('modifiedSettingsSearchTooltip', "Add or remove modified settings filter"),
+				`@${MODIFIED_SETTING_TAG}`
+			),
 			this.createAction(
 				'extSettingsSearch',
 				localize('extSettingsSearch', "Extension ID..."),
@@ -115,6 +129,12 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 				localize('langSettingsSearchTooltip', "Add language ID filter"),
 				`@${LANGUAGE_SETTING_TAG}`,
 				true
+			),
+			this.createToggleAction(
+				'onlineSettingsSearch',
+				localize('onlineSettingsSearch', "Online services"),
+				localize('onlineSettingsSearchTooltip', "Add or remove online services filter"),
+				'@tag:usesOnlineServices'
 			),
 			this.createAction(
 				'idSettingsSearch',
