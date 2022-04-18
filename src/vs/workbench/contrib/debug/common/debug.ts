@@ -291,6 +291,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly compoundRoot: DebugCompoundRoot | undefined;
 	readonly name: string;
 	readonly isSimpleUI: boolean;
+	readonly autoExpandLazyVariables: boolean;
 
 	setSubId(subId: string | undefined): void;
 
@@ -638,6 +639,7 @@ export interface IDebugConfiguration {
 	disassemblyView: {
 		showSourceCode: boolean;
 	};
+	autoExpandLazyVariables: boolean;
 }
 
 export interface IGlobalConfig {
@@ -769,6 +771,11 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	initialConfigurations?: any[];
 	configurationSnippets?: IJSONSchemaSnippet[];
 	variables?: { [key: string]: string };
+	when?: string;
+}
+
+export interface IBreakpointContribution {
+	language: string;
 	when?: string;
 }
 

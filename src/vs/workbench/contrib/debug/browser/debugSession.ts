@@ -172,6 +172,11 @@ export class DebugSession implements IDebugSession {
 		return this._options.debugUI?.simple ?? false;
 	}
 
+	get autoExpandLazyVariables(): boolean {
+		// This tiny helper avoids converting the entire debug model to use service injection
+		return this.configurationService.getValue<IDebugConfiguration>('debug').autoExpandLazyVariables;
+	}
+
 	setConfiguration(configuration: { resolved: IConfig; unresolved: IConfig | undefined }) {
 		this._configuration = configuration;
 	}
