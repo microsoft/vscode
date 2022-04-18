@@ -130,18 +130,18 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 				`@${LANGUAGE_SETTING_TAG}`,
 				true
 			),
-			this.createToggleAction(
-				'onlineSettingsSearch',
-				localize('onlineSettingsSearch', "Online services"),
-				localize('onlineSettingsSearchTooltip', "Add or remove online services filter"),
-				'@tag:usesOnlineServices'
-			),
 			this.createAction(
 				'idSettingsSearch',
 				localize('idSettingsSearch', "Setting ID..."),
 				localize('idSettingsSearchTooltip', "Add setting ID filter"),
 				`@${ID_SETTING_TAG}`,
 				false
+			),
+			this.createToggleAction(
+				'onlineSettingsSearch',
+				localize('onlineSettingsSearch', "Online services"),
+				localize('onlineSettingsSearchTooltip', "Show settings for online services"),
+				'@tag:usesOnlineServices'
 			)
 		];
 	}
