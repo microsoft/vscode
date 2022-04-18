@@ -23,7 +23,7 @@ import { addFileToParseCache, clearParseCache, removeFileFromParseCache } from '
 
 export function activateEmmetExtension(context: vscode.ExtensionContext) {
 	migrateEmmetExtensionsPath();
-	registerCompletionProviders(context);
+	refreshCompletionProviders(context);
 	updateEmmetExtensionsPath();
 
 	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.wrapWithAbbreviation', (args) => {
@@ -122,8 +122,8 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => {
-		if (e.affectsConfiguration('emmet.includeLanguages')) {
-			registerCompletionProviders(context);
+		if (e.affectsConfiguration('emmet.includeLanguages') || e.affectsConfiguration('emmet.useInlineCompletions')) {
+			refreshCompletionProviders(context);
 		}
 		if (e.affectsConfiguration('emmet.extensionsPath')) {
 			updateEmmetExtensionsPath();
@@ -159,14 +159,15 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
  */
 const languageMappingForCompletionProviders: Map<string, string> = new Map<string, string>();
 const completionProvidersMapping: Map<string, vscode.Disposable> = new Map<string, vscode.Disposable>();
+const completionProviderDisposables: vscode.Disposable[] = [];
 
-function registerCompletionProviders(context: vscode.ExtensionContext) {
+function refreshCompletionProviders(_: vscode.ExtensionContext) {
+	clearCompletionProviderInfo();
 
-	// TODO@rzhao271 add settings & do this properly
-	const provider = new DefaultCompletionItemProvider();
-	vscode.languages.registerInlineCompletionItemProviderNew({ language: 'html' }, {
-		async provideInlineCompletionItems(document: vscode.TextDocument, position: vscode.Position, context: vscode.InlineCompletionContextNew, token: vscode.CancellationToken) {
-			const items = await provider.provideCompletionItems(document, position, token, { triggerCharacter: undefined, triggerKind: vscode.CompletionTriggerKind.Invoke });
+	const completionProvider = new DefaultCompletionItemProvider();
+	const inlineCompletionProvider: vscode.InlineCompletionItemProviderNew = {
+		async provideInlineCompletionItems(document: vscode.TextDocument, position: vscode.Position, _: vscode.InlineCompletionContextNew, token: vscode.CancellationToken) {
+			const items = await completionProvider.provideCompletionItems(document, position, token, { triggerCharacter: undefined, triggerKind: vscode.CompletionTriggerKind.Invoke });
 			if (!items) {
 				return undefined;
 			}
@@ -190,13 +191,10 @@ function registerCompletionProviders(context: vscode.ExtensionContext) {
 				}
 			];
 		}
-	});
+	};
 
-	return;
-
-	let completionProvider = new DefaultCompletionItemProvider();
-	let includedLanguages = getMappingForIncludedLanguages();
-
+	const useInlineCompletionProvider = vscode.workspace.getConfiguration('emmet').get<boolean>('useInlineCompletions');
+	const includedLanguages = getMappingForIncludedLanguages();
 	Object.keys(includedLanguages).forEach(language => {
 		if (languageMappingForCompletionProviders.has(language) && languageMappingForCompletionProviders.get(language) === includedLanguages[language]) {
 			return;
@@ -211,8 +209,13 @@ function registerCompletionProviders(context: vscode.ExtensionContext) {
 			completionProvidersMapping.delete(language);
 		}
 
-		const provider = vscode.languages.registerCompletionItemProvider({ language, scheme: '*' }, completionProvider, ...LANGUAGE_MODES[includedLanguages[language]]);
-		context.subscriptions.push(provider);
+		let provider;
+		if (useInlineCompletionProvider) {
+			provider = vscode.languages.registerInlineCompletionItemProviderNew({ language, scheme: '*' }, inlineCompletionProvider);
+		} else {
+			provider = vscode.languages.registerCompletionItemProvider({ language, scheme: '*' }, completionProvider, ...LANGUAGE_MODES[includedLanguages[language]]);
+		}
+		completionProviderDisposables.push(provider);
 
 		languageMappingForCompletionProviders.set(language, includedLanguages[language]);
 		completionProvidersMapping.set(language, provider);
@@ -220,8 +223,13 @@ function registerCompletionProviders(context: vscode.ExtensionContext) {
 
 	Object.keys(LANGUAGE_MODES).forEach(language => {
 		if (!languageMappingForCompletionProviders.has(language)) {
-			const provider = vscode.languages.registerCompletionItemProvider({ language, scheme: '*' }, completionProvider, ...LANGUAGE_MODES[language]);
-			context.subscriptions.push(provider);
+			let provider;
+			if (useInlineCompletionProvider) {
+				provider = vscode.languages.registerInlineCompletionItemProviderNew({ language, scheme: '*' }, inlineCompletionProvider);
+			} else {
+				provider = vscode.languages.registerCompletionItemProvider({ language, scheme: '*' }, completionProvider, ...LANGUAGE_MODES[language]);
+			}
+			completionProviderDisposables.push(provider);
 
 			languageMappingForCompletionProviders.set(language, language);
 			completionProvidersMapping.set(language, provider);
@@ -229,7 +237,16 @@ function registerCompletionProviders(context: vscode.ExtensionContext) {
 	});
 }
 
-export function deactivate() {
+function clearCompletionProviderInfo() {
+	languageMappingForCompletionProviders.clear();
 	completionProvidersMapping.clear();
+	let disposable: vscode.Disposable | undefined;
+	while (disposable = completionProviderDisposables.pop()) {
+		disposable.dispose();
+	}
+}
+
+export function deactivate() {
+	clearCompletionProviderInfo();
 	clearParseCache();
 }
