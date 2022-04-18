@@ -11,7 +11,7 @@ builtin unset ZDOTDIR
 # This variable allows the shell to both detect that VS Code's shell integration is enabled as well
 # as disable it by unsetting the variable.
 VSCODE_SHELL_INTEGRATION=1
-echo 'running script'
+
 # this is where ZDOTDIR gets set for the user
 if [ -f /etc/zshenv ]; then
 	. /etc/zshenv
@@ -25,21 +25,19 @@ else
 	VSCODE_SHELL_HIDE_WELCOME=""
 fi
 
-export RCS="1"
-export GLOBAL_RCS="1"
-if [[ -n "${RCS}" && -f $__vsc_path/.zshenv ]]; then
+if [[ $options[norcs] = off && -f $__vsc_path/.zshenv ]]; then
 	. $__vsc_path/.zshenv
 fi
-if [[ -n "${RCS}" && -n "${GLOBAL_RCS}" && -o "login" &&  -f /etc/zprofile ]]; then
+if [[ $options[norcs] = off &&  $options[noglobalrcs] = off && -o "login" &&  -f /etc/zprofile ]]; then
 	. /etc/zprofile
 fi
-if [[ -n "${RCS}" && -o "login" &&  -f $__vsc_path/.zprofile ]]; then
+if [[ $options[norcs] = off && -o "login" &&  -f $__vsc_path/.zprofile ]]; then
 	. $__vsc_path/.zprofile
 fi
-if [[ -n "${RCS}" && -n "${GLOBAL_RCS}" && -f /etc/zshrc ]]; then
+if [[ $options[norcs] = off &&  $options[noglobalrcs] = off && -f /etc/zshrc ]]; then
 	. /etc/zshrc
 fi
-if [[ -n "${RCS}" && -f $__vsc_path/.zshrc ]]; then
+if [[ $options[norcs] = off && -f $__vsc_path/.zshrc ]]; then
 	. $__vsc_path/.zshrc
 fi
 # login is handled automatically
