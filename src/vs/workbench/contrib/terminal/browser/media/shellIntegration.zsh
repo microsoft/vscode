@@ -25,19 +25,19 @@ else
 	VSCODE_SHELL_HIDE_WELCOME=""
 fi
 
-if [[ $options[norcs] = off && -f $__vsc_path/.zshenv ]]; then
+if [[ ( $options[rcs] = on || $options[norcs] = off ) && -f $__vsc_path/.zshenv ]]; then
 	. $__vsc_path/.zshenv
 fi
-if [[ $options[norcs] = off &&  $options[noglobalrcs] = off && -o "login" &&  -f /etc/zprofile ]]; then
+if [[( $options[rcs] = on || $options[norcs] = off ) &&  ( $options[globalrcs] = on || $options[noglobalrcs] = off ) && -o "login" &&  -f /etc/zprofile ]]; then
 	. /etc/zprofile
 fi
-if [[ $options[norcs] = off && -o "login" &&  -f $__vsc_path/.zprofile ]]; then
+if [[( $options[rcs] = on || $options[norcs] = off ) && -o "login" &&  -f $__vsc_path/.zprofile ]]; then
 	. $__vsc_path/.zprofile
 fi
-if [[ $options[norcs] = off &&  $options[noglobalrcs] = off && -f /etc/zshrc ]]; then
+if [[( $options[rcs] = on || $options[norcs] = off ) &&  ( $options[globalrcs] = on || $options[noglobalrcs] = off ) && -f /etc/zshrc ]]; then
 	. /etc/zshrc
 fi
-if [[ $options[norcs] = off && -f $__vsc_path/.zshrc ]]; then
+if [[( $options[rcs] = on || $options[norcs] = off ) && -f $__vsc_path/.zshrc ]]; then
 	. $__vsc_path/.zshrc
 fi
 # login is handled automatically
