@@ -114,11 +114,13 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 		});
 		recentSources.push(...sources);
 	}
-	if (recentSources.length > 0) {
-		recentSources.unshift({ kind: QuickPickItemKind.Separator, label: localize('recently opened', 'recently opened') });
-	}
 
-	const items = [...remoteProviders, ...recentSources];
+	const items = [
+		{ kind: QuickPickItemKind.Separator, label: localize('remote sources', 'remote sources') },
+		...remoteProviders,
+		{ kind: QuickPickItemKind.Separator, label: localize('recently opened', 'recently opened') },
+		...recentSources
+	];
 
 	quickpick.placeholder = options.placeholder ?? (remoteProviders.length === 0
 		? localize('provide url', "Provide repository URL")
