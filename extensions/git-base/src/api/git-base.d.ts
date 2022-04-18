@@ -46,6 +46,10 @@ export interface RemoteSource {
 	readonly name: string;
 	readonly description?: string;
 	readonly detail?: string;
+	/**
+	 * Codicon name
+	 */
+	readonly icon?: string;
 	readonly url: string | string[];
 }
 
@@ -56,6 +60,7 @@ export interface RemoteSourceProvider {
 	 */
 	readonly icon?: string;
 	readonly label?: string;
+	readonly placeholder?: string;
 	readonly supportsQuery?: boolean;
 
 	getBranches?(url: string): ProviderResult<string[]>;

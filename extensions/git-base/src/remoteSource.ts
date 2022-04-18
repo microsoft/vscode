@@ -33,10 +33,10 @@ class RemoteSourceProviderQuickPick {
 			this.quickpick = window.createQuickPick();
 			this.quickpick.ignoreFocusOut = true;
 			if (this.provider.supportsQuery) {
-				this.quickpick.placeholder = localize('type to search', "Repository name (type to search)");
+				this.quickpick.placeholder = this.provider.placeholder ?? localize('type to search', "Repository name (type to search)");
 				this.quickpick.onDidChangeValue(this.onDidChangeValue, this);
 			} else {
-				this.quickpick.placeholder = localize('type to filter', "Repository name");
+				this.quickpick.placeholder = this.provider.placeholder ?? localize('type to filter', "Repository name");
 			}
 		}
 	}
@@ -61,7 +61,7 @@ class RemoteSourceProviderQuickPick {
 				}];
 			} else {
 				this.quickpick!.items = remoteSources.map(remoteSource => ({
-					label: remoteSource.name,
+					label: remoteSource.icon ? `$(${remoteSource.icon}) ${remoteSource.name}` : remoteSource.name,
 					description: remoteSource.description || (typeof remoteSource.url === 'string' ? remoteSource.url : remoteSource.url[0]),
 					detail: remoteSource.detail,
 					remoteSource,
