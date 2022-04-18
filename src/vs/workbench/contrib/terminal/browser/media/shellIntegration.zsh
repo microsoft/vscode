@@ -12,11 +12,6 @@ builtin unset ZDOTDIR
 # as disable it by unsetting the variable.
 VSCODE_SHELL_INTEGRATION=1
 
-# this is where ZDOTDIR gets set for the user
-if [ -f /etc/zshenv ]; then
-	. /etc/zshenv
-fi
-
 # if ZDOTDIR is undefined, use HOME
 local __vsc_path=$ZDOTDIR
 if [ -z "${ZDOTDIR}" ]; then
@@ -25,22 +20,9 @@ else
 	VSCODE_SHELL_HIDE_WELCOME=""
 fi
 
-if [[ ( $options[rcs] = on || $options[norcs] = off ) && -f $__vsc_path/.zshenv ]]; then
-	. $__vsc_path/.zshenv
-fi
-if [[( $options[rcs] = on || $options[norcs] = off ) &&  ( $options[globalrcs] = on || $options[noglobalrcs] = off ) && -o "login" &&  -f /etc/zprofile ]]; then
-	. /etc/zprofile
-fi
-if [[( $options[rcs] = on || $options[norcs] = off ) && -o "login" &&  -f $__vsc_path/.zprofile ]]; then
-	. $__vsc_path/.zprofile
-fi
-if [[( $options[rcs] = on || $options[norcs] = off ) &&  ( $options[globalrcs] = on || $options[noglobalrcs] = off ) && -f /etc/zshrc ]]; then
-	. /etc/zshrc
-fi
-if [[( $options[rcs] = on || $options[norcs] = off ) && -f $__vsc_path/.zshrc ]]; then
+if [[ $options[norcs] = off  && -f $__vsc_path/.zshrc ]]; then
 	. $__vsc_path/.zshrc
 fi
-# login is handled automatically
 
 # Shell integration was disabled by the shell, exit without warning assuming either the shell has
 # explicitly disabled shell integration as it's incompatible or it implements the protocol.

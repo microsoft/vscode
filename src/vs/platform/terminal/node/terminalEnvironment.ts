@@ -193,6 +193,14 @@ export function getShellIntegrationInjection(
 				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh'),
 				dest: path.join(zdotdir, '.zshrc')
 			});
+			filesToCopy.push({
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-profile.zsh'),
+				dest: path.join(zdotdir, '.zprofile')
+			});
+			filesToCopy.push({
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-env.zsh'),
+				dest: path.join(zdotdir, '.zshenv')
+			});
 			if (!options.showWelcome) {
 				envMixin['VSCODE_SHELL_HIDE_WELCOME'] = '1';
 			}
