@@ -42,9 +42,6 @@ if [[ $options[norcs] = off && -f $__vsc_path/.zshrc ]]; then
 fi
 # login is handled automatically
 
-builtin unset RCS
-builtin unset GLOBAL_RCS
-
 # Shell integration was disabled by the shell, exit without warning assuming either the shell has
 # explicitly disabled shell integration as it's incompatible or it implements the protocol.
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
