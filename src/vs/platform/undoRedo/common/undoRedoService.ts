@@ -156,7 +156,7 @@ class WorkspaceStackElement {
 		this.invalidatedResources = null;
 	}
 
-	public canSplit(): this is WorkspaceStackElement & { actual: { split(): IResourceUndoRedoElement[]; } } {
+	public canSplit(): this is WorkspaceStackElement & { actual: { split(): IResourceUndoRedoElement[] } } {
 		return (typeof this.actual.split === 'function');
 	}
 
@@ -564,7 +564,7 @@ export class UndoRedoService implements IUndoRedoService {
 		return null;
 	}
 
-	private _splitPastWorkspaceElement(toRemove: WorkspaceStackElement & { actual: { split(): IResourceUndoRedoElement[]; } }, ignoreResources: RemovedResources | null): void {
+	private _splitPastWorkspaceElement(toRemove: WorkspaceStackElement & { actual: { split(): IResourceUndoRedoElement[] } }, ignoreResources: RemovedResources | null): void {
 		const individualArr = toRemove.actual.split();
 		const individualMap = new Map<string, ResourceStackElement>();
 		for (const _element of individualArr) {
@@ -583,7 +583,7 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 	}
 
-	private _splitFutureWorkspaceElement(toRemove: WorkspaceStackElement & { actual: { split(): IResourceUndoRedoElement[]; } }, ignoreResources: RemovedResources | null): void {
+	private _splitFutureWorkspaceElement(toRemove: WorkspaceStackElement & { actual: { split(): IResourceUndoRedoElement[] } }, ignoreResources: RemovedResources | null): void {
 		const individualArr = toRemove.actual.split();
 		const individualMap = new Map<string, ResourceStackElement>();
 		for (const _element of individualArr) {

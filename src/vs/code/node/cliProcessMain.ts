@@ -12,6 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isAbsolute, join } from 'vs/base/common/path';
 import { cwd } from 'vs/base/common/process';
+import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -24,7 +25,9 @@ import { NativeEnvironmentService } from 'vs/platform/environment/node/environme
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
+import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -43,7 +46,7 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { supportsTelemetry, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -142,6 +145,7 @@ class CliMain extends Disposable {
 		services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
 		// Extensions
+		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));
 		services.set(IExtensionManagementCLIService, new SyncDescriptor(ExtensionManagementCLIService));
@@ -156,7 +160,7 @@ class CliMain extends Disposable {
 				appenders.push(new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey));
 			}
 
-			const { appRoot, extensionsPath, installSourcePath } = environmentService;
+			const { installSourcePath } = environmentService;
 
 			const config: ITelemetryServiceConfig = {
 				appenders,
@@ -164,7 +168,7 @@ class CliMain extends Disposable {
 				commonProperties: (async () => {
 					let machineId: string | undefined = undefined;
 					try {
-						const storageContents = await Promises.readFile(join(environmentService.userDataPath, 'storage.json'));
+						const storageContents = await Promises.readFile(joinPath(environmentService.globalStorageHome, 'storage.json').fsPath);
 						machineId = JSON.parse(storageContents.toString())[machineIdKey];
 					} catch (error) {
 						if (error.code !== 'ENOENT') {
@@ -174,7 +178,7 @@ class CliMain extends Disposable {
 
 					return resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, machineId, productService.msftInternalDomains, installSourcePath);
 				})(),
-				piiPaths: [appRoot, extensionsPath]
+				piiPaths: getPiiPathsFromEnvironment(environmentService)
 			};
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));

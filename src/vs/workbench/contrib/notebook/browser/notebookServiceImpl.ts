@@ -22,15 +22,13 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Memento } from 'vs/workbench/common/memento';
 import { INotebookEditorContribution, notebookRendererExtensionPoint, notebooksExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
 import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, NotebookSetting, INotebookContributionData, INotebookExclusiveDocumentFilter, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, MimeTypeDisplayOrder, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookData, NotebookEditorPriority, NotebookRendererMatch, NOTEBOOK_DISPLAY_ORDER, RENDERER_EQUIVALENT_EXTENSIONS, RENDERER_NOT_AVAILABLE, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellUri, NotebookSetting, INotebookContributionData, INotebookExclusiveDocumentFilter, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, MimeTypeDisplayOrder, NotebookData, NotebookEditorPriority, NotebookRendererMatch, NOTEBOOK_DISPLAY_ORDER, RENDERER_EQUIVALENT_EXTENSIONS, RENDERER_NOT_AVAILABLE, TransientOptions, NotebookExtensionDescription } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { updateEditorTopPadding } from 'vs/workbench/contrib/notebook/common/notebookOptions';
@@ -194,8 +192,8 @@ export class NotebookProviderInfoStore extends Disposable {
 
 				return { editor: NotebookEditorInput.create(this._instantiationService, ref.object.resource, notebookProviderInfo.id), options };
 			};
-			const notebookDiffEditorInputFactory: DiffEditorInputFactoryFunction = ({ modified, original }) => {
-				return { editor: NotebookDiffEditorInput.create(this._instantiationService, modified.resource!, undefined, undefined, original.resource!, notebookProviderInfo.id) };
+			const notebookDiffEditorInputFactory: DiffEditorInputFactoryFunction = ({ modified, original, label, description }) => {
+				return { editor: NotebookDiffEditorInput.create(this._instantiationService, modified.resource!, label, description, original.resource!, notebookProviderInfo.id) };
 			};
 			// Register the notebook editor
 			disposables.add(this._editorResolverService.registerEditor(
@@ -278,7 +276,6 @@ export class NotebookOutputRendererInfoStore {
 
 	constructor(
 		@IStorageService storageService: IStorageService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		this.preferredMimetypeMemento = new Memento('workbench.editor.notebook.preferredRenderer2', storageService);
 	}
@@ -327,7 +324,7 @@ export class NotebookOutputRendererInfoStore {
 		const preferred = notebookProviderInfo && this.preferredMimetype.getValue()[notebookProviderInfo.id]?.[mimeType];
 		const notebookExtId = notebookProviderInfo?.extension?.value;
 		const notebookId = notebookProviderInfo?.id;
-		const renderers: { ordered: IOrderedMimeType, score: number }[] = Array.from(this.contributedRenderers.values())
+		const renderers: { ordered: IOrderedMimeType; score: number }[] = Array.from(this.contributedRenderers.values())
 			.map(renderer => {
 				const ownScore = kernelProvides === undefined
 					? renderer.matchesWithoutKernel(mimeType)
@@ -348,17 +345,6 @@ export class NotebookOutputRendererInfoStore {
 					score: reuseScore | ownScore,
 				};
 			}).filter(isDefined);
-
-		if (mimeTypeSupportedByCore(mimeType)) {
-			renderers.push({
-				score: ReuseOrder.BuiltIn,
-				ordered: {
-					mimeType,
-					rendererId: BUILTIN_RENDERER_ID,
-					isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkspaceTrusted()
-				}
-			});
-		}
 
 		if (renderers.length === 0) {
 			return [{ mimeType, rendererId: RENDERER_NOT_AVAILABLE, isTrusted: true }];
@@ -608,12 +594,10 @@ export class NotebookService extends Disposable implements INotebookService {
 		return this._registerProviderData(viewType, new SimpleNotebookProviderInfo(viewType, serializer, extensionData));
 	}
 
-	async withNotebookDataProvider(resource: URI, viewType?: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo> {
-		const providers = this.notebookProviderInfoStore.getContributedNotebook(resource);
-		// If we have a viewtype specified we want that data provider, as the resource won't always map correctly
-		const selected = viewType ? providers.find(p => p.id === viewType) : providers[0];
+	async withNotebookDataProvider(viewType: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo> {
+		const selected = this.notebookProviderInfoStore.get(viewType);
 		if (!selected) {
-			throw new Error(`NO contribution for resource: '${resource.toString()}'`);
+			throw new Error(`UNKNOWN notebook type '${viewType}'`);
 		}
 		await this.canResolve(selected.id);
 		const result = this._notebookProviders.get(selected.id);
@@ -719,7 +703,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		this._lastClipboardIsCopy = isCopy;
 	}
 
-	getToCopy(): { items: NotebookCellTextModel[], isCopy: boolean; } | undefined {
+	getToCopy(): { items: NotebookCellTextModel[]; isCopy: boolean } | undefined {
 		if (this._cutItems) {
 			return { items: this._cutItems, isCopy: this._lastClipboardIsCopy };
 		}
@@ -728,4 +712,3 @@ export class NotebookService extends Disposable implements INotebookService {
 	}
 
 }
-

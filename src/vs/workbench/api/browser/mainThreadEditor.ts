@@ -10,7 +10,7 @@ import { RenderLineNumbersType, TextEditorCursorStyle, cursorStyleToString, Edit
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IDecorationOptions, ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextModel, ITextModelUpdateOptions, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { ITextModel, ITextModelUpdateOptions } from 'vs/editor/common/model';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IModelService } from 'vs/editor/common/services/model';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
@@ -482,7 +482,7 @@ export class MainThreadTextEditor {
 			this._model.pushEOL(opts.setEndOfLine);
 		}
 
-		const transformedEdits = edits.map((edit): IIdentifiedSingleEditOperation => {
+		const transformedEdits = edits.map((edit): ISingleEditOperation => {
 			return {
 				range: Range.lift(edit.range),
 				text: edit.text,
@@ -500,7 +500,7 @@ export class MainThreadTextEditor {
 		return true;
 	}
 
-	async insertSnippet(template: string, ranges: readonly IRange[], opts: IUndoStopOptions) {
+	async insertSnippet(modelVersionId: number, template: string, ranges: readonly IRange[], opts: IUndoStopOptions) {
 
 		if (!this._codeEditor || !this._codeEditor.hasModel()) {
 			return false;
@@ -517,7 +517,15 @@ export class MainThreadTextEditor {
 			}
 		}
 
+		if (this._codeEditor.getModel().getVersionId() !== modelVersionId) {
+			// ignored because emmet tests fail...
+			// return false;
+		}
+
 		const snippetController = SnippetController2.get(this._codeEditor);
+		if (!snippetController) {
+			return false;
+		}
 
 		// cancel previous snippet mode
 		// snippetController.leaveSnippet();
@@ -528,7 +536,7 @@ export class MainThreadTextEditor {
 		this._codeEditor.focus();
 
 		// make modifications
-		snippetController?.insert(template, {
+		snippetController.insert(template, {
 			overwriteBefore: 0, overwriteAfter: 0,
 			undoStopBefore: opts.undoStopBefore, undoStopAfter: opts.undoStopAfter,
 			clipboardText

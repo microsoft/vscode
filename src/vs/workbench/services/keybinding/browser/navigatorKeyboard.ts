@@ -11,5 +11,5 @@ export interface IKeyboard {
 
 }
 export type INavigatorWithKeyboard = Navigator & {
-	keyboard: IKeyboard
+	keyboard: IKeyboard;
 };

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges, CommentThread } from 'vs/editor/common/languages';
+import { CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges, CommentThread, CommentOptions } from 'vs/editor/common/languages';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
-import { MainThreadCommentController } from 'vs/workbench/api/browser/mainThreadComments';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -26,9 +26,38 @@ export interface ICommentInfo extends CommentInfo {
 	label?: string;
 }
 
+export interface INotebookCommentInfo {
+	extensionId?: string;
+	threads: CommentThread<ICellRange>[];
+	owner: string;
+	label?: string;
+}
+
 export interface IWorkspaceCommentThreadsEvent {
 	ownerId: string;
 	commentThreads: CommentThread[];
+}
+
+export interface INotebookCommentThreadChangedEvent extends CommentThreadChangedEvent<ICellRange> {
+	owner: string;
+}
+
+export interface ICommentController {
+	id: string;
+	features: {
+		reactionGroup?: CommentReaction[];
+		reactionHandler?: boolean;
+		options?: CommentOptions;
+	};
+	options?: CommentOptions;
+	contextValue?: string;
+	createCommentThreadTemplate(resource: UriComponents, range: IRange): void;
+	updateCommentThreadTemplate(threadHandle: number, range: IRange): Promise<void>;
+	deleteCommentThreadMain(commentThreadId: string): void;
+	toggleReaction(uri: URI, thread: CommentThread, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
+	getDocumentComments(resource: URI, token: CancellationToken): Promise<ICommentInfo>;
+	getNotebookComments(resource: URI, token: CancellationToken): Promise<INotebookCommentInfo>;
+	getCommentingRanges(resource: URI, token: CancellationToken): Promise<IRange[]>;
 }
 
 export interface ICommentService {
@@ -36,28 +65,33 @@ export interface ICommentService {
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent>;
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent>;
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent>;
+	readonly onDidUpdateNotebookCommentThreads: Event<INotebookCommentThreadChangedEvent>;
 	readonly onDidChangeActiveCommentThread: Event<CommentThread | null>;
-	readonly onDidUpdateCommentingRanges: Event<{ owner: string; }>
-	readonly onDidChangeActiveCommentingRange: Event<{ range: Range, commentingRangesInfo: CommentingRanges }>;
+	readonly onDidChangeCurrentCommentThread: Event<CommentThread | undefined>;
+	readonly onDidUpdateCommentingRanges: Event<{ owner: string }>;
+	readonly onDidChangeActiveCommentingRange: Event<{ range: Range; commentingRangesInfo: CommentingRanges }>;
 	readonly onDidSetDataProvider: Event<void>;
 	readonly onDidDeleteDataProvider: Event<string>;
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
-	setWorkspaceComments(owner: string, commentsByResource: CommentThread[]): void;
+	setWorkspaceComments(owner: string, commentsByResource: CommentThread<IRange | ICellRange>[]): void;
 	removeWorkspaceComments(owner: string): void;
-	registerCommentController(owner: string, commentControl: MainThreadCommentController): void;
+	registerCommentController(owner: string, commentControl: ICommentController): void;
 	unregisterCommentController(owner: string): void;
-	getCommentController(owner: string): MainThreadCommentController | undefined;
+	getCommentController(owner: string): ICommentController | undefined;
 	createCommentThreadTemplate(owner: string, resource: URI, range: Range): void;
 	updateCommentThreadTemplate(owner: string, threadHandle: number, range: Range): Promise<void>;
 	getCommentMenus(owner: string): CommentMenus;
-	updateComments(ownerId: string, event: CommentThreadChangedEvent): void;
+	updateComments(ownerId: string, event: CommentThreadChangedEvent<IRange>): void;
+	updateNotebookComments(ownerId: string, event: CommentThreadChangedEvent<ICellRange>): void;
 	disposeCommentThread(ownerId: string, threadId: string): void;
-	getComments(resource: URI): Promise<(ICommentInfo | null)[]>;
+	getDocumentComments(resource: URI): Promise<(ICommentInfo | null)[]>;
+	getNotebookComments(resource: URI): Promise<(INotebookCommentInfo | null)[]>;
 	updateCommentingRanges(ownerId: string): void;
 	getCommentingRanges(resource: URI): Promise<IRange[]>;
 	hasReactionHandler(owner: string): boolean;
-	toggleReaction(owner: string, resource: URI, thread: CommentThread, comment: Comment, reaction: CommentReaction): Promise<void>;
-	setActiveCommentThread(commentThread: CommentThread | null): void;
+	toggleReaction(owner: string, resource: URI, thread: CommentThread<IRange | ICellRange>, comment: Comment, reaction: CommentReaction): Promise<void>;
+	setActiveCommentThread(commentThread: CommentThread<IRange | ICellRange> | null): void;
+	setCurrentCommentThread(commentThread: CommentThread<IRange | ICellRange> | undefined): void;
 }
 
 export class CommentService extends Disposable implements ICommentService {
@@ -78,22 +112,28 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidUpdateCommentThreads: Emitter<ICommentThreadChangedEvent> = this._register(new Emitter<ICommentThreadChangedEvent>());
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent> = this._onDidUpdateCommentThreads.event;
 
-	private readonly _onDidUpdateCommentingRanges: Emitter<{ owner: string; }> = this._register(new Emitter<{ owner: string; }>());
-	readonly onDidUpdateCommentingRanges: Event<{ owner: string; }> = this._onDidUpdateCommentingRanges.event;
+	private readonly _onDidUpdateNotebookCommentThreads: Emitter<INotebookCommentThreadChangedEvent> = this._register(new Emitter<INotebookCommentThreadChangedEvent>());
+	readonly onDidUpdateNotebookCommentThreads: Event<INotebookCommentThreadChangedEvent> = this._onDidUpdateNotebookCommentThreads.event;
+
+	private readonly _onDidUpdateCommentingRanges: Emitter<{ owner: string }> = this._register(new Emitter<{ owner: string }>());
+	readonly onDidUpdateCommentingRanges: Event<{ owner: string }> = this._onDidUpdateCommentingRanges.event;
 
 	private readonly _onDidChangeActiveCommentThread = this._register(new Emitter<CommentThread | null>());
 	readonly onDidChangeActiveCommentThread = this._onDidChangeActiveCommentThread.event;
 
-	private readonly _onDidChangeActiveCommentingRange: Emitter<{
-		range: Range, commentingRangesInfo:
-		CommentingRanges
-	}> = this._register(new Emitter<{
-		range: Range, commentingRangesInfo:
-		CommentingRanges
-	}>());
-	readonly onDidChangeActiveCommentingRange: Event<{ range: Range, commentingRangesInfo: CommentingRanges }> = this._onDidChangeActiveCommentingRange.event;
+	private readonly _onDidChangeCurrentCommentThread = this._register(new Emitter<CommentThread | undefined>());
+	readonly onDidChangeCurrentCommentThread = this._onDidChangeCurrentCommentThread.event;
 
-	private _commentControls = new Map<string, MainThreadCommentController>();
+	private readonly _onDidChangeActiveCommentingRange: Emitter<{
+		range: Range; commentingRangesInfo:
+		CommentingRanges;
+	}> = this._register(new Emitter<{
+		range: Range; commentingRangesInfo:
+		CommentingRanges;
+	}>());
+	readonly onDidChangeActiveCommentingRange: Event<{ range: Range; commentingRangesInfo: CommentingRanges }> = this._onDidChangeActiveCommentingRange.event;
+
+	private _commentControls = new Map<string, ICommentController>();
 	private _commentMenus = new Map<string, CommentMenus>();
 
 	constructor(
@@ -102,6 +142,18 @@ export class CommentService extends Disposable implements ICommentService {
 		super();
 	}
 
+	/**
+	 * The current comment thread is the thread that has focus or is being hovered.
+	 * @param commentThread
+	 */
+	setCurrentCommentThread(commentThread: CommentThread | undefined) {
+		this._onDidChangeCurrentCommentThread.fire(commentThread);
+	}
+
+	/**
+	 * The active comment thread is the the thread that is currently being edited.
+	 * @param commentThread
+	 */
 	setActiveCommentThread(commentThread: CommentThread | null) {
 		this._onDidChangeActiveCommentThread.fire(commentThread);
 	}
@@ -118,7 +170,7 @@ export class CommentService extends Disposable implements ICommentService {
 		this._onDidSetAllCommentThreads.fire({ ownerId: owner, commentThreads: [] });
 	}
 
-	registerCommentController(owner: string, commentControl: MainThreadCommentController): void {
+	registerCommentController(owner: string, commentControl: ICommentController): void {
 		this._commentControls.set(owner, commentControl);
 		this._onDidSetDataProvider.fire();
 	}
@@ -128,7 +180,7 @@ export class CommentService extends Disposable implements ICommentService {
 		this._onDidDeleteDataProvider.fire(owner);
 	}
 
-	getCommentController(owner: string): MainThreadCommentController | undefined {
+	getCommentController(owner: string): ICommentController | undefined {
 		return this._commentControls.get(owner);
 	}
 
@@ -169,9 +221,14 @@ export class CommentService extends Disposable implements ICommentService {
 		return menu;
 	}
 
-	updateComments(ownerId: string, event: CommentThreadChangedEvent): void {
+	updateComments(ownerId: string, event: CommentThreadChangedEvent<IRange>): void {
 		const evt: ICommentThreadChangedEvent = Object.assign({}, event, { owner: ownerId });
 		this._onDidUpdateCommentThreads.fire(evt);
+	}
+
+	updateNotebookComments(ownerId: string, event: CommentThreadChangedEvent<ICellRange>): void {
+		const evt: INotebookCommentThreadChangedEvent = Object.assign({}, event, { owner: ownerId });
+		this._onDidUpdateNotebookCommentThreads.fire(evt);
 	}
 
 	updateCommentingRanges(ownerId: string) {
@@ -198,11 +255,24 @@ export class CommentService extends Disposable implements ICommentService {
 		return false;
 	}
 
-	async getComments(resource: URI): Promise<(ICommentInfo | null)[]> {
+	async getDocumentComments(resource: URI): Promise<(ICommentInfo | null)[]> {
 		let commentControlResult: Promise<ICommentInfo | null>[] = [];
 
 		this._commentControls.forEach(control => {
 			commentControlResult.push(control.getDocumentComments(resource, CancellationToken.None)
+				.catch(_ => {
+					return null;
+				}));
+		});
+
+		return Promise.all(commentControlResult);
+	}
+
+	async getNotebookComments(resource: URI): Promise<(INotebookCommentInfo | null)[]> {
+		let commentControlResult: Promise<INotebookCommentInfo | null>[] = [];
+
+		this._commentControls.forEach(control => {
+			commentControlResult.push(control.getNotebookComments(resource, CancellationToken.None)
 				.catch(_ => {
 					return null;
 				}));

@@ -87,7 +87,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		return this.getSymbolPicks(filter, undefined, token);
 	}
 
-	async getSymbolPicks(filter: string, options: { skipLocal?: boolean, skipSorting?: boolean, delay?: number } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
+	async getSymbolPicks(filter: string, options: { skipLocal?: boolean; skipSorting?: boolean; delay?: number } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
 		return this.delayer.trigger(async () => {
 			if (token.isCancellationRequested) {
 				return [];
@@ -97,7 +97,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		}, options?.delay);
 	}
 
-	private async doGetSymbolPicks(query: IPreparedQuery, options: { skipLocal?: boolean, skipSorting?: boolean } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
+	private async doGetSymbolPicks(query: IPreparedQuery, options: { skipLocal?: boolean; skipSorting?: boolean } | undefined, token: CancellationToken): Promise<Array<ISymbolQuickPickItem>> {
 
 		// Split between symbol and container query
 		let symbolQuery: IPreparedQuery;
@@ -224,7 +224,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		return symbolPicks;
 	}
 
-	private async openSymbol(provider: IWorkspaceSymbolProvider, symbol: IWorkspaceSymbol, token: CancellationToken, options: { keyMods: IKeyMods, forceOpenSideBySide?: boolean, preserveFocus?: boolean, forcePinned?: boolean }): Promise<void> {
+	private async openSymbol(provider: IWorkspaceSymbolProvider, symbol: IWorkspaceSymbol, token: CancellationToken, options: { keyMods: IKeyMods; forceOpenSideBySide?: boolean; preserveFocus?: boolean; forcePinned?: boolean }): Promise<void> {
 
 		// Resolve actual symbol to open for providers that can resolve
 		let symbolToOpen = symbol;

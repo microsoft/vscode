@@ -11,7 +11,7 @@ export const MavenDependencyRegex = /<dependency>([\s\S]*?)<\/dependency>/g;
 export const MavenGroupIdRegex = /<groupId>([\s\S]*?)<\/groupId>/;
 export const MavenArtifactIdRegex = /<artifactId>([\s\S]*?)<\/artifactId>/;
 
-export const JavaLibrariesToLookFor: { groupId: string, artifactId: string, tag: string }[] = [
+export const JavaLibrariesToLookFor: { groupId: string; artifactId: string; tag: string }[] = [
 	// azure
 	{ 'groupId': 'com.microsoft.azure', 'artifactId': 'azure', 'tag': 'azure' },
 	{ 'groupId': 'com.microsoft.azure', 'artifactId': 'azure-mgmt-.*', 'tag': 'azure' },

@@ -30,7 +30,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 	readonly onDidAddNotebookEditor = this._onNotebookEditorAdd.event;
 	readonly onDidRemoveNotebookEditor = this._onNotebookEditorsRemove.event;
 
-	private readonly _borrowableEditors = new Map<number, ResourceMap<{ widget: NotebookEditorWidget, token: number | undefined; }>>();
+	private readonly _borrowableEditors = new Map<number, ResourceMap<{ widget: NotebookEditorWidget; token: number | undefined }>>();
 
 	constructor(
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
@@ -156,7 +156,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 		return this._createBorrowValue(value.token!, value);
 	}
 
-	private _createBorrowValue(myToken: number, widget: { widget: NotebookEditorWidget, token: number | undefined; }): IBorrowValue<NotebookEditorWidget> {
+	private _createBorrowValue(myToken: number, widget: { widget: NotebookEditorWidget; token: number | undefined }): IBorrowValue<NotebookEditorWidget> {
 		return {
 			get value() {
 				return widget.token === myToken ? widget.widget : undefined;

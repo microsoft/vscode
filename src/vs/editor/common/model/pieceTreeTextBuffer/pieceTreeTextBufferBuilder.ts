@@ -39,7 +39,7 @@ export class PieceTreeTextBufferFactory implements ITextBufferFactory {
 		return '\n';
 	}
 
-	public create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable; } {
+	public create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable } {
 		const eol = this._getEOL(defaultEOL);
 		const chunks = this._chunks;
 

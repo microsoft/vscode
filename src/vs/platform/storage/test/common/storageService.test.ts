@@ -6,7 +6,7 @@
 import { ok, strictEqual } from 'assert';
 import { InMemoryStorageService, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
-export function createSuite<T extends IStorageService>(params: { setup: () => Promise<T>, teardown: (service: T) => Promise<void> }): void {
+export function createSuite<T extends IStorageService>(params: { setup: () => Promise<T>; teardown: (service: T) => Promise<void> }): void {
 
 	let storageService: T;
 

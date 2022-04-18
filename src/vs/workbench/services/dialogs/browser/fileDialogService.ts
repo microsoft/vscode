@@ -13,11 +13,12 @@ import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystem
 import { localize } from 'vs/nls';
 import { getMediaOrTextMime } from 'vs/base/common/mime';
 import { basename } from 'vs/base/common/resources';
-import { triggerDownload, triggerUpload, WebFileSystemAccess } from 'vs/base/browser/dom';
+import { triggerDownload, triggerUpload } from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { extractFilesDropData } from 'vs/workbench/browser/dnd';
+import { extractFileListData } from 'vs/workbench/browser/dnd';
 import { Iterable } from 'vs/base/common/iterator';
+import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -34,7 +35,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		if (this.shouldUseSimplified(schema)) {
-			return this.pickFileFolderAndOpenSimplified(schema, options, false);
+			return super.pickFileFolderAndOpenSimplified(schema, options, false);
 		}
 
 		throw new Error(localize('pickFolderAndOpen', "Can't open folders, try adding a folder to the workspace instead."));
@@ -53,7 +54,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		if (this.shouldUseSimplified(schema)) {
-			return this.pickFileAndOpenSimplified(schema, options, false);
+			return super.pickFileAndOpenSimplified(schema, options, false);
 		}
 
 		if (!WebFileSystemAccess.supported(window)) {
@@ -67,7 +68,13 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return; // `showOpenFilePicker` will throw an error when the user cancels
 		}
 
-		const uri = this.fileSystemProvider.registerFileHandle(fileHandle);
+		if (!WebFileSystemAccess.isFileSystemFileHandle(fileHandle)) {
+			return;
+		}
+
+		const uri = await this.fileSystemProvider.registerFileHandle(fileHandle);
+
+		this.addFileToRecentlyOpened(uri);
 
 		await this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
 	}
@@ -80,7 +87,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		if (this.shouldUseSimplified(schema)) {
-			return this.pickFolderAndOpenSimplified(schema, options);
+			return super.pickFolderAndOpenSimplified(schema, options);
 		}
 
 		throw new Error(localize('pickFolderAndOpen', "Can't open folders, try adding a folder to the workspace instead."));
@@ -95,7 +102,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		if (this.shouldUseSimplified(schema)) {
-			return this.pickWorkspaceAndOpenSimplified(schema, options);
+			return super.pickWorkspaceAndOpenSimplified(schema, options);
 		}
 
 		throw new Error(localize('pickWorkspaceAndOpen', "Can't open workspaces, try adding a folder to the workspace instead."));
@@ -106,7 +113,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		const options = this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems);
 		if (this.shouldUseSimplified(schema)) {
-			return this.pickFileToSaveSimplified(schema, options);
+			return super.pickFileToSaveSimplified(schema, options);
 		}
 
 		if (!WebFileSystemAccess.supported(window)) {
@@ -120,6 +127,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...{ suggestedName: basename(defaultUri), startIn } });
 		} catch (error) {
 			return; // `showSaveFilePicker` will throw an error when the user cancels
+		}
+
+		if (!WebFileSystemAccess.isFileSystemFileHandle(fileHandle)) {
+			return undefined;
 		}
 
 		return this.fileSystemProvider.registerFileHandle(fileHandle);
@@ -143,7 +154,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		const schema = this.getFileSystemSchema(options);
 
 		if (this.shouldUseSimplified(schema)) {
-			return this.showSaveDialogSimplified(schema, options);
+			return super.showSaveDialogSimplified(schema, options);
 		}
 
 		if (!WebFileSystemAccess.supported(window)) {
@@ -156,7 +167,11 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		try {
 			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...options.defaultUri ? { suggestedName: basename(options.defaultUri) } : undefined, ...{ startIn } });
 		} catch (error) {
-			return; // `showSaveFilePicker` will throw an error when the user cancels
+			return undefined; // `showSaveFilePicker` will throw an error when the user cancels
+		}
+
+		if (!WebFileSystemAccess.isFileSystemFileHandle(fileHandle)) {
+			return undefined;
 		}
 
 		return this.fileSystemProvider.registerFileHandle(fileHandle);
@@ -166,7 +181,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		const schema = this.getFileSystemSchema(options);
 
 		if (this.shouldUseSimplified(schema)) {
-			return this.showOpenDialogSimplified(schema, options);
+			return super.showOpenDialogSimplified(schema, options);
 		}
 
 		if (!WebFileSystemAccess.supported(window)) {
@@ -179,12 +194,12 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		try {
 			if (options.canSelectFiles) {
 				const handle = await window.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters), ...{ startIn } });
-				if (handle.length === 1) {
-					uri = this.fileSystemProvider.registerFileHandle(handle[0]);
+				if (handle.length === 1 && WebFileSystemAccess.isFileSystemFileHandle(handle[0])) {
+					uri = await this.fileSystemProvider.registerFileHandle(handle[0]);
 				}
 			} else {
 				const handle = await window.showDirectoryPicker({ ...{ startIn } });
-				uri = this.fileSystemProvider.registerDirectoryHandle(handle);
+				uri = await this.fileSystemProvider.registerDirectoryHandle(handle);
 			}
 		} catch (error) {
 			// ignore - `showOpenFilePicker` / `showDirectoryPicker` will throw an error when the user cancels
@@ -208,15 +223,15 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		// Otherwise inform the user about options
 
 		const buttons = context === 'open' ?
-			[localize('openRemote', "Open Remote..."), localize('openFiles', "Open Files..."), localize('learnMore', "Learn More")] :
+			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More"), localize('openFiles', "Open Files...")] :
 			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More")];
 
 		const res = await this.dialogService.show(
 			Severity.Warning,
-			localize('unsupportedBrowserMessage', "Local File System Access is Unsupported"),
+			localize('unsupportedBrowserMessage', "Opening Local Folders is Unsupported"),
 			buttons,
 			{
-				detail: localize('unsupportedBrowserDetail', "Your current browser doesn't support local file system access.\nYou can either open single files or open a remote repository."),
+				detail: localize('unsupportedBrowserDetail', "Your current browser doesn't support opening local folders.\nYou can either open single files or open a remote repository."),
 				cancelId: -1 // no "Cancel" button offered
 			}
 		);
@@ -233,9 +248,16 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 				if (context === 'open') {
 					const files = await triggerUpload();
 					if (files) {
-						this.instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, files, ({ name, data }) => {
-							this.editorService.openEditor({ resource: URI.from({ scheme: Schemas.untitled, path: name }), contents: data.toString() });
-						}));
+						const filesData = (await this.instantiationService.invokeFunction(accessor => extractFileListData(accessor, files))).filter(fileData => !fileData.isDirectory);
+						if (filesData.length > 0) {
+							this.editorService.openEditors(filesData.map(fileData => {
+								return {
+									resource: fileData.resource,
+									contents: fileData.contents?.toString(),
+									options: { pinned: true }
+								};
+							}));
+						}
 					}
 					break;
 				} else {
@@ -252,7 +274,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 
 	private shouldUseSimplified(scheme: string): boolean {
-		return ![Schemas.file, Schemas.userData, Schemas.tmp].includes(scheme);
+		return ![Schemas.file, Schemas.vscodeUserData, Schemas.tmp].includes(scheme);
 	}
 }
 

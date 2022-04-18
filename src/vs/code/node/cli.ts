@@ -270,7 +270,7 @@ export async function main(argv: string[]): Promise<any> {
 			processCallbacks.push(async _child => {
 
 				class Profiler {
-					static async start(name: string, filenamePrefix: string, opts: { port: number, tries?: number, target?: (targets: Target[]) => Target }) {
+					static async start(name: string, filenamePrefix: string, opts: { port: number; tries?: number; target?: (targets: Target[]) => Target }) {
 						const profiler = await import('v8-inspect-profiler');
 
 						let session: ProfilingSession;

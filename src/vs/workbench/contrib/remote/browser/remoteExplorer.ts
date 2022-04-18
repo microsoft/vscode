@@ -613,7 +613,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 		return allTunnels;
 	}
 
-	private async handleCandidateUpdate(removed: Map<string, { host: string, port: number }>) {
+	private async handleCandidateUpdate(removed: Map<string, { host: string; port: number }>) {
 		const removedPorts: number[] = [];
 		for (const removedPort of removed) {
 			const key = removedPort[0];

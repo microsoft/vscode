@@ -90,10 +90,10 @@ export interface ICloseEditorOptions {
 }
 
 export type ICloseEditorsFilter = {
-	except?: EditorInput,
-	direction?: CloseDirection,
-	savedOnly?: boolean,
-	excludeSticky?: boolean
+	except?: EditorInput;
+	direction?: CloseDirection;
+	savedOnly?: boolean;
+	excludeSticky?: boolean;
 };
 
 export interface ICloseAllEditorsOptions {
@@ -279,12 +279,12 @@ export interface IEditorGroupsService {
 	/**
 	 * Returns the size of a group.
 	 */
-	getSize(group: IEditorGroup | GroupIdentifier): { width: number, height: number };
+	getSize(group: IEditorGroup | GroupIdentifier): { width: number; height: number };
 
 	/**
 	 * Sets the size of a group.
 	 */
-	setSize(group: IEditorGroup | GroupIdentifier, size: { width: number, height: number }): void;
+	setSize(group: IEditorGroup | GroupIdentifier, size: { width: number; height: number }): void;
 
 	/**
 	 * Arrange all groups according to the provided arrangement.
@@ -549,6 +549,16 @@ export interface IEditorGroup {
 	getIndexOfEditor(editor: EditorInput): number;
 
 	/**
+	 * Whether the editor is the first in the group.
+	 */
+	isFirst(editor: EditorInput): boolean;
+
+	/**
+	 * Whether the editor is the last in the group.
+	 */
+	isLast(editor: EditorInput): boolean;
+
+	/**
 	 * Open an editor in this group.
 	 *
 	 * @returns a promise that resolves around an IEditor instance unless
@@ -569,7 +579,7 @@ export interface IEditorGroup {
 	/**
 	 * Find out if the provided editor is pinned in the group.
 	 */
-	isPinned(editor: EditorInput): boolean;
+	isPinned(editorOrIndex: EditorInput | number): boolean;
 
 	/**
 	 * Find out if the provided editor or index of editor is sticky in the group.
@@ -630,9 +640,11 @@ export interface IEditorGroup {
 	 * Closes specific editors in this group. This may trigger a confirmation dialog if
 	 * there are dirty editors and thus returns a promise as value.
 	 *
-	 * @returns a promise when all editors are closed.
+	 * @returns a promise whether the editors were closed or not. If `true`, the editors
+	 * were closed and if `false` there was a veto closing the editors, e.g. when one
+	 * is dirty.
 	 */
-	closeEditors(editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void>;
+	closeEditors(editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<boolean>;
 
 	/**
 	 * Closes all editors from the group. This may trigger a confirmation dialog if
@@ -640,7 +652,7 @@ export interface IEditorGroup {
 	 *
 	 * @returns a promise when all editors are closed.
 	 */
-	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void>;
+	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean>;
 
 	/**
 	 * Replaces editors in this group with the provided replacement.

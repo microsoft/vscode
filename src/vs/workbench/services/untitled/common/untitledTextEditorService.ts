@@ -56,7 +56,7 @@ export interface INewUntitledTextEditorWithAssociatedResourceOptions extends INe
 	 * Note: currently it is not possible to specify the `scheme` to use. The
 	 * untitled editor will saved to the default local or remote resource.
 	 */
-	associatedResource?: { authority: string; path: string; query: string; fragment: string; }
+	associatedResource?: { authority: string; path: string; query: string; fragment: string };
 }
 
 type IInternalUntitledTextEditorOptions = IExistingUntitledTextEditorOptions & INewUntitledTextEditorWithAssociatedResourceOptions;

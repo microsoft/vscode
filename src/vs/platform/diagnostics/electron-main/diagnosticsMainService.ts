@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event as IpcEvent, ipcMain } from 'electron';
+import { Event as IpcEvent } from 'electron';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { IDiagnosticInfo, IDiagnosticInfoOptions, IRemoteDiagnosticError, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeWindow, IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ICodeWindow } from 'vs/platform/window/electron-main/window';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 export const ID = 'diagnosticsMainService';
@@ -48,7 +50,7 @@ export class DiagnosticsMainService implements IDiagnosticsMainService {
 
 					window.sendWhenReady('vscode:getDiagnosticInfo', CancellationToken.None, { replyChannel, args });
 
-					ipcMain.once(replyChannel, (_: IpcEvent, data: IRemoteDiagnosticInfo) => {
+					validatedIpcMain.once(replyChannel, (_: IpcEvent, data: IRemoteDiagnosticInfo) => {
 						// No data is returned if getting the connection fails.
 						if (!data) {
 							resolve({ hostName: remoteAuthority, errorMessage: `Unable to resolve connection to '${remoteAuthority}'.` });

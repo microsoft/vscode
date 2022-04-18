@@ -1,11 +1,11 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "14.x"
+      versionSpec: "16.x"
 
   - task: UsePythonVersion@0
     inputs:
-      versionSpec: "2.x"
+      versionSpec: "3.x"
       addToPath: true
 
   - task: AzureKeyVault@1
@@ -35,6 +35,16 @@ steps:
       exec { git config user.email "vscode@microsoft.com" }
       exec { git config user.name "VSCode" }
     displayName: Prepare tooling
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+
+      exec { git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $(VSCODE_DISTRO_REF) }
+      Write-Host "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
+      exec { git checkout FETCH_HEAD }
+    condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
+    displayName: Checkout override commit
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -77,7 +87,7 @@ steps:
       $ErrorActionPreference = "Stop"
       $env:npm_config_arch="$(VSCODE_ARCH)"
       $env:CHILD_CONCURRENCY="1"
-      retry { exec { yarn --frozen-lockfile } }
+      retry { exec { yarn --frozen-lockfile --check-files } }
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -208,9 +218,16 @@ steps:
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
+      exec {.\build\azure-pipelines\win32\listprocesses.bat }
+    displayName: Diagnostics before smoke test run
+    continueOnError: true
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --web --headless }
+      exec { yarn smoketest-no-compile --web --tracing --headless }
     displayName: Run smoke tests (Browser, Chromium)
     timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
@@ -219,9 +236,9 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --build "$AppRoot" }
+      exec { yarn smoketest-no-compile --tracing --build "$AppRoot" }
     displayName: Run smoke tests (Electron)
-    timeoutInMinutes: 10
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
@@ -229,17 +246,17 @@ steps:
       $ErrorActionPreference = "Stop"
       $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
       $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --build "$AppRoot" --remote }
+      exec { yarn smoketest-no-compile --tracing --remote --build "$AppRoot" }
     displayName: Run smoke tests (Remote)
-    timeoutInMinutes: 10
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       exec {.\build\azure-pipelines\win32\listprocesses.bat }
-    displayName: List tasks after smoke test run
+    displayName: Diagnostics after smoke test run
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - task: PublishPipelineArtifact@0
     inputs:
@@ -350,4 +367,28 @@ steps:
   - publish: $(System.DefaultWorkingDirectory)\.build\vscode-server-win32-$(VSCODE_ARCH)-web.zip
     artifact: vscode_web_win32_$(VSCODE_ARCH)_archive
     displayName: Publish web server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM (client)
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)
+      PackageName: Visual Studio Code
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - publish: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/_manifest
+    displayName: Publish SBOM (client)
+    artifact: vscode_client_win32_$(VSCODE_ARCH)_sbom
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM (server)
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)
+      PackageName: Visual Studio Code Server
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - publish: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)/_manifest
+    displayName: Publish SBOM (server)
+    artifact: vscode_server_win32_$(VSCODE_ARCH)_sbom
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))

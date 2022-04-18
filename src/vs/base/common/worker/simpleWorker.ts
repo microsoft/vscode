@@ -104,7 +104,7 @@ class SimpleWorkerProtocol {
 
 	private _workerId: number;
 	private _lastSentReq: number;
-	private _pendingReplies: { [req: string]: IMessageReply; };
+	private _pendingReplies: { [req: string]: IMessageReply };
 	private _pendingEmitters: Map<string, Emitter<any>>;
 	private _pendingEvents: Map<string, IDisposable>;
 	private _handler: IMessageHandler;

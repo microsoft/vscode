@@ -43,7 +43,7 @@ suite('NotebookKernel', function () {
 	const kernelData = new Map<number, INotebookKernelDto2>();
 	const disposables = new DisposableStore();
 
-	const cellExecuteCreate: { notebook: UriComponents, cell: number }[] = [];
+	const cellExecuteCreate: { notebook: UriComponents; cell: number }[] = [];
 	const cellExecuteUpdates: ICellExecuteUpdateDto[] = [];
 	const cellExecuteComplete: ICellExecutionCompleteDto[] = [];
 
@@ -98,7 +98,7 @@ suite('NotebookKernel', function () {
 		extHostCommands = new ExtHostCommands(rpcProtocol, new NullLogService());
 		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostStoragePaths);
 
-		extHostNotebookDocuments = new ExtHostNotebookDocuments(new NullLogService(), extHostNotebooks);
+		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 
 		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
 			addedDocuments: [{

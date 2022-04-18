@@ -44,7 +44,7 @@ export class VSBuffer {
 	 * When running in a nodejs context, the backing store for the returned `VSBuffer` instance
 	 * might use a nodejs Buffer allocated from node's Buffer pool, which is not transferrable.
 	 */
-	static fromString(source: string, options?: { dontUseNodeBuffer?: boolean; }): VSBuffer {
+	static fromString(source: string, options?: { dontUseNodeBuffer?: boolean }): VSBuffer {
 		const dontUseNodeBuffer = options?.dontUseNodeBuffer || false;
 		if (!dontUseNodeBuffer && hasBuffer) {
 			return new VSBuffer(Buffer.from(source));
@@ -142,7 +142,7 @@ export class VSBuffer {
 		} else if (ArrayBuffer.isView(array)) {
 			this.buffer.set(new Uint8Array(array.buffer, array.byteOffset, array.byteLength), offset);
 		} else {
-			throw new Error(`Unkown argument 'array'`);
+			throw new Error(`Unknown argument 'array'`);
 		}
 	}
 

@@ -7,22 +7,24 @@ import * as DOM from 'vs/base/browser/dom';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { disposableTimeout, raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { tokenizeToStringSync } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { CellEditState, CellFocusMode, CellFoldingState, IActiveNotebookEditorDelegate, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { CellEditState, CellFocusMode, CellFoldingState, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
@@ -45,20 +47,19 @@ export class StatefulMarkdownCell extends Disposable {
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
 		private readonly viewCell: MarkupCellViewModel,
 		private readonly templateData: MarkdownCellRenderTemplate,
-		private readonly cellParts: CellPart[],
 		private readonly renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@IKeybindingService private keybindingService: IKeybindingService,
 	) {
 		super();
 
 		this.constructDOM();
 		this.editorPart = templateData.editorPart;
-
-		this.cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, this.viewCell.language));
+		this.cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(viewCell.language), this.notebookEditor.notebookOptions, this.configurationService));
 		this.cellEditorOptions.setLineNumbers(this.viewCell.lineNumbers);
 		this.editorOptions = this.cellEditorOptions.getValue(this.viewCell.internalMetadata, this.viewCell.uri);
 
@@ -66,9 +67,10 @@ export class StatefulMarkdownCell extends Disposable {
 		this.registerListeners();
 
 		// update for init state
-		this.cellParts.forEach(cellPart => {
-			cellPart.renderCell(this.viewCell, this.templateData);
-		});
+		this.templateData.cellParts.forEach(cellPart => cellPart.renderCell(this.viewCell));
+		this._register(toDisposable(() => {
+			this.templateData.cellParts.forEach(cellPart => cellPart.unrenderCell(this.viewCell));
+		}));
 
 		this.updateForHover();
 		this.updateForFocusModeChange();
@@ -91,7 +93,7 @@ export class StatefulMarkdownCell extends Disposable {
 	}
 
 	layoutCellParts() {
-		this.cellParts.forEach(part => {
+		this.templateData.cellParts.forEach(part => {
 			part.updateInternalLayoutNow(this.viewCell);
 		});
 	}
@@ -113,7 +115,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 	private registerListeners() {
 		this._register(this.viewCell.onDidChangeState(e => {
-			this.cellParts.forEach(cellPart => {
+			this.templateData.cellParts.forEach(cellPart => {
 				cellPart.updateState(this.viewCell, e);
 			});
 		}));
@@ -248,11 +250,23 @@ export class StatefulMarkdownCell extends Disposable {
 		DOM.hide(this.editorPart);
 
 		this.templateData.cellInputCollapsedContainer.innerText = '';
-		const richEditorText = this.getRichText(this.viewCell.textBuffer, this.viewCell.language);
+
+		const markdownIcon = DOM.append(this.templateData.cellInputCollapsedContainer, DOM.$('span'));
+		markdownIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.markdown));
+
 		const element = DOM.$('div');
 		element.classList.add('cell-collapse-preview');
+		const richEditorText = this.getRichText(this.viewCell.textBuffer, this.viewCell.language);
 		DOM.safeInnerHtml(element, richEditorText);
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
+
+		const expandIcon = DOM.append(element, DOM.$('span.expandInputIcon'));
+		expandIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.more));
+		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_INPUT_COMMAND_ID);
+		if (keybinding) {
+			element.title = localize('cellExpandInputButtonLabelWithDoubleClick', "Double click to expand cell input ({0})", keybinding.getLabel());
+			expandIcon.title = localize('cellExpandInputButtonLabel', "Expand Cell Input ({0})", keybinding.getLabel());
+		}
 
 		this.markdownAccessibilityContainer.ariaHidden = 'true';
 
@@ -313,6 +327,7 @@ export class StatefulMarkdownCell extends Disposable {
 					width: width,
 					height: editorHeight
 				},
+				enableDropIntoEditor: true,
 				// overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 			}, {
 				contributions: this.notebookEditor.creationOptions.cellEditorContributions
@@ -465,10 +480,11 @@ export class StatefulMarkdownCell extends Disposable {
 				return;
 			}
 
-			const primarySelection = editor.getSelection();
+			const selections = editor.getSelections();
 
-			if (primarySelection) {
-				this.notebookEditor.revealRangeInViewAsync(this.viewCell, primarySelection);
+			if (selections?.length) {
+				const lastSelection = selections[selections.length - 1];
+				this.notebookEditor.revealRangeInViewAsync(this.viewCell, lastSelection);
 			}
 		}));
 

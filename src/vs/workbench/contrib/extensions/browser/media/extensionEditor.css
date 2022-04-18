@@ -89,15 +89,23 @@
 }
 
 .extension-editor > .header > .details > .title > .pre-release {
-	font-size: 10px;
 	margin-left: 10px;
 	padding: 0px 4px;
 	border-radius: 4px;
-	user-select: none;
-	-webkit-user-select: none;
 	background-color: var(--vscode-extensionIcon-preReleaseForeground);
 	color: #ffffff;
-	white-space: nowrap;
+	display: flex;
+	align-items: center;
+}
+
+.extension-editor > .header > .details > .title > .pre-release > .codicon.codicon-extensions-pre-release {
+	color: #ffffff;
+	font-size: 14px;
+}
+
+.extension-editor > .header > .details > .title > .pre-release > .pre-release-text {
+	font-size: 10px;
+	padding-left: 3px;
 }
 
 .monaco-workbench.vs .extension-editor > .header > .details > .title > .preview {

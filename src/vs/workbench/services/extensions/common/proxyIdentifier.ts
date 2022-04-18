@@ -26,6 +26,8 @@ export interface IRPCProtocol {
 	 * Wait for the write buffer (if applicable) to become empty.
 	 */
 	drain(): Promise<void>;
+
+	dispose(): void;
 }
 
 export class ProxyIdentifier<T> {
@@ -65,7 +67,7 @@ export type Dto<T> = T extends { toJSON(): infer U }
 	: T;
 
 export type Proxied<T> = { [K in keyof T]: T[K] extends (...args: infer A) => infer R
-	? (...args: A) => Promise<Dto<Awaited<R>>>
+	? (...args: { [K in keyof A]: Dto<A[K]> }) => Promise<Dto<Awaited<R>>>
 	: never
 };
 

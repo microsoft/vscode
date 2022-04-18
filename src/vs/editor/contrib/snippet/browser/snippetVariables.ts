@@ -10,15 +10,14 @@ import { commonPrefixLength, getLeadingWhitespace, isFalsyOrWhitespace, splitLin
 import { generateUuid } from 'vs/base/common/uuid';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { Text, Variable, VariableResolver } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
 import * as nls from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_EXTENSION, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspaceContextService, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
-export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze({
+export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>({
 	'CURRENT_YEAR': true,
 	'CURRENT_YEAR_SHORT': true,
 	'CURRENT_MONTH': true,
@@ -42,6 +41,8 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'TM_FILENAME_BASE': true,
 	'TM_DIRECTORY': true,
 	'TM_FILEPATH': true,
+	'CURSOR_INDEX': true, // 0-offset
+	'CURSOR_NUMBER': true, // 1-offset
 	'RELATIVE_FILEPATH': true,
 	'BLOCK_COMMENT_START': true,
 	'BLOCK_COMMENT_END': true,
@@ -141,6 +142,12 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 		} else if (name === 'TM_LINE_NUMBER') {
 			return String(this._selection.positionLineNumber);
+
+		} else if (name === 'CURSOR_INDEX') {
+			return String(this._selectionIdx);
+
+		} else if (name === 'CURSOR_NUMBER') {
+			return String(this._selectionIdx + 1);
 		}
 		return undefined;
 	}
@@ -227,14 +234,15 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 export class CommentBasedVariableResolver implements VariableResolver {
 	constructor(
 		private readonly _model: ITextModel,
-		private readonly _selection: Selection
+		private readonly _selection: Selection,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
 	) {
 		//
 	}
 	resolve(variable: Variable): string | undefined {
 		const { name } = variable;
 		const langId = this._model.getLanguageIdAtPosition(this._selection.selectionStartLineNumber, this._selection.selectionStartColumn);
-		const config = LanguageConfigurationRegistry.getComments(langId);
+		const config = this._languageConfigurationService.getLanguageConfiguration(langId).comments;
 		if (!config) {
 			return undefined;
 		}

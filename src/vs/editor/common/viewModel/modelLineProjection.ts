@@ -8,8 +8,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { LineInjectedText } from 'vs/editor/common/textModelEvents';
-import { InjectedText, ModelLineProjectionData } from 'vs/editor/common/viewModel/modelLineProjectionData';
-import { SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import { InjectedText, ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
+import { SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel';
 
 export interface IModelLineProjection {
 	isVisible(): boolean;
@@ -37,7 +37,9 @@ export interface IModelLineProjection {
 }
 
 export interface ISimpleModel {
-	getLineTokens(lineNumber: number): LineTokens;
+	tokenization: {
+		getLineTokens(lineNumber: number): LineTokens;
+	};
 	getLineContent(lineNumber: number): string;
 	getLineLength(lineNumber: number): number;
 	getLineMinColumn(lineNumber: number): number;
@@ -211,13 +213,13 @@ class ModelLineProjection implements IModelLineProjection {
 
 		let lineWithInjections: LineTokens;
 		if (injectionOffsets) {
-			lineWithInjections = model.getLineTokens(modelLineNumber).withInserted(injectionOffsets.map((offset, idx) => ({
+			lineWithInjections = model.tokenization.getLineTokens(modelLineNumber).withInserted(injectionOffsets.map((offset, idx) => ({
 				offset,
 				text: injectionOptions![idx].content,
 				tokenMetadata: LineTokens.defaultTokenMetadata
 			})));
 		} else {
-			lineWithInjections = model.getLineTokens(modelLineNumber);
+			lineWithInjections = model.tokenization.getLineTokens(modelLineNumber);
 		}
 
 		for (let outputLineIndex = outputLineIdx; outputLineIndex < outputLineIdx + lineCount; outputLineIndex++) {
@@ -339,7 +341,7 @@ class IdentityModelLineProjection implements IModelLineProjection {
 	}
 
 	public getViewLineData(model: ISimpleModel, modelLineNumber: number, _outputLineIndex: number): ViewLineData {
-		const lineTokens = model.getLineTokens(modelLineNumber);
+		const lineTokens = model.tokenization.getLineTokens(modelLineNumber);
 		const lineContent = lineTokens.getLineContent();
 		return new ViewLineData(
 			lineContent,

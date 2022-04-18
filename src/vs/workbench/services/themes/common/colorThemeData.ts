@@ -6,7 +6,7 @@
 import { basename } from 'vs/base/common/path';
 import * as Json from 'vs/base/common/json';
 import { Color } from 'vs/base/common/color';
-import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IThemeScopableCustomizations, IThemeScopedCustomizations, THEME_SCOPE_CLOSE_PAREN, THEME_SCOPE_OPEN_PAREN, themeScopeRegex, THEME_SCOPE_WILDCARD } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IThemeScopableCustomizations, IThemeScopedCustomizations, THEME_SCOPE_CLOSE_PAREN, THEME_SCOPE_OPEN_PAREN, themeScopeRegex, THEME_SCOPE_WILDCARD, VS_HC_LIGHT_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { convertSettings } from 'vs/workbench/services/themes/common/themeCompatibility';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
@@ -43,7 +43,7 @@ const tokenGroupToScopesMap = {
 export type TokenStyleDefinition = SemanticTokenRule | ProbeScope[] | TokenStyleValue;
 export type TokenStyleDefinitions = { [P in keyof TokenStyleData]?: TokenStyleDefinition | undefined };
 
-export type TextMateThemingRuleDefinitions = { [P in keyof TokenStyleData]?: ITextMateThemingRule | undefined; } & { scope?: ProbeScope; };
+export type TextMateThemingRuleDefinitions = { [P in keyof TokenStyleData]?: ITextMateThemingRule | undefined; } & { scope?: ProbeScope };
 
 export class ColorThemeData implements IWorkbenchColorTheme {
 
@@ -578,7 +578,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	get type(): ColorScheme {
 		switch (this.baseTheme) {
 			case VS_LIGHT_THEME: return ColorScheme.LIGHT;
-			case VS_HC_THEME: return ColorScheme.HIGH_CONTRAST;
+			case VS_HC_THEME: return ColorScheme.HIGH_CONTRAST_DARK;
+			case VS_HC_LIGHT_THEME: return ColorScheme.HIGH_CONTRAST_LIGHT;
 			default: return ColorScheme.DARK;
 		}
 	}
@@ -690,7 +691,7 @@ function toCSSSelector(extensionId: string, path: string) {
 	return str;
 }
 
-async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[], colors: IColorMap, semanticTokenRules: SemanticTokenRule[], semanticHighlighting: boolean }): Promise<any> {
+async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[]; colors: IColorMap; semanticTokenRules: SemanticTokenRule[]; semanticHighlighting: boolean }): Promise<any> {
 	if (resources.extname(themeLocation) === '.json') {
 		const content = await extensionResourceLoaderService.readExtensionResource(themeLocation);
 		let errors: Json.ParseError[] = [];
@@ -749,7 +750,7 @@ async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourc
 	}
 }
 
-function _loadSyntaxTokens(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[], colors: IColorMap }): Promise<any> {
+function _loadSyntaxTokens(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[]; colors: IColorMap }): Promise<any> {
 	return extensionResourceLoaderService.readExtensionResource(themeLocation).then(content => {
 		try {
 			let contentValue = parsePList(content);
@@ -780,12 +781,18 @@ let defaultThemeColors: { [baseTheme: string]: ITextMateThemingRule[] } = {
 		{ scope: 'token.error-token', settings: { foreground: '#f44747' } },
 		{ scope: 'token.debug-token', settings: { foreground: '#b267e6' } }
 	],
-	'hc': [
+	'hcLight': [
+		{ scope: 'token.info-token', settings: { foreground: '#316bcd' } },
+		{ scope: 'token.warn-token', settings: { foreground: '#cd9731' } },
+		{ scope: 'token.error-token', settings: { foreground: '#cd3131' } },
+		{ scope: 'token.debug-token', settings: { foreground: '#800080' } }
+	],
+	'hcDark': [
 		{ scope: 'token.info-token', settings: { foreground: '#6796e6' } },
 		{ scope: 'token.warn-token', settings: { foreground: '#008000' } },
 		{ scope: 'token.error-token', settings: { foreground: '#FF0000' } },
 		{ scope: 'token.debug-token', settings: { foreground: '#b267e6' } }
-	],
+	]
 };
 
 const noMatch = (_scope: ProbeScope) => -1;
@@ -879,7 +886,7 @@ class TokenColorIndex {
 
 	private _lastColorId: number;
 	private _id2color: string[];
-	private _color2id: { [color: string]: number; };
+	private _color2id: { [color: string]: number };
 
 	constructor() {
 		this._lastColorId = 0;

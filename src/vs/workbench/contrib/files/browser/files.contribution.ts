@@ -157,7 +157,7 @@ configurationRegistry.registerConfiguration({
 								'type': 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
 								'pattern': '\\w*\\$\\(basename\\)\\w*',
 								'default': '$(basename).ext',
-								'description': nls.localize('files.exclude.when', "Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.")
+								'markdownDescription': nls.localize('files.exclude.when', "Additional check on the siblings of a matching file. Use \\$(basename) as variable for the matching file name.")
 							}
 						}
 					}
@@ -266,6 +266,7 @@ configurationRegistry.registerConfiguration({
 		'files.maxMemoryForLargeFilesMB': {
 			'type': 'number',
 			'default': 4096,
+			'minimum': 0,
 			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line."),
 			included: isNative
 		},
@@ -292,6 +293,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
 			'default': false
+		},
+		'files.participants.timeout': {
+			type: 'number',
+			default: 60000,
+			markdownDescription: nls.localize('files.participants.timeout', "Timeout in milliseconds after which file participants for create, rename, and delete are cancelled. Use `0` to disable participants."),
 		}
 	}
 });
@@ -332,7 +338,8 @@ configurationRegistry.registerConfiguration({
 		'explorer.openEditors.visible': {
 			'type': 'number',
 			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane. Setting this to 0 hides the Open Editors pane."),
-			'default': 9
+			'default': 9,
+			'minimum': 0
 		},
 		'explorer.openEditors.sortOrder': {
 			'type': 'string',
@@ -404,7 +411,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before  files.'),
 				nls.localize('sortOrder.foldersNestsFiles', 'Files and folders are sorted by their names. Folders are displayed before files. Files with nested children are displayed before other files.')
 			],
-			'description': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer. When `#explorer.experimental.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
+			'markdownDescription': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer. When `#explorer.experimental.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
 		},
 		'explorer.sortOrderLexicographicOptions': {
 			'type': 'string',
@@ -460,6 +467,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.experimental.fileNesting.enabled': {
 			'type': 'boolean',
+			scope: ConfigurationScope.RESOURCE,
 			'markdownDescription': nls.localize('fileNestingEnabled', "Experimental. Controls whether file nesting is enabled in the explorer. File nesting allows for related files in a directory to be visually grouped together under a single parent file."),
 			'default': false,
 		},
@@ -468,24 +476,30 @@ configurationRegistry.registerConfiguration({
 			'markdownDescription': nls.localize('fileNestingExpand', "Experimental. Controls whether file nests are automatically expanded. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect."),
 			'default': true,
 		},
+		'explorer.experimental.fileNesting.operateAsGroup': {
+			'type': 'boolean',
+			'markdownDescription': nls.localize('operateAsGroup', "Controls whether file nests are treated as a group for clipboard operations, file deletions, and during drag and drop."),
+			'default': true,
+		},
 		'explorer.experimental.fileNesting.patterns': {
 			'type': 'object',
-			'markdownDescription': nls.localize('fileNestingPatterns', "Experimental. Controls nesting of files in the explorer. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect. Each key describes a parent file pattern and each value should be a comma separated list of children file patterns that will be nested under the parent.\n\nA single `*` in a parent pattern may be used to capture any substring, which can then be matched against using `$(capture)` in a child pattern. Child patterns may also contain one `*` to match any substring."),
+			scope: ConfigurationScope.RESOURCE,
+			'markdownDescription': nls.localize('fileNestingPatterns', "Controls nesting of files in the explorer. Each __Item__ represents a parent pattern and may contain a single `*` character that matches any string. Each __Value__ represents a comma separated list of the child patterns that should be shown nested under a given parent. Child patterns may contain several special tokens:\n- `${capture}`: Matches the resolved value of the `*` from the parent pattern\n- `${basename}`: Matches the parent file's basename, the `file` in `file.ts`\n- `${extname}`: Matches the parent file's extension, the `ts` in `file.ts`\n- `${dirname}`: Matches the parent file's directory name, the `src` in `src/file.ts`\n- `*`:  Matches any string, may only be used once per child pattern"),
 			patternProperties: {
 				'^[^*]*\\*?[^*]*$': {
-					description: nls.localize('fileNesting.description', "Key patterns may contain a single `*` capture group which matches any string. Each value pattern may contain one `$(capture)` token to be substituted with the parent capture group and one `*` token to match any string"),
+					markdownDescription: nls.localize('fileNesting.description', "Each key pattern may contain a single `*` character which will match any string."),
 					type: 'string',
 					pattern: '^([^,*]*\\*?[^,*]*)(, ?[^,*]*\\*?[^,*]*)*$',
 				}
 			},
 			additionalProperties: false,
 			'default': {
-				'*.ts': '$(capture).js, $(capture).d.ts',
-				'*.js': '$(capture).js.map, $(capture).min.js, $(capture).d.ts',
-				'*.jsx': '$(capture).js',
-				'*.tsx': '$(capture).ts',
+				'*.ts': '${capture}.js',
+				'*.js': '${capture}.js.map, ${capture}.min.js, ${capture}.d.ts',
+				'*.jsx': '${capture}.js',
+				'*.tsx': '${capture}.ts',
 				'tsconfig.json': 'tsconfig.*.json',
-				'package.json': 'package-lock.json, .npmrc, yarn.lock, .yarnrc',
+				'package.json': 'package-lock.json, yarn.lock',
 			}
 		}
 	}

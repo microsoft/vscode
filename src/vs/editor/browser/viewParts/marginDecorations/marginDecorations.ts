@@ -7,7 +7,7 @@ import 'vs/css!./marginDecorations';
 import { DecorationToRender, DedupOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
 import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
+import * as viewEvents from 'vs/editor/common/viewEvents';
 
 export class MarginViewLineDecorationsOverlay extends DedupOverlay {
 	private readonly _context: ViewContext;

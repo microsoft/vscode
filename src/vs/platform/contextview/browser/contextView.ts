@@ -26,7 +26,7 @@ export interface IContextViewDelegate {
 
 	canRelayout?: boolean; // Default: true
 
-	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number; };
+	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number };
 	render(container: HTMLElement): IDisposable;
 	onDOMEvent?(e: any, activeElement: HTMLElement): void;
 	onHide?(data?: any): void;

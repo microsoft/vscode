@@ -59,6 +59,7 @@ export interface IEnvironmentService {
 	untitledWorkspacesHome: URI;
 	globalStorageHome: URI;
 	workspaceStorageHome: URI;
+	localHistoryHome: URI;
 	cacheHome: URI;
 
 	// --- settings sync
@@ -130,9 +131,6 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	extensionsPath: string;
 	extensionsDownloadPath: string;
 	builtinExtensionsPath: string;
-
-	// --- smoke test support
-	driverHandle?: string;
 
 	// --- use keytar for credentials
 	disableKeytar?: boolean;

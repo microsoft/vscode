@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import * as path from 'path';
 import * as http from 'http';
 import * as url from 'url';
 import * as util from 'util';
@@ -15,10 +16,17 @@ import { isLinux } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
 import { extname, dirname, join, normalize } from 'vs/base/common/path';
-import { FileAccess, connectionTokenCookieName, connectionTokenQueryName } from 'vs/base/common/network';
+import { FileAccess, connectionTokenCookieName, connectionTokenQueryName, Schemas } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
+import { asText, IRequestService } from 'vs/platform/request/common/request';
+import { IHeaders } from 'vs/base/parts/request/common/request';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
+import { streamToBuffer } from 'vs/base/common/buffer';
+import { IProductConfiguration } from 'vs/base/common/product';
+import { isString } from 'vs/base/common/types';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -73,12 +81,17 @@ const APP_ROOT = dirname(FileAccess.asFileUri('', require).fsPath);
 
 export class WebClientServer {
 
+	private readonly _webExtensionResourceUrlTemplate: URI | undefined;
+
 	constructor(
 		private readonly _connectionToken: ServerConnectionToken,
 		@IServerEnvironmentService private readonly _environmentService: IServerEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
-		@IProductService private readonly _productService: IProductService
-	) { }
+		@IRequestService private readonly _requestService: IRequestService,
+		@IProductService private readonly _productService: IProductService,
+	) {
+		this._webExtensionResourceUrlTemplate = this._productService.extensionsGallery?.resourceUrlTemplate ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate) : undefined;
+	}
 
 	/**
 	 * Handle web resources (i.e. only needed by the web client).
@@ -101,6 +114,10 @@ export class WebClientServer {
 			if (pathname === '/callback') {
 				// callback support
 				return this._handleCallback(res);
+			}
+			if (/^\/web-extension-resource\//.test(pathname)) {
+				// extension resource support
+				return this._handleWebExtensionResource(req, res, parsedUrl);
 			}
 
 			return serveError(req, res, 404, 'Not found.');
@@ -130,6 +147,77 @@ export class WebClientServer {
 		return serveFile(this._logService, req, res, filePath, headers);
 	}
 
+	private _getResourceURLTemplateAuthority(uri: URI): string | undefined {
+		const index = uri.authority.indexOf('.');
+		return index !== -1 ? uri.authority.substring(index + 1) : undefined;
+	}
+
+	/**
+	 * Handle extension resources
+	 */
+	private async _handleWebExtensionResource(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+		if (!this._webExtensionResourceUrlTemplate) {
+			return serveError(req, res, 500, 'No extension gallery service configured.');
+		}
+
+		// Strip `/web-extension-resource/` from the path
+		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
+		const path = normalize(normalizedPathname.substr('/web-extension-resource/'.length));
+		const uri = URI.parse(path).with({
+			scheme: this._webExtensionResourceUrlTemplate.scheme,
+			authority: path.substring(0, path.indexOf('/')),
+			path: path.substring(path.indexOf('/') + 1)
+		});
+
+		if (this._getResourceURLTemplateAuthority(this._webExtensionResourceUrlTemplate) !== this._getResourceURLTemplateAuthority(uri)) {
+			return serveError(req, res, 403, 'Request Forbidden');
+		}
+
+		const headers: IHeaders = {};
+		const setRequestHeader = (header: string) => {
+			const value = req.headers[header];
+			if (value && (isString(value) || value[0])) {
+				headers[header] = isString(value) ? value : value[0];
+			} else if (header !== header.toLowerCase()) {
+				setRequestHeader(header.toLowerCase());
+			}
+		};
+		setRequestHeader('X-Client-Name');
+		setRequestHeader('X-Client-Version');
+		setRequestHeader('X-Machine-Id');
+		setRequestHeader('X-Client-Commit');
+
+		const context = await this._requestService.request({
+			type: 'GET',
+			url: uri.toString(true),
+			headers
+		}, CancellationToken.None);
+
+		const status = context.res.statusCode || 500;
+		if (status !== 200) {
+			let text: string | null = null;
+			try {
+				text = await asText(context);
+			} catch (error) {/* Ignore */ }
+			return serveError(req, res, status, text || `Request failed with status ${status}`);
+		}
+
+		const responseHeaders: Record<string, string> = Object.create(null);
+		const setResponseHeader = (header: string) => {
+			const value = context.res.headers[header];
+			if (value) {
+				responseHeaders[header] = value;
+			} else if (header !== header.toLowerCase()) {
+				setResponseHeader(header.toLowerCase());
+			}
+		};
+		setResponseHeader('Cache-Control');
+		setResponseHeader('Content-Type');
+		res.writeHead(200, responseHeaders);
+		const buffer = await streamToBuffer(context.stream);
+		return res.end(buffer.buffer);
+	}
+
 	/**
 	 * Handle HTTP requests for /
 	 */
@@ -147,7 +235,7 @@ export class WebClientServer {
 				connectionTokenCookieName,
 				queryConnectionToken,
 				{
-					sameSite: 'strict',
+					sameSite: 'lax',
 					maxAge: 60 * 60 * 24 * 7 /* 1 week */
 				}
 			);
@@ -172,11 +260,13 @@ export class WebClientServer {
 		}
 
 		let _wrapWebWorkerExtHostInIframe: undefined | false = undefined;
-		if (this._environmentService.driverHandle) {
+		if (this._environmentService.args['enable-smoke-test-driver']) {
 			// integration tests run at a time when the built output is not yet published to the CDN
 			// so we must disable the iframe wrapping because the iframe URL will give a 404
 			_wrapWebWorkerExtHostInIframe = false;
 		}
+
+		const resolveWorkspaceURI = (defaultLocation?: string) => defaultLocation && URI.file(path.resolve(defaultLocation)).with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
 		const filePath = FileAccess.asFileUri(this._environmentService.isBuilt ? 'vs/code/browser/workbench/workbench.html' : 'vs/code/browser/workbench/workbench-dev.html', require).fsPath;
 		const authSessionInfo = !this._environmentService.isBuilt && this._environmentService.args['github-auth'] ? {
@@ -189,8 +279,22 @@ export class WebClientServer {
 			.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify({
 				remoteAuthority,
 				_wrapWebWorkerExtHostInIframe,
-				developmentOptions: { enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined },
+				developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined },
 				settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
+				enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
+				folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
+				workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
+				productConfiguration: <Partial<IProductConfiguration>>{
+					embedderIdentifier: 'server-distro',
+					extensionsGallery: this._webExtensionResourceUrlTemplate ? {
+						...this._productService.extensionsGallery,
+						'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({
+							scheme: 'http',
+							authority: remoteAuthority,
+							path: `web-extension-resource/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
+						}).toString(true)
+					} : undefined
+				}
 			})))
 			.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '');
 
@@ -198,9 +302,9 @@ export class WebClientServer {
 			'default-src \'self\';',
 			'img-src \'self\' https: data: blob:;',
 			'media-src \'self\';',
-			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-9CevbjD7QdrWdGrVTVJD74tTH4eAhisvCOlLtWUn+Iw=' http://${remoteAuthority};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
+			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-fh3TwPMflhsEIpR8g1OYTIMVWhXTLcjQ9kh2tIpmv54=' http://${remoteAuthority};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
 			'child-src \'self\';',
-			`frame-src 'self' https://*.vscode-webview.net ${this._productService.webEndpointUrl || ''} data:;`,
+			`frame-src 'self' https://*.vscode-cdn.net data:;`,
 			'worker-src \'self\' data:;',
 			'style-src \'self\' \'unsafe-inline\';',
 			'connect-src \'self\' ws: wss: https:;',
@@ -220,7 +324,7 @@ export class WebClientServer {
 				connectionTokenCookieName,
 				this._connectionToken.value,
 				{
-					sameSite: 'strict',
+					sameSite: 'lax',
 					maxAge: 60 * 60 * 24 * 7 /* 1 week */
 				}
 			);

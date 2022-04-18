@@ -67,7 +67,7 @@ import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
@@ -741,7 +741,7 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 		@ILabelService private readonly labelService: ILabelService,
 	) { }
 
-	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } | { toString(): string; }[] | undefined {
+	getKeyboardNavigationLabel(element: TreeElement): { toString(): string } | { toString(): string }[] | undefined {
 		if (ResourceTree.isResourceNode(element)) {
 			return element.name;
 		} else if (isSCMRepository(element) || isSCMInput(element) || isSCMActionButton(element)) {
@@ -766,7 +766,7 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 		}
 	}
 
-	getCompressedNodeKeyboardNavigationLabel(elements: TreeElement[]): { toString(): string | undefined; } | undefined {
+	getCompressedNodeKeyboardNavigationLabel(elements: TreeElement[]): { toString(): string | undefined } | undefined {
 		const folders = elements as IResourceNode<ISCMResource, ISCMResourceGroup>[];
 		return folders.map(e => e.name).join('/');
 	}
@@ -1507,7 +1507,7 @@ abstract class SetSortKeyAction extends ViewAction<SCMViewPane>  {
 	constructor(private sortKey: ViewModelSortKey, title: string) {
 		super({
 			id: `workbench.scm.action.setSortKey.${sortKey}`,
-			title: title,
+			title,
 			viewId: VIEW_PANE_ID,
 			f1: false,
 			toggled: ContextKeys.ViewModelSortKey.isEqualTo(sortKey),
@@ -1603,7 +1603,7 @@ class SCMInputWidget extends Disposable {
 	private placeholderTextContainer: HTMLElement;
 	private inputEditor: CodeEditorWidget;
 
-	private model: { readonly input: ISCMInput; readonly textModel: ITextModel; } | undefined;
+	private model: { readonly input: ISCMInput; readonly textModel: ITextModel } | undefined;
 	private repositoryContextKey: IContextKey<ISCMRepository | undefined>;
 	private repositoryDisposables = new DisposableStore();
 
@@ -2383,7 +2383,7 @@ export class SCMViewPane extends ViewPane {
 	}
 }
 
-export const scmProviderSeparatorBorderColor = registerColor('scm.providerBorder', { dark: '#454545', light: '#C8C8C8', hc: contrastBorder }, localize('scm.providerBorder', "SCM Provider separator border."));
+export const scmProviderSeparatorBorderColor = registerColor('scm.providerBorder', { dark: '#454545', light: '#C8C8C8', hcDark: contrastBorder, hcLight: contrastBorder }, localize('scm.providerBorder', "SCM Provider separator border."));
 
 registerThemingParticipant((theme, collector) => {
 	const inputBackgroundColor = theme.getColor(inputBackground);
@@ -2503,7 +2503,7 @@ export class SCMActionButton implements IDisposable {
 
 		if (button.description) {
 			// ButtonWithDescription
-			this.button = new ButtonWithDescription(this.container, { supportIcons: true });
+			this.button = new ButtonWithDescription(this.container, { supportIcons: true, title: button.command.tooltip });
 			(this.button as ButtonWithDescription).description = button.description;
 		} else {
 			// Button

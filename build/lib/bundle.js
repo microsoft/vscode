@@ -22,10 +22,10 @@ function bundle(entryPoints, config, callback) {
     const allMentionedModulesMap = {};
     entryPoints.forEach((module) => {
         allMentionedModulesMap[module.name] = true;
-        (module.include || []).forEach(function (includedModule) {
+        module.include?.forEach(function (includedModule) {
             allMentionedModulesMap[includedModule] = true;
         });
-        (module.exclude || []).forEach(function (excludedModule) {
+        module.exclude?.forEach(function (excludedModule) {
             allMentionedModulesMap[excludedModule] = true;
         });
     });

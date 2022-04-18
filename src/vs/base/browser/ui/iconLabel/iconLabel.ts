@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./iconlabel';
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { setupCustomHover, setupNativeHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { ITooltipMarkdownString, setupCustomHover, setupNativeHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { IMatch } from 'vs/base/common/filters';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
 import { Range } from 'vs/base/common/range';
-import 'vs/css!./iconlabel';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
@@ -22,13 +20,8 @@ export interface IIconLabelCreationOptions {
 	hoverDelegate?: IHoverDelegate;
 }
 
-export interface IIconLabelMarkdownString {
-	markdown: IMarkdownString | string | HTMLElement | undefined | ((token: CancellationToken) => Promise<IMarkdownString | string | undefined>);
-	markdownNotSupportedFallback: string | undefined;
-}
-
 export interface IIconLabelValueOptions {
-	title?: string | IIconLabelMarkdownString;
+	title?: string | ITooltipMarkdownString;
 	descriptionTitle?: string;
 	hideIcon?: boolean;
 	extraClasses?: string[];
@@ -167,7 +160,7 @@ export class IconLabel extends Disposable {
 		}
 	}
 
-	private setupHover(htmlElement: HTMLElement, tooltip: string | IIconLabelMarkdownString | undefined): void {
+	private setupHover(htmlElement: HTMLElement, tooltip: string | ITooltipMarkdownString | undefined): void {
 		const previousCustomHover = this.customHovers.get(htmlElement);
 		if (previousCustomHover) {
 			previousCustomHover.dispose();

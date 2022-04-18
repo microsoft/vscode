@@ -7,11 +7,14 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CompletionItem, CompletionItemKind } from 'vs/editor/common/languages';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider, SnippetTextEdit } from 'vs/editor/common/languages';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
@@ -62,10 +65,14 @@ export class SnippetController2 implements IEditorContribution {
 	private _modelVersionId: number = -1;
 	private _currentChoice?: Choice;
 
+	private _choiceCompletionItemProvider?: CompletionItemProvider;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ILogService private readonly _logService: ILogService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 	) {
 		this._inSnippet = SnippetController2.InSnippetMode.bindTo(contextKeyService);
 		this._hasNextTabstop = SnippetController2.HasNextTabstop.bindTo(contextKeyService);
@@ -117,7 +124,7 @@ export class SnippetController2 implements IEditorContribution {
 
 		if (!this._session) {
 			this._modelVersionId = this._editor.getModel().getAlternativeVersionId();
-			this._session = new SnippetSession(this._editor, template, opts);
+			this._session = new SnippetSession(this._editor, template, opts, this._languageConfigurationService);
 			this._session.insert();
 		} else {
 			this._session.merge(template, opts);
@@ -125,6 +132,46 @@ export class SnippetController2 implements IEditorContribution {
 
 		if (opts.undoStopAfter) {
 			this._editor.getModel().pushStackElement();
+		}
+
+		// regster completion item provider when there is any choice element
+		if (this._session?.hasChoice) {
+			this._choiceCompletionItemProvider = {
+				provideCompletionItems: (model: ITextModel, position: Position) => {
+					if (!this._session || model !== this._editor.getModel() || !Position.equals(this._editor.getPosition(), position)) {
+						return undefined;
+					}
+					const { activeChoice } = this._session;
+					if (!activeChoice || activeChoice.options.length === 0) {
+						return undefined;
+					}
+
+					const info = model.getWordUntilPosition(position);
+					const isAnyOfOptions = Boolean(activeChoice.options.find(o => o.value === info.word));
+					const suggestions: CompletionItem[] = [];
+					for (let i = 0; i < activeChoice.options.length; i++) {
+						const option = activeChoice.options[i];
+						suggestions.push({
+							kind: CompletionItemKind.Value,
+							label: option.value,
+							insertText: option.value,
+							sortText: 'a'.repeat(i + 1),
+							range: new Range(position.lineNumber, info.startColumn, position.lineNumber, info.endColumn),
+							filterText: isAnyOfOptions ? `${info.word}_${option.value}` : undefined,
+							command: { id: 'jumpToNextSnippetPlaceholder', title: localize('next', 'Go to next placeholder...') }
+						});
+					}
+					return { suggestions };
+				}
+			};
+
+			const registration = this._languageFeaturesService.completionProvider.register({
+				language: this._editor.getModel().getLanguageId(),
+				pattern: this._editor.getModel().uri.path,
+				scheme: this._editor.getModel().uri.scheme
+			}, this._choiceCompletionItemProvider);
+
+			this._snippetListener.add(registration);
 		}
 
 		this._updateState();
@@ -170,35 +217,19 @@ export class SnippetController2 implements IEditorContribution {
 			return;
 		}
 
-		const { choice } = this._session;
-		if (!choice) {
+		const { activeChoice } = this._session;
+		if (!activeChoice || !this._choiceCompletionItemProvider) {
 			this._currentChoice = undefined;
 			return;
 		}
-		if (this._currentChoice !== choice) {
-			this._currentChoice = choice;
 
-			this._editor.setSelections(this._editor.getSelections()
-				.map(s => Selection.fromPositions(s.getStartPosition()))
-			);
+		if (this._currentChoice !== activeChoice) {
+			this._currentChoice = activeChoice;
 
-			const [first] = choice.options;
-
-			showSimpleSuggestions(this._editor, choice.options.map((option, i) => {
-
-				// let before = choice.options.slice(0, i);
-				// let after = choice.options.slice(i);
-
-				return <CompletionItem>{
-					kind: CompletionItemKind.Value,
-					label: option.value,
-					insertText: option.value,
-					// insertText: `\${1|${after.concat(before).join(',')}|}$0`,
-					// snippetType: 'textmate',
-					sortText: 'a'.repeat(i + 1),
-					range: Range.fromPositions(this._editor.getPosition()!, this._editor.getPosition()!.delta(0, first.value.length))
-				};
-			}));
+			// trigger suggest with the special choice completion provider
+			queueMicrotask(() => {
+				showSimpleSuggestions(this._editor, this._choiceCompletionItemProvider!);
+			});
 		}
 	}
 
@@ -213,6 +244,9 @@ export class SnippetController2 implements IEditorContribution {
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
 		this._snippetListener.clear();
+
+		this._currentChoice = undefined;
+
 		this._session?.dispose();
 		this._session = undefined;
 		this._modelVersionId = -1;
@@ -297,3 +331,17 @@ registerEditorCommand(new CommandCtor({
 	// 	primary: KeyCode.Enter,
 	// }
 }));
+
+
+// ---
+
+export function performSnippetEdit(editor: ICodeEditor, edit: SnippetTextEdit) {
+	const controller = SnippetController2.get(editor);
+	if (!controller) {
+		return false;
+	}
+	editor.focus();
+	editor.setSelection(edit.range);
+	controller.insert(edit.snippet);
+	return controller.isInSnippet();
+}

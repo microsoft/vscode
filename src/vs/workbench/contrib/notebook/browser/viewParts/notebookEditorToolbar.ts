@@ -8,7 +8,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ToggleMenuAction, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, Separator } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
@@ -50,7 +50,7 @@ const ACTION_PADDING = 8;
 
 interface IActionLayoutStrategy {
 	actionProvider: IActionViewItemProvider;
-	calculateActions(leftToolbarContainerMaxWidth: number): { primaryActions: IAction[], secondaryActions: IAction[] };
+	calculateActions(leftToolbarContainerMaxWidth: number): { primaryActions: IAction[]; secondaryActions: IAction[] };
 }
 
 class FixedLabelStrategy implements IActionLayoutStrategy {
@@ -286,7 +286,6 @@ export class NotebookEditorToolbar extends Disposable {
 	}
 
 	private _dimension: DOM.Dimension | null = null;
-	private _pendingLayout: IDisposable | undefined;
 
 	constructor(
 		readonly notebookEditor: INotebookEditorDelegate,
@@ -318,7 +317,7 @@ export class NotebookEditorToolbar extends Disposable {
 			}
 		}));
 
-		this._reigsterNotebookActionsToolbar();
+		this._registerNotebookActionsToolbar();
 	}
 
 	private _buildBody() {
@@ -339,7 +338,7 @@ export class NotebookEditorToolbar extends Disposable {
 		DOM.append(this.domNode, this._notebookTopRightToolbarContainer);
 	}
 
-	private _reigsterNotebookActionsToolbar() {
+	private _registerNotebookActionsToolbar() {
 		this._notebookGlobalActionsMenu = this._register(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.notebookToolbar, this.contextKeyService));
 		this._register(this._notebookGlobalActionsMenu);
 
@@ -605,7 +604,13 @@ export class NotebookEditorToolbar extends Disposable {
 	}
 
 	override dispose() {
-		this._pendingLayout?.dispose();
+		this._notebookLeftToolbar.context = undefined;
+		this._notebookRightToolbar.context = undefined;
+		this._notebookLeftToolbar.dispose();
+		this._notebookRightToolbar.dispose();
+		this._notebookLeftToolbar = null!;
+		this._notebookRightToolbar = null!;
+
 		super.dispose();
 	}
 }

@@ -2,7 +2,7 @@
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"description": "Defines a dev container",
 	"allowComments": true,
-	"allowTrailingCommas": true,
+	"allowTrailingCommas": false,
 	"oneOf": [
 		{
 			"type": "object",
@@ -116,7 +116,7 @@
 					"description": "An array of extensions that should be installed into the container.",
 					"items": {
 						"type": "string",
-						"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
+						"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)((@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)|@prerelease)?$",
 						"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
 					}
 				},
@@ -375,7 +375,7 @@
 						"loginInteractiveShell",
 						"interactiveShell"
 					],
-					"description": "User environment probe to run. The default is none."
+					"description": "User environment probe to run. The default is \"loginInteractiveShell\"."
 				},
 				"codespaces": {
 					"type": "object",
@@ -403,6 +403,14 @@
 						}
 					},
 					"additionalProperties": false
+				},
+				"customizations": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "object",
+						"additionalProperties": true
+					},
+					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations."
 				}
 			},
 			"required": [
@@ -519,7 +527,7 @@
 					"description": "An array of extensions that should be installed into the container.",
 					"items": {
 						"type": "string",
-						"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
+						"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)((@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)|@prerelease)?$",
 						"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
 					}
 				},
@@ -778,7 +786,7 @@
 						"loginInteractiveShell",
 						"interactiveShell"
 					],
-					"description": "User environment probe to run. The default is none."
+					"description": "User environment probe to run. The default is \"loginInteractiveShell\"."
 				},
 				"codespaces": {
 					"type": "object",
@@ -806,6 +814,14 @@
 						}
 					},
 					"additionalProperties": false
+				},
+				"customizations": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "object",
+						"additionalProperties": true
+					},
+					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations."
 				}
 			},
 			"required": [
@@ -888,7 +904,7 @@
 					"description": "An array of extensions that should be installed into the container.",
 					"items": {
 						"type": "string",
-						"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
+						"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)((@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)|@prerelease)?$",
 						"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
 					}
 				},
@@ -1147,7 +1163,7 @@
 						"loginInteractiveShell",
 						"interactiveShell"
 					],
-					"description": "User environment probe to run. The default is none."
+					"description": "User environment probe to run. The default is \"loginInteractiveShell\"."
 				},
 				"codespaces": {
 					"type": "object",
@@ -1175,6 +1191,14 @@
 						}
 					},
 					"additionalProperties": false
+				},
+				"customizations": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "object",
+						"additionalProperties": true
+					},
+					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations."
 				}
 			},
 			"required": [
@@ -1231,7 +1255,7 @@
 					"description": "An array of extensions that should be installed into the container.",
 					"items": {
 						"type": "string",
-						"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
+						"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)((@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)|@prerelease)?$",
 						"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
 					}
 				},
@@ -1490,7 +1514,7 @@
 						"loginInteractiveShell",
 						"interactiveShell"
 					],
-					"description": "User environment probe to run. The default is none."
+					"description": "User environment probe to run. The default is \"loginInteractiveShell\"."
 				},
 				"codespaces": {
 					"type": "object",
@@ -1518,6 +1542,14 @@
 						}
 					},
 					"additionalProperties": false
+				},
+				"customizations": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "object",
+						"additionalProperties": true
+					},
+					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations."
 				}
 			},
 			"required": [
@@ -1539,7 +1571,7 @@
 					"description": "An array of extensions that should be installed into the container.",
 					"items": {
 						"type": "string",
-						"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
+						"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)((@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)|@prerelease)?$",
 						"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
 					}
 				},
@@ -1798,7 +1830,7 @@
 						"loginInteractiveShell",
 						"interactiveShell"
 					],
-					"description": "User environment probe to run. The default is none."
+					"description": "User environment probe to run. The default is \"loginInteractiveShell\"."
 				},
 				"codespaces": {
 					"type": "object",
@@ -1826,6 +1858,14 @@
 						}
 					},
 					"additionalProperties": false
+				},
+				"customizations": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "object",
+						"additionalProperties": true
+					},
+					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations."
 				}
 			},
 			"additionalProperties": false

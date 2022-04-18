@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, isNonEmptyArray } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernel, INotebookKernelChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { IResolvedNotebookKernel, INotebookKernelChangeEvent, INotebookKernelService, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 
-abstract class MainThreadKernel implements INotebookKernel {
+abstract class MainThreadKernel implements IResolvedNotebookKernel {
+	readonly type: NotebookKernelType.Resolved = NotebookKernelType.Resolved;
 
 	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
-	private readonly preloads: { uri: URI, provides: string[]; }[];
+	private readonly preloads: { uri: URI; provides: string[] }[];
 	readonly onDidChange: Event<INotebookKernelChangeEvent> = this._onDidChange.event;
 
 	readonly id: string;
@@ -43,7 +44,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 	}
 
 	public get preloadProvides() {
-		return flatten(this.preloads.map(p => p.provides));
+		return this.preloads.map(p => p.provides).flat();
 	}
 
 	constructor(data: INotebookKernelDto2, private _languageService: ILanguageService) {
@@ -124,7 +125,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		this._disposables.add(toDisposable(() => {
 			// EH shut down, complete all executions started by this EH
 			this._executions.forEach(e => {
-				e.complete({ });
+				e.complete({});
 			});
 		}));
 
@@ -248,6 +249,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	$createExecution(handle: number, controllerId: string, rawUri: UriComponents, cellHandle: number): void {
 		const uri = URI.revive(rawUri);
 		const execution = this._notebookExecutionStateService.createCellExecution(controllerId, uri, cellHandle);
+		execution.confirm();
 		this._executions.set(handle, execution);
 	}
 

@@ -14,7 +14,7 @@ import { ByLocationTestItemElement } from 'vs/workbench/contrib/testing/browser/
 import { IActionableTestTreeElement, ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { NodeChangeList, NodeRenderDirective, NodeRenderFn, peersHaveChildren } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 import { IComputedStateAndDurationAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
-import { InternalTestItem, TestDiffOpType, TestItemExpandState, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, TestDiffOpType, TestItemExpandState, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
@@ -105,7 +105,6 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 			// children and should trust whatever the result service gives us.
 			const explicitComputed = item.children.size ? undefined : result.computedState;
 
-			item.retired = result.retired;
 			item.ownState = result.ownComputedState;
 			item.ownDuration = result.ownDuration;
 
@@ -138,15 +137,15 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	 */
 	private applyDiff(diff: TestsDiff) {
 		for (const op of diff) {
-			switch (op[0]) {
+			switch (op.op) {
 				case TestDiffOpType.Add: {
-					const item = this.createItem(op[1]);
+					const item = this.createItem(op.item);
 					this.storeItem(item);
 					break;
 				}
 
 				case TestDiffOpType.Update: {
-					const patch = op[1];
+					const patch = op.item;
 					const existing = this.items.get(patch.extId);
 					if (!existing) {
 						break;
@@ -165,7 +164,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 				}
 
 				case TestDiffOpType.Remove: {
-					const toRemove = this.items.get(op[1]);
+					const toRemove = this.items.get(op.itemId);
 					if (!toRemove) {
 						break;
 					}
@@ -241,8 +240,8 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		return {
 			element: node,
 			collapsible: node.test.expand !== TestItemExpandState.NotExpandable,
-			collapsed: this.lastState.expanded[node.treeId] !== undefined
-				? !this.lastState.expanded[node.treeId]
+			collapsed: this.lastState.expanded[node.test.item.extId] !== undefined
+				? !this.lastState.expanded[node.test.item.extId]
 				: node.depth > 0,
 			children: recurse(node.children),
 		};
@@ -265,13 +264,12 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		this.changes.addedOrRemoved(treeElement);
 
 		const reveal = this.getRevealDepth(treeElement);
-		if (reveal !== undefined) {
-			this.expandElement(treeElement, reveal);
+		if (reveal !== undefined || this.lastState.expanded[treeElement.test.item.extId]) {
+			this.expandElement(treeElement, reveal || 0);
 		}
 
 		const prevState = this.results.getStateById(treeElement.test.item.extId)?.[1];
 		if (prevState) {
-			treeElement.retired = prevState.retired;
 			treeElement.ownState = prevState.computedState;
 			treeElement.ownDuration = prevState.ownDuration;
 

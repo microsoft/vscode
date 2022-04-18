@@ -13,3 +13,4 @@ yarn.lock
 preview-src/**
 webpack.config.js
 esbuild.js
+.gitignore

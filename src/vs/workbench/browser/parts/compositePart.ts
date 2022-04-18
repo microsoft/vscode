@@ -54,7 +54,7 @@ interface CompositeItem {
 
 export abstract class CompositePart<T extends Composite> extends Part {
 
-	protected readonly onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite, focus: boolean; }>());
+	protected readonly onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite; focus: boolean }>());
 	protected readonly onDidCompositeClose = this._register(new Emitter<IComposite>());
 
 	protected toolBar: ToolBar | undefined;

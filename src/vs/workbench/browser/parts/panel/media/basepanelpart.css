@@ -205,16 +205,16 @@
 
 /* Rotate icons when panel is on right */
 .monaco-workbench .part.basepanel.right .title-actions .codicon-split-horizontal::before,
-.monaco-workbench .part.basepanel.right .title-actions .codicon-panel-maximize::before,
-.monaco-workbench .part.basepanel.right .title-actions .codicon-panel-restore::before {
+.monaco-workbench .part.basepanel.right .global-actions .codicon-panel-maximize::before,
+.monaco-workbench .part.basepanel.right .global-actions .codicon-panel-restore::before {
 	display: inline-block;
 	transform: rotate(-90deg);
 }
 
 /* Rotate icons when panel is on left */
 .monaco-workbench .part.basepanel.left .title-actions .codicon-split-horizontal::before,
-.monaco-workbench .part.basepanel.left .title-actions .codicon-panel-maximize::before,
-.monaco-workbench .part.basepanel.left .title-actions .codicon-panel-restore::before {
+.monaco-workbench .part.basepanel.left .global-actions .codicon-panel-maximize::before,
+.monaco-workbench .part.basepanel.left .global-actions .codicon-panel-restore::before {
 	display: inline-block;
 	transform: rotate(90deg);
 }

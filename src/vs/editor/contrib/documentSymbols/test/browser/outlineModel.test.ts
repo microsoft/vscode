@@ -8,8 +8,9 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
-import { DocumentSymbol, DocumentSymbolProviderRegistry, SymbolKind } from 'vs/editor/common/languages';
+import { DocumentSymbol, SymbolKind } from 'vs/editor/common/languages';
 import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -19,6 +20,7 @@ import { OutlineElement, OutlineGroup, OutlineModel, OutlineModelService } from 
 suite('OutlineModel', function () {
 
 	let disposables = new DisposableStore();
+	const languageFeaturesService = new LanguageFeaturesService();
 
 	teardown(function () {
 		disposables.clear();
@@ -28,11 +30,11 @@ suite('OutlineModel', function () {
 
 		const insta = createModelServices(disposables);
 		const modelService = insta.get(IModelService);
-		const service = new OutlineModelService(new LanguageFeatureDebounceService(new NullLogService()), modelService);
+		const service = new OutlineModelService(languageFeaturesService, new LanguageFeatureDebounceService(new NullLogService()), modelService);
 
 		let model = createTextModel('foo', undefined, undefined, URI.file('/fome/path.foo'));
 		let count = 0;
-		let reg = DocumentSymbolProviderRegistry.register({ pattern: '**/path.foo' }, {
+		let reg = languageFeaturesService.documentSymbolProvider.register({ pattern: '**/path.foo' }, {
 			provideDocumentSymbols() {
 				count += 1;
 				return [];
@@ -59,11 +61,11 @@ suite('OutlineModel', function () {
 
 		const insta = createModelServices(disposables);
 		const modelService = insta.get(IModelService);
-		const service = new OutlineModelService(new LanguageFeatureDebounceService(new NullLogService()), modelService);
+		const service = new OutlineModelService(languageFeaturesService, new LanguageFeatureDebounceService(new NullLogService()), modelService);
 		let model = createTextModel('foo', undefined, undefined, URI.file('/fome/path.foo'));
 		let isCancelled = false;
 
-		let reg = DocumentSymbolProviderRegistry.register({ pattern: '**/path.foo' }, {
+		let reg = languageFeaturesService.documentSymbolProvider.register({ pattern: '**/path.foo' }, {
 			provideDocumentSymbols(d, token) {
 				return new Promise(resolve => {
 					token.onCancellationRequested(_ => {

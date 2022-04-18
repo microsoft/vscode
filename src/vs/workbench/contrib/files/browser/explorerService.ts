@@ -32,7 +32,7 @@ export class ExplorerService implements IExplorerService {
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 
 	private readonly disposables = new DisposableStore();
-	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
+	private editable: { stat: ExplorerItem; data: IEditableData } | undefined;
 	private _sortOrder: SortOrder;
 	private _lexicographicOptions: LexicographicOptions;
 	private cutItems: ExplorerItem[] | undefined;
@@ -128,7 +128,12 @@ export class ExplorerService implements IExplorerService {
 			}
 		}));
 		// Refresh explorer when window gets focus to compensate for missing file events #126817
-		this.disposables.add(hostService.onDidChangeFocus(hasFocus => hasFocus ? this.refresh(false) : undefined));
+		const skipRefreshExplorerOnWindowFocus = this.configurationService.getValue('skipRefreshExplorerOnWindowFocus');
+		this.disposables.add(hostService.onDidChangeFocus(hasFocus => {
+			if (!skipRefreshExplorerOnWindowFocus && hasFocus) {
+				this.refresh(false);
+			}
+		}));
 	}
 
 	get roots(): ExplorerItem[] {
@@ -146,14 +151,26 @@ export class ExplorerService implements IExplorerService {
 		this.view = contextProvider;
 	}
 
-	getContext(respectMultiSelection: boolean): ExplorerItem[] {
+	getContext(respectMultiSelection: boolean, includeNestedChildren = false): ExplorerItem[] {
 		if (!this.view) {
 			return [];
 		}
-		return this.view.getContext(respectMultiSelection);
+
+		const items = new Set<ExplorerItem>(this.view.getContext(respectMultiSelection));
+		if (includeNestedChildren) {
+			items.forEach(item => {
+				if (item.nestedChildren) {
+					for (const child of item.nestedChildren) {
+						items.add(child);
+					}
+				}
+			});
+		}
+
+		return [...items];
 	}
 
-	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string, confirmBeforeUndo?: boolean, progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void> {
+	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string; progressLabel: string; confirmBeforeUndo?: boolean; progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void> {
 		const cancellationTokenSource = new CancellationTokenSource();
 		const promise = this.progressService.withProgress(<IProgressNotificationOptions | IProgressCompositeOptions>{
 			location: options.progressLocation || ProgressLocation.Window,
@@ -164,6 +181,7 @@ export class ExplorerService implements IExplorerService {
 			await this.bulkEditService.apply(edit, {
 				undoRedoSource: UNDO_REDO_SOURCE,
 				label: options.undoLabel,
+				code: 'undoredo.explorerOperation',
 				progress,
 				token: cancellationTokenSource.token,
 				confirmBeforeUndo: options.confirmBeforeUndo
@@ -216,10 +234,10 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	isCut(item: ExplorerItem): boolean {
-		return !!this.cutItems && this.cutItems.indexOf(item) >= 0;
+		return !!this.cutItems && this.cutItems.some(i => this.uriIdentityService.extUri.isEqual(i.resource, item.resource));
 	}
 
-	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined {
+	getEditable(): { stat: ExplorerItem; data: IEditableData } | undefined {
 		return this.editable;
 	}
 
@@ -320,27 +338,30 @@ export class ExplorerService implements IExplorerService {
 			const newElement = e.target;
 			const oldParentResource = dirname(oldResource);
 			const newParentResource = dirname(newElement.resource);
+			const modelElements = this.model.findAll(oldResource);
+			const sameParentMove = modelElements.every(e => !e.nestedParent) && this.uriIdentityService.extUri.isEqual(oldParentResource, newParentResource);
 
 			// Handle Rename
-			if (this.uriIdentityService.extUri.isEqual(oldParentResource, newParentResource)) {
-				const modelElements = this.model.findAll(oldResource);
-				modelElements.forEach(async modelElement => {
+			if (sameParentMove) {
+				await Promise.all(modelElements.map(async modelElement => {
 					// Rename File (Model)
 					modelElement.rename(newElement);
 					await this.view?.refresh(false, modelElement.parent);
-				});
+				}));
 			}
 
 			// Handle Move
 			else {
 				const newParents = this.model.findAll(newParentResource);
-				const modelElements = this.model.findAll(oldResource);
-
 				if (newParents.length && modelElements.length) {
 					// Move in Model
 					await Promise.all(modelElements.map(async (modelElement, index) => {
 						const oldParent = modelElement.parent;
+						const oldNestedParent = modelElement.nestedParent;
 						modelElement.move(newParents[index]);
+						if (oldNestedParent) {
+							await this.view?.refresh(false, oldNestedParent);
+						}
 						await this.view?.refresh(false, oldParent);
 						await this.view?.refresh(false, newParents[index]);
 					}));
@@ -351,11 +372,17 @@ export class ExplorerService implements IExplorerService {
 		// Delete
 		else if (e.isOperation(FileOperation.DELETE)) {
 			const modelElements = this.model.findAll(e.resource);
-			await Promise.all(modelElements.map(async element => {
-				if (element.parent) {
-					const parent = element.parent;
+			await Promise.all(modelElements.map(async modelElement => {
+				if (modelElement.parent) {
 					// Remove Element from Parent (Model)
-					parent.removeChild(element);
+					const parent = modelElement.parent;
+					parent.removeChild(modelElement);
+
+					const oldNestedParent = modelElement.nestedParent;
+					if (oldNestedParent) {
+						oldNestedParent.removeChild(modelElement);
+						await this.view?.refresh(false, oldNestedParent);
+					}
 					// Refresh Parent (View)
 					await this.view?.refresh(false, parent);
 				}

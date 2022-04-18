@@ -9,7 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { localize } from 'vs/nls';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
@@ -18,6 +18,7 @@ import { isPatternInWord } from 'vs/base/common/filters';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { getWordAtText } from 'vs/editor/common/core/wordHelper';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class SnippetCompletion implements CompletionItem {
 
@@ -25,18 +26,20 @@ export class SnippetCompletion implements CompletionItem {
 	detail: string;
 	insertText: string;
 	documentation?: MarkdownString;
-	range: IRange | { insert: IRange, replace: IRange };
+	range: IRange | { insert: IRange; replace: IRange };
 	sortText: string;
 	kind: CompletionItemKind;
 	insertTextRules: CompletionItemInsertTextRule;
+	extensionId?: ExtensionIdentifier;
 
 	constructor(
 		readonly snippet: Snippet,
-		range: IRange | { insert: IRange, replace: IRange }
+		range: IRange | { insert: IRange; replace: IRange }
 	) {
 		this.label = { label: snippet.prefix, description: snippet.name };
 		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
 		this.insertText = snippet.codeSnippet;
+		this.extensionId = snippet.extensionId;
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.kind = CompletionItemKind.Snippet;
@@ -182,7 +185,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		// validate the `languageId` to ensure this is a user
 		// facing language with a name and the chance to have
 		// snippets, else fall back to the outer language
-		model.tokenizeIfCheap(position.lineNumber);
+		model.tokenization.tokenizeIfCheap(position.lineNumber);
 		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
 		if (!this._languageService.getLanguageName(languageId)) {
 			languageId = model.getLanguageId();

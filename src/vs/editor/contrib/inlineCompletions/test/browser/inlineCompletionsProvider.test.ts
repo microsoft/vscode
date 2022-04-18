@@ -9,13 +9,16 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
-import { InlineCompletionsProvider, InlineCompletionsProviderRegistry, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
+import { InlineCompletionsProvider, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextModel';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contrib/inlineCompletions/test/browser/utils';
 import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { inlineCompletionToGhostText } from '../../browser/inlineCompletionToGhostText';
 
 suite('Inline Completions', () => {
@@ -32,7 +35,11 @@ suite('Inline Completions', () => {
 			const options = ['prefix', 'subword'] as const;
 			const result = {} as any;
 			for (const option of options) {
-				result[option] = inlineCompletionToGhostText({ text: suggestion, range }, tempModel, option)?.render(cleanedText, true);
+				result[option] = inlineCompletionToGhostText(
+					{ insertText: suggestion, filterText: suggestion, snippetInfo: undefined, range, additionalTextEdits: [], },
+					tempModel,
+					option
+				)?.render(cleanedText, true);
 			}
 
 			tempModel.dispose();
@@ -82,10 +89,17 @@ suite('Inline Completions', () => {
 			assert.deepStrictEqual(getOutput('[\tfoo]', '\t\tfoobar'), { prefix: undefined, subword: '\t[\t]foo[bar]' });
 			assert.deepStrictEqual(getOutput('[(y ===)]', '(y === 1) { f(); }'), { prefix: undefined, subword: '(y ===[ 1])[ { f(); }]' });
 			assert.deepStrictEqual(getOutput('[(y ==)]', '(y === 1) { f(); }'), { prefix: undefined, subword: '(y ==[= 1])[ { f(); }]' });
+
+			assert.deepStrictEqual(getOutput('[(y ==)]', '(y === 1) { f(); }'), { prefix: undefined, subword: '(y ==[= 1])[ { f(); }]' });
 		});
 
 		test('Multi Part Diffing 1', () => {
 			assert.deepStrictEqual(getOutput('[if () ()]', 'if (1 == f()) ()'), { prefix: undefined, subword: 'if ([1 == f()]) ()' });
+		});
+
+		test('Multi Part Diffing 2', () => {
+			assert.deepStrictEqual(getOutput('[)]', '())'), ({ prefix: undefined, subword: "[(])[)]" }));
+			assert.deepStrictEqual(getOutput('[))]', '(())'), ({ prefix: undefined, subword: "[((]))" }));
 		});
 	});
 
@@ -114,7 +128,7 @@ suite('Inline Completions', () => {
 				model.setActive(true);
 
 				context.keyboardType('foo');
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
 				model.trigger(InlineCompletionTriggerKind.Explicit);
 				await timeout(1000);
 
@@ -134,7 +148,7 @@ suite('Inline Completions', () => {
 				model.setActive(true);
 				context.keyboardType('foo');
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
 				await timeout(1000);
 
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
@@ -152,12 +166,12 @@ suite('Inline Completions', () => {
 			async ({ editor, editorViewModel, model, context }) => {
 				model.setActive(true);
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
 				context.keyboardType('foo');
 				model.trigger(InlineCompletionTriggerKind.Explicit);
 				await timeout(1000);
 
-				provider.setReturnValue({ text: 'foobizz', range: new Range(1, 1, 1, 6) });
+				provider.setReturnValue({ insertText: 'foobizz', range: new Range(1, 1, 1, 6) });
 				context.keyboardType('b');
 				context.keyboardType('i');
 				await timeout(1000);
@@ -182,7 +196,7 @@ suite('Inline Completions', () => {
 				model.setActive(true);
 
 				context.keyboardType('  ');
-				provider.setReturnValue({ text: 'foo', range: new Range(1, 2, 1, 3) });
+				provider.setReturnValue({ insertText: 'foo', range: new Range(1, 2, 1, 3) });
 				model.trigger(InlineCompletionTriggerKind.Explicit);
 				await timeout(1000);
 
@@ -207,7 +221,7 @@ suite('Inline Completions', () => {
 				model.setActive(true);
 
 				context.keyboardType('\t\t');
-				provider.setReturnValue({ text: 'foo', range: new Range(1, 2, 1, 3) });
+				provider.setReturnValue({ insertText: 'foo', range: new Range(1, 2, 1, 3) });
 				model.trigger(InlineCompletionTriggerKind.Explicit);
 				await timeout(1000);
 
@@ -232,7 +246,7 @@ suite('Inline Completions', () => {
 				model.setActive(true);
 
 				context.keyboardType('buzz  ');
-				provider.setReturnValue({ text: 'foo', range: new Range(1, 6, 1, 7) });
+				provider.setReturnValue({ insertText: 'foo', range: new Range(1, 6, 1, 7) });
 				model.trigger(InlineCompletionTriggerKind.Explicit);
 				await timeout(1000);
 
@@ -257,7 +271,7 @@ suite('Inline Completions', () => {
 				model.setActive(true);
 
 				context.keyboardType('foo');
-				provider.setReturnValue({ text: 'foobar1', range: new Range(1, 1, 1, 4) });
+				provider.setReturnValue({ insertText: 'foobar1', range: new Range(1, 1, 1, 4) });
 				model.trigger(InlineCompletionTriggerKind.Automatic);
 				await timeout(1000);
 
@@ -267,9 +281,9 @@ suite('Inline Completions', () => {
 				);
 
 				provider.setReturnValues([
-					{ text: 'foobar1', range: new Range(1, 1, 1, 4) },
-					{ text: 'foobizz2', range: new Range(1, 1, 1, 4) },
-					{ text: 'foobuzz3', range: new Range(1, 1, 1, 4) }
+					{ insertText: 'foobar1', range: new Range(1, 1, 1, 4) },
+					{ insertText: 'foobizz2', range: new Range(1, 1, 1, 4) },
+					{ insertText: 'foobuzz3', range: new Range(1, 1, 1, 4) }
 				]);
 
 				model.showNext();
@@ -341,7 +355,7 @@ suite('Inline Completions', () => {
 
 				context.keyboardType('foo');
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
 				await timeout(1000);
 
 				for (let j = 0; j < 2; j++) {
@@ -368,7 +382,7 @@ suite('Inline Completions', () => {
 			async ({ editor, editorViewModel, model, context }) => {
 				model.setActive(true);
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
 				context.keyboardType('foo');
 				model.trigger(InlineCompletionTriggerKind.Automatic);
 				await timeout(1000);
@@ -377,7 +391,7 @@ suite('Inline Completions', () => {
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'foo[bar]']);
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 5) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 5) });
 				context.keyboardType('b');
 				assert.deepStrictEqual(context.currentPrettyViewState, 'foob[ar]');
 				await timeout(1000);
@@ -386,7 +400,7 @@ suite('Inline Completions', () => {
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['foob[ar]']);
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 6) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 6) });
 				context.keyboardType('a');
 				assert.deepStrictEqual(context.currentPrettyViewState, 'fooba[r]');
 				await timeout(1000);
@@ -406,7 +420,7 @@ suite('Inline Completions', () => {
 			{ fakeClock: true, provider },
 			async ({ editor, editorViewModel, model, context }) => {
 				model.setActive(true);
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
 				context.keyboardType('foo');
 				model.trigger(InlineCompletionTriggerKind.Explicit);
 				await timeout(100);
@@ -415,7 +429,7 @@ suite('Inline Completions', () => {
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'foo[bar]']);
 
-				provider.setReturnValue({ text: 'foobaz', range: new Range(1, 1, 1, 5) });
+				provider.setReturnValue({ insertText: 'foobaz', range: new Range(1, 1, 1, 5) });
 				context.keyboardType('b');
 				assert.deepStrictEqual(context.currentPrettyViewState, 'foob[ar]');
 				await timeout(100);
@@ -438,7 +452,7 @@ suite('Inline Completions', () => {
 
 				context.keyboardType('fooba');
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 6) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 6) });
 
 				model.trigger(InlineCompletionTriggerKind.Explicit);
 				await timeout(1000);
@@ -447,7 +461,7 @@ suite('Inline Completions', () => {
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'fooba[r]']);
 
-				provider.setReturnValue({ text: 'foobaz', range: new Range(1, 1, 1, 5) });
+				provider.setReturnValue({ insertText: 'foobaz', range: new Range(1, 1, 1, 5) });
 				context.leftDelete();
 				await timeout(1000);
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
@@ -468,13 +482,13 @@ suite('Inline Completions', () => {
 			async ({ editor, editorViewModel, model, context }) => {
 				model.setActive(true);
 				context.keyboardType('h');
-				provider.setReturnValue({ text: 'helloworld', range: new Range(1, 1, 1, 2) }, 1000);
+				provider.setReturnValue({ insertText: 'helloworld', range: new Range(1, 1, 1, 2) }, 1000);
 
 				model.trigger(InlineCompletionTriggerKind.Explicit);
 
 				await timeout(1030);
 				context.keyboardType('ello');
-				provider.setReturnValue({ text: 'helloworld', range: new Range(1, 1, 1, 6) }, 1000);
+				provider.setReturnValue({ insertText: 'helloworld', range: new Range(1, 1, 1, 6) }, 1000);
 
 				// after 20ms: Inline completion provider answers back
 				// after 50ms: Debounce is triggered
@@ -495,7 +509,7 @@ suite('Inline Completions', () => {
 				model.setActive(true);
 				context.keyboardType('hello\n');
 				context.cursorLeft();
-				provider.setReturnValue({ text: 'helloworld', range: new Range(1, 1, 1, 6) }, 1000);
+				provider.setReturnValue({ insertText: 'helloworld', range: new Range(1, 1, 1, 6) }, 1000);
 				await timeout(2000);
 
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
@@ -506,48 +520,84 @@ suite('Inline Completions', () => {
 					}
 				]);
 
-				provider.setReturnValue({ text: 'helloworld', range: new Range(2, 1, 2, 6) }, 1000);
+				provider.setReturnValue({ insertText: 'helloworld', range: new Range(2, 1, 2, 6) }, 1000);
 
 				context.cursorDown();
 				context.keyboardType('hello');
 				await timeout(100);
 
-				context.cursorLeft(); // Cause the ghost text to update
-				context.cursorRight();
+				// Update ghost text
+				context.keyboardType('w');
+				context.leftDelete();
 
 				await timeout(2000);
 
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{
-						position: '(2,6)',
-						text: 'hello\nhello',
-						triggerKind: 0,
-					}
+					{ position: '(2,6)', triggerKind: 0, text: 'hello\nhello' },
 				]);
 
 				assert.deepStrictEqual(context.getAndClearViewStates(), [
 					'',
+					'hello\n',
 					'hello[world]\n',
 					'hello\n',
 					'hello\nhello[world]',
 				]);
 			});
 	});
+
+	test('Additional Text Edits', async function () {
+		const provider = new MockInlineCompletionsProvider();
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider },
+			async ({ editor, editorViewModel, model, context }) => {
+				model.setActive(true);
+
+				context.keyboardType('buzz\nbaz');
+				provider.setReturnValue({
+					insertText: 'bazz',
+					range: new Range(2, 1, 2, 4),
+					additionalTextEdits: [{
+						range: new Range(1, 1, 1, 5),
+						text: 'bla'
+					}],
+				});
+				model.trigger(InlineCompletionTriggerKind.Explicit);
+				await timeout(1000);
+
+				model.commitCurrentSuggestion();
+
+				assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: "(2,4)", triggerKind: 1, text: "buzz\nbaz" }]));
+
+				assert.deepStrictEqual(context.getAndClearViewStates(), [
+					'',
+					'buzz\nbaz[z]',
+					'bla\nbazz',
+				]);
+			}
+		);
+	});
 });
 
 async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 	text: string,
-	options: TestCodeEditorInstantiationOptions & { provider?: InlineCompletionsProvider, fakeClock?: boolean },
-	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: InlineCompletionsModel, context: GhostTextContext }) => Promise<T>
+	options: TestCodeEditorInstantiationOptions & { provider?: InlineCompletionsProvider; fakeClock?: boolean },
+	callback: (args: { editor: ITestCodeEditor; editorViewModel: ViewModel; model: InlineCompletionsModel; context: GhostTextContext }) => Promise<T>
 ): Promise<T> {
 	return await runWithFakedTimers({
 		useFakeTimers: options.fakeClock,
 	}, async () => {
 		const disposableStore = new DisposableStore();
 
+
 		try {
 			if (options.provider) {
-				const d = InlineCompletionsProviderRegistry.register({ pattern: '**' }, options.provider);
+				const languageFeaturesService = new LanguageFeaturesService();
+				if (!options.serviceCollection) {
+					options.serviceCollection = new ServiceCollection();
+				}
+				options.serviceCollection.set(ILanguageFeaturesService, languageFeaturesService);
+				const d = languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, options.provider);
 				disposableStore.add(d);
 			}
 

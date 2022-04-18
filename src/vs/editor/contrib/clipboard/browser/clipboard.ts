@@ -39,7 +39,9 @@ export const CutAction = supportsCut ? registerCommand(new MultiCommand({
 	kbOpts: (
 		// Do not bind cut keybindings in the browser,
 		// since browsers do that for us and it avoids security prompts
-		platform.isNative ? {
+		// the exception to that logic is Safari which needs to go through
+		// our clipboard service. More info why can be found in the clipboard service.
+		platform.isNative || platform.isSafari ? {
 			primary: KeyMod.CtrlCmd | KeyCode.KeyX,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KeyX, secondary: [KeyMod.Shift | KeyCode.Delete] },
 			weight: KeybindingWeight.EditorContrib

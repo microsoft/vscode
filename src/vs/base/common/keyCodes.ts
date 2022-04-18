@@ -209,6 +209,11 @@ export const enum KeyCode {
 	LaunchApp2,
 
 	/**
+	 * VK_CLEAR, 0x0C, CLEAR key
+	 */
+	Clear,
+
+	/**
 	 * Placed last to cover the length of the enum.
 	 * Please do not depend on this value!
 	 */
@@ -420,7 +425,7 @@ export const enum ScanCode {
 class KeyCodeStrMap {
 
 	public _keyCodeToStr: string[];
-	public _strToKeyCode: { [str: string]: KeyCode; };
+	public _strToKeyCode: { [str: string]: KeyCode };
 
 	constructor() {
 		this._keyCodeToStr = [];
@@ -445,10 +450,10 @@ const uiMap = new KeyCodeStrMap();
 const userSettingsUSMap = new KeyCodeStrMap();
 const userSettingsGeneralMap = new KeyCodeStrMap();
 export const EVENT_KEY_CODE_MAP: { [keyCode: number]: KeyCode } = new Array(230);
-export const NATIVE_WINDOWS_KEY_CODE_TO_KEY_CODE: { [nativeKeyCode: string]: KeyCode; } = {};
+export const NATIVE_WINDOWS_KEY_CODE_TO_KEY_CODE: { [nativeKeyCode: string]: KeyCode } = {};
 const scanCodeIntToStr: string[] = [];
-const scanCodeStrToInt: { [code: string]: number; } = Object.create(null);
-const scanCodeLowerCaseStrToInt: { [code: string]: number; } = Object.create(null);
+const scanCodeStrToInt: { [code: string]: number } = Object.create(null);
+const scanCodeLowerCaseStrToInt: { [code: string]: number } = Object.create(null);
 
 export const ScanCodeUtils = {
 	lowerCaseToEnum: (scanCode: string) => scanCodeLowerCaseStrToInt[scanCode] || ScanCode.None,
@@ -638,7 +643,7 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 		[0, 1, ScanCode.NumpadMemoryClear, 'NumpadMemoryClear', KeyCode.Unknown, empty, 0, empty, empty, empty],
 		[0, 1, ScanCode.NumpadMemoryAdd, 'NumpadMemoryAdd', KeyCode.Unknown, empty, 0, empty, empty, empty],
 		[0, 1, ScanCode.NumpadMemorySubtract, 'NumpadMemorySubtract', KeyCode.Unknown, empty, 0, empty, empty, empty],
-		[0, 1, ScanCode.NumpadClear, 'NumpadClear', KeyCode.Unknown, empty, 0, empty, empty, empty],
+		[0, 1, ScanCode.NumpadClear, 'NumpadClear', KeyCode.Clear, 'Clear', 12, 'VK_CLEAR', empty, empty],
 		[0, 1, ScanCode.NumpadClearEntry, 'NumpadClearEntry', KeyCode.Unknown, empty, 0, empty, empty, empty],
 		[5, 1, ScanCode.None, empty, KeyCode.Ctrl, 'Ctrl', 17, 'VK_CONTROL', empty, empty],
 		[4, 1, ScanCode.None, empty, KeyCode.Shift, 'Shift', 16, 'VK_SHIFT', empty, empty],
@@ -686,7 +691,6 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 		[109, 1, ScanCode.None, empty, KeyCode.KEY_IN_COMPOSITION, 'KeyInComposition', 229, empty, empty, empty],
 		[111, 1, ScanCode.None, empty, KeyCode.ABNT_C2, 'ABNT_C2', 194, 'VK_ABNT_C2', empty, empty],
 		[91, 1, ScanCode.None, empty, KeyCode.OEM_8, 'OEM_8', 223, 'VK_OEM_8', empty, empty],
-		[0, 1, ScanCode.None, empty, KeyCode.Unknown, empty, 0, 'VK_CLEAR', empty, empty],
 		[0, 1, ScanCode.None, empty, KeyCode.Unknown, empty, 0, 'VK_KANA', empty, empty],
 		[0, 1, ScanCode.None, empty, KeyCode.Unknown, empty, 0, 'VK_HANGUL', empty, empty],
 		[0, 1, ScanCode.None, empty, KeyCode.Unknown, empty, 0, 'VK_JUNJA', empty, empty],

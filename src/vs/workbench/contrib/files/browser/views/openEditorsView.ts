@@ -30,7 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, IMenu, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { ResourcesDropHandler, fillEditorsDragData, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -39,7 +39,6 @@ import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
 import { ElementsDragAndDropData, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { withUndefinedAsNull } from 'vs/base/common/types';
-import { isWeb } from 'vs/base/common/platform';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -378,7 +377,7 @@ export class OpenEditorsView extends ViewPane {
 		return this.elements.findIndex(e => e instanceof OpenEditor && e.editor === editor && e.group.id === group.id);
 	}
 
-	private openEditor(element: OpenEditor, options: { preserveFocus?: boolean; pinned?: boolean; sideBySide?: boolean; }): void {
+	private openEditor(element: OpenEditor, options: { preserveFocus?: boolean; pinned?: boolean; sideBySide?: boolean }): void {
 		if (element) {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
 
@@ -695,10 +694,6 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 
 	onDragOver(data: IDragAndDropData, _targetElement: OpenEditor | IEditorGroup, _targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
 		if (data instanceof NativeDragAndDropData) {
-			if (isWeb) {
-				return false; // dropping files into editor is unsupported on web
-			}
-
 			return containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES);
 		}
 

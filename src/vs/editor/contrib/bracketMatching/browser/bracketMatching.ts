@@ -24,7 +24,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 
-const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
+const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', { dark: '#A0A0A0', light: '#A0A0A0', hcDark: '#A0A0A0', hcLight: '#A0A0A0' }, nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
 
 class JumpToBracketAction extends EditorAction {
 	constructor() {
@@ -175,7 +175,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			const brackets = model.bracketPairs.matchBracket(position);
 			let newCursorPosition: Position | null = null;
 			if (brackets) {
-				if (brackets[0].containsPosition(position)) {
+				if (brackets[0].containsPosition(position) && !brackets[1].containsPosition(position)) {
 					newCursorPosition = brackets[1].getStartPosition();
 				} else if (brackets[1].containsPosition(position)) {
 					newCursorPosition = brackets[0].getStartPosition();
@@ -184,7 +184,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 				// find the enclosing brackets if the position isn't on a matching bracket
 				const enclosingBrackets = model.bracketPairs.findEnclosingBrackets(position);
 				if (enclosingBrackets) {
-					newCursorPosition = enclosingBrackets[0].getStartPosition();
+					newCursorPosition = enclosingBrackets[1].getStartPosition();
 				} else {
 					// no enclosing brackets, try the very first next bracket
 					const nextBracket = model.bracketPairs.findNextBracket(position);
@@ -339,7 +339,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			if (previousIndex < previousLen && previousData[previousIndex].position.equals(position)) {
 				newData[newDataLen++] = previousData[previousIndex];
 			} else {
-				let brackets = model.bracketPairs.matchBracket(position);
+				let brackets = model.bracketPairs.matchBracket(position, 20 /* give at most 20ms to compute */);
 				let options = BracketMatchingController._DECORATION_OPTIONS_WITH_OVERVIEW_RULER;
 				if (!brackets && this._matchBrackets === 'always') {
 					brackets = model.bracketPairs.findEnclosingBrackets(position, 20 /* give at most 20ms to compute */);

@@ -28,7 +28,7 @@
 	height: 100%;
 	width: 0;
 	left: -2px;
-	transition: width 80ms linear, left 80ms linear;
+	transition: width 80ms linear, left 80ms linear, transform 80ms linear;
 }
 
 .monaco-editor .dirty-diff-deleted:before {

@@ -23,7 +23,7 @@ export function getIconsStyleSheet(themeService: IThemeService | undefined): IIc
 		onDidChange: onDidChangeEmmiter.event,
 		getCSS() {
 			const productIconTheme = themeService ? themeService.getProductIconTheme() : new UnthemedProductIconTheme();
-			const usedFontIds: { [id: string]: IconFontDefinition | undefined } = {};
+			const usedFontIds: { [id: string]: IconFontDefinition } = {};
 			const formatIconRule = (contribution: IconContribution): string | undefined => {
 				const definition = productIconTheme.getIcon(contribution);
 				if (!definition) {
@@ -31,7 +31,7 @@ export function getIconsStyleSheet(themeService: IThemeService | undefined): IIc
 				}
 				const fontContribution = definition.font;
 				if (fontContribution) {
-					usedFontIds[fontContribution.id] = fontContribution.getDefinition();
+					usedFontIds[fontContribution.id] = fontContribution.definition;
 					return `.codicon-${contribution.id}:before { content: '${definition.fontCharacter}'; font-family: ${asCSSPropertyValue(fontContribution.id)}; }`;
 				}
 				// default font (codicon)
@@ -47,12 +47,10 @@ export function getIconsStyleSheet(themeService: IThemeService | undefined): IIc
 			}
 			for (let id in usedFontIds) {
 				const definition = usedFontIds[id];
-				if (definition) {
-					const fontWeight = definition.weight ? `font-weight: ${definition.weight};` : '';
-					const fontStyle = definition.style ? `font-style: ${definition.style};` : '';
-					const src = definition.src.map(l => `${asCSSUrl(l.location)} format('${l.format}')`).join(', ');
-					rules.push(`@font-face { src: ${src}; font-family: ${asCSSPropertyValue(id)};${fontWeight}${fontStyle} font-display: block; }`);
-				}
+				const fontWeight = definition.weight ? `font-weight: ${definition.weight};` : '';
+				const fontStyle = definition.style ? `font-style: ${definition.style};` : '';
+				const src = definition.src.map(l => `${asCSSUrl(l.location)} format('${l.format}')`).join(', ');
+				rules.push(`@font-face { src: ${src}; font-family: ${asCSSPropertyValue(id)};${fontWeight}${fontStyle} font-display: block; }`);
 			}
 			return rules.join('\n');
 		}

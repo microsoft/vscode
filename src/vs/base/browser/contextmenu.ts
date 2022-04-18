@@ -16,7 +16,7 @@ export interface IContextMenuEvent {
 }
 
 export interface IContextMenuDelegate {
-	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number; };
+	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number };
 	getActions(): readonly IAction[];
 	getCheckedActionsRepresentation?(action: IAction): 'radio' | 'checkbox';
 	getActionViewItem?(action: IAction): IActionViewItem | undefined;

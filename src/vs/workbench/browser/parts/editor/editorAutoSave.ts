@@ -186,7 +186,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		// Clear any running auto save operation
 		this.discardAutoSave(workingCopy);
 
-		this.logService.trace(`[editor auto save] scheduling auto save after ${this.autoSaveAfterDelay}ms`, workingCopy.resource.toString(true), workingCopy.typeId);
+		this.logService.trace(`[editor auto save] scheduling auto save after ${this.autoSaveAfterDelay}ms`, workingCopy.resource.toString(), workingCopy.typeId);
 
 		// Schedule new auto save
 		const handle = setTimeout(() => {
@@ -196,7 +196,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 
 			// Save if dirty
 			if (workingCopy.isDirty()) {
-				this.logService.trace(`[editor auto save] running auto save`, workingCopy.resource.toString(true), workingCopy.typeId);
+				this.logService.trace(`[editor auto save] running auto save`, workingCopy.resource.toString(), workingCopy.typeId);
 
 				workingCopy.save({ reason: SaveReason.AUTO });
 			}
@@ -204,7 +204,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 
 		// Keep in map for disposal as needed
 		this.pendingAutoSavesAfterDelay.set(workingCopy, toDisposable(() => {
-			this.logService.trace(`[editor auto save] clearing pending auto save`, workingCopy.resource.toString(true), workingCopy.typeId);
+			this.logService.trace(`[editor auto save] clearing pending auto save`, workingCopy.resource.toString(), workingCopy.typeId);
 
 			clearTimeout(handle);
 		}));

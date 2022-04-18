@@ -86,8 +86,8 @@ export class InstantiationService implements IInstantiationService {
 		let serviceArgs: any[] = [];
 		for (const dependency of serviceDependencies) {
 			let service = this._getOrCreateServiceInstance(dependency.id, _trace);
-			if (!service && this._strict && !dependency.optional) {
-				throw new Error(`[createInstance] ${ctor.name} depends on UNKNOWN service ${dependency.id}.`);
+			if (!service) {
+				this._throwIfStrict(`[createInstance] ${ctor.name} depends on UNKNOWN service ${dependency.id}.`, false);
 			}
 			serviceArgs.push(service);
 		}
@@ -96,7 +96,7 @@ export class InstantiationService implements IInstantiationService {
 
 		// check for argument mismatches, adjust static args if needed
 		if (args.length !== firstServiceArgPos) {
-			console.warn(`[createInstance] First service dependency of ${ctor.name} at position ${firstServiceArgPos + 1} conflicts with ${args.length} static arguments`);
+			console.trace(`[createInstance] First service dependency of ${ctor.name} at position ${firstServiceArgPos + 1} conflicts with ${args.length} static arguments`);
 
 			let delta = firstServiceArgPos - args.length;
 			if (delta > 0) {
@@ -156,7 +156,7 @@ export class InstantiationService implements IInstantiationService {
 
 	private _createAndCacheServiceInstance<T>(id: ServiceIdentifier<T>, desc: SyncDescriptor<T>, _trace: Trace): T {
 
-		type Triple = { id: ServiceIdentifier<any>, desc: SyncDescriptor<any>, _trace: Trace; };
+		type Triple = { id: ServiceIdentifier<any>; desc: SyncDescriptor<any>; _trace: Trace };
 		const graph = new Graph<Triple>(data => data.id.toString());
 
 		let cycleCount = 0;
@@ -174,8 +174,8 @@ export class InstantiationService implements IInstantiationService {
 			for (let dependency of _util.getServiceDependencies(item.desc.ctor)) {
 
 				let instanceOrDesc = this._getServiceInstanceOrDescriptor(dependency.id);
-				if (!instanceOrDesc && !dependency.optional) {
-					console.warn(`[createInstance] ${id} depends on ${dependency.id} which is NOT registered.`);
+				if (!instanceOrDesc) {
+					this._throwIfStrict(`[createInstance] ${id} depends on ${dependency.id} which is NOT registered.`, true);
 				}
 
 				if (instanceOrDesc instanceof SyncDescriptor) {
@@ -253,6 +253,15 @@ export class InstantiationService implements IInstantiationService {
 					return true;
 				}
 			});
+		}
+	}
+
+	private _throwIfStrict(msg: string, printWarning: boolean): void {
+		if (printWarning) {
+			console.warn(printWarning);
+		}
+		if (this._strict) {
+			throw new Error(msg);
 		}
 	}
 }

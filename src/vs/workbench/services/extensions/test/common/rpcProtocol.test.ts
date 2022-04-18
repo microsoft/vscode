@@ -213,7 +213,7 @@ suite('RPCProtocol', () => {
 	});
 
 	test('SerializableObjectWithBuffers is correctly transfered', function (done) {
-		delegate = (a1: SerializableObjectWithBuffers<{ string: string, buff: VSBuffer }>, a2: number) => {
+		delegate = (a1: SerializableObjectWithBuffers<{ string: string; buff: VSBuffer }>, a2: number) => {
 			return new SerializableObjectWithBuffers({ string: a1.value.string + ' world', buff: a1.value.buff });
 		};
 

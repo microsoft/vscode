@@ -68,7 +68,7 @@ export class ViewsWelcomeContribution extends Disposable implements IWorkbenchCo
 	}
 }
 
-function parseGroupAndOrder(welcome: ViewWelcome, contribution: IExtensionPointUser<ViewsWelcomeExtensionPoint>): { group: string | undefined, order: number | undefined } {
+function parseGroupAndOrder(welcome: ViewWelcome, contribution: IExtensionPointUser<ViewsWelcomeExtensionPoint>): { group: string | undefined; order: number | undefined } {
 
 	let group: string | undefined;
 	let order: number | undefined;

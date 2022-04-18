@@ -11,6 +11,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { matchesScheme } from 'vs/platform/opener/common/opener';
 
 
 export const ILanguageFeatureDebounceService = createDecorator<ILanguageFeatureDebounceService>('ILanguageFeatureDebounceService');
@@ -19,7 +20,7 @@ export interface ILanguageFeatureDebounceService {
 
 	readonly _serviceBrand: undefined;
 
-	for(feature: LanguageFeatureRegistry<object>, debugName: string, config?: { min?: number, max?: number, salt?: string }): IFeatureDebounceInformation;
+	for(feature: LanguageFeatureRegistry<object>, debugName: string, config?: { min?: number; max?: number; salt?: string }): IFeatureDebounceInformation;
 }
 
 export interface IFeatureDebounceInformation {
@@ -74,7 +75,9 @@ class FeatureDebounceInformation implements IFeatureDebounceInformation {
 			this._cache.set(key, avg);
 		}
 		const newValue = clamp(avg.update(value), this._min, this._max);
-		this._logService.trace(`[DEBOUNCE: ${this._name}] for ${model.uri.toString()} is ${newValue}ms`);
+		if (!matchesScheme(model.uri, 'output')) {
+			this._logService.trace(`[DEBOUNCE: ${this._name}] for ${model.uri.toString()} is ${newValue}ms`);
+		}
 		return newValue;
 	}
 
@@ -103,7 +106,7 @@ export class LanguageFeatureDebounceService implements ILanguageFeatureDebounceS
 
 	}
 
-	for(feature: LanguageFeatureRegistry<object>, name: string, config?: { min?: number, max?: number, key?: string }): IFeatureDebounceInformation {
+	for(feature: LanguageFeatureRegistry<object>, name: string, config?: { min?: number; max?: number; key?: string }): IFeatureDebounceInformation {
 		const min = config?.min ?? 50;
 		const max = config?.max ?? min ** 2;
 		const extra = config?.key ?? undefined;

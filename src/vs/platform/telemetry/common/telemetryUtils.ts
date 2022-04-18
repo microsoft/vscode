@@ -5,7 +5,9 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { safeStringify } from 'vs/base/common/objects';
+import { staticObservableValue } from 'vs/base/common/observableValue';
 import { isObject } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -30,7 +32,7 @@ export class NullTelemetryServiceShape implements ITelemetryService {
 	}
 
 	setExperimentProperty() { }
-	telemetryLevel = TelemetryLevel.NONE;
+	telemetryLevel = staticObservableValue(TelemetryLevel.NONE);
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return Promise.resolve({
 			instanceId: 'someValue.instanceId',
@@ -82,8 +84,8 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 	return configurationService.onDidChangeConfiguration(event => {
 		if (event.source !== ConfigurationTarget.DEFAULT) {
 			type UpdateConfigurationClassification = {
-				configurationSource: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				configurationKeys: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				configurationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				configurationKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};
 			type UpdateConfigurationEvent = {
 				configurationSource: string;
@@ -148,7 +150,7 @@ export interface Measurements {
 	[key: string]: number;
 }
 
-export function validateTelemetryData(data?: any): { properties: Properties, measurements: Measurements } {
+export function validateTelemetryData(data?: any): { properties: Properties; measurements: Measurements } {
 
 	const properties: Properties = Object.create(null);
 	const measurements: Measurements = Object.create(null);
@@ -246,4 +248,16 @@ function flatKeys(result: string[], prefix: string, value: { [key: string]: any 
 	} else {
 		result.push(prefix);
 	}
+}
+
+interface IPathEnvironment {
+	appRoot: string;
+	extensionsPath: string;
+	userDataPath: string;
+	userHome: URI;
+	tmpDir: URI;
+}
+
+export function getPiiPathsFromEnvironment(paths: IPathEnvironment): string[] {
+	return [paths.appRoot, paths.extensionsPath, paths.userHome.fsPath, paths.tmpDir.fsPath, paths.userDataPath];
 }

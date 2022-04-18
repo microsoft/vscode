@@ -50,9 +50,9 @@ export type IRecordedEvent = IRecordedKeyboardEvent | IRecordedCompositionEvent 
 
 export interface IRecorded {
 	env: {
-		OS: OperatingSystem,
-		browser: IBrowser
-	}
+		OS: OperatingSystem;
+		browser: IBrowser;
+	};
 	initial: IRecordedTextareaState;
 	events: IRecordedEvent[];
 	final: IRecordedTextareaState;

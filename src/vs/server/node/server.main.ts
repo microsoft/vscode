@@ -39,6 +39,7 @@ const REMOTE_DATA_FOLDER = args['server-data-dir'] || process.env['VSCODE_AGENT_
 const USER_DATA_PATH = join(REMOTE_DATA_FOLDER, 'data');
 const APP_SETTINGS_HOME = join(USER_DATA_PATH, 'User');
 const GLOBAL_STORAGE_HOME = join(APP_SETTINGS_HOME, 'globalStorage');
+const LOCAL_HISTORY_HOME = join(APP_SETTINGS_HOME, 'History');
 const MACHINE_SETTINGS_HOME = join(USER_DATA_PATH, 'Machine');
 args['user-data-dir'] = USER_DATA_PATH;
 const APP_ROOT = dirname(FileAccess.asFileUri('', require).fsPath);
@@ -46,7 +47,7 @@ const BUILTIN_EXTENSIONS_FOLDER_PATH = join(APP_ROOT, 'extensions');
 args['builtin-extensions-dir'] = BUILTIN_EXTENSIONS_FOLDER_PATH;
 args['extensions-dir'] = args['extensions-dir'] || join(REMOTE_DATA_FOLDER, 'extensions');
 
-[REMOTE_DATA_FOLDER, args['extensions-dir'], USER_DATA_PATH, APP_SETTINGS_HOME, MACHINE_SETTINGS_HOME, GLOBAL_STORAGE_HOME].forEach(f => {
+[REMOTE_DATA_FOLDER, args['extensions-dir'], USER_DATA_PATH, APP_SETTINGS_HOME, MACHINE_SETTINGS_HOME, GLOBAL_STORAGE_HOME, LOCAL_HISTORY_HOME].forEach(f => {
 	try {
 		if (!fs.existsSync(f)) {
 			fs.mkdirSync(f, { mode: 0o700 });

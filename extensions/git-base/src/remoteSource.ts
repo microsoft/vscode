@@ -81,7 +81,7 @@ class RemoteSourceProviderQuickPick {
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions & { branch?: false | undefined }): Promise<string | undefined>;
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions & { branch: true }): Promise<PickRemoteSourceResult | undefined>;
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions = {}): Promise<string | PickRemoteSourceResult | undefined> {
-	const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteSourceProvider, url?: string })>();
+	const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteSourceProvider; url?: string })>();
 	quickpick.ignoreFocusOut = true;
 
 	if (options.providerName) {

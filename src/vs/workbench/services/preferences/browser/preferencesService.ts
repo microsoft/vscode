@@ -9,15 +9,14 @@ import { parse } from 'vs/base/common/json';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as network from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions, getDefaultValue, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { EditorResolution } from 'vs/platform/editor/common/editor';
@@ -45,6 +44,8 @@ import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultRawSe
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { isArray, isObject } from 'vs/base/common/types';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -75,7 +76,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@ICommandService private readonly commandService: ICommandService,
 		@ITextEditorService private readonly textEditorService: ITextEditorService
 	) {
 		super();
@@ -217,6 +217,18 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.open(this.userSettingsResource, options);
 	}
 
+	openLanguageSpecificSettings(languageId: string, options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
+		if (this.shouldOpenJsonByDefault()) {
+			options.query = undefined;
+			options.revealSetting = { key: `[${languageId}]`, edit: true };
+		} else {
+			options.query = `@lang:${languageId}${options.query ? ` ${options.query}` : ''}`;
+		}
+		options.target = options.target ?? ConfigurationTarget.USER_LOCAL;
+
+		return this.open(this.userSettingsResource, options);
+	}
+
 	private open(settingsResource: URI, options: IOpenSettingsOptions): Promise<IEditorPane | undefined> {
 		options = {
 			...options,
@@ -292,7 +304,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	async openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void> {
 		type OpenKeybindingsClassification = {
-			textual: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			textual: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 		};
 		this.telemetryService.publicLog2<{ textual: boolean }, OpenKeybindingsClassification>('openKeybindings', { textual });
 
@@ -529,7 +541,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			codeEditor.revealPositionNearTop(position);
 			codeEditor.focus();
 			if (edit) {
-				await this.commandService.executeCommand('editor.action.triggerSuggest');
+				SuggestController.get(codeEditor)?.triggerSuggest();
 			}
 		}
 	}
@@ -546,11 +558,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		let position = null;
-		const type = schema ? schema.type : 'object' /* Override Identifier */;
+		const type = schema?.type ?? 'object' /* Type not defined or is an Override Identifier */;
 		let setting = settingsModel.getPreference(settingKey);
 		if (!setting && edit) {
 			let defaultValue = (type === 'object' || type === 'array') ? this.configurationService.inspect(settingKey).defaultValue : getDefaultValue(type);
-			defaultValue = defaultValue === undefined && isOverrideProperty ? {} : undefined;
+			defaultValue = defaultValue === undefined && isOverrideProperty ? {} : defaultValue;
 			if (defaultValue !== undefined) {
 				const key = settingsModel instanceof WorkspaceConfigurationEditorModel ? ['settings', settingKey] : [settingKey];
 				await this.jsonEditingService.write(settingsModel.uri!, [{ path: key, value: defaultValue }], false);
@@ -560,8 +572,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 		if (setting) {
 			if (edit) {
-				position = { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
-				if (type === 'object' || type === 'array') {
+				if (isObject(setting.value) || isArray(setting.value)) {
+					position = { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
 					codeEditor.setPosition(position);
 					await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
 					position = { lineNumber: position.lineNumber + 1, column: model.getLineMaxColumn(position.lineNumber + 1) };
@@ -572,6 +584,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 						await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
 						position = { lineNumber: position.lineNumber, column: model.getLineMaxColumn(position.lineNumber) };
 					}
+				} else {
+					position = { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.endColumn };
 				}
 			} else {
 				position = { lineNumber: setting.keyRange.startLineNumber, column: setting.keyRange.startColumn };

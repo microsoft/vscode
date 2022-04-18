@@ -15,6 +15,8 @@ export interface IValidGrammarDefinition {
 	embeddedLanguages: IValidEmbeddedLanguagesMap;
 	tokenTypes: IValidTokenTypeMap;
 	injectTo?: string[];
+	balancedBracketSelectors: string[];
+	unbalancedBracketSelectors: string[];
 }
 
 export interface IValidTokenTypeMap {
@@ -27,7 +29,7 @@ export interface IValidEmbeddedLanguagesMap {
 
 export class TMScopeRegistry extends Disposable {
 
-	private _scopeNameToLanguageRegistration: { [scopeName: string]: IValidGrammarDefinition; };
+	private _scopeNameToLanguageRegistration: { [scopeName: string]: IValidGrammarDefinition };
 
 	constructor() {
 		super();

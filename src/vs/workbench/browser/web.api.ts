@@ -14,6 +14,9 @@ import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/brow
 import type { IProductConfiguration } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
+import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
+import { IObservableValue } from 'vs/base/common/observableValue';
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -33,7 +36,7 @@ export interface IWorkbench {
 		* @return A promise that resolves to the returned value of the given command.
 		*/
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
-	}
+	};
 
 	env: {
 
@@ -41,7 +44,7 @@ export interface IWorkbench {
 		 * @returns the scheme to use for opening the associated desktop
 		 * experience via protocol handler.
 		 */
-		readonly uriScheme: string;
+		getUriScheme(): Promise<string>;
 
 		/**
 		 * Retrieve performance marks that have been collected during startup. This function
@@ -61,7 +64,26 @@ export interface IWorkbench {
 		 * workbench.
 		 */
 		openUri(target: URI): Promise<boolean>;
-	}
+
+		/**
+		 * Current workbench telemetry level.
+		 */
+		readonly telemetryLevel: IObservableValue<TelemetryLevel>;
+	};
+
+	window: {
+		/**
+		 * Show progress in the editor. Progress is shown while running the given callback
+		 * and while the promise it returned isn't resolved nor rejected.
+		 *
+		 * @param task A callback returning a promise.
+		 * @return A promise that resolves to the returned value of the given task result.
+		 */
+		withProgress<R>(
+			options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
+			task: (progress: IProgress<IProgressStep>) => Promise<R>
+		): Promise<R>;
+	};
 
 	/**
 	 * Triggers shutdown of the workbench programmatically. After this method is
@@ -122,13 +144,13 @@ export interface IWorkbenchConstructionOptions {
 	/**
 	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
 	 */
-	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
+	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string };
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
 	 * Endpoints to be used for proxying repository tarball download calls in the browser.
 	 */
-	readonly _tarballProxyEndpoints?: { [providerId: string]: string }
+	readonly _tarballProxyEndpoints?: { [providerId: string]: string };
 
 	//#endregion
 
@@ -169,6 +191,11 @@ export interface IWorkbenchConstructionOptions {
 	 * link protection popup.
 	 */
 	readonly additionalTrustedDomains?: string[];
+
+	/**
+	 * Enable workspace trust feature for the current window
+	 */
+	readonly enableWorkspaceTrust?: boolean;
 
 	/**
 	 * Urls that will be opened externally that are allowed access
@@ -282,7 +309,7 @@ export interface IResourceUriProvider {
  */
 export type ExtensionId = string;
 
-export type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId, preRelease?: boolean, migrateStorageFrom?: ExtensionId };
+export type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId; preRelease?: boolean; migrateStorageFrom?: ExtensionId };
 
 export interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
@@ -328,7 +355,7 @@ export interface ITunnelFactory {
 
 export interface ITunnelOptions {
 
-	remoteAddress: { port: number, host: string };
+	remoteAddress: { port: number; host: string };
 
 	/**
 	 * The desired local port. If this port can't be used, then another will be chosen.
@@ -357,7 +384,7 @@ export interface TunnelCreationOptions {
 
 export interface ITunnel {
 
-	remoteAddress: { port: number, host: string };
+	remoteAddress: { port: number; host: string };
 
 	/**
 	 * The complete local address(ex. localhost:1234)
@@ -399,20 +426,20 @@ export interface ICommand {
 	 * An identifier for the command. Commands can be executed from extensions
 	 * using the `vscode.commands.executeCommand` API using that command ID.
 	 */
-	id: string,
+	id: string;
 
 	/**
 	 * The optional label of the command. If provided, the command will appear
 	 * in the command palette.
 	 */
-	label?: string,
+	label?: string;
 
 	/**
 	 * The optional menus to append this command to. Only valid if `label` is
 	 * provided as well.
 	 * @default Menu.CommandPalette
 	 */
-	menu?: Menu | Menu[],
+	menu?: Menu | Menu[];
 
 	/**
 	 * A function that is being executed with any arguments passed over. The
@@ -512,7 +539,8 @@ export interface IWindowIndicator {
 export enum ColorScheme {
 	DARK = 'dark',
 	LIGHT = 'light',
-	HIGH_CONTRAST = 'hc'
+	HIGH_CONTRAST_LIGHT = 'hcLight',
+	HIGH_CONTRAST_DARK = 'hcDark'
 }
 
 export interface IInitialColorTheme {

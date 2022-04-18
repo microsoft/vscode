@@ -24,6 +24,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { Event } from 'vs/base/common/event';
 import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 suite('NotebookCell#Document', function () {
 
@@ -59,7 +60,7 @@ suite('NotebookCell#Document', function () {
 			}
 		};
 		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments, extHostStoragePaths);
-		extHostNotebookDocuments = new ExtHostNotebookDocuments(new NullLogService(), extHostNotebooks);
+		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 
 		let reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
 			// async openNotebook() { }
@@ -145,12 +146,13 @@ suite('NotebookCell#Document', function () {
 	test('cell document is vscode.TextDocument after changing it', async function () {
 
 		const p = new Promise<void>((resolve, reject) => {
-			extHostNotebooks.onDidChangeNotebookCells(e => {
-				try {
-					assert.strictEqual(e.changes.length, 1);
-					assert.strictEqual(e.changes[0].items.length, 2);
 
-					const [first, second] = e.changes[0].items;
+			extHostNotebookDocuments.onDidChangeNotebookDocument(e => {
+				try {
+					assert.strictEqual(e.contentChanges.length, 1);
+					assert.strictEqual(e.contentChanges[0].addedCells.length, 2);
+
+					const [first, second] = e.contentChanges[0].addedCells;
 
 					const doc1 = extHostDocuments.getAllDocumentData().find(data => isEqual(data.document.uri, first.document.uri));
 					assert.ok(doc1);
@@ -166,6 +168,7 @@ suite('NotebookCell#Document', function () {
 					reject(err);
 				}
 			});
+
 		});
 
 		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
@@ -316,7 +319,7 @@ suite('NotebookCell#Document', function () {
 
 	test('ERR MISSING extHostDocument for notebook cell: #116711', async function () {
 
-		const p = Event.toPromise(extHostNotebooks.onDidChangeNotebookCells);
+		const p = Event.toPromise(extHostNotebookDocuments.onDidChangeNotebookDocument);
 
 		// DON'T call this, make sure the cell-documents have not been created yet
 		// assert.strictEqual(notebook.notebookDocument.cellCount, 2);
@@ -349,14 +352,14 @@ suite('NotebookCell#Document', function () {
 
 		const event = await p;
 
-		assert.strictEqual(event.document === notebook.apiNotebook, true);
-		assert.strictEqual(event.changes.length, 1);
-		assert.strictEqual(event.changes[0].deletedCount, 2);
-		assert.strictEqual(event.changes[0].deletedItems[0].document.isClosed, true);
-		assert.strictEqual(event.changes[0].deletedItems[1].document.isClosed, true);
-		assert.strictEqual(event.changes[0].items.length, 2);
-		assert.strictEqual(event.changes[0].items[0].document.isClosed, false);
-		assert.strictEqual(event.changes[0].items[1].document.isClosed, false);
+		assert.strictEqual(event.notebook === notebook.apiNotebook, true);
+		assert.strictEqual(event.contentChanges.length, 1);
+		assert.strictEqual(event.contentChanges[0].range.end - event.contentChanges[0].range.start, 2);
+		assert.strictEqual(event.contentChanges[0].removedCells[0].document.isClosed, true);
+		assert.strictEqual(event.contentChanges[0].removedCells[1].document.isClosed, true);
+		assert.strictEqual(event.contentChanges[0].addedCells.length, 2);
+		assert.strictEqual(event.contentChanges[0].addedCells[0].document.isClosed, false);
+		assert.strictEqual(event.contentChanges[0].addedCells[1].document.isClosed, false);
 	});
 
 
@@ -406,7 +409,7 @@ suite('NotebookCell#Document', function () {
 
 		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
 			versionId: 12, rawEvents: [{
-				kind: NotebookCellsChangeType.ChangeLanguage,
+				kind: NotebookCellsChangeType.ChangeCellLanguage,
 				index: 0,
 				language: 'fooLang'
 			}]
@@ -417,5 +420,141 @@ suite('NotebookCell#Document', function () {
 
 		assert.strictEqual(first.document.languageId, 'fooLang');
 		assert.ok(removedDoc === addedDoc);
+	});
+
+	test('onDidChangeNotebook-event, cell changes', async function () {
+
+		const p = Event.toPromise(extHostNotebookDocuments.onDidChangeNotebookDocument);
+
+		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
+			versionId: 12, rawEvents: [{
+				kind: NotebookCellsChangeType.ChangeCellMetadata,
+				index: 0,
+				metadata: { foo: 1 }
+			}, {
+				kind: NotebookCellsChangeType.ChangeCellMetadata,
+				index: 1,
+				metadata: { foo: 2 },
+			}, {
+				kind: NotebookCellsChangeType.Output,
+				index: 1,
+				outputs: [
+					{
+						items: [{
+							valueBytes: VSBuffer.fromByteArray([0, 2, 3]),
+							mime: 'text/plain'
+						}],
+						outputId: '1'
+					}
+				]
+			}]
+		}), false, undefined);
+
+
+		const event = await p;
+
+		assert.strictEqual(event.notebook === notebook.apiNotebook, true);
+		assert.strictEqual(event.contentChanges.length, 0);
+		assert.strictEqual(event.cellChanges.length, 2);
+
+		const [first, second] = event.cellChanges;
+		assert.deepStrictEqual(first.metadata, first.cell.metadata);
+		assert.deepStrictEqual(first.executionSummary, undefined);
+		assert.deepStrictEqual(first.outputs, undefined);
+		assert.deepStrictEqual(first.document, undefined);
+
+		assert.deepStrictEqual(second.outputs, second.cell.outputs);
+		assert.deepStrictEqual(second.metadata, second.cell.metadata);
+		assert.deepStrictEqual(second.executionSummary, undefined);
+		assert.deepStrictEqual(second.document, undefined);
+	});
+
+	test('onDidChangeNotebook-event, notebook metadata', async function () {
+
+		const p = Event.toPromise(extHostNotebookDocuments.onDidChangeNotebookDocument);
+
+		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({ versionId: 12, rawEvents: [] }), false, { foo: 2 });
+
+		const event = await p;
+
+		assert.strictEqual(event.notebook === notebook.apiNotebook, true);
+		assert.strictEqual(event.contentChanges.length, 0);
+		assert.strictEqual(event.cellChanges.length, 0);
+		assert.deepStrictEqual(event.metadata, { foo: 2 });
+	});
+
+	test('onDidChangeNotebook-event, froozen data', async function () {
+
+		const p = Event.toPromise(extHostNotebookDocuments.onDidChangeNotebookDocument);
+
+		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({ versionId: 12, rawEvents: [] }), false, { foo: 2 });
+
+		const event = await p;
+
+		assert.ok(Object.isFrozen(event));
+		assert.ok(Object.isFrozen(event.cellChanges));
+		assert.ok(Object.isFrozen(event.contentChanges));
+		assert.ok(Object.isFrozen(event.notebook));
+		assert.ok(!Object.isFrozen(event.metadata));
+	});
+
+	test('change cell language and onDidChangeNotebookDocument', async function () {
+
+		const p = Event.toPromise(extHostNotebookDocuments.onDidChangeNotebookDocument);
+
+		const first = notebook.apiNotebook.cellAt(0);
+		assert.strictEqual(first.document.languageId, 'markdown');
+
+		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
+			versionId: 12,
+			rawEvents: [{
+				kind: NotebookCellsChangeType.ChangeCellLanguage,
+				index: 0,
+				language: 'fooLang'
+			}]
+		}), false);
+
+		const event = await p;
+
+		assert.strictEqual(event.notebook === notebook.apiNotebook, true);
+		assert.strictEqual(event.contentChanges.length, 0);
+		assert.strictEqual(event.cellChanges.length, 1);
+
+		const [cellChange] = event.cellChanges;
+
+		assert.strictEqual(cellChange.cell === first, true);
+		assert.ok(cellChange.document === first.document);
+		assert.ok(cellChange.executionSummary === undefined);
+		assert.ok(cellChange.metadata === undefined);
+		assert.ok(cellChange.outputs === undefined);
+	});
+
+	test('change notebook cell document and onDidChangeNotebookDocument', async function () {
+
+		const p = Event.toPromise(extHostNotebookDocuments.onDidChangeNotebookDocument);
+
+		const first = notebook.apiNotebook.cellAt(0);
+
+		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
+			versionId: 12,
+			rawEvents: [{
+				kind: NotebookCellsChangeType.ChangeCellContent,
+				index: 0
+			}]
+		}), false);
+
+		const event = await p;
+
+		assert.strictEqual(event.notebook === notebook.apiNotebook, true);
+		assert.strictEqual(event.contentChanges.length, 0);
+		assert.strictEqual(event.cellChanges.length, 1);
+
+		const [cellChange] = event.cellChanges;
+
+		assert.strictEqual(cellChange.cell === first, true);
+		assert.ok(cellChange.document === first.document);
+		assert.ok(cellChange.executionSummary === undefined);
+		assert.ok(cellChange.metadata === undefined);
+		assert.ok(cellChange.outputs === undefined);
 	});
 });

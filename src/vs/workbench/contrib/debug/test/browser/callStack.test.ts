@@ -41,7 +41,7 @@ export function createMockSession(model: DebugModel, name = 'mockSession', optio
 	} as IDebugService, undefined!, undefined!, new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } }), undefined!, mockWorkspaceContextService, undefined!, undefined!, undefined!, mockUriIdentityService, new TestInstantiationService(), undefined!, undefined!);
 }
 
-function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFrame, secondStackFrame: StackFrame } {
+function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFrame; secondStackFrame: StackFrame } {
 	const thread = new class extends Thread {
 		public override getCallStack(): StackFrame[] {
 			return [firstStackFrame, secondStackFrame];

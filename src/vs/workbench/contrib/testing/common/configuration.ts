@@ -126,7 +126,7 @@ export const testingConfiguation: IConfigurationNode = {
 				localize('testing.openTesting.openOnTestFailure', 'Open the testing view on any test failure'),
 			],
 			default: 'openOnTestStart',
-			description: localize('testing.openTesting', "Controls when the debug view should open.")
+			description: localize('testing.openTesting', "Controls when the testing view should open.")
 		},
 	}
 };

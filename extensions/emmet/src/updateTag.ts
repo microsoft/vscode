@@ -9,8 +9,8 @@ import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
 import { getRootNode } from './parseDocument';
 
 interface TagRange {
-	name: string,
-	range: vscode.Range
+	name: string;
+	range: vscode.Range;
 }
 
 export async function updateTag(tagName: string | undefined): Promise<boolean | undefined> {

@@ -13,11 +13,11 @@ import { IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity }
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide, IndentGuideHorizontalLine } from 'vs/editor/common/textModelGuides';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { LineInjectedText } from 'vs/editor/common/textModelEvents';
-import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
+import * as viewEvents from 'vs/editor/common/viewEvents';
 import { createModelLineProjection, IModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
-import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from 'vs/editor/common/modelLineProjectionData';
 import { ConstantTimePrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
-import { ICoordinatesConverter, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter, ViewLineData } from 'vs/editor/common/viewModel';
 
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
@@ -405,7 +405,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 		this.projectedModelLineLineCounts.setValue(lineIndex, newOutputLineCount);
 
-		const viewLinesChangedEvent = (changeFrom <= changeTo ? new viewEvents.ViewLinesChangedEvent(changeFrom, changeTo) : null);
+		const viewLinesChangedEvent = (changeFrom <= changeTo ? new viewEvents.ViewLinesChangedEvent(changeFrom, changeTo - changeFrom + 1) : null);
 		const viewLinesInsertedEvent = (insertFrom <= insertTo ? new viewEvents.ViewLinesInsertedEvent(insertFrom, insertTo) : null);
 		const viewLinesDeletedEvent = (deleteFrom <= deleteTo ? new viewEvents.ViewLinesDeletedEvent(deleteFrom, deleteTo) : null);
 
@@ -466,6 +466,14 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	private getMinColumnOfViewLine(viewLineInfo: ViewLineInfo): number {
 		return this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewLineMinColumn(
+			this.model,
+			viewLineInfo.modelLineNumber,
+			viewLineInfo.modelLineWrappedLineIdx
+		);
+	}
+
+	private getMaxColumnOfViewLine(viewLineInfo: ViewLineInfo): number {
+		return this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewLineMaxColumn(
 			this.model,
 			viewLineInfo.modelLineNumber,
 			viewLineInfo.modelLineWrappedLineIdx
@@ -569,17 +577,67 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 					// Don't add indent guides when the wrapped line continuation has no wrapping-indentation.
 					resultPerViewLine.push([]);
 				} else {
-					let bracketGuides = bracketGuidesPerModelLine[viewLineInfo.modelLineNumber - modelRangeStartLineNumber];
+					const bracketGuides = bracketGuidesPerModelLine[viewLineInfo.modelLineNumber - modelRangeStartLineNumber];
 
 					// visibleColumns stay as they are (this is a bug and needs to be fixed, but it is not a regression)
 					// model-columns must be converted to view-model columns.
-					bracketGuides = bracketGuides.map(g => g.horizontalLine ?
-						new IndentGuide(g.visibleColumn, g.className,
-							new IndentGuideHorizontalLine(g.horizontalLine.top,
-								this.convertModelPositionToViewPosition(viewLineInfo.modelLineNumber, g.horizontalLine.endColumn).column
-							)
-						) : g);
-					resultPerViewLine.push(bracketGuides);
+					const result = bracketGuides.map(g => {
+						if (g.forWrappedLinesAfterColumn !== -1) {
+							const p = this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewPositionOfModelPosition(0, g.forWrappedLinesAfterColumn);
+							if (p.lineNumber >= viewLineInfo.modelLineWrappedLineIdx) {
+								return undefined;
+							}
+						}
+
+						if (g.forWrappedLinesBeforeOrAtColumn !== -1) {
+							const p = this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewPositionOfModelPosition(0, g.forWrappedLinesBeforeOrAtColumn);
+							if (p.lineNumber < viewLineInfo.modelLineWrappedLineIdx) {
+								return undefined;
+							}
+						}
+
+						if (!g.horizontalLine) {
+							return g;
+						}
+
+						let column = -1;
+						if (g.column !== -1) {
+							const p = this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewPositionOfModelPosition(0, g.column);
+							if (p.lineNumber === viewLineInfo.modelLineWrappedLineIdx) {
+								column = p.column;
+							} else if (p.lineNumber < viewLineInfo.modelLineWrappedLineIdx) {
+								column = this.getMinColumnOfViewLine(viewLineInfo);
+							} else if (p.lineNumber > viewLineInfo.modelLineWrappedLineIdx) {
+								return undefined;
+							}
+						}
+
+						const viewPosition = this.convertModelPositionToViewPosition(viewLineInfo.modelLineNumber, g.horizontalLine.endColumn);
+						const p = this.modelLineProjections[viewLineInfo.modelLineNumber - 1].getViewPositionOfModelPosition(0, g.horizontalLine.endColumn);
+						if (p.lineNumber === viewLineInfo.modelLineWrappedLineIdx) {
+							return new IndentGuide(g.visibleColumn, column, g.className,
+								new IndentGuideHorizontalLine(g.horizontalLine.top,
+									viewPosition.column),
+								- 1,
+								-1,
+							);
+						} else if (p.lineNumber < viewLineInfo.modelLineWrappedLineIdx) {
+							return undefined;
+						} else {
+							if (g.visibleColumn !== -1) {
+								// Don't repeat horizontal lines that use visibleColumn for unrelated lines.
+								return undefined;
+							}
+							return new IndentGuide(g.visibleColumn, column, g.className,
+								new IndentGuideHorizontalLine(g.horizontalLine.top,
+									this.getMaxColumnOfViewLine(viewLineInfo)
+								),
+								-1,
+								-1,
+							);
+						}
+					});
+					resultPerViewLine.push(result.filter((r): r is IndentGuide => !!r));
 				}
 			}
 		}
@@ -1090,7 +1148,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	}
 
 	public onModelLineChanged(_versionId: number | null, lineNumber: number, lineBreakData: ModelLineProjectionData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
-		return [false, new viewEvents.ViewLinesChangedEvent(lineNumber, lineNumber), null, null];
+		return [false, new viewEvents.ViewLinesChangedEvent(lineNumber, 1), null, null];
 	}
 
 	public acceptVersionId(_versionId: number): void {
@@ -1138,7 +1196,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	}
 
 	public getViewLineData(viewLineNumber: number): ViewLineData {
-		const lineTokens = this.model.getLineTokens(viewLineNumber);
+		const lineTokens = this.model.tokenization.getLineTokens(viewLineNumber);
 		const lineContent = lineTokens.getLineContent();
 		return new ViewLineData(
 			lineContent,

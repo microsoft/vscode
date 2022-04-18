@@ -12,7 +12,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 interface RegisteredExternalOpener {
 	readonly extensionId: string;
 
-	isCurrentlyRegistered: boolean
+	isCurrentlyRegistered: boolean;
 }
 
 interface OpenersMemento {

@@ -16,7 +16,7 @@ import { ClientSecretCredential } from '@azure/identity';
 const azure = require('gulp-azure-storage');
 
 const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
+const commit = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
 const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
 
 // optionally allow to pass in explicit base/maps to upload
@@ -38,7 +38,7 @@ function main(): Promise<void> {
 		const vs = src('out-vscode-min'); // client source-maps only
 		sources.push(vs);
 
-		const productionDependencies: { name: string, path: string, version: string }[] = deps.getProductionDependencies(root);
+		const productionDependencies: { name: string; path: string; version: string }[] = deps.getProductionDependencies(root);
 		const productionDependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => `./${d}/**/*.map`);
 		const nodeModules = vfs.src(productionDependenciesSrc, { base: '.' })
 			.pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')));

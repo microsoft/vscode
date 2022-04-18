@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
-import { ExtHostContext, ExtHostSecretStateShape, IExtHostContext, MainContext, MainThreadSecretStateShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostSecretStateShape, MainContext, MainThreadSecretStateShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadSecretState)
 export class MainThreadSecretState extends Disposable implements MainThreadSecretStateShape {

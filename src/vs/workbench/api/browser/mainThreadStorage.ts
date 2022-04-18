@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { MainThreadStorageShape, MainContext, IExtHostContext, ExtHostStorageShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { MainThreadStorageShape, MainContext, ExtHostStorageShape, ExtHostContext } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { IExtensionIdWithVersion, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';

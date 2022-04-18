@@ -186,7 +186,7 @@ function command(commandId: string, options: ScmCommandOptions = {}): Function {
 // 	'image/bmp'
 // ];
 
-async function categorizeResourceByResolution(resources: Resource[]): Promise<{ merge: Resource[], resolved: Resource[], unresolved: Resource[], deletionConflicts: Resource[] }> {
+async function categorizeResourceByResolution(resources: Resource[]): Promise<{ merge: Resource[]; resolved: Resource[]; unresolved: Resource[]; deletionConflicts: Resource[] }> {
 	const selection = resources.filter(s => s instanceof Resource) as Resource[];
 	const merge = selection.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
 	const isBothAddedOrModified = (s: Resource) => s.type === Status.BOTH_MODIFIED || s.type === Status.BOTH_ADDED;
@@ -282,7 +282,7 @@ interface PushOptions {
 		remote?: string;
 		refspec?: string;
 		setUpstream?: boolean;
-	}
+	};
 }
 
 class CommandErrorOutputTextDocumentContentProvider implements TextDocumentContentProvider {
@@ -544,7 +544,7 @@ export class CommandCenter {
 			} else {
 				const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
 				const pick = { label: localize('choose', "Choose Folder...") };
-				const items: { label: string, folder?: WorkspaceFolder }[] = [
+				const items: { label: string; folder?: WorkspaceFolder }[] = [
 					...workspace.workspaceFolders.map(folder => ({ label: folder.name, description: folder.uri.fsPath, folder })),
 					pick
 				];
@@ -1683,7 +1683,7 @@ export class CommandCenter {
 		return this._checkout(repository, { detached: true, treeish });
 	}
 
-	private async _checkout(repository: Repository, opts?: { detached?: boolean, treeish?: string }): Promise<boolean> {
+	private async _checkout(repository: Repository, opts?: { detached?: boolean; treeish?: string }): Promise<boolean> {
 		if (typeof opts?.treeish === 'string') {
 			await repository.checkout(opts?.treeish, opts);
 			return true;
@@ -2303,7 +2303,7 @@ export class CommandCenter {
 		const shouldPrompt = !isReadonly && config.get<boolean>('confirmSync') === true;
 
 		if (shouldPrompt) {
-			const message = localize('sync is unpredictable', "This action will push and pull commits to and from '{0}/{1}'.", HEAD.upstream.remote, HEAD.upstream.name);
+			const message = localize('sync is unpredictable', "This action will pull and push commits from and to '{0}/{1}'.", HEAD.upstream.remote, HEAD.upstream.name);
 			const yes = localize('ok', "OK");
 			const neverAgain = localize('never again', "OK, Don't Show Again");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
@@ -2670,12 +2670,12 @@ export class CommandCenter {
 		else if (item.previousRef === 'HEAD' && item.ref === '~') {
 			title = localize('git.title.index', '{0} (Index)', basename);
 		} else {
-			title = localize('git.title.diffRefs', '{0} ({1}) ⟷ {0} ({2})', basename, item.shortPreviousRef, item.shortRef);
+			title = localize('git.title.diffRefs', '{0} ({1}) ↔ {0} ({2})', basename, item.shortPreviousRef, item.shortRef);
 		}
 
 		return {
 			command: 'vscode.diff',
-			title: 'Open Comparison',
+			title: localize('git.timeline.openDiffCommand', "Open Comparison"),
 			arguments: [toGitUri(uri, item.previousRef), item.ref === '' ? uri : toGitUri(uri, item.ref), title, options]
 		};
 	}
@@ -2698,7 +2698,7 @@ export class CommandCenter {
 		env.clipboard.writeText(item.message);
 	}
 
-	private _selectedForCompare: { uri: Uri, item: GitTimelineItem } | undefined;
+	private _selectedForCompare: { uri: Uri; item: GitTimelineItem } | undefined;
 
 	@command('git.timeline.selectForCompare', { repository: false })
 	async timelineSelectForCompare(item: TimelineItem, uri: Uri | undefined, _source: string) {
@@ -2740,7 +2740,7 @@ export class CommandCenter {
 		}
 
 
-		const title = localize('git.title.diff', '{0} ⟷ {1}', leftTitle, rightTitle);
+		const title = localize('git.title.diff', '{0} ↔ {1}', leftTitle, rightTitle);
 		await commands.executeCommand('vscode.diff', selected.ref === '' ? uri : toGitUri(uri, selected.ref), item.ref === '' ? uri : toGitUri(uri, item.ref), title);
 	}
 
@@ -2751,6 +2751,17 @@ export class CommandCenter {
 		} else {
 			await window.showInformationMessage(localize('no rebase', "No rebase in progress."));
 		}
+	}
+
+	@command('git.closeAllDiffEditors', { repository: true })
+	closeDiffEditors(repository: Repository): void {
+		const resources = [
+			...repository.indexGroup.resourceStates.map(r => r.resourceUri.fsPath),
+			...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath),
+			...repository.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath)
+		];
+
+		repository.closeDiffEditors(resources, resources, true);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
@@ -2959,7 +2970,7 @@ export class CommandCenter {
 			}
 
 			return result;
-		}, [] as { repository: Repository, resources: Uri[] }[]);
+		}, [] as { repository: Repository; resources: Uri[] }[]);
 
 		const promises = groups
 			.map(({ repository, resources }) => fn(repository as Repository, isSingleResource ? resources[0] : resources));

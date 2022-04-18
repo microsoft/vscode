@@ -10,7 +10,7 @@ import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { LineInjectedText } from 'vs/editor/common/textModelEvents';
 import { InjectedTextOptions } from 'vs/editor/common/model';
-import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
 
 export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 	public static create(options: IComputedEditorOptions): MonospaceLineBreaksComputerFactory {

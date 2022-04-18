@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createStyleSheet, isInShadowDOM, ModifierKeyEmitter } from 'vs/base/browser/dom';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -13,21 +15,26 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ClassNameReference, CssProperties, DynamicCssRules } from 'vs/editor/browser/editorDom';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
-import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, InjectedTextCursorStops, InjectedTextOptions, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
 import { goToDefinitionWithLocation, showGoToContextMenu } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
+import { localize } from 'vs/nls';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -74,6 +81,16 @@ export class RenderedInlayHintLabelPart {
 	}
 }
 
+class ActiveInlayHintInfo {
+	constructor(readonly part: RenderedInlayHintLabelPart, readonly hasTriggerModifier: boolean) { }
+}
+
+type InlayHintDecorationRenderInfo = {
+	item: InlayHintItem;
+	decoration: IModelDeltaDecoration;
+	classNameRef: ClassNameReference;
+};
+
 // --- controller
 
 export class InlayHintsController implements IEditorContribution {
@@ -81,29 +98,33 @@ export class InlayHintsController implements IEditorContribution {
 	static readonly ID: string = 'editor.contrib.InlayHints';
 
 	private static readonly _MAX_DECORATORS = 1500;
+	private static readonly _renderModeCssVariable: any = '--inlay-hints-render-mode';
 
-	static get(editor: ICodeEditor) {
-		return editor.getContribution(InlayHintsController.ID) ?? undefined;
+	static get(editor: ICodeEditor): InlayHintsController | undefined {
+		return editor.getContribution<InlayHintsController>(InlayHintsController.ID) ?? undefined;
 	}
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
 	private readonly _debounceInfo: IFeatureDebounceInformation;
-	private readonly _decorationsMetadata = new Map<string, { item: InlayHintItem, classNameRef: IDisposable; }>();
+	private readonly _decorationsMetadata = new Map<string, InlayHintDecorationRenderInfo>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
+	private readonly _styleElement: HTMLStyleElement;
 
-	private _activeInlayHintPart?: RenderedInlayHintLabelPart;
+	private _activeInlayHintPart?: ActiveInlayHintInfo;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageFeatureDebounceService _featureDebounce: ILanguageFeatureDebounceService,
 		@IInlayHintsCache private readonly _inlayHintsCache: IInlayHintsCache,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
-		this._debounceInfo = _featureDebounce.for(languages.InlayHintsProviderRegistry, 'InlayHint', { min: 25 });
-		this._disposables.add(languages.InlayHintsProviderRegistry.onDidChange(() => this._update()));
+		this._styleElement = createStyleSheet(isInShadowDOM(this._editor.getContainerDomNode()) ? this._editor.getContainerDomNode() : undefined);
+		this._debounceInfo = _featureDebounce.for(_languageFeaturesService.inlayHintsProvider, 'InlayHint', { min: 25 });
+		this._disposables.add(_languageFeaturesService.inlayHintsProvider.onDidChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModelLanguage(() => this._update()));
 		this._disposables.add(_editor.onDidChangeConfiguration(e => {
@@ -112,24 +133,27 @@ export class InlayHintsController implements IEditorContribution {
 			}
 		}));
 		this._update();
+
 	}
 
 	dispose(): void {
 		this._sessionDisposables.dispose();
 		this._removeAllDecorations();
 		this._disposables.dispose();
+		this._styleElement.remove();
 	}
 
 	private _update(): void {
 		this._sessionDisposables.clear();
 		this._removeAllDecorations();
 
-		if (!this._editor.getOption(EditorOption.inlayHints).enabled) {
+		const options = this._editor.getOption(EditorOption.inlayHints);
+		if (!options.enabled) {
 			return;
 		}
 
 		const model = this._editor.getModel();
-		if (!model || !languages.InlayHintsProviderRegistry.has(model)) {
+		if (!model || !this._languageFeaturesService.inlayHintsProvider.has(model)) {
 			return;
 		}
 
@@ -157,7 +181,7 @@ export class InlayHintsController implements IEditorContribution {
 
 			try {
 				const myToken = cts.token;
-				const inlayHints = await InlayHintsFragments.create(model, this._getHintsRanges(), myToken);
+				const inlayHints = await InlayHintsFragments.create(this._languageFeaturesService.inlayHintsProvider, model, this._getHintsRanges(), myToken);
 				scheduler.delay = this._debounceInfo.update(model, Date.now() - t1);
 				if (myToken.isCancellationRequested) {
 					inlayHints.dispose();
@@ -208,53 +232,78 @@ export class InlayHintsController implements IEditorContribution {
 			scheduler.schedule(delay);
 		}));
 
+		if (!options.toggle) {
+			this._editor.getContainerDomNode().style.setProperty(InlayHintsController._renderModeCssVariable, 'inherit');
+
+		} else {
+			type Modes = 'inherit' | 'none';
+			let defaultMode: Modes;
+			let altMode: Modes;
+			if (options.toggle === 'hide') {
+				defaultMode = 'inherit';
+				altMode = 'none';
+			} else {
+				defaultMode = 'none';
+				altMode = 'inherit';
+			}
+			this._editor.getContainerDomNode().style.setProperty(InlayHintsController._renderModeCssVariable, defaultMode);
+			let renderMode = defaultMode;
+			this._sessionDisposables.add(ModifierKeyEmitter.getInstance().event(e => {
+				const newRenderMode = e.altKey && e.ctrlKey ? altMode : defaultMode;
+				if (newRenderMode !== renderMode) {
+					this._editor.getContainerDomNode().style.setProperty(InlayHintsController._renderModeCssVariable, newRenderMode);
+					renderMode = newRenderMode;
+				}
+			}));
+		}
+
 		// mouse gestures
 		this._sessionDisposables.add(this._installLinkGesture());
+		this._sessionDisposables.add(this._installDblClickGesture());
 		this._sessionDisposables.add(this._installContextMenu());
 	}
 
 	private _installLinkGesture(): IDisposable {
 
-		let removeHighlight = () => { };
-		const gesture = new ClickLinkGesture(this._editor);
+		const store = new DisposableStore();
+		const gesture = store.add(new ClickLinkGesture(this._editor));
 
-		gesture.onMouseMoveOrRelevantKeyDown(e => {
+		// let removeHighlight = () => { };
+
+		const sessionStore = new DisposableStore();
+		store.add(sessionStore);
+
+		store.add(gesture.onMouseMoveOrRelevantKeyDown(e => {
 			const [mouseEvent] = e;
 			const labelPart = this._getInlayHintLabelPart(mouseEvent);
 			const model = this._editor.getModel();
 
-			if (!labelPart || !mouseEvent.hasTriggerModifier || !model) {
-				removeHighlight();
+			if (!labelPart || !model) {
+				sessionStore.clear();
 				return;
 			}
 
+			// resolve the item
+			const cts = new CancellationTokenSource();
+			sessionStore.add(toDisposable(() => cts.dispose(true)));
+			labelPart.item.resolve(cts.token);
+
 			// render link => when the modifier is pressed and when there is a command or location
-			if (mouseEvent.hasTriggerModifier && (labelPart.part.command || labelPart.part.location)) {
+			this._activeInlayHintPart = labelPart.part.command || labelPart.part.location
+				? new ActiveInlayHintInfo(labelPart, mouseEvent.hasTriggerModifier)
+				: undefined;
 
-				// resolve the item
-				const cts = new CancellationTokenSource();
-				labelPart.item.resolve(cts.token);
-
-				this._activeInlayHintPart = labelPart;
-
-				const lineNumber = this._activeInlayHintPart.item.hint.position.lineNumber;
-				const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
-				const lineHints = new Set<InlayHintItem>();
-				for (const data of this._decorationsMetadata.values()) {
-					if (range.containsRange(data.item.anchor.range)) {
-						lineHints.add(data.item);
-					}
-				}
-				this._updateHintsDecorators([range], Array.from(lineHints));
-				removeHighlight = () => {
-					cts.dispose(true);
-					this._activeInlayHintPart = undefined;
-					this._updateHintsDecorators([range], Array.from(lineHints));
-				};
-			}
-		});
-		gesture.onCancel(removeHighlight);
-		gesture.onExecute(async e => {
+			const lineNumber = labelPart.item.hint.position.lineNumber;
+			const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
+			const lineHints = this._getInlineHintsForRange(range);
+			this._updateHintsDecorators([range], lineHints);
+			sessionStore.add(toDisposable(() => {
+				this._activeInlayHintPart = undefined;
+				this._updateHintsDecorators([range], lineHints);
+			}));
+		}));
+		store.add(gesture.onCancel(() => sessionStore.clear()));
+		store.add(gesture.onExecute(async e => {
 			const label = this._getInlayHintLabelPart(e);
 			if (label) {
 				const part = label.part;
@@ -263,19 +312,39 @@ export class InlayHintsController implements IEditorContribution {
 					this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, part.location);
 				} else if (languages.Command.is(part.command)) {
 					// command -> execute it
-					try {
-						await this._commandService.executeCommand(part.command.id, ...(part.command.arguments ?? []));
-					} catch (err) {
-						this._notificationService.notify({
-							severity: Severity.Error,
-							source: label.item.provider.displayName,
-							message: err
-						});
-					}
+					await this._invokeCommand(part.command, label.item);
 				}
 			}
+		}));
+		return store;
+	}
+
+	private _getInlineHintsForRange(range: Range) {
+		const lineHints = new Set<InlayHintItem>();
+		for (const data of this._decorationsMetadata.values()) {
+			if (range.containsRange(data.item.anchor.range)) {
+				lineHints.add(data.item);
+			}
+		}
+		return Array.from(lineHints);
+	}
+
+	private _installDblClickGesture(): IDisposable {
+		return this._editor.onMouseUp(async e => {
+			if (e.event.detail !== 2) {
+				return;
+			}
+			const part = this._getInlayHintLabelPart(e);
+			if (!part) {
+				return;
+			}
+			e.event.preventDefault();
+			await part.item.resolve(CancellationToken.None);
+			if (isNonEmptyArray(part.item.hint.textEdits)) {
+				const edits = part.item.hint.textEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
+				this._editor.executeEdits('inlayHint.default', edits);
+			}
 		});
-		return gesture;
 	}
 
 	private _installContextMenu(): IDisposable {
@@ -299,6 +368,18 @@ export class InlayHintsController implements IEditorContribution {
 			return options.attachedData;
 		}
 		return undefined;
+	}
+
+	private async _invokeCommand(command: languages.Command, item: InlayHintItem) {
+		try {
+			await this._commandService.executeCommand(command.id, ...(command.arguments ?? []));
+		} catch (err) {
+			this._notificationService.notify({
+				severity: Severity.Error,
+				source: item.provider.displayName,
+				message: err
+			});
+		}
 	}
 
 	private _cacheHintsForFastRestore(model: ITextModel): void {
@@ -340,8 +421,15 @@ export class InlayHintsController implements IEditorContribution {
 	private _updateHintsDecorators(ranges: readonly Range[], items: readonly InlayHintItem[]): void {
 
 		// utils to collect/create injected text decorations
-		const newDecorationsData: { item: InlayHintItem, decoration: IModelDeltaDecoration, classNameRef: IDisposable; }[] = [];
+		const newDecorationsData: InlayHintDecorationRenderInfo[] = [];
 		const addInjectedText = (item: InlayHintItem, ref: ClassNameReference, content: string, cursorStops: InjectedTextCursorStops, attachedData?: RenderedInlayHintLabelPart): void => {
+			const opts: InjectedTextOptions = {
+				content,
+				inlineClassNameAffectsLetterSpacing: true,
+				inlineClassName: ref.className,
+				cursorStops,
+				attachedData
+			};
 			newDecorationsData.push({
 				item,
 				classNameRef: ref,
@@ -353,13 +441,7 @@ export class InlayHintsController implements IEditorContribution {
 						showIfCollapsed: item.anchor.range.isEmpty(), // "original" range is empty
 						collapseOnReplaceEdit: !item.anchor.range.isEmpty(),
 						stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
-						[item.anchor.direction]: {
-							content,
-							inlineClassNameAffectsLetterSpacing: true,
-							inlineClassName: ref.className,
-							cursorStops,
-							attachedData
-						}
+						[item.anchor.direction]: opts
 					}
 				}
 			});
@@ -375,7 +457,7 @@ export class InlayHintsController implements IEditorContribution {
 
 
 		//
-		const { fontSize, fontFamily } = this._getLayoutInfo();
+		const { fontSize, fontFamily, displayStyle } = this._getLayoutInfo();
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
@@ -400,32 +482,41 @@ export class InlayHintsController implements IEditorContribution {
 				const cssProperties: CssProperties = {
 					fontSize: `${fontSize}px`,
 					fontFamily: `var(${fontFamilyVar}), ${EDITOR_FONT_DEFAULTS.fontFamily}`,
-					verticalAlign: 'middle',
 				};
+
+				if (isNonEmptyArray(item.hint.textEdits)) {
+					cssProperties.cursor = 'default';
+				}
 
 				this._fillInColors(cssProperties, item.hint);
 
-				if ((part.command || part.location) && this._activeInlayHintPart?.item === item && this._activeInlayHintPart.index === i) {
+				if ((part.command || part.location) && this._activeInlayHintPart?.part.item === item && this._activeInlayHintPart.part.index === i) {
 					// active link!
 					cssProperties.textDecoration = 'underline';
-					cssProperties.cursor = 'pointer';
-					cssProperties.color = themeColorFromId(colors.editorActiveLinkForeground);
+					if (this._activeInlayHintPart.hasTriggerModifier) {
+						cssProperties.color = themeColorFromId(colors.editorActiveLinkForeground);
+						cssProperties.cursor = 'pointer';
+					}
 				}
 
-				if (isFirst && isLast) {
-					// only element
-					cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px`;
-					cssProperties.borderRadius = `${(fontSize / 4) | 0}px`;
-				} else if (isFirst) {
-					// first element
-					cssProperties.padding = `1px 0 1px ${Math.max(1, fontSize / 4) | 0}px`;
-					cssProperties.borderRadius = `${(fontSize / 4) | 0}px 0 0 ${(fontSize / 4) | 0}px`;
-				} else if (isLast) {
-					// last element
-					cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px 1px 0`;
-					cssProperties.borderRadius = `0 ${(fontSize / 4) | 0}px ${(fontSize / 4) | 0}px 0`;
-				} else {
-					cssProperties.padding = `1px 0 1px 0`;
+				if (displayStyle === 'standard') {
+					cssProperties.verticalAlign = 'middle';
+
+					if (isFirst && isLast) {
+						// only element
+						cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px`;
+						cssProperties.borderRadius = `${(fontSize / 4) | 0}px`;
+					} else if (isFirst) {
+						// first element
+						cssProperties.padding = `1px 0 1px ${Math.max(1, fontSize / 4) | 0}px`;
+						cssProperties.borderRadius = `${(fontSize / 4) | 0}px 0 0 ${(fontSize / 4) | 0}px`;
+					} else if (isLast) {
+						// last element
+						cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px 1px 0`;
+						cssProperties.borderRadius = `0 ${(fontSize / 4) | 0}px ${(fontSize / 4) | 0}px 0`;
+					} else {
+						cssProperties.padding = `1px 0 1px 0`;
+					}
 				}
 
 				addInjectedText(
@@ -464,8 +555,14 @@ export class InlayHintsController implements IEditorContribution {
 		const newDecorationIds = this._editor.deltaDecorations(decorationIdsToReplace, newDecorationsData.map(d => d.decoration));
 		for (let i = 0; i < newDecorationIds.length; i++) {
 			const data = newDecorationsData[i];
-			this._decorationsMetadata.set(newDecorationIds[i], { item: data.item, classNameRef: data.classNameRef });
+			this._decorationsMetadata.set(newDecorationIds[i], data);
 		}
+
+		const allClassNames: string[] = [];
+		for (let data of this._decorationsMetadata.values()) {
+			allClassNames.push(`.${data.classNameRef.className}`);
+		}
+		this._styleElement.textContent = `${allClassNames.join(', ')} { display: var(${InlayHintsController._renderModeCssVariable}) !important; }`;
 	}
 
 	private _fillInColors(props: CssProperties, hint: languages.InlayHint): void {
@@ -486,10 +583,10 @@ export class InlayHintsController implements IEditorContribution {
 		const editorFontSize = this._editor.getOption(EditorOption.fontSize);
 		let fontSize = options.fontSize;
 		if (!fontSize || fontSize < 5 || fontSize > editorFontSize) {
-			fontSize = (editorFontSize * .9) | 0;
+			fontSize = editorFontSize;
 		}
 		const fontFamily = options.fontFamily || this._editor.getOption(EditorOption.fontFamily);
-		return { fontSize, fontFamily };
+		return { fontSize, fontFamily, displayStyle: options.displayStyle };
 	}
 
 	private _removeAllDecorations(): void {
@@ -499,8 +596,26 @@ export class InlayHintsController implements IEditorContribution {
 		}
 		this._decorationsMetadata.clear();
 	}
-}
 
+
+	// --- accessibility
+
+	getInlayHintsForLine(line: number): InlayHintItem[] {
+		if (!this._editor.hasModel()) {
+			return [];
+		}
+		const set = new Set<languages.InlayHint>();
+		const result: InlayHintItem[] = [];
+		for (let deco of this._editor.getLineDecorations(line)) {
+			const data = this._decorationsMetadata.get(deco.id);
+			if (data && !set.has(data.item.hint)) {
+				set.add(data.item.hint);
+				result.push(data.item);
+			}
+		}
+		return result;
+	}
+}
 
 
 // Prevents the view from potentially visible whitespace
@@ -509,7 +624,6 @@ function fixSpace(str: string): string {
 	return str.replace(/[ \t]/g, noBreakWhitespace);
 }
 
-registerEditorContribution(InlayHintsController.ID, InlayHintsController);
 
 CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, ...args: [URI, IRange]): Promise<languages.InlayHint[]> => {
 
@@ -517,13 +631,47 @@ CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, .
 	assertType(URI.isUri(uri));
 	assertType(Range.isIRange(range));
 
+	const { inlayHintsProvider } = accessor.get(ILanguageFeaturesService);
 	const ref = await accessor.get(ITextModelService).createModelReference(uri);
 	try {
-		const model = await InlayHintsFragments.create(ref.object.textEditorModel, [Range.lift(range)], CancellationToken.None);
+		const model = await InlayHintsFragments.create(inlayHintsProvider, ref.object.textEditorModel, [Range.lift(range)], CancellationToken.None);
 		const result = model.items.map(i => i.hint);
 		setTimeout(() => model.dispose(), 0); // dispose after sending to ext host
 		return result;
 	} finally {
 		ref.dispose();
 	}
+});
+
+
+registerAction2(class ToggleInlayHints extends Action2 {
+
+	private static _key = 'editor.inlayHints.enabled';
+
+	constructor() {
+		super({
+			id: 'inlayhint.toggle',
+			title: {
+				value: localize('toggle', "Toggle Inlay Hints"),
+				mnemonicTitle: localize('toggleMnem', "Show &&Inlay Hints"),
+				original: 'Toggle Inlay Hints',
+			},
+			category: localize('view', 'View'),
+			toggled: ContextKeyExpr.equals(`config.${ToggleInlayHints._key}`, true),
+			f1: true,
+			menu: [{
+				id: MenuId.MenubarViewMenu,
+				group: '5_editor',
+				order: 3.5,
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		let config = accessor.get(IConfigurationService);
+		const value = Boolean(config.getValue<boolean>(ToggleInlayHints._key));
+		config.updateValue(ToggleInlayHints._key, !value);
+
+	}
+
 });

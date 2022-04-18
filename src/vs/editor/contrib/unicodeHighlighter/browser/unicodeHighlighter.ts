@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CharCode } from 'vs/base/common/charCode';
 import { Codicon } from 'vs/base/common/codicons';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { InvisibleCharacters } from 'vs/base/common/strings';
@@ -18,11 +18,11 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecoration, IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { UnicodeHighlighterOptions, UnicodeHighlighterReason, UnicodeHighlighterReasonKind, UnicodeTextModelHighlighter } from 'vs/editor/common/languages/unicodeTextModelHighlighter';
+import { UnicodeHighlighterOptions, UnicodeHighlighterReason, UnicodeHighlighterReasonKind, UnicodeTextModelHighlighter } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { isModelDecorationInComment, isModelDecorationInString, isModelDecorationVisible } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { MarkdownHover, renderMarkdownHovers } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 import { BannerController } from 'vs/editor/contrib/unicodeHighlighter/browser/bannerController';
 import * as nls from 'vs/nls';
@@ -424,6 +424,8 @@ export class UnicodeHighlighterHover implements IHoverPart {
 
 export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
+	public readonly hoverOrdinal: number = 4;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -493,12 +495,12 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 			};
 
 			const adjustSettings = nls.localize('unicodeHighlight.adjustSettings', 'Adjust settings');
-			const contents: Array<IMarkdownString> = [{
-				value: `${reason} [${adjustSettings}](command:${ShowExcludeOptions.ID}?${encodeURIComponent(JSON.stringify(adjustSettingsArgs))})`,
-				isTrusted: true,
-			}];
-
-			result.push(new MarkdownHover(this, d.range, contents, index++));
+			const uri = `command:${ShowExcludeOptions.ID}?${encodeURIComponent(JSON.stringify(adjustSettingsArgs))}`;
+			const markdown = new MarkdownString('', true)
+				.appendMarkdown(reason)
+				.appendText(' ')
+				.appendLink(uri, adjustSettings);
+			result.push(new MarkdownHover(this, d.range, [markdown], index++));
 		}
 		return result;
 	}
@@ -819,3 +821,4 @@ registerEditorAction(DisableHighlightingOfInvisibleCharactersAction);
 registerEditorAction(DisableHighlightingOfNonBasicAsciiCharactersAction);
 registerEditorAction(ShowExcludeOptions);
 registerEditorContribution(UnicodeHighlighter.ID, UnicodeHighlighter);
+HoverParticipantRegistry.register(UnicodeHighlighterHoverParticipant);

@@ -11,8 +11,8 @@ import { mock } from 'vs/base/test/common/mock';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/core/wordHelper';
-import * as modes from 'vs/editor/common/languages';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import * as languages from 'vs/editor/common/languages';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { EditorWorkerService } from 'vs/editor/browser/services/editorWorkerService';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
@@ -20,38 +20,36 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
 import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
-import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { createCodeEditorServices, instantiateTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 suite('suggest, word distance', function () {
 
-	class BracketMode extends MockMode {
-
-		private static readonly _id = 'bracketMode';
-
-		constructor() {
-			super(BracketMode._id);
-			this._register(LanguageConfigurationRegistry.register(this.languageId, {
-				brackets: [
-					['{', '}'],
-					['[', ']'],
-					['(', ')'],
-				]
-			}));
-		}
-	}
 	let distance: WordDistance;
 	let disposables = new DisposableStore();
 
 	setup(async function () {
+		const languageId = 'bracketMode';
 
 		disposables.clear();
-		let mode = new BracketMode();
-		let model = createTextModel('function abc(aa, ab){\na\n}', mode.languageId, undefined, URI.parse('test:///some.path'));
-		let editor = createTestCodeEditor(model);
+		const instantiationService = createCodeEditorServices(disposables);
+		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		const languageService = instantiationService.get(ILanguageService);
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')'],
+			]
+		}));
+
+		const model = disposables.add(instantiateTextModel(instantiationService, 'function abc(aa, ab){\na\n}', languageId, undefined, URI.parse('test:///some.path')));
+		const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model));
 		editor.updateOptions({ suggest: { localityBonus: true } });
 		editor.setPosition({ lineNumber: 2, column: 2 });
 
@@ -67,7 +65,7 @@ suite('suggest, word distance', function () {
 			private _worker = new EditorSimpleWorker(new class extends mock<IEditorWorkerHost>() { }, null);
 
 			constructor() {
-				super(modelService, new class extends mock<ITextResourceConfigurationService>() { }, new NullLogService(), new TestLanguageConfigurationService());
+				super(modelService, new class extends mock<ITextResourceConfigurationService>() { }, new NullLogService(), new TestLanguageConfigurationService(), new LanguageFeaturesService());
 				this._worker.acceptNewModel({
 					url: model.uri.toString(),
 					lines: model.getLinesContent(),
@@ -84,9 +82,6 @@ suite('suggest, word distance', function () {
 		distance = await WordDistance.create(service, editor);
 
 		disposables.add(service);
-		disposables.add(mode);
-		disposables.add(model);
-		disposables.add(editor);
 	});
 
 	teardown(function () {
@@ -94,16 +89,16 @@ suite('suggest, word distance', function () {
 	});
 
 	function createSuggestItem(label: string, overwriteBefore: number, position: IPosition): CompletionItem {
-		const suggestion: modes.CompletionItem = {
+		const suggestion: languages.CompletionItem = {
 			label,
 			range: { startLineNumber: position.lineNumber, startColumn: position.column - overwriteBefore, endLineNumber: position.lineNumber, endColumn: position.column },
 			insertText: label,
 			kind: 0
 		};
-		const container: modes.CompletionList = {
+		const container: languages.CompletionList = {
 			suggestions: [suggestion]
 		};
-		const provider: modes.CompletionItemProvider = {
+		const provider: languages.CompletionItemProvider = {
 			provideCompletionItems(): any {
 				return;
 			}

@@ -246,6 +246,11 @@ export const schema: IJSONSchema = {
 				type: 'string',
 				defaultSnippets: [
 					{
+						label: 'onWebviewPanel',
+						description: nls.localize('vscode.extension.activationEvents.onWebviewPanel', 'An activation event emmited when a webview is loaded of a certain viewType'),
+						body: 'onWebviewPanel:viewType'
+					},
+					{
 						label: 'onLanguage',
 						description: nls.localize('vscode.extension.activationEvents.onLanguage', 'An activation event emitted whenever a file that resolves to the specified language gets opened.'),
 						body: 'onLanguage:${1:languageId}'
@@ -572,10 +577,6 @@ schemaRegistry.registerSchema(schemaId, schema);
 
 schemaRegistry.registerSchema(productSchemaId, {
 	properties: {
-		extensionAllowedProposedApi: {
-			type: 'array',
-			deprecationMessage: nls.localize('product.extensionAllowedProposedApi', "Use `extensionEnabledApiProposals` instead.")
-		},
 		extensionEnabledApiProposals: {
 			description: nls.localize('product.extensionEnabledApiProposals', "API proposals that the respective extensions can freely use."),
 			type: 'object',

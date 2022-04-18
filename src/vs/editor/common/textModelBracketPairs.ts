@@ -6,6 +6,8 @@
 import { Event } from 'vs/base/common/event';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
+import { ClosingBracketKind, OpeningBracketKind } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
+import { PairAstNode } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/ast';
 
 export interface IBracketPairsTextModelPart {
 	/**
@@ -33,7 +35,7 @@ export interface IBracketPairsTextModelPart {
 	 * @param position The position at which to start the search.
 	 * @return The range of the matching bracket, or null if the bracket match was not found.
 	 */
-	findMatchingBracketUp(bracket: string, position: IPosition): Range | null;
+	findMatchingBracketUp(bracket: string, position: IPosition, maxDuration?: number): Range | null;
 
 	/**
 	 * Find the first bracket in the model before `position`.
@@ -60,14 +62,12 @@ export interface IBracketPairsTextModelPart {
 	 * find the matching bracket of that bracket and return the ranges of both brackets.
 	 * @param position The position at which to look for a bracket.
 	 */
-	matchBracket(position: IPosition): [Range, Range] | null;
+	matchBracket(position: IPosition, maxDuration?: number): [Range, Range] | null;
 }
 
 export interface IFoundBracket {
 	range: Range;
-	open: string[];
-	close: string[];
-	isOpen: boolean;
+	bracketInfo: OpeningBracketKind | ClosingBracketKind;
 }
 
 export class BracketInfo {
@@ -75,6 +75,7 @@ export class BracketInfo {
 		public readonly range: Range,
 		/** 0-based level */
 		public readonly nestingLevel: number,
+		public readonly nestingLevelOfEqualBracketType: number,
 		public readonly isInvalid: boolean,
 	) { }
 }
@@ -84,11 +85,21 @@ export class BracketPairInfo {
 		public readonly range: Range,
 		public readonly openingBracketRange: Range,
 		public readonly closingBracketRange: Range | undefined,
-		/**
-		 * 0-based
-		*/
+		/** 0-based */
 		public readonly nestingLevel: number,
-	) { }
+		public readonly nestingLevelOfEqualBracketType: number,
+		private readonly bracketPairNode: PairAstNode,
+
+	) {
+	}
+
+	public get openingBracketInfo(): OpeningBracketKind {
+		return this.bracketPairNode.openingBracket.bracketInfo as OpeningBracketKind;
+	}
+
+	public get closingBracketInfo(): ClosingBracketKind | undefined {
+		return this.bracketPairNode.closingBracket?.bracketInfo as ClosingBracketKind | undefined;
+	}
 }
 
 export class BracketPairWithMinIndentationInfo extends BracketPairInfo {
@@ -100,11 +111,13 @@ export class BracketPairWithMinIndentationInfo extends BracketPairInfo {
 		 * 0-based
 		*/
 		nestingLevel: number,
+		nestingLevelOfEqualBracketType: number,
+		bracketPairNode: PairAstNode,
 		/**
 		 * -1 if not requested, otherwise the size of the minimum indentation in the bracket pair in terms of visible columns.
 		*/
 		public readonly minVisibleColumnIndentation: number,
 	) {
-		super(range, openingBracketRange, closingBracketRange, nestingLevel);
+		super(range, openingBracketRange, closingBracketRange, nestingLevel, nestingLevelOfEqualBracketType, bracketPairNode);
 	}
 }

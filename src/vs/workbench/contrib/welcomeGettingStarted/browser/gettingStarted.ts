@@ -15,7 +15,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { hiddenEntriesConfigurationKey, IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedColors';
-import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, simpleCheckboxBackground, simpleCheckboxBorder, simpleCheckboxForeground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, checkboxBackground, checkboxBorder, checkboxForeground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { firstSessionDateStorageKey, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -31,10 +31,10 @@ import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, isRec
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { isMacintosh, locale } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { Delayer, Throttler } from 'vs/base/common/async';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedInput';
 import { GroupDirection, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -45,18 +45,12 @@ import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { Link } from 'vs/platform/opener/browser/link';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { generateUuid } from 'vs/base/common/uuid';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
-import { ResourceMap } from 'vs/base/common/map';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parse } from 'vs/base/common/marshalling';
-import { joinPath } from 'vs/base/common/resources';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { coalesce, equals, flatten } from 'vs/base/common/arrays';
@@ -69,11 +63,13 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
-import { IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
-import { AddRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { OpenFolderViaWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Codicon } from 'vs/base/common/codicons';
-import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationValue } from 'vs/workbench/contrib/welcomePage/browser/welcomePage';
+import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationValue } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
+import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -83,13 +79,13 @@ export const inWelcomeContext = new RawContextKey('inWelcome', false);
 export const embedderIdentifierContext = new RawContextKey<string | undefined>('embedderIdentifier', undefined);
 
 export interface IWelcomePageStartEntry {
-	id: string
-	title: string
-	description: string
-	command: string
-	order: number
-	icon: { type: 'icon', icon: ThemeIcon }
-	when: ContextKeyExpression
+	id: string;
+	title: string;
+	description: string;
+	command: string;
+	order: number;
+	icon: { type: 'icon'; icon: ThemeIcon };
+	when: ContextKeyExpression;
 }
 
 const parsedStartEntries: IWelcomePageStartEntry[] = startEntries.map((e, i) => ({
@@ -103,12 +99,16 @@ const parsedStartEntries: IWelcomePageStartEntry[] = startEntries.map((e, i) => 
 }));
 
 type GettingStartedActionClassification = {
-	command: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
-	argument: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The command being executed on the getting started page.' };
+	walkthroughId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The walkthrough which the command is in' };
+	argument: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The arguments being passed to the command' };
+	owner: 'lramos15';
+	comment: 'Help understand what actions are most commonly taken on the getting started page';
 };
 
 type GettingStartedActionEvent = {
 	command: string;
+	walkthroughId: string | undefined;
 	argument: string | undefined;
 };
 
@@ -153,6 +153,8 @@ export class GettingStartedPage extends EditorPane {
 
 	private layoutMarkdown: (() => void) | undefined;
 
+	private detailsRenderer: GettingStartedDetailsRenderer;
+
 	private webviewID = generateUuid();
 	private categoriesSlideDisposables: DisposableStore;
 
@@ -179,6 +181,7 @@ export class GettingStartedPage extends EditorPane {
 		@IHostService private readonly hostService: IHostService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 
 		super(GettingStartedPage.ID, telemetryService, themeService, storageService);
@@ -193,6 +196,8 @@ export class GettingStartedPage extends EditorPane {
 		this.stepMediaComponent.id = generateUuid();
 
 		this.categoriesSlideDisposables = this._register(new DisposableStore());
+
+		this.detailsRenderer = new GettingStartedDetailsRenderer(this.fileService, this.notificationService, this.extensionService, this.languageService);
 
 		this.contextService = this._register(contextService.createScoped(this.container));
 		inWelcomeContext.bindTo(this.contextService).set(true);
@@ -250,7 +255,6 @@ export class GettingStartedPage extends EditorPane {
 					this.container.classList.toggle('animatable', this.shouldAnimate());
 				}
 			}));
-
 			ourStep.done = step.done;
 
 			if (category.id === this.currentWalkthrough?.id) {
@@ -274,11 +278,18 @@ export class GettingStartedPage extends EditorPane {
 		this.recentlyOpened = workspacesService.getRecentlyOpened();
 	}
 
+	// remove when 'workbench.welcomePage.preferReducedMotion' deprecated
 	private shouldAnimate() {
-		return !this.configurationService.getValue(REDUCED_MOTION_KEY);
+		if (this.configurationService.getValue(REDUCED_MOTION_KEY)) {
+			return false;
+		}
+		if (this.accessibilityService.isMotionReduced()) {
+			return false;
+		}
+		return true;
 	}
 
-	private getWalkthroughCompletionStats(walkthrough: IResolvedWalkthrough): { stepsComplete: number, stepsTotal: number } {
+	private getWalkthroughCompletionStats(walkthrough: IResolvedWalkthrough): { stepsComplete: number; stepsTotal: number } {
 		const activeSteps = walkthrough.steps.filter(s => this.contextService.contextMatchesRules(s.when));
 		return {
 			stepsComplete: activeSteps.filter(s => s.done).length,
@@ -320,13 +331,23 @@ export class GettingStartedPage extends EditorPane {
 					e.stopPropagation();
 					this.runDispatchCommand(command, argument);
 				}));
+				this.dispatchListeners.add(addDisposableListener(element, 'keyup', (e) => {
+					const keyboardEvent = new StandardKeyboardEvent(e);
+					e.stopPropagation();
+					switch (keyboardEvent.keyCode) {
+						case KeyCode.Enter:
+						case KeyCode.Space:
+							this.runDispatchCommand(command, argument);
+							return;
+					}
+				}));
 			}
 		});
 	}
 
 	private async runDispatchCommand(command: string, argument: string) {
 		this.commandService.executeCommand('workbench.action.keepEditor');
-		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command, argument });
+		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command, argument, walkthroughId: this.currentWalkthrough?.id });
 		switch (command) {
 			case 'scrollPrev': {
 				this.scrollPrev();
@@ -337,7 +358,7 @@ export class GettingStartedPage extends EditorPane {
 				break;
 			}
 			case 'showMoreRecents': {
-				this.commandService.executeCommand('workbench.action.openRecent');
+				this.commandService.executeCommand(OpenRecentAction.ID);
 				break;
 			}
 			case 'seeAllWalkthroughs': {
@@ -345,8 +366,8 @@ export class GettingStartedPage extends EditorPane {
 				break;
 			}
 			case 'openFolder': {
-				if (this.contextService.contextMatchesRules(ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), IsIOSContext.toNegated()))) {
-					this.commandService.executeCommand(AddRootFolderAction.ID);
+				if (this.contextService.contextMatchesRules(ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace')))) {
+					this.commandService.executeCommand(OpenFolderViaWorkspaceAction.ID);
 				} else {
 					this.commandService.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
 				}
@@ -364,7 +385,7 @@ export class GettingStartedPage extends EditorPane {
 			case 'selectStartEntry': {
 				const selected = startEntries.find(e => e.id === argument);
 				if (selected) {
-					this.commandService.executeCommand(selected.content.command);
+					this.runStepCommand(selected.content.command);
 				} else {
 					throw Error('could not find start entry with id: ' + argument);
 				}
@@ -447,71 +468,6 @@ export class GettingStartedPage extends EditorPane {
 		}
 	}
 
-	private svgCache = new ResourceMap<Promise<string>>();
-	private readAndCacheSVGFile(path: URI): Promise<string> {
-		if (!this.svgCache.has(path)) {
-			this.svgCache.set(path, (async () => {
-				try {
-					const bytes = await this.fileService.readFile(path);
-					return bytes.value.toString();
-				} catch (e) {
-					this.notificationService.error('Error reading svg document at `' + path + '`: ' + e);
-					return '';
-				}
-			})());
-		}
-		return assertIsDefined(this.svgCache.get(path));
-	}
-
-	private mdCache = new ResourceMap<Promise<string>>();
-	private async readAndCacheStepMarkdown(path: URI): Promise<string> {
-		if (!this.mdCache.has(path)) {
-			this.mdCache.set(path, (async () => {
-				try {
-					const moduleId = JSON.parse(path.query).moduleId;
-					if (moduleId) {
-						return new Promise<string>(resolve => {
-							require([moduleId], content => {
-								const markdown = content.default();
-								resolve(renderMarkdownDocument(markdown, this.extensionService, this.languageService, true, true));
-							});
-						});
-					}
-				} catch { }
-				try {
-					const localizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${locale}.md`) });
-
-					const generalizedLocale = locale?.replace(/-.*$/, '');
-					const generalizedLocalizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${generalizedLocale}.md`) });
-
-					const fileExists = (file: URI) => this.fileService
-						.resolve(file, { resolveMetadata: true })
-						.then((stat) => !!stat.size) // Double check the file actually has content for fileSystemProviders that fake `stat`. #131809
-						.catch(() => false);
-
-					const [localizedFileExists, generalizedLocalizedFileExists] = await Promise.all([
-						fileExists(localizedPath),
-						fileExists(generalizedLocalizedPath),
-					]);
-
-					const bytes = await this.fileService.readFile(
-						localizedFileExists
-							? localizedPath
-							: generalizedLocalizedFileExists
-								? generalizedLocalizedPath
-								: path);
-
-					const markdown = bytes.value.toString();
-					return renderMarkdownDocument(markdown, this.extensionService, this.languageService, true, true);
-				} catch (e) {
-					this.notificationService.error('Error reading markdown document at `' + path + '`: ' + e);
-					return '';
-				}
-			})());
-		}
-		return assertIsDefined(this.mdCache.get(path));
-	}
-
 	private getHiddenCategories(): Set<string> {
 		return new Set(JSON.parse(this.storageService.get(hiddenEntriesConfigurationKey, StorageScope.GLOBAL, '[]')));
 	}
@@ -559,7 +515,7 @@ export class GettingStartedPage extends EditorPane {
 				if (hrefs.length === 1) {
 					const href = hrefs[0];
 					if (href.startsWith('http')) {
-						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href });
+						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href, walkthroughId: this.currentWalkthrough?.id });
 						this.openerService.open(href);
 					}
 				}
@@ -576,14 +532,14 @@ export class GettingStartedPage extends EditorPane {
 			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, {}, undefined));
 			webview.mountTo(this.stepMediaComponent);
 
-			webview.html = await this.renderSVG(media.path);
+			webview.html = await this.detailsRenderer.renderSVG(media.path);
 
 			let isDisposed = false;
 			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
 
 			this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
 				// Render again since color vars change
-				const body = await this.renderSVG(media.path);
+				const body = await this.detailsRenderer.renderSVG(media.path);
 				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
 					webview.html = body;
 				}
@@ -594,7 +550,7 @@ export class GettingStartedPage extends EditorPane {
 				if (hrefs.length === 1) {
 					const href = hrefs[0];
 					if (href.startsWith('http')) {
-						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href });
+						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href, walkthroughId: this.currentWalkthrough?.id });
 						this.openerService.open(href);
 					}
 				}
@@ -617,7 +573,7 @@ export class GettingStartedPage extends EditorPane {
 			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { localResourceRoots: [media.root], allowScripts: true }, undefined));
 			webview.mountTo(this.stepMediaComponent);
 
-			const rawHTML = await this.renderMarkdown(media.path, media.base);
+			const rawHTML = await this.detailsRenderer.renderMarkdown(media.path, media.base);
 			webview.html = rawHTML;
 
 			const serializedContextKeyExprs = rawHTML.match(/checked-on=\"([^'][^"]*)\"/g)?.map(attr => attr.slice('checked-on="'.length, -1)
@@ -653,7 +609,7 @@ export class GettingStartedPage extends EditorPane {
 
 			this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
 				// Render again since syntax highlighting of code blocks may have changed
-				const body = await this.renderMarkdown(media.path, media.base);
+				const body = await this.detailsRenderer.renderMarkdown(media.path, media.base);
 				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
 					webview.html = body;
 					postTrueKeysMessage();
@@ -698,7 +654,11 @@ export class GettingStartedPage extends EditorPane {
 			let stepElement = this.container.querySelector<HTMLDivElement>(`[data-step-id="${id}"]`);
 			if (!stepElement) {
 				// Selected an element that is not in-context, just fallback to whatever.
-				stepElement = assertIsDefined(this.container.querySelector<HTMLDivElement>(`[data-step-id]`));
+				stepElement = this.container.querySelector<HTMLDivElement>(`[data-step-id]`);
+				if (!stepElement) {
+					// No steps around... just ignore.
+					return;
+				}
 				id = assertIsDefined(stepElement.getAttribute('data-step-id'));
 			}
 			stepElement.parentElement?.querySelectorAll<HTMLElement>('.expanded').forEach(node => {
@@ -707,7 +667,7 @@ export class GettingStartedPage extends EditorPane {
 					node.setAttribute('aria-expanded', 'false');
 				}
 			});
-			setTimeout(() => (stepElement as HTMLElement).focus(), delayFocus ? SLIDE_TRANSITION_TIME_MS : 0);
+			setTimeout(() => (stepElement as HTMLElement).focus(), delayFocus && this.shouldAnimate() ? SLIDE_TRANSITION_TIME_MS : 0);
 
 			this.editorInput.selectedStep = id;
 
@@ -723,172 +683,10 @@ export class GettingStartedPage extends EditorPane {
 		this.detailsScrollbar?.scanDomNode();
 	}
 
-	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hc: URI, dark: URI, light: URI }) {
+	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hcDark: URI; hcLight: URI; dark: URI; light: URI }) {
 		const themeType = this.themeService.getColorTheme().type;
 		const src = sources[themeType].toString(true).replace(/ /g, '%20');
 		element.srcset = src.toLowerCase().endsWith('.svg') ? src : (src + ' 1.5x');
-	}
-
-	private async renderSVG(path: URI): Promise<string> {
-		const content = await this.readAndCacheSVGFile(path);
-		const nonce = generateUuid();
-		const colorMap = TokenizationRegistry.getColorMap();
-
-		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
-		return `<!DOCTYPE html>
-		<html>
-			<head>
-				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'nonce-${nonce}';">
-				<style nonce="${nonce}">
-					${DEFAULT_MARKDOWN_STYLES}
-					${css}
-					svg {
-						position: fixed;
-						height: 100%;
-						width: 80%;
-						left: 50%;
-						top: 50%;
-						max-width: 530px;
-						min-width: 350px;
-						transform: translate(-50%,-50%);
-					}
-				</style>
-			</head>
-			<body>
-				${content}
-			</body>
-		</html>`;
-	}
-
-	private async renderMarkdown(path: URI, base: URI): Promise<string> {
-		const content = await this.readAndCacheStepMarkdown(path);
-		const nonce = generateUuid();
-		const colorMap = TokenizationRegistry.getColorMap();
-
-		const uriTranformedContent = content.replace(/src="([^"]*)"/g, (_, src: string) => {
-			if (src.startsWith('https://')) { return `src="${src}"`; }
-
-			const path = joinPath(base, src);
-			const transformed = asWebviewUri(path).toString();
-			return `src="${transformed}"`;
-		});
-
-		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
-
-		const inDev = document.location.protocol === 'http:';
-		const imgSrcCsp = inDev ? 'img-src https: data: http:' : 'img-src https: data:';
-
-		return `<!DOCTYPE html>
-		<html>
-			<head>
-				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; ${imgSrcCsp}; media-src https:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
-				<style nonce="${nonce}">
-					${DEFAULT_MARKDOWN_STYLES}
-					${css}
-					body > img {
-						align-self: flex-start;
-					}
-					body > img[centered] {
-						align-self: center;
-					}
-					body {
-						display: flex;
-						flex-direction: column;
-						padding: 0;
-						height: inherit;
-					}
-					checklist {
-						display: flex;
-						flex-wrap: wrap;
-						justify-content: space-around;
-					}
-					checkbox {
-						display: flex;
-						flex-direction: column;
-						align-items: center;
-						margin: 5px;
-						cursor: pointer;
-					}
-					checkbox.checked > img {
-						box-sizing: border-box;
-						margin-bottom: 4px;
-					}
-					checkbox.checked > img {
-						outline: 2px solid var(--vscode-focusBorder);
-						outline-offset: 2px;
-					}
-					blockquote > p:first-child {
-						margin-top: 0;
-					}
-					body > * {
-						margin-block-end: 0.25em;
-						margin-block-start: 0.25em;
-					}
-					vertically-centered {
-						padding-top: 5px;
-						padding-bottom: 5px;
-					}
-					html {
-						height: 100%;
-						padding-right: 32px;
-					}
-					h1 {
-						font-size: 19.5px;
-					}
-					h2 {
-						font-size: 18.5px;
-					}
-				</style>
-			</head>
-			<body>
-				<vertically-centered>
-					${uriTranformedContent}
-				</vertically-centered>
-			</body>
-			<script nonce="${nonce}">
-				const vscode = acquireVsCodeApi();
-				document.querySelectorAll('[when-checked]').forEach(el => {
-					el.addEventListener('click', () => {
-						vscode.postMessage(el.getAttribute('when-checked'));
-					});
-				});
-
-				let ongoingLayout = undefined;
-				const doLayout = () => {
-					document.querySelectorAll('vertically-centered').forEach(element => {
-						element.style.marginTop = Math.max((document.body.clientHeight - element.scrollHeight) * 3/10, 0) + 'px';
-					});
-					ongoingLayout = undefined;
-				};
-
-				const layout = () => {
-					if (ongoingLayout) {
-						clearTimeout(ongoingLayout);
-					}
-					ongoingLayout = setTimeout(doLayout, 0);
-				};
-
-				layout();
-
-				document.querySelectorAll('img').forEach(element => {
-					element.onload = layout;
-				})
-
-				window.addEventListener('message', event => {
-					if (event.data.layoutMeNow) {
-						layout();
-					}
-					if (event.data.enabledContextKeys) {
-						document.querySelectorAll('.checked').forEach(element => element.classList.remove('checked'))
-						for (const key of event.data.enabledContextKeys) {
-							document.querySelectorAll('[checked-on="' + key + '"]').forEach(element => element.classList.add('checked'))
-						}
-					}
-				});
-		</script>
-		</html>`;
 	}
 
 	createEditor(parent: HTMLElement) {
@@ -919,7 +717,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private async buildCategoriesSlide() {
 		this.categoriesSlideDisposables.clear();
-		const showOnStartupCheckbox = new Checkbox({
+		const showOnStartupCheckbox = new Toggle({
 			icon: Codicon.check,
 			actionClassName: 'getting-started-checkbox',
 			isChecked: this.configurationService.getValue(configurationKey) === 'welcomePage',
@@ -929,10 +727,10 @@ export class GettingStartedPage extends EditorPane {
 		const showOnStartupLabel = $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"));
 		const onShowOnStartupChanged = () => {
 			if (showOnStartupCheckbox.checked) {
-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupChecked', argument: undefined });
+				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupChecked', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
 				this.configurationService.updateValue(configurationKey, 'welcomePage');
 			} else {
-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupUnchecked', argument: undefined });
+				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupUnchecked', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
 				this.configurationService.updateValue(configurationKey, 'none');
 			}
 		};
@@ -1058,7 +856,7 @@ export class GettingStartedPage extends EditorPane {
 			link.title = fullPath;
 			link.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentPath));
 			link.addEventListener('click', e => {
-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'openRecent', argument: undefined });
+				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'openRecent', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
 				this.hostService.openWindow([windowOpenable], {
 					forceNewWindow: e.ctrlKey || e.metaKey,
 					remoteAuthority: recent.remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
@@ -1085,12 +883,16 @@ export class GettingStartedPage extends EditorPane {
 				title: localize('recent', "Recent"),
 				klass: 'recently-opened',
 				limit: 5,
-				empty: $('.empty-recent', {}, 'You have no recent folders,', $('button.button-link', { 'x-dispatch': 'openFolder' }, 'open a folder'), 'to start.'),
+				empty: $('.empty-recent', {},
+					localize('noRecents', "You have no recent folders,"),
+					$('button.button-link', { 'x-dispatch': 'openFolder' }, localize('openFolder', "open a folder")),
+					localize('toStart', "to start.")),
+
 				more: $('.more', {},
 					$('button.button-link',
 						{
 							'x-dispatch': 'showMoreRecents',
-							title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel('workbench.action.openRecent'))
+							title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel(OpenRecentAction.ID))
 						}, 'More...')),
 				renderElement: renderRecent,
 				contextService: this.contextService
@@ -1167,7 +969,6 @@ export class GettingStartedPage extends EditorPane {
 			return $('button.getting-started-category' + (category.isFeatured ? '.featured' : ''),
 				{
 					'x-dispatch': 'selectCategory:' + category.id,
-					'role': 'listitem',
 					'title': category.description
 				},
 				featuredBadge,
@@ -1176,6 +977,7 @@ export class GettingStartedPage extends EditorPane {
 					$('h3.category-title.max-lines-3', { 'x-category-title-for': category.id }, category.title,),
 					renderNewBadge ? newBadge : $('.no-badge'),
 					$('a.codicon.codicon-close.hide-category-button', {
+						'tabindex': 0,
 						'x-dispatch': 'hideCategory:' + category.id,
 						'title': localize('close', "Hide"),
 					}),
@@ -1205,7 +1007,7 @@ export class GettingStartedPage extends EditorPane {
 				title: localize('walkthroughs', "Walkthroughs"),
 				klass: 'getting-started',
 				limit: 5,
-				footer: $('span.button-link.see-all-walkthroughs', { 'x-dispatch': 'seeAllWalkthroughs' }, localize('showAll', "More...")),
+				footer: $('span.button-link.see-all-walkthroughs', { 'x-dispatch': 'seeAllWalkthroughs', 'tabindex': 0 }, localize('showAll', "More...")),
 				renderElement: renderGetttingStaredWalkthrough,
 				rankElement: rankWalkthrough,
 				contextService: this.contextService,
@@ -1282,7 +1084,7 @@ export class GettingStartedPage extends EditorPane {
 		});
 	}
 
-	private iconWidgetFor(category: IResolvedWalkthrough | { icon: { type: 'icon', icon: ThemeIcon } }) {
+	private iconWidgetFor(category: IResolvedWalkthrough | { icon: { type: 'icon'; icon: ThemeIcon } }) {
 		const widget = category.icon.type === 'icon' ? $(ThemeIcon.asCSSSelector(category.icon.icon)) : $('img.category-icon', { src: category.icon.path });
 		widget.classList.add('icon-widget');
 		return widget;
@@ -1294,7 +1096,7 @@ export class GettingStartedPage extends EditorPane {
 		const toSide = href.startsWith('command:toSide:');
 		const command = href.replace(/command:(toSide:)?/, 'command:');
 
-		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href });
+		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href, walkthroughId: this.currentWalkthrough?.id });
 
 		const fullSize = this.groupsService.contentDimension;
 
@@ -1745,18 +1547,18 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured { border-top-color: ${newBadgeBackground}; }`);
 	}
 
-	const checkboxBackground = theme.getColor(simpleCheckboxBackground);
-	if (checkboxBackground) {
-		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { background-color: ${checkboxBackground} !important; }`);
+	const checkboxBackgroundColor = theme.getColor(checkboxBackground);
+	if (checkboxBackgroundColor) {
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { background-color: ${checkboxBackgroundColor} !important; }`);
 	}
 
-	const checkboxForeground = theme.getColor(simpleCheckboxForeground);
-	if (checkboxForeground) {
-		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { color: ${checkboxForeground} !important; }`);
+	const checkboxForegroundColor = theme.getColor(checkboxForeground);
+	if (checkboxForegroundColor) {
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { color: ${checkboxForegroundColor} !important; }`);
 	}
 
-	const checkboxBorder = theme.getColor(simpleCheckboxBorder);
-	if (checkboxBorder) {
-		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { border-color: ${checkboxBorder} !important; }`);
+	const checkboxBorderColor = theme.getColor(checkboxBorder);
+	if (checkboxBorderColor) {
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { border-color: ${checkboxBorderColor} !important; }`);
 	}
 });

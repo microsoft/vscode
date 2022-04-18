@@ -27,6 +27,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 const $ = dom.$;
 
@@ -54,12 +55,15 @@ const markerCodeActionTrigger: CodeActionTrigger = {
 
 export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHover> {
 
-	private recentMarkerCodeActionsInfo: { marker: IMarker, hasCodeActions: boolean } | undefined = undefined;
+	public readonly hoverOrdinal: number = 5;
+
+	private recentMarkerCodeActionsInfo: { marker: IMarker; hasCodeActions: boolean } | undefined = undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 	) { }
 
 	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkerHover[] {
@@ -226,7 +230,9 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 						context.hide();
 						controller?.showCodeActions(markerCodeActionTrigger, actions, {
 							x: elementPosition.left + 6,
-							y: elementPosition.top + elementPosition.height + 6
+							y: elementPosition.top + elementPosition.height + 6,
+							width: elementPosition.width,
+							height: elementPosition.height
 						});
 					}
 				});
@@ -237,6 +243,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 	private getCodeActions(marker: IMarker): CancelablePromise<CodeActionSet> {
 		return createCancelablePromise(cancellationToken => {
 			return getCodeActions(
+				this._languageFeaturesService.codeActionProvider,
 				this._editor.getModel()!,
 				new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn),
 				markerCodeActionTrigger,
@@ -256,4 +263,3 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-hover .hover-contents a.code-link span:hover { color: ${activeLinkFg}; }`);
 	}
 });
-

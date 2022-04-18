@@ -20,46 +20,46 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { DocumentSemanticTokensProvider, DocumentSemanticTokensProviderRegistry, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from 'vs/editor/common/languages';
+import { DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from 'vs/editor/common/languages';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Barrier, timeout } from 'vs/base/common/async';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { getDocumentSemanticTokens, isSemanticTokens } from 'vs/editor/common/services/getSemanticTokens';
 import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 const GENERATE_TESTS = false;
 
 suite('ModelService', () => {
 	let disposables: DisposableStore;
-	let modelService: ModelService;
+	let modelService: IModelService;
+	let instantiationService: TestInstantiationService;
 
 	setup(() => {
 		disposables = new DisposableStore();
+
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 		configService.setUserConfiguration('files', { 'eol': '\r\n' }, URI.file(platform.isWindows ? 'c:\\myroot' : '/myroot'));
 
-		const dialogService = new TestDialogService();
-		const logService = new NullLogService();
-		modelService = disposables.add(new ModelService(
-			configService,
-			new TestTextResourcePropertiesService(configService),
-			new TestThemeService(),
-			logService,
-			new UndoRedoService(dialogService, new TestNotificationService()),
-			disposables.add(new LanguageService()),
-			new TestLanguageConfigurationService(),
-			new LanguageFeatureDebounceService(logService)
-		));
+		const serviceCollection = new ServiceCollection([
+			IConfigurationService, configService
+		]);
+
+		instantiationService = createModelServices(disposables, serviceCollection);
+		modelService = instantiationService.get(IModelService);
 	});
 
 	teardown(() => {
@@ -415,12 +415,14 @@ suite('ModelSemanticColoring', () => {
 	const disposables = new DisposableStore();
 	let modelService: IModelService;
 	let languageService: ILanguageService;
+	let languageFeaturesService: ILanguageFeaturesService;
 
 	setup(() => {
 		const configService = new TestConfigurationService({ editor: { semanticHighlighting: true } });
 		const themeService = new TestThemeService();
 		themeService.setTheme(new TestColorTheme({}, ColorScheme.DARK, true));
 		const logService = new NullLogService();
+		languageFeaturesService = new LanguageFeaturesService();
 		modelService = disposables.add(new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
@@ -429,7 +431,8 @@ suite('ModelSemanticColoring', () => {
 			new UndoRedoService(new TestDialogService(), new TestNotificationService()),
 			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService(),
-			new LanguageFeatureDebounceService(logService)
+			new LanguageFeatureDebounceService(logService),
+			languageFeaturesService
 		));
 		languageService = disposables.add(new LanguageService(false));
 	});
@@ -441,14 +444,14 @@ suite('ModelSemanticColoring', () => {
 	test('DocumentSemanticTokens should be fetched when the result is empty if there are pending changes', async () => {
 		await runWithFakedTimers({}, async () => {
 
-			disposables.add(ModesRegistry.registerLanguage({ id: 'testMode' }));
+			disposables.add(languageService.registerLanguage({ id: 'testMode' }));
 
 			const inFirstCall = new Barrier();
 			const delayFirstResult = new Barrier();
 			const secondResultProvided = new Barrier();
 			let callCount = 0;
 
-			disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode', new class implements DocumentSemanticTokensProvider {
+			disposables.add(languageFeaturesService.documentSemanticTokensProvider.register('testMode', new class implements DocumentSemanticTokensProvider {
 				getLegend(): SemanticTokensLegend {
 					return { tokenTypes: ['class'], tokenModifiers: [] };
 				}
@@ -496,8 +499,8 @@ suite('ModelSemanticColoring', () => {
 		await runWithFakedTimers({}, async () => {
 
 			let callCount = 0;
-			disposables.add(ModesRegistry.registerLanguage({ id: 'testMode2' }));
-			disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode2', new class implements DocumentSemanticTokensProvider {
+			disposables.add(languageService.registerLanguage({ id: 'testMode2' }));
+			disposables.add(languageFeaturesService.documentSemanticTokensProvider.register('testMode2', new class implements DocumentSemanticTokensProvider {
 				getLegend(): SemanticTokensLegend {
 					return { tokenTypes: ['class1'], tokenModifiers: [] };
 				}
@@ -517,7 +520,7 @@ suite('ModelSemanticColoring', () => {
 				releaseDocumentSemanticTokens(resultId: string | undefined): void {
 				}
 			}));
-			disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode2', new class implements DocumentSemanticTokensProvider {
+			disposables.add(languageFeaturesService.documentSemanticTokensProvider.register('testMode2', new class implements DocumentSemanticTokensProvider {
 				getLegend(): SemanticTokensLegend {
 					return { tokenTypes: ['class2'], tokenModifiers: [] };
 				}
@@ -539,7 +542,7 @@ suite('ModelSemanticColoring', () => {
 
 			const textModel = modelService.createModel('Hello world 2', languageService.createById('testMode2'));
 			try {
-				let result = await getDocumentSemanticTokens(textModel, null, null, CancellationToken.None);
+				let result = await getDocumentSemanticTokens(languageFeaturesService.documentSemanticTokensProvider, textModel, null, null, CancellationToken.None);
 				assert.ok(result, `We should have tokens (1)`);
 				assert.ok(result.tokens, `Tokens are found from multiple providers (1)`);
 				assert.ok(isSemanticTokens(result.tokens), `Tokens are full (1)`);
@@ -549,7 +552,7 @@ suite('ModelSemanticColoring', () => {
 				assert.deepStrictEqual(result.provider.getLegend(), { tokenTypes: ['class1'], tokenModifiers: [] }, `Legend matches the tokens (1)`);
 
 				// Make a second request. Make sure we get the secondary value
-				result = await getDocumentSemanticTokens(textModel, result.provider, result.tokens.resultId, CancellationToken.None);
+				result = await getDocumentSemanticTokens(languageFeaturesService.documentSemanticTokensProvider, textModel, result.provider, result.tokens.resultId, CancellationToken.None);
 				assert.ok(result, `We should have tokens (2)`);
 				assert.ok(result.tokens, `Tokens are found from multiple providers (2)`);
 				assert.ok(isSemanticTokens(result.tokens), `Tokens are full (2)`);

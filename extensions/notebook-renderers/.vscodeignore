@@ -1,0 +1,6 @@
+src/**
+notebook/**
+tsconfig.json
+.gitignore
+esbuild.js
+src/**

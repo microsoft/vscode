@@ -18,7 +18,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
 import { Schemas } from 'vs/base/common/network';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -59,11 +59,11 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		};
 	}
 
-	private shouldUseSimplified(schema: string): { useSimplified: boolean, isSetting: boolean } {
+	private shouldUseSimplified(schema: string): { useSimplified: boolean; isSetting: boolean } {
 		const setting = (this.configurationService.getValue('files.simpleDialog.enable') === true);
 		const newWindowSetting = (this.configurationService.getValue('window.openFilesInNewWindow') === 'on');
 		return {
-			useSimplified: ((schema !== Schemas.file) && (schema !== Schemas.userData)) || setting,
+			useSimplified: ((schema !== Schemas.file) && (schema !== Schemas.vscodeUserData)) || setting,
 			isSetting: newWindowSetting
 		};
 	}

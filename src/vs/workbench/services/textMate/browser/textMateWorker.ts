@@ -25,6 +25,8 @@ export interface IValidGrammarDefinitionDTO {
 	embeddedLanguages: IValidEmbeddedLanguagesMap;
 	tokenTypes: IValidTokenTypeMap;
 	injectTo?: string[];
+	balancedBracketSelectors: string[];
+	unbalancedBracketSelectors: string[];
 }
 
 export interface ICreateData {
@@ -127,7 +129,7 @@ class TextMateWorkerModel extends MirrorTextModel {
 export class TextMateWorker {
 
 	private readonly _host: TextMateWorkerHost;
-	private readonly _models: { [uri: string]: TextMateWorkerModel; };
+	private readonly _models: { [uri: string]: TextMateWorkerModel };
 	private readonly _grammarCache: Promise<ICreateGrammarResult>[];
 	private readonly _grammarFactory: Promise<TMGrammarFactory | null>;
 
@@ -143,6 +145,8 @@ export class TextMateWorker {
 				embeddedLanguages: def.embeddedLanguages,
 				tokenTypes: def.tokenTypes,
 				injectTo: def.injectTo,
+				balancedBracketSelectors: def.balancedBracketSelectors,
+				unbalancedBracketSelectors: def.unbalancedBracketSelectors,
 			};
 		});
 		this._grammarFactory = this._loadTMGrammarFactory(grammarDefinitions);

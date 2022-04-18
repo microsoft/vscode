@@ -223,11 +223,11 @@ class PieceTreeSearchCache {
 		return null;
 	}
 
-	public get2(lineNumber: number): { node: TreeNode, nodeStartOffset: number, nodeStartLineNumber: number } | null {
+	public get2(lineNumber: number): { node: TreeNode; nodeStartOffset: number; nodeStartLineNumber: number } | null {
 		for (let i = this._cache.length - 1; i >= 0; i--) {
 			const nodePos = this._cache[i];
 			if (nodePos.nodeStartLineNumber && nodePos.nodeStartLineNumber < lineNumber && nodePos.nodeStartLineNumber + nodePos.node.piece.lineFeedCnt >= lineNumber) {
-				return <{ node: TreeNode, nodeStartOffset: number, nodeStartLineNumber: number }>nodePos;
+				return <{ node: TreeNode; nodeStartOffset: number; nodeStartLineNumber: number }>nodePos;
 			}
 		}
 		return null;
@@ -275,7 +275,7 @@ export class PieceTreeBase {
 	protected _EOLNormalized!: boolean;
 	private _lastChangeBufferPos!: BufferCursor;
 	private _searchCache!: PieceTreeSearchCache;
-	private _lastVisitedLine!: { lineNumber: number; value: string; };
+	private _lastVisitedLine!: { lineNumber: number; value: string };
 
 	constructor(chunks: StringBuffer[], eol: '\r\n' | '\n', eolNormalized: boolean) {
 		this.create(chunks, eol, eolNormalized);
@@ -1318,7 +1318,7 @@ export class PieceTreeBase {
 	}
 
 	// #region node operations
-	private getIndexOf(node: TreeNode, accumulatedValue: number): { index: number, remainder: number } {
+	private getIndexOf(node: TreeNode, accumulatedValue: number): { index: number; remainder: number } {
 		const piece = node.piece;
 		const pos = this.positionInBuffer(node, accumulatedValue);
 		const lineCnt = pos.line - piece.start.line;

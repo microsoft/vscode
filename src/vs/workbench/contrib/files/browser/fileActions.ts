@@ -18,11 +18,11 @@ import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/commo
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -53,7 +53,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
-export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
+export const NEW_FILE_LABEL = nls.localize('newFile', "New Text File");
 export const NEW_FOLDER_COMMAND_ID = 'explorer.newFolder';
 export const NEW_FOLDER_LABEL = nls.localize('newFolder', "New Folder");
 export const TRIGGER_RENAME_LABEL = nls.localize('rename', "Rename");
@@ -230,7 +230,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 	}
 }
 
-function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: string, detail: string } {
+function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: string; detail: string } {
 	if (containsBothDirectoryAndFile(distinctElements)) {
 		return {
 			message: nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and their contents?", distinctElements.length),
@@ -252,14 +252,14 @@ function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: str
 		};
 	}
 
-	if (distinctElements[0].isDirectory) {
+	if (distinctElements[0].isDirectory && !distinctElements[0].isSymbolicLink) {
 		return { message: nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name), detail: '' };
 	}
 
 	return { message: nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name), detail: '' };
 }
 
-function getDeleteMessage(distinctElements: ExplorerItem[]): { message: string, detail: string } {
+function getDeleteMessage(distinctElements: ExplorerItem[]): { message: string; detail: string } {
 	if (containsBothDirectoryAndFile(distinctElements)) {
 		return {
 			message: nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and their contents?", distinctElements.length),
@@ -296,7 +296,7 @@ function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean
 }
 
 
-export function findValidPasteFileTarget(explorerService: IExplorerService, targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart'): URI {
+export function findValidPasteFileTarget(explorerService: IExplorerService, targetFolder: ExplorerItem, fileToPaste: { resource: URI; isDirectory?: boolean; allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart'): URI {
 	let name = resources.basenameOrAuthority(fileToPaste.resource);
 
 	let candidate = resources.joinPath(targetFolder.resource, name);
@@ -575,7 +575,7 @@ export class FocusFilesExplorer extends Action {
 export class ShowActiveFileInExplorer extends Action {
 
 	static readonly ID = 'workbench.files.action.showActiveFileInExplorer';
-	static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Side Bar");
+	static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Explorer View");
 
 	constructor(
 		id: string,
@@ -622,7 +622,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 }
 
-export function validateFileName(pathService: IPathService, item: ExplorerItem, name: string, os: OperatingSystem): { content: string, severity: Severity } | null {
+export function validateFileName(pathService: IPathService, item: ExplorerItem, name: string, os: OperatingSystem): { content: string; severity: Severity } | null {
 	// Produce a well formed file name
 	name = getWellFormedFileName(name);
 
@@ -906,7 +906,9 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 
 export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
+	const configurationService = accessor.get(IConfigurationService);
+	const groupNests = configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting.operateAsGroup;
+	const stats = explorerService.getContext(true, groupNests).filter(s => !s.isRoot);
 	if (stats.length) {
 		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, true);
 	}
@@ -914,7 +916,9 @@ export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 
 export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
+	const configurationService = accessor.get(IConfigurationService);
+	const groupNests = configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting.operateAsGroup;
+	const stats = explorerService.getContext(true, groupNests).filter(s => !s.isRoot);
 
 	if (stats.length) {
 		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, false);
@@ -924,7 +928,9 @@ export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 let pasteShouldMove = false;
 export const copyFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true);
+	const configurationService = accessor.get(IConfigurationService);
+	const groupNests = configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting.operateAsGroup;
+	const stats = explorerService.getContext(true, groupNests);
 	if (stats.length > 0) {
 		await explorerService.setToCopy(stats, false);
 		pasteShouldMove = false;
@@ -933,7 +939,9 @@ export const copyFileHandler = async (accessor: ServicesAccessor) => {
 
 export const cutFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true);
+	const configurationService = accessor.get(IConfigurationService);
+	const groupNests = configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting.operateAsGroup;
+	const stats = explorerService.getContext(true, groupNests);
 	if (stats.length > 0) {
 		await explorerService.setToCopy(stats, true);
 		pasteShouldMove = true;
@@ -1010,7 +1018,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
 				throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
 			}
-			const fileToPasteStat = await fileService.resolve(fileToPaste);
+			const fileToPasteStat = await fileService.stat(fileToPaste);
 
 			// Find target
 			let target: ExplorerItem;

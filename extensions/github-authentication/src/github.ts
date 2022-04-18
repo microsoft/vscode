@@ -18,7 +18,7 @@ interface SessionData {
 		label?: string;
 		displayName?: string;
 		id: string;
-	}
+	};
 	scopes: string[];
 	accessToken: string;
 }
@@ -36,16 +36,17 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 	private _keychain: Keychain = new Keychain(this.context, `${this.type}.auth`, this._logger);
 	private _sessionsPromise: Promise<vscode.AuthenticationSession[]>;
+	private _accountsSeen = new Set<string>();
 	private _disposable: vscode.Disposable;
 
 	constructor(private readonly context: vscode.ExtensionContext, private readonly type: AuthProviderType) {
-		const { name, version, aiKey } = context.extension.packageJSON as { name: string, version: string, aiKey: string };
+		const { name, version, aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
 		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(name, version, aiKey));
 
 		if (this.type === AuthProviderType.github) {
 			this._githubServer = new GitHubServer(
-				// We only can use the Device Code flow when we are running with a remote extension host.
-				context.extension.extensionKind === vscode.ExtensionKind.Workspace,
+				// We only can use the Device Code flow when we have a full node environment because of CORS.
+				context.extension.extensionKind === vscode.ExtensionKind.Workspace || vscode.env.uiKind === vscode.UIKind.Desktop,
 				this._logger,
 				this._telemetryReporter);
 		} else {
@@ -53,7 +54,11 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		}
 
 		// Contains the current state of the sessions we have available.
-		this._sessionsPromise = this.readSessions();
+		this._sessionsPromise = this.readSessions().then((sessions) => {
+			// fire telemetry after a second to allow the workbench to focus on loading
+			setTimeout(() => sessions.forEach(s => this.afterSessionLoad(s)), 1000);
+			return sessions;
+		});
 
 		this._disposable = vscode.Disposable.from(
 			this._telemetryReporter,
@@ -84,8 +89,12 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		return finalSessions;
 	}
 
-	private async afterTokenLoad(token: string): Promise<void> {
-		this._githubServer.sendAdditionalTelemetryInfo(token);
+	private async afterSessionLoad(session: vscode.AuthenticationSession): Promise<void> {
+		// We only want to fire a telemetry if we haven't seen this account yet in this session.
+		if (!this._accountsSeen.has(session.account.id)) {
+			this._accountsSeen.add(session.account.id);
+			this._githubServer.sendAdditionalTelemetryInfo(session.accessToken);
+		}
 	}
 
 	private async checkForUpdates() {
@@ -149,7 +158,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			if (scopesSeen.has(scopesStr)) {
 				return undefined;
 			}
-			let userInfo: { id: string, accountName: string } | undefined;
+			let userInfo: { id: string; accountName: string } | undefined;
 			if (!session.account) {
 				try {
 					userInfo = await this._githubServer.getUserInfo(session.accessToken);
@@ -161,8 +170,6 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 					}
 				}
 			}
-
-			setTimeout(() => this.afterTokenLoad(session.accessToken), 1000);
 
 			this._logger.trace(`Read the following session from the keychain with the following scopes: ${scopesStr}`);
 			scopesSeen.add(scopesStr);
@@ -216,8 +223,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 			const scopeString = sortedScopes.join(' ');
 			const token = await this._githubServer.login(scopeString);
-			this.afterTokenLoad(token);
 			const session = await this.tokenToSession(token, sortedScopes);
+			this.afterSessionLoad(session);
 
 			const sessions = await this._sessionsPromise;
 			const sessionIndex = sessions.findIndex(s => s.id === session.id || arrayEquals([...s.scopes].sort(), sortedScopes));

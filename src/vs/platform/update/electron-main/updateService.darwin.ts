@@ -92,7 +92,7 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		}
 
 		type UpdateDownloadedClassification = {
-			version: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			version: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
 		this.telemetryService.publicLog2<{ version: String }, UpdateDownloadedClassification>('update:downloaded', { version: update.version });
 

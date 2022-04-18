@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import product from 'vs/platform/product/common/product';
-import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
+import { INativeWindowConfiguration, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
@@ -12,12 +13,11 @@ import { domContentLoaded } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
+import { ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier, reviveIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -44,10 +44,9 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 import { safeStringify } from 'vs/base/common/objects';
 import { ISharedProcessWorkerWorkbenchService, SharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isCI, isMacintosh } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/electron-sandbox/diskFileSystemProvider';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
@@ -55,7 +54,7 @@ import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataPr
 export class DesktopMain extends Disposable {
 
 	constructor(
-		private readonly configuration: INativeWorkbenchConfiguration
+		private readonly configuration: INativeWindowConfiguration
 	) {
 		super();
 
@@ -116,14 +115,6 @@ export class DesktopMain extends Disposable {
 
 		// Window
 		this._register(instantiationService.createInstance(NativeWindow));
-
-		// Logging
-		services.logService.trace('workbench configuration', safeStringify(this.configuration));
-
-		// Driver
-		if (this.configuration.driver) {
-			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
-		}
 	}
 
 	private getExtraClasses(): string[] {
@@ -139,11 +130,11 @@ export class DesktopMain extends Disposable {
 	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {
 
 		// Workbench Lifecycle
-		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), 'join.closeStorage')));
+		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), { id: 'join.closeStorage', label: localize('join.closeStorage', "Saving UI state") })));
 		this._register(workbench.onDidShutdown(() => this.dispose()));
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection; logService: ILogService; storageService: NativeStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 
@@ -174,12 +165,18 @@ export class DesktopMain extends Disposable {
 
 		// Logger
 		const logLevelChannelClient = new LogLevelChannelClient(mainProcessService.getChannel('logLevel'));
-		const loggerService = new LoggerChannelClient(environmentService.configuration.logLevel, logLevelChannelClient.onDidChangeLogLevel, mainProcessService.getChannel('logger'));
+		const loggerService = new LoggerChannelClient(this.configuration.logLevel, logLevelChannelClient.onDidChangeLogLevel, mainProcessService.getChannel('logger'));
 		serviceCollection.set(ILoggerService, loggerService);
 
 		// Log
-		const logService = this._register(new NativeLogService(`renderer${this.configuration.windowId}`, environmentService.configuration.logLevel, loggerService, logLevelChannelClient, environmentService));
+		const logService = this._register(new NativeLogService(`renderer${this.configuration.windowId}`, this.configuration.logLevel, loggerService, logLevelChannelClient, environmentService));
 		serviceCollection.set(ILogService, logService);
+		if (isCI) {
+			logService.info('workbench#open()'); // marking workbench open helps to diagnose flaky integration/smoke tests
+		}
+		if (logService.getLevel() === LogLevel.Trace) {
+			logService.trace('workbench#open(): with configuration', safeStringify(this.configuration));
+		}
 
 		// Shared Process
 		const sharedProcessService = new SharedProcessService(this.configuration.windowId, logService);
@@ -223,8 +220,11 @@ export class DesktopMain extends Disposable {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(mainProcessService, sharedProcessWorkerWorkbenchService, logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
+		// Remote Files
+		this._register(RemoteFileSystemProviderClient.register(remoteAgentService, fileService, logService));
+
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, this._register(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, logService)));
+		fileService.registerProvider(Schemas.vscodeUserData, this._register(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.vscodeUserData, logService)));
 
 		// URI Identity
 		const uriIdentityService = new UriIdentityService(fileService);
@@ -243,9 +243,6 @@ export class DesktopMain extends Disposable {
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-
-		// Remote file system
-		this._register(RemoteFileSystemProviderClient.register(remoteAgentService, fileService, logService));
 
 		const payload = this.resolveWorkspaceInitializationPayload(environmentService);
 
@@ -282,7 +279,7 @@ export class DesktopMain extends Disposable {
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
 		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
 
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService);
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService, logService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 		// Update workspace trust so that configuration is updated accordingly
@@ -306,8 +303,8 @@ export class DesktopMain extends Disposable {
 		return { serviceCollection, logService, storageService };
 	}
 
-	private resolveWorkspaceInitializationPayload(environmentService: INativeWorkbenchEnvironmentService): IWorkspaceInitializationPayload {
-		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined = this.configuration.workspace;
+	private resolveWorkspaceInitializationPayload(environmentService: INativeWorkbenchEnvironmentService): IAnyWorkspaceIdentifier {
+		let workspaceInitializationPayload: IAnyWorkspaceIdentifier | undefined = this.configuration.workspace;
 
 		// Fallback to empty workspace if we have no payload yet.
 		if (!workspaceInitializationPayload) {
@@ -328,8 +325,8 @@ export class DesktopMain extends Disposable {
 		return workspaceInitializationPayload;
 	}
 
-	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: INativeWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
-		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.userData] /* Cache all non native resources */, environmentService, fileService);
+	private async createWorkspaceService(payload: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
+		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData] /* Cache all non native resources */, environmentService, fileService);
 		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache }, environmentService, fileService, remoteAgentService, uriIdentityService, logService);
 
 		try {
@@ -343,7 +340,7 @@ export class DesktopMain extends Disposable {
 		}
 	}
 
-	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: INativeWorkbenchEnvironmentService, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
+	private async createStorageService(payload: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
 		const storageService = new NativeStorageService(payload, mainProcessService, environmentService);
 
 		try {
@@ -372,7 +369,7 @@ export class DesktopMain extends Disposable {
 	}
 }
 
-export function main(configuration: INativeWorkbenchConfiguration): Promise<void> {
+export function main(configuration: INativeWindowConfiguration): Promise<void> {
 	const workbench = new DesktopMain(configuration);
 
 	return workbench.open();

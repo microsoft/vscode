@@ -13,9 +13,9 @@ import * as types from 'vs/base/common/types';
 import { equals as equalArray } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { IState, ITokenizationSupport, LanguageId, TokenizationRegistry, StandardTokenType, ITokenizationSupportFactory, TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/languages';
-import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullMode';
+import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -26,7 +26,7 @@ import type { IGrammar, StackElement, IOnigLib, IRawTheme } from 'vscode-textmat
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IValidGrammarDefinition, IValidEmbeddedLanguagesMap, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
-import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
+import { missingTMGrammarErrorMessage, TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { TMTokenization } from 'vs/workbench/services/textMate/common/TMTokenization';
@@ -133,6 +133,16 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 						validLanguageId = grammar.language;
 					}
 
+					function asStringArray(array: unknown, defaultValue: string[]): string[] {
+						if (!Array.isArray(array)) {
+							return defaultValue;
+						}
+						if (!array.every(e => typeof e === 'string')) {
+							return defaultValue;
+						}
+						return array;
+					}
+
 					this._grammarDefinitions.push({
 						location: grammarLocation,
 						language: validLanguageId ? validLanguageId : undefined,
@@ -140,6 +150,8 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 						embeddedLanguages: embeddedLanguages,
 						tokenTypes: tokenTypes,
 						injectTo: grammar.injectTo,
+						balancedBracketSelectors: asStringArray(grammar.balancedBracketScopes, ['*']),
+						unbalancedBracketSelectors: asStringArray(grammar.unbalancedBracketScopes, []),
 					});
 
 					if (validLanguageId) {
@@ -266,6 +278,10 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 					});
 					return new TMTokenizationSupportWithLineLimit(languageId, encodedLanguageId, tokenization, this._configurationService);
 				} catch (err) {
+					if (err.message && err.message === missingTMGrammarErrorMessage) {
+						// Don't log this error message
+						return null;
+					}
 					onUnexpectedError(err);
 					return null;
 				}

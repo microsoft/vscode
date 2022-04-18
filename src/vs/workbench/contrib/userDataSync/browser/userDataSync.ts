@@ -14,7 +14,7 @@ import { registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/
 import type { IEditorContribution } from 'vs/editor/common/editorCommon';
 import type { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -37,7 +37,7 @@ import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/ed
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -47,7 +47,7 @@ import { fromNow } from 'vs/base/common/date';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewContainerLocation, IViewContainersRegistry, Extensions, ViewContainer } from 'vs/workbench/common/views';
@@ -63,11 +63,11 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
-type ConfigureSyncQuickPickItem = { id: SyncResource, label: string, description?: string; };
+type ConfigureSyncQuickPickItem = { id: SyncResource; label: string; description?: string };
 
 type SyncConflictsClassification = {
-	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true; };
-	action?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true; };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	action?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };
 
 const turnOnSyncCommand = { id: 'workbench.userDataSync.actions.turnOn', title: localize('turn on sync with category', "{0}: Turn On...", SYNC_TITLE) };
@@ -241,21 +241,21 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 							{
 								label: localize('replace remote', "Replace Remote"),
 								run: () => {
-									this.telemetryService.publicLog2<{ source: string, action: string; }, SyncConflictsClassification>('sync/handleConflicts', { source: syncResource, action: 'acceptLocal' });
+									this.telemetryService.publicLog2<{ source: string; action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: syncResource, action: 'acceptLocal' });
 									this.acceptLocal(syncResource, conflicts);
 								}
 							},
 							{
 								label: localize('replace local', "Replace Local"),
 								run: () => {
-									this.telemetryService.publicLog2<{ source: string, action: string; }, SyncConflictsClassification>('sync/handleConflicts', { source: syncResource, action: 'acceptRemote' });
+									this.telemetryService.publicLog2<{ source: string; action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: syncResource, action: 'acceptRemote' });
 									this.acceptRemote(syncResource, conflicts);
 								}
 							},
 							{
 								label: localize('show conflicts', "Show Conflicts"),
 								run: () => {
-									this.telemetryService.publicLog2<{ source: string, action?: string; }, SyncConflictsClassification>('sync/showConflicts', { source: syncResource });
+									this.telemetryService.publicLog2<{ source: string; action?: string }, SyncConflictsClassification>('sync/showConflicts', { source: syncResource });
 									this.handleConflicts([syncResource, conflicts]);
 								}
 							}
@@ -749,7 +749,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private async selectSettingsSyncService(userDataSyncStore: IUserDataSyncStore): Promise<void> {
 		return new Promise<void>((c, e) => {
 			const disposables: DisposableStore = new DisposableStore();
-			const quickPick = disposables.add(this.quickInputService.createQuickPick<{ id: UserDataSyncStoreType, label: string, description?: string; }>());
+			const quickPick = disposables.add(this.quickInputService.createQuickPick<{ id: UserDataSyncStoreType; label: string; description?: string }>());
 			quickPick.title = localize('switchSyncService.title', "{0}: Select Service", SYNC_TITLE);
 			quickPick.description = localize('switchSyncService.description', "Ensure you are using the same settings sync service when syncing with multiple environments");
 			quickPick.hideInput = true;
@@ -1423,7 +1423,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 			this._register(this.acceptChangesButton.onClick(async () => {
 				const model = this.editor.getModel();
 				if (model) {
-					this.telemetryService.publicLog2<{ source: string, action: string; }, SyncConflictsClassification>('sync/handleConflicts', { source: syncResource, action: isRemote ? 'acceptRemote' : 'acceptLocal' });
+					this.telemetryService.publicLog2<{ source: string; action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: syncResource, action: isRemote ? 'acceptRemote' : 'acceptLocal' });
 					const syncAreaLabel = getSyncAreaLabel(syncResource);
 					const result = await this.dialogService.confirm({
 						type: 'info',

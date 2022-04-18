@@ -597,6 +597,12 @@ class TypeScriptLanguageServiceHost {
     isDefaultLibFileName(fileName) {
         return fileName === this.getDefaultLibFileName(this._compilerOptions);
     }
+    readFile(path, _encoding) {
+        return this._files[path] || this._libs[path];
+    }
+    fileExists(path) {
+        return path in this._files || path in this._libs;
+    }
 }
 function execute() {
     let r = run3(new DeclarationResolver(new FSProvider()));

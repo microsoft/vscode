@@ -6,6 +6,7 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { MainThreadWebviews, reviveWebviewContentOptions, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
@@ -15,10 +16,11 @@ import { WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { columnToEditorGroup, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ACTIVE_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 /**
  * Bi-directional map between webview handles and inputs.
@@ -86,11 +88,12 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	private readonly _revivers = new Map<string, IDisposable>();
 
 	constructor(
-		context: extHostProtocol.IExtHostContext,
+		context: IExtHostContext,
 		private readonly _mainThreadWebviews: MainThreadWebviews,
-		@IExtensionService extensionService: IExtensionService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IExtensionService extensionService: IExtensionService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 	) {
@@ -165,16 +168,19 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		const webview = this._webviewWorkbenchService.createWebview(handle, this.webviewPanelViewType.fromExternal(viewType), initData.title, mainThreadShowOptions, reviveWebviewOptions(initData.panelOptions), reviveWebviewContentOptions(initData.webviewOptions), extension);
 		this.addWebviewInput(handle, webview, { serializeBuffersForPostMessage: initData.serializeBuffersForPostMessage });
 
-		/* __GDPR__
-			"webviews:createWebviewPanel" : {
-				"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"viewType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this._telemetryService.publicLog('webviews:createWebviewPanel', {
+		const payload = {
 			extensionId: extension.id.value,
 			viewType
-		});
+		} as const;
+
+		type Classification = {
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the extension that created the webview panel' };
+			viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Id of the webview' };
+			owner: 'mjbvz';
+			comment: 'Triggered when a webview is created. Records the type of webview and the extension which created it';
+		};
+
+		this._telemetryService.publicLog2<typeof payload, Classification>('webviews:createWebviewPanel', payload);
 	}
 
 	public $disposeWebview(handle: extHostProtocol.WebviewHandle): void {
@@ -202,14 +208,37 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		this._webviewWorkbenchService.revealWebview(webview, targetGroup, !!showOptions.preserveFocus);
 	}
 
-	private getTargetGroupFromShowOptions(showOptions: extHostProtocol.WebviewPanelShowOptions) {
-		if (typeof showOptions.viewColumn !== 'undefined') {
-			if (showOptions.viewColumn >= 0) {
-				return columnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
-			} else {
-				return showOptions.viewColumn;
+	private getTargetGroupFromShowOptions(showOptions: extHostProtocol.WebviewPanelShowOptions): PreferredGroup {
+		if (typeof showOptions.viewColumn === 'undefined'
+			|| showOptions.viewColumn === ACTIVE_GROUP
+			|| (this._editorGroupService.count === 1 && this._editorGroupService.activeGroup.isEmpty)
+		) {
+			return ACTIVE_GROUP;
+		}
+
+		if (showOptions.viewColumn === SIDE_GROUP) {
+			return SIDE_GROUP;
+		}
+
+		if (showOptions.viewColumn >= 0) {
+			// First check to see if an existing group exists
+			const groupInColumn = this._editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)[showOptions.viewColumn];
+			if (groupInColumn) {
+				return groupInColumn.id;
+			}
+
+			// We are dealing with an unknown group and therefore need a new group.
+			// Note that the new group's id may not match the one requested. We only allow
+			// creating a single new group, so if someone passes in `showOptions.viewColumn = 99`
+			// and there are two editor groups open, we simply create a third editor group instead
+			// of creating all the groups up to 99.
+			const newGroup = this._editorGroupService.findGroup({ location: GroupLocation.LAST });
+			if (newGroup) {
+				const direction = preferredSideBySideGroupDirection(this._configurationService);
+				return this._editorGroupService.addGroup(newGroup, direction);
 			}
 		}
+
 		return ACTIVE_GROUP;
 	}
 
@@ -248,6 +277,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 						state,
 						panelOptions: webviewInput.webview.options,
 						webviewOptions: webviewInput.webview.contentOptions,
+						active: webviewInput === this._editorService.activeEditor,
 					}, editorGroupToColumn(this._editorGroupService, webviewInput.group || 0));
 				} catch (error) {
 					onUnexpectedError(error);

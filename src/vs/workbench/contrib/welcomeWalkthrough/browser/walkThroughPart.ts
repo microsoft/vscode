@@ -23,7 +23,6 @@ import { localize } from 'vs/nls';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Event } from 'vs/base/common/event';
 import { isObject } from 'vs/base/common/types';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorOptions as ICodeEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -364,39 +363,6 @@ export class WalkThroughPart extends EditorPane {
 							editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getLanguageId()));
 						}
 					}));
-
-					type WalkThroughSnippetInteractionClassification = {
-						from?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-						type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-						snippet: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-					};
-					type WalkThroughSnippetInteractionEvent = {
-						from?: string,
-						type: string,
-						snippet: number
-					};
-
-					this.contentDisposables.push(Event.once(editor.onMouseDown)(() => {
-						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
-							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
-							type: 'mouseDown',
-							snippet: i
-						});
-					}));
-					this.contentDisposables.push(Event.once(editor.onKeyDown)(() => {
-						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
-							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
-							type: 'keyDown',
-							snippet: i
-						});
-					}));
-					this.contentDisposables.push(Event.once(editor.onDidChangeModelContent)(() => {
-						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
-							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
-							type: 'changeModelContent',
-							snippet: i
-						});
-					}));
 				});
 				this.updateSizeClasses();
 				this.multiCursorModifier();
@@ -524,10 +490,10 @@ export class WalkThroughPart extends EditorPane {
 
 // theming
 
-export const embeddedEditorBackground = registerColor('walkThrough.embeddedEditorBackground', { dark: null, light: null, hc: null }, localize('walkThrough.embeddedEditorBackground', 'Background color for the embedded editors on the Interactive Playground.'));
+export const embeddedEditorBackground = registerColor('walkThrough.embeddedEditorBackground', { dark: null, light: null, hcDark: null, hcLight: null }, localize('walkThrough.embeddedEditorBackground', 'Background color for the embedded editors on the Interactive Playground.'));
 
 registerThemingParticipant((theme, collector) => {
-	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hc: null });
+	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hcDark: null, hcLight: null });
 	if (color) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .monaco-editor-background,
 			.monaco-workbench .part.editor > .content .walkThroughContent .margin-view-overlays { background: ${color}; }`);

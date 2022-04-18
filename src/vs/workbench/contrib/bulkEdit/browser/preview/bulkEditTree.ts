@@ -28,7 +28,7 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { Iterable } from 'vs/base/common/iterator';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 // --- VIEW MODEL
@@ -227,14 +227,14 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 				const range = Range.lift(edit.textEdit.textEdit.range);
 
 				//prefix-math
-				let startTokens = textModel.getLineTokens(range.startLineNumber);
+				let startTokens = textModel.tokenization.getLineTokens(range.startLineNumber);
 				let prefixLen = 23; // default value for the no tokens/grammar case
 				for (let idx = startTokens.findTokenIndexAtOffset(range.startColumn) - 1; prefixLen < 50 && idx >= 0; idx--) {
 					prefixLen = range.startColumn - startTokens.getStartOffset(idx);
 				}
 
 				//suffix-math
-				let endTokens = textModel.getLineTokens(range.endLineNumber);
+				let endTokens = textModel.tokenization.getLineTokens(range.endLineNumber);
 				let suffixLen = 0;
 				for (let idx = endTokens.findTokenIndexAtOffset(range.endColumn); suffixLen < 50 && idx < endTokens.getCount(); idx++) {
 					suffixLen += endTokens.getEndOffset(idx) - endTokens.getStartOffset(idx);
@@ -359,7 +359,7 @@ export class BulkEditAccessibilityProvider implements IListAccessibilityProvider
 
 export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditElement> {
 
-	getId(element: BulkEditElement): { toString(): string; } {
+	getId(element: BulkEditElement): { toString(): string } {
 		if (element instanceof FileElement) {
 			return element.edit.uri + (element.parent instanceof CategoryElement ? JSON.stringify(element.parent.category.metadata) : '');
 		} else if (element instanceof TextEditElement) {

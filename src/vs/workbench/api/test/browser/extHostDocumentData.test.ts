@@ -365,7 +365,7 @@ enum AssertDocumentLineMappingDirection {
 
 suite('ExtHostDocumentData updates line mapping', () => {
 
-	function positionToStr(position: { line: number; character: number; }): string {
+	function positionToStr(position: { line: number; character: number }): string {
 		return '(' + position.line + ',' + position.character + ')';
 	}
 

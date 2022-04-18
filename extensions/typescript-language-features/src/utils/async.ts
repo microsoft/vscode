@@ -46,9 +46,7 @@ export class Delayer<T> {
 		if (delay >= 0 || this.timeout === null) {
 			this.timeout = setTimeout(() => {
 				this.timeout = null;
-				if (this.onSuccess) {
-					this.onSuccess(undefined);
-				}
+				this.onSuccess?.(undefined);
 			}, delay >= 0 ? delay : this.defaultDelay);
 		}
 

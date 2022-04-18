@@ -14,7 +14,8 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CodeActionProviderRegistry, CodeActionTriggerType } from 'vs/editor/common/languages';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { CodeActionProvider, CodeActionTriggerType } from 'vs/editor/common/languages';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
@@ -193,6 +194,7 @@ export class CodeActionModel extends Disposable {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		private readonly _registry: LanguageFeatureRegistry<CodeActionProvider>,
 		private readonly _markerService: IMarkerService,
 		contextKeyService: IContextKeyService,
 		private readonly _progressService?: IEditorProgressService
@@ -202,7 +204,7 @@ export class CodeActionModel extends Disposable {
 
 		this._register(this._editor.onDidChangeModel(() => this._update()));
 		this._register(this._editor.onDidChangeModelLanguage(() => this._update()));
-		this._register(CodeActionProviderRegistry.onDidChange(() => this._update()));
+		this._register(this._registry.onDidChange(() => this._update()));
 
 		this._update();
 	}
@@ -228,11 +230,11 @@ export class CodeActionModel extends Disposable {
 
 		const model = this._editor.getModel();
 		if (model
-			&& CodeActionProviderRegistry.has(model)
+			&& this._registry.has(model)
 			&& !this._editor.getOption(EditorOption.readOnly)
 		) {
 			const supportedActions: string[] = [];
-			for (const provider of CodeActionProviderRegistry.all(model)) {
+			for (const provider of this._registry.all(model)) {
 				if (Array.isArray(provider.providedCodeActionKinds)) {
 					supportedActions.push(...provider.providedCodeActionKinds);
 				}
@@ -246,7 +248,7 @@ export class CodeActionModel extends Disposable {
 					return;
 				}
 
-				const actions = createCancelablePromise(token => getCodeActions(model, trigger.selection, trigger.trigger, Progress.None, token));
+				const actions = createCancelablePromise(token => getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token));
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 					this._progressService?.showWhile(actions, 250);
 				}

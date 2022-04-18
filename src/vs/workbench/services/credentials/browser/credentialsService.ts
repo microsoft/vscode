@@ -67,7 +67,7 @@ export class BrowserCredentialsService extends Disposable implements ICredential
 		return this.credentialsProvider.findPassword(service);
 	}
 
-	findCredentials(service: string): Promise<Array<{ account: string, password: string; }>> {
+	findCredentials(service: string): Promise<Array<{ account: string; password: string }>> {
 		return this.credentialsProvider.findCredentials(service);
 	}
 

@@ -4,27 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { EncodedTokenizationResult, ColorId, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
 import { CommentRule } from 'vs/editor/common/languages/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/languages/nullMode';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type } from 'vs/editor/contrib/comment/browser/lineCommentCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CommentMode } from 'vs/editor/test/common/commentMode';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
-function createTestCommandHelper(commentsConfig: CommentRule, commandFactory: (selection: Selection) => ICommand): (lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection) => void {
+function createTestCommandHelper(commentsConfig: CommentRule, commandFactory: (accessor: ServicesAccessor, selection: Selection) => ICommand): (lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection) => void {
 	return (lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection) => {
-		const setup = (accessor: ServicesAccessor, disposables: DisposableStore) => {
-			disposables.add(new CommentMode(commentsConfig));
+		const languageId = 'commentMode';
+		const prepare = (accessor: ServicesAccessor, disposables: DisposableStore) => {
+			const languageConfigurationService = accessor.get(ILanguageConfigurationService);
+			const languageService = accessor.get(ILanguageService);
+			disposables.add(languageService.registerLanguage({ id: languageId }));
+			disposables.add(languageConfigurationService.register(languageId, {
+				comments: commentsConfig
+			}));
 		};
-		testCommand(lines, CommentMode.id, selection, commandFactory, expectedLines, expectedSelection, false, setup);
+		testCommand(lines, languageId, selection, commandFactory, expectedLines, expectedSelection, false, prepare);
 	};
 }
 
@@ -32,12 +36,12 @@ suite('Editor Contrib - Line Comment Command', () => {
 
 	const testLineCommentCommand = createTestCommandHelper(
 		{ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] },
-		(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.Toggle, true, true)
+		(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.Toggle, true, true)
 	);
 
 	const testAddLineCommentCommand = createTestCommandHelper(
 		{ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] },
-		(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.ForceAdd, true, true)
+		(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.ForceAdd, true, true)
 	);
 
 	test('comment single line', function () {
@@ -58,7 +62,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 	test('case insensitive', function () {
 		const testLineCommentCommand = createTestCommandHelper(
 			{ lineComment: 'rem' },
-			(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.Toggle, true, true)
+			(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.Toggle, true, true)
 		);
 
 		testLineCommentCommand(
@@ -641,7 +645,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 	test('insertSpace false', () => {
 		const testLineCommentCommand = createTestCommandHelper(
 			{ lineComment: '!@#' },
-			(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.Toggle, false, true)
+			(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.Toggle, false, true)
 		);
 
 		testLineCommentCommand(
@@ -659,7 +663,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 	test('insertSpace false does not remove space', () => {
 		const testLineCommentCommand = createTestCommandHelper(
 			{ lineComment: '!@#' },
-			(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.Toggle, false, true)
+			(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.Toggle, false, true)
 		);
 
 		testLineCommentCommand(
@@ -678,7 +682,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 
 		const testLineCommentCommand = createTestCommandHelper(
 			{ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] },
-			(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.Toggle, true, false)
+			(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.Toggle, true, false)
 		);
 
 		test('does not ignore whitespace lines', () => {
@@ -770,7 +774,7 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 
 	const testLineCommentCommand = createTestCommandHelper(
 		{ lineComment: '', blockComment: ['(', ')'] },
-		(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.Toggle, true, true)
+		(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.Toggle, true, true)
 	);
 
 	test('fall back to block comment command', function () {
@@ -881,7 +885,7 @@ suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 
 	const testLineCommentCommand = createTestCommandHelper(
 		{ lineComment: null, blockComment: ['<!@#', '#@!>'] },
-		(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.Toggle, true, true)
+		(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.Toggle, true, true)
 	);
 
 	test('no selection => uses indentation', function () {
@@ -1078,13 +1082,16 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 	const OUTER_LANGUAGE_ID = 'outerMode';
 	const INNER_LANGUAGE_ID = 'innerMode';
 
-	class OuterMode extends MockMode {
+	class OuterMode extends Disposable {
+		private readonly languageId = OUTER_LANGUAGE_ID;
 		constructor(
 			commentsConfig: CommentRule,
-			@ILanguageService languageService: ILanguageService
+			@ILanguageService languageService: ILanguageService,
+			@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
 		) {
-			super(OUTER_LANGUAGE_ID);
-			this._register(LanguageConfigurationRegistry.register(this.languageId, {
+			super();
+			this._register(languageService.registerLanguage({ id: this.languageId }));
+			this._register(languageConfigurationService.register(this.languageId, {
 				comments: commentsConfig
 			}));
 
@@ -1109,10 +1116,16 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 		}
 	}
 
-	class InnerMode extends MockMode {
-		constructor(commentsConfig: CommentRule) {
-			super(INNER_LANGUAGE_ID);
-			this._register(LanguageConfigurationRegistry.register(this.languageId, {
+	class InnerMode extends Disposable {
+		private readonly languageId = INNER_LANGUAGE_ID;
+		constructor(
+			commentsConfig: CommentRule,
+			@ILanguageService languageService: ILanguageService,
+			@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
+		) {
+			super();
+			this._register(languageService.registerLanguage({ id: this.languageId }));
+			this._register(languageConfigurationService.register(this.languageId, {
 				comments: commentsConfig
 			}));
 		}
@@ -1130,7 +1143,7 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 			lines,
 			OUTER_LANGUAGE_ID,
 			selection,
-			(sel) => new LineCommentCommand(new TestLanguageConfigurationService(), sel, 4, Type.Toggle, true, true),
+			(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.Toggle, true, true),
 			expectedLines,
 			expectedSelection,
 			true,

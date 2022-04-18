@@ -14,7 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { isWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IJSONEditingService, IJSONValue } from 'vs/workbench/services/configuration/common/jsonEditing';

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { CaseSensitiveCheckbox, RegexCheckbox, WholeWordsCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
+import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from 'vs/base/browser/ui/findinput/findInputToggles';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
@@ -23,9 +23,9 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 	private readonly _keybindingService: IKeybindingService;
 
 	private readonly _domNode: HTMLElement;
-	private readonly regex: RegexCheckbox;
-	private readonly wholeWords: WholeWordsCheckbox;
-	private readonly caseSensitive: CaseSensitiveCheckbox;
+	private readonly regex: RegexToggle;
+	private readonly wholeWords: WholeWordsToggle;
+	private readonly caseSensitive: CaseSensitiveToggle;
 
 	constructor(
 		editor: ICodeEditor,
@@ -50,7 +50,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		const inputActiveOptionForegroundColor = themeService.getColorTheme().getColor(inputActiveOptionForeground);
 		const inputActiveOptionBackgroundColor = themeService.getColorTheme().getColor(inputActiveOptionBackground);
 
-		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
+		this.caseSensitive = this._register(new CaseSensitiveToggle({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
 			isChecked: this._state.matchCase,
 			inputActiveOptionBorder: inputActiveOptionBorderColor,
@@ -64,7 +64,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 			}, false);
 		}));
 
-		this.wholeWords = this._register(new WholeWordsCheckbox({
+		this.wholeWords = this._register(new WholeWordsToggle({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
 			isChecked: this._state.wholeWord,
 			inputActiveOptionBorder: inputActiveOptionBorderColor,
@@ -78,7 +78,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 			}, false);
 		}));
 
-		this.regex = this._register(new RegexCheckbox({
+		this.regex = this._register(new RegexToggle({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
 			isChecked: this._state.isRegex,
 			inputActiveOptionBorder: inputActiveOptionBorderColor,

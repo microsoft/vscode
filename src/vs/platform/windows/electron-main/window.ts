@@ -16,7 +16,7 @@ import { getMarks, mark } from 'vs/base/common/performance';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
@@ -33,10 +33,11 @@ import { IGlobalStorageMainService } from 'vs/platform/storage/electron-main/sto
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
-import { defaultWindowState, ICodeWindow, ILoadEvent, IWindowsMainService, IWindowState, LoadReason, OpenContext, WindowError, WindowMode } from 'vs/platform/windows/electron-main/windows';
-import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -174,7 +175,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
-			const options: BrowserWindowConstructorOptions = {
+			const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 				width: this.windowState.width,
 				height: this.windowState.height,
 				x: this.windowState.x,
@@ -192,6 +193,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					spellcheck: false,
 					nativeWindowOpen: true,
 					zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel),
+					// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
+					// Refs https://github.com/microsoft/vscode/issues/140098
+					enableBlinkFeatures: 'HighlightAPI',
 					...this.environmentMainService.sandbox ?
 
 						// Sandbox
@@ -204,7 +208,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 							nodeIntegration: true,
 							contextIsolation: false
 						}
-				}
+				},
+				experimentalDarkMode: true
 			};
 
 			// Apply icon to window
@@ -363,6 +368,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private readyState = ReadyState.NONE;
 
 	setReady(): void {
+		this.logService.info(`window#load: window reported ready (id: ${this._id})`);
+
 		this.readyState = ReadyState.READY;
 
 		// inform all waiting promises that we are ready now
@@ -493,9 +500,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
-	private async onWindowError(error: WindowError.CRASHED, details: { reason: string, exitCode: number }): Promise<void>;
-	private async onWindowError(error: WindowError.LOAD, details: { reason: string, exitCode: number }): Promise<void>;
-	private async onWindowError(type: WindowError, details?: { reason: string, exitCode: number }): Promise<void> {
+	private async onWindowError(error: WindowError.CRASHED, details: { reason: string; exitCode: number }): Promise<void>;
+	private async onWindowError(error: WindowError.LOAD, details: { reason: string; exitCode: number }): Promise<void>;
+	private async onWindowError(type: WindowError, details?: { reason: string; exitCode: number }): Promise<void> {
 
 		switch (type) {
 			case WindowError.CRASHED:
@@ -511,9 +518,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Telemetry
 		type WindowErrorClassification = {
-			type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-			reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-			code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window crash to understand the nature of the crash better.' };
+			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window crash to understand the nature of the crash better.' };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; omment: 'The exit code of the window process to understand the nature of the crash better' };
+			owner: 'bpasero';
+			comment: 'Provides insight into reasons the vscode window crashes.';
 		};
 		type WindowErrorEvent = {
 			type: WindowError;
@@ -536,7 +545,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 
 				// If we run smoke tests, we never want to show a blocking dialog
-				if (this.environmentMainService.driverHandle) {
+				if (this.environmentMainService.args['enable-smoke-test-driver']) {
 					this.destroyWindow(false);
 					return;
 				}
@@ -692,6 +701,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	load(configuration: INativeWindowConfiguration, options: ILoadOptions = Object.create(null)): void {
+		this.logService.info(`window#load: attempt to load window (id: ${this._id})`);
 
 		// Clear Document Edited if needed
 		if (this.isDocumentEdited()) {

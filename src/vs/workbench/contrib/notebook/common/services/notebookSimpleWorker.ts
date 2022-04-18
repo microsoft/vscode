@@ -122,7 +122,7 @@ class MirrorNotebookDocument {
 			} else if (e.kind === NotebookCellsChangeType.Output) {
 				const cell = this.cells[e.index];
 				cell.outputs = e.outputs;
-			} else if (e.kind === NotebookCellsChangeType.ChangeLanguage) {
+			} else if (e.kind === NotebookCellsChangeType.ChangeCellLanguage) {
 				const cell = this.cells[e.index];
 				cell.language = e.language;
 			} else if (e.kind === NotebookCellsChangeType.ChangeCellMetadata) {
@@ -178,7 +178,7 @@ export class CellSequence implements ISequence {
 export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable {
 	_requestHandlerBrand: any;
 
-	private _models: { [uri: string]: MirrorNotebookDocument; };
+	private _models: { [uri: string]: MirrorNotebookDocument };
 
 	constructor() {
 		this._models = Object.create(null);

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind, IStatusMessageChangeEvent, StatusMessageChangeType } from 'vs/workbench/common/notifications';
 import { Action } from 'vs/base/common/actions';
 import { INotification, Severity, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { createErrorWithActions } from 'vs/base/common/errors';
+import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { timeout } from 'vs/base/common/async';
@@ -127,7 +127,7 @@ suite('Notifications', () => {
 		assert.strictEqual(called, 1);
 
 		// Error with Action
-		let item7 = NotificationViewItem.create({ severity: Severity.Error, message: createErrorWithActions('Hello Error', { actions: [new Action('id', 'label')] }) })!;
+		let item7 = NotificationViewItem.create({ severity: Severity.Error, message: createErrorWithActions('Hello Error', [new Action('id', 'label')]) })!;
 		assert.strictEqual(item7.actions!.primary!.length, 1);
 
 		// Filter

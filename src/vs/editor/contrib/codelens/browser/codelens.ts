@@ -9,9 +9,11 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeLens, CodeLensList, CodeLensProvider, CodeLensProviderRegistry } from 'vs/editor/common/languages';
+import { CodeLens, CodeLensList, CodeLensProvider } from 'vs/editor/common/languages';
 import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export interface CodeLensItem {
 	symbol: CodeLens;
@@ -40,9 +42,9 @@ export class CodeLensModel {
 	}
 }
 
-export async function getCodeLensModel(model: ITextModel, token: CancellationToken): Promise<CodeLensModel> {
+export async function getCodeLensModel(registry: LanguageFeatureRegistry<CodeLensProvider>, model: ITextModel, token: CancellationToken): Promise<CodeLensModel> {
 
-	const provider = CodeLensProviderRegistry.ordered(model);
+	const provider = registry.ordered(model);
 	const providerRanks = new Map<CodeLensProvider, number>();
 	const result = new CodeLensModel();
 
@@ -88,6 +90,8 @@ CommandsRegistry.registerCommand('_executeCodeLensProvider', function (accessor,
 	assertType(URI.isUri(uri));
 	assertType(typeof itemResolveCount === 'number' || !itemResolveCount);
 
+	const { codeLensProvider } = accessor.get(ILanguageFeaturesService);
+
 	const model = accessor.get(IModelService).getModel(uri);
 	if (!model) {
 		throw illegalArgument();
@@ -95,7 +99,7 @@ CommandsRegistry.registerCommand('_executeCodeLensProvider', function (accessor,
 
 	const result: CodeLens[] = [];
 	const disposables = new DisposableStore();
-	return getCodeLensModel(model, CancellationToken.None).then(value => {
+	return getCodeLensModel(codeLensProvider, model, CancellationToken.None).then(value => {
 
 		disposables.add(value);
 		let resolve: Promise<any>[] = [];

@@ -17,8 +17,8 @@ import { EditorType } from 'vs/editor/common/editorCommon';
 import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState, nullTokenize } from 'vs/editor/common/languages/nullMode';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { NullState, nullTokenize } from 'vs/editor/common/languages/nullTokenize';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { createWebWorker as actualCreateWebWorker, IWebWorkerOptions, MonacoWebWorker } from 'vs/editor/browser/services/webWorker';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
@@ -112,7 +112,7 @@ export function setModelMarkers(model: ITextModel, owner: string, markers: IMark
  *
  * @returns list of markers
  */
-export function getModelMarkers(filter: { owner?: string, resource?: URI, take?: number }): IMarker[] {
+export function getModelMarkers(filter: { owner?: string; resource?: URI; take?: number }): IMarker[] {
 	const markerService = StandaloneServices.get(IMarkerService);
 	return markerService.read(filter);
 }
@@ -164,7 +164,7 @@ export function onWillDisposeModel(listener: (model: ITextModel) => void): IDisp
  * Emitted when a different language is set to a model.
  * @event
  */
-export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextModel; readonly oldLanguage: string; }) => void): IDisposable {
+export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextModel; readonly oldLanguage: string }) => void): IDisposable {
 	const modelService = StandaloneServices.get(IModelService);
 	return modelService.onModelLanguageChanged((e) => {
 		listener({
@@ -178,7 +178,7 @@ export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextMo
  * Create a new web worker that has model syncing capabilities built in.
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
-export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T> {
+export function createWebWorker<T extends object>(opts: IWebWorkerOptions): MonacoWebWorker<T> {
 	return actualCreateWebWorker<T>(StandaloneServices.get(IModelService), StandaloneServices.get(ILanguageConfigurationService), opts);
 }
 

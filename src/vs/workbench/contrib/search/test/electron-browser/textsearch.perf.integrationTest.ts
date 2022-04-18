@@ -33,7 +33,7 @@ import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import 'vs/workbench/contrib/search/browser/search.contribution'; // load contributions
-import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -42,6 +42,8 @@ import { TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/br
 import { TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { staticObservableValue } from 'vs/base/common/observableValue';
 
 // declare var __dirname: string;
 
@@ -89,7 +91,8 @@ suite.skip('TextSearch performance (integration)', () => {
 						undoRedoService,
 						new LanguageService(),
 						new TestLanguageConfigurationService(),
-						new LanguageFeatureDebounceService(logService)
+						new LanguageFeatureDebounceService(logService),
+						new LanguageFeaturesService()
 					),
 				],
 				[
@@ -180,7 +183,7 @@ suite.skip('TextSearch performance (integration)', () => {
 
 class TestTelemetryService implements ITelemetryService {
 	public _serviceBrand: undefined;
-	public telemetryLevel = TelemetryLevel.USAGE;
+	public telemetryLevel = staticObservableValue(TelemetryLevel.USAGE);
 	public sendErrorTelemetry = true;
 
 	public events: any[] = [];

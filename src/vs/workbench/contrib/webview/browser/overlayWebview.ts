@@ -21,7 +21,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
 	public readonly onDidWheel = this._onDidWheel.event;
 
-	private readonly _pendingMessages = new Set<{ readonly message: any, readonly transfer?: readonly ArrayBuffer[] }>();
+	private _isFirstLoad = true;
+	private readonly _firstLoadPendingMessages = new Set<{ readonly message: any; readonly transfer?: readonly ArrayBuffer[]; readonly resolve: (value: boolean) => void }>();
 	private readonly _webview = this._register(new MutableDisposable<IWebviewElement>());
 	private readonly _webviewEvents = this._register(new DisposableStore());
 
@@ -69,6 +70,11 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 		this._container?.remove();
 		this._container = undefined;
+
+		for (const msg of this._firstLoadPendingMessages) {
+			msg.resolve(false);
+		}
+		this._firstLoadPendingMessages.clear();
 
 		this._onDidDispose.fire();
 
@@ -210,8 +216,13 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 				this._onDidUpdateState.fire(state);
 			}));
 
-			this._pendingMessages.forEach(msg => webview.postMessage(msg.message, msg.transfer));
-			this._pendingMessages.clear();
+			if (this._isFirstLoad) {
+				this._firstLoadPendingMessages.forEach(async msg => {
+					msg.resolve(await webview.postMessage(msg.message, msg.transfer));
+				});
+			}
+			this._isFirstLoad = false;
+			this._firstLoadPendingMessages.clear();
 		}
 
 		this.container.style.visibility = 'visible';
@@ -266,8 +277,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private readonly _onDidReload = this._register(new Emitter<void>());
 	public readonly onDidReload = this._onDidReload.event;
 
-	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number; }>());
-	public readonly onDidScroll: Event<{ scrollYPercentage: number; }> = this._onDidScroll.event;
+	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number }>());
+	public readonly onDidScroll: Event<{ scrollYPercentage: number }> = this._onDidScroll.event;
 
 	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
 	public readonly onDidUpdateState: Event<string | undefined> = this._onDidUpdateState.event;
@@ -278,12 +289,19 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
 	public readonly onMissingCsp: Event<any> = this._onMissingCsp.event;
 
-	public postMessage(message: any, transfer?: readonly ArrayBuffer[]): void {
+	public async postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean> {
 		if (this._webview.value) {
-			this._webview.value.postMessage(message, transfer);
-		} else {
-			this._pendingMessages.add({ message, transfer });
+			return this._webview.value.postMessage(message, transfer);
 		}
+
+		if (this._isFirstLoad) {
+			let resolve: (x: boolean) => void;
+			const p = new Promise<boolean>(r => resolve = r);
+			this._firstLoadPendingMessages.add({ message, transfer, resolve: resolve! });
+			return p;
+		}
+
+		return false;
 	}
 
 	focus(): void { this._webview.value?.focus(); }

@@ -17,7 +17,7 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import 'vs/css!./paneview';
 import { localize } from 'vs/nls';
-import { IView, SplitView } from './splitview';
+import { IView, Sizing, SplitView } from './splitview';
 
 export interface IPaneOptions {
 	minimumBodySize?: number;
@@ -221,18 +221,15 @@ export abstract class Pane extends Disposable implements IView {
 
 		this.updateHeader();
 
+		const eventDisposables = this._register(new DisposableStore());
 		const onKeyDown = this._register(new DomEmitter(this.header, 'keydown'));
-		const onHeaderKeyDown = Event.chain(onKeyDown.event)
-			.map(e => new StandardKeyboardEvent(e));
+		const onHeaderKeyDown = Event.map(onKeyDown.event, e => new StandardKeyboardEvent(e), eventDisposables);
 
-		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
-			.event(() => this.setExpanded(!this.isExpanded()), null));
+		this._register(Event.filter(onHeaderKeyDown, e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space, eventDisposables)(() => this.setExpanded(!this.isExpanded()), null));
 
-		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow)
-			.event(() => this.setExpanded(false), null));
+		this._register(Event.filter(onHeaderKeyDown, e => e.keyCode === KeyCode.LeftArrow, eventDisposables)(() => this.setExpanded(false), null));
 
-		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.RightArrow)
-			.event(() => this.setExpanded(true), null));
+		this._register(Event.filter(onHeaderKeyDown, e => e.keyCode === KeyCode.RightArrow, eventDisposables)(() => this.setExpanded(true), null));
 
 		this._register(Gesture.addTarget(this.header));
 
@@ -305,7 +302,7 @@ class PaneDraggable extends Disposable {
 
 	private dragOverCounter = 0; // see https://github.com/microsoft/vscode/issues/14470
 
-	private _onDidDrop = this._register(new Emitter<{ from: Pane, to: Pane }>());
+	private _onDidDrop = this._register(new Emitter<{ from: Pane; to: Pane }>());
 	readonly onDidDrop = this._onDidDrop.event;
 
 	constructor(private pane: Pane, private dnd: IPaneDndController, private context: IDndContext) {
@@ -444,8 +441,8 @@ export class PaneView extends Disposable {
 	private splitview: SplitView;
 	private animationTimer: number | undefined = undefined;
 
-	private _onDidDrop = this._register(new Emitter<{ from: Pane, to: Pane }>());
-	readonly onDidDrop: Event<{ from: Pane, to: Pane }> = this._onDidDrop.event;
+	private _onDidDrop = this._register(new Emitter<{ from: Pane; to: Pane }>());
+	readonly onDidDrop: Event<{ from: Pane; to: Pane }> = this._onDidDrop.event;
 
 	orientation: Orientation;
 	readonly onDidSashChange: Event<number>;
@@ -463,16 +460,12 @@ export class PaneView extends Disposable {
 		this.onDidSashChange = this.splitview.onDidSashChange;
 		this.onDidScroll = this.splitview.onDidScroll;
 
+		const eventDisposables = this._register(new DisposableStore());
 		const onKeyDown = this._register(new DomEmitter(this.element, 'keydown'));
-		const onHeaderKeyDown = Event.chain(onKeyDown.event)
-			.filter(e => e.target instanceof HTMLElement && e.target.classList.contains('pane-header'))
-			.map(e => new StandardKeyboardEvent(e));
+		const onHeaderKeyDown = Event.map(Event.filter(onKeyDown.event, e => e.target instanceof HTMLElement && e.target.classList.contains('pane-header'), eventDisposables), e => new StandardKeyboardEvent(e), eventDisposables);
 
-		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.UpArrow)
-			.event(() => this.focusPrevious()));
-
-		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.DownArrow)
-			.event(() => this.focusNext()));
+		this._register(Event.filter(onHeaderKeyDown, e => e.keyCode === KeyCode.UpArrow, eventDisposables)(() => this.focusPrevious()));
+		this._register(Event.filter(onHeaderKeyDown, e => e.keyCode === KeyCode.DownArrow, eventDisposables)(() => this.focusNext()));
 	}
 
 	addPane(pane: Pane, size: number, index = this.splitview.length): void {
@@ -499,7 +492,7 @@ export class PaneView extends Disposable {
 			return;
 		}
 
-		this.splitview.removeView(index);
+		this.splitview.removeView(index, pane.isExpanded() ? Sizing.Distribute : undefined);
 		const paneItem = this.paneItems.splice(index, 1)[0];
 		paneItem.disposable.dispose();
 	}

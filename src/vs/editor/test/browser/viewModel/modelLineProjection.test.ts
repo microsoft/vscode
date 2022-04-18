@@ -10,16 +10,16 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import * as modes from 'vs/editor/common/languages';
-import { NullState } from 'vs/editor/common/languages/nullMode';
+import * as languages from 'vs/editor/common/languages';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 import { ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
-import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import { ViewLineData } from 'vs/editor/common/viewModel';
 import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ISimpleModel, IModelLineProjection, createModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
-import { ModelLineProjectionData } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
@@ -332,27 +332,27 @@ suite('SplitLinesCollection', () => {
 
 	setup(() => {
 		let _lineIndex = 0;
-		const tokenizationSupport: modes.ITokenizationSupport = {
+		const tokenizationSupport: languages.ITokenizationSupport = {
 			getInitialState: () => NullState,
 			tokenize: undefined!,
-			tokenizeEncoded: (line: string, hasEOL: boolean, state: modes.IState): modes.EncodedTokenizationResult => {
+			tokenizeEncoded: (line: string, hasEOL: boolean, state: languages.IState): languages.EncodedTokenizationResult => {
 				let tokens = _tokens[_lineIndex++];
 
 				let result = new Uint32Array(2 * tokens.length);
 				for (let i = 0; i < tokens.length; i++) {
 					result[2 * i] = tokens[i].startIndex;
 					result[2 * i + 1] = (
-						tokens[i].value << modes.MetadataConsts.FOREGROUND_OFFSET
+						tokens[i].value << languages.MetadataConsts.FOREGROUND_OFFSET
 					);
 				}
-				return new modes.EncodedTokenizationResult(result, state);
+				return new languages.EncodedTokenizationResult(result, state);
 			}
 		};
 		const LANGUAGE_ID = 'modelModeTest1';
-		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
+		languageRegistration = languages.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
 		model = createTextModel(_text.join('\n'), LANGUAGE_ID);
 		// force tokenization
-		model.forceTokenization(model.getLineCount());
+		model.tokenization.forceTokenization(model.getLineCount());
 	});
 
 	teardown(() => {
@@ -988,8 +988,10 @@ function createLineBreakData(breakingLengths: number[], breakingOffsetsVisibleCo
 
 function createModel(text: string): ISimpleModel {
 	return {
-		getLineTokens: (lineNumber: number) => {
-			return null!;
+		tokenization: {
+			getLineTokens: (lineNumber: number) => {
+				return null!;
+			},
 		},
 		getLineContent: (lineNumber: number) => {
 			return text;

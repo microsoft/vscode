@@ -38,8 +38,9 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, IWorkingCopyBackup, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopySaveEvent, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 const enum CustomEditorModelType {
 	Custom,
@@ -55,7 +56,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 	private readonly _editorRenameBackups = new Map<string, CustomDocumentBackupData>();
 
 	constructor(
-		context: extHostProtocol.IExtHostContext,
+		context: IExtHostContext,
 		private readonly mainThreadWebview: MainThreadWebviews,
 		private readonly mainThreadWebviewPanels: MainThreadWebviewPanels,
 		@IExtensionService extensionService: IExtensionService,
@@ -225,7 +226,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		modelType: CustomEditorModelType,
 		resource: URI,
 		viewType: string,
-		options: { backupId?: string; },
+		options: { backupId?: string },
 		cancellation: CancellationToken,
 	): Promise<IReference<ICustomEditorModel>> {
 		const existingModel = this._customEditorService.models.tryRetain(resource, viewType);
@@ -347,7 +348,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		proxy: extHostProtocol.ExtHostCustomEditorsShape,
 		viewType: string,
 		resource: URI,
-		options: { backupId?: string; },
+		options: { backupId?: string },
 		getEditors: () => CustomEditorInput[],
 		cancellation: CancellationToken,
 	): Promise<MainThreadCustomEditorModel> {
@@ -446,6 +447,9 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
+	private readonly _onDidSave: Emitter<IWorkingCopySaveEvent> = this._register(new Emitter<IWorkingCopySaveEvent>());
+	readonly onDidSave: Event<IWorkingCopySaveEvent> = this._onDidSave.event;
+
 	readonly onDidChangeReadonly = Event.None;
 
 	//#endregion
@@ -476,6 +480,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			type: UndoRedoElementType.Resource,
 			resource: this._editorResource,
 			label: label ?? localize('defaultEditLabel', "Edit"),
+			code: 'undoredo.customEditorEdit',
 			undo: () => this.undo(),
 			redo: () => this.redo(),
 		});
@@ -566,7 +571,14 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	}
 
 	public async save(options?: ISaveOptions): Promise<boolean> {
-		return !!await this.saveCustomEditor(options);
+		const result = !!await this.saveCustomEditor(options);
+
+		// Emit Save Event
+		if (result) {
+			this._onDidSave.fire({ reason: options?.reason, source: options?.source });
+		}
+
+		return result;
 	}
 
 	public async saveCustomEditor(options?: ISaveOptions): Promise<URI | undefined> {

@@ -220,6 +220,7 @@ class CodeMain {
 				environmentMainService.logsPath,
 				environmentMainService.globalStorageHome.fsPath,
 				environmentMainService.workspaceStorageHome.fsPath,
+				environmentMainService.localHistoryHome.fsPath,
 				environmentMainService.backupHome
 			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
 

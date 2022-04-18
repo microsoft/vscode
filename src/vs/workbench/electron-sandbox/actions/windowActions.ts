@@ -6,12 +6,12 @@
 import 'vs/css!./media/actions';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
+import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IQuickInputService, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -19,7 +19,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { Codicon } from 'vs/base/common/codicons';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -95,7 +95,7 @@ export class ZoomInAction extends BaseZoomAction {
 				mnemonicTitle: localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In"),
 				original: 'Zoom In'
 			},
-			category: CATEGORIES.View.value,
+			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -125,7 +125,7 @@ export class ZoomOutAction extends BaseZoomAction {
 				mnemonicTitle: localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "&&Zoom Out"),
 				original: 'Zoom Out'
 			},
-			category: CATEGORIES.View.value,
+			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -159,7 +159,7 @@ export class ZoomResetAction extends BaseZoomAction {
 				mnemonicTitle: localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom"),
 				original: 'Reset Zoom'
 			},
-			category: CATEGORIES.View.value,
+			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -227,6 +227,7 @@ abstract class BaseSwitchWindow extends Action2 {
 			activeItem: picks[autoFocusIndex],
 			placeHolder,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingService.lookupKeybindings(this.desc.id) } : undefined,
+			hideInput: this.isQuickNavigate(),
 			onDidTriggerItemButton: async context => {
 				await nativeHostService.closeWindowById(context.item.payload);
 				context.removeItem();

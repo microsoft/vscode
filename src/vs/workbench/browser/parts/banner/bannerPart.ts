@@ -43,7 +43,8 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`
 			.monaco-workbench .part.banner,
 			.monaco-workbench .part.banner .action-container .codicon,
-			.monaco-workbench .part.banner .message-actions-container .monaco-link
+			.monaco-workbench .part.banner .message-actions-container .monaco-link,
+			.monaco-workbench .part.banner .message-container a
 			{ color: ${foregroundColor}; }
 		`);
 	}
@@ -75,7 +76,7 @@ export class BannerPart extends Part implements IBannerService {
 		return this.visible ? this.height : 0;
 	}
 
-	private _onDidChangeSize = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+	private _onDidChangeSize = this._register(new Emitter<{ width: number; height: number } | undefined>());
 	override get onDidChange() { return this._onDidChangeSize.event; }
 
 	//#endregion
@@ -240,9 +241,8 @@ export class BannerPart extends Part implements IBannerService {
 		messageContainer.appendChild(this.getBannerMessage(item.message));
 
 		// Message Actions
+		this.messageActionsContainer = append(this.element, $('div.message-actions-container'));
 		if (item.actions) {
-			this.messageActionsContainer = append(this.element, $('div.message-actions-container'));
-
 			for (const action of item.actions) {
 				this._register(this.instantiationService.createInstance(Link, this.messageActionsContainer, { ...action, tabIndex: -1 }, {}));
 			}

@@ -3,23 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbench, ICommand, ICommonTelemetryPropertiesResolver, IDefaultEditor, IDefaultLayout, IDefaultView, IDevelopmentOptions, IExternalUriResolver, IExternalURLOpener, IHomeIndicator, IInitialColorTheme, IPosition, IProductQualityChangeHandler, IRange, IResourceUriProvider, ISettingsSyncOptions, IShowPortCandidate, ITunnel, ITunnelFactory, ITunnelOptions, ITunnelProvider, IWelcomeBanner, IWelcomeBannerAction, IWindowIndicator, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
+import { IWorkbench, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
 import { BrowserMain } from 'vs/workbench/browser/web.main';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
-import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
-import { LogLevel } from 'vs/platform/log/common/log';
-import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
+import { URI } from 'vs/base/common/uri';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IProductConfiguration } from 'vs/base/common/product';
 import { mark, PerformanceMark } from 'vs/base/common/performance';
-import { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
 import { asArray } from 'vs/base/common/arrays';
+import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
+import { IObservableValue } from 'vs/base/common/observableValue';
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 
 let created = false;
 const workbenchPromise = new DeferredPromise<IWorkbench>();
@@ -30,7 +25,7 @@ const workbenchPromise = new DeferredPromise<IWorkbench>();
  * @param domElement the container to create the workbench in
  * @param options for setting up the workbench
  */
-function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable {
+export function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): IDisposable {
 
 	// Mark start of workbench
 	mark('code/didLoadWorkbenchMain');
@@ -87,7 +82,7 @@ function asMenuId(menu: Menu): MenuId {
 	}
 }
 
-namespace commands {
+export namespace commands {
 
 	/**
 	 * {@linkcode IWorkbench.commands IWorkbench.commands.executeCommand}
@@ -99,7 +94,7 @@ namespace commands {
 	}
 }
 
-namespace env {
+export namespace env {
 
 	/**
 	 * {@linkcode IWorkbench.env IWorkbench.env.retrievePerformanceMarks}
@@ -116,7 +111,7 @@ namespace env {
 	export async function getUriScheme(): Promise<string> {
 		const workbench = await workbenchPromise.p;
 
-		return workbench.env.uriScheme;
+		return workbench.env.getUriScheme();
 	}
 
 	/**
@@ -127,101 +122,22 @@ namespace env {
 
 		return workbench.env.openUri(target);
 	}
+
+	export const telemetryLevel: Promise<IObservableValue<TelemetryLevel>> =
+		workbenchPromise.p.then(workbench => workbench.env.telemetryLevel);
 }
 
+export namespace window {
 
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-//
-// Do NOT change these exports in a way that something is removed unless
-// intentional. These exports are used by web embedders and thus require
-// an adoption when something changes.
-//
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	/**
+	 * {@linkcode IWorkbench.window IWorkbench.window.withProgress}
+	 */
+	export async function withProgress<R>(
+		options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
+		task: (progress: IProgress<IProgressStep>) => Promise<R>
+	): Promise<R> {
+		const workbench = await workbenchPromise.p;
 
-export {
-
-	// Factory
-	create,
-	IWorkbenchConstructionOptions,
-	IWorkbench,
-
-	// Basic Types
-	URI,
-	UriComponents,
-	Event,
-	Emitter,
-	IDisposable,
-	Disposable,
-
-	// Workspace
-	IWorkspace,
-	IWorkspaceProvider,
-
-	// WebSockets
-	IWebSocketFactory,
-	IWebSocket,
-
-	// Resources
-	IResourceUriProvider,
-
-	// Credentials
-	ICredentialsProvider,
-
-	// Callbacks
-	IURLCallbackProvider,
-
-	// LogLevel
-	LogLevel,
-
-	// SettingsSync
-	ISettingsSyncOptions,
-
-	// Updates/Quality
-	IUpdateProvider,
-	IUpdate,
-	IProductQualityChangeHandler,
-
-	// Telemetry
-	ICommonTelemetryPropertiesResolver,
-
-	// External Uris
-	IExternalUriResolver,
-
-	// External URL Opener
-	IExternalURLOpener,
-
-	// Tunnel
-	ITunnelProvider,
-	ITunnelFactory,
-	ITunnel,
-	ITunnelOptions,
-
-	// Ports
-	IShowPortCandidate,
-
-	// Commands
-	ICommand,
-	commands,
-	Menu,
-
-	// Branding
-	IHomeIndicator,
-	IWelcomeBanner,
-	IWelcomeBannerAction,
-	IProductConfiguration,
-	IWindowIndicator,
-	IInitialColorTheme,
-
-	// Default layout
-	IDefaultView,
-	IDefaultEditor,
-	IDefaultLayout,
-	IPosition,
-	IRange as ISelection,
-
-	// Env
-	env,
-
-	// Development
-	IDevelopmentOptions
-};
+		return workbench.window.withProgress(options, task);
+	}
+}

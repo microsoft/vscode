@@ -80,7 +80,7 @@ export const enum WebviewContentPurpose {
 	WebviewView = 'webviewView',
 }
 
-export type WebviewStyles = { readonly [key: string]: string | number; };
+export type WebviewStyles = { readonly [key: string]: string | number };
 
 export interface WebviewOptions {
 	/**
@@ -183,7 +183,7 @@ export interface IWebview extends IDisposable {
 	readonly onMessage: Event<WebviewMessageReceivedEvent>;
 	readonly onMissingCsp: Event<ExtensionIdentifier>;
 
-	postMessage(message: any, transfer?: readonly ArrayBuffer[]): void;
+	postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean>;
 
 	focus(): void;
 	reload(): void;

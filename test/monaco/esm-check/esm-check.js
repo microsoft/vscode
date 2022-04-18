@@ -52,7 +52,7 @@ async function run() {
 		console.error(`[esm-check] Response status ${response.status()} is not 200 .`);
 		process.exit(1);
 	}
-	console.log(`[esm-check] All appears good.`)
+	console.log(`[esm-check] All appears good.`);
 
 	await page.close();
 	await browser.close();

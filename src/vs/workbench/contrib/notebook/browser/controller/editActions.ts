@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { MenuId, MenuItemAction, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -147,10 +147,6 @@ registerAction2(class DeleteCellAction extends NotebookCellAction {
 			{
 				id: DELETE_CELL_COMMAND_ID,
 				title: localize('notebookActions.deleteCell', "Delete Cell"),
-				menu: {
-					id: MenuId.NotebookCellTitle,
-					when: NOTEBOOK_EDITOR_EDITABLE
-				},
 				keybinding: {
 					primary: KeyCode.Delete,
 					mac: {
@@ -212,7 +208,7 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 			return;
 		}
 
-		editor.textModel.applyEdits([{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined);
+		editor.textModel.applyEdits([{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined, true);
 
 		const runState = notebookExecutionStateService.getCellExecution(context.cell.uri)?.state;
 		if (runState !== NotebookCellExecutionState.Executing) {
@@ -224,7 +220,7 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 					executionOrder: null,
 					lastRunSuccess: null
 				}
-			}], true, undefined, () => undefined, undefined);
+			}], true, undefined, () => undefined, undefined, true);
 		}
 	}
 });
@@ -270,7 +266,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 		editor.textModel.applyEdits(
 			editor.textModel.cells.map((cell, index) => ({
 				editType: CellEditType.Output, index, outputs: []
-			})), true, undefined, () => undefined, undefined);
+			})), true, undefined, () => undefined, undefined, true);
 
 		const clearExecutionMetadataEdits = editor.textModel.cells.map((cell, index) => {
 			const runState = notebookExecutionStateService.getCellExecution(cell.uri)?.state;
@@ -289,7 +285,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 			}
 		}).filter(edit => !!edit) as ICellEditOperation[];
 		if (clearExecutionMetadataEdits.length) {
-			context.notebookEditor.textModel.applyEdits(clearExecutionMetadataEdits, true, undefined, () => undefined, undefined);
+			context.notebookEditor.textModel.applyEdits(clearExecutionMetadataEdits, true, undefined, () => undefined, undefined, true);
 		}
 	}
 });
@@ -455,7 +451,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 			const index = context.notebookEditor.textModel.cells.indexOf(context.cell.model);
 			context.notebookEditor.textModel.applyEdits(
 				[{ editType: CellEditType.CellLanguage, index, language: languageId }],
-				true, undefined, () => undefined, undefined
+				true, undefined, () => undefined, undefined, true
 			);
 		}
 	}

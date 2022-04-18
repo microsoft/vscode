@@ -12,7 +12,7 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
 	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation, IExtensionTipsService, IGalleryMetadata, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, ExtensionInstallLocation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
@@ -2368,6 +2368,10 @@ function aSingleRemoteExtensionManagementServerService(instantiationService: Tes
 				return remoteExtensionManagementServer;
 			}
 			return null;
+		},
+		getExtensionInstallLocation(extension: IExtension): ExtensionInstallLocation | null {
+			const server = this.getExtensionManagementServer(extension);
+			return server === remoteExtensionManagementServer ? ExtensionInstallLocation.Remote : ExtensionInstallLocation.Local;
 		}
 	};
 }
@@ -2396,6 +2400,10 @@ function aMultiExtensionManagementServerService(instantiationService: TestInstan
 				return remoteExtensionManagementServer;
 			}
 			throw new Error('');
+		},
+		getExtensionInstallLocation(extension: IExtension): ExtensionInstallLocation | null {
+			const server = this.getExtensionManagementServer(extension);
+			return server === remoteExtensionManagementServer ? ExtensionInstallLocation.Remote : ExtensionInstallLocation.Local;
 		}
 	};
 }

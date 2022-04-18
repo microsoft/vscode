@@ -12,12 +12,11 @@ import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parsePtyHostPort } from 'vs/platform/environment/common/environmentService';
-import { getResolvedShellEnv } from 'vs/platform/environment/node/shellEnv';
+import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { ILogService } from 'vs/platform/log/common/log';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IPtyService, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, TerminalIcon, TerminalIpcChannels, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, TerminalSettingId, ISerializedTerminalState } from 'vs/platform/terminal/common/terminal';
+import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IPtyService, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, TerminalIcon, TerminalIpcChannels, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, TerminalSettingId, ISerializedTerminalState, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
@@ -44,7 +43,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	private _proxy: IPtyService;
 
 	private readonly _shellEnv: Promise<typeof process.env>;
-	private readonly _resolveVariablesRequestStore: RequestStore<string[], { workspaceId: string, originalText: string[] }>;
+	private readonly _resolveVariablesRequestStore: RequestStore<string[], { workspaceId: string; originalText: string[] }>;
 	private _restartCount = 0;
 	private _isResponsive = true;
 	private _isDisposed = false;
@@ -62,19 +61,19 @@ export class PtyHostService extends Disposable implements IPtyService {
 	private readonly _onPtyHostRequestResolveVariables = this._register(new Emitter<IRequestResolveVariablesEvent>());
 	readonly onPtyHostRequestResolveVariables = this._onPtyHostRequestResolveVariables.event;
 
-	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
+	private readonly _onProcessData = this._register(new Emitter<{ id: number; event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessReady = this._register(new Emitter<{ id: number, event: { pid: number, cwd: string } }>());
+	private readonly _onProcessReady = this._register(new Emitter<{ id: number; event: { pid: number; cwd: string } }>());
 	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onProcessReplay = this._register(new Emitter<{ id: number, event: IPtyHostProcessReplayEvent }>());
+	private readonly _onProcessReplay = this._register(new Emitter<{ id: number; event: IPtyHostProcessReplayEvent }>());
 	readonly onProcessReplay = this._onProcessReplay.event;
 	private readonly _onProcessOrphanQuestion = this._register(new Emitter<{ id: number }>());
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
-	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
+	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number; workspaceId: string; instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<{ id: number, property: IProcessProperty<any> }>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<{ id: number; property: IProcessProperty<any> }>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
-	private readonly _onProcessExit = this._register(new Emitter<{ id: number, event: number | undefined }>());
+	private readonly _onProcessExit = this._register(new Emitter<{ id: number; event: number | undefined }>());
 	readonly onProcessExit = this._onProcessExit.event;
 
 	constructor(
@@ -82,7 +81,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -166,10 +164,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 		// Handle exit
 		this._register(client.onDidProcessExit(e => {
-			/* __GDPR__
-				"ptyHost/exit" : {}
-			*/
-			this._telemetryService.publicLog('ptyHost/exit');
 			this._onPtyHostExit.fire(e.code);
 			if (!this._isDisposed) {
 				if (this._restartCount <= Constants.MaxRestarts) {
@@ -207,9 +201,21 @@ export class PtyHostService extends Disposable implements IPtyService {
 		super.dispose();
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, unicodeVersion: '6' | '11', env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean, workspaceId: string, workspaceName: string): Promise<number> {
+	async createProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		cwd: string,
+		cols: number,
+		rows: number,
+		unicodeVersion: '6' | '11',
+		env: IProcessEnvironment,
+		executableEnv: IProcessEnvironment,
+		options: ITerminalProcessOptions,
+		shouldPersist: boolean,
+		workspaceId: string,
+		workspaceName: string
+	): Promise<number> {
 		const timeout = setTimeout(() => this._handleUnresponsiveCreateProcess(), HeartbeatConstants.CreateProcessTimeout);
-		const id = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, windowsEnableConpty, shouldPersist, workspaceId, workspaceName);
+		const id = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, options, shouldPersist, workspaceId, workspaceName);
 		clearTimeout(timeout);
 		lastPtyId = Math.max(lastPtyId, id);
 		return id;
@@ -322,10 +328,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	async restartPtyHost(): Promise<void> {
-		/* __GDPR__
-			"ptyHost/restart" : {}
-		*/
-		this._telemetryService.publicLog('ptyHost/restart');
 		this._isResponsive = true;
 		this._disposePtyHost();
 		[this._client, this._proxy] = this._startPtyHost();
@@ -340,13 +342,9 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._clearHeartbeatTimeouts();
 		this._heartbeatFirstTimeout = setTimeout(() => this._handleHeartbeatFirstTimeout(), HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier);
 		if (!this._isResponsive) {
-			/* __GDPR__
-				"ptyHost/responsive" : {}
-			*/
-			this._telemetryService.publicLog('ptyHost/responsive');
 			this._isResponsive = true;
+			this._onPtyHostResponsive.fire();
 		}
-		this._onPtyHostResponsive.fire();
 	}
 
 	private _handleHeartbeatFirstTimeout() {
@@ -359,23 +357,18 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._logService.error(`No ptyHost heartbeat after ${(HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier + HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier) / 1000} seconds`);
 		this._heartbeatSecondTimeout = undefined;
 		if (this._isResponsive) {
-			/* __GDPR__
-				"ptyHost/responsive" : {}
-			*/
-			this._telemetryService.publicLog('ptyHost/unresponsive');
 			this._isResponsive = false;
+			this._onPtyHostUnresponsive.fire();
 		}
-		this._onPtyHostUnresponsive.fire();
 	}
 
 	private _handleUnresponsiveCreateProcess() {
 		this._clearHeartbeatTimeouts();
 		this._logService.error(`No ptyHost response to createProcess after ${HeartbeatConstants.CreateProcessTimeout / 1000} seconds`);
-		/* __GDPR__
-			"ptyHost/responsive" : {}
-		*/
-		this._telemetryService.publicLog('ptyHost/responsive');
-		this._onPtyHostUnresponsive.fire();
+		if (this._isResponsive) {
+			this._isResponsive = false;
+			this._onPtyHostUnresponsive.fire();
+		}
 	}
 
 	private _clearHeartbeatTimeouts() {

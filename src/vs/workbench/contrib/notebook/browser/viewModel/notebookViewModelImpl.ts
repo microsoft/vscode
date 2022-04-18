@@ -170,7 +170,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	private _decorationsTree = new DecorationsTree();
-	private _decorations: { [decorationId: string]: IntervalNode; } = Object.create(null);
+	private _decorations: { [decorationId: string]: IntervalNode } = Object.create(null);
 	private _lastDecorationId: number = 0;
 	private readonly _instanceId: string;
 	public readonly id: string;
@@ -562,6 +562,24 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return index + 1;
 	}
 
+	getPreviousVisibleCellIndex(index: number) {
+		for (let i = this._hiddenRanges.length - 1; i >= 0; i--) {
+			const cellRange = this._hiddenRanges[i];
+			const foldStart = cellRange.start - 1;
+			const foldEnd = cellRange.end;
+
+			if (foldEnd < index) {
+				return index;
+			}
+
+			if (foldStart <= index) {
+				return foldStart;
+			}
+		}
+
+		return index;
+	}
+
 	hasCell(cell: ICellViewModel) {
 		return this._handleToViewCellMapping.has(cell.handle);
 	}
@@ -748,9 +766,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	getEditorViewState(): INotebookEditorViewState {
-		const editingCells: { [key: number]: boolean; } = {};
-		const collapsedInputCells: { [key: number]: boolean; } = {};
-		const collapsedOutputCells: { [key: number]: boolean; } = {};
+		const editingCells: { [key: number]: boolean } = {};
+		const collapsedInputCells: { [key: number]: boolean } = {};
+		const collapsedOutputCells: { [key: number]: boolean } = {};
 
 		this._viewCells.forEach((cell, i) => {
 			if (cell.getEditState() === CellEditState.Editing) {
@@ -765,7 +783,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				collapsedOutputCells[i] = true;
 			}
 		});
-		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState; } = {};
+		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState } = {};
 		this._viewCells.map(cell => ({ handle: cell.model.handle, state: cell.saveEditorViewState() })).forEach((viewState, i) => {
 			if (viewState.state) {
 				editorViewStates[i] = viewState.state;
@@ -826,7 +844,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	private _deltaModelDecorationsImpl(oldDecorations: ICellModelDecorations[], newDecorations: ICellModelDeltaDecorations[]): ICellModelDecorations[] {
 
-		const mapping = new Map<number, { cell: CellViewModel; oldDecorations: string[]; newDecorations: IModelDeltaDecoration[]; }>();
+		const mapping = new Map<number, { cell: CellViewModel; oldDecorations: string[]; newDecorations: IModelDeltaDecoration[] }>();
 		oldDecorations.forEach(oldDecoration => {
 			const ownerId = oldDecoration.ownerId;
 

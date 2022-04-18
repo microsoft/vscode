@@ -172,9 +172,6 @@ registerAction2(class ApplyAction extends Action2 {
 			icon: Codicon.check,
 			precondition: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, BulkEditPane.ctxHasCheckedChanges),
 			menu: [{
-				id: MenuId.BulkEditTitle,
-				group: 'navigation'
-			}, {
 				id: MenuId.BulkEditContext,
 				order: 1
 			}],
@@ -206,9 +203,6 @@ registerAction2(class DiscardAction extends Action2 {
 			icon: Codicon.clearAll,
 			precondition: BulkEditPreviewContribution.ctxEnabled,
 			menu: [{
-				id: MenuId.BulkEditTitle,
-				group: 'navigation'
-			}, {
 				id: MenuId.BulkEditContext,
 				order: 2
 			}]

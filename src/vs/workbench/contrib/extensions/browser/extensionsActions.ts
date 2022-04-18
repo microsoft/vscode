@@ -745,14 +745,7 @@ export class UpdateAction extends ExtensionAction {
 		if (!this.extension) {
 			this.enabled = false;
 			this.class = UpdateAction.DisabledClass;
-			this.label = this.getUpdateLabel();
-			return;
-		}
-
-		if (this.extension.type !== ExtensionType.User) {
-			this.enabled = false;
-			this.class = UpdateAction.DisabledClass;
-			this.label = this.getUpdateLabel();
+			this.label = this.getLabel();
 			return;
 		}
 
@@ -761,7 +754,7 @@ export class UpdateAction extends ExtensionAction {
 
 		this.enabled = canInstall && isInstalled && this.extension.outdated;
 		this.class = this.enabled ? UpdateAction.EnabledClass : UpdateAction.DisabledClass;
-		this.label = this.extension.outdated ? this.getUpdateLabel(this.extension.latestVersion) : this.getUpdateLabel();
+		this.label = this.getLabel(this.extension);
 	}
 
 	override async run(): Promise<any> {
@@ -781,8 +774,14 @@ export class UpdateAction extends ExtensionAction {
 		}
 	}
 
-	private getUpdateLabel(version?: string): string {
-		return version ? localize('updateTo', "Update to {0}", version) : localize('updateAction', "Update");
+	private getLabel(extension?: IExtension): string {
+		if (!extension?.outdated) {
+			return localize('updateAction', "Update");
+		}
+		if (extension.outdatedTargetPlatform) {
+			return localize('updateToTargetPlatformVersion', "Update to {0} version", TargetPlatformToString(extension.gallery!.properties.targetPlatform));
+		}
+		return localize('updateToLatestVersion', "Update to {0}", extension.latestVersion);
 	}
 }
 
@@ -829,7 +828,7 @@ export abstract class ExtensionDropDownAction extends ExtensionAction {
 		return this._actionViewItem;
 	}
 
-	public override run({ actionGroups, disposeActionsOnHide }: { actionGroups: IAction[][], disposeActionsOnHide: boolean; }): Promise<any> {
+	public override run({ actionGroups, disposeActionsOnHide }: { actionGroups: IAction[][]; disposeActionsOnHide: boolean }): Promise<any> {
 		if (this._actionViewItem) {
 			this._actionViewItem.showMenu(actionGroups, disposeActionsOnHide);
 		}
@@ -1096,7 +1095,7 @@ export class SwitchToReleasedVersionAction extends ExtensionAction {
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && this.extension.state === ExtensionState.Installed && !!this.extension.local?.isPreReleaseVersion && !!this.extension.hasReleaseVersion;
+		this.enabled = !!this.extension && !this.extension.isBuiltin && this.extension.state === ExtensionState.Installed && !!this.extension.local?.isPreReleaseVersion && !!this.extension.hasReleaseVersion;
 	}
 
 	override async run(): Promise<any> {
@@ -1125,7 +1124,6 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 
 	update(): void {
 		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.gallery && !!this.extension.local && !!this.extension.server && this.extension.state === ExtensionState.Installed;
-		this.label = this.extension?.local?.isPreReleaseVersion ? localize('install another pre-release version', "Install Another Pre-Release Version...") : localize('install another version', "Install Another Version...");
 	}
 
 	override async run(): Promise<any> {
@@ -1143,15 +1141,15 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 			return {
 				id: v.version,
 				label: v.version,
-				description: `${fromNow(new Date(Date.parse(v.date)), true)}${v.version === this.extension!.version ? ` (${localize('current', "current")})` : ''}`,
+				description: `${fromNow(new Date(Date.parse(v.date)), true)}${v.isPreReleaseVersion ? ` (${localize('pre-release', "pre-release")})` : ''}${v.version === this.extension!.version ? ` (${localize('current', "current")})` : ''}`,
 				latest: i === 0,
-				ariaLabel: v.version,
+				ariaLabel: `${v.isPreReleaseVersion ? 'Pre-Release version' : 'Release version'} ${v.version}`,
 				isPreReleaseVersion: v.isPreReleaseVersion
 			};
 		});
 		const pick = await this.quickInputService.pick(picks,
 			{
-				placeHolder: this.extension!.local!.isPreReleaseVersion ? localize('selectPreReleaseVersion', "Select Pre-Release Version to Install") : localize('selectVersion', "Select Version to Install"),
+				placeHolder: localize('selectVersion', "Select Version to Install"),
 				matchOnDetail: true
 			});
 		if (pick) {
@@ -1422,8 +1420,8 @@ export class ReloadAction extends ExtensionAction {
 					const runningExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension));
 
 					if (isSameExtensionRunning) {
-						// Different version of same extension is running. Requires reload to run the current version
-						if (this.extension.version !== runningExtension.version) {
+						// Different version or target platform of same extension is running. Requires reload to run the current version
+						if (this.extension.version !== runningExtension.version || this.extension.local.targetPlatform !== runningExtension.targetPlatform) {
 							this.enabled = true;
 							this.label = localize('reloadRequired', "Reload Required");
 							this.tooltip = localize('postUpdateTooltip', "Please reload Visual Studio Code to enable the updated extension.");
@@ -1556,7 +1554,7 @@ export class SetColorThemeAction extends ExtensionAction {
 		this.class = this.enabled ? SetColorThemeAction.EnabledClass : SetColorThemeAction.DisabledClass;
 	}
 
-	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean; } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
+	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean; ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
 		this.colorThemes = await this.workbenchThemeService.getColorThemes();
 
 		this.update();
@@ -1607,7 +1605,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 		this.class = this.enabled ? SetFileIconThemeAction.EnabledClass : SetFileIconThemeAction.DisabledClass;
 	}
 
-	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean; } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
+	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean; ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
 		this.fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
 		this.update();
 		if (!this.enabled) {
@@ -1657,7 +1655,7 @@ export class SetProductIconThemeAction extends ExtensionAction {
 		this.class = this.enabled ? SetProductIconThemeAction.EnabledClass : SetProductIconThemeAction.DisabledClass;
 	}
 
-	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean; } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
+	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean; ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
 		this.productIconThemes = await this.workbenchThemeService.getProductIconThemes();
 		this.update();
 		if (!this.enabled) {
@@ -1879,7 +1877,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 		return Promise.resolve(undefined);
 	}
 
-	private getOrCreateExtensionsFile(extensionsFileResource: URI): Promise<{ created: boolean, extensionsFileResource: URI, content: string; }> {
+	private getOrCreateExtensionsFile(extensionsFileResource: URI): Promise<{ created: boolean; extensionsFileResource: URI; content: string }> {
 		return Promise.resolve(this.fileService.readFile(extensionsFileResource)).then(content => {
 			return { created: false, extensionsFileResource, content: content.value.toString() };
 		}, err => {
@@ -2100,7 +2098,7 @@ export class ToggleSyncExtensionAction extends ExtensionDropDownAction {
 	}
 }
 
-export type ExtensionStatus = { readonly message: IMarkdownString, readonly icon?: ThemeIcon; };
+export type ExtensionStatus = { readonly message: IMarkdownString; readonly icon?: ThemeIcon };
 
 export class ExtensionStatusAction extends ExtensionAction {
 
@@ -2262,7 +2260,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 						if (this.extensionManagementServerService.localExtensionManagementServer) {
 							message = new MarkdownString(`${localize('Install in local server to enable', "This extension is disabled in this workspace because it is defined to run in the Local Extension Host. Please install the extension locally to enable.", this.extensionManagementServerService.remoteExtensionManagementServer.label)} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-remote/developing-extensions/architecture)`);
 						} else if (isWeb) {
-							message = new MarkdownString(`${localize('Cannot be enabled', "This extension is disabled because it is not supported in {0} for the Web.", this.productService.nameLong)} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-remote/developing-extensions/architecture)`);
+							message = new MarkdownString(`${localize('Defined to run in desktop', "This extension is disabled because it is defined to run only in {0} for the Desktop.", this.productService.nameLong)} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-remote/developing-extensions/architecture)`);
 						}
 					}
 				}
@@ -2278,7 +2276,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 		}
 
 		// Remote Workspace
-		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
+		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
 			if (isLanguagePackExtension(this.extension.local.manifest)) {
 				if (!this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension!.identifier) && e.server !== this.extension!.server)) {
 					const message = this.extension.server === this.extensionManagementServerService.localExtensionManagementServer
@@ -2301,6 +2299,13 @@ export class ExtensionStatusAction extends ExtensionAction {
 			if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer) {
 				if (this.extensionManifestPropertiesService.prefersExecuteOnUI(this.extension.local!.manifest)) {
 					this.updateStatus({ icon: infoIcon, message: new MarkdownString(`${localize('enabled locally', "This extension is enabled in the Local Extension Host because it prefers to run there.")} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-remote/developing-extensions/architecture)`) }, true);
+				}
+				return;
+			}
+
+			if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.webExtensionManagementServer) {
+				if (this.extensionManifestPropertiesService.canExecuteOnWeb(this.extension.local!.manifest)) {
+					this.updateStatus({ icon: infoIcon, message: new MarkdownString(`${localize('enabled in web worker', "This extension is enabled in the Web Worker Extension Host because it prefers to run there.")} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-remote/developing-extensions/architecture)`) }, true);
 				}
 				return;
 			}
@@ -2341,6 +2346,11 @@ export class ExtensionStatusAction extends ExtensionAction {
 				this.updateStatus({ message: new MarkdownString(localize('workspace disabled', "This extension is disabled for this workspace by the user.")) }, true);
 				return;
 			}
+		}
+
+		if (isEnabled && !isRunning && !this.extension.local.isValid) {
+			const errors = this.extension.local.validations.filter(([severity]) => severity === Severity.Error).map(([, message]) => message);
+			this.updateStatus({ icon: errorIcon, message: new MarkdownString(errors.join(' ').trim()) }, true);
 		}
 
 	}
@@ -2406,7 +2416,7 @@ export class ReinstallAction extends Action {
 			.then(pick => pick && this.reinstallExtension(pick.extension));
 	}
 
-	private getEntries(): Promise<(IQuickPickItem & { extension: IExtension; })[]> {
+	private getEntries(): Promise<(IQuickPickItem & { extension: IExtension })[]> {
 		return this.extensionsWorkbenchService.queryLocal()
 			.then(local => {
 				const entries = local
@@ -2417,7 +2427,7 @@ export class ReinstallAction extends Action {
 							label: extension.displayName,
 							description: extension.identifier.id,
 							extension,
-						} as (IQuickPickItem & { extension: IExtension; });
+						} as (IQuickPickItem & { extension: IExtension });
 					});
 				return entries;
 			});
@@ -2721,19 +2731,22 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsWith
 export const extensionButtonProminentBackground = registerColor('extensionButton.prominentBackground', {
 	dark: buttonBackground,
 	light: buttonBackground,
-	hc: null
+	hcDark: null,
+	hcLight: null
 }, localize('extensionButtonProminentBackground', "Button background color for actions extension that stand out (e.g. install button)."));
 
 export const extensionButtonProminentForeground = registerColor('extensionButton.prominentForeground', {
 	dark: buttonForeground,
 	light: buttonForeground,
-	hc: null
+	hcDark: null,
+	hcLight: null
 }, localize('extensionButtonProminentForeground', "Button foreground color for actions extension that stand out (e.g. install button)."));
 
 export const extensionButtonProminentHoverBackground = registerColor('extensionButton.prominentHoverBackground', {
 	dark: buttonHoverBackground,
 	light: buttonHoverBackground,
-	hc: null
+	hcDark: null,
+	hcLight: null
 }, localize('extensionButtonProminentHoverBackground', "Button background hover color for actions extension that stand out (e.g. install button)."));
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {

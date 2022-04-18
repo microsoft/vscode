@@ -9,7 +9,7 @@ import { DistributeSizing, ISplitViewStyles, IView as ISplitView, LayoutPriority
 import { equals as arrayEquals, tail2 as tail } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event, Relay } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { rot } from 'vs/base/common/numbers';
 import { isUndefined } from 'vs/base/common/types';
 import 'vs/css!./gridview';
@@ -775,6 +775,8 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 	private _onDidViewChange: Event<number | undefined>;
 	readonly onDidChange: Event<number | undefined>;
 
+	private disposables = new DisposableStore();
+
 	constructor(
 		readonly view: IView,
 		readonly orientation: Orientation,
@@ -786,7 +788,7 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 		this._size = size;
 
 		const onDidChange = createLatchedOnDidChangeViewEvent(view);
-		this._onDidViewChange = Event.map(onDidChange, e => e && (this.orientation === Orientation.VERTICAL ? e.width : e.height));
+		this._onDidViewChange = Event.map(onDidChange, e => e && (this.orientation === Orientation.VERTICAL ? e.width : e.height), this.disposables);
 		this.onDidChange = Event.any(this._onDidViewChange, this._onDidSetLinkedNode.event, this._onDidLinkedWidthNodeChange.event, this._onDidLinkedHeightNodeChange.event);
 	}
 
@@ -900,7 +902,9 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 		}
 	}
 
-	dispose(): void { }
+	dispose(): void {
+		this.disposables.dispose();
+	}
 }
 
 type Node = BranchNode | LeafNode;

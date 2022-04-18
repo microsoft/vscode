@@ -16,6 +16,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { deserializeWebviewMessage, serializeWebviewMessage } from 'vs/workbench/api/common/extHostWebviewMessaging';
 import { IOverlayWebview, IWebview, WebviewContentOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 export class MainThreadWebviews extends Disposable implements extHostProtocol.MainThreadWebviewsShape {
@@ -33,7 +34,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	private readonly _webviews = new Map<string, IWebview>();
 
 	constructor(
-		context: extHostProtocol.IExtHostContext,
+		context: IExtHostContext,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IProductService private readonly _productService: IProductService,
 	) {
@@ -64,8 +65,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	public async $postMessage(handle: extHostProtocol.WebviewHandle, jsonMessage: string, ...buffers: VSBuffer[]): Promise<boolean> {
 		const webview = this.getWebview(handle);
 		const { message, arrayBuffers } = deserializeWebviewMessage(jsonMessage, buffers);
-		webview.postMessage(message, arrayBuffers);
-		return true;
+		return webview.postMessage(message, arrayBuffers);
 	}
 
 	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewHandle, webview: IOverlayWebview, options: { serializeBuffersForPostMessage: boolean }) {

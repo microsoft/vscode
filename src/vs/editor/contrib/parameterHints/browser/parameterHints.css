@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .parameter-hints-widget {
-	z-index: 10;
+	/* Must be higher than the sash's z-index and terminal canvases but lower than the suggest widget */
+	z-index: 39;
 	display: flex;
 	flex-direction: column;
 	line-height: 1.5em;
+	cursor: default;
 }
 
 .monaco-editor .parameter-hints-widget > .phwrapper {
@@ -55,10 +57,15 @@
 	white-space: initial;
 }
 
+.monaco-editor .parameter-hints-widget .docs .markdown-docs a:hover {
+	cursor: pointer;
+}
+
 .monaco-editor .parameter-hints-widget .docs .markdown-docs code {
 	font-family: var(--monaco-monospace-font);
 }
 
+.monaco-editor .parameter-hints-widget .docs  .monaco-tokenized-source,
 .monaco-editor .parameter-hints-widget .docs .code {
 	white-space: pre-wrap;
 }
@@ -96,7 +103,6 @@
 	text-align: center;
 	height: 12px;
 	line-height: 12px;
-	opacity: 0.5;
 	font-family: var(--monaco-monospace-font);
 }
 

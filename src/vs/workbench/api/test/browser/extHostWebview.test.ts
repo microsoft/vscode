@@ -10,12 +10,12 @@ import { mock } from 'vs/base/test/common/mock';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { MainThreadWebviewManager } from 'vs/workbench/api/browser/mainThreadWebviewManager';
-import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
-import { decodeAuthority, webviewResourceBaseHost } from 'vs/workbench/api/common/shared/webview';
+import { decodeAuthority, webviewResourceBaseHost } from 'vs/workbench/common/webview';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import type * as vscode from 'vscode';
 import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
@@ -32,7 +32,7 @@ suite('ExtHostWebview', () => {
 	test('Cannot register multiple serializers for the same view type', async () => {
 		const viewType = 'view.type';
 
-		const extHostWebviews = new ExtHostWebviews(rpcProtocol!, { remote: { authority: undefined, isRemote: false } }, undefined, new NullLogService(), NullApiDeprecationService);
+		const extHostWebviews = new ExtHostWebviews(rpcProtocol!, { authority: undefined, isRemote: false }, undefined, new NullLogService(), NullApiDeprecationService);
 
 		const extHostWebviewPanels = new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined);
 
@@ -55,7 +55,8 @@ suite('ExtHostWebview', () => {
 			title: 'title',
 			state: {},
 			panelOptions: {},
-			webviewOptions: {}
+			webviewOptions: {},
+			active: true,
 		}, 0 as EditorGroupColumn);
 		assert.strictEqual(lastInvokedDeserializer, serializerA);
 
@@ -71,7 +72,8 @@ suite('ExtHostWebview', () => {
 			title: 'title',
 			state: {},
 			panelOptions: {},
-			webviewOptions: {}
+			webviewOptions: {},
+			active: true,
 		}, 0 as EditorGroupColumn);
 		assert.strictEqual(lastInvokedDeserializer, serializerB);
 	});
@@ -133,12 +135,12 @@ suite('ExtHostWebview', () => {
 		const webviewUri = webview.webview.asWebviewUri(sourceUri);
 		assert.strictEqual(
 			webviewUri.toString(),
-			`https://vscode-remote%2Bssh-002dremote-002blocalhost-003dfoo-002fbar.vscode-resource.vscode-webview.net/Users/cody/x.png`,
+			`https://vscode-remote%2Bssh-002dremote-002blocalhost-003dfoo-002fbar.vscode-resource.vscode-cdn.net/Users/cody/x.png`,
 			'Check transform');
 
 		assert.strictEqual(
 			decodeAuthority(webviewUri.authority),
-			`vscode-remote+${authority}.vscode-resource.vscode-webview.net`,
+			`vscode-remote+${authority}.vscode-resource.vscode-cdn.net`,
 			'Check decoded authority'
 		);
 	});
@@ -156,12 +158,12 @@ suite('ExtHostWebview', () => {
 		const webviewUri = webview.webview.asWebviewUri(sourceUri);
 		assert.strictEqual(
 			webviewUri.toString(),
-			`https://vscode-remote%2Blocalhost-003a8080.vscode-resource.vscode-webview.net/Users/cody/x.png`,
+			`https://vscode-remote%2Blocalhost-003a8080.vscode-resource.vscode-cdn.net/Users/cody/x.png`,
 			'Check transform');
 
 		assert.strictEqual(
 			decodeAuthority(webviewUri.authority),
-			`vscode-remote+${authority}.vscode-resource.vscode-webview.net`,
+			`vscode-remote+${authority}.vscode-resource.vscode-cdn.net`,
 			'Check decoded authority'
 		);
 	});
@@ -169,10 +171,8 @@ suite('ExtHostWebview', () => {
 
 function createWebview(rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined, remoteAuthority: string | undefined) {
 	const extHostWebviews = new ExtHostWebviews(rpcProtocol!, {
-		remote: {
-			authority: remoteAuthority,
-			isRemote: !!remoteAuthority,
-		},
+		authority: remoteAuthority,
+		isRemote: !!remoteAuthority,
 	}, undefined, new NullLogService(), NullApiDeprecationService);
 
 	const extHostWebviewPanels = new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined);

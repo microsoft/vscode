@@ -10,7 +10,8 @@ import { CharCode } from 'vs/base/common/charCode';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { MarshalledId, MarshalledObject } from 'vs/base/common/marshalling';
+import { MarshalledObject } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { IURITransformer, transformIncomingURIs } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/common/lazyPromise';
@@ -130,8 +131,8 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	private readonly _locals: any[];
 	private readonly _proxies: any[];
 	private _lastMessageId: number;
-	private readonly _cancelInvokedHandlers: { [req: string]: () => void; };
-	private readonly _pendingRPCReplies: { [msgId: string]: LazyPromise; };
+	private readonly _cancelInvokedHandlers: { [req: string]: () => void };
+	private readonly _pendingRPCReplies: { [msgId: string]: LazyPromise };
 	private _responsiveState: ResponsiveState;
 	private _unacknowledgedCount: number;
 	private _unresponsiveTime: number;
@@ -707,7 +708,7 @@ const enum SerializedRequestArgumentType {
 }
 
 type SerializedRequestArguments =
-	| { readonly type: SerializedRequestArgumentType.Simple; args: string; }
+	| { readonly type: SerializedRequestArgumentType.Simple; args: string }
 	| { readonly type: SerializedRequestArgumentType.Mixed; args: MixedArg[] };
 
 
@@ -780,7 +781,7 @@ class MessageIO {
 		return result.buffer;
 	}
 
-	public static deserializeRequestJSONArgs(buff: MessageBuffer): { rpcId: number; method: string; args: any[]; } {
+	public static deserializeRequestJSONArgs(buff: MessageBuffer): { rpcId: number; method: string; args: any[] } {
 		const rpcId = buff.readUInt8();
 		const method = buff.readShortString();
 		const args = buff.readLongString();
@@ -806,7 +807,7 @@ class MessageIO {
 		return result.buffer;
 	}
 
-	public static deserializeRequestMixedArgs(buff: MessageBuffer): { rpcId: number; method: string; args: any[]; } {
+	public static deserializeRequestMixedArgs(buff: MessageBuffer): { rpcId: number; method: string; args: any[] } {
 		const rpcId = buff.readUInt8();
 		const method = buff.readShortString();
 		const rawargs = buff.readMixedArray();
@@ -913,14 +914,11 @@ class MessageIO {
 	}
 
 	public static serializeReplyErr(req: number, err: any): VSBuffer {
-		if (err) {
-			return this._serializeReplyErrEror(req, err);
+		const errStr: string | undefined = (err ? safeStringify(errors.transformErrorForSerialization(err), null) : undefined);
+		if (typeof errStr !== 'string') {
+			return this._serializeReplyErrEmpty(req);
 		}
-		return this._serializeReplyErrEmpty(req);
-	}
-
-	private static _serializeReplyErrEror(req: number, _err: Error): VSBuffer {
-		const errBuff = VSBuffer.fromString(safeStringify(errors.transformErrorForSerialization(_err), null));
+		const errBuff = VSBuffer.fromString(errStr);
 
 		let len = 0;
 		len += MessageBuffer.sizeLongString(errBuff);
@@ -964,8 +962,8 @@ const enum ArgType {
 
 
 type MixedArg =
-	| { readonly type: ArgType.String, readonly value: VSBuffer }
-	| { readonly type: ArgType.VSBuffer, readonly value: VSBuffer }
-	| { readonly type: ArgType.SerializedObjectWithBuffers, readonly value: VSBuffer, readonly buffers: readonly VSBuffer[] }
+	| { readonly type: ArgType.String; readonly value: VSBuffer }
+	| { readonly type: ArgType.VSBuffer; readonly value: VSBuffer }
+	| { readonly type: ArgType.SerializedObjectWithBuffers; readonly value: VSBuffer; readonly buffers: readonly VSBuffer[] }
 	| { readonly type: ArgType.Undefined }
 	;

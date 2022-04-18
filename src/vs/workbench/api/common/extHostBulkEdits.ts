@@ -12,16 +12,22 @@ import type * as vscode from 'vscode';
 export class ExtHostBulkEdits {
 
 	private readonly _proxy: MainThreadBulkEditsShape;
+	private readonly _versionInformationProvider: WorkspaceEdit.IVersionInformationProvider;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
+		extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
 	) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadBulkEdits);
+
+		this._versionInformationProvider = {
+			getTextDocumentVersion: uri => extHostDocumentsAndEditors.getDocument(uri)?.version,
+			getNotebookDocumentVersion: () => undefined
+		};
 	}
 
 	applyWorkspaceEdit(edit: vscode.WorkspaceEdit): Promise<boolean> {
-		const dto = WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
+		const dto = WorkspaceEdit.from(edit, this._versionInformationProvider);
 		return this._proxy.$tryApplyWorkspaceEdit(dto);
 	}
 }

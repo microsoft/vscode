@@ -118,6 +118,12 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(resolver, 'TM_CURRENT_LINE', 'this is line two');
 		assertVariableResolve(resolver, 'TM_LINE_INDEX', '1');
 		assertVariableResolve(resolver, 'TM_LINE_NUMBER', '2');
+		assertVariableResolve(resolver, 'CURSOR_INDEX', '0');
+		assertVariableResolve(resolver, 'CURSOR_NUMBER', '1');
+
+		resolver = new SelectionBasedVariableResolver(model, new Selection(1, 2, 2, 3), 4, undefined);
+		assertVariableResolve(resolver, 'CURSOR_INDEX', '4');
+		assertVariableResolve(resolver, 'CURSOR_NUMBER', '5');
 
 		resolver = new SelectionBasedVariableResolver(model, new Selection(2, 3, 1, 2), 0, undefined);
 		assertVariableResolve(resolver, 'TM_SELECTED_TEXT', 'his is line one\nth');

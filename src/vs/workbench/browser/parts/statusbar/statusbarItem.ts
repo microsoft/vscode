@@ -23,6 +23,7 @@ import { syncing } from 'vs/platform/theme/common/iconRegistry';
 import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { isMarkdownString, markdownStringEqual } from 'vs/base/common/htmlContent';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
 
 export class StatusbarEntryItem extends Disposable {
 
@@ -34,6 +35,7 @@ export class StatusbarEntryItem extends Disposable {
 	private readonly backgroundListener = this._register(new MutableDisposable());
 
 	private readonly commandMouseListener = this._register(new MutableDisposable());
+	private readonly commandTouchListener = this._register(new MutableDisposable());
 	private readonly commandKeyboardListener = this._register(new MutableDisposable());
 
 	private hover: ICustomHover | undefined = undefined;
@@ -63,6 +65,7 @@ export class StatusbarEntryItem extends Disposable {
 		this.labelContainer = document.createElement('a');
 		this.labelContainer.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
 		this.labelContainer.setAttribute('role', 'button');
+		this._register(Gesture.addTarget(this.labelContainer)); // enable touch
 
 		// Label (with support for progress)
 		this.label = new StatusBarCodiconLabel(this.labelContainer);
@@ -105,7 +108,7 @@ export class StatusbarEntryItem extends Disposable {
 
 		// Update: Hover
 		if (!this.entry || !this.isEqualTooltip(this.entry, entry)) {
-			const hoverContents = { markdown: entry.tooltip, markdownNotSupportedFallback: undefined };
+			const hoverContents = isMarkdownString(entry.tooltip) ? { markdown: entry.tooltip, markdownNotSupportedFallback: undefined } : entry.tooltip;
 			if (this.hover) {
 				this.hover.update(hoverContents);
 			} else {
@@ -116,11 +119,13 @@ export class StatusbarEntryItem extends Disposable {
 		// Update: Command
 		if (!this.entry || entry.command !== this.entry.command) {
 			this.commandMouseListener.clear();
+			this.commandTouchListener.clear();
 			this.commandKeyboardListener.clear();
 
 			const command = entry.command;
 			if (command && (command !== ShowTooltipCommand || this.hover) /* "Show Hover" is only valid when we have a hover */) {
 				this.commandMouseListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(command));
+				this.commandTouchListener.value = addDisposableListener(this.labelContainer, TouchEventType.Tap, () => this.executeCommand(command));
 				this.commandKeyboardListener.value = addDisposableListener(this.labelContainer, EventType.KEY_DOWN, e => {
 					const event = new StandardKeyboardEvent(e);
 					if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {

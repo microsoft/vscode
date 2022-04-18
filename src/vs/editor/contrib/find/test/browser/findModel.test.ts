@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';

@@ -169,9 +169,11 @@ registerAction2(class extends NotebookAction {
 			return;
 		}
 
-		const firstCell = editor.cellAt(editor.getLength() - 1);
-		if (firstCell) {
-			editor.focusNotebookCell(firstCell, 'container');
+		const lastIdx = editor.getLength() - 1;
+		const lastVisibleIdx = editor.getPreviousVisibleCellIndex(lastIdx);
+		if (lastVisibleIdx) {
+			const cell = editor.cellAt(lastVisibleIdx);
+			editor.focusNotebookCell(cell, 'container');
 		}
 	}
 });

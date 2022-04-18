@@ -11,15 +11,16 @@ import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
 const testProvider = {
-	provideCodeActions(): modes.CodeActionList {
+	provideCodeActions(): languages.CodeActionList {
 		return {
 			actions: [
 				{ title: 'test', command: { id: 'test-command', title: 'test', arguments: [] } }
@@ -36,6 +37,7 @@ suite('CodeActionModel', () => {
 	let model: TextModel;
 	let markerService: MarkerService;
 	let editor: ICodeEditor;
+	let registry: LanguageFeatureRegistry<languages.CodeActionProvider>;
 	const disposables = new DisposableStore();
 
 	setup(() => {
@@ -44,6 +46,7 @@ suite('CodeActionModel', () => {
 		model = createTextModel('foobar  foo bar\nfarboo far boo', languageId, undefined, uri);
 		editor = createTestCodeEditor(model);
 		editor.setPosition({ lineNumber: 1, column: 1 });
+		registry = new LanguageFeatureRegistry();
 	});
 
 	teardown(() => {
@@ -59,15 +62,15 @@ suite('CodeActionModel', () => {
 			done = resolve;
 		});
 		await runWithFakedTimers({ useFakeTimers: true }, () => {
-			const reg = modes.CodeActionProviderRegistry.register(languageId, testProvider);
+			const reg = registry.register(languageId, testProvider);
 			disposables.add(reg);
 
 			const contextKeys = new MockContextKeyService();
-			const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
+			const model = disposables.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
 			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 				assertType(e.type === CodeActionsState.Type.Triggered);
 
-				assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
+				assert.strictEqual(e.trigger.type, languages.CodeActionTriggerType.Auto);
 				assert.ok(e.actions);
 
 				e.actions.then(fixes => {
@@ -91,7 +94,7 @@ suite('CodeActionModel', () => {
 
 	test('Oracle -> position changed', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, () => {
-			const reg = modes.CodeActionProviderRegistry.register(languageId, testProvider);
+			const reg = registry.register(languageId, testProvider);
 			disposables.add(reg);
 
 			markerService.changeOne('fake', uri, [{
@@ -106,11 +109,11 @@ suite('CodeActionModel', () => {
 
 			return new Promise((resolve, reject) => {
 				const contextKeys = new MockContextKeyService();
-				const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
+				const model = disposables.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
 				disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 					assertType(e.type === CodeActionsState.Type.Triggered);
 
-					assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
+					assert.strictEqual(e.trigger.type, languages.CodeActionTriggerType.Auto);
 					assert.ok(e.actions);
 					e.actions.then(fixes => {
 						model.dispose();
@@ -125,8 +128,8 @@ suite('CodeActionModel', () => {
 	});
 
 	test('Lightbulb is in the wrong place, #29933', async () => {
-		const reg = modes.CodeActionProviderRegistry.register(languageId, {
-			provideCodeActions(_doc, _range): modes.CodeActionList {
+		const reg = registry.register(languageId, {
+			provideCodeActions(_doc, _range): languages.CodeActionList {
 				return { actions: [], dispose() { /* noop*/ } };
 			}
 		});
@@ -146,11 +149,11 @@ suite('CodeActionModel', () => {
 			// case 1 - drag selection over multiple lines -> range of enclosed marker, position or marker
 			await new Promise(resolve => {
 				const contextKeys = new MockContextKeyService();
-				const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
+				const model = disposables.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
 				disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 					assertType(e.type === CodeActionsState.Type.Triggered);
 
-					assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
+					assert.strictEqual(e.trigger.type, languages.CodeActionTriggerType.Auto);
 					const selection = <Selection>e.rangeOrSelection;
 					assert.strictEqual(selection.selectionStartLineNumber, 1);
 					assert.strictEqual(selection.selectionStartColumn, 1);
@@ -172,16 +175,16 @@ suite('CodeActionModel', () => {
 		const donePromise = new Promise<void>(resolve => { done = resolve; });
 
 		await runWithFakedTimers({ useFakeTimers: true }, () => {
-			const reg = modes.CodeActionProviderRegistry.register(languageId, testProvider);
+			const reg = registry.register(languageId, testProvider);
 			disposables.add(reg);
 
 			let triggerCount = 0;
 			const contextKeys = new MockContextKeyService();
-			const model = disposables.add(new CodeActionModel(editor, markerService, contextKeys, undefined));
+			const model = disposables.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
 			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 				assertType(e.type === CodeActionsState.Type.Triggered);
 
-				assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
+				assert.strictEqual(e.trigger.type, languages.CodeActionTriggerType.Auto);
 				++triggerCount;
 
 				// give time for second trigger before completing test

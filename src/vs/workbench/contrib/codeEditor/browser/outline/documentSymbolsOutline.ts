@@ -13,7 +13,6 @@ import { IEditorPane } from 'vs/workbench/common/editor';
 import { DocumentSymbolComparator, DocumentSymbolAccessibilityProvider, DocumentSymbolRenderer, DocumentSymbolFilter, DocumentSymbolGroupRenderer, DocumentSymbolIdentityProvider, DocumentSymbolNavigationLabelProvider, DocumentSymbolVirtualDelegate } from 'vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsTree';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { OutlineGroup, OutlineElement, OutlineModel, TreeElement, IOutlineMarker, IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { DocumentSymbolProviderRegistry } from 'vs/editor/common/languages';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { raceCancellation, TimeoutTimer, timeout, Barrier } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -33,6 +32,7 @@ import { localize } from 'vs/nls';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { isEqual } from 'vs/base/common/resources';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -132,6 +132,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		private readonly _editor: ICodeEditor,
 		target: OutlineTarget,
 		firstLoadBarrier: Barrier,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IOutlineModelService private readonly _outlineModelService: IOutlineModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -181,7 +182,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 
 		// update as language, model, providers changes
-		this._disposables.add(DocumentSymbolProviderRegistry.onDidChange(_ => this._createOutline()));
+		this._disposables.add(_languageFeaturesService.documentSymbolProvider.onDidChange(_ => this._createOutline()));
 		this._disposables.add(this._editor.onDidChangeModel(_ => this._createOutline()));
 		this._disposables.add(this._editor.onDidChangeModelLanguage(_ => this._createOutline()));
 
@@ -269,7 +270,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			return;
 		}
 		const buffer = this._editor.getModel();
-		if (!DocumentSymbolProviderRegistry.has(buffer)) {
+		if (!this._languageFeaturesService.documentSymbolProvider.has(buffer)) {
 			return;
 		}
 

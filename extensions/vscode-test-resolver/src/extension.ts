@@ -90,7 +90,10 @@ export function activate(context: vscode.ExtensionContext) {
 			if (logsDir) {
 				commandArgs.push('--logsPath', logsDir);
 			}
-
+			const logLevel = process.env['TESTRESOLVER_LOG_LEVEL'];
+			if (logLevel) {
+				commandArgs.push('--log', logLevel);
+			}
 			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
 			commandArgs.push('--server-data-dir', remoteDataDir);
 
@@ -344,7 +347,7 @@ export function activate(context: vscode.ExtensionContext) {
 	vscode.commands.executeCommand('setContext', 'forwardedPortsViewEnabled', true);
 }
 
-type ActionItem = (vscode.MessageItem & { execute: () => void; });
+type ActionItem = (vscode.MessageItem & { execute: () => void });
 
 function getActions(): ActionItem[] {
 	const actions: ActionItem[] = [];
@@ -418,7 +421,7 @@ async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreation
 
 	return createTunnelService();
 
-	function newTunnel(localAddress: { host: string, port: number }): vscode.Tunnel {
+	function newTunnel(localAddress: { host: string; port: number }): vscode.Tunnel {
 		const onDidDispose: vscode.EventEmitter<void> = new vscode.EventEmitter();
 		let isDisposed = false;
 		return {

@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { VSBufferReadableStream, newWriteableBufferStream, VSBuffer, streamToBuffer, bufferToStream } from 'vs/base/common/buffer';
+import { VSBufferReadableStream, newWriteableBufferStream, VSBuffer, streamToBuffer, bufferToStream, readableToBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/resources';
-import { consumeReadable, consumeStream, isReadableStream } from 'vs/base/common/stream';
+import { consumeReadable, consumeStream, isReadable, isReadableStream } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
@@ -262,6 +262,8 @@ suite('UntitledFileWorkingCopy', () => {
 			contentChangeCounter++;
 		});
 
+		assert.strictEqual(workingCopy.isDirty(), true);
+
 		await workingCopy.resolve();
 
 		assert.strictEqual(workingCopy.isDirty(), true);
@@ -273,6 +275,26 @@ suite('UntitledFileWorkingCopy', () => {
 		await workingCopy.resolve(); // second resolve should be ignored
 		assert.strictEqual(workingCopy.model?.contents, 'Changed contents');
 	});
+
+	test('backup - with initial contents uses those even if unresolved', async () => {
+		workingCopy.dispose();
+
+		workingCopy = createWorkingCopy(resource, false, 'Hello Initial');
+
+		assert.strictEqual(workingCopy.isDirty(), true);
+
+		const backup = (await workingCopy.backup(CancellationToken.None)).content;
+		if (isReadableStream(backup)) {
+			const value = await streamToBuffer(backup as VSBufferReadableStream);
+			assert.strictEqual(value.toString(), 'Hello Initial');
+		} else if (isReadable(backup)) {
+			const value = readableToBuffer(backup as VSBufferReadable);
+			assert.strictEqual(value.toString(), 'Hello Initial');
+		} else {
+			assert.fail('Missing untitled backup');
+		}
+	});
+
 
 	test('resolve - with associated resource', async () => {
 		workingCopy.dispose();

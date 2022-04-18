@@ -46,7 +46,7 @@ export interface IExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly publisher: string;
 	readonly publisherDisplayName: string;
-	readonly publisherDomain?: { link: string, verified: boolean };
+	readonly publisherDomain?: { link: string; verified: boolean };
 	readonly version: string;
 	readonly latestVersion: string;
 	readonly hasPreReleaseVersion: boolean;
@@ -61,6 +61,7 @@ export interface IExtension {
 	readonly rating?: number;
 	readonly ratingCount?: number;
 	readonly outdated: boolean;
+	readonly outdatedTargetPlatform: boolean;
 	readonly enablementState: EnablementState;
 	readonly tags: readonly string[];
 	readonly categories: readonly string[];
@@ -77,7 +78,7 @@ export interface IExtension {
 	readonly local?: ILocalExtension;
 	gallery?: IGalleryExtension;
 	readonly isMalicious: boolean;
-	readonly isUnsupported: boolean | { preReleaseExtension: { id: string, displayName: string } };
+	readonly isUnsupported: boolean | { preReleaseExtension: { id: string; displayName: string } };
 }
 
 export const SERVICE_ID = 'extensionsWorkbenchService';

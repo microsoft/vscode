@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { IChange, IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';
 import { IInplaceReplaceSupportResult, TextEdit } from 'vs/editor/common/languages';
-import { UnicodeHighlighterOptions } from 'vs/editor/common/languages/unicodeTextModelHighlighter';
+import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ID_EDITOR_WORKER_SERVICE = 'editorWorkerService';

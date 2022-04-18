@@ -5,14 +5,14 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, IActionRunner, IAction, Separator } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -25,7 +25,6 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { ToggleReactionsAction, ReactionAction, ReactionActionViewItem } from './reactionsAction';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { MenuItemAction, SubmenuItemAction, IMenu } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -35,15 +34,18 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IRange } from 'vs/editor/common/core/range';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
-export class CommentNode extends Disposable {
+export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
 	private _body: HTMLElement;
 	private _md: HTMLElement | undefined;
+	private _plainText: HTMLElement | undefined;
 	private _clearTimeout: any;
 
 	private _editAction: Action | null = null;
@@ -65,7 +67,7 @@ export class CommentNode extends Disposable {
 	protected toolbar: ToolBar | undefined;
 	private _commentFormActions: CommentFormActions | null = null;
 
-	private readonly _onDidClick = new Emitter<CommentNode>();
+	private readonly _onDidClick = new Emitter<CommentNode<T>>();
 
 	public get domNode(): HTMLElement {
 		return this._domNode;
@@ -74,11 +76,10 @@ export class CommentNode extends Disposable {
 	public isEditing: boolean = false;
 
 	constructor(
-		private commentThread: modes.CommentThread,
-		public comment: modes.Comment,
+		private commentThread: languages.CommentThread<T>,
+		public comment: languages.Comment,
 		private owner: string,
 		private resource: URI,
-		private parentEditor: ICodeEditor,
 		private parentThread: ICommentThreadWidget,
 		private markdownRenderer: MarkdownRenderer,
 		@IThemeService private themeService: IThemeService,
@@ -124,19 +125,18 @@ export class CommentNode extends Disposable {
 
 	private updateCommentBody(body: string | IMarkdownString) {
 		this._body.innerText = '';
-		if (this._md) {
-			this._body.removeChild(this._md);
-			this._md = undefined;
-		}
+		this._md = undefined;
+		this._plainText = undefined;
 		if (typeof body === 'string') {
-			this._body.innerText = body;
+			this._plainText = dom.append(this._body, dom.$('.comment-body-plainstring'));
+			this._plainText.innerText = body;
 		} else {
 			this._md = this.markdownRenderer.render(body).element;
 			this._body.appendChild(this._md);
 		}
 	}
 
-	public get onDidClick(): Event<CommentNode> {
+	public get onDidClick(): Event<CommentNode<T>> {
 		return this._onDidClick.event;
 	}
 
@@ -145,11 +145,12 @@ export class CommentNode extends Disposable {
 		this.updateTimestamp(this.comment.timestamp);
 	}
 
-	private updateTimestamp(timestamp?: Date) {
+	private updateTimestamp(raw?: string) {
 		if (!this._timestamp) {
 			return;
 		}
 
+		const timestamp = raw !== undefined ? new Date(raw) : undefined;
 		if (!timestamp) {
 			this._timestampWidget?.dispose();
 		} else {
@@ -179,7 +180,7 @@ export class CommentNode extends Disposable {
 		this.createActionsToolbar();
 	}
 
-	private getToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[] } {
+	private getToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
 		const contributedActions = menu.getActions({ shouldForwardArgs: true });
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
@@ -271,7 +272,7 @@ export class CommentNode extends Disposable {
 		}
 	}
 
-	private createReactionPicker(reactionGroup: modes.CommentReaction[]): ToggleReactionsAction {
+	private createReactionPicker(reactionGroup: languages.CommentReaction[]): ToggleReactionsAction {
 		let toggleReactionActionViewItem: DropdownMenuActionViewItem;
 		let toggleReactionAction = this._register(new ToggleReactionsAction(() => {
 			if (toggleReactionActionViewItem) {
@@ -377,7 +378,7 @@ export class CommentNode extends Disposable {
 
 	private createCommentEditor(editContainer: HTMLElement): void {
 		const container = dom.append(editContainer, dom.$('.edit-textarea'));
-		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(), this.parentEditor, this.parentThread);
+		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(), this.parentThread);
 		const resource = URI.parse(`comment:commentinput-${this.comment.uniqueIdInThread}-${Date.now()}.md`);
 		this._commentEditorModel = this.modelService.createModel('', this.languageService.createByFilepathOrFirstLine(resource), resource, false);
 
@@ -494,7 +495,7 @@ export class CommentNode extends Disposable {
 			this._actionsToolbarContainer.classList.remove('hidden');
 			this._actionsToolbarContainer.classList.add('tabfocused');
 			this._domNode.tabIndex = 0;
-			if (this.comment.mode === modes.CommentMode.Editing) {
+			if (this.comment.mode === languages.CommentMode.Editing) {
 				this._commentEditor?.focus();
 			}
 		} else {
@@ -519,14 +520,14 @@ export class CommentNode extends Disposable {
 		}));
 	}
 
-	update(newComment: modes.Comment) {
+	update(newComment: languages.Comment) {
 
 		if (newComment.body !== this.comment.body) {
 			this.updateCommentBody(newComment.body);
 		}
 
 		if (newComment.mode !== undefined && newComment.mode !== this.comment.mode) {
-			if (newComment.mode === modes.CommentMode.Editing) {
+			if (newComment.mode === languages.CommentMode.Editing) {
 				this.switchToEditMode();
 			} else {
 				this.removeCommentEditor();
@@ -576,7 +577,7 @@ export class CommentNode extends Disposable {
 	}
 }
 
-function fillInActions(groups: [string, Array<MenuItemAction | SubmenuItemAction>][], target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
+function fillInActions(groups: [string, Array<MenuItemAction | SubmenuItemAction>][], target: IAction[] | { primary: IAction[]; secondary: IAction[] }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
 		if (useAlternativeActions) {

@@ -28,9 +28,15 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 
 const $ = dom.$;
 
-const FIND_FOCUS_CLASS = 'find-focused';
-const STATUS_ICON_WIDTH = 30;
-const SPLIT_ANNOTATION_WIDTH = 30;
+const enum CssClass {
+	ViewIsVertical = 'terminal-side-view',
+	FindFocus = 'find-focused'
+}
+
+const enum WidthConstants {
+	StatusIcon = 30,
+	SplitAnnotation = 30
+}
 
 export class TerminalTabbedView extends Disposable {
 
@@ -127,19 +133,29 @@ export class TerminalTabbedView extends Disposable {
 		this._register(this._terminalGroupService.onDidChangeInstances(() => this._refreshShowTabs()));
 		this._register(this._terminalGroupService.onDidChangeGroups(() => this._refreshShowTabs()));
 		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
+		this._register(this._terminalService.onDidRequestHideFindWidget(() => this.hideFindWidget()));
 		this._updateTheme();
 
-		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer.classList.add(FIND_FOCUS_CLASS));
-		this._findWidget.focusTracker.onDidBlur(() => this._terminalContainer.classList.remove(FIND_FOCUS_CLASS));
+		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer.classList.add(CssClass.FindFocus));
+		this._findWidget.focusTracker.onDidBlur(() => this._terminalContainer.classList.remove(CssClass.FindFocus));
 
 		this._attachEventListeners(parentElement, this._terminalContainer);
 
 		this._terminalGroupService.onDidChangePanelOrientation((orientation) => {
 			this._panelOrientation = orientation;
+			if (this._panelOrientation === Orientation.VERTICAL) {
+				this._terminalContainer.classList.add(CssClass.ViewIsVertical);
+			} else {
+				this._terminalContainer.classList.remove(CssClass.ViewIsVertical);
+			}
 		});
 
 		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL, proportionalLayout: false });
-
+		this._terminalService.onDidCreateInstance(instance => {
+			instance.onDidChangeFindResults(() => {
+				this._findWidget.updateResultCount();
+			});
+		});
 		this._setupSplitView(terminalOuterContainer);
 	}
 
@@ -223,8 +239,8 @@ export class TerminalTabbedView extends Disposable {
 	private _getAdditionalWidth(instance: ITerminalInstance): number {
 		// Size to include padding, icon, status icon (if any), split annotation (if any), + a little more
 		const additionalWidth = 40;
-		const statusIconWidth = instance.statusList.statuses.length > 0 ? STATUS_ICON_WIDTH : 0;
-		const splitAnnotationWidth = (this._terminalGroupService.getGroupForInstance(instance)?.terminalInstances.length || 0) > 1 ? SPLIT_ANNOTATION_WIDTH : 0;
+		const statusIconWidth = instance.statusList.statuses.length > 0 ? WidthConstants.StatusIcon : 0;
+		const splitAnnotationWidth = (this._terminalGroupService.getGroupForInstance(instance)?.terminalInstances.length || 0) > 1 ? WidthConstants.SplitAnnotation : 0;
 		return additionalWidth + splitAnnotationWidth + statusIconWidth;
 	}
 
@@ -356,7 +372,13 @@ export class TerminalTabbedView extends Disposable {
 				terminal.focus();
 			} else if (event.which === 3) {
 				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
-				if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
+				if (rightClickBehavior === 'nothing') {
+					if (!event.shiftKey) {
+						this._cancelContextMenu = true;
+					}
+					return;
+				}
+				else if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
 						openContextMenu(event, this._parentElement, this._instanceMenu, this._contextMenuService);
@@ -387,6 +409,10 @@ export class TerminalTabbedView extends Disposable {
 			}
 		}));
 		this._register(dom.addDisposableListener(terminalContainer, 'contextmenu', (event: MouseEvent) => {
+			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
+			if (rightClickBehavior === 'nothing' && !event.shiftKey) {
+				this._cancelContextMenu = true;
+			}
 			if (!this._cancelContextMenu) {
 				openContextMenu(event, this._parentElement, this._instanceMenu, this._contextMenuService);
 			}
@@ -395,6 +421,10 @@ export class TerminalTabbedView extends Disposable {
 			this._cancelContextMenu = false;
 		}));
 		this._register(dom.addDisposableListener(this._tabContainer, 'contextmenu', (event: MouseEvent) => {
+			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
+			if (rightClickBehavior === 'nothing' && !event.shiftKey) {
+				this._cancelContextMenu = true;
+			}
 			if (!this._cancelContextMenu) {
 				const emptyList = this._tabList.getFocus().length === 0;
 				openContextMenu(event, this._parentElement, emptyList ? this._tabsListEmptyMenu : this._tabsListMenu, this._contextMenuService, emptyList ? this._getTabActions() : undefined);

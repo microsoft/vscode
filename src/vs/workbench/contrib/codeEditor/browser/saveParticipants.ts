@@ -31,6 +31,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { getModifiedRanges } from 'vs/workbench/contrib/format/browser/formatModified';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 
@@ -41,7 +42,7 @@ export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 		// Nothing
 	}
 
-	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
+	async participate(model: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
 		if (!model.textEditorModel) {
 			return;
 		}
@@ -107,7 +108,7 @@ export class FinalNewLineParticipant implements ITextFileSaveParticipant {
 		// Nothing
 	}
 
-	async participate(model: ITextFileEditorModel, _env: { reason: SaveReason; }): Promise<void> {
+	async participate(model: ITextFileEditorModel, _env: { reason: SaveReason }): Promise<void> {
 		if (!model.textEditorModel) {
 			return;
 		}
@@ -145,7 +146,7 @@ export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 		// Nothing
 	}
 
-	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
+	async participate(model: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
 		if (!model.textEditorModel) {
 			return;
 		}
@@ -219,7 +220,7 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 		// Nothing
 	}
 
-	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	async participate(model: ITextFileEditorModel, env: { reason: SaveReason }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		if (!model.textEditorModel) {
 			return;
 		}
@@ -230,7 +231,7 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 		const textEditorModel = model.textEditorModel;
 		const overrides = { overrideIdentifier: textEditorModel.getLanguageId(), resource: textEditorModel.uri };
 
-		const nestedProgress = new Progress<{ displayName?: string, extensionId?: ExtensionIdentifier }>(provider => {
+		const nestedProgress = new Progress<{ displayName?: string; extensionId?: ExtensionIdentifier }>(provider => {
 			progress.report({
 				message: localize(
 					{ key: 'formatting2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
@@ -271,9 +272,10 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) { }
 
-	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	async participate(model: ITextFileEditorModel, env: { reason: SaveReason }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		if (!model.textEditorModel) {
 			return;
 		}
@@ -373,7 +375,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 	}
 
 	private getActionsToRun(model: ITextModel, codeActionKind: CodeActionKind, excludes: readonly CodeActionKind[], progress: IProgress<CodeActionProvider>, token: CancellationToken) {
-		return getCodeActions(model, model.getFullModelRange(), {
+		return getCodeActions(this.languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), {
 			type: CodeActionTriggerType.Auto,
 			filter: { include: codeActionKind, excludes: excludes, includeSourceActions: true },
 		}, progress, token);

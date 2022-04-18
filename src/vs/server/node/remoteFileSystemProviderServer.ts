@@ -8,7 +8,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IFileChange } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { createRemoteURITransformer } from 'vs/server/node/remoteUriTransformer';
+import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { posix, delimiter } from 'vs/base/common/path';
@@ -32,7 +32,7 @@ export class RemoteAgentFileSystemProviderChannel extends AbstractDiskFileSystem
 	protected override getUriTransformer(ctx: RemoteAgentConnectionContext): IURITransformer {
 		let transformer = this.uriTransformerCache.get(ctx.remoteAuthority);
 		if (!transformer) {
-			transformer = createRemoteURITransformer(ctx.remoteAuthority);
+			transformer = createURITransformer(ctx.remoteAuthority);
 			this.uriTransformerCache.set(ctx.remoteAuthority, transformer);
 		}
 

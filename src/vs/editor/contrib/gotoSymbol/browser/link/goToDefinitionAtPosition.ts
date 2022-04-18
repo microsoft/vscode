@@ -19,9 +19,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
-import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { LocationLink } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
@@ -33,6 +32,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { DefinitionAction } from '../goToCommands';
 import { getDefinitionsAtPosition } from '../goToSymbol';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export class GotoDefinitionAtPositionEditorContribution implements IEditorContribution {
 
@@ -49,7 +49,8 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	constructor(
 		editor: ICodeEditor,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@ILanguageService private readonly languageService: ILanguageService
+		@ILanguageService private readonly languageService: ILanguageService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		this.editor = editor;
 
@@ -217,7 +218,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	}
 
 	private getPreviewValue(textEditorModel: ITextModel, startLineNumber: number, result: LocationLink) {
-		let rangeToUse = result.targetSelectionRange ? result.range : this.getPreviewRangeBasedOnBrackets(textEditorModel, startLineNumber);
+		let rangeToUse = result.range;
 		const numberOfLinesInRange = rangeToUse.endLineNumber - rangeToUse.startLineNumber;
 		if (numberOfLinesInRange >= GotoDefinitionAtPositionEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
 			rangeToUse = this.getPreviewRangeBasedOnIndentation(textEditorModel, startLineNumber);
@@ -256,52 +257,6 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	private getPreviewRangeBasedOnBrackets(textEditorModel: ITextModel, startLineNumber: number) {
-		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionAtPositionEditorContribution.MAX_SOURCE_PREVIEW_LINES);
-
-		const brackets: IFoundBracket[] = [];
-
-		let ignoreFirstEmpty = true;
-		let currentBracket = textEditorModel.bracketPairs.findNextBracket(new Position(startLineNumber, 1));
-		while (currentBracket !== null) {
-
-			if (brackets.length === 0) {
-				brackets.push(currentBracket);
-			} else {
-				const lastBracket = brackets[brackets.length - 1];
-				if (lastBracket.open[0] === currentBracket.open[0] && lastBracket.isOpen && !currentBracket.isOpen) {
-					brackets.pop();
-				} else {
-					brackets.push(currentBracket);
-				}
-
-				if (brackets.length === 0) {
-					if (ignoreFirstEmpty) {
-						ignoreFirstEmpty = false;
-					} else {
-						return new Range(startLineNumber, 1, currentBracket.range.endLineNumber + 1, 1);
-					}
-				}
-			}
-
-			const maxColumn = textEditorModel.getLineMaxColumn(startLineNumber);
-			let nextLineNumber = currentBracket.range.endLineNumber;
-			let nextColumn = currentBracket.range.endColumn;
-			if (maxColumn === currentBracket.range.endColumn) {
-				nextLineNumber++;
-				nextColumn = 1;
-			}
-
-			if (nextLineNumber > maxLineNumber) {
-				return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
-			}
-
-			currentBracket = textEditorModel.bracketPairs.findNextBracket(new Position(nextLineNumber, nextColumn));
-		}
-
-		return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
-	}
-
 	private addDecoration(range: Range, hoverMessage: MarkdownString): void {
 
 		const newDecorations: IModelDeltaDecoration = {
@@ -327,7 +282,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 			mouseEvent.isNoneOrSingleMouseDown &&
 			(mouseEvent.target.type === MouseTargetType.CONTENT_TEXT) &&
 			(mouseEvent.hasTriggerModifier || (withKey ? withKey.keyCodeIsTriggerKey : false)) &&
-			DefinitionProviderRegistry.has(this.editor.getModel());
+			this.languageFeaturesService.definitionProvider.has(this.editor.getModel());
 	}
 
 	private findDefinition(position: Position, token: CancellationToken): Promise<LocationLink[] | null> {
@@ -336,7 +291,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 			return Promise.resolve(null);
 		}
 
-		return getDefinitionsAtPosition(model, position, token);
+		return getDefinitionsAtPosition(this.languageFeaturesService.definitionProvider, model, position, token);
 	}
 
 	private gotoDefinition(position: Position, openToSide: boolean): Promise<any> {

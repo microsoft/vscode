@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';

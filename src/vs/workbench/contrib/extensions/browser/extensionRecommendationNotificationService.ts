@@ -27,13 +27,13 @@ import { EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtens
 import { IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 
 type ExtensionRecommendationsNotificationClassification = {
-	userReaction: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-	extensionId?: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight'; };
-	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	extensionId?: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 type ExtensionWorkspaceRecommendationsNotificationClassification = {
-	userReaction: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 const ignoreImportantExtensionRecommendationStorageKey = 'extensionsAssistant/importantRecommendationsIgnore';
@@ -104,8 +104,8 @@ class RecommendationsNotification {
 	}
 }
 
-type PendingRecommendationsNotification = { recommendationsNotification: RecommendationsNotification, source: RecommendationSource, token: CancellationToken; };
-type VisibleRecommendationsNotification = { recommendationsNotification: RecommendationsNotification, source: RecommendationSource, from: number; };
+type PendingRecommendationsNotification = { recommendationsNotification: RecommendationsNotification; source: RecommendationSource; token: CancellationToken };
+type VisibleRecommendationsNotification = { recommendationsNotification: RecommendationsNotification; source: RecommendationSource; from: number };
 
 export class ExtensionRecommendationNotificationService implements IExtensionRecommendationNotificationService {
 
@@ -138,7 +138,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 	) { }
 
 	hasToIgnoreRecommendationNotifications(): boolean {
-		const config = this.configurationService.getValue<{ ignoreRecommendations: boolean, showRecommendationsOnlyOnDemand?: boolean; }>('extensions');
+		const config = this.configurationService.getValue<{ ignoreRecommendations: boolean; showRecommendationsOnlyOnDemand?: boolean }>('extensions');
 		return config.ignoreRecommendations || !!config.showRecommendationsOnlyOnDemand;
 	}
 
@@ -150,13 +150,13 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		}
 
 		return this.promptRecommendationsNotification(extensionIds, message, searchValue, source, {
-			onDidInstallRecommendedExtensions: (extensions: IExtension[]) => extensions.forEach(extension => this.telemetryService.publicLog2<{ userReaction: string, extensionId: string, source: string; }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'install', extensionId: extension.identifier.id, source: RecommendationSourceToString(source) })),
-			onDidShowRecommendedExtensions: (extensions: IExtension[]) => extensions.forEach(extension => this.telemetryService.publicLog2<{ userReaction: string, extensionId: string, source: string; }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'show', extensionId: extension.identifier.id, source: RecommendationSourceToString(source) })),
-			onDidCancelRecommendedExtensions: (extensions: IExtension[]) => extensions.forEach(extension => this.telemetryService.publicLog2<{ userReaction: string, extensionId: string, source: string; }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId: extension.identifier.id, source: RecommendationSourceToString(source) })),
+			onDidInstallRecommendedExtensions: (extensions: IExtension[]) => extensions.forEach(extension => this.telemetryService.publicLog2<{ userReaction: string; extensionId: string; source: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'install', extensionId: extension.identifier.id, source: RecommendationSourceToString(source) })),
+			onDidShowRecommendedExtensions: (extensions: IExtension[]) => extensions.forEach(extension => this.telemetryService.publicLog2<{ userReaction: string; extensionId: string; source: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'show', extensionId: extension.identifier.id, source: RecommendationSourceToString(source) })),
+			onDidCancelRecommendedExtensions: (extensions: IExtension[]) => extensions.forEach(extension => this.telemetryService.publicLog2<{ userReaction: string; extensionId: string; source: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId: extension.identifier.id, source: RecommendationSourceToString(source) })),
 			onDidNeverShowRecommendedExtensionsAgain: (extensions: IExtension[]) => {
 				for (const extension of extensions) {
 					this.addToImportantRecommendationsIgnore(extension.identifier.id);
-					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string, source: string; }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId: extension.identifier.id, source: RecommendationSourceToString(source) });
+					this.telemetryService.publicLog2<{ userReaction: string; extensionId: string; source: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId: extension.identifier.id, source: RecommendationSourceToString(source) });
 				}
 				this.notificationService.prompt(
 					Severity.Info,
@@ -187,10 +187,10 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 
 		const message = (extensions: IExtension[]) => extensions.length === 1 ? localize('singleExtensionRecommended', "'{0}' extension is recommended for this repository. Do you want to install?", extensions[0].displayName) : localize('workspaceRecommended', "Do you want to install the recommended extensions for this repository?");
 		const result = await this.promptRecommendationsNotification(recommendations, message, '@recommended ', RecommendationSource.WORKSPACE, {
-			onDidInstallRecommendedExtensions: () => this.telemetryService.publicLog2<{ userReaction: string; }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'install' }),
-			onDidShowRecommendedExtensions: () => this.telemetryService.publicLog2<{ userReaction: string; }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'show' }),
-			onDidCancelRecommendedExtensions: () => this.telemetryService.publicLog2<{ userReaction: string; }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'cancelled' }),
-			onDidNeverShowRecommendedExtensionsAgain: () => this.telemetryService.publicLog2<{ userReaction: string; }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' }),
+			onDidInstallRecommendedExtensions: () => this.telemetryService.publicLog2<{ userReaction: string }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'install' }),
+			onDidShowRecommendedExtensions: () => this.telemetryService.publicLog2<{ userReaction: string }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'show' }),
+			onDidCancelRecommendedExtensions: () => this.telemetryService.publicLog2<{ userReaction: string }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'cancelled' }),
+			onDidNeverShowRecommendedExtensionsAgain: () => this.telemetryService.publicLog2<{ userReaction: string }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' }),
 		});
 
 		if (result === RecommendationsNotificationResult.Accepted) {

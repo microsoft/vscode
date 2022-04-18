@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 
 export abstract class DynamicViewOverlay extends ViewEventHandler {
 

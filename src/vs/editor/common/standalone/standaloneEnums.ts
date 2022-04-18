@@ -366,7 +366,6 @@ export enum InjectedTextCursorStops {
 }
 
 export enum InlayHintKind {
-	Other = 0,
 	Type = 1,
 	Parameter = 2
 }
@@ -576,10 +575,14 @@ export enum KeyCode {
 	LaunchMail = 124,
 	LaunchApp2 = 125,
 	/**
+	 * VK_CLEAR, 0x0C, CLEAR key
+	 */
+	Clear = 126,
+	/**
 	 * Placed last to cover the length of the enum.
 	 * Please do not depend on this value!
 	 */
-	MAX_VALUE = 126
+	MAX_VALUE = 127
 }
 
 export enum MarkerSeverity {
@@ -704,7 +707,15 @@ export enum PositionAffinity {
 	/**
 	 * No preference.
 	*/
-	None = 2
+	None = 2,
+	/**
+	 * If the given position is on injected text, prefers the position left of it.
+	*/
+	LeftOfInjectedText = 3,
+	/**
+	 * If the given position is on injected text, prefers the position right of it.
+	*/
+	RightOfInjectedText = 4
 }
 
 export enum RenderLineNumbersType {

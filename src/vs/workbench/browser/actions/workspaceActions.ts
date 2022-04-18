@@ -5,22 +5,23 @@
 
 import { localize } from 'vs/nls';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
+import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID, SET_ROOT_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { MenuRegistry, MenuId, Action2, registerAction2, ILocalizedString } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, OpenFolderWorkspaceSupportContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 const workspacesCategory: ILocalizedString = { value: localize('workspaces', "Workspaces"), original: 'Workspaces' };
 const fileCategory = { value: localize('filesCategory', "File"), original: 'File' };
@@ -78,6 +79,36 @@ export class OpenFolderAction extends Action2 {
 		const fileDialogService = accessor.get(IFileDialogService);
 
 		return fileDialogService.pickFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
+	}
+}
+
+export class OpenFolderViaWorkspaceAction extends Action2 {
+
+	// This action swaps the folders of a workspace with
+	// the selected folder and is a workaround for providing
+	// "Open Folder..." in environments that do not support
+	// this without having a workspace open (e.g. web serverless)
+
+	static readonly ID = 'workbench.action.files.openFolderViaWorkspace';
+
+	constructor() {
+		super({
+			id: OpenFolderViaWorkspaceAction.ID,
+			title: { value: localize('openFolder', "Open Folder..."), original: 'Open Folder...' },
+			category: fileCategory,
+			f1: true,
+			precondition: ContextKeyExpr.and(OpenFolderWorkspaceSupportContext.toNegated(), WorkbenchStateContext.isEqualTo('workspace')),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyO
+			}
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+
+		return commandService.executeCommand(SET_ROOT_FOLDER_COMMAND_ID);
 	}
 }
 
@@ -295,6 +326,7 @@ registerAction2(AddRootFolderAction);
 registerAction2(RemoveRootFolderAction);
 registerAction2(OpenFileAction);
 registerAction2(OpenFolderAction);
+registerAction2(OpenFolderViaWorkspaceAction);
 registerAction2(OpenFileFolderAction);
 registerAction2(OpenWorkspaceAction);
 registerAction2(OpenWorkspaceConfigFileAction);
@@ -327,10 +359,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '2_open',
 	command: {
-		// When we do not support opening folders/workspaces
-		// but we are in a workspace context, we add a
-		// "Open Folder" action that adds the folder as workspace
-		id: AddRootFolderAction.ID,
+		id: OpenFolderViaWorkspaceAction.ID,
 		title: localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
 	},
 	order: 2,

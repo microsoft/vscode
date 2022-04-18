@@ -25,7 +25,7 @@ import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
 import { TerminalEnvironmentManager } from './terminal';
 
-const deactivateTasks: { (): Promise<any>; }[] = [];
+const deactivateTasks: { (): Promise<any> }[] = [];
 
 export async function deactivate(): Promise<any> {
 	for (const task of deactivateTasks) {
@@ -165,7 +165,7 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 	commands.registerCommand('git.showOutput', () => outputChannel.show());
 	disposables.push(outputChannel);
 
-	const { name, version, aiKey } = require('../package.json') as { name: string, version: string, aiKey: string };
+	const { name, version, aiKey } = require('../package.json') as { name: string; version: string; aiKey: string };
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
 	deactivateTasks.push(() => telemetryReporter.dispose());
 

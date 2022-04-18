@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/editor/browser/controller/coreCommands';
+import 'vs/editor/browser/coreCommands';
 import 'vs/editor/browser/widget/codeEditorWidget';
 import 'vs/editor/browser/widget/diffEditorWidget';
 import 'vs/editor/browser/widget/diffNavigator';
@@ -24,13 +24,13 @@ import 'vs/editor/contrib/folding/browser/folding';
 import 'vs/editor/contrib/fontZoom/browser/fontZoom';
 import 'vs/editor/contrib/format/browser/formatActions';
 import 'vs/editor/contrib/documentSymbols/browser/documentSymbols';
-import 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
+import 'vs/editor/contrib/inlineCompletions/browser/ghostText.contribution';
 import 'vs/editor/contrib/gotoSymbol/browser/goToCommands';
 import 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
 import 'vs/editor/contrib/gotoError/browser/gotoError';
 import 'vs/editor/contrib/hover/browser/hover';
 import 'vs/editor/contrib/indentation/browser/indentation';
-import 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
+import 'vs/editor/contrib/inlayHints/browser/inlayHintsContribution';
 import 'vs/editor/contrib/inPlaceReplace/browser/inPlaceReplace';
 import 'vs/editor/contrib/lineSelection/browser/lineSelection';
 import 'vs/editor/contrib/linesOperations/browser/linesOperations';
@@ -42,6 +42,7 @@ import 'vs/editor/contrib/rename/browser/rename';
 import 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import 'vs/editor/contrib/snippet/browser/snippetController2';
 import 'vs/editor/contrib/suggest/browser/suggestController';
+import 'vs/editor/contrib/suggest/browser/suggestInlineCompletions';
 import 'vs/editor/contrib/tokenization/browser/tokenization';
 import 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
 import 'vs/editor/contrib/unicodeHighlighter/browser/unicodeHighlighter';

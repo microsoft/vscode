@@ -14,10 +14,10 @@ import { ISizeCalculationResult } from 'image-size/dist/types/interface';
 
 const reUrl = /^https?:/;
 export type ImageInfoWithScale = {
-	realWidth: number,
-	realHeight: number,
-	width: number,
-	height: number
+	realWidth: number;
+	realHeight: number;
+	width: number;
+	height: number;
 };
 
 /**

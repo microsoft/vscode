@@ -11,7 +11,6 @@ import { TsServerProcessFactory } from './tsServer/server';
 import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
-import { flatten } from './utils/arrays';
 import { ServiceConfigurationProvider } from './utils/configuration';
 import * as fileSchemes from './utils/fileSchemes';
 import { standardLanguageDescriptions } from './utils/languageDescription';
@@ -23,14 +22,14 @@ export function createLazyClientHost(
 	context: vscode.ExtensionContext,
 	onCaseInsensitiveFileSystem: boolean,
 	services: {
-		pluginManager: PluginManager,
-		commandManager: CommandManager,
-		logDirectoryProvider: ILogDirectoryProvider,
-		cancellerFactory: OngoingRequestCancellerFactory,
-		versionProvider: ITypeScriptVersionProvider,
-		processFactory: TsServerProcessFactory,
-		activeJsTsEditorTracker: ActiveJsTsEditorTracker,
-		serviceConfigurationProvider: ServiceConfigurationProvider,
+		pluginManager: PluginManager;
+		commandManager: CommandManager;
+		logDirectoryProvider: ILogDirectoryProvider;
+		cancellerFactory: OngoingRequestCancellerFactory;
+		versionProvider: ITypeScriptVersionProvider;
+		processFactory: TsServerProcessFactory;
+		activeJsTsEditorTracker: ActiveJsTsEditorTracker;
+		serviceConfigurationProvider: ServiceConfigurationProvider;
 	},
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {
@@ -55,10 +54,10 @@ export function lazilyActivateClient(
 ): vscode.Disposable {
 	const disposables: vscode.Disposable[] = [];
 
-	const supportedLanguage = flatten([
-		...standardLanguageDescriptions.map(x => x.modeIds),
+	const supportedLanguage = [
+		...standardLanguageDescriptions.map(x => x.languageIds),
 		...pluginManager.plugins.map(x => x.languages)
-	]);
+	].flat();
 
 	let hasActivated = false;
 	const maybeActivate = (textDocument: vscode.TextDocument): boolean => {

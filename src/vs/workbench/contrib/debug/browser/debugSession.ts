@@ -14,7 +14,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import * as resources from 'vs/base/common/resources';
-import severity from 'vs/base/common/severity';
+import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -74,7 +74,7 @@ export class DebugSession implements IDebugSession {
 
 	constructor(
 		private id: string,
-		private _configuration: { resolved: IConfig, unresolved: IConfig | undefined },
+		private _configuration: { resolved: IConfig; unresolved: IConfig | undefined },
 		public root: IWorkspaceFolder | undefined,
 		private model: DebugModel,
 		options: IDebugSessionOptions | undefined,
@@ -172,7 +172,12 @@ export class DebugSession implements IDebugSession {
 		return this._options.debugUI?.simple ?? false;
 	}
 
-	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }) {
+	get autoExpandLazyVariables(): boolean {
+		// This tiny helper avoids converting the entire debug model to use service injection
+		return this.configurationService.getValue<IDebugConfiguration>('debug').autoExpandLazyVariables;
+	}
+
+	setConfiguration(configuration: { resolved: IConfig; unresolved: IConfig | undefined }) {
 		this._configuration = configuration;
 	}
 
@@ -350,7 +355,7 @@ export class DebugSession implements IDebugSession {
 	/**
 	 * end the current debug adapter session
 	 */
-	async disconnect(restart = false): Promise<void> {
+	async disconnect(restart = false, suspend = false): Promise<void> {
 		if (!this.raw) {
 			// Adapter went down but it did not send a 'terminated' event, simulate like the event has been sent
 			this.onDidExitAdapter();
@@ -358,9 +363,10 @@ export class DebugSession implements IDebugSession {
 
 		this.cancelAllRequests();
 		if (this._options.lifecycleManagedByParent && this.parentSession) {
-			await this.parentSession.disconnect(restart);
+			await this.parentSession.disconnect(restart, suspend);
 		} else if (this.raw) {
-			await this.raw.disconnect({ restart, terminateDebuggee: false });
+			// TODO terminateDebuggee should be undefined by default?
+			await this.raw.disconnect({ restart, terminateDebuggee: false, suspendDebuggee: suspend });
 		}
 
 		if (!restart) {
@@ -464,7 +470,7 @@ export class DebugSession implements IDebugSession {
 		}
 	}
 
-	async dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null, description: string, canPersist?: boolean } | undefined> {
+	async dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null; description: string; canPersist?: boolean } | undefined> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'data breakpoints info'));
 		}
@@ -751,7 +757,7 @@ export class DebugSession implements IDebugSession {
 		}, sessionCancelationToken);
 	}
 
-	async stepInTargets(frameId: number): Promise<{ id: number, label: string }[] | undefined> {
+	async stepInTargets(frameId: number): Promise<{ id: number; label: string }[] | undefined> {
 		if (!this.raw) {
 			return Promise.reject(new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepInTargets')));
 		}
@@ -957,7 +963,8 @@ export class DebugSession implements IDebugSession {
 						const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 						if (!focusedStackFrame || focusedStackFrame.thread.session === this) {
 							// Only take focus if nothing is focused, or if the focus is already on the current session
-							await this.debugService.focusStackFrame(undefined, thread);
+							const preserveFocus = !this.configurationService.getValue<IDebugConfiguration>('debug').focusEditorOnBreak;
+							await this.debugService.focusStackFrame(undefined, thread, undefined, { preserveFocus });
 						}
 
 						if (thread.stoppedDetails) {
@@ -1003,7 +1010,7 @@ export class DebugSession implements IDebugSession {
 				this.passFocusScheduler.cancel();
 				if (focusedThread && event.body.threadId === focusedThread.threadId) {
 					// De-focus the thread in case it was focused
-					this.debugService.focusStackFrame(undefined, undefined, viewModel.focusedSession, false);
+					this.debugService.focusStackFrame(undefined, undefined, viewModel.focusedSession, { explicit: false });
 				}
 			}
 		}));
@@ -1055,7 +1062,7 @@ export class DebugSession implements IDebugSession {
 					resolved.forEach((child) => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
 						(<any>child).name = null;
-						this.appendToRepl(child, severity.Info, source);
+						this.appendToRepl(child, Severity.Info, event.body.category === 'important', source);
 					});
 				});
 				return;
@@ -1065,12 +1072,12 @@ export class DebugSession implements IDebugSession {
 					return;
 				}
 
-				const outputSeverity = event.body.category === 'stderr' ? severity.Error : event.body.category === 'console' ? severity.Warning : severity.Info;
+				const outputSeverity = event.body.category === 'stderr' ? Severity.Error : event.body.category === 'console' ? Severity.Warning : Severity.Info;
 				if (event.body.category === 'telemetry') {
 					// only log telemetry events from debug adapter if the debug extension provided the telemetry key
 					// and the user opted in telemetry
 					const telemetryEndpoint = this.raw.dbgr.getCustomTelemetryEndpoint();
-					if (telemetryEndpoint && this.telemetryService.telemetryLevel !== TelemetryLevel.NONE) {
+					if (telemetryEndpoint && this.telemetryService.telemetryLevel.value !== TelemetryLevel.NONE) {
 						// __GDPR__TODO__ We're sending events in the name of the debug extension and we can not ensure that those are declared correctly.
 						let data = event.body.data;
 						if (!telemetryEndpoint.sendErrorTelemetry && event.body.data) {
@@ -1104,7 +1111,7 @@ export class DebugSession implements IDebugSession {
 				}
 
 				if (typeof event.body.output === 'string') {
-					this.appendToRepl(event.body.output, outputSeverity, source);
+					this.appendToRepl(event.body.output, outputSeverity, event.body.category === 'important', source);
 				}
 			});
 		}));
@@ -1297,11 +1304,10 @@ export class DebugSession implements IDebugSession {
 		this.debugService.getViewModel().updateViews();
 	}
 
-	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void {
+	appendToRepl(data: string | IExpression, severity: Severity, isImportant?: boolean, source?: IReplElementSource): void {
 		this.repl.appendToRepl(this, data, severity, source);
-	}
-
-	logToRepl(sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
-		this.repl.logToRepl(this, sev, args, frame);
+		if (isImportant) {
+			this.notificationService.notify({ message: data.toString(), severity: severity, source: this.name });
+		}
 	}
 }

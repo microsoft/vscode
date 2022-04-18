@@ -19,7 +19,7 @@ import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebo
 import { ExtHostCell } from 'vs/workbench/api/common/extHostNotebookDocument';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { NotebookCellExecutionState as ExtHostNotebookCellExecutionState, NotebookCellOutput } from 'vs/workbench/api/common/extHostTypes';
-import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
+import { asWebviewUri } from 'vs/workbench/common/webview';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
@@ -27,16 +27,16 @@ import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/
 import * as vscode from 'vscode';
 
 interface IKernelData {
-	extensionId: ExtensionIdentifier,
+	extensionId: ExtensionIdentifier;
 	controller: vscode.NotebookController;
-	onDidChangeSelection: Emitter<{ selected: boolean; notebook: vscode.NotebookDocument; }>;
-	onDidReceiveMessage: Emitter<{ editor: vscode.NotebookEditor, message: any; }>;
+	onDidChangeSelection: Emitter<{ selected: boolean; notebook: vscode.NotebookDocument }>;
+	onDidReceiveMessage: Emitter<{ editor: vscode.NotebookEditor; message: any }>;
 	associatedNotebooks: ResourceMap<boolean>;
 }
 
 type ExtHostSelectKernelArgs = ControllerInfo | { notebookEditor: vscode.NotebookEditor } | ControllerInfo & { notebookEditor: vscode.NotebookEditor } | undefined;
 export type SelectKernelReturnArgs = ControllerInfo | { notebookEditorId: string } | ControllerInfo & { notebookEditorId: string } | undefined;
-type ControllerInfo = { id: string, extension: string };
+type ControllerInfo = { id: string; extension: string };
 
 
 export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
@@ -104,11 +104,11 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		let isDisposed = false;
 		const commandDisposables = new DisposableStore();
 
-		const onDidChangeSelection = new Emitter<{ selected: boolean, notebook: vscode.NotebookDocument; }>();
-		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor, message: any; }>();
+		const onDidChangeSelection = new Emitter<{ selected: boolean; notebook: vscode.NotebookDocument }>();
+		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor; message: any }>();
 
 		const data: INotebookKernelDto2 = {
-			id: createKernelId(extension, id),
+			id: createKernelId(extension.identifier, id),
 			notebookType: viewType,
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
@@ -218,7 +218,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 					that._logService.trace(`NotebookController[${handle}] NOT associated to notebook, associated to THESE notebooks:`, Array.from(associatedNotebooks.keys()).map(u => u.toString()));
 					throw new Error(`notebook controller is NOT associated to notebook: ${cell.notebook.uri.toString()}`);
 				}
-				return that._createNotebookCellExecution(cell, createKernelId(extension, this.id));
+				return that._createNotebookCellExecution(cell, createKernelId(extension.identifier, this.id));
 			},
 			dispose: () => {
 				if (!isDisposed) {
@@ -255,6 +255,15 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			associatedNotebooks
 		});
 		return controller;
+	}
+
+	getIdByController(controller: vscode.NotebookController) {
+		for (const [_, candidate] of this._kernelData) {
+			if (candidate.controller === controller) {
+				return createKernelId(candidate.extensionId, controller.id);
+			}
+		}
+		return null;
 	}
 
 	$acceptNotebookAssociation(handle: number, uri: UriComponents, value: boolean): void {
@@ -341,7 +350,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		if (cell) {
 			this._onDidChangeCellExecutionState.fire({
 				cell: cell.apiCell,
-				state: state ?? ExtHostNotebookCellExecutionState.Idle
+				state: state ? extHostTypeConverters.NotebookCellExecutionState.to(state) : ExtHostNotebookCellExecutionState.Idle
 			});
 		}
 	}
@@ -583,6 +592,6 @@ class TimeoutBasedCollector<T> {
 	}
 }
 
-function createKernelId(extension: IExtensionDescription, id: string): string {
-	return `${extension.identifier.value}/${id}`;
+export function createKernelId(extensionIdentifier: ExtensionIdentifier, id: string): string {
+	return `${extensionIdentifier.value}/${id}`;
 }

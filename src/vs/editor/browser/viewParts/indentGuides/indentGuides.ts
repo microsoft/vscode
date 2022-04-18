@@ -8,7 +8,7 @@ import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { editorActiveIndentGuides, editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketPairGuideActiveBackground1, editorBracketPairGuideActiveBackground2, editorBracketPairGuideActiveBackground3, editorBracketPairGuideActiveBackground4, editorBracketPairGuideActiveBackground5, editorBracketPairGuideActiveBackground6, editorBracketPairGuideBackground1, editorBracketPairGuideBackground2, editorBracketPairGuideBackground3, editorBracketPairGuideBackground4, editorBracketPairGuideBackground5, editorBracketPairGuideBackground6, editorIndentGuides } from 'vs/editor/common/core/editorColorRegistry';
 import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
+import * as viewEvents from 'vs/editor/common/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorOption, InternalGuidesOptions } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
@@ -131,7 +131,13 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			let result = '';
 			const leftOffset = ctx.visibleRangeForPosition(new Position(lineNumber, 1))?.left ?? 0;
 			for (const guide of indent) {
-				const left = leftOffset + (guide.visibleColumn - 1) * this._spaceWidth;
+				const left =
+					guide.column === -1
+						? leftOffset + (guide.visibleColumn - 1) * this._spaceWidth
+						: ctx.visibleRangeForPosition(
+							new Position(lineNumber, guide.column)
+						)!.left;
+
 				if (left > scrollWidth || (this._maxIndentLeft > 0 && left > this._maxIndentLeft)) {
 					break;
 				}
@@ -157,7 +163,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		activeCursorPosition: Position | null
 	): IndentGuide[][] {
 		const bracketGuides = this._bracketPairGuideOptions.bracketPairs !== false
-			? this._context.model.getBracketGuidesInRangeByLine(
+			? this._context.viewModel.getBracketGuidesInRangeByLine(
 				visibleStartLineNumber,
 				visibleEndLineNumber,
 				activeCursorPosition,
@@ -174,7 +180,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			: null;
 
 		const indentGuides = this._bracketPairGuideOptions.indentation
-			? this._context.model.getLinesIndentGuides(
+			? this._context.viewModel.getLinesIndentGuides(
 				visibleStartLineNumber,
 				visibleEndLineNumber
 			)
@@ -185,13 +191,13 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		let activeIndentLevel = 0;
 
 		if (this._bracketPairGuideOptions.highlightActiveIndentation && activeCursorPosition) {
-			const activeIndentInfo = this._context.model.getActiveIndentGuide(activeCursorPosition.lineNumber, visibleStartLineNumber, visibleEndLineNumber);
+			const activeIndentInfo = this._context.viewModel.getActiveIndentGuide(activeCursorPosition.lineNumber, visibleStartLineNumber, visibleEndLineNumber);
 			activeIndentStartLineNumber = activeIndentInfo.startLineNumber;
 			activeIndentEndLineNumber = activeIndentInfo.endLineNumber;
 			activeIndentLevel = activeIndentInfo.indent;
 		}
 
-		const { indentSize } = this._context.model.getTextModelOptions();
+		const { indentSize } = this._context.viewModel.model.getOptions();
 
 		const result: IndentGuide[][] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
@@ -217,8 +223,11 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 					lineGuides.push(
 						new IndentGuide(
 							indentGuide,
+							-1,
 							isActive ? 'core-guide-indent-active' : 'core-guide-indent',
-							null
+							null,
+							-1,
+							-1,
 						)
 					);
 				}

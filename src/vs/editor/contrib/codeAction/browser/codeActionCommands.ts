@@ -17,6 +17,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionUi } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
@@ -83,11 +84,12 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorProgressService progressService: IEditorProgressService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
 		this._editor = editor;
-		this._model = this._register(new CodeActionModel(this._editor, markerService, contextKeyService, progressService));
+		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService));
 		this._register(this._model.onDidChangeState(newState => this.update(newState)));
 
 		this._ui = new Lazy(() =>
@@ -152,9 +154,11 @@ export async function applyCodeAction(
 		codeActionIsPreferred: boolean;
 	};
 	type ApplyCodeEventClassification = {
-		codeActionTitle: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-		codeActionKind: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-		codeActionIsPreferred: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		codeActionTitle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The display label of the applied code action' };
+		codeActionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind (refactor, quickfix) of the applied code action' };
+		codeActionIsPreferred: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Was the code action marked as being a preferred action?' };
+		owner: 'mjbvz';
+		comment: 'Event used to gain insights into which code actions are being triggered';
 	};
 
 	telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
@@ -166,7 +170,13 @@ export async function applyCodeAction(
 	await item.resolve(CancellationToken.None);
 
 	if (item.action.edit) {
-		await bulkEditService.apply(ResourceEdit.convert(item.action.edit), { editor, label: item.action.title });
+		await bulkEditService.apply(ResourceEdit.convert(item.action.edit), {
+			editor,
+			label: item.action.title,
+			quotableLabel: item.action.title,
+			code: 'undoredo.codeAction',
+			respectAutoSaveConfig: true
+		});
 	}
 
 	if (item.action.command) {

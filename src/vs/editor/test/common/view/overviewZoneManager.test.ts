@@ -19,10 +19,10 @@ suite('Editor View - OverviewZoneManager', () => {
 		manager.setPixelRatio(1);
 
 		manager.setZones([
-			new OverviewRulerZone(1, 1, '1'),
-			new OverviewRulerZone(10, 10, '2'),
-			new OverviewRulerZone(30, 31, '3'),
-			new OverviewRulerZone(50, 50, '4'),
+			new OverviewRulerZone(1, 1, 0, '1'),
+			new OverviewRulerZone(10, 10, 0, '2'),
+			new OverviewRulerZone(30, 31, 0, '3'),
+			new OverviewRulerZone(50, 50, 0, '4'),
 		]);
 
 		// one line = 12, but cap is at 6
@@ -45,10 +45,10 @@ suite('Editor View - OverviewZoneManager', () => {
 		manager.setPixelRatio(1);
 
 		manager.setZones([
-			new OverviewRulerZone(1, 1, '1'),
-			new OverviewRulerZone(10, 10, '2'),
-			new OverviewRulerZone(30, 31, '3'),
-			new OverviewRulerZone(50, 50, '4'),
+			new OverviewRulerZone(1, 1, 0, '1'),
+			new OverviewRulerZone(10, 10, 0, '2'),
+			new OverviewRulerZone(30, 31, 0, '3'),
+			new OverviewRulerZone(50, 50, 0, '4'),
 		]);
 
 		// one line = 6, cap is at 6
@@ -71,10 +71,10 @@ suite('Editor View - OverviewZoneManager', () => {
 		manager.setPixelRatio(2);
 
 		manager.setZones([
-			new OverviewRulerZone(1, 1, '1'),
-			new OverviewRulerZone(10, 10, '2'),
-			new OverviewRulerZone(30, 31, '3'),
-			new OverviewRulerZone(50, 50, '4'),
+			new OverviewRulerZone(1, 1, 0, '1'),
+			new OverviewRulerZone(10, 10, 0, '2'),
+			new OverviewRulerZone(30, 31, 0, '3'),
+			new OverviewRulerZone(50, 50, 0, '4'),
 		]);
 
 		// one line = 6, cap is at 12

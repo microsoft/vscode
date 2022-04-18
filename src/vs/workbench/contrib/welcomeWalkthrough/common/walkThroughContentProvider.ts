@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModel, DefaultEndOfLine, EndOfLinePreference, ITextBufferFactory } from 'vs/editor/common/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { marked } from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
