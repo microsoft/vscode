@@ -11,13 +11,12 @@ builtin unset ZDOTDIR
 # This variable allows the shell to both detect that VS Code's shell integration is enabled as well
 # as disable it by unsetting the variable.
 VSCODE_SHELL_INTEGRATION=1
-
-export RCS="1"
-
+echo 'running script'
 # this is where ZDOTDIR gets set for the user
 if [ -f /etc/zshenv ]; then
 	. /etc/zshenv
 fi
+
 # if ZDOTDIR is undefined, use HOME
 local __vsc_path=$ZDOTDIR
 if [ -z "${ZDOTDIR}" ]; then
@@ -26,6 +25,8 @@ else
 	VSCODE_SHELL_HIDE_WELCOME=""
 fi
 
+export RCS="1"
+export GLOBAL_RCS="1"
 if [[ -n "${RCS}" && -f $__vsc_path/.zshenv ]]; then
 	. $__vsc_path/.zshenv
 fi
@@ -44,6 +45,7 @@ fi
 # login is handled automatically
 
 builtin unset RCS
+builtin unset GLOBAL_RCS
 
 # Shell integration was disabled by the shell, exit without warning assuming either the shell has
 # explicitly disabled shell integration as it's incompatible or it implements the protocol.
