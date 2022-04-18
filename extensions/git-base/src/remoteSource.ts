@@ -126,8 +126,9 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 
 	const updatePicks = (value?: string) => {
 		if (value) {
+			const label = (typeof options.urlLabel === 'string' ? options.urlLabel : options.urlLabel?.(value)) ?? localize('url', "URL");
 			quickpick.items = [{
-				label: options.urlLabel ?? localize('url', "URL"),
+				label: label,
 				description: value,
 				alwaysShow: true,
 				url: value
