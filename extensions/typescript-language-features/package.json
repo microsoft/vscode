@@ -321,21 +321,49 @@
         "typescript.inlayHints.tupleElementAccess.enabled": {
           "type": "boolean",
           "default": false,
+          "markdownDescription": "%configuration.inlayHints.tupleElementAccess.enabled%",
           "scope": "resource"
         },
         "typescript.inlayHints.tupleLiteral.enabled": {
           "type": "boolean",
           "default": false,
+          "markdownDescription": "%configuration.inlayHints.tupleLiteral.enabled%",
           "scope": "resource"
         },
         "typescript.inlayHints.tupleBinding.enabled": {
           "type": "boolean",
           "default": false,
+          "markdownDescription": "%configuration.inlayHints.tupleBinding.enabled%",
           "scope": "resource"
         },
         "typescript.inlayHints.tupleBinding.suppressWhenVariableMatchesName": {
           "type": "boolean",
           "default": true,
+          "markdownDescription": "%configuration.inlayHints.tupleBinding.suppressWhenVariableMatchesName%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.tupleElementAccess.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.tupleElementAccess.enabled.js%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.tupleLiteral.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.tupleLiteral.enabled.js%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.tupleBinding.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.inlayHints.tupleBinding.enabled.js%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.tupleBinding.suppressWhenVariableMatchesName": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.inlayHints.tupleBinding.suppressWhenVariableMatchesName%",
           "scope": "resource"
         },
         "javascript.inlayHints.parameterNames.enabled": {

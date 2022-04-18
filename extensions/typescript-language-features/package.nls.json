@@ -112,6 +112,31 @@
 		"message": "Enable/disable inlay hints for member values in enum declarations:\n```typescript\n\nenum MyValue {\n\tA /* = 0 */;\n\tB /* = 1 */;\n}\n \n```\nRequires using TypeScript 4.4+ in the workspace.",
 		"comment": "The text inside the ``` block is code and should not be localized."
 	},
+	"configuration.inlayHints.tupleElementAccess.enabled": {
+		"message": "Enable/disable inlay hints for tuple labels when accessing a tuple element:\n```typescript\n\ntype Foo = [bar: number, baz: number];\n\nlet foo: Foo;\nfoo[/* bar: */ 0];\nfoo[/* baz: */ 1];\n \n```\nRequires using TypeScript 4.7+ in the workspace.",
+		"comment": "The text inside the ``` block is code and should not be localized."
+	},
+	"configuration.inlayHints.tupleLiteral.enabled": {
+		"message": "Enable/disable inlay hints for tuple labels when creating a tuple literal:\n```typescript\n\ntype Foo = [bar: number, baz: number];\n\nlet foo: Foo = [/* bar: */ 0, /* baz: */ 1];\n \n```\nRequires using TypeScript 4.7+ in the workspace.",
+		"comment": "The text inside the ``` block is code and should not be localized."
+	},
+	"configuration.inlayHints.tupleBinding.enabled": {
+		"message": "Enable/disable inlay hints for tuple labels when binding a tuple into a destructured array:\n```typescript\n\ntype Foo = [bar: number, baz: number];\n\nlet foo: Foo;\nlet [/* bar: */ a, /* baz: */ b] = foo;\n \n```\nRequires using TypeScript 4.7+ in the workspace.",
+		"comment": "The text inside the ``` block is code and should not be localized."
+	},
+	"configuration.inlayHints.tupleElementAccess.enabled.js": {
+		"message": "Enable/disable inlay hints for tuple labels when accessing a tuple element:\n```javascript\n\n/**\n * @type {[bar: number, baz: number]}\n */\nlet foo;\nfoo[/* bar: */ 0];\nfoo[/* baz: */ 1];\n \n```\nRequires using TypeScript 4.7+ in the workspace.",
+		"comment": "The text inside the ``` block is code and should not be localized."
+	},
+	"configuration.inlayHints.tupleLiteral.enabled.js": {
+		"message": "Enable/disable inlay hints for tuple labels when creating a tuple literal:\n```javascript\n\n/**\n * @type {[bar: number, baz: number]}\n */\nlet foo = [/* bar: */ 0, /* baz: */ 1];\n \n```\nRequires using TypeScript 4.7+ in the workspace.",
+		"comment": "The text inside the ``` block is code and should not be localized."
+	},
+	"configuration.inlayHints.tupleBinding.enabled.js": {
+		"message": "Enable/disable inlay hints for tuple labels when binding a tuple into a destructured array:\n```javascript\n\n/**\n * @type {[bar: number, baz: number]}\n */\nlet foo;\nlet [/* bar: */ a, /* baz: */ b] = foo;\n \n```\nRequires using TypeScript 4.7+ in the workspace.",
+		"comment": "The text inside the ``` block is code and should not be localized."
+	},
+	"configuration.inlayHints.tupleBinding.suppressWhenVariableMatchesName": "Suppress tuple label hints during tuple binding when the label matches the variable name in the destructured array.",
 	"taskDefinition.tsconfig.description": "The tsconfig file that defines the TS build.",
 	"javascript.suggestionActions.enabled": "Enable/disable suggestion diagnostics for JavaScript files in the editor.",
 	"typescript.suggestionActions.enabled": "Enable/disable suggestion diagnostics for TypeScript files in the editor.",
