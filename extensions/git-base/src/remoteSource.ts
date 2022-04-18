@@ -24,17 +24,20 @@ async function getQuickPickResult<T extends QuickPickItem>(quickpick: QuickPick<
 
 class RemoteSourceProviderQuickPick {
 
-	private quickpick: QuickPick<QuickPickItem & { remoteSource?: RemoteSource }>;
+	private quickpick: QuickPick<QuickPickItem & { remoteSource?: RemoteSource }> | undefined;
 
-	constructor(private provider: RemoteSourceProvider) {
-		this.quickpick = window.createQuickPick();
-		this.quickpick.ignoreFocusOut = true;
+	constructor(private provider: RemoteSourceProvider) { }
 
-		if (provider.supportsQuery) {
-			this.quickpick.placeholder = localize('type to search', "Repository name (type to search)");
-			this.quickpick.onDidChangeValue(this.onDidChangeValue, this);
-		} else {
-			this.quickpick.placeholder = localize('type to filter', "Repository name");
+	private ensureQuickPick() {
+		if (!this.quickpick) {
+			this.quickpick = window.createQuickPick();
+			this.quickpick.ignoreFocusOut = true;
+			if (this.provider.supportsQuery) {
+				this.quickpick.placeholder = localize('type to search', "Repository name (type to search)");
+				this.quickpick.onDidChangeValue(this.onDidChangeValue, this);
+			} else {
+				this.quickpick.placeholder = localize('type to filter', "Repository name");
+			}
 		}
 	}
 
@@ -45,18 +48,19 @@ class RemoteSourceProviderQuickPick {
 
 	@throttle
 	private async query(): Promise<void> {
-		this.quickpick.busy = true;
-
 		try {
-			const remoteSources = await this.provider.getRemoteSources(this.quickpick.value) || [];
+			const remoteSources = await this.provider.getRemoteSources() || [];
+
+			this.ensureQuickPick();
+			this.quickpick!.show();
 
 			if (remoteSources.length === 0) {
-				this.quickpick.items = [{
+				this.quickpick!.items = [{
 					label: localize('none found', "No remote repositories found."),
 					alwaysShow: true
 				}];
 			} else {
-				this.quickpick.items = remoteSources.map(remoteSource => ({
+				this.quickpick!.items = remoteSources.map(remoteSource => ({
 					label: remoteSource.name,
 					description: remoteSource.description || (typeof remoteSource.url === 'string' ? remoteSource.url : remoteSource.url[0]),
 					detail: remoteSource.detail,
@@ -65,16 +69,16 @@ class RemoteSourceProviderQuickPick {
 				}));
 			}
 		} catch (err) {
-			this.quickpick.items = [{ label: localize('error', "$(error) Error: {0}", err.message), alwaysShow: true }];
+			this.quickpick!.items = [{ label: localize('error', "$(error) Error: {0}", err.message), alwaysShow: true }];
 			console.error(err);
 		} finally {
-			this.quickpick.busy = false;
+			this.quickpick!.busy = false;
 		}
 	}
 
 	async pick(): Promise<RemoteSource | undefined> {
-		this.query();
-		const result = await getQuickPickResult(this.quickpick);
+		await this.query();
+		const result = await getQuickPickResult(this.quickpick!);
 		return result?.remoteSource;
 	}
 }

@@ -55,6 +55,7 @@ export interface RemoteSourceProvider {
 	 * Codicon name
 	 */
 	readonly icon?: string;
+	readonly label?: string;
 	readonly supportsQuery?: boolean;
 
 	getBranches?(url: string): ProviderResult<string[]>;
