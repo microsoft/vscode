@@ -10,8 +10,8 @@ import Severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorModel } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ITextModel } from 'vs/editor/common/model';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -22,6 +22,7 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/plat
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { Breakpoints } from 'vs/workbench/contrib/debug/common/breakpoints';
 import { CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE, IAdapterDescriptor, IAdapterManager, IConfig, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugAdapterFactory, IDebugConfiguration, IDebugSession, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/contrib/debug/common/debug';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { breakpointsExtPoint, debuggersExtPoint, launchSchema, presentationSchema } from 'vs/workbench/contrib/debug/common/debugSchemas';
@@ -42,7 +43,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	private debugExtensionsAvailable: IContextKey<boolean>;
 	private readonly _onDidRegisterDebugger = new Emitter<void>();
 	private readonly _onDidDebuggersExtPointRead = new Emitter<void>();
-	private breakpointLanguageIdsSet = new Set<string>();
+	private breakpointContributions: Breakpoints[] = [];
 	private debuggerWhenKeys = new Set<string>();
 
 	constructor(
@@ -116,13 +117,8 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			this._onDidDebuggersExtPointRead.fire();
 		});
 
-		breakpointsExtPoint.setHandler((extensions, delta) => {
-			delta.removed.forEach(removed => {
-				removed.value.forEach(breakpoints => this.breakpointLanguageIdsSet.delete(breakpoints.language));
-			});
-			delta.added.forEach(added => {
-				added.value.forEach(breakpoints => this.breakpointLanguageIdsSet.add(breakpoints.language));
-			});
+		breakpointsExtPoint.setHandler(extensions => {
+			this.breakpointContributions = extensions.flatMap(ext => ext.value.map(breakpoint => this.instantiationService.createInstance(Breakpoints, breakpoint)));
 		});
 	}
 
@@ -281,7 +277,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			return true;
 		}
 
-		return this.breakpointLanguageIdsSet.has(languageId);
+		return this.breakpointContributions.some(breakpoints => breakpoints.language === languageId && breakpoints.enabled);
 	}
 
 	getDebugger(type: string): Debugger | undefined {

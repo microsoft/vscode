@@ -37,7 +37,7 @@ import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/ed
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';

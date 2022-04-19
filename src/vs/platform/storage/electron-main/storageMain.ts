@@ -212,41 +212,49 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 		// a chance that the underlying DB is large
 		// either on disk or in general. In that case
 		// log some additional info to further diagnose
-		if (watch.elapsed() > BaseStorageMain.LOG_SLOW_CLOSE_THRESHOLD && this.path) {
-			try {
-				const largestEntries = top(Array.from(this._storage.items.entries())
-					.map(([key, value]) => ({ key, length: value.length })), (entryA, entryB) => entryB.length - entryA.length, 5)
-					.map(entry => `${entry.key}:${entry.length}`).join(', ');
-				const dbSize = (await this.fileService.stat(URI.file(this.path))).size;
-
-				this.logService.warn(`[storage main] detected slow close() operation: Time: ${watch.elapsed()}ms, DB size: ${dbSize}b, Large Keys: ${largestEntries}`);
-
-				type StorageSlowCloseClassification = {
-					duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The time it took to close the DB in ms.' };
-					size: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The size of the DB in bytes.' };
-					largestEntries: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The 5 largest keys in the DB.' };
-					owner: 'bpasero';
-					comment: 'Used to gain insight into reasons a database may be slow. This is used to assist with further optimizations';
-				};
-
-				type StorageSlowCloseEvent = {
-					duration: number;
-					size: number;
-					largestEntries: string;
-				};
-
-				this.telemetryService.publicLog2<StorageSlowCloseEvent, StorageSlowCloseClassification>('storageSlowClose', {
-					duration: watch.elapsed(),
-					size: dbSize,
-					largestEntries
-				});
-			} catch (error) {
-				this.logService.error('[storage main] figuring out stats for slow DB on close() resulted in an error', error);
-			}
+		if (watch.elapsed() > BaseStorageMain.LOG_SLOW_CLOSE_THRESHOLD) {
+			await this.logSlowClose(watch);
 		}
 
 		// Signal as event
 		this._onDidCloseStorage.fire();
+	}
+
+	private async logSlowClose(watch: StopWatch) {
+		if (!this.path) {
+			return;
+		}
+
+		try {
+			const largestEntries = top(Array.from(this._storage.items.entries())
+				.map(([key, value]) => ({ key, length: value.length })), (entryA, entryB) => entryB.length - entryA.length, 5)
+				.map(entry => `${entry.key}:${entry.length}`).join(', ');
+			const dbSize = (await this.fileService.stat(URI.file(this.path))).size;
+
+			this.logService.warn(`[storage main] detected slow close() operation: Time: ${watch.elapsed()}ms, DB size: ${dbSize}b, Large Keys: ${largestEntries}`);
+
+			type StorageSlowCloseClassification = {
+				duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The time it took to close the DB in ms.' };
+				size: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The size of the DB in bytes.' };
+				largestEntries: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The 5 largest keys in the DB.' };
+				owner: 'bpasero';
+				comment: 'Used to gain insight into reasons a database may be slow. This is used to assist with further optimizations';
+			};
+
+			type StorageSlowCloseEvent = {
+				duration: number;
+				size: number;
+				largestEntries: string;
+			};
+
+			this.telemetryService.publicLog2<StorageSlowCloseEvent, StorageSlowCloseClassification>('storageSlowClose', {
+				duration: watch.elapsed(),
+				size: dbSize,
+				largestEntries
+			});
+		} catch (error) {
+			this.logService.error('[storage main] figuring out stats for slow DB on close() resulted in an error', error);
+		}
 	}
 
 	private async doClose(): Promise<void> {

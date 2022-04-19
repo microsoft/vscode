@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import assert = require('assert');
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
-import { IEditorTabDto, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TextInputDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IEditorTabDto, IEditorTabGroupDto, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TextInputDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { TextTabInput } from 'vs/workbench/api/common/extHostTypes';
@@ -124,6 +124,60 @@ suite('ExtHostEditorTabs', function () {
 		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
 		assert.strictEqual(activeTabGroup.tabs.length, 0);
 		assert.strictEqual(count, 1);
+	});
+
+	test('Check TabGroupChangeEvent properties', function () {
+		const extHostEditorTabs = new ExtHostEditorTabs(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
+				// override/implement $moveTab or $closeTab
+			})
+		);
+
+		const group1Data: IEditorTabGroupDto = {
+			isActive: true,
+			viewColumn: 0,
+			groupId: 12,
+			tabs: []
+		};
+		const group2Data: IEditorTabGroupDto = { ...group1Data, groupId: 13 };
+
+		const events: vscode.TabGroupChangeEvent[] = [];
+		extHostEditorTabs.tabGroups.onDidChangeTabGroups(e => events.push(e));
+		// OPEN
+		extHostEditorTabs.$acceptEditorTabModel([group1Data]);
+		assert.deepStrictEqual(events, [{
+			changed: [],
+			closed: [],
+			opened: [extHostEditorTabs.tabGroups.activeTabGroup]
+		}]);
+
+		// OPEN, CHANGE
+		events.length = 0;
+		extHostEditorTabs.$acceptEditorTabModel([{ ...group1Data, isActive: false }, group2Data]);
+		assert.deepStrictEqual(events, [{
+			changed: [extHostEditorTabs.tabGroups.all[0]],
+			closed: [],
+			opened: [extHostEditorTabs.tabGroups.all[1]]
+		}]);
+
+		// CHANGE
+		events.length = 0;
+		extHostEditorTabs.$acceptEditorTabModel([group1Data, { ...group2Data, isActive: false }]);
+		assert.deepStrictEqual(events, [{
+			changed: extHostEditorTabs.tabGroups.all,
+			closed: [],
+			opened: []
+		}]);
+
+		// CLOSE, CHANGE
+		events.length = 0;
+		const oldActiveGroup = extHostEditorTabs.tabGroups.activeTabGroup;
+		extHostEditorTabs.$acceptEditorTabModel([group2Data]);
+		assert.deepStrictEqual(events, [{
+			changed: extHostEditorTabs.tabGroups.all,
+			closed: [oldActiveGroup],
+			opened: []
+		}]);
 	});
 
 	test('Ensure reference equality for activeTab and activeGroup', function () {

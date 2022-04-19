@@ -340,6 +340,7 @@ export function performSnippetEdit(editor: ICodeEditor, edit: SnippetTextEdit) {
 	if (!controller) {
 		return false;
 	}
+	editor.focus();
 	editor.setSelection(edit.range);
 	controller.insert(edit.snippet);
 	return controller.isInSnippet();

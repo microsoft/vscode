@@ -133,7 +133,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 			piiPaths: getPiiPathsFromEnvironment(environmentService)
 		};
 		const initialTelemetryLevelArg = environmentService.args['telemetry-level'];
-		let injectedTelemetryLevel: TelemetryLevel | undefined = undefined;
+		let injectedTelemetryLevel: TelemetryLevel = TelemetryLevel.USAGE;
 		// Convert the passed in CLI argument into a telemetry level for the telemetry service
 		if (initialTelemetryLevelArg === 'all') {
 			injectedTelemetryLevel = TelemetryLevel.USAGE;

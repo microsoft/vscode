@@ -7,6 +7,7 @@ import { asArray, coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ResourceSet } from 'vs/base/common/map';
 import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
@@ -580,7 +581,17 @@ export namespace WorkspaceEdit {
 		};
 
 		if (value instanceof types.WorkspaceEdit) {
-			for (let entry of value._allEntries()) {
+
+			// collect all files that are to be created so that their version
+			// information (in case they exist as text model already) can be ignored
+			const toCreate = new ResourceSet();
+			for (const entry of value._allEntries()) {
+				if (entry._type === types.FileEditType.File && URI.isUri(entry.to) && entry.from === undefined) {
+					toCreate.add(entry.to);
+				}
+			}
+
+			for (const entry of value._allEntries()) {
 
 				if (entry._type === types.FileEditType.File) {
 					// file operation
@@ -598,7 +609,7 @@ export namespace WorkspaceEdit {
 						_type: extHostProtocol.WorkspaceEditType.Text,
 						resource: entry.uri,
 						edit: TextEdit.from(entry.edit),
-						modelVersionId: versionInfo?.getTextDocumentVersion(entry.uri),
+						modelVersionId: !toCreate.has(entry.uri) ? versionInfo?.getTextDocumentVersion(entry.uri) : undefined,
 						metadata: entry.metadata
 					});
 				} else if (entry._type === types.FileEditType.Cell) {

@@ -67,6 +67,7 @@ export interface ICommentService {
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent>;
 	readonly onDidUpdateNotebookCommentThreads: Event<INotebookCommentThreadChangedEvent>;
 	readonly onDidChangeActiveCommentThread: Event<CommentThread | null>;
+	readonly onDidChangeCurrentCommentThread: Event<CommentThread | undefined>;
 	readonly onDidUpdateCommentingRanges: Event<{ owner: string }>;
 	readonly onDidChangeActiveCommentingRange: Event<{ range: Range; commentingRangesInfo: CommentingRanges }>;
 	readonly onDidSetDataProvider: Event<void>;
@@ -90,6 +91,7 @@ export interface ICommentService {
 	hasReactionHandler(owner: string): boolean;
 	toggleReaction(owner: string, resource: URI, thread: CommentThread<IRange | ICellRange>, comment: Comment, reaction: CommentReaction): Promise<void>;
 	setActiveCommentThread(commentThread: CommentThread<IRange | ICellRange> | null): void;
+	setCurrentCommentThread(commentThread: CommentThread<IRange | ICellRange> | undefined): void;
 }
 
 export class CommentService extends Disposable implements ICommentService {
@@ -119,6 +121,9 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidChangeActiveCommentThread = this._register(new Emitter<CommentThread | null>());
 	readonly onDidChangeActiveCommentThread = this._onDidChangeActiveCommentThread.event;
 
+	private readonly _onDidChangeCurrentCommentThread = this._register(new Emitter<CommentThread | undefined>());
+	readonly onDidChangeCurrentCommentThread = this._onDidChangeCurrentCommentThread.event;
+
 	private readonly _onDidChangeActiveCommentingRange: Emitter<{
 		range: Range; commentingRangesInfo:
 		CommentingRanges;
@@ -137,6 +142,18 @@ export class CommentService extends Disposable implements ICommentService {
 		super();
 	}
 
+	/**
+	 * The current comment thread is the thread that has focus or is being hovered.
+	 * @param commentThread
+	 */
+	setCurrentCommentThread(commentThread: CommentThread | undefined) {
+		this._onDidChangeCurrentCommentThread.fire(commentThread);
+	}
+
+	/**
+	 * The active comment thread is the the thread that is currently being edited.
+	 * @param commentThread
+	 */
 	setActiveCommentThread(commentThread: CommentThread | null) {
 		this._onDidChangeActiveCommentThread.fire(commentThread);
 	}

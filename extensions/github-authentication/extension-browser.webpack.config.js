@@ -22,7 +22,8 @@ module.exports = withBrowserDefaults({
 	resolve: {
 		alias: {
 			'node-fetch': path.resolve(__dirname, 'node_modules/node-fetch/browser.js'),
-			'uuid': path.resolve(__dirname, 'node_modules/uuid/dist/esm-browser/index.js')
+			'uuid': path.resolve(__dirname, 'node_modules/uuid/dist/esm-browser/index.js'),
+			'./authServer': path.resolve(__dirname, 'src/env/browser/authServer'),
 		}
 	}
 });

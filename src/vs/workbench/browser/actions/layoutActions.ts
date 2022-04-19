@@ -501,13 +501,7 @@ registerAction2(class extends Action2 {
 				original: 'Toggle Tab Visibility'
 			},
 			category: CATEGORIES.View,
-			f1: true,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: undefined,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyW, },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyW, }
-			}
+			f1: true
 		});
 	}
 

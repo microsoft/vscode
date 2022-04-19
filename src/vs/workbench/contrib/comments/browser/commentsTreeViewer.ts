@@ -58,6 +58,7 @@ interface ICommentThreadTemplateData {
 		timestamp: TimestampWidget;
 		separator: HTMLElement;
 		commentPreview: HTMLSpanElement;
+		range: HTMLSpanElement;
 	};
 	repliesMetadata: {
 		container: HTMLElement;
@@ -138,7 +139,8 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			userNames: dom.append(metadataContainer, dom.$('.user')),
 			timestamp: new TimestampWidget(this.configurationService, dom.append(metadataContainer, dom.$('.timestamp-container'))),
 			separator: dom.append(metadataContainer, dom.$('.separator')),
-			commentPreview: dom.append(metadataContainer, dom.$('.text'))
+			commentPreview: dom.append(metadataContainer, dom.$('.text')),
+			range: dom.append(metadataContainer, dom.$('.range'))
 		};
 		data.threadMetadata.separator.innerText = '\u00b7';
 
@@ -208,6 +210,12 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			templateData.disposables.push(renderedComment);
 			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element);
 			templateData.threadMetadata.commentPreview.title = renderedComment.element.textContent ?? '';
+		}
+
+		if (node.element.range.startLineNumber === node.element.range.endLineNumber) {
+			templateData.threadMetadata.range.textContent = nls.localize('commentLine', "[Ln {0}]", node.element.range.startLineNumber);
+		} else {
+			templateData.threadMetadata.range.textContent = nls.localize('commentRange', "[Ln {0}-{1}]", node.element.range.startLineNumber, node.element.range.endLineNumber);
 		}
 
 		if (!node.element.hasReply()) {

@@ -1924,12 +1924,12 @@ declare module 'vscode' {
 		title?: string;
 
 		/**
-		 * The value to prefill in the input box.
+		 * The value to pre-fill in the input box.
 		 */
 		value?: string;
 
 		/**
-		 * Selection of the prefilled {@linkcode InputBoxOptions.value value}. Defined as tuple of two number where the
+		 * Selection of the pre-filled {@linkcode InputBoxOptions.value value}. Defined as tuple of two number where the
 		 * first is the inclusive start index and the second the exclusive end index. When `undefined` the whole
 		 * word will be selected, when empty (start equals end) only the cursor will be set,
 		 * otherwise the defined range will be selected.
@@ -2032,7 +2032,7 @@ declare module 'vscode' {
 	 * (like `**​/*.{ts,js}` or `*.{ts,js}`) or a {@link RelativePattern relative pattern}.
 	 *
 	 * Glob patterns can have the following syntax:
-	 * * `*` to match one or more characters in a path segment
+	 * * `*` to match zero or more characters in a path segment
 	 * * `?` to match on one character in a path segment
 	 * * `**` to match any number of path segments, including none
 	 * * `{}` to group conditions (e.g. `**​/*.{ts,js}` matches all TypeScript and JavaScript files)
@@ -9420,7 +9420,7 @@ declare module 'vscode' {
 		 * If language id is not provided, then **Log** is used as default language id.
 		 *
 		 * You can access the visible or active output channel as a {@link TextDocument text document} from {@link window.visibleTextEditors visible editors} or {@link window.activeTextEditor active editor}
-		 * and use the langage id to contribute language features like syntax coloring, code lens etc.,
+		 * and use the langrage id to contribute language features like syntax coloring, code lens etc.,
 		 *
 		 * @param name Human-readable string which will be used to represent the channel in the UI.
 		 * @param languageId The identifier of the language associated with the channel.
@@ -9437,7 +9437,7 @@ declare module 'vscode' {
 		 *
 		 * @return New webview panel.
 		 */
-		export function createWebviewPanel(viewType: string, title: string, showOptions: ViewColumn | { viewColumn: ViewColumn; preserveFocus?: boolean }, options?: WebviewPanelOptions & WebviewOptions): WebviewPanel;
+		export function createWebviewPanel(viewType: string, title: string, showOptions: ViewColumn | { readonly viewColumn: ViewColumn; readonly preserveFocus?: boolean }, options?: WebviewPanelOptions & WebviewOptions): WebviewPanel;
 
 		/**
 		 * Set a message to the status bar. This is a short hand for the more powerful
@@ -11504,7 +11504,7 @@ declare module 'vscode' {
 		 * vscode.workspace.createFileSystemWatcher('**​/*.js'));
 		 * ```
 		 *
-		 * *Note:* the array of workspace folders can be empy if no workspace is opened (empty window).
+		 * *Note:* the array of workspace folders can be empty if no workspace is opened (empty window).
 		 *
 		 * #### Out of workspace file watching
 		 *
@@ -11703,7 +11703,7 @@ declare module 'vscode' {
 		 * {@linkcode notebook.onDidCloseNotebookDocument onDidCloseNotebookDocument}-event can occur at any time after.
 		 *
 		 * *Note* that opening a notebook does not show a notebook editor. This function only returns a notebook document which
-		 * can be showns in a notebook editor but it can also be used for other things.
+		 * can be shown in a notebook editor but it can also be used for other things.
 		 *
 		 * @param uri The resource to open.
 		 * @returns A promise that resolves to a {@link NotebookDocument notebook}
@@ -11728,7 +11728,7 @@ declare module 'vscode' {
 		 * the `onNotebook:<notebookType>` activation event, and extensions must register their serializer in return.
 		 *
 		 * @param notebookType A notebook.
-		 * @param serializer A notebook serialzier.
+		 * @param serializer A notebook serializer.
 		 * @param options Optional context options that define what parts of a notebook should be persisted
 		 * @return A {@link Disposable} that unregisters this serializer when being disposed.
 		 */

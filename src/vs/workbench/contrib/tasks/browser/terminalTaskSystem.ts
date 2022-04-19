@@ -29,7 +29,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ITerminalProfileResolverService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalService, ITerminalInstance, ITerminalGroupService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind, ProblemHandlingStrategy } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind,

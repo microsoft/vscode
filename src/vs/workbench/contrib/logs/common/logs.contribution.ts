@@ -14,14 +14,13 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as 
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/services/output/common/output';
+import { IOutputChannelRegistry, Extensions as OutputExt, IOutputService } from 'vs/workbench/services/output/common/output';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { LogsDataCleaner } from 'vs/workbench/contrib/logs/common/logsDataCleaner';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { createCancelablePromise, timeout } from 'vs/base/common/async';

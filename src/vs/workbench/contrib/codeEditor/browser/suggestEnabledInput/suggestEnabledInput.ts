@@ -111,7 +111,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 	private readonly _onInputDidChange = new Emitter<string | undefined>();
 	readonly onInputDidChange: Event<string | undefined> = this._onInputDidChange.event;
 
-	protected readonly inputWidget: CodeEditorWidget;
+	readonly inputWidget: CodeEditorWidget;
 	private readonly inputModel: ITextModel;
 	protected stylingContainer: HTMLDivElement;
 	private placeholderText: HTMLDivElement;

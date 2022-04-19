@@ -124,6 +124,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	public override get capabilities(): EditorInputCapabilities {
 		let capabilities = EditorInputCapabilities.None;
 
+		capabilities |= EditorInputCapabilities.CanDropIntoEditor;
+
 		if (!this.customEditorService.getCustomEditorCapabilities(this.viewType)?.supportsMultipleEditorsPerDocument) {
 			capabilities |= EditorInputCapabilities.Singleton;
 		}
