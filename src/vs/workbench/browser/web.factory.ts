@@ -128,19 +128,9 @@ export namespace env {
 		workbenchPromise.p.then(workbench => workbench.env.telemetryLevel);
 }
 
-export namespace window {
-
+export namespace progress {
 	/**
-	 * {@linkcode IWorkbench.window IWorkbench.window.log}
-	 */
-	export async function log(id: string, level: LogLevel, message: string) {
-		const workbench = await workbenchPromise.p;
-
-		return workbench.window.log(id, level, message);
-	}
-
-	/**
-	 * {@linkcode IWorkbench.window IWorkbench.window.withProgress}
+	 * {@linkcode IWorkbench.progress IWorkbench.progress.withProgress}
 	 */
 	export async function withProgress<R>(
 		options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
@@ -148,6 +138,49 @@ export namespace window {
 	): Promise<R> {
 		const workbench = await workbenchPromise.p;
 
-		return workbench.window.withProgress(options, task);
+		return workbench.progress.withProgress(options, task);
 	}
+}
+
+export namespace logger {
+	/**
+	 * {@linkcode IWorkbench.logger IWorkbench.logger.log}
+	 */
+	export async function log(id: string, level: LogLevel, message: string) {
+		const workbench = await workbenchPromise.p;
+
+		return workbench.logger.log(id, level, message);
+	}
+}
+
+
+export namespace timer {
+
+	/**
+	 * {@linkcode IWorkbench.timer IWorkbench.timer.retrievePerformanceMarks}
+	 */
+	export async function retrievePerformanceMarks(): Promise<[string, readonly PerformanceMark[]][]> {
+		const workbench = await workbenchPromise.p;
+
+		return workbench.env.retrievePerformanceMarks();
+	}
+}
+
+export namespace product {
+	/**
+	 * {@linkcode IWorkbench.product IWorkbench.product.getUriScheme}
+	 */
+	export async function getUriScheme(): Promise<string> {
+		const workbench = await workbenchPromise.p;
+
+		return workbench.env.getUriScheme();
+	}
+}
+
+export namespace telemetry {
+	/**
+	 * {@linkcode IWorkbench.telemetry IWorkbench.telemetry.telemetryLevel}
+	 */
+	export const telemetryLevel: Promise<IObservableValue<TelemetryLevel>> =
+		workbenchPromise.p.then(workbench => workbench.telemetry.telemetryLevel);
 }

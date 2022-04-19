@@ -38,6 +38,54 @@ export interface IWorkbench {
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	};
 
+	progress: {
+		/**
+		 * Show progress in the editor. Progress is shown while running the given callback
+		 * and while the promise it returned isn't resolved nor rejected.
+		 *
+		 * @param task A callback returning a promise.
+		 * @return A promise that resolves to the returned value of the given task result.
+		 */
+		withProgress<R>(
+			options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
+			task: (progress: IProgress<IProgressStep>) => Promise<R>
+		): Promise<R>;
+	};
+
+	logger: {
+		/**
+		 * Record log messages to be displayed in `Log (vscode.dev)`
+		 *
+		 * @param id Human-readable name associated with your log message.
+		 * @param level The log level of the message to be printed.
+		 * @param message The log to be printed.
+		 */
+		log(id: string, level: LogLevel, message: string): Promise<void>;
+	};
+
+	product: {
+		/**
+		 * @returns the scheme to use for opening the associated desktop
+		 * experience via protocol handler.
+		 */
+		getUriScheme(): Promise<string>;
+	};
+
+	timer: {
+		/**
+		 * Retrieve performance marks that have been collected during startup. This function
+		 * returns tuples of source and marks. A source is a dedicated context, like
+		 * the renderer or an extension host.
+		 *
+		 * *Note* that marks can be collected on different machines and in different processes
+		 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
+		 * across contexts should be taken with a grain of salt.
+		 *
+		 * @returns A promise that resolves to tuples of source and marks.
+		 */
+		retrievePerformanceMarks(): Promise<[string, readonly PerformanceMark[]][]>;
+	};
+
 	env: {
 
 		/**
@@ -71,29 +119,18 @@ export interface IWorkbench {
 		readonly telemetryLevel: IObservableValue<TelemetryLevel>;
 	};
 
-	window: {
-
+	telemetry: {
 		/**
-		 * Record log messages to be displayed in `Log (vscode.dev)`
-		 *
-		 * @param id Human-readable name associated with your log message.
-		 * @param level The log level of the message to be printed.
-		 * @param message The log to be printed.
+		 * Current workbench telemetry level.
 		 */
-		log(id: string, level: LogLevel, message: string): Promise<void>;
-
-		/**
-		 * Show progress in the editor. Progress is shown while running the given callback
-		 * and while the promise it returned isn't resolved nor rejected.
-		 *
-		 * @param task A callback returning a promise.
-		 * @return A promise that resolves to the returned value of the given task result.
-		 */
-		withProgress<R>(
-			options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
-			task: (progress: IProgress<IProgressStep>) => Promise<R>
-		): Promise<R>;
+		readonly telemetryLevel: IObservableValue<TelemetryLevel>;
 	};
+
+	/**
+	 * Allows to open a `URI` with the standard opener service of the
+	 * workbench.
+	 */
+	openUri(target: URI): Promise<boolean>;
 
 	/**
 	 * Triggers shutdown of the workbench programmatically. After this method is

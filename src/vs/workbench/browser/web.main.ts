@@ -13,7 +13,7 @@ import { BrowserWorkbenchEnvironmentService, IBrowserWorkbenchEnvironmentService
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { RemoteFileSystemProviderClient } from 'vs/workbench/services/remote/common/remoteFileSystemProviderClient';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { EmbedderProductApi, IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
@@ -41,14 +41,12 @@ import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/window/common/win
 import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IndexedDBFileSystemProvider } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 import { BrowserRequestService } from 'vs/workbench/services/request/browser/requestService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { localize } from 'vs/nls';
@@ -58,21 +56,24 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { BrowserWindow } from 'vs/workbench/browser/window';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { mixin, safeStringify } from 'vs/base/common/objects';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { BrowserCredentialsService } from 'vs/workbench/services/credentials/browser/credentialsService';
 import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IOutputService } from 'vs/workbench/services/output/common/output';
-import { WebEmbedderLog } from 'vs/workbench/browser/parts/log/webEmbedderLog';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { EmbedderLifecycleApi } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { EmbedderProgressApi } from 'vs/platform/progress/common/progress';
+import { EmbedderTimerApi } from 'vs/workbench/services/timer/browser/timerService';
+import { EmbedderTelemetryApi } from 'vs/platform/telemetry/common/telemetry';
+import { EmbedderLoggerApiKey, EmbedderLoggerApi } from 'vs/platform/log/common/webEmbedderLog';
+import { EmbedderCommandsApi } from 'vs/platform/commands/common/commands';
+import { EmbedderOpenerApi } from 'vs/platform/opener/common/opener';
+import { Extensions, IEmbedderApiRegistry } from 'vs/platform/embedder/common/embedderRegistry';
 
 export class BrowserMain extends Disposable {
 
@@ -114,45 +115,24 @@ export class BrowserMain extends Disposable {
 		services.logService.trace('workbench#open with configuration', safeStringify(this.configuration));
 
 		// Return API Facade
-		return instantiationService.invokeFunction(accessor => {
-			const commandService = accessor.get(ICommandService);
-			const lifecycleService = accessor.get(ILifecycleService);
-			const timerService = accessor.get(ITimerService);
-			const openerService = accessor.get(IOpenerService);
-			const productService = accessor.get(IProductService);
-			const telemetryService = accessor.get(ITelemetryService);
-			const progessService = accessor.get(IProgressService);
-			const outputService = accessor.get(IOutputService);
+		const registry = Registry.as<IEmbedderApiRegistry>(Extensions.EmbedderApiContrib);
 
-			const webEmbedderLogger = new WebEmbedderLog(outputService);
-
-			return {
-				commands: {
-					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
-				},
-				env: {
-					telemetryLevel: telemetryService.telemetryLevel,
-					async getUriScheme(): Promise<string> {
-						return productService.urlProtocol;
-					},
-					async retrievePerformanceMarks() {
-						await timerService.whenReady();
-
-						return timerService.getPerformanceMarks();
-					},
-					async openUri(uri: URI): Promise<boolean> {
-						return openerService.open(uri, {});
-					}
-				},
-				window: {
-					log: async (id, level, message) => {
-						webEmbedderLogger.log(id, level, message);
-					},
-					withProgress: (options, task) => progessService.withProgress(options, task)
-				},
-				shutdown: () => lifecycleService.shutdown()
-			};
-		});
+		return {
+			commands: registry.get<EmbedderCommandsApi>('commands', instantiationService),
+			product: registry.get<EmbedderProductApi>('product', instantiationService),
+			timer: registry.get<EmbedderTimerApi>('timer', instantiationService),
+			telemetry: registry.get<EmbedderTelemetryApi>('telemetry', instantiationService),
+			env: {
+				telemetryLevel: registry.get<EmbedderTelemetryApi>('telemetry', instantiationService).telemetryLevel,
+				getUriScheme: () => registry.get<EmbedderProductApi>('product', instantiationService).getUriScheme(),
+				retrievePerformanceMarks: () => registry.get<EmbedderTimerApi>('timer', instantiationService).retrievePerformanceMarks(),
+				openUri: (uri: URI) => registry.get<EmbedderOpenerApi>('openUri', instantiationService)(uri)
+			},
+			progress: registry.get<EmbedderProgressApi>('progress', instantiationService),
+			logger: registry.get<EmbedderLoggerApi>(EmbedderLoggerApiKey, instantiationService),
+			openUri: registry.get<EmbedderOpenerApi>('openUri', instantiationService),
+			shutdown: registry.get<EmbedderLifecycleApi>('shutdown', instantiationService)
+		};
 	}
 
 	private registerListeners(workbench: Workbench): void {

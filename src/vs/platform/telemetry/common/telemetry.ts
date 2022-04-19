@@ -6,6 +6,9 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { IObservableValue } from 'vs/base/common/observableValue';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { Extensions, IEmbedderApi, IEmbedderApiRegistry } from 'vs/platform/embedder/common/embedderRegistry';
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
@@ -89,3 +92,19 @@ export const enum TelemetryConfiguration {
 	ERROR = 'error',
 	ON = 'all'
 }
+
+export interface IEmbedderTelemetryApi extends IEmbedderApi {
+	telemetry: {
+		telemetryLevel: IObservableValue<TelemetryLevel>;
+	};
+}
+export class EmbedderTelemetryApi implements IEmbedderTelemetryApi {
+	telemetry;
+	constructor(@ITelemetryService _telemetryService: ITelemetryService) {
+		this.telemetry = {
+			telemetryLevel: _telemetryService.telemetryLevel
+		};
+	}
+}
+
+Registry.as<IEmbedderApiRegistry>(Extensions.EmbedderApiContrib).register('telemetry', new SyncDescriptor(EmbedderTelemetryApi));
