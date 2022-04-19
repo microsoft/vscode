@@ -81,7 +81,7 @@ export abstract class BaseFileWorkingCopyManager<M extends IFileWorkingCopyModel
 		this._onDidCreate.fire(workingCopy);
 	}
 
-	protected remove(resource: URI): void {
+	protected remove(resource: URI): boolean {
 
 		// Dispose any existing listener
 		const disposeListener = this.mapResourceToDisposeListener.get(resource);
@@ -91,7 +91,7 @@ export abstract class BaseFileWorkingCopyManager<M extends IFileWorkingCopyModel
 		}
 
 		// Remove from our working copy map
-		this.mapResourceToWorkingCopy.delete(resource);
+		return this.mapResourceToWorkingCopy.delete(resource);
 	}
 
 	//#region Get / Get all
@@ -149,15 +149,15 @@ export abstract class BaseFileWorkingCopyManager<M extends IFileWorkingCopyModel
 	private async saveWithFallback(workingCopy: W): Promise<void> {
 
 		// First try regular save
-		let saveFailed = false;
+		let saveSuccess = false;
 		try {
-			await workingCopy.save();
+			saveSuccess = await workingCopy.save();
 		} catch (error) {
-			saveFailed = true;
+			// Ignore
 		}
 
 		// Then fallback to backup if that exists
-		if (saveFailed || workingCopy.isDirty()) {
+		if (!saveSuccess || workingCopy.isDirty()) {
 			const backup = await this.workingCopyBackupService.resolve(workingCopy);
 			if (backup) {
 				await this.fileService.writeFile(workingCopy.resource, backup.value, { unlock: true });

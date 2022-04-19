@@ -2,21 +2,21 @@
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"description": "Defines a dev container",
 	"allowComments": true,
-	"allowTrailingCommas": true,
+	"allowTrailingCommas": false,
 	"definitions": {
 		"devContainerCommon": {
 			"type": "object",
 			"properties": {
 				"name": {
 					"type": "string",
-					"description": "A name to show for the workspace folder."
+					"description": "A name for the dev container displayed in the UI."
 				},
 				"extensions": {
 					"type": "array",
 					"description": "An array of extensions that should be installed into the container.",
 					"items": {
 						"type": "string",
-						"pattern": "^([a-z0-9A-Z][a-z0-9\\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\\-A-Z]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
+						"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)((@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)|@prerelease)?$",
 						"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
 					}
 				},
@@ -24,19 +24,32 @@
 					"$ref": "vscode://schemas/settings/machine",
 					"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
 				},
+				"features": {
+					"type": "object",
+					"description": "Features to add to the dev container.",
+					"additionalProperties": true
+				},
 				"forwardPorts": {
 					"type": "array",
-					"description": "Ports that are forwarded from the container to the local machine.",
+					"description": "Ports that are forwarded from the container to the local machine. Can be an integer port number, or a string of the format \"host:port_number\".",
 					"items": {
-						"type": "integer",
-						"maximum": 65535,
-						"minimum": 0
+						"oneOf": [
+							{
+								"type": "integer",
+								"maximum": 65535,
+								"minimum": 0
+							},
+							{
+								"type": "string",
+								"pattern": "^([a-z0-9-]+):(\\d{1,5})$"
+							}
+						]
 					}
 				},
 				"portsAttributes": {
 					"type": "object",
 					"patternProperties": {
-						"(^\\d+(\\-\\d+)?$)|(.+)": {
+						"(^\\d+(-\\d+)?$)|(.+)": {
 							"type": "object",
 							"description": "A port, range of ports (ex. \"40000-55000\"), or regular expression (ex. \".+\\\\/server.js\").  For a port number or range, the attributes will apply to that port number or range of port numbers. Attributes which use a regular expression will apply to ports whose associated process command line matches the expression.",
 							"properties": {
@@ -78,7 +91,10 @@
 								},
 								"protocol": {
 									"type": "string",
-									"enum": ["http", "https"],
+									"enum": [
+										"http",
+										"https"
+									],
 									"description": "The protocol to use when forwarding this port."
 								}
 							},
@@ -140,7 +156,10 @@
 						},
 						"protocol": {
 							"type": "string",
-							"enum": ["http", "https"],
+							"enum": [
+								"http",
+								"https"
+							],
 							"description": "The protocol to use when forwarding this port."
 						}
 					},
@@ -156,7 +175,7 @@
 				},
 				"updateRemoteUserUID": {
 					"type": "boolean",
-					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -255,7 +274,7 @@
 						"loginInteractiveShell",
 						"interactiveShell"
 					],
-					"description": "User environment probe to run. The default is none."
+					"description": "User environment probe to run. The default is \"loginInteractiveShell\"."
 				},
 				"codespaces": {
 					"type": "object",
@@ -287,6 +306,14 @@
 							}
 						}
 					]
+				},
+				"customizations": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "object",
+						"additionalProperties": true
+					},
+					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations."
 				}
 			}
 		},

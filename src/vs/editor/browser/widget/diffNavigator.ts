@@ -8,9 +8,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
-import { ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
+import { ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 
 
 interface IDiffRange {
@@ -89,7 +90,7 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 	}
 
 	private _init(): void {
-		let changes = this._editor.getLineChanges();
+		const changes = this._editor.getLineChanges();
 		if (!changes) {
 			return;
 		}
@@ -132,36 +133,37 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 					});
 
 				} else {
-					this.ranges.push({
-						rhs: true,
-						range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedStartLineNumber, 1)
-					});
+					if (lineChange.modifiedEndLineNumber === 0) {
+						// a deletion
+						this.ranges.push({
+							rhs: true,
+							range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedStartLineNumber + 1, 1)
+						});
+					} else {
+						// an insertion or modification
+						this.ranges.push({
+							rhs: true,
+							range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber + 1, 1)
+						});
+					}
 				}
 			});
 		}
 
 		// sort
-		this.ranges.sort((left, right) => {
-			if (left.range.getStartPosition().isBeforeOrEqual(right.range.getStartPosition())) {
-				return -1;
-			} else if (right.range.getStartPosition().isBeforeOrEqual(left.range.getStartPosition())) {
-				return 1;
-			} else {
-				return 0;
-			}
-		});
+		this.ranges.sort((left, right) => Range.compareRangesUsingStarts(left.range, right.range));
 		this._onDidUpdate.fire(this);
 	}
 
 	private _initIdx(fwd: boolean): void {
 		let found = false;
-		let position = this._editor.getPosition();
+		const position = this._editor.getPosition();
 		if (!position) {
 			this.nextIdx = 0;
 			return;
 		}
 		for (let i = 0, len = this.ranges.length; i < len && !found; i++) {
-			let range = this.ranges[i].range;
+			const range = this.ranges[i].range;
 			if (position.isBeforeOrEqual(range.getStartPosition())) {
 				this.nextIdx = i + (fwd ? 0 : -1);
 				found = true;
@@ -198,12 +200,12 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 			}
 		}
 
-		let info = this.ranges[this.nextIdx];
+		const info = this.ranges[this.nextIdx];
 		this.ignoreSelectionChange = true;
 		try {
-			let pos = info.range.getStartPosition();
+			const pos = info.range.getStartPosition();
 			this._editor.setPosition(pos);
-			this._editor.revealPositionInCenter(pos, scrollType);
+			this._editor.revealRangeInCenter(info.range, scrollType);
 		} finally {
 			this.ignoreSelectionChange = false;
 		}

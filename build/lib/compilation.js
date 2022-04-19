@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.watchTask = exports.compileTask = void 0;
+exports.watchApiProposalNamesTask = exports.compileApiProposalNamesTask = exports.watchTask = exports.compileTask = void 0;
 const es = require("event-stream");
 const fs = require("fs");
 const gulp = require("gulp");
@@ -16,6 +16,8 @@ const util = require("./util");
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const os = require("os");
+const File = require("vinyl");
+const task = require("./task");
 const watch = require('./watch');
 const reporter = (0, reporter_1.createReporter)();
 function getTypeScriptCompilerOptions(src) {
@@ -36,7 +38,7 @@ function createCompile(src, build, emitError) {
     const tsb = require('gulp-tsb');
     const sourcemaps = require('gulp-sourcemaps');
     const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
-    const overrideOptions = Object.assign(Object.assign({}, getTypeScriptCompilerOptions(src)), { inlineSources: Boolean(build) });
+    const overrideOptions = { ...getTypeScriptCompilerOptions(src), inlineSources: Boolean(build) };
     if (!build) {
         overrideOptions.inlineSourceMap = true;
     }
@@ -175,3 +177,54 @@ class MonacoGenerator {
         }
     }
 }
+function generateApiProposalNames() {
+    const pattern = /vscode\.proposed\.([a-zA-Z]+)\.d\.ts$/;
+    const proposalNames = new Set();
+    const input = es.through();
+    const output = input
+        .pipe(util.filter((f) => pattern.test(f.path)))
+        .pipe(es.through((f) => {
+        const name = path.basename(f.path);
+        const match = pattern.exec(name);
+        if (match) {
+            proposalNames.add(match[1]);
+        }
+    }, function () {
+        const names = [...proposalNames.values()].sort();
+        const contents = [
+            '/*---------------------------------------------------------------------------------------------',
+            ' *  Copyright (c) Microsoft Corporation. All rights reserved.',
+            ' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+            ' *--------------------------------------------------------------------------------------------*/',
+            '',
+            '// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
+            '',
+            'export const allApiProposals = Object.freeze({',
+            `${names.map(name => `\t${name}: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${name}.d.ts'`).join(`,${os.EOL}`)}`,
+            '});',
+            'export type ApiProposalName = keyof typeof allApiProposals;',
+            '',
+        ].join(os.EOL);
+        this.emit('data', new File({
+            path: 'vs/workbench/services/extensions/common/extensionsApiProposals.ts',
+            contents: Buffer.from(contents)
+        }));
+        this.emit('end');
+    }));
+    return es.duplex(input, output);
+}
+const apiProposalNamesReporter = (0, reporter_1.createReporter)('api-proposal-names');
+exports.compileApiProposalNamesTask = task.define('compile-api-proposal-names', () => {
+    return gulp.src('src/vscode-dts/**')
+        .pipe(generateApiProposalNames())
+        .pipe(gulp.dest('src'))
+        .pipe(apiProposalNamesReporter.end(true));
+});
+exports.watchApiProposalNamesTask = task.define('watch-api-proposal-names', () => {
+    const task = () => gulp.src('src/vscode-dts/**')
+        .pipe(generateApiProposalNames())
+        .pipe(apiProposalNamesReporter.end(true));
+    return watch('src/vscode-dts/**', { readDelay: 200 })
+        .pipe(util.debounce(task))
+        .pipe(gulp.dest('src'));
+});

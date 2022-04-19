@@ -13,17 +13,15 @@ import { INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider } fr
 
 export class NotebookCellStatusBarService extends Disposable implements INotebookCellStatusBarService {
 
-	private _onDidChangeProviders = this._register(new Emitter<void>());
+	readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeProviders = this._register(new Emitter<void>());
 	readonly onDidChangeProviders: Event<void> = this._onDidChangeProviders.event;
 
-	private _onDidChangeItems = this._register(new Emitter<void>());
+	private readonly _onDidChangeItems = this._register(new Emitter<void>());
 	readonly onDidChangeItems: Event<void> = this._onDidChangeItems.event;
 
-	private _providers: INotebookCellStatusBarItemProvider[] = [];
-
-	constructor() {
-		super();
-	}
+	private readonly _providers: INotebookCellStatusBarItemProvider[] = [];
 
 	registerCellStatusBarItemProvider(provider: INotebookCellStatusBarItemProvider): IDisposable {
 		this._providers.push(provider);
@@ -52,6 +50,4 @@ export class NotebookCellStatusBarService extends Disposable implements INoteboo
 			}
 		}));
 	}
-
-	readonly _serviceBrand: undefined;
 }

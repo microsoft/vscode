@@ -7,14 +7,14 @@ import * as assert from 'assert';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
 import { getLanguageModes, WorkspaceFolder, TextDocument, CompletionList, CompletionItemKind, ClientCapabilities, TextEdit } from '../modes/languageModes';
-import { getNodeFSRequestService } from '../node/nodeFs';
+import { getNodeFileFS } from '../node/nodeFs';
 import { getDocumentContext } from '../utils/documentContext';
 export interface ItemDescription {
 	label: string;
 	documentation?: string;
 	kind?: CompletionItemKind;
 	resultText?: string;
-	command?: { title: string, command: string };
+	command?: { title: string; command: string };
 	notAvailable?: boolean;
 }
 
@@ -46,7 +46,7 @@ export function assertCompletion(completions: CompletionList, expected: ItemDesc
 
 const testUri = 'test://test/test.html';
 
-export async function testCompletionFor(value: string, expected: { count?: number, items?: ItemDescription[] }, uri = testUri, workspaceFolders?: WorkspaceFolder[]): Promise<void> {
+export async function testCompletionFor(value: string, expected: { count?: number; items?: ItemDescription[] }, uri = testUri, workspaceFolders?: WorkspaceFolder[]): Promise<void> {
 	let offset = value.indexOf('|');
 	value = value.substr(0, offset) + value.substr(offset + 1);
 
@@ -59,7 +59,7 @@ export async function testCompletionFor(value: string, expected: { count?: numbe
 	let position = document.positionAt(offset);
 	const context = getDocumentContext(uri, workspace.folders);
 
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
+	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
 	const mode = languageModes.getModeAtPosition(document, position)!;
 
 	let list = await mode.doComplete!(document, position, context);

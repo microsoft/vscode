@@ -5,7 +5,7 @@
 
 import { UriComponents } from 'vs/base/common/uri';
 import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { IRawTerminalTabLayoutInfo, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IFixedTerminalDimensions, IRawTerminalTabLayoutInfo, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 
 export interface ISingleTerminalConfiguration<T> {
 	userValue: T | undefined;
@@ -58,11 +58,32 @@ export interface IProcessDetails {
 	isOrphan: boolean;
 	icon: TerminalIcon | undefined;
 	color: string | undefined;
+	fixedDimensions: IFixedTerminalDimensions | undefined;
 }
 
 export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;
 
-export interface ReplayEntry { cols: number; rows: number; data: string; }
+export interface ReplayEntry {
+	cols: number;
+	rows: number;
+	data: string;
+}
+export interface ISerializedCommand {
+	command: string;
+	cwd: string | undefined;
+	startLine: number | undefined;
+	startX: number | undefined;
+	endLine: number | undefined;
+	executedLine: number | undefined;
+	exitCode: number | undefined;
+	commandStartLineContent: string | undefined;
+	timestamp: number;
+}
+export interface ISerializedCommandDetectionCapability {
+	isWindowsPty: boolean;
+	commands: ISerializedCommand[];
+}
 export interface IPtyHostProcessReplayEvent {
 	events: ReplayEntry[];
+	commands: ISerializedCommandDetectionCapability;
 }

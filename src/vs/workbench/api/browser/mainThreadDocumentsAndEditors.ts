@@ -3,35 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, isCodeEditor, isDiffEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
+import { ITextModel, shouldSynchronizeModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { MainThreadDocuments } from 'vs/workbench/api/browser/mainThreadDocuments';
 import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
 import { MainThreadTextEditors } from 'vs/workbench/api/browser/mainThreadEditors';
-import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IExtHostContext, IModelAddedData, ITextEditorAddData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IModelAddedData, ITextEditorAddData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { diffSets, diffMaps } from 'vs/base/common/collections';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 
 class TextEditorSnapshot {
@@ -122,7 +123,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		@IModelService private readonly _modelService: IModelService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IPanelService private readonly _panelService: IPanelService
+		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
 	) {
 		this._modelService.onModelAdded(this._updateStateOnModelAdd, this, this._toDispose);
 		this._modelService.onModelRemoved(_ => this._updateState(), this, this._toDispose);
@@ -132,8 +133,8 @@ class MainThreadDocumentAndEditorStateComputer {
 		this._codeEditorService.onCodeEditorRemove(this._onDidRemoveEditor, this, this._toDispose);
 		this._codeEditorService.listCodeEditors().forEach(this._onDidAddEditor, this);
 
-		this._panelService.onDidPanelOpen(_ => this._activeEditorOrder = ActiveEditorOrder.Panel, undefined, this._toDispose);
-		this._panelService.onDidPanelClose(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined, this._toDispose);
+		Event.filter(this._paneCompositeService.onDidPaneCompositeOpen, event => event.viewContainerLocation === ViewContainerLocation.Panel)(_ => this._activeEditorOrder = ActiveEditorOrder.Panel, undefined, this._toDispose);
+		Event.filter(this._paneCompositeService.onDidPaneCompositeClose, event => event.viewContainerLocation === ViewContainerLocation.Panel)(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined, this._toDispose);
 		this._editorService.onDidVisibleEditorsChange(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined, this._toDispose);
 
 		this._updateState();
@@ -252,12 +253,15 @@ class MainThreadDocumentAndEditorStateComputer {
 	}
 
 	private _getActiveEditorFromPanel(): IEditor | undefined {
-		const panel = this._panelService.getActivePanel();
-		if (panel instanceof BaseTextEditor && isCodeEditor(panel.getControl())) {
-			return panel.getControl();
-		} else {
-			return undefined;
+		const panel = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
+		if (panel instanceof BaseTextEditor) {
+			const control = panel.getControl();
+			if (isCodeEditor(control)) {
+				return control;
+			}
 		}
+
+		return undefined;
 	}
 
 	private _getActiveEditorFromEditorPart(): IEditor | undefined {
@@ -275,17 +279,8 @@ export class MainThreadDocumentsAndEditors {
 	private readonly _toDispose = new DisposableStore();
 	private readonly _proxy: ExtHostDocumentsAndEditorsShape;
 	private readonly _mainThreadDocuments: MainThreadDocuments;
+	private readonly _mainThreadEditors: MainThreadTextEditors;
 	private readonly _textEditors = new Map<string, MainThreadTextEditor>();
-
-	private readonly _onTextEditorAdd = new Emitter<MainThreadTextEditor[]>();
-	private readonly _onTextEditorRemove = new Emitter<string[]>();
-	private readonly _onDocumentAdd = new Emitter<ITextModel[]>();
-	private readonly _onDocumentRemove = new Emitter<URI[]>();
-
-	readonly onTextEditorAdd: Event<MainThreadTextEditor[]> = this._onTextEditorAdd.event;
-	readonly onTextEditorRemove: Event<string[]> = this._onTextEditorRemove.event;
-	readonly onDocumentAdd: Event<ITextModel[]> = this._onDocumentAdd.event;
-	readonly onDocumentRemove: Event<URI[]> = this._onDocumentRemove.event;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -296,29 +291,24 @@ export class MainThreadDocumentsAndEditors {
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
-		@IBulkEditService bulkEditService: IBulkEditService,
-		@IPanelService panelService: IPanelService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IPathService pathService: IPathService
+		@IPathService pathService: IPathService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
-		this._mainThreadDocuments = this._toDispose.add(new MainThreadDocuments(this, extHostContext, this._modelService, this._textFileService, fileService, textModelResolverService, environmentService, uriIdentityService, workingCopyFileService, pathService));
+		this._mainThreadDocuments = this._toDispose.add(new MainThreadDocuments(extHostContext, this._modelService, this._textFileService, fileService, textModelResolverService, environmentService, uriIdentityService, workingCopyFileService, pathService));
 		extHostContext.set(MainContext.MainThreadDocuments, this._mainThreadDocuments);
 
-		const mainThreadTextEditors = this._toDispose.add(new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._editorService, this._editorGroupService));
-		extHostContext.set(MainContext.MainThreadTextEditors, mainThreadTextEditors);
+		this._mainThreadEditors = this._toDispose.add(new MainThreadTextEditors(this, extHostContext, codeEditorService, this._editorService, this._editorGroupService));
+		extHostContext.set(MainContext.MainThreadTextEditors, this._mainThreadEditors);
 
 		// It is expected that the ctor of the state computer calls our `_onDelta`.
-		this._toDispose.add(new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService, panelService));
-
-		this._toDispose.add(this._onTextEditorAdd);
-		this._toDispose.add(this._onTextEditorRemove);
-		this._toDispose.add(this._onDocumentAdd);
-		this._toDispose.add(this._onDocumentRemove);
+		this._toDispose.add(new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService, paneCompositeService));
 	}
 
 	dispose(): void {
@@ -379,11 +369,13 @@ export class MainThreadDocumentsAndEditors {
 		if (!empty) {
 			// first update ext host
 			this._proxy.$acceptDocumentsAndEditorsDelta(extHostDelta);
-			// second update dependent state listener
-			this._onDocumentRemove.fire(removedDocuments);
-			this._onDocumentAdd.fire(delta.addedDocuments);
-			this._onTextEditorRemove.fire(removedEditors);
-			this._onTextEditorAdd.fire(addedEditors);
+
+			// second update dependent document/editor states
+			removedDocuments.forEach(this._mainThreadDocuments.handleModelRemoved, this._mainThreadDocuments);
+			delta.addedDocuments.forEach(this._mainThreadDocuments.handleModelAdded, this._mainThreadDocuments);
+
+			removedEditors.forEach(this._mainThreadEditors.handleTextEditorRemoved, this._mainThreadEditors);
+			addedEditors.forEach(this._mainThreadEditors.handleTextEditorAdded, this._mainThreadEditors);
 		}
 	}
 
@@ -393,7 +385,7 @@ export class MainThreadDocumentsAndEditors {
 			versionId: model.getVersionId(),
 			lines: model.getLinesContent(),
 			EOL: model.getEOL(),
-			modeId: model.getLanguageIdentifier().language,
+			languageId: model.getLanguageId(),
 			isDirty: this._textFileService.isDirty(model.uri)
 		};
 	}
@@ -422,6 +414,15 @@ export class MainThreadDocumentsAndEditors {
 	findTextEditorIdFor(editorPane: IEditorPane): string | undefined {
 		for (const [id, editor] of this._textEditors) {
 			if (editor.matches(editorPane)) {
+				return id;
+			}
+		}
+		return undefined;
+	}
+
+	getIdOfCodeEditor(codeEditor: ICodeEditor): string | undefined {
+		for (const [id, editor] of this._textEditors) {
+			if (editor.getCodeEditor() === codeEditor) {
 				return id;
 			}
 		}

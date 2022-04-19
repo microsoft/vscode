@@ -29,7 +29,7 @@ suite('SemanticTokensDto', () => {
 	}
 
 	function assertEqualDelta(actual: IDeltaSemanticTokensDto, expected: IDeltaSemanticTokensDto): void {
-		const convertOne = (delta: { start: number; deleteCount: number; data?: Uint32Array; }) => {
+		const convertOne = (delta: { start: number; deleteCount: number; data?: Uint32Array }) => {
 			if (!delta.data) {
 				return delta;
 			}

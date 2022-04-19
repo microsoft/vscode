@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual, joinPath } from 'vs/base/common/resources';
@@ -22,7 +23,7 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 
 export interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -53,7 +54,6 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService
 	) {
@@ -102,6 +102,10 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			}
 		}
 
+		if (!(capabilities & EditorInputCapabilities.Readonly)) {
+			capabilities |= EditorInputCapabilities.CanDropIntoEditor;
+		}
+
 		return capabilities;
 	}
 
@@ -120,15 +124,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return this._editorModelReference.object.isDirty();
 	}
 
-	override isOrphaned() {
-		if (!this._editorModelReference) {
-			return super.isOrphaned();
-		}
-
-		return this._editorModelReference.object.isOrphaned();
-	}
-
-	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
 		if (this._editorModelReference) {
 
 			if (this.hasCapability(EditorInputCapabilities.Untitled)) {
@@ -143,7 +139,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return undefined;
 	}
 
-	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
 		if (!this._editorModelReference) {
 			return undefined;
 		}
@@ -154,7 +150,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			return undefined;
 		}
 
-		const pathCandidate = this.hasCapability(EditorInputCapabilities.Untitled) ? await this._suggestName(this.labelService.getUriBasenameLabel(this.resource)) : this._editorModelReference.object.resource;
+		const pathCandidate = this.hasCapability(EditorInputCapabilities.Untitled) ? await this._suggestName(provider, this.labelService.getUriBasenameLabel(this.resource)) : this._editorModelReference.object.resource;
 		let target: URI | undefined;
 		if (this._editorModelReference.object.hasAssociatedFilePath()) {
 			target = pathCandidate;
@@ -188,7 +184,27 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return await this._editorModelReference.object.saveAs(target);
 	}
 
-	private async _suggestName(suggestedFilename: string) {
+	private async _suggestName(provider: NotebookProviderInfo, suggestedFilename: string) {
+		// guess file extensions
+		const firstSelector = provider.selectors[0];
+		let selectorStr = firstSelector && typeof firstSelector === 'string' ? firstSelector : undefined;
+		if (!selectorStr && firstSelector) {
+			const include = (firstSelector as { include?: string }).include;
+			if (typeof include === 'string') {
+				selectorStr = include;
+			}
+		}
+
+		if (selectorStr) {
+			const matches = /^\*\.([A-Za-z_-]*)$/.exec(selectorStr);
+			if (matches && matches.length > 1) {
+				const fileExt = matches[1];
+				if (!suggestedFilename.endsWith(fileExt)) {
+					return joinPath(await this._fileDialogService.defaultFilePath(), suggestedFilename + '.' + fileExt);
+				}
+			}
+		}
+
 		return joinPath(await this._fileDialogService.defaultFilePath(), suggestedFilename);
 	}
 
@@ -204,7 +220,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return undefined;
 	}
 
-	private _move(_group: GroupIdentifier, newResource: URI): { editor: IEditorInput; } {
+	private _move(_group: GroupIdentifier, newResource: URI): { editor: EditorInput } {
 		const editorInput = NotebookEditorInput.create(this._instantiationService, newResource, this.viewType);
 		return { editor: editorInput };
 	}
@@ -241,7 +257,6 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 				return null;
 			}
 			this._register(this._editorModelReference.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-			this._register(this._editorModelReference.object.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
 			this._register(this._editorModelReference.object.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
 			if (this._editorModelReference.object.isDirty()) {
 				this._onDidChangeDirty.fire();
@@ -251,7 +266,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 
 		if (this.options._backupId) {
-			const info = await this._notebookService.withNotebookDataProvider(this._editorModelReference.object.notebook.uri, this._editorModelReference.object.notebook.viewType);
+			const info = await this._notebookService.withNotebookDataProvider(this._editorModelReference.object.notebook.viewType);
 			if (!(info instanceof SimpleNotebookProviderInfo)) {
 				throw new Error('CANNOT open file notebook with this provider');
 			}
@@ -267,7 +282,6 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			], true, undefined, () => undefined, undefined, false);
 
 			if (this.options._workingCopy) {
-				await this.workingCopyBackupService.discardBackup(this.options._workingCopy);
 				this.options._backupId = undefined;
 				this.options._workingCopy = undefined;
 				this.options.startDirty = undefined;
@@ -286,7 +300,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		};
 	}
 
-	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}

@@ -4,14 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IPath } from 'vs/platform/window/common/window';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import type { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
 import { URI } from 'vs/base/common/uri';
 
 export const IWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, IWorkbenchEnvironmentService>(IEnvironmentService);
-
-export interface IWorkbenchConfiguration extends IWindowConfiguration { }
 
 /**
  * A workbench specific environment service that is only present in workbench
@@ -25,31 +22,28 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	//       ENVIRONMENT SERVICE
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	readonly options?: IWorkbenchOptions;
-
-	readonly remoteAuthority?: string;
-
+	// --- Paths
 	readonly logFile: URI;
-
 	readonly extHostLogsPath: URI;
-	readonly logExtensionHostCommunication?: boolean;
+
+	// --- Extensions
 	readonly extensionEnabledProposedApi?: string[];
 
-	readonly webviewExternalEndpoint: string;
-
+	// --- Config
+	readonly remoteAuthority?: string;
 	readonly skipReleaseNotes: boolean;
 	readonly skipWelcome: boolean;
+	readonly disableWorkspaceTrust: boolean;
+	readonly webviewExternalEndpoint: string;
 
+	// --- Development
 	readonly debugRenderer: boolean;
+	readonly logExtensionHostCommunication?: boolean;
+	readonly enableSmokeTestDriver?: boolean;
 
-	/**
-	 * @deprecated this property will go away eventually as it
-	 * duplicates many properties of the environment service
-	 *
-	 * Please consider using the environment service directly
-	 * if you can.
-	 */
-	readonly configuration: IWorkbenchConfiguration;
+	// --- Editors to open
+	readonly filesToOpenOrCreate?: IPath[] | undefined;
+	readonly filesToDiff?: IPath[] | undefined;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:

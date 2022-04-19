@@ -101,6 +101,8 @@ onceDocumentLoaded(() => {
 		} catch {
 			iframe.src = rawUrl;
 		}
+
+		vscode.setState({ url: rawUrl });
 	}
 });
 

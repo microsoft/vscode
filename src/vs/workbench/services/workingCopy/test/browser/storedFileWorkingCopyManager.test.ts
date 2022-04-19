@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService, TestServiceAccessor, TestWillShutdownEvent } from 'vs/workbench/test/browser/workbenchTestServices';
-import { StoredFileWorkingCopyManager, IStoredFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
+import { StoredFileWorkingCopyManager, IStoredFileWorkingCopyManager, IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
@@ -15,16 +15,19 @@ import { timeout } from 'vs/base/common/async';
 import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/storedFileWorkingCopy.test';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('StoredFileWorkingCopyManager', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	let manager: IStoredFileWorkingCopyManager<TestStoredFileWorkingCopyModel>;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		manager = new StoredFileWorkingCopyManager<TestStoredFileWorkingCopyModel>(
@@ -39,6 +42,7 @@ suite('StoredFileWorkingCopyManager', () => {
 
 	teardown(() => {
 		manager.dispose();
+		disposables.dispose();
 	});
 
 	test('resolve', async () => {
@@ -84,15 +88,15 @@ suite('StoredFileWorkingCopyManager', () => {
 		workingCopy3.dispose();
 	});
 
-	test('resolve async', async () => {
+	test('resolve (async)', async () => {
 		const resource = URI.file('/path/index.txt');
 
-		const workingCopy = await manager.resolve(resource);
+		await manager.resolve(resource);
 
 		let didResolve = false;
-		const onDidResolve = new Promise<void>(resolve => {
-			manager.onDidResolve(() => {
-				if (workingCopy.resource.toString() === resource.toString()) {
+		let onDidResolve = new Promise<void>(resolve => {
+			manager.onDidResolve(({ model }) => {
+				if (model?.resource.toString() === resource.toString()) {
 					didResolve = true;
 					resolve();
 				}
@@ -104,6 +108,86 @@ suite('StoredFileWorkingCopyManager', () => {
 		await onDidResolve;
 
 		assert.strictEqual(didResolve, true);
+
+		didResolve = false;
+
+		onDidResolve = new Promise<void>(resolve => {
+			manager.onDidResolve(({ model }) => {
+				if (model?.resource.toString() === resource.toString()) {
+					didResolve = true;
+					resolve();
+				}
+			});
+		});
+
+		manager.resolve(resource, { reload: { async: true, force: true } });
+
+		await onDidResolve;
+
+		assert.strictEqual(didResolve, true);
+	});
+
+	test('resolve (sync)', async () => {
+		const resource = URI.file('/path/index.txt');
+
+		await manager.resolve(resource);
+
+		let didResolve = false;
+		manager.onDidResolve(({ model }) => {
+			if (model?.resource.toString() === resource.toString()) {
+				didResolve = true;
+			}
+		});
+
+		await manager.resolve(resource, { reload: { async: false } });
+		assert.strictEqual(didResolve, true);
+
+		didResolve = false;
+
+		await manager.resolve(resource, { reload: { async: false, force: true } });
+		assert.strictEqual(didResolve, true);
+	});
+
+	test('resolve (sync) - model disposed when error and first call to resolve', async () => {
+		const resource = URI.file('/path/index.txt');
+
+		accessor.fileService.readShouldThrowError = new FileOperationError('fail', FileOperationResult.FILE_OTHER_ERROR);
+
+		try {
+			let error: Error | undefined = undefined;
+			try {
+				await manager.resolve(resource);
+			} catch (e) {
+				error = e;
+			}
+
+			assert.ok(error);
+			assert.strictEqual(manager.workingCopies.length, 0);
+		} finally {
+			accessor.fileService.readShouldThrowError = undefined;
+		}
+	});
+
+	test('resolve (sync) - model not disposed when error and model existed before', async () => {
+		const resource = URI.file('/path/index.txt');
+
+		await manager.resolve(resource);
+
+		accessor.fileService.readShouldThrowError = new FileOperationError('fail', FileOperationResult.FILE_OTHER_ERROR);
+
+		try {
+			let error: Error | undefined = undefined;
+			try {
+				await manager.resolve(resource, { reload: { async: false } });
+			} catch (e) {
+				error = e;
+			}
+
+			assert.ok(error);
+			assert.strictEqual(manager.workingCopies.length, 1);
+		} finally {
+			accessor.fileService.readShouldThrowError = undefined;
+		}
 	});
 
 	test('resolve with initial contents', async () => {
@@ -182,14 +266,21 @@ suite('StoredFileWorkingCopyManager', () => {
 
 		let createdCounter = 0;
 		let resolvedCounter = 0;
+		let removedCounter = 0;
 		let gotDirtyCounter = 0;
 		let gotNonDirtyCounter = 0;
 		let revertedCounter = 0;
 		let savedCounter = 0;
 		let saveErrorCounter = 0;
 
-		manager.onDidCreate(workingCopy => {
+		manager.onDidCreate(() => {
 			createdCounter++;
+		});
+
+		manager.onDidRemove(resource => {
+			if (resource.toString() === resource1.toString() || resource.toString() === resource2.toString()) {
+				removedCounter++;
+			}
 		});
 
 		manager.onDidResolve(workingCopy => {
@@ -214,8 +305,10 @@ suite('StoredFileWorkingCopyManager', () => {
 			}
 		});
 
-		manager.onDidSave(({ workingCopy }) => {
-			if (workingCopy.resource.toString() === resource1.toString()) {
+		let lastSaveEvent: IStoredFileWorkingCopySaveEvent<TestStoredFileWorkingCopyModel> | undefined = undefined;
+		manager.onDidSave((e) => {
+			if (e.workingCopy.resource.toString() === resource1.toString()) {
+				lastSaveEvent = e;
 				savedCounter++;
 			}
 		});
@@ -256,10 +349,13 @@ suite('StoredFileWorkingCopyManager', () => {
 		workingCopy2.dispose();
 
 		await workingCopy1.revert();
+		assert.strictEqual(removedCounter, 2);
 		assert.strictEqual(gotDirtyCounter, 3);
 		assert.strictEqual(gotNonDirtyCounter, 2);
 		assert.strictEqual(revertedCounter, 1);
 		assert.strictEqual(savedCounter, 1);
+		assert.strictEqual(lastSaveEvent!.workingCopy, workingCopy1);
+		assert.ok(lastSaveEvent!.stat);
 		assert.strictEqual(saveErrorCounter, 1);
 		assert.strictEqual(createdCounter, 2);
 
@@ -367,14 +463,40 @@ suite('StoredFileWorkingCopyManager', () => {
 	test('file change event triggers working copy resolve', async () => {
 		const resource = URI.file('/path/index.txt');
 
-		const workingCopy = await manager.resolve(resource);
+		await manager.resolve(resource);
 
 		let didResolve = false;
 		const onDidResolve = new Promise<void>(resolve => {
-			manager.onDidResolve(() => {
-				if (workingCopy.resource.toString() === resource.toString()) {
+			manager.onDidResolve(({ model }) => {
+				if (model?.resource.toString() === resource.toString()) {
 					didResolve = true;
 					resolve();
+				}
+			});
+		});
+
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }], false));
+
+		await onDidResolve;
+
+		assert.strictEqual(didResolve, true);
+	});
+
+	test('file change event triggers working copy resolve (when working copy is pending to resolve)', async () => {
+		const resource = URI.file('/path/index.txt');
+
+		manager.resolve(resource);
+
+		let didResolve = false;
+		let resolvedCounter = 0;
+		const onDidResolve = new Promise<void>(resolve => {
+			manager.onDidResolve(({ model }) => {
+				if (model?.resource.toString() === resource.toString()) {
+					resolvedCounter++;
+					if (resolvedCounter === 2) {
+						didResolve = true;
+						resolve();
+					}
 				}
 			});
 		});
@@ -389,12 +511,12 @@ suite('StoredFileWorkingCopyManager', () => {
 	test('file system provider change triggers working copy resolve', async () => {
 		const resource = URI.file('/path/index.txt');
 
-		const workingCopy = await manager.resolve(resource);
+		await manager.resolve(resource);
 
 		let didResolve = false;
 		const onDidResolve = new Promise<void>(resolve => {
-			manager.onDidResolve(() => {
-				if (workingCopy.resource.toString() === resource.toString()) {
+			manager.onDidResolve(({ model }) => {
+				if (model?.resource.toString() === resource.toString()) {
 					didResolve = true;
 					resolve();
 				}

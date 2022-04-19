@@ -8,7 +8,8 @@ import * as uuid from 'vs/base/common/uuid';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
-import { KeyCode, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keybindings';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -60,6 +61,18 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actuals = asResolvedKeybindingItems(testObject.fetch(''));
 		assertKeybindingItems(actuals, expected);
+	});
+
+	test('fetch returns distinct keybindings', async () => {
+		const command = 'a' + uuid.generateUuid();
+		const expected = prepareKeybindingService(
+			aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape } }),
+			aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape } }),
+		);
+
+		await testObject.resolve(new Map<string, string>());
+		const actuals = asResolvedKeybindingItems(testObject.fetch(''));
+		assertKeybindingItems(actuals, [expected[0]]);
 	});
 
 	test('fetch returns default keybindings at the top', async () => {
@@ -513,8 +526,8 @@ suite('KeybindingsEditorModel', () => {
 
 	test('filter exact matches', async () => {
 		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KeyC, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KeyC, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
 
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('"ctrl c"').filter(element => element.keybindingItem.command === command);
@@ -525,8 +538,8 @@ suite('KeybindingsEditorModel', () => {
 
 	test('filter exact matches with first and chord part', async () => {
 		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KeyC, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KeyC, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
 
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('"shift meta escape ctrl c"').filter(element => element.keybindingItem.command === command);
@@ -548,8 +561,8 @@ suite('KeybindingsEditorModel', () => {
 
 	test('filter matches with + separator', async () => {
 		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KeyC, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KeyC, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
 
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('"control+c"').filter(element => element.keybindingItem.command === command);
@@ -560,8 +573,8 @@ suite('KeybindingsEditorModel', () => {
 
 	test('filter by keybinding prefix', async () => {
 		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KeyC, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KeyC, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
 
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('@keybinding:control+c').filter(element => element.keybindingItem.command === command);
@@ -572,8 +585,8 @@ suite('KeybindingsEditorModel', () => {
 
 	test('filter matches with + separator in first and chord parts', async () => {
 		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KeyC, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KeyC, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
 
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('"shift+meta+escape ctrl+c"').filter(element => element.keybindingItem.command === command);
@@ -584,8 +597,8 @@ suite('KeybindingsEditorModel', () => {
 
 	test('filter by keybinding prefix with chord', async () => {
 		const command = 'a' + uuid.generateUuid();
-		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KeyC, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KeyC, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
 
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('@keybinding:"shift+meta+escape ctrl+c"').filter(element => element.keybindingItem.command === command);
@@ -693,8 +706,8 @@ suite('KeybindingsEditorModel', () => {
 		}
 	}
 
-	function aResolvedKeybindingItem({ command, when, isDefault, firstPart, chordPart }: { command?: string, when?: string, isDefault?: boolean, firstPart?: { keyCode: KeyCode, modifiers?: Modifiers }, chordPart?: { keyCode: KeyCode, modifiers?: Modifiers } }): ResolvedKeybindingItem {
-		const aSimpleKeybinding = function (part: { keyCode: KeyCode, modifiers?: Modifiers }): SimpleKeybinding {
+	function aResolvedKeybindingItem({ command, when, isDefault, firstPart, chordPart }: { command?: string; when?: string; isDefault?: boolean; firstPart?: { keyCode: KeyCode; modifiers?: Modifiers }; chordPart?: { keyCode: KeyCode; modifiers?: Modifiers } }): ResolvedKeybindingItem {
+		const aSimpleKeybinding = function (part: { keyCode: KeyCode; modifiers?: Modifiers }): SimpleKeybinding {
 			const { ctrlKey, shiftKey, altKey, metaKey } = part.modifiers || { ctrlKey: false, shiftKey: false, altKey: false, metaKey: false };
 			return new SimpleKeybinding(ctrlKey!, shiftKey!, altKey!, metaKey!, part.keyCode);
 		};

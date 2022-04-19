@@ -20,6 +20,8 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('EditorAutoSave', () => {
 
@@ -34,7 +36,7 @@ suite('EditorAutoSave', () => {
 	});
 
 	async function createEditorAutoSave(autoSaveConfig: object): Promise<TestServiceAccessor> {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('files', autoSaveConfig);
@@ -42,7 +44,8 @@ suite('EditorAutoSave', () => {
 
 		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
 			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
-			configurationService
+			configurationService,
+			new TestContextService(TestWorkspace)
 		));
 
 		const part = await createEditorPart(instantiationService, disposables);

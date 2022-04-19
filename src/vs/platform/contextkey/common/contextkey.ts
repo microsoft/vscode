@@ -4,23 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { isLinux, isMacintosh, isWeb, isWindows, userAgent } from 'vs/base/common/platform';
+import { isChrome, isEdge, isFirefox, isLinux, isMacintosh, isSafari, isWeb, isWindows } from 'vs/base/common/platform';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-let _userAgent = userAgent || '';
-const STATIC_VALUES = new Map<string, boolean>();
-STATIC_VALUES.set('false', false);
-STATIC_VALUES.set('true', true);
-STATIC_VALUES.set('isMac', isMacintosh);
-STATIC_VALUES.set('isLinux', isLinux);
-STATIC_VALUES.set('isWindows', isWindows);
-STATIC_VALUES.set('isWeb', isWeb);
-STATIC_VALUES.set('isMacNative', isMacintosh && !isWeb);
-STATIC_VALUES.set('isEdge', _userAgent.indexOf('Edg/') >= 0);
-STATIC_VALUES.set('isFirefox', _userAgent.indexOf('Firefox') >= 0);
-STATIC_VALUES.set('isChrome', _userAgent.indexOf('Chrome') >= 0);
-STATIC_VALUES.set('isSafari', _userAgent.indexOf('Safari') >= 0);
+const CONSTANT_VALUES = new Map<string, boolean>();
+CONSTANT_VALUES.set('false', false);
+CONSTANT_VALUES.set('true', true);
+CONSTANT_VALUES.set('isMac', isMacintosh);
+CONSTANT_VALUES.set('isLinux', isLinux);
+CONSTANT_VALUES.set('isWindows', isWindows);
+CONSTANT_VALUES.set('isWeb', isWeb);
+CONSTANT_VALUES.set('isMacNative', isMacintosh && !isWeb);
+CONSTANT_VALUES.set('isEdge', isEdge);
+CONSTANT_VALUES.set('isFirefox', isFirefox);
+CONSTANT_VALUES.set('isChrome', isChrome);
+CONSTANT_VALUES.set('isSafari', isSafari);
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -59,6 +58,7 @@ export interface IContextKeyExprMapper {
 export interface IContextKeyExpression {
 	cmp(other: ContextKeyExpression): number;
 	equals(other: ContextKeyExpression): boolean;
+	substituteConstants(): ContextKeyExpression | undefined;
 	evaluate(context: IContext): boolean;
 	serialize(): string;
 	keys(): string[];
@@ -80,49 +80,44 @@ export abstract class ContextKeyExpr {
 	public static false(): ContextKeyExpression {
 		return ContextKeyFalseExpr.INSTANCE;
 	}
-
 	public static true(): ContextKeyExpression {
 		return ContextKeyTrueExpr.INSTANCE;
 	}
-
 	public static has(key: string): ContextKeyExpression {
 		return ContextKeyDefinedExpr.create(key);
 	}
-
 	public static equals(key: string, value: any): ContextKeyExpression {
 		return ContextKeyEqualsExpr.create(key, value);
 	}
-
 	public static notEquals(key: string, value: any): ContextKeyExpression {
 		return ContextKeyNotEqualsExpr.create(key, value);
 	}
-
 	public static regex(key: string, value: RegExp): ContextKeyExpression {
 		return ContextKeyRegexExpr.create(key, value);
 	}
-
 	public static in(key: string, value: string): ContextKeyExpression {
 		return ContextKeyInExpr.create(key, value);
 	}
-
 	public static not(key: string): ContextKeyExpression {
 		return ContextKeyNotExpr.create(key);
 	}
-
 	public static and(...expr: Array<ContextKeyExpression | undefined | null>): ContextKeyExpression | undefined {
 		return ContextKeyAndExpr.create(expr, null);
 	}
-
 	public static or(...expr: Array<ContextKeyExpression | undefined | null>): ContextKeyExpression | undefined {
 		return ContextKeyOrExpr.create(expr, null, true);
 	}
-
-	public static greater(key: string, value: any): ContextKeyExpression {
+	public static greater(key: string, value: number): ContextKeyExpression {
 		return ContextKeyGreaterExpr.create(key, value);
 	}
-
-	public static less(key: string, value: any): ContextKeyExpression {
+	public static greaterEquals(key: string, value: number): ContextKeyExpression {
+		return ContextKeyGreaterEqualsExpr.create(key, value);
+	}
+	public static smaller(key: string, value: number): ContextKeyExpression {
 		return ContextKeySmallerExpr.create(key, value);
+	}
+	public static smallerEquals(key: string, value: number): ContextKeyExpression {
+		return ContextKeySmallerEqualsExpr.create(key, value);
 	}
 
 	public static deserialize(serialized: string | null | undefined, strict: boolean = false): ContextKeyExpression | undefined {
@@ -249,6 +244,18 @@ export abstract class ContextKeyExpr {
 	}
 }
 
+export function expressionsAreEqualWithConstantSubstitution(a: ContextKeyExpression | null | undefined, b: ContextKeyExpression | null | undefined): boolean {
+	const aExpr = a ? a.substituteConstants() : undefined;
+	const bExpr = b ? b.substituteConstants() : undefined;
+	if (!aExpr && !bExpr) {
+		return true;
+	}
+	if (!aExpr || !bExpr) {
+		return false;
+	}
+	return aExpr.equals(bExpr);
+}
+
 function cmp(a: ContextKeyExpression, b: ContextKeyExpression): number {
 	return a.cmp(b);
 }
@@ -267,6 +274,10 @@ export class ContextKeyFalseExpr implements IContextKeyExpression {
 
 	public equals(other: ContextKeyExpression): boolean {
 		return (other.type === this.type);
+	}
+
+	public substituteConstants(): ContextKeyExpression | undefined {
+		return this;
 	}
 
 	public evaluate(context: IContext): boolean {
@@ -306,6 +317,10 @@ export class ContextKeyTrueExpr implements IContextKeyExpression {
 		return (other.type === this.type);
 	}
 
+	public substituteConstants(): ContextKeyExpression | undefined {
+		return this;
+	}
+
 	public evaluate(context: IContext): boolean {
 		return true;
 	}
@@ -329,9 +344,9 @@ export class ContextKeyTrueExpr implements IContextKeyExpression {
 
 export class ContextKeyDefinedExpr implements IContextKeyExpression {
 	public static create(key: string, negated: ContextKeyExpression | null = null): ContextKeyExpression {
-		const staticValue = STATIC_VALUES.get(key);
-		if (typeof staticValue === 'boolean') {
-			return staticValue ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE;
+		const constantValue = CONSTANT_VALUES.get(key);
+		if (typeof constantValue === 'boolean') {
+			return constantValue ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE;
 		}
 		return new ContextKeyDefinedExpr(key, negated);
 	}
@@ -356,6 +371,14 @@ export class ContextKeyDefinedExpr implements IContextKeyExpression {
 			return (this.key === other.key);
 		}
 		return false;
+	}
+
+	public substituteConstants(): ContextKeyExpression | undefined {
+		const constantValue = CONSTANT_VALUES.get(this.key);
+		if (typeof constantValue === 'boolean') {
+			return constantValue ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE;
+		}
+		return this;
 	}
 
 	public evaluate(context: IContext): boolean {
@@ -388,9 +411,9 @@ export class ContextKeyEqualsExpr implements IContextKeyExpression {
 		if (typeof value === 'boolean') {
 			return (value ? ContextKeyDefinedExpr.create(key, negated) : ContextKeyNotExpr.create(key, negated));
 		}
-		const staticValue = STATIC_VALUES.get(key);
-		if (typeof staticValue === 'boolean') {
-			const trueValue = staticValue ? 'true' : 'false';
+		const constantValue = CONSTANT_VALUES.get(key);
+		if (typeof constantValue === 'boolean') {
+			const trueValue = constantValue ? 'true' : 'false';
 			return (value === trueValue ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE);
 		}
 		return new ContextKeyEqualsExpr(key, value, negated);
@@ -417,6 +440,15 @@ export class ContextKeyEqualsExpr implements IContextKeyExpression {
 			return (this.key === other.key && this.value === other.value);
 		}
 		return false;
+	}
+
+	public substituteConstants(): ContextKeyExpression | undefined {
+		const constantValue = CONSTANT_VALUES.get(this.key);
+		if (typeof constantValue === 'boolean') {
+			const trueValue = constantValue ? 'true' : 'false';
+			return (this.value === trueValue ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE);
+		}
+		return this;
 	}
 
 	public evaluate(context: IContext): boolean {
@@ -472,6 +504,10 @@ export class ContextKeyInExpr implements IContextKeyExpression {
 			return (this.key === other.key && this.valueKey === other.valueKey);
 		}
 		return false;
+	}
+
+	public substituteConstants(): ContextKeyExpression | undefined {
+		return this;
 	}
 
 	public evaluate(context: IContext): boolean {
@@ -535,6 +571,10 @@ export class ContextKeyNotInExpr implements IContextKeyExpression {
 		return false;
 	}
 
+	public substituteConstants(): ContextKeyExpression | undefined {
+		return this;
+	}
+
 	public evaluate(context: IContext): boolean {
 		return !this._actual.evaluate(context);
 	}
@@ -565,9 +605,9 @@ export class ContextKeyNotEqualsExpr implements IContextKeyExpression {
 			}
 			return ContextKeyDefinedExpr.create(key, negated);
 		}
-		const staticValue = STATIC_VALUES.get(key);
-		if (typeof staticValue === 'boolean') {
-			const falseValue = staticValue ? 'true' : 'false';
+		const constantValue = CONSTANT_VALUES.get(key);
+		if (typeof constantValue === 'boolean') {
+			const falseValue = constantValue ? 'true' : 'false';
 			return (value === falseValue ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
 		}
 		return new ContextKeyNotEqualsExpr(key, value, negated);
@@ -594,6 +634,15 @@ export class ContextKeyNotEqualsExpr implements IContextKeyExpression {
 			return (this.key === other.key && this.value === other.value);
 		}
 		return false;
+	}
+
+	public substituteConstants(): ContextKeyExpression | undefined {
+		const constantValue = CONSTANT_VALUES.get(this.key);
+		if (typeof constantValue === 'boolean') {
+			const falseValue = constantValue ? 'true' : 'false';
+			return (this.value === falseValue ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
+		}
+		return this;
 	}
 
 	public evaluate(context: IContext): boolean {
@@ -625,9 +674,9 @@ export class ContextKeyNotEqualsExpr implements IContextKeyExpression {
 export class ContextKeyNotExpr implements IContextKeyExpression {
 
 	public static create(key: string, negated: ContextKeyExpression | null = null): ContextKeyExpression {
-		const staticValue = STATIC_VALUES.get(key);
-		if (typeof staticValue === 'boolean') {
-			return (staticValue ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
+		const constantValue = CONSTANT_VALUES.get(key);
+		if (typeof constantValue === 'boolean') {
+			return (constantValue ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
 		}
 		return new ContextKeyNotExpr(key, negated);
 	}
@@ -654,6 +703,14 @@ export class ContextKeyNotExpr implements IContextKeyExpression {
 		return false;
 	}
 
+	public substituteConstants(): ContextKeyExpression | undefined {
+		const constantValue = CONSTANT_VALUES.get(this.key);
+		if (typeof constantValue === 'boolean') {
+			return (constantValue ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
+		}
+		return this;
+	}
+
 	public evaluate(context: IContext): boolean {
 		return (!context.getValue(this.key));
 	}
@@ -678,17 +735,30 @@ export class ContextKeyNotExpr implements IContextKeyExpression {
 	}
 }
 
+function withFloatOrStr<T extends ContextKeyExpression>(value: any, callback: (value: number | string) => T): T | ContextKeyFalseExpr {
+	if (typeof value === 'string') {
+		const n = parseFloat(value);
+		if (!isNaN(n)) {
+			value = n;
+		}
+	}
+	if (typeof value === 'string' || typeof value === 'number') {
+		return callback(value);
+	}
+	return ContextKeyFalseExpr.INSTANCE;
+}
+
 export class ContextKeyGreaterExpr implements IContextKeyExpression {
 
-	public static create(key: string, value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
-		return new ContextKeyGreaterExpr(key, value, negated);
+	public static create(key: string, _value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
+		return withFloatOrStr(_value, (value) => new ContextKeyGreaterExpr(key, value, negated));
 	}
 
 	public readonly type = ContextKeyExprType.Greater;
 
 	private constructor(
 		private readonly key: string,
-		private readonly value: any,
+		private readonly value: number | string,
 		private negated: ContextKeyExpression | null
 	) { }
 
@@ -706,8 +776,15 @@ export class ContextKeyGreaterExpr implements IContextKeyExpression {
 		return false;
 	}
 
+	public substituteConstants(): ContextKeyExpression | undefined {
+		return this;
+	}
+
 	public evaluate(context: IContext): boolean {
-		return (parseFloat(<any>context.getValue(this.key)) > parseFloat(this.value));
+		if (typeof this.value === 'string') {
+			return false;
+		}
+		return (parseFloat(<any>context.getValue(this.key)) > this.value);
 	}
 
 	public serialize(): string {
@@ -732,15 +809,15 @@ export class ContextKeyGreaterExpr implements IContextKeyExpression {
 
 export class ContextKeyGreaterEqualsExpr implements IContextKeyExpression {
 
-	public static create(key: string, value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
-		return new ContextKeyGreaterEqualsExpr(key, value, negated);
+	public static create(key: string, _value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
+		return withFloatOrStr(_value, (value) => new ContextKeyGreaterEqualsExpr(key, value, negated));
 	}
 
 	public readonly type = ContextKeyExprType.GreaterEquals;
 
 	private constructor(
 		private readonly key: string,
-		private readonly value: any,
+		private readonly value: number | string,
 		private negated: ContextKeyExpression | null
 	) { }
 
@@ -758,8 +835,15 @@ export class ContextKeyGreaterEqualsExpr implements IContextKeyExpression {
 		return false;
 	}
 
+	public substituteConstants(): ContextKeyExpression | undefined {
+		return this;
+	}
+
 	public evaluate(context: IContext): boolean {
-		return (parseFloat(<any>context.getValue(this.key)) >= parseFloat(this.value));
+		if (typeof this.value === 'string') {
+			return false;
+		}
+		return (parseFloat(<any>context.getValue(this.key)) >= this.value);
 	}
 
 	public serialize(): string {
@@ -784,15 +868,15 @@ export class ContextKeyGreaterEqualsExpr implements IContextKeyExpression {
 
 export class ContextKeySmallerExpr implements IContextKeyExpression {
 
-	public static create(key: string, value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
-		return new ContextKeySmallerExpr(key, value, negated);
+	public static create(key: string, _value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
+		return withFloatOrStr(_value, (value) => new ContextKeySmallerExpr(key, value, negated));
 	}
 
 	public readonly type = ContextKeyExprType.Smaller;
 
 	private constructor(
 		private readonly key: string,
-		private readonly value: any,
+		private readonly value: number | string,
 		private negated: ContextKeyExpression | null
 	) {
 	}
@@ -811,8 +895,15 @@ export class ContextKeySmallerExpr implements IContextKeyExpression {
 		return false;
 	}
 
+	public substituteConstants(): ContextKeyExpression | undefined {
+		return this;
+	}
+
 	public evaluate(context: IContext): boolean {
-		return (parseFloat(<any>context.getValue(this.key)) < parseFloat(this.value));
+		if (typeof this.value === 'string') {
+			return false;
+		}
+		return (parseFloat(<any>context.getValue(this.key)) < this.value);
 	}
 
 	public serialize(): string {
@@ -837,15 +928,15 @@ export class ContextKeySmallerExpr implements IContextKeyExpression {
 
 export class ContextKeySmallerEqualsExpr implements IContextKeyExpression {
 
-	public static create(key: string, value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
-		return new ContextKeySmallerEqualsExpr(key, value, negated);
+	public static create(key: string, _value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
+		return withFloatOrStr(_value, (value) => new ContextKeySmallerEqualsExpr(key, value, negated));
 	}
 
 	public readonly type = ContextKeyExprType.SmallerEquals;
 
 	private constructor(
 		private readonly key: string,
-		private readonly value: any,
+		private readonly value: number | string,
 		private negated: ContextKeyExpression | null
 	) {
 	}
@@ -864,8 +955,15 @@ export class ContextKeySmallerEqualsExpr implements IContextKeyExpression {
 		return false;
 	}
 
+	public substituteConstants(): ContextKeyExpression | undefined {
+		return this;
+	}
+
 	public evaluate(context: IContext): boolean {
-		return (parseFloat(<any>context.getValue(this.key)) <= parseFloat(this.value));
+		if (typeof this.value === 'string') {
+			return false;
+		}
+		return (parseFloat(<any>context.getValue(this.key)) <= this.value);
 	}
 
 	public serialize(): string {
@@ -934,6 +1032,10 @@ export class ContextKeyRegexExpr implements IContextKeyExpression {
 		return false;
 	}
 
+	public substituteConstants(): ContextKeyExpression | undefined {
+		return this;
+	}
+
 	public evaluate(context: IContext): boolean {
 		let value = context.getValue<any>(this.key);
 		return this.regexp ? this.regexp.test(value) : false;
@@ -988,6 +1090,10 @@ export class ContextKeyNotRegexExpr implements IContextKeyExpression {
 		return false;
 	}
 
+	public substituteConstants(): ContextKeyExpression | undefined {
+		return this;
+	}
+
 	public evaluate(context: IContext): boolean {
 		return !this._actual.evaluate(context);
 	}
@@ -1007,6 +1113,38 @@ export class ContextKeyNotRegexExpr implements IContextKeyExpression {
 	public negate(): ContextKeyExpression {
 		return this._actual;
 	}
+}
+
+/**
+ * @returns the same instance if nothing changed.
+ */
+function eliminateConstantsInArray(arr: ContextKeyExpression[]): (ContextKeyExpression | undefined)[] {
+	// Allocate array only if there is a difference
+	let newArr: (ContextKeyExpression | undefined)[] | null = null;
+	for (let i = 0, len = arr.length; i < len; i++) {
+		const newExpr = arr[i].substituteConstants();
+
+		if (arr[i] !== newExpr) {
+			// something has changed!
+
+			// allocate array on first difference
+			if (newArr === null) {
+				newArr = [];
+				for (let j = 0; j < i; j++) {
+					newArr[j] = arr[j];
+				}
+			}
+		}
+
+		if (newArr !== null) {
+			newArr[i] = newExpr;
+		}
+	}
+
+	if (newArr === null) {
+		return arr;
+	}
+	return newArr;
 }
 
 class ContextKeyAndExpr implements IContextKeyExpression {
@@ -1055,6 +1193,15 @@ class ContextKeyAndExpr implements IContextKeyExpression {
 			return true;
 		}
 		return false;
+	}
+
+	public substituteConstants(): ContextKeyExpression | undefined {
+		const exprArr = eliminateConstantsInArray(this.expr);
+		if (exprArr === this.expr) {
+			// no change
+			return this;
+		}
+		return ContextKeyAndExpr.create(exprArr, this.negated);
 	}
 
 	public evaluate(context: IContext): boolean {
@@ -1231,6 +1378,15 @@ class ContextKeyOrExpr implements IContextKeyExpression {
 		return false;
 	}
 
+	public substituteConstants(): ContextKeyExpression | undefined {
+		const exprArr = eliminateConstantsInArray(this.expr);
+		if (exprArr === this.expr) {
+			// no change
+			return this;
+		}
+		return ContextKeyOrExpr.create(exprArr, this.negated, false);
+	}
+
 	public evaluate(context: IContext): boolean {
 		for (let i = 0, len = this.expr.length; i < len; i++) {
 			if (this.expr[i].evaluate(context)) {
@@ -1378,7 +1534,7 @@ export class RawContextKey<T> extends ContextKeyDefinedExpr {
 
 	private readonly _defaultValue: T | undefined;
 
-	constructor(key: string, defaultValue: T | undefined, metaOrHide?: string | true | { type: string, description: string }) {
+	constructor(key: string, defaultValue: T | undefined, metaOrHide?: string | true | { type: string; description: string }) {
 		super(key, null);
 		this._defaultValue = defaultValue;
 

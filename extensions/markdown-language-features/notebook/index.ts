@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const MarkdownIt = require('markdown-it');
 import * as DOMPurify from 'dompurify';
-import type * as markdownIt from 'markdown-it';
+import MarkdownIt from 'markdown-it';
+import type * as MarkdownItToken from 'markdown-it/lib/token';
 import type { ActivationFunction } from 'vscode-notebook-renderer';
 
 const sanitizerOptions: DOMPurify.Config = {
@@ -13,9 +13,18 @@ const sanitizerOptions: DOMPurify.Config = {
 };
 
 export const activate: ActivationFunction<void> = (ctx) => {
-	let markdownIt = new MarkdownIt({
-		html: true
+	const markdownIt: MarkdownIt = new MarkdownIt({
+		html: true,
+		linkify: true,
+		highlight: (str: string, lang?: string) => {
+			if (lang) {
+				return `<code class="vscode-code-block" data-vscode-code-block-lang="${markdownIt.utils.escapeHtml(lang)}">${markdownIt.utils.escapeHtml(str)}</code>`;
+			}
+			return `<code>${markdownIt.utils.escapeHtml(str)}</code>`;
+		}
 	});
+	markdownIt.linkify.set({ fuzzyLink: false });
+
 	addNamedHeaderRendering(markdownIt);
 
 	const style = document.createElement('style');
@@ -53,17 +62,32 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			border-bottom: 2px solid;
 		}
 
+		h2, h3, h4, h5, h6 {
+			font-weight: normal;
+		}
+
 		h1 {
-			font-size: 26px;
-			line-height: 31px;
-			margin: 0;
-			margin-bottom: 13px;
+			font-size: 2.3em;
 		}
 
 		h2 {
-			font-size: 19px;
-			margin: 0;
-			margin-bottom: 10px;
+			font-size: 2em;
+		}
+
+		h3 {
+			font-size: 1.7em;
+		}
+
+		h3 {
+			font-size: 1.5em;
+		}
+
+		h4 {
+			font-size: 1.3em;
+		}
+
+		h5 {
+			font-size: 1.2em;
 		}
 
 		h1,
@@ -87,8 +111,8 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		}
 
 		/* Removes bottom margin when only one item exists in markdown cell */
-		*:only-child,
-		*:last-child {
+		#preview > *:only-child,
+		#preview > *:last-child {
 			margin-bottom: 0;
 			padding-bottom: 0;
 		}
@@ -131,13 +155,14 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			border-left-style: solid;
 		}
 
-		code,
-		.code {
+		code {
 			font-size: 1em;
-			line-height: 1.357em;
 		}
 
-		.code {
+		pre code {
+			font-family: var(--vscode-editor-font-family);
+
+			line-height: 1.357em;
 			white-space: pre-wrap;
 		}
 	`;
@@ -179,11 +204,12 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				previewNode.classList.add('emptyMarkdownCell');
 			} else {
 				previewNode.classList.remove('emptyMarkdownCell');
-
-				const unsanitizedRenderedMarkdown = markdownIt.render(text);
-				previewNode.innerHTML = ctx.workspace.isTrusted
+				const markdownText = outputInfo.mime.startsWith('text/x-') ? `\`\`\`${outputInfo.mime.substr(7)}\n${text}\n\`\`\``
+					: (outputInfo.mime.startsWith('application/') ? `\`\`\`${outputInfo.mime.substr(12)}\n${text}\n\`\`\`` : text);
+				const unsanitizedRenderedMarkdown = markdownIt.render(markdownText);
+				previewNode.innerHTML = (ctx.workspace.isTrusted
 					? unsanitizedRenderedMarkdown
-					: DOMPurify.sanitize(unsanitizedRenderedMarkdown, sanitizerOptions);
+					: DOMPurify.sanitize(unsanitizedRenderedMarkdown, sanitizerOptions)) as string;
 			}
 		},
 		extendMarkdownIt: (f: (md: typeof markdownIt) => void) => {
@@ -193,12 +219,12 @@ export const activate: ActivationFunction<void> = (ctx) => {
 };
 
 
-function addNamedHeaderRendering(md: markdownIt.MarkdownIt): void {
+function addNamedHeaderRendering(md: InstanceType<typeof MarkdownIt>): void {
 	const slugCounter = new Map<string, number>();
 
 	const originalHeaderOpen = md.renderer.rules.heading_open;
-	md.renderer.rules.heading_open = (tokens: markdownIt.Token[], idx: number, options: any, env: any, self: any) => {
-		const title = tokens[idx + 1].children.reduce((acc: string, t: any) => acc + t.content, '');
+	md.renderer.rules.heading_open = (tokens: MarkdownItToken[], idx: number, options, env, self) => {
+		const title = tokens[idx + 1].children!.reduce<string>((acc, t) => acc + t.content, '');
 		let slug = slugFromHeading(title);
 
 		if (slugCounter.has(slug)) {
@@ -209,13 +235,12 @@ function addNamedHeaderRendering(md: markdownIt.MarkdownIt): void {
 			slugCounter.set(slug, 0);
 		}
 
-		tokens[idx].attrs = tokens[idx].attrs || [];
-		tokens[idx].attrs.push(['id', slug]);
+		tokens[idx].attrSet('id', slug);
 
 		if (originalHeaderOpen) {
 			return originalHeaderOpen(tokens, idx, options, env, self);
 		} else {
-			return self.renderToken(tokens, idx, options, env, self);
+			return self.renderToken(tokens, idx, options);
 		}
 	};
 
@@ -231,6 +256,7 @@ function slugFromHeading(heading: string): string {
 		heading.trim()
 			.toLowerCase()
 			.replace(/\s+/g, '-') // Replace whitespace with -
+			// allow-any-unicode-next-line
 			.replace(/[\]\[\!\'\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~\`。，、；：？！…—·ˉ¨‘’“”々～‖∶＂＇｀｜〃〔〕〈〉《》「」『』．〖〗【】（）［］｛｝]/g, '') // Remove known punctuators
 			.replace(/^\-+/, '') // Remove leading -
 			.replace(/\-+$/, '') // Remove trailing -

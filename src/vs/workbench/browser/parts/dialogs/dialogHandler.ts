@@ -19,7 +19,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { fromNow } from 'vs/base/common/date';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 
 export class BrowserDialogHandler implements IDialogHandler {
 
@@ -87,7 +87,7 @@ export class BrowserDialogHandler implements IDialogHandler {
 
 		const renderBody = customOptions ? (parent: HTMLElement) => {
 			parent.classList.add(...(customOptions.classes || []));
-			(customOptions.markdownDetails || []).forEach(markdownDetail => {
+			customOptions.markdownDetails?.forEach(markdownDetail => {
 				const result = this.markdownRenderer.render(markdownDetail.markdown);
 				parent.appendChild(result.element);
 				result.element.classList.add(...(markdownDetail.classes || []));

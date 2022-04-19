@@ -10,7 +10,7 @@ set NAMESHORT=%NAMESHORT: "=%
 set NAMESHORT=%NAMESHORT:"=%.exe
 set CODE=".build\electron\%NAMESHORT%"
 
-%CODE% %*
+%CODE% %* --ms-enable-electron-run-as-node
 
 popd
 

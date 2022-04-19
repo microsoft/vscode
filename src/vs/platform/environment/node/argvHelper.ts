@@ -8,7 +8,8 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ErrorReporter, OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
-import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
+
+const MIN_MAX_MEMORY_SIZE_MB = 2048;
 
 function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): NativeParsedArgs {
 	const errorReporter: ErrorReporter = {
@@ -16,7 +17,10 @@ function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): Nativ
 			console.warn(localize('unknownOption', "Warning: '{0}' is not in the list of known options, but still passed to Electron/Chromium.", id));
 		},
 		onMultipleValues: (id, val) => {
-			console.warn(localize('multipleValues', "Option '{0}' is defined more than once. Using value '{1}.'", id, val));
+			console.warn(localize('multipleValues', "Option '{0}' is defined more than once. Using value '{1}'.", id, val));
+		},
+		onDeprecatedOption: (deprecatedOption: string, message: string) => {
+			console.warn(localize('deprecatedArgument', "Option '{0}' is deprecated: {1}", deprecatedOption, message));
 		}
 	};
 

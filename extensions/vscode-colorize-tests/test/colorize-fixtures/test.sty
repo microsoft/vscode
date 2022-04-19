@@ -1,0 +1,20 @@
+\message{Document style option `aer.sty' (29 May 1993) for LaTeX 2.09.}
+\textwidth=28pc
+\textheight=46pc
+
+\def\bysame{\leavevmode\hbox to\leftmargin{\leaders\hrule height 3pt depth -2.5pt\hfill\,\,}}
+
+\def\thebibliography#1{\section*{\refname\@mkboth
+  {\uppercase{\refname}}{\uppercase{\refname}}}\list
+  {\@biblabel{\arabic{enumiv}}}{\labelwidth=12pt
+    \labelsep=0pt
+    \leftmargin\labelwidth
+    \advance\leftmargin\labelsep
+    \itemsep=0pt\parsep=0pt
+    \usecounter{enumiv}%
+    \let\p@enumiv\@empty
+    \def\theenumiv{\arabic{enumiv}}}%
+    \def\newblock{\hskip .11em plus.33em minus.07em}%
+    \sloppy\clubpenalty4000\widowpenalty4000
+    \raggedright
+    \sfcode`\.=1000\relax}

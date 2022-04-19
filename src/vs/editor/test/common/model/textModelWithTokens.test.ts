@@ -4,31 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { IFoundBracket } from 'vs/editor/common/model';
+import { IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ITokenizationSupport, LanguageId, LanguageIdentifier, MetadataConsts, TokenizationRegistry, StandardTokenType } from 'vs/editor/common/modes';
-import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { ViewLineToken } from 'vs/editor/test/common/core/viewLineToken';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { ITokenizationSupport, MetadataConsts, TokenizationRegistry, StandardTokenType, EncodedTokenizationResult } from 'vs/editor/common/languages';
+import { CharacterPair } from 'vs/editor/common/languages/languageConfiguration';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { TestLineToken } from 'vs/editor/test/common/core/testLineToken';
+import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+
+function createTextModelWithBrackets(disposables: DisposableStore, text: string, brackets: CharacterPair[]): TextModel {
+	const languageId = 'bracketMode2';
+	const instantiationService = createModelServices(disposables);
+	const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+	const languageService = instantiationService.get(ILanguageService);
+
+	disposables.add(languageService.registerLanguage({ id: languageId }));
+	disposables.add(languageConfigurationService.register(languageId, { brackets }));
+
+	return disposables.add(instantiateTextModel(instantiationService, text, languageId));
+}
 
 suite('TextModelWithTokens', () => {
-
 	function testBrackets(contents: string[], brackets: CharacterPair[]): void {
+		const languageId = 'testMode';
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
+		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		const languageService = instantiationService.get(ILanguageService);
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			brackets: brackets
+		}));
+
+
 		function toRelaxedFoundBracket(a: IFoundBracket | null) {
 			if (!a) {
 				return null;
 			}
 			return {
 				range: a.range.toString(),
-				open: a.open[0],
-				close: a.close[0],
-				isOpen: a.isOpen
+				info: a.bracketInfo,
 			};
 		}
 
@@ -58,26 +79,14 @@ suite('TextModelWithTokens', () => {
 				let ch = lineText.charAt(charIndex);
 				if (charIsBracket[ch]) {
 					expectedBrackets.push({
-						open: [openForChar[ch]],
-						close: [closeForChar[ch]],
-						isOpen: charIsOpenBracket[ch],
+						bracketInfo: languageConfigurationService.getLanguageConfiguration(languageId).bracketsNew.getBracketInfo(ch)!,
 						range: new Range(lineIndex + 1, charIndex + 1, lineIndex + 1, charIndex + 2)
 					});
 				}
 			}
 		}
 
-		const languageIdentifier = new LanguageIdentifier('testMode', LanguageId.PlainText);
-
-		let registration = LanguageConfigurationRegistry.register(languageIdentifier, {
-			brackets: brackets
-		});
-
-		let model = createTextModel(
-			contents.join('\n'),
-			TextModel.DEFAULT_CREATION_OPTIONS,
-			languageIdentifier
-		);
+		const model = disposables.add(instantiateTextModel(instantiationService, contents.join('\n'), languageId));
 
 		// findPrevBracket
 		{
@@ -95,7 +104,7 @@ suite('TextModelWithTokens', () => {
 						}
 					}
 
-					let actual = model.findPrevBracket({
+					let actual = model.bracketPairs.findPrevBracket({
 						lineNumber: lineNumber,
 						column: column
 					});
@@ -121,7 +130,7 @@ suite('TextModelWithTokens', () => {
 						}
 					}
 
-					let actual = model.findNextBracket({
+					let actual = model.bracketPairs.findNextBracket({
 						lineNumber: lineNumber,
 						column: column
 					});
@@ -131,11 +140,10 @@ suite('TextModelWithTokens', () => {
 			}
 		}
 
-		model.dispose();
-		registration.dispose();
+		disposables.dispose();
 	}
 
-	test('brackets', () => {
+	test('brackets1', () => {
 		testBrackets([
 			'if (a == 3) { return (7 * (a + 5)); }'
 		], [
@@ -147,39 +155,51 @@ suite('TextModelWithTokens', () => {
 });
 
 function assertIsNotBracket(model: TextModel, lineNumber: number, column: number) {
-	const match = model.matchBracket(new Position(lineNumber, column));
+	const match = model.bracketPairs.matchBracket(new Position(lineNumber, column));
 	assert.strictEqual(match, null, 'is not matching brackets at ' + lineNumber + ', ' + column);
 }
 
 function assertIsBracket(model: TextModel, testPosition: Position, expected: [Range, Range]): void {
-	const actual = model.matchBracket(testPosition);
+	expected.sort(Range.compareRangesUsingStarts);
+	const actual = model.bracketPairs.matchBracket(testPosition);
+	if (actual) {
+		actual.sort(Range.compareRangesUsingStarts);
+	}
 	assert.deepStrictEqual(actual, expected, 'matches brackets at ' + testPosition);
 }
 
 suite('TextModelWithTokens - bracket matching', () => {
 
-	const languageIdentifier = new LanguageIdentifier('bracketMode1', LanguageId.PlainText);
-	let registration: IDisposable;
+	const languageId = 'bracketMode1';
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+	let languageConfigurationService: ILanguageConfigurationService;
+	let languageService: ILanguageService;
 
 	setup(() => {
-		registration = LanguageConfigurationRegistry.register(languageIdentifier, {
+		disposables = new DisposableStore();
+		instantiationService = createModelServices(disposables);
+		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		languageService = instantiationService.get(ILanguageService);
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
 			brackets: [
 				['{', '}'],
 				['[', ']'],
 				['(', ')'],
 			]
-		});
+		}));
 	});
 
 	teardown(() => {
-		registration.dispose();
+		disposables.dispose();
 	});
 
 	test('bracket matching 1', () => {
-		let text =
+		const text =
 			')]}{[(' + '\n' +
 			')]}{[(';
-		let model = createTextModel(text, undefined, languageIdentifier);
+		const model = disposables.add(instantiateTextModel(instantiationService, text, languageId));
 
 		assertIsNotBracket(model, 1, 1);
 		assertIsNotBracket(model, 1, 2);
@@ -196,20 +216,18 @@ suite('TextModelWithTokens - bracket matching', () => {
 		assertIsNotBracket(model, 2, 5);
 		assertIsNotBracket(model, 2, 6);
 		assertIsNotBracket(model, 2, 7);
-
-		model.dispose();
 	});
 
 	test('bracket matching 2', () => {
-		let text =
+		const text =
 			'var bar = {' + '\n' +
 			'foo: {' + '\n' +
 			'}, bar: {hallo: [{' + '\n' +
 			'}, {' + '\n' +
 			'}]}}';
-		let model = createTextModel(text, undefined, languageIdentifier);
+		const model = disposables.add(instantiateTextModel(instantiationService, text, languageId));
 
-		let brackets: [Position, Range, Range][] = [
+		const brackets: [Position, Range, Range][] = [
 			[new Position(1, 11), new Range(1, 11, 1, 12), new Range(5, 4, 5, 5)],
 			[new Position(1, 12), new Range(1, 11, 1, 12), new Range(5, 4, 5, 5)],
 
@@ -236,7 +254,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 			[new Position(5, 5), new Range(5, 4, 5, 5), new Range(1, 11, 1, 12)],
 		];
 
-		let isABracket: { [lineNumber: number]: { [col: number]: boolean; }; } = { 1: {}, 2: {}, 3: {}, 4: {}, 5: {} };
+		let isABracket: { [lineNumber: number]: { [col: number]: boolean } } = { 1: {}, 2: {}, 3: {}, 4: {}, 5: {} };
 		for (let i = 0, len = brackets.length; i < len; i++) {
 			let [testPos, b1, b2] = brackets[i];
 			assertIsBracket(model, testPos, [b1, b2]);
@@ -251,24 +269,12 @@ suite('TextModelWithTokens - bracket matching', () => {
 				}
 			}
 		}
-
-		model.dispose();
 	});
 });
 
-suite('TextModelWithTokens', () => {
+suite('TextModelWithTokens 2', () => {
 
 	test('bracket matching 3', () => {
-
-		const languageIdentifier = new LanguageIdentifier('bracketMode2', LanguageId.PlainText);
-		const registration = LanguageConfigurationRegistry.register(languageIdentifier, {
-			brackets: [
-				['if', 'end if'],
-				['loop', 'end loop'],
-				['begin', 'end']
-			],
-		});
-
 		const text = [
 			'begin',
 			'    loop',
@@ -285,7 +291,12 @@ suite('TextModelWithTokens', () => {
 			'end;',
 		].join('\n');
 
-		const model = createTextModel(text, undefined, languageIdentifier);
+		const disposables = new DisposableStore();
+		const model = createTextModelWithBrackets(disposables, text, [
+			['if', 'end if'],
+			['loop', 'end loop'],
+			['begin', 'end']
+		]);
 
 		// <if> ... <end ifa> is not matched
 		assertIsNotBracket(model, 10, 9);
@@ -302,20 +313,10 @@ suite('TextModelWithTokens', () => {
 		assertIsBracket(model, new Position(1, 1), [new Range(1, 1, 1, 6), new Range(6, 1, 6, 4)]);
 		assertIsBracket(model, new Position(6, 1), [new Range(6, 1, 6, 4), new Range(1, 1, 1, 6)]);
 
-		model.dispose();
-		registration.dispose();
+		disposables.dispose();
 	});
 
 	test('bracket matching 4', () => {
-
-		const languageIdentifier = new LanguageIdentifier('bracketMode2', LanguageId.PlainText);
-		const registration = LanguageConfigurationRegistry.register(languageIdentifier, {
-			brackets: [
-				['recordbegin', 'endrecord'],
-				['simplerecordbegin', 'endrecord'],
-			],
-		});
-
 		const text = [
 			'recordbegin',
 			'  simplerecordbegin',
@@ -323,7 +324,11 @@ suite('TextModelWithTokens', () => {
 			'endrecord',
 		].join('\n');
 
-		const model = createTextModel(text, undefined, languageIdentifier);
+		const disposables = new DisposableStore();
+		const model = createTextModelWithBrackets(disposables, text, [
+			['recordbegin', 'endrecord'],
+			['simplerecordbegin', 'endrecord'],
+		]);
 
 		// <recordbegin> ... <endrecord> is matched
 		assertIsBracket(model, new Position(1, 1), [new Range(1, 1, 1, 12), new Range(4, 1, 4, 10)]);
@@ -333,26 +338,39 @@ suite('TextModelWithTokens', () => {
 		assertIsBracket(model, new Position(2, 3), [new Range(2, 3, 2, 20), new Range(3, 3, 3, 12)]);
 		assertIsBracket(model, new Position(3, 3), [new Range(3, 3, 3, 12), new Range(2, 3, 2, 20)]);
 
-		model.dispose();
-		registration.dispose();
+		disposables.dispose();
 	});
 
 	test('issue #95843: Highlighting of closing braces is indicating wrong brace when cursor is behind opening brace', () => {
-		const mode1 = new LanguageIdentifier('testMode1', 3);
-		const mode2 = new LanguageIdentifier('testMode2', 4);
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
+		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		const languageService = instantiationService.get(ILanguageService);
+		const mode1 = 'testMode1';
+		const mode2 = 'testMode2';
+
+		const languageIdCodec = languageService.languageIdCodec;
+
+		disposables.add(languageService.registerLanguage({ id: mode1 }));
+		disposables.add(languageService.registerLanguage({ id: mode2 }));
+		const encodedMode1 = languageIdCodec!.encodeLanguageId(mode1);
+		const encodedMode2 = languageIdCodec!.encodeLanguageId(mode2);
+
 		const otherMetadata1 = (
-			(mode1.id << MetadataConsts.LANGUAGEID_OFFSET)
+			(encodedMode1 << MetadataConsts.LANGUAGEID_OFFSET)
 			| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+			| (MetadataConsts.BALANCED_BRACKETS_MASK)
 		) >>> 0;
 		const otherMetadata2 = (
-			(mode2.id << MetadataConsts.LANGUAGEID_OFFSET)
+			(encodedMode2 << MetadataConsts.LANGUAGEID_OFFSET)
 			| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+			| (MetadataConsts.BALANCED_BRACKETS_MASK)
 		) >>> 0;
 
 		const tokenizationSupport: ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+			getInitialState: () => NullState,
 			tokenize: undefined!,
-			tokenize2: (line, hasEOL, state) => {
+			tokenizeEncoded: (line, hasEOL, state) => {
 				switch (line) {
 					case 'function f() {': {
 						const tokens = new Uint32Array([
@@ -364,7 +382,7 @@ suite('TextModelWithTokens', () => {
 							12, otherMetadata1,
 							13, otherMetadata1,
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 					case '  return <p>{true}</p>;': {
 						const tokens = new Uint32Array([
@@ -382,30 +400,28 @@ suite('TextModelWithTokens', () => {
 							21, otherMetadata2,
 							22, otherMetadata2,
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 					case '}': {
 						const tokens = new Uint32Array([
 							0, otherMetadata1
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 				}
 				throw new Error(`Unexpected`);
 			}
 		};
 
-		const disposableStore = new DisposableStore();
-
-		disposableStore.add(TokenizationRegistry.register(mode1.language, tokenizationSupport));
-		disposableStore.add(LanguageConfigurationRegistry.register(mode1, {
+		disposables.add(TokenizationRegistry.register(mode1, tokenizationSupport));
+		disposables.add(languageConfigurationService.register(mode1, {
 			brackets: [
 				['{', '}'],
 				['[', ']'],
 				['(', ')']
 			],
 		}));
-		disposableStore.add(LanguageConfigurationRegistry.register(mode2, {
+		disposables.add(languageConfigurationService.register(mode2, {
 			brackets: [
 				['{', '}'],
 				['[', ']'],
@@ -413,42 +429,57 @@ suite('TextModelWithTokens', () => {
 			],
 		}));
 
-		const model = disposableStore.add(createTextModel([
-			'function f() {',
-			'  return <p>{true}</p>;',
-			'}',
-		].join('\n'), undefined, mode1));
+		const model = disposables.add(instantiateTextModel(
+			instantiationService,
+			[
+				'function f() {',
+				'  return <p>{true}</p>;',
+				'}',
+			].join('\n'),
+			mode1
+		));
 
-		model.forceTokenization(1);
-		model.forceTokenization(2);
-		model.forceTokenization(3);
+		model.tokenization.forceTokenization(1);
+		model.tokenization.forceTokenization(2);
+		model.tokenization.forceTokenization(3);
 
-		assert.deepStrictEqual(model.matchBracket(new Position(2, 14)), [new Range(2, 13, 2, 14), new Range(2, 18, 2, 19)]);
+		assert.deepStrictEqual(
+			model.bracketPairs.matchBracket(new Position(2, 14)),
+			[new Range(2, 13, 2, 14), new Range(2, 18, 2, 19)]
+		);
 
-		disposableStore.dispose();
+		disposables.dispose();
 	});
 
 	test('issue #88075: TypeScript brace matching is incorrect in `${}` strings', () => {
-		const mode = new LanguageIdentifier('testMode', 3);
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
+		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		const mode = 'testMode';
+
+		const languageIdCodec = instantiationService.get(ILanguageService).languageIdCodec;
+
+		const encodedMode = languageIdCodec!.encodeLanguageId(mode);
+
 		const otherMetadata = (
-			(mode.id << MetadataConsts.LANGUAGEID_OFFSET)
+			(encodedMode << MetadataConsts.LANGUAGEID_OFFSET)
 			| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
 		) >>> 0;
 		const stringMetadata = (
-			(mode.id << MetadataConsts.LANGUAGEID_OFFSET)
+			(encodedMode << MetadataConsts.LANGUAGEID_OFFSET)
 			| (StandardTokenType.String << MetadataConsts.TOKEN_TYPE_OFFSET)
 		) >>> 0;
 
 		const tokenizationSupport: ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+			getInitialState: () => NullState,
 			tokenize: undefined!,
-			tokenize2: (line, hasEOL, state) => {
+			tokenizeEncoded: (line, hasEOL, state) => {
 				switch (line) {
 					case 'function hello() {': {
 						const tokens = new Uint32Array([
 							0, otherMetadata
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 					case '    console.log(`${100}`);': {
 						const tokens = new Uint32Array([
@@ -458,44 +489,46 @@ suite('TextModelWithTokens', () => {
 							22, stringMetadata,
 							24, otherMetadata,
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 					case '}': {
 						const tokens = new Uint32Array([
 							0, otherMetadata
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 				}
 				throw new Error(`Unexpected`);
 			}
 		};
 
-		const registration1 = TokenizationRegistry.register(mode.language, tokenizationSupport);
-		const registration2 = LanguageConfigurationRegistry.register(mode, {
+		disposables.add(TokenizationRegistry.register(mode, tokenizationSupport));
+		disposables.add(languageConfigurationService.register(mode, {
 			brackets: [
 				['{', '}'],
 				['[', ']'],
 				['(', ')']
 			],
-		});
+		}));
 
-		const model = createTextModel([
-			'function hello() {',
-			'    console.log(`${100}`);',
-			'}'
-		].join('\n'), undefined, mode);
+		const model = disposables.add(instantiateTextModel(
+			instantiationService,
+			[
+				'function hello() {',
+				'    console.log(`${100}`);',
+				'}'
+			].join('\n'),
+			mode
+		));
 
-		model.forceTokenization(1);
-		model.forceTokenization(2);
-		model.forceTokenization(3);
+		model.tokenization.forceTokenization(1);
+		model.tokenization.forceTokenization(2);
+		model.tokenization.forceTokenization(3);
 
-		assert.deepStrictEqual(model.matchBracket(new Position(2, 23)), null);
-		assert.deepStrictEqual(model.matchBracket(new Position(2, 20)), null);
+		assert.deepStrictEqual(model.bracketPairs.matchBracket(new Position(2, 23)), null);
+		assert.deepStrictEqual(model.bracketPairs.matchBracket(new Position(2, 20)), null);
 
-		model.dispose();
-		registration1.dispose();
-		registration2.dispose();
+		disposables.dispose();
 	});
 });
 
@@ -503,11 +536,11 @@ suite('TextModelWithTokens', () => {
 suite('TextModelWithTokens regression tests', () => {
 
 	test('microsoft/monaco-editor#122: Unhandled Exception: TypeError: Unable to get property \'replace\' of undefined or null reference', () => {
-		function assertViewLineTokens(model: TextModel, lineNumber: number, forceTokenization: boolean, expected: ViewLineToken[]): void {
+		function assertViewLineTokens(model: TextModel, lineNumber: number, forceTokenization: boolean, expected: TestLineToken[]): void {
 			if (forceTokenization) {
-				model.forceTokenization(lineNumber);
+				model.tokenization.forceTokenization(lineNumber);
 			}
-			let _actual = model.getLineTokens(lineNumber).inflate();
+			let _actual = model.tokenization.getLineTokens(lineNumber).inflate();
 			interface ISimpleViewToken {
 				endIndex: number;
 				foreground: number;
@@ -519,7 +552,7 @@ suite('TextModelWithTokens regression tests', () => {
 					foreground: _actual.getForeground(i)
 				};
 			}
-			let decode = (token: ViewLineToken) => {
+			let decode = (token: TestLineToken) => {
 				return {
 					endIndex: token.endIndex,
 					foreground: token.getForeground()
@@ -531,20 +564,18 @@ suite('TextModelWithTokens regression tests', () => {
 		let _tokenId = 10;
 		const LANG_ID1 = 'indicisiveMode1';
 		const LANG_ID2 = 'indicisiveMode2';
-		const languageIdentifier1 = new LanguageIdentifier(LANG_ID1, 3);
-		const languageIdentifier2 = new LanguageIdentifier(LANG_ID2, 4);
 
 		const tokenizationSupport: ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+			getInitialState: () => NullState,
 			tokenize: undefined!,
-			tokenize2: (line, hasEOL, state) => {
+			tokenizeEncoded: (line, hasEOL, state) => {
 				let myId = ++_tokenId;
 				let tokens = new Uint32Array(2);
 				tokens[0] = 0;
 				tokens[1] = (
 					myId << MetadataConsts.FOREGROUND_OFFSET
 				) >>> 0;
-				return new TokenizationResult2(tokens, state);
+				return new EncodedTokenizationResult(tokens, state);
 			}
 		};
 
@@ -556,12 +587,12 @@ suite('TextModelWithTokens regression tests', () => {
 		assertViewLineTokens(model, 1, true, [createViewLineToken(12, 1)]);
 		assertViewLineTokens(model, 2, true, [createViewLineToken(9, 1)]);
 
-		model.setMode(languageIdentifier1);
+		model.setMode(LANG_ID1);
 
 		assertViewLineTokens(model, 1, true, [createViewLineToken(12, 11)]);
 		assertViewLineTokens(model, 2, true, [createViewLineToken(9, 12)]);
 
-		model.setMode(languageIdentifier2);
+		model.setMode(LANG_ID2);
 
 		assertViewLineTokens(model, 1, false, [createViewLineToken(12, 1)]);
 		assertViewLineTokens(model, 2, false, [createViewLineToken(9, 1)]);
@@ -570,116 +601,127 @@ suite('TextModelWithTokens regression tests', () => {
 		registration1.dispose();
 		registration2.dispose();
 
-		function createViewLineToken(endIndex: number, foreground: number): ViewLineToken {
+		function createViewLineToken(endIndex: number, foreground: number): TestLineToken {
 			let metadata = (
 				(foreground << MetadataConsts.FOREGROUND_OFFSET)
 			) >>> 0;
-			return new ViewLineToken(endIndex, metadata);
+			return new TestLineToken(endIndex, metadata);
 		}
 	});
 
 
 	test('microsoft/monaco-editor#133: Error: Cannot read property \'modeId\' of undefined', () => {
 
-		const languageIdentifier = new LanguageIdentifier('testMode', LanguageId.PlainText);
-
-		let registration = LanguageConfigurationRegistry.register(languageIdentifier, {
-			brackets: [
+		const disposables = new DisposableStore();
+		const model = createTextModelWithBrackets(
+			disposables,
+			[
+				'Imports System',
+				'Imports System.Collections.Generic',
+				'',
+				'Module m1',
+				'',
+				'\tSub Main()',
+				'\tEnd Sub',
+				'',
+				'End Module',
+			].join('\n'),
+			[
 				['module', 'end module'],
 				['sub', 'end sub']
 			]
-		});
+		);
 
-		let model = createTextModel([
-			'Imports System',
-			'Imports System.Collections.Generic',
-			'',
-			'Module m1',
-			'',
-			'\tSub Main()',
-			'\tEnd Sub',
-			'',
-			'End Module',
-		].join('\n'), undefined, languageIdentifier);
-
-		let actual = model.matchBracket(new Position(4, 1));
+		const actual = model.bracketPairs.matchBracket(new Position(4, 1));
 		assert.deepStrictEqual(actual, [new Range(4, 1, 4, 7), new Range(9, 1, 9, 11)]);
 
-		model.dispose();
-		registration.dispose();
+		disposables.dispose();
 	});
 
 	test('issue #11856: Bracket matching does not work as expected if the opening brace symbol is contained in the closing brace symbol', () => {
 
-		const languageIdentifier = new LanguageIdentifier('testMode', LanguageId.PlainText);
-
-		let registration = LanguageConfigurationRegistry.register(languageIdentifier, {
-			brackets: [
+		const disposables = new DisposableStore();
+		const model = createTextModelWithBrackets(
+			disposables,
+			[
+				'sequence "outer"',
+				'     sequence "inner"',
+				'     endsequence',
+				'endsequence',
+			].join('\n'),
+			[
 				['sequence', 'endsequence'],
 				['feature', 'endfeature']
 			]
-		});
+		);
 
-		let model = createTextModel([
-			'sequence "outer"',
-			'     sequence "inner"',
-			'     endsequence',
-			'endsequence',
-		].join('\n'), undefined, languageIdentifier);
+		const actual = model.bracketPairs.matchBracket(new Position(3, 9));
+		assert.deepStrictEqual(actual, [new Range(2, 6, 2, 14), new Range(3, 6, 3, 17)]);
 
-		let actual = model.matchBracket(new Position(3, 9));
-		assert.deepStrictEqual(actual, [new Range(3, 6, 3, 17), new Range(2, 6, 2, 14)]);
-
-		model.dispose();
-		registration.dispose();
+		disposables.dispose();
 	});
 
 	test('issue #63822: Wrong embedded language detected for empty lines', () => {
-		const outerMode = new LanguageIdentifier('outerMode', 3);
-		const innerMode = new LanguageIdentifier('innerMode', 4);
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
+		const languageService = instantiationService.get(ILanguageService);
+
+		const outerMode = 'outerMode';
+		const innerMode = 'innerMode';
+
+		disposables.add(languageService.registerLanguage({ id: outerMode }));
+		disposables.add(languageService.registerLanguage({ id: innerMode }));
+
+		const languageIdCodec = instantiationService.get(ILanguageService).languageIdCodec;
+		const encodedInnerMode = languageIdCodec.encodeLanguageId(innerMode);
 
 		const tokenizationSupport: ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+			getInitialState: () => NullState,
 			tokenize: undefined!,
-			tokenize2: (line, hasEOL, state) => {
+			tokenizeEncoded: (line, hasEOL, state) => {
 				let tokens = new Uint32Array(2);
 				tokens[0] = 0;
 				tokens[1] = (
-					innerMode.id << MetadataConsts.LANGUAGEID_OFFSET
+					encodedInnerMode << MetadataConsts.LANGUAGEID_OFFSET
 				) >>> 0;
-				return new TokenizationResult2(tokens, state);
+				return new EncodedTokenizationResult(tokens, state);
 			}
 		};
 
-		let registration = TokenizationRegistry.register(outerMode.language, tokenizationSupport);
+		disposables.add(TokenizationRegistry.register(outerMode, tokenizationSupport));
 
-		let model = createTextModel('A model with one line', undefined, outerMode);
+		const model = disposables.add(instantiateTextModel(instantiationService, 'A model with one line', outerMode));
 
-		model.forceTokenization(1);
-		assert.strictEqual(model.getLanguageIdAtPosition(1, 1), innerMode.id);
+		model.tokenization.forceTokenization(1);
+		assert.strictEqual(model.getLanguageIdAtPosition(1, 1), innerMode);
 
-		model.dispose();
-		registration.dispose();
+		disposables.dispose();
 	});
 });
 
 suite('TextModel.getLineIndentGuide', () => {
 	function assertIndentGuides(lines: [number, number, number, number, string][], tabSize: number): void {
+		const languageId = 'testLang';
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
+		const languageService = instantiationService.get(ILanguageService);
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+
 		let text = lines.map(l => l[4]).join('\n');
-		let model = createTextModel(text);
+		let model = disposables.add(instantiateTextModel(instantiationService, text, languageId));
 		model.updateOptions({ tabSize: tabSize });
 
-		let actualIndents = model.getLinesIndentGuides(1, model.getLineCount());
+		let actualIndents = model.guides.getLinesIndentGuides(1, model.getLineCount());
 
 		let actual: [number, number, number, number, string][] = [];
 		for (let line = 1; line <= model.getLineCount(); line++) {
-			const activeIndentGuide = model.getActiveIndentGuide(line, 1, model.getLineCount());
+			const activeIndentGuide = model.guides.getActiveIndentGuide(line, 1, model.getLineCount());
 			actual[line - 1] = [actualIndents[line - 1], activeIndentGuide.startLineNumber, activeIndentGuide.endLineNumber, activeIndentGuide.indent, model.getLineContent(line)];
 		}
 
 		assert.deepStrictEqual(actual, lines);
 
-		model.dispose();
+		disposables.dispose();
 	}
 
 	test('getLineIndentGuide one level 2', () => {
@@ -854,7 +896,7 @@ suite('TextModel.getLineIndentGuide', () => {
 			'}',
 		].join('\n'));
 
-		const actual = model.getActiveIndentGuide(2, 4, 9);
+		const actual = model.guides.getActiveIndentGuide(2, 4, 9);
 		assert.deepStrictEqual(actual, { startLineNumber: 2, endLineNumber: 9, indent: 1 });
 		model.dispose();
 	});

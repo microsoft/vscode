@@ -11,7 +11,7 @@ import { coalesce } from '../utils/arrays';
 import { Delayer, setImmediate } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
 import { Disposable } from '../utils/dispose';
-import * as languageModeIds from '../utils/languageModeIds';
+import * as languageModeIds from '../utils/languageIds';
 import { ResourceMap } from '../utils/resourceMap';
 import * as typeConverters from '../utils/typeConverters';
 
@@ -73,10 +73,10 @@ class BufferSynchronizer {
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
 		pathNormalizer: (path: vscode.Uri) => string | undefined,
-		onCaseInsenitiveFileSystem: boolean
+		onCaseInsensitiveFileSystem: boolean
 	) {
 		this._pending = new ResourceMap<BufferOperation>(pathNormalizer, {
-			onCaseInsenitiveFileSystem
+			onCaseInsensitiveFileSystem
 		});
 	}
 
@@ -167,7 +167,7 @@ class BufferSynchronizer {
 
 	private updatePending(resource: vscode.Uri, op: BufferOperation): boolean {
 		switch (op.type) {
-			case BufferOperationType.Close:
+			case BufferOperationType.Close: {
 				const existing = this._pending.get(resource);
 				switch (existing?.type) {
 					case BufferOperationType.Open:
@@ -175,6 +175,7 @@ class BufferSynchronizer {
 						return false; // Open then close. No need to do anything
 				}
 				break;
+			}
 		}
 
 		if (this._pending.has(resource)) {
@@ -377,7 +378,7 @@ export default class BufferSyncSupport extends Disposable {
 	constructor(
 		client: ITypeScriptServiceClient,
 		modeIds: readonly string[],
-		onCaseInsenitiveFileSystem: boolean
+		onCaseInsensitiveFileSystem: boolean
 	) {
 		super();
 		this.client = client;
@@ -386,9 +387,9 @@ export default class BufferSyncSupport extends Disposable {
 		this.diagnosticDelayer = new Delayer<any>(300);
 
 		const pathNormalizer = (path: vscode.Uri) => this.client.normalizedPath(path);
-		this.syncedBuffers = new SyncedBufferMap(pathNormalizer, { onCaseInsenitiveFileSystem });
-		this.pendingDiagnostics = new PendingDiagnostics(pathNormalizer, { onCaseInsenitiveFileSystem });
-		this.synchronizer = new BufferSynchronizer(client, pathNormalizer, onCaseInsenitiveFileSystem);
+		this.syncedBuffers = new SyncedBufferMap(pathNormalizer, { onCaseInsensitiveFileSystem });
+		this.pendingDiagnostics = new PendingDiagnostics(pathNormalizer, { onCaseInsensitiveFileSystem });
+		this.synchronizer = new BufferSynchronizer(client, pathNormalizer, onCaseInsensitiveFileSystem);
 
 		this.updateConfiguration();
 		vscode.workspace.onDidChangeConfiguration(this.updateConfiguration, this, this._disposables);

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCode, ScanCodeUtils, NATIVE_WINDOWS_KEY_CODE_TO_KEY_CODE } from 'vs/base/common/keyCodes';
+import { Keybinding, ResolvedKeybinding, SimpleKeybinding, KeybindingModifier, ScanCodeBinding } from 'vs/base/common/keybindings';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IMMUTABLE_CODE_TO_KEY_CODE, ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
@@ -21,7 +21,6 @@ function log(str: string): void {
 	}
 }
 
-const NATIVE_KEY_CODE_TO_KEY_CODE: { [nativeKeyCode: string]: KeyCode; } = _getNativeMap();
 
 export interface IScanCodeMapping {
 	scanCode: ScanCode;
@@ -67,9 +66,6 @@ export class WindowsNativeResolvedKeybinding extends BaseResolvedKeybinding<Simp
 	}
 
 	protected _getElectronAccelerator(keybinding: SimpleKeybinding): string | null {
-		if (keybinding.isDuplicateModifierCase()) {
-			return null;
-		}
 		return this._mapper.getElectronAcceleratorForKeyBinding(keybinding);
 	}
 
@@ -122,7 +118,7 @@ export class WindowsNativeResolvedKeybinding extends BaseResolvedKeybinding<Simp
 		return result;
 	}
 
-	protected _getSingleModifierDispatchPart(keybinding: SimpleKeybinding): string | null {
+	protected _getSingleModifierDispatchPart(keybinding: SimpleKeybinding): KeybindingModifier | null {
 		if (keybinding.keyCode === KeyCode.Ctrl && !keybinding.shiftKey && !keybinding.altKey && !keybinding.metaKey) {
 			return 'ctrl';
 		}
@@ -202,7 +198,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 
 				const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[scanCode];
 				if (immutableKeyCode !== KeyCode.DependsOnKbLayout) {
-					const keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[rawMapping.vkey] || KeyCode.Unknown;
+					const keyCode = NATIVE_WINDOWS_KEY_CODE_TO_KEY_CODE[rawMapping.vkey] || KeyCode.Unknown;
 					if (keyCode === KeyCode.Unknown || immutableKeyCode === keyCode) {
 						continue;
 					}
@@ -217,7 +213,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 				const withShift = rawMapping.withShift;
 				const withAltGr = rawMapping.withAltGr;
 				const withShiftAltGr = rawMapping.withShiftAltGr;
-				const keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[rawMapping.vkey] || KeyCode.Unknown;
+				const keyCode = NATIVE_WINDOWS_KEY_CODE_TO_KEY_CODE[rawMapping.vkey] || KeyCode.Unknown;
 
 				const mapping: IScanCodeMapping = {
 					scanCode: scanCode,
@@ -274,32 +270,32 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 				this._keyCodeToLabel[keyCode] = String.fromCharCode(charCode);
 			}
 		};
-		_registerLetterIfMissing(CharCode.A, KeyCode.KEY_A);
-		_registerLetterIfMissing(CharCode.B, KeyCode.KEY_B);
-		_registerLetterIfMissing(CharCode.C, KeyCode.KEY_C);
-		_registerLetterIfMissing(CharCode.D, KeyCode.KEY_D);
-		_registerLetterIfMissing(CharCode.E, KeyCode.KEY_E);
-		_registerLetterIfMissing(CharCode.F, KeyCode.KEY_F);
-		_registerLetterIfMissing(CharCode.G, KeyCode.KEY_G);
-		_registerLetterIfMissing(CharCode.H, KeyCode.KEY_H);
-		_registerLetterIfMissing(CharCode.I, KeyCode.KEY_I);
-		_registerLetterIfMissing(CharCode.J, KeyCode.KEY_J);
-		_registerLetterIfMissing(CharCode.K, KeyCode.KEY_K);
-		_registerLetterIfMissing(CharCode.L, KeyCode.KEY_L);
-		_registerLetterIfMissing(CharCode.M, KeyCode.KEY_M);
-		_registerLetterIfMissing(CharCode.N, KeyCode.KEY_N);
-		_registerLetterIfMissing(CharCode.O, KeyCode.KEY_O);
-		_registerLetterIfMissing(CharCode.P, KeyCode.KEY_P);
-		_registerLetterIfMissing(CharCode.Q, KeyCode.KEY_Q);
-		_registerLetterIfMissing(CharCode.R, KeyCode.KEY_R);
-		_registerLetterIfMissing(CharCode.S, KeyCode.KEY_S);
-		_registerLetterIfMissing(CharCode.T, KeyCode.KEY_T);
-		_registerLetterIfMissing(CharCode.U, KeyCode.KEY_U);
-		_registerLetterIfMissing(CharCode.V, KeyCode.KEY_V);
-		_registerLetterIfMissing(CharCode.W, KeyCode.KEY_W);
-		_registerLetterIfMissing(CharCode.X, KeyCode.KEY_X);
-		_registerLetterIfMissing(CharCode.Y, KeyCode.KEY_Y);
-		_registerLetterIfMissing(CharCode.Z, KeyCode.KEY_Z);
+		_registerLetterIfMissing(CharCode.A, KeyCode.KeyA);
+		_registerLetterIfMissing(CharCode.B, KeyCode.KeyB);
+		_registerLetterIfMissing(CharCode.C, KeyCode.KeyC);
+		_registerLetterIfMissing(CharCode.D, KeyCode.KeyD);
+		_registerLetterIfMissing(CharCode.E, KeyCode.KeyE);
+		_registerLetterIfMissing(CharCode.F, KeyCode.KeyF);
+		_registerLetterIfMissing(CharCode.G, KeyCode.KeyG);
+		_registerLetterIfMissing(CharCode.H, KeyCode.KeyH);
+		_registerLetterIfMissing(CharCode.I, KeyCode.KeyI);
+		_registerLetterIfMissing(CharCode.J, KeyCode.KeyJ);
+		_registerLetterIfMissing(CharCode.K, KeyCode.KeyK);
+		_registerLetterIfMissing(CharCode.L, KeyCode.KeyL);
+		_registerLetterIfMissing(CharCode.M, KeyCode.KeyM);
+		_registerLetterIfMissing(CharCode.N, KeyCode.KeyN);
+		_registerLetterIfMissing(CharCode.O, KeyCode.KeyO);
+		_registerLetterIfMissing(CharCode.P, KeyCode.KeyP);
+		_registerLetterIfMissing(CharCode.Q, KeyCode.KeyQ);
+		_registerLetterIfMissing(CharCode.R, KeyCode.KeyR);
+		_registerLetterIfMissing(CharCode.S, KeyCode.KeyS);
+		_registerLetterIfMissing(CharCode.T, KeyCode.KeyT);
+		_registerLetterIfMissing(CharCode.U, KeyCode.KeyU);
+		_registerLetterIfMissing(CharCode.V, KeyCode.KeyV);
+		_registerLetterIfMissing(CharCode.W, KeyCode.KeyW);
+		_registerLetterIfMissing(CharCode.X, KeyCode.KeyX);
+		_registerLetterIfMissing(CharCode.Y, KeyCode.KeyY);
+		_registerLetterIfMissing(CharCode.Z, KeyCode.KeyZ);
 
 		if (!producesLetters) {
 			// Since this keyboard layout produces no latin letters at all, most of the UI will use the
@@ -312,17 +308,17 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 				this._keyCodeToLabel[keyCode] = String.fromCharCode(charCode);
 				// }
 			};
-			_registerLabel(KeyCode.US_SEMICOLON, CharCode.Semicolon);
-			_registerLabel(KeyCode.US_EQUAL, CharCode.Equals);
-			_registerLabel(KeyCode.US_COMMA, CharCode.Comma);
-			_registerLabel(KeyCode.US_MINUS, CharCode.Dash);
-			_registerLabel(KeyCode.US_DOT, CharCode.Period);
-			_registerLabel(KeyCode.US_SLASH, CharCode.Slash);
-			_registerLabel(KeyCode.US_BACKTICK, CharCode.BackTick);
-			_registerLabel(KeyCode.US_OPEN_SQUARE_BRACKET, CharCode.OpenSquareBracket);
-			_registerLabel(KeyCode.US_BACKSLASH, CharCode.Backslash);
-			_registerLabel(KeyCode.US_CLOSE_SQUARE_BRACKET, CharCode.CloseSquareBracket);
-			_registerLabel(KeyCode.US_QUOTE, CharCode.SingleQuote);
+			_registerLabel(KeyCode.Semicolon, CharCode.Semicolon);
+			_registerLabel(KeyCode.Equal, CharCode.Equals);
+			_registerLabel(KeyCode.Comma, CharCode.Comma);
+			_registerLabel(KeyCode.Minus, CharCode.Dash);
+			_registerLabel(KeyCode.Period, CharCode.Period);
+			_registerLabel(KeyCode.Slash, CharCode.Slash);
+			_registerLabel(KeyCode.Backquote, CharCode.BackTick);
+			_registerLabel(KeyCode.BracketLeft, CharCode.OpenSquareBracket);
+			_registerLabel(KeyCode.Backslash, CharCode.Backslash);
+			_registerLabel(KeyCode.BracketRight, CharCode.CloseSquareBracket);
+			_registerLabel(KeyCode.Quote, CharCode.SingleQuote);
 		}
 	}
 
@@ -405,50 +401,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 	}
 
 	public getElectronAcceleratorForKeyBinding(keybinding: SimpleKeybinding): string | null {
-		if (!this.isUSStandard) {
-			// See https://github.com/electron/electron/issues/26888
-			// Electron does not render accelerators respecting the current keyboard layout since 3.x
-			const keyCode = keybinding.keyCode;
-			const isOEMKey = (
-				keyCode === KeyCode.US_SEMICOLON
-				|| keyCode === KeyCode.US_EQUAL
-				|| keyCode === KeyCode.US_COMMA
-				|| keyCode === KeyCode.US_MINUS
-				|| keyCode === KeyCode.US_DOT
-				|| keyCode === KeyCode.US_SLASH
-				|| keyCode === KeyCode.US_BACKTICK
-				|| keyCode === KeyCode.US_OPEN_SQUARE_BRACKET
-				|| keyCode === KeyCode.US_BACKSLASH
-				|| keyCode === KeyCode.US_CLOSE_SQUARE_BRACKET
-				|| keyCode === KeyCode.OEM_8
-				|| keyCode === KeyCode.OEM_102
-			);
-			if (isOEMKey) {
-				return null;
-			}
-		}
-		return this._keyCodeToElectronAccelerator(keybinding.keyCode);
-	}
-
-	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string | null {
-		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
-			// Electron cannot handle numpad keys
-			return null;
-		}
-
-		switch (keyCode) {
-			case KeyCode.UpArrow:
-				return 'Up';
-			case KeyCode.DownArrow:
-				return 'Down';
-			case KeyCode.LeftArrow:
-				return 'Left';
-			case KeyCode.RightArrow:
-				return 'Right';
-		}
-
-		// electron menus always do the correct rendering on Windows
-		return KeyCodeUtils.toString(keyCode);
+		return KeyCodeUtils.toElectronAccelerator(keybinding.keyCode);
 	}
 
 	private _getLabelForKeyCode(keyCode: KeyCode): string {
@@ -495,186 +448,4 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 		}
 		return [];
 	}
-}
-
-
-// See https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
-// See https://github.com/microsoft/node-native-keymap/blob/master/deps/chromium/keyboard_codes_win.h
-function _getNativeMap() {
-	return {
-		VK_BACK: KeyCode.Backspace,
-		VK_TAB: KeyCode.Tab,
-		VK_CLEAR: KeyCode.Unknown, // MISSING
-		VK_RETURN: KeyCode.Enter,
-		VK_SHIFT: KeyCode.Shift,
-		VK_CONTROL: KeyCode.Ctrl,
-		VK_MENU: KeyCode.Alt,
-		VK_PAUSE: KeyCode.PauseBreak,
-		VK_CAPITAL: KeyCode.CapsLock,
-		VK_KANA: KeyCode.Unknown, // MISSING
-		VK_HANGUL: KeyCode.Unknown, // MISSING
-		VK_JUNJA: KeyCode.Unknown, // MISSING
-		VK_FINAL: KeyCode.Unknown, // MISSING
-		VK_HANJA: KeyCode.Unknown, // MISSING
-		VK_KANJI: KeyCode.Unknown, // MISSING
-		VK_ESCAPE: KeyCode.Escape,
-		VK_CONVERT: KeyCode.Unknown, // MISSING
-		VK_NONCONVERT: KeyCode.Unknown, // MISSING
-		VK_ACCEPT: KeyCode.Unknown, // MISSING
-		VK_MODECHANGE: KeyCode.Unknown, // MISSING
-		VK_SPACE: KeyCode.Space,
-		VK_PRIOR: KeyCode.PageUp,
-		VK_NEXT: KeyCode.PageDown,
-		VK_END: KeyCode.End,
-		VK_HOME: KeyCode.Home,
-		VK_LEFT: KeyCode.LeftArrow,
-		VK_UP: KeyCode.UpArrow,
-		VK_RIGHT: KeyCode.RightArrow,
-		VK_DOWN: KeyCode.DownArrow,
-		VK_SELECT: KeyCode.Unknown, // MISSING
-		VK_PRINT: KeyCode.Unknown, // MISSING
-		VK_EXECUTE: KeyCode.Unknown, // MISSING
-		VK_SNAPSHOT: KeyCode.Unknown, // MISSING
-		VK_INSERT: KeyCode.Insert,
-		VK_DELETE: KeyCode.Delete,
-		VK_HELP: KeyCode.Unknown, // MISSING
-
-		VK_0: KeyCode.KEY_0,
-		VK_1: KeyCode.KEY_1,
-		VK_2: KeyCode.KEY_2,
-		VK_3: KeyCode.KEY_3,
-		VK_4: KeyCode.KEY_4,
-		VK_5: KeyCode.KEY_5,
-		VK_6: KeyCode.KEY_6,
-		VK_7: KeyCode.KEY_7,
-		VK_8: KeyCode.KEY_8,
-		VK_9: KeyCode.KEY_9,
-		VK_A: KeyCode.KEY_A,
-		VK_B: KeyCode.KEY_B,
-		VK_C: KeyCode.KEY_C,
-		VK_D: KeyCode.KEY_D,
-		VK_E: KeyCode.KEY_E,
-		VK_F: KeyCode.KEY_F,
-		VK_G: KeyCode.KEY_G,
-		VK_H: KeyCode.KEY_H,
-		VK_I: KeyCode.KEY_I,
-		VK_J: KeyCode.KEY_J,
-		VK_K: KeyCode.KEY_K,
-		VK_L: KeyCode.KEY_L,
-		VK_M: KeyCode.KEY_M,
-		VK_N: KeyCode.KEY_N,
-		VK_O: KeyCode.KEY_O,
-		VK_P: KeyCode.KEY_P,
-		VK_Q: KeyCode.KEY_Q,
-		VK_R: KeyCode.KEY_R,
-		VK_S: KeyCode.KEY_S,
-		VK_T: KeyCode.KEY_T,
-		VK_U: KeyCode.KEY_U,
-		VK_V: KeyCode.KEY_V,
-		VK_W: KeyCode.KEY_W,
-		VK_X: KeyCode.KEY_X,
-		VK_Y: KeyCode.KEY_Y,
-		VK_Z: KeyCode.KEY_Z,
-
-		VK_LWIN: KeyCode.Meta,
-		VK_COMMAND: KeyCode.Meta,
-		VK_RWIN: KeyCode.Meta,
-		VK_APPS: KeyCode.Unknown, // MISSING
-		VK_SLEEP: KeyCode.Unknown, // MISSING
-		VK_NUMPAD0: KeyCode.NUMPAD_0,
-		VK_NUMPAD1: KeyCode.NUMPAD_1,
-		VK_NUMPAD2: KeyCode.NUMPAD_2,
-		VK_NUMPAD3: KeyCode.NUMPAD_3,
-		VK_NUMPAD4: KeyCode.NUMPAD_4,
-		VK_NUMPAD5: KeyCode.NUMPAD_5,
-		VK_NUMPAD6: KeyCode.NUMPAD_6,
-		VK_NUMPAD7: KeyCode.NUMPAD_7,
-		VK_NUMPAD8: KeyCode.NUMPAD_8,
-		VK_NUMPAD9: KeyCode.NUMPAD_9,
-		VK_MULTIPLY: KeyCode.NUMPAD_MULTIPLY,
-		VK_ADD: KeyCode.NUMPAD_ADD,
-		VK_SEPARATOR: KeyCode.NUMPAD_SEPARATOR,
-		VK_SUBTRACT: KeyCode.NUMPAD_SUBTRACT,
-		VK_DECIMAL: KeyCode.NUMPAD_DECIMAL,
-		VK_DIVIDE: KeyCode.NUMPAD_DIVIDE,
-		VK_F1: KeyCode.F1,
-		VK_F2: KeyCode.F2,
-		VK_F3: KeyCode.F3,
-		VK_F4: KeyCode.F4,
-		VK_F5: KeyCode.F5,
-		VK_F6: KeyCode.F6,
-		VK_F7: KeyCode.F7,
-		VK_F8: KeyCode.F8,
-		VK_F9: KeyCode.F9,
-		VK_F10: KeyCode.F10,
-		VK_F11: KeyCode.F11,
-		VK_F12: KeyCode.F12,
-		VK_F13: KeyCode.F13,
-		VK_F14: KeyCode.F14,
-		VK_F15: KeyCode.F15,
-		VK_F16: KeyCode.F16,
-		VK_F17: KeyCode.F17,
-		VK_F18: KeyCode.F18,
-		VK_F19: KeyCode.F19,
-		VK_F20: KeyCode.Unknown, // MISSING
-		VK_F21: KeyCode.Unknown, // MISSING
-		VK_F22: KeyCode.Unknown, // MISSING
-		VK_F23: KeyCode.Unknown, // MISSING
-		VK_F24: KeyCode.Unknown, // MISSING
-		VK_NUMLOCK: KeyCode.NumLock,
-		VK_SCROLL: KeyCode.ScrollLock,
-		VK_LSHIFT: KeyCode.Shift,
-		VK_RSHIFT: KeyCode.Shift,
-		VK_LCONTROL: KeyCode.Ctrl,
-		VK_RCONTROL: KeyCode.Ctrl,
-		VK_LMENU: KeyCode.Unknown, // MISSING
-		VK_RMENU: KeyCode.Unknown, // MISSING
-		VK_BROWSER_BACK: KeyCode.Unknown, // MISSING
-		VK_BROWSER_FORWARD: KeyCode.Unknown, // MISSING
-		VK_BROWSER_REFRESH: KeyCode.Unknown, // MISSING
-		VK_BROWSER_STOP: KeyCode.Unknown, // MISSING
-		VK_BROWSER_SEARCH: KeyCode.Unknown, // MISSING
-		VK_BROWSER_FAVORITES: KeyCode.Unknown, // MISSING
-		VK_BROWSER_HOME: KeyCode.Unknown, // MISSING
-		VK_VOLUME_MUTE: KeyCode.Unknown, // MISSING
-		VK_VOLUME_DOWN: KeyCode.Unknown, // MISSING
-		VK_VOLUME_UP: KeyCode.Unknown, // MISSING
-		VK_MEDIA_NEXT_TRACK: KeyCode.Unknown, // MISSING
-		VK_MEDIA_PREV_TRACK: KeyCode.Unknown, // MISSING
-		VK_MEDIA_STOP: KeyCode.Unknown, // MISSING
-		VK_MEDIA_PLAY_PAUSE: KeyCode.Unknown, // MISSING
-		VK_MEDIA_LAUNCH_MAIL: KeyCode.Unknown, // MISSING
-		VK_MEDIA_LAUNCH_MEDIA_SELECT: KeyCode.Unknown, // MISSING
-		VK_MEDIA_LAUNCH_APP1: KeyCode.Unknown, // MISSING
-		VK_MEDIA_LAUNCH_APP2: KeyCode.Unknown, // MISSING
-		VK_OEM_1: KeyCode.US_SEMICOLON,
-		VK_OEM_PLUS: KeyCode.US_EQUAL,
-		VK_OEM_COMMA: KeyCode.US_COMMA,
-		VK_OEM_MINUS: KeyCode.US_MINUS,
-		VK_OEM_PERIOD: KeyCode.US_DOT,
-		VK_OEM_2: KeyCode.US_SLASH,
-		VK_OEM_3: KeyCode.US_BACKTICK,
-		VK_ABNT_C1: KeyCode.ABNT_C1,
-		VK_ABNT_C2: KeyCode.ABNT_C2,
-		VK_OEM_4: KeyCode.US_OPEN_SQUARE_BRACKET,
-		VK_OEM_5: KeyCode.US_BACKSLASH,
-		VK_OEM_6: KeyCode.US_CLOSE_SQUARE_BRACKET,
-		VK_OEM_7: KeyCode.US_QUOTE,
-		VK_OEM_8: KeyCode.OEM_8,
-		VK_OEM_102: KeyCode.OEM_102,
-		VK_PROCESSKEY: KeyCode.Unknown, // MISSING
-		VK_PACKET: KeyCode.Unknown, // MISSING
-		VK_DBE_SBCSCHAR: KeyCode.Unknown, // MISSING
-		VK_DBE_DBCSCHAR: KeyCode.Unknown, // MISSING
-		VK_ATTN: KeyCode.Unknown, // MISSING
-		VK_CRSEL: KeyCode.Unknown, // MISSING
-		VK_EXSEL: KeyCode.Unknown, // MISSING
-		VK_EREOF: KeyCode.Unknown, // MISSING
-		VK_PLAY: KeyCode.Unknown, // MISSING
-		VK_ZOOM: KeyCode.Unknown, // MISSING
-		VK_NONAME: KeyCode.Unknown, // MISSING
-		VK_PA1: KeyCode.Unknown, // MISSING
-		VK_OEM_CLEAR: KeyCode.Unknown, // MISSING
-		VK_UNKNOWN: KeyCode.Unknown,
-	};
 }

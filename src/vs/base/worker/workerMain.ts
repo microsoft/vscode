@@ -24,6 +24,20 @@
 			: undefined
 	);
 
+	function canUseEval(): boolean {
+		try {
+			const func = (
+				trustedTypesPolicy
+					? self.eval(<any>trustedTypesPolicy.createScript('', 'true'))
+					: new Function('true')
+			);
+			func.call(self);
+			return true;
+		} catch (err) {
+			return false;
+		}
+	}
+
 	function loadAMDLoader() {
 		return new Promise<void>((resolve, reject) => {
 			if (typeof (<any>self).define === 'function' && (<any>self).define.amd) {
@@ -32,7 +46,7 @@
 			const loaderSrc: string | TrustedScriptURL = monacoBaseUrl + 'vs/loader.js';
 
 			const isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(loaderSrc) && loaderSrc.substring(0, self.origin.length) !== self.origin);
-			if (!isCrossOrigin) {
+			if (!isCrossOrigin && canUseEval()) {
 				// use `fetch` if possible because `importScripts`
 				// is synchronous and can lead to deadlocks on Safari
 				fetch(loaderSrc).then((response) => {
@@ -68,6 +82,7 @@
 				baseUrl: monacoBaseUrl,
 				catchError: true,
 				trustedTypesPolicy,
+				amdModulesPattern: /^vs\//
 			});
 			require([moduleId], function (ws) {
 				setTimeout(function () {
@@ -75,7 +90,7 @@
 						(<any>self).postMessage(msg, transfer);
 					}, null);
 
-					self.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data);
+					self.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data, e.ports);
 					while (beforeReadyMessages.length > 0) {
 						self.onmessage(beforeReadyMessages.shift()!);
 					}

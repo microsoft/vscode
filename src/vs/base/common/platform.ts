@@ -11,7 +11,9 @@ let _isLinux = false;
 let _isLinuxSnap = false;
 let _isNative = false;
 let _isWeb = false;
+let _isElectron = false;
 let _isIOS = false;
+let _isCI = false;
 let _locale: string | undefined = undefined;
 let _language: string = LANGUAGE_DEFAULT;
 let _translationsConfigFile: string | undefined = undefined;
@@ -19,7 +21,7 @@ let _userAgent: string | undefined = undefined;
 
 interface NLSConfig {
 	locale: string;
-	availableLanguages: { [key: string]: string; };
+	availableLanguages: { [key: string]: string };
 	_translationsConfigFile: string;
 }
 
@@ -38,11 +40,9 @@ export interface INodeProcess {
 	platform: string;
 	arch: string;
 	env: IProcessEnvironment;
-	nextTick?: (callback: (...args: any[]) => void) => void;
 	versions?: {
 		electron?: string;
 	};
-	sandboxed?: boolean;
 	type?: string;
 	cwd: () => string;
 }
@@ -62,8 +62,8 @@ if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.process !== '
 	nodeProcess = process;
 }
 
-const isElectronRenderer = typeof nodeProcess?.versions?.electron === 'string' && nodeProcess.type === 'renderer';
-export const isElectronSandboxed = isElectronRenderer && nodeProcess?.sandboxed;
+const isElectronProcess = typeof nodeProcess?.versions?.electron === 'string';
+const isElectronRenderer = isElectronProcess && nodeProcess?.type === 'renderer';
 
 interface INavigator {
 	userAgent: string;
@@ -90,6 +90,8 @@ else if (typeof nodeProcess === 'object') {
 	_isMacintosh = (nodeProcess.platform === 'darwin');
 	_isLinux = (nodeProcess.platform === 'linux');
 	_isLinuxSnap = _isLinux && !!nodeProcess.env['SNAP'] && !!nodeProcess.env['SNAP_REVISION'];
+	_isElectron = isElectronProcess;
+	_isCI = !!nodeProcess.env['CI'] || !!nodeProcess.env['BUILD_ARTIFACTSTAGINGDIRECTORY'];
 	_locale = LANGUAGE_DEFAULT;
 	_language = LANGUAGE_DEFAULT;
 	const rawNlsConfig = nodeProcess.env['VSCODE_NLS_CONFIG'];
@@ -141,8 +143,15 @@ export const isMacintosh = _isMacintosh;
 export const isLinux = _isLinux;
 export const isLinuxSnap = _isLinuxSnap;
 export const isNative = _isNative;
+export const isElectron = _isElectron;
 export const isWeb = _isWeb;
+export const isWebWorker = (_isWeb && typeof globals.importScripts === 'function');
 export const isIOS = _isIOS;
+/**
+ * Whether we run inside a CI environment, such as
+ * GH actions or Azure Pipelines.
+ */
+export const isCI = _isCI;
 export const platform = _platform;
 export const userAgent = _userAgent;
 
@@ -186,14 +195,13 @@ export const locale = _locale;
  */
 export const translationsConfigFile = _translationsConfigFile;
 
-interface ISetImmediate {
-	(callback: (...args: unknown[]) => void): void;
-}
-
-export const setImmediate: ISetImmediate = (function defineSetImmediate() {
-	if (globals.setImmediate) {
-		return globals.setImmediate.bind(globals);
-	}
+/**
+ * See https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#:~:text=than%204%2C%20then-,set%20timeout%20to%204,-.
+ *
+ * Works similarly to `setTimeout(0)` but doesn't suffer from the 4ms artificial delay
+ * that browsers set when the nesting level is > 5.
+ */
+export const setTimeout0 = (() => {
 	if (typeof globals.postMessage === 'function' && !globals.importScripts) {
 		interface IQueueElement {
 			id: number;
@@ -201,10 +209,10 @@ export const setImmediate: ISetImmediate = (function defineSetImmediate() {
 		}
 		let pending: IQueueElement[] = [];
 		globals.addEventListener('message', (e: MessageEvent) => {
-			if (e.data && e.data.vscodeSetImmediateId) {
+			if (e.data && e.data.vscodeScheduleAsyncWork) {
 				for (let i = 0, len = pending.length; i < len; i++) {
 					const candidate = pending[i];
-					if (candidate.id === e.data.vscodeSetImmediateId) {
+					if (candidate.id === e.data.vscodeScheduleAsyncWork) {
 						pending.splice(i, 1);
 						candidate.callback();
 						return;
@@ -219,14 +227,10 @@ export const setImmediate: ISetImmediate = (function defineSetImmediate() {
 				id: myId,
 				callback: callback
 			});
-			globals.postMessage({ vscodeSetImmediateId: myId }, '*');
+			globals.postMessage({ vscodeScheduleAsyncWork: myId }, '*');
 		};
 	}
-	if (typeof nodeProcess?.nextTick === 'function') {
-		return nodeProcess.nextTick.bind(nodeProcess);
-	}
-	const _promise = Promise.resolve();
-	return (callback: (...args: unknown[]) => void) => _promise.then(callback);
+	return (callback: () => void) => setTimeout(callback);
 })();
 
 export const enum OperatingSystem {
@@ -249,3 +253,9 @@ export function isLittleEndian(): boolean {
 	}
 	return _isLittleEndian;
 }
+
+export const isChrome = !!(userAgent && userAgent.indexOf('Chrome') >= 0);
+export const isFirefox = !!(userAgent && userAgent.indexOf('Firefox') >= 0);
+export const isSafari = !!(!isChrome && (userAgent && userAgent.indexOf('Safari') >= 0));
+export const isEdge = !!(userAgent && userAgent.indexOf('Edg/') >= 0);
+export const isAndroid = !!(userAgent && userAgent.indexOf('Android') >= 0);

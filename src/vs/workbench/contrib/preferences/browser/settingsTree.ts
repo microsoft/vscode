@@ -8,7 +8,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -30,7 +30,7 @@ import { isArray, isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, getLanguageTagSettingPlainKey, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -42,11 +42,11 @@ import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticip
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { inspectSetting, ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingDropdownWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, focusedRowBackground, focusedRowBorder, settingsHeaderForeground, rowHoverBackground, ObjectSettingCheckboxWidget } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, ObjectSettingDropdownWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, ObjectSettingCheckboxWidget } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
-import { getDefaultIgnoredSettings, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
 import { Codicon } from 'vs/base/common/codicons';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
@@ -59,7 +59,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { settingsMoreActionIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { focusedRowBackground, focusedRowBorder, rowHoverBackground, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 
 const $ = DOM.$;
 
@@ -129,14 +131,6 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 		? element.defaultValue ?? {}
 		: {};
 
-	const elementScopeValue: Record<string, unknown> = typeof element.scopeValue === 'object'
-		? element.scopeValue ?? {}
-		: {};
-
-	const data = element.isConfigured ?
-		{ ...elementDefaultValue, ...elementScopeValue } :
-		elementDefaultValue;
-
 	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
 	const patternsAndSchemas = Object
 		.entries(objectPatternProperties ?? {})
@@ -149,10 +143,13 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 		([key, schema]) => ({ value: key, description: schema.description })
 	);
 
+	let data: Record<string, unknown> = element.value ?? {};
+	if (element.setting.allKeysAreBoolean) {
+		// Add on default values, because we want to display all checkboxes.
+		data = { ...elementDefaultValue, ...data };
+	}
 	return Object.keys(data).map(key => {
 		if (isDefined(objectProperties) && key in objectProperties) {
-			const defaultValue = elementDefaultValue[key];
-
 			if (element.setting.allKeysAreBoolean) {
 				return {
 					key: {
@@ -168,6 +165,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 				} as IObjectDataItem;
 			}
 
+			const defaultValue = elementDefaultValue[key];
 			const valueEnumOptions = getEnumOptionsFromSchema(objectProperties[key]);
 			return {
 				key: {
@@ -301,6 +299,46 @@ function createObjectValueSuggester(element: SettingsTreeSettingElement): IObjec
 	};
 }
 
+function isNonNullableNumericType(type: unknown): type is 'number' | 'integer' {
+	return type === 'number' || type === 'integer';
+}
+
+function parseNumericObjectValues(dataElement: SettingsTreeSettingElement, v: Record<string, unknown>): Record<string, unknown> {
+	const newRecord: Record<string, unknown> = {};
+	for (const key in v) {
+		// Set to true/false once we're sure of the answer
+		let keyMatchesNumericProperty: boolean | undefined;
+		const patternProperties = dataElement.setting.objectPatternProperties;
+		const properties = dataElement.setting.objectProperties;
+		const additionalProperties = dataElement.setting.objectAdditionalProperties;
+
+		// Match the current record key against the properties of the object
+		if (properties) {
+			for (const propKey in properties) {
+				if (propKey === key) {
+					keyMatchesNumericProperty = isNonNullableNumericType(properties[propKey].type);
+					break;
+				}
+			}
+		}
+		if (keyMatchesNumericProperty === undefined && patternProperties) {
+			for (const patternKey in patternProperties) {
+				if (key.match(patternKey)) {
+					keyMatchesNumericProperty = isNonNullableNumericType(patternProperties[patternKey].type);
+					break;
+				}
+			}
+		}
+		if (keyMatchesNumericProperty === undefined && additionalProperties && typeof additionalProperties !== 'boolean') {
+			if (isNonNullableNumericType(additionalProperties.type)) {
+				keyMatchesNumericProperty = true;
+			}
+		}
+		newRecord[key] = keyMatchesNumericProperty ? Number(v[key]) : v[key];
+	}
+	return newRecord;
+}
+
 function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
 	if (!element.value || !isArray(element.value)) {
 		return [];
@@ -345,7 +383,7 @@ function getShowAddButtonList(dataElement: SettingsTreeSettingElement, listDispl
 	}
 }
 
-export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGroups: ISettingsGroup[], logService: ILogService): { tree: ITOCEntry<ISetting>, leftoverSettings: Set<ISetting> } {
+export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGroups: ISettingsGroup[], logService: ILogService): { tree: ITOCEntry<ISetting>; leftoverSettings: Set<ISetting> } {
 	const allSettings = getFlatSettings(coreSettingsGroups);
 	return {
 		tree: _resolveSettingsTree(tocData, allSettings, logService),
@@ -353,32 +391,103 @@ export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGrou
 	};
 }
 
-export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], target: SettingsTarget, configurationService: IWorkbenchConfigurationService): ISetting[] {
+export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], target: SettingsTarget, languageFilter: string | undefined, configurationService: IWorkbenchConfigurationService): ISetting[] {
 	const allSettings = getFlatSettings(groups);
-	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, configurationService).isConfigured);
+	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, languageFilter, configurationService).isConfigured);
 }
 
-export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry<ISetting> {
-	const settingsGroupToEntry = (group: ISettingsGroup) => {
+function compareNullableIntegers(a?: number, b?: number) {
+	const firstElem = a ?? Number.MAX_SAFE_INTEGER;
+	const secondElem = b ?? Number.MAX_SAFE_INTEGER;
+	return firstElem - secondElem;
+}
+
+export async function createTocTreeForExtensionSettings(extensionService: IExtensionService, groups: ISettingsGroup[]): Promise<ITOCEntry<ISetting>> {
+	const extGroupTree = new Map<string, ITOCEntry<ISetting>>();
+	const addEntryToTree = (extensionId: string, extensionName: string, childEntry: ITOCEntry<ISetting>) => {
+		if (!extGroupTree.has(extensionId)) {
+			const rootEntry = {
+				id: extensionId,
+				label: extensionName,
+				children: []
+			};
+			extGroupTree.set(extensionId, rootEntry);
+		}
+		extGroupTree.get(extensionId)!.children!.push(childEntry);
+	};
+	const processGroupEntry = async (group: ISettingsGroup) => {
 		const flatSettings = arrays.flatten(
 			group.sections.map(section => section.settings));
 
-		return {
-			id: group.id,
+		const extensionId = group.extensionInfo!.id;
+		const extension = await extensionService.getExtension(extensionId);
+		const extensionName = extension?.displayName ?? extension?.name ?? extensionId;
+
+		// Each group represents a single category of settings.
+		// If the extension author forgets to specify an id for the group,
+		// fall back to the title given to the group.
+		const childEntry: ITOCEntry<ISetting> = {
+			id: group.id || group.title,
 			label: group.title,
+			order: group.order,
 			settings: flatSettings
 		};
+		addEntryToTree(extensionId, extensionName, childEntry);
 	};
 
-	const extGroups = groups
-		.sort((a, b) => a.title.localeCompare(b.title))
-		.map(g => settingsGroupToEntry(g));
+	const processPromises = groups.map(g => processGroupEntry(g));
+	return Promise.all(processPromises).then(() => {
+		const extGroups: ITOCEntry<ISetting>[] = [];
+		for (const extensionRootEntry of extGroupTree.values()) {
+			for (const child of extensionRootEntry.children!) {
+				// Sort the individual settings of the child.
+				child.settings?.sort((a, b) => {
+					return compareNullableIntegers(a.order, b.order);
+				});
+			}
 
-	return {
-		id: 'extensions',
-		label: localize('extensions', "Extensions"),
-		children: extGroups
-	};
+			if (extensionRootEntry.children!.length === 1) {
+				// There is a single category for this extension.
+				// Push a flattened setting.
+				extGroups.push({
+					id: extensionRootEntry.id,
+					label: extensionRootEntry.children![0].label,
+					settings: extensionRootEntry.children![0].settings
+				});
+			} else {
+				// Sort the categories.
+				extensionRootEntry.children!.sort((a, b) => {
+					return compareNullableIntegers(a.order, b.order);
+				});
+
+				// If there is a category that matches the setting name,
+				// add the settings in manually as "ungrouped" settings.
+				// https://github.com/microsoft/vscode/issues/137259
+				const ungroupedChild = extensionRootEntry.children!.find(child => child.label === extensionRootEntry.label);
+				if (ungroupedChild && !ungroupedChild.children) {
+					const groupedChildren = extensionRootEntry.children!.filter(child => child !== ungroupedChild);
+					extGroups.push({
+						id: extensionRootEntry.id,
+						label: extensionRootEntry.label,
+						settings: ungroupedChild.settings,
+						children: groupedChildren
+					});
+				} else {
+					// Push all the groups as-is.
+					extGroups.push(extensionRootEntry);
+				}
+			}
+		}
+
+		// Sort the outermost settings.
+		extGroups.sort((a, b) => a.label.localeCompare(b.label));
+
+		return {
+			id: 'extensions',
+			label: localize('extensions', "Extensions"),
+			children: extGroups
+		};
+	});
 }
 
 function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISetting>, logService: ILogService): ITOCEntry<ISetting> {
@@ -474,18 +583,17 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	context?: SettingsTreeSettingElement;
 	containerElement: HTMLElement;
 	categoryElement: HTMLElement;
-	labelElement: HTMLElement;
+	labelElement: SimpleIconLabel;
 	descriptionElement: HTMLElement;
 	controlElement: HTMLElement;
 	deprecationWarningElement: HTMLElement;
-	otherOverridesElement: HTMLElement;
-	syncIgnoredElement: HTMLElement;
+	miscLabel: SettingsTreeMiscLabel;
 	toolbar: ToolBar;
 	elementDisposables: DisposableStore;
 }
 
 interface ISettingBoolItemTemplate extends ISettingItemTemplate<boolean> {
-	checkbox: Checkbox;
+	checkbox: Toggle;
 }
 
 interface ISettingTextItemTemplate extends ISettingItemTemplate<string> {
@@ -515,7 +623,7 @@ interface ISettingExcludeItemTemplate extends ISettingItemTemplate<void> {
 }
 
 interface ISettingObjectItemTemplate extends ISettingItemTemplate<Record<string, unknown> | undefined> {
-	objectDropdownWidget?: ObjectSettingDropdownWidget,
+	objectDropdownWidget?: ObjectSettingDropdownWidget;
 	objectCheckboxWidget?: ObjectSettingCheckboxWidget;
 	validationErrorMessageElement: HTMLElement;
 }
@@ -548,6 +656,7 @@ export interface ISettingChangeEvent {
 	key: string;
 	value: any; // undefined => reset/unconfigure
 	type: SettingValueType | SettingValueType[];
+	manualReset: boolean;
 }
 
 export interface ISettingLinkClickEvent {
@@ -590,6 +699,7 @@ function addChildrenToTabOrder(node: Element): void {
 
 export interface HeightChangeParams {
 	element: SettingsTreeElement;
+	height: number;
 }
 
 export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
@@ -628,6 +738,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	protected readonly _onDidChangeSettingHeight = this._register(new Emitter<HeightChangeParams>());
 	readonly onDidChangeSettingHeight: Event<HeightChangeParams> = this._onDidChangeSettingHeight.event;
 
+	protected readonly _onApplyLanguageFilter = this._register(new Emitter<string>());
+	readonly onApplyLanguageFilter: Event<string> = this._onApplyLanguageFilter.event;
+
 	private readonly markdownRenderer: MarkdownRenderer;
 
 	constructor(
@@ -648,24 +761,14 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
 		this._register(this._configService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.includes('settingsSync.ignoredSettings')) {
-				this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
-				this._onDidChangeIgnoredSettings.fire();
-			}
+			this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
+			this._onDidChangeIgnoredSettings.fire();
 		}));
 	}
 
 	abstract renderTemplate(container: HTMLElement): any;
 
 	abstract renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: any): void;
-
-	protected createSyncIgnoredElement(container: HTMLElement): HTMLElement {
-		const syncIgnoredElement = DOM.append(container, $('span.setting-item-ignored'));
-		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
-		syncIgnoredLabel.text = `($(sync-ignored) ${localize('extensionSyncIgnoredLabel', 'Sync: Ignored')})`;
-
-		return syncIgnoredElement;
-	}
 
 	protected renderCommonTemplate(tree: any, _container: HTMLElement, typeClass: string): ISettingItemTemplate {
 		_container.classList.add('setting-item');
@@ -676,13 +779,14 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const labelCategoryContainer = DOM.append(titleElement, $('.setting-item-cat-label-container'));
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
-		const labelElement = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
-		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
-		const syncIgnoredElement = this.createSyncIgnoredElement(titleElement);
+		const labelElementContainer = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
+		const labelElement = new SimpleIconLabel(labelElementContainer);
+
+		const miscLabel = new SettingsTreeMiscLabel(titleElement);
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
-		modifiedIndicatorElement.title = localize('modified', "Modified");
+		modifiedIndicatorElement.title = localize('modified', "The setting has been configured in the current scope.");
 
 		const valueElement = DOM.append(container, $('.setting-item-value'));
 		const controlElement = DOM.append(valueElement, $('div.setting-item-control'));
@@ -704,8 +808,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			descriptionElement,
 			controlElement,
 			deprecationWarningElement,
-			otherOverridesElement,
-			syncIgnoredElement,
+			miscLabel,
 			toolbar
 		};
 
@@ -746,7 +849,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const toolbar = new ToolBar(container, this._contextMenuService, {
 			toggleMenuTitle,
 			renderDropdownAsChildElement: !isIOS,
-			moreIcon: settingsMoreActionIcon // change icon from ellipsis to gear
+			moreIcon: settingsMoreActionIcon
 		});
 		return toolbar;
 	}
@@ -769,52 +872,22 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.categoryElement.textContent = element.displayCategory && (element.displayCategory + ': ');
 		template.categoryElement.title = titleTooltip;
 
-		template.labelElement.textContent = element.displayLabel;
+		template.labelElement.text = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 
 		template.descriptionElement.innerText = '';
 		if (element.setting.descriptionIsMarkdown) {
 			const disposables = new DisposableStore();
-			template.toDispose.add(disposables);
+			template.elementDisposables.add(disposables);
 			const renderedDescription = this.renderSettingMarkdown(element, template.containerElement, element.description, disposables);
 			template.descriptionElement.appendChild(renderedDescription);
 		} else {
 			template.descriptionElement.innerText = element.description;
 		}
 
-		template.otherOverridesElement.innerText = '';
-		template.otherOverridesElement.style.display = 'none';
-		if (element.overriddenScopeList.length) {
-			template.otherOverridesElement.style.display = 'inline';
+		template.miscLabel.updateOtherOverrides(element, template.elementDisposables, this._onDidClickOverrideElement);
 
-			const otherOverridesLabel = element.isConfigured ?
-				localize('alsoConfiguredIn', "Also modified in") :
-				localize('configuredIn', "Modified in");
-
-			DOM.append(template.otherOverridesElement, $('span', undefined, `(${otherOverridesLabel}: `));
-
-			for (let i = 0; i < element.overriddenScopeList.length; i++) {
-				const view = DOM.append(template.otherOverridesElement, $('a.modified-scope', undefined, element.overriddenScopeList[i]));
-
-				if (i !== element.overriddenScopeList.length - 1) {
-					DOM.append(template.otherOverridesElement, $('span', undefined, ', '));
-				} else {
-					DOM.append(template.otherOverridesElement, $('span', undefined, ')'));
-				}
-
-				template.elementDisposables.add(
-					DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {
-						this._onDidClickOverrideElement.fire({
-							targetKey: element.setting.key,
-							scope: element.overriddenScopeList[i]
-						});
-						e.preventDefault();
-						e.stopPropagation();
-					}));
-			}
-		}
-
-		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context!.valueType });
+		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context!.valueType, manualReset: false });
 		const deprecationText = element.setting.deprecationMessage || '';
 		if (deprecationText && element.setting.deprecationMessageIsMarkdown) {
 			const disposables = new DisposableStore();
@@ -824,16 +897,15 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		} else {
 			template.deprecationWarningElement.innerText = deprecationText;
 		}
+		template.deprecationWarningElement.prepend($('.codicon.codicon-error'));
 		template.containerElement.classList.toggle('is-deprecated', !!deprecationText);
 
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 
-		const update = () => {
-			template.syncIgnoredElement.style.display = this.ignoredSettings.includes(element.setting.key) ? 'inline' : 'none';
-		};
-		update();
+		template.miscLabel.updateSyncIgnored(element, this.ignoredSettings);
+		template.miscLabel.updateDefaultOverrideIndicator(element);
 		template.elementDisposables.add(this.onDidChangeIgnoredSettings(() => {
-			update();
+			template.miscLabel.updateSyncIgnored(element, this.ignoredSettings);
 		}));
 
 		this.updateSettingTabbable(element, template);
@@ -860,7 +932,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 					if (content.startsWith('#')) {
 						const e: ISettingLinkClickEvent = {
 							source: element,
-							targetKey: content.substr(1)
+							targetKey: content.substring(1)
 						};
 						this._onDidClickSettingLink.fire(e);
 					} else {
@@ -870,7 +942,10 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 				disposables: disposeables
 			},
 			asyncRenderCallback: () => {
-				// this._onDidChangeSettingHeight.fire({ element });
+				const height = container.clientHeight;
+				if (height) {
+					this._onDidChangeSettingHeight.fire({ element, height });
+				}
 			},
 		});
 		disposeables.add(renderedMarkdown);
@@ -974,8 +1049,7 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 
 		const openSettingsButton = new Button(common.controlElement, { title: true, buttonBackground: undefined, buttonHoverBackground: undefined });
 		common.toDispose.add(openSettingsButton);
-		common.toDispose.add(openSettingsButton.onDidClick(() => template.onChange!()));
-		openSettingsButton.label = SettingComplexRenderer.EDIT_IN_JSON_LABEL;
+
 		openSettingsButton.element.classList.add('edit-in-settings-button');
 		openSettingsButton.element.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 
@@ -1004,10 +1078,28 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate, onChange: (value: string) => void): void {
-		template.onChange = () => this._onDidOpenSettings.fire(dataElement.setting.key);
+		const plainKey = getLanguageTagSettingPlainKey(dataElement.setting.key);
+		const editLanguageSettingLabel = localize('editLanguageSettingLabel', "Edit settings for {0}", plainKey);
+		const isLanguageTagSetting = dataElement.setting.isLanguageTagSetting;
+		template.button.label = isLanguageTagSetting
+			? editLanguageSettingLabel
+			: SettingComplexRenderer.EDIT_IN_JSON_LABEL;
+
+		template.elementDisposables.add(template.button.onDidClick(() => {
+			if (isLanguageTagSetting) {
+				this._onApplyLanguageFilter.fire(plainKey);
+			} else {
+				this._onDidOpenSettings.fire(dataElement.setting.key);
+			}
+		}));
+
 		this.renderValidations(dataElement, template);
 
-		template.button.element.setAttribute('aria-label', `${SettingComplexRenderer.EDIT_IN_JSON_LABEL}: ${dataElement.setting.key}`);
+		if (isLanguageTagSetting) {
+			template.button.element.setAttribute('aria-label', editLanguageSettingLabel);
+		} else {
+			template.button.element.setAttribute('aria-label', `${SettingComplexRenderer.EDIT_IN_JSON_LABEL}: ${dataElement.setting.key}`);
+		}
 	}
 
 	private renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate) {
@@ -1046,26 +1138,13 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		common.toDispose.add(
 			listWidget.onDidChangeList(e => {
 				const newList = this.computeNewList(template, e);
-				this.onDidChangeList(template, newList);
-				if (newList !== null && template.onChange) {
+				if (template.onChange) {
 					template.onChange(newList);
 				}
 			})
 		);
 
 		return template;
-	}
-
-	private onDidChangeList(template: ISettingListItemTemplate, newList: string[] | undefined | null): void {
-		if (!template.context || newList === null) {
-			return;
-		}
-
-		this._onDidChangeSetting.fire({
-			key: template.context.setting.key,
-			value: newList,
-			type: template.context.valueType
-		});
 	}
 
 	private computeNewList(template: ISettingListItemTemplate, e: ISettingListChangeEvent<IListDataItem>): string[] | undefined {
@@ -1124,7 +1203,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		super.renderSettingElement(element, index, templateData);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string[] | undefined) => void): void {
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string[] | number[] | undefined) => void): void {
 		const value = getListDisplayValue(dataElement);
 		const keySuggester = dataElement.setting.enum ? createArraySuggester(dataElement) : undefined;
 		template.listWidget.setValue(value, {
@@ -1137,9 +1216,16 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 			template.listWidget.cancelEdit();
 		}));
 
-		template.onChange = (v) => {
-			onChange(v);
-			renderArrayValidations(dataElement, template, v, false);
+		template.onChange = (v: string[] | undefined) => {
+			if (v && !renderArrayValidations(dataElement, template, v, false)) {
+				const itemType = dataElement.setting.arrayItemType;
+				const arrToSave = isNonNullableNumericType(itemType) ? v.map(a => +a) : v;
+				onChange(arrToSave);
+			} else {
+				// Save the setting unparsed and containing the errors.
+				// renderArrayValidations will render relevant error messages.
+				onChange(v);
+			}
 		};
 
 		renderArrayValidations(dataElement, template, value.map(v => v.value.data.toString()), true);
@@ -1222,23 +1308,21 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 				newItems.push(e.item);
 			}
 
-			Object.entries(newValue).forEach(([key, value]) => {
-				// value from the scope has changed back to the default
-				if (scopeValue[key] !== value && defaultValue[key] === value) {
-					delete newValue[key];
-				}
-			});
-
-			const newObject = Object.keys(newValue).length === 0 ? undefined : newValue;
-
 			if (template.objectCheckboxWidget) {
+				Object.entries(newValue).forEach(([key, value]) => {
+					// A value from the scope has changed back to the default.
+					// For the bool object renderer, we don't want to save these values.
+					if (scopeValue[key] !== value && defaultValue[key] === value) {
+						delete newValue[key];
+					}
+				});
 				template.objectCheckboxWidget.setValue(newItems);
 			} else {
 				template.objectDropdownWidget!.setValue(newItems);
 			}
 
 			if (template.onChange) {
-				template.onChange(newObject);
+				template.onChange(newValue);
 			}
 		}
 	}
@@ -1280,8 +1364,14 @@ export class SettingObjectRenderer extends AbstractSettingObjectRenderer impleme
 		}));
 
 		template.onChange = (v: Record<string, unknown> | undefined) => {
-			onChange(v);
-			renderArrayValidations(dataElement, template, v, false);
+			if (v && !renderArrayValidations(dataElement, template, v, false)) {
+				const parsedRecord = parseNumericObjectValues(dataElement, v);
+				onChange(parsedRecord);
+			} else {
+				// Save the setting unparsed and containing the errors.
+				// renderArrayValidations will render relevant error messages.
+				onChange(v);
+			}
 		};
 		renderArrayValidations(dataElement, template, dataElement.value, true);
 	}
@@ -1380,7 +1470,8 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 			this._onDidChangeSetting.fire({
 				key: template.context.setting.key,
 				value: Object.keys(newValue).length === 0 ? undefined : sortKeys(newValue),
-				type: template.context.valueType
+				type: template.context.valueType,
+				manualReset: false
 			});
 		}
 	}
@@ -1446,6 +1537,7 @@ abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer imple
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
+		template.inputBox.setAriaLabel(dataElement.setting.key);
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
 				onChange(value);
@@ -1489,10 +1581,16 @@ export class SettingMultilineTextRenderer extends AbstractSettingTextRenderer im
 		};
 		super.renderValue(dataElement, template, onChangeOverride);
 		template.elementDisposables.add(
-			template.inputBox.onDidHeightChange(() => {
-				this._onDidChangeSettingHeight.fire({
-					element: dataElement,
-				});
+			template.inputBox.onDidHeightChange(e => {
+				const height = template.containerElement.clientHeight;
+				// Don't fire event if height is reported as 0,
+				// which sometimes happens when clicking onto a new setting.
+				if (height) {
+					this._onDidChangeSettingHeight.fire({
+						element: dataElement,
+						height: template.containerElement.clientHeight
+					});
+				}
 			})
 		);
 		template.inputBox.layout();
@@ -1566,6 +1664,8 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 			createdDefault = true;
 		}
 
+		// Use String constructor in case of null or undefined values
+		const stringifiedDefaultValue = escapeInvisibleChars(String(dataElement.defaultValue));
 		const displayOptions = settingEnum
 			.map(String)
 			.map(escapeInvisibleChars)
@@ -1582,11 +1682,12 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 						},
 						disposables: disposables
 					},
-					decoratorRight: (data === dataElement.defaultValue || createdDefault && index === 0 ? localize('settings.Default', "default") : '')
+					decoratorRight: (((data === stringifiedDefaultValue) || (createdDefault && index === 0)) ? localize('settings.Default', "default") : '')
 				};
 			});
 
 		template.selectBox.setOptions(displayOptions);
+		template.selectBox.setAriaLabel(dataElement.setting.key);
 
 		let idx = settingEnum.indexOf(dataElement.value);
 		if (idx === -1) {
@@ -1655,6 +1756,7 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
+		template.inputBox.setAriaLabel(dataElement.setting.key);
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
 				onChange(nullNumParseFn(value));
@@ -1677,21 +1779,21 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 
 		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
-		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
-		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
-		const syncIgnoredElement = this.createSyncIgnoredElement(titleElement);
+		const labelElementContainer = DOM.append(titleElement, $('span.setting-item-label'));
+		const labelElement = new SimpleIconLabel(labelElementContainer);
+		const miscLabel = new SettingsTreeMiscLabel(titleElement);
 
 		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
 		const descriptionElement = DOM.append(descriptionAndValueElement, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
-		modifiedIndicatorElement.title = localize('modified', "Modified");
+		modifiedIndicatorElement.title = localize('modified', "The setting has been configured in the current scope.");
 
 
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toDispose = new DisposableStore();
-		const checkbox = new Checkbox({ icon: Codicon.check, actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
+		const checkbox = new Toggle({ icon: Codicon.check, actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
 		controlElement.appendChild(checkbox.domNode);
 		toDispose.add(checkbox);
 		toDispose.add(checkbox.onChange(() => {
@@ -1728,8 +1830,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 			checkbox,
 			descriptionElement,
 			deprecationWarningElement,
-			otherOverridesElement,
-			syncIgnoredElement,
+			miscLabel,
 			toolbar
 		};
 
@@ -1750,6 +1851,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingBoolItemTemplate, onChange: (value: boolean) => void): void {
 		template.onChange = undefined;
 		template.checkbox.checked = dataElement.value;
+		template.checkbox.setTitle(dataElement.setting.key);
 		template.onChange = onChange;
 	}
 }
@@ -1772,7 +1874,9 @@ export class SettingUntrustedRenderer extends AbstractSettingRenderer implements
 		linkElement.textContent = manageWorkspaceTrustLabel;
 		linkElement.setAttribute('tabindex', '0');
 		linkElement.href = '#';
-		template.toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.CLICK, () => {
+		template.toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.CLICK, (e: MouseEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
 			this._commandService.executeCommand('workbench.trust.manage');
 		}));
 		template.toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
@@ -1808,6 +1912,8 @@ export class SettingTreeRenderers {
 
 	readonly onDidChangeSettingHeight: Event<HeightChangeParams>;
 
+	readonly onApplyLanguageFilter: Event<string>;
+
 	readonly allRenderers: ITreeRenderer<SettingsTreeElement, never, any>[];
 
 	private readonly settingActions: IAction[];
@@ -1816,13 +1922,13 @@ export class SettingTreeRenderers {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IUserDataAutoSyncEnablementService private readonly _userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+		@IUserDataSyncEnablementService private readonly _userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		this.settingActions = [
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, async context => {
 				if (context instanceof SettingsTreeSettingElement) {
 					if (!context.isUntrusted) {
-						this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType });
+						this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType, manualReset: true });
 					}
 				}
 			}),
@@ -1855,6 +1961,7 @@ export class SettingTreeRenderers {
 		this.onDidClickSettingLink = Event.any(...settingRenderers.map(r => r.onDidClickSettingLink));
 		this.onDidFocusSetting = Event.any(...settingRenderers.map(r => r.onDidFocusSetting));
 		this.onDidChangeSettingHeight = Event.any(...settingRenderers.map(r => r.onDidChangeSettingHeight));
+		this.onApplyLanguageFilter = Event.any(...settingRenderers.map(r => r.onApplyLanguageFilter));
 
 		this.allRenderers = [
 			...settingRenderers,
@@ -1864,7 +1971,7 @@ export class SettingTreeRenderers {
 	}
 
 	private getActionsForSetting(setting: ISetting): IAction[] {
-		const enableSync = this._userDataAutoSyncEnablementService.isEnabled();
+		const enableSync = this._userDataSyncEnablementService.isEnabled();
 		return enableSync && !setting.disallowSyncIgnore ?
 			[
 				new Separator(),
@@ -1933,12 +2040,15 @@ function renderValidations(dataElement: SettingsTreeSettingElement, template: IS
 	return false;
 }
 
+/**
+ * Validate and render any error message for arrays. Returns true if the value is invalid.
+ */
 function renderArrayValidations(
 	dataElement: SettingsTreeSettingElement,
 	template: ISettingListItemTemplate | ISettingObjectItemTemplate,
 	value: string[] | Record<string, unknown> | undefined,
 	calledOnStartup: boolean
-) {
+): boolean {
 	template.containerElement.classList.add('invalid-input');
 	if (dataElement.setting.validator) {
 		const errMsg = dataElement.setting.validator(value);
@@ -1948,12 +2058,13 @@ function renderArrayValidations(
 			const validationError = localize('validationError', "Validation Error.");
 			template.containerElement.setAttribute('aria-label', [dataElement.setting.key, validationError, errMsg].join(' '));
 			if (!calledOnStartup) { ariaAlert(validationError + ' ' + errMsg); }
-			return;
+			return true;
 		} else {
 			template.containerElement.setAttribute('aria-label', dataElement.setting.key);
 			template.containerElement.classList.remove('invalid-input');
 		}
 	}
+	return false;
 }
 
 function cleanRenderedMarkdown(element: Node): void {
@@ -1970,11 +2081,12 @@ function cleanRenderedMarkdown(element: Node): void {
 }
 
 function fixSettingLinks(text: string, linkify = true): string {
-	return text.replace(/`#([^#]*)#`/g, (match, settingKey) => {
+	return text.replace(/`#([^#]*)#`|'#([^#]*)#'/g, (match, backticksGroup, quotesGroup) => {
+		const settingKey: string = backticksGroup ?? quotesGroup;
 		const targetDisplayFormat = settingKeyToDisplayFormat(settingKey);
 		const targetName = `${targetDisplayFormat.category}: ${targetDisplayFormat.label}`;
 		return linkify ?
-			`[${targetName}](#${settingKey})` :
+			`[${targetName}](#${settingKey} "${settingKey}")` :
 			`"${targetName}"`;
 	});
 }
@@ -1983,6 +2095,121 @@ function escapeInvisibleChars(enumValue: string): string {
 	return enumValue && enumValue
 		.replace(/\n/g, '\\n')
 		.replace(/\r/g, '\\r');
+}
+
+/**
+ * Controls logic and rendering of the label next to each setting header.
+ * For example, the "Modified by" and "Overridden by" labels go here.
+ */
+class SettingsTreeMiscLabel {
+	private labelElement: HTMLElement;
+	private otherOverridesElement: HTMLElement;
+	private syncIgnoredElement: HTMLElement;
+	private defaultOverrideIndicatorElement: HTMLElement;
+	private defaultOverrideIndicatorLabel: SimpleIconLabel;
+
+	constructor(container: HTMLElement) {
+		this.labelElement = DOM.append(container, $('.misc-label'));
+		this.labelElement.style.display = 'inline';
+
+		this.otherOverridesElement = this.createOtherOverridesElement();
+		this.syncIgnoredElement = this.createSyncIgnoredElement();
+		const { element, label } = this.createDefaultOverrideIndicator();
+		this.defaultOverrideIndicatorElement = element;
+		this.defaultOverrideIndicatorLabel = label;
+	}
+
+	private createOtherOverridesElement(): HTMLElement {
+		const otherOverridesElement = $('span.setting-item-overrides');
+		return otherOverridesElement;
+	}
+
+	private createSyncIgnoredElement(): HTMLElement {
+		const syncIgnoredElement = $('span.setting-item-ignored');
+		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
+		syncIgnoredLabel.text = `$(sync-ignored) ${localize('extensionSyncIgnoredLabel', 'Sync: Ignored')}`;
+		syncIgnoredLabel.title = localize('syncIgnoredTitle', "Settings sync does not sync this setting");
+		return syncIgnoredElement;
+	}
+
+	private createDefaultOverrideIndicator(): { element: HTMLElement; label: SimpleIconLabel } {
+		const defaultOverrideIndicator = $('span.setting-item-default-overridden');
+		const defaultOverrideLabel = new SimpleIconLabel(defaultOverrideIndicator);
+		return { element: defaultOverrideIndicator, label: defaultOverrideLabel };
+	}
+
+	private render() {
+		const elementsToShow = [this.otherOverridesElement, this.syncIgnoredElement, this.defaultOverrideIndicatorElement].filter(element => {
+			return element.style.display !== 'none';
+		});
+
+		this.labelElement.innerText = '';
+		this.labelElement.style.display = 'none';
+		if (elementsToShow.length) {
+			this.labelElement.style.display = 'inline';
+			DOM.append(this.labelElement, $('span', undefined, '('));
+			for (let i = 0; i < elementsToShow.length - 1; i++) {
+				DOM.append(this.labelElement, elementsToShow[i]);
+				DOM.append(this.labelElement, $('span.comma', undefined, ', '));
+			}
+			DOM.append(this.labelElement, elementsToShow[elementsToShow.length - 1]);
+			DOM.append(this.labelElement, $('span', undefined, ')'));
+		}
+	}
+
+	updateSyncIgnored(element: SettingsTreeSettingElement, ignoredSettings: string[]) {
+		this.syncIgnoredElement.style.display = ignoredSettings.includes(element.setting.key) ? 'inline' : 'none';
+		this.render();
+	}
+
+	updateOtherOverrides(element: SettingsTreeSettingElement, elementDisposables: DisposableStore, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>) {
+		this.otherOverridesElement.innerText = '';
+		this.otherOverridesElement.style.display = 'none';
+		if (element.overriddenScopeList.length) {
+			this.otherOverridesElement.style.display = 'inline';
+			const otherOverridesLabel = element.isConfigured ?
+				localize('alsoConfiguredIn', "Also modified in") :
+				localize('configuredIn', "Modified in");
+
+			DOM.append(this.otherOverridesElement, $('span', undefined, `${otherOverridesLabel}: `));
+
+			for (let i = 0; i < element.overriddenScopeList.length; i++) {
+				const view = DOM.append(this.otherOverridesElement, $('a.modified-scope', undefined, element.overriddenScopeList[i]));
+
+				if (i !== element.overriddenScopeList.length - 1) {
+					DOM.append(this.otherOverridesElement, $('span', undefined, ', '));
+				}
+
+				elementDisposables.add(
+					DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {
+						onDidClickOverrideElement.fire({
+							targetKey: element.setting.key,
+							scope: element.overriddenScopeList[i]
+						});
+						e.preventDefault();
+						e.stopPropagation();
+					}));
+			}
+		}
+		this.render();
+	}
+
+	updateDefaultOverrideIndicator(element: SettingsTreeSettingElement) {
+		this.defaultOverrideIndicatorElement.style.display = 'none';
+		if (element.setting.defaultValueSource) {
+			this.defaultOverrideIndicatorElement.style.display = 'inline';
+			const defaultValueSource = element.setting.defaultValueSource;
+			if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
+				const extensionSource = defaultValueSource.displayName ?? defaultValueSource.id;
+				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default value overridden by {0}", extensionSource);
+				this.defaultOverrideIndicatorLabel.text = localize('defaultOverrideLabelText', "$(wrench) Overridden by: {0}", extensionSource);
+			} else if (typeof defaultValueSource === 'string') {
+				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default value overridden by {0}", defaultValueSource);
+				this.defaultOverrideIndicatorLabel.text = localize('defaultOverrideLabelText', "$(wrench) Overridden by: {0}", defaultValueSource);
+			}
+		}
+		this.render();
+	}
 }
 
 export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
@@ -2003,13 +2230,6 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 		if (element instanceof SettingsTreeSettingElement && this.viewState.settingsTarget !== ConfigurationTarget.USER_LOCAL) {
 			const isRemote = !!this.environmentService.remoteAuthority;
 			if (!element.matchesScope(this.viewState.settingsTarget, isRemote)) {
-				return false;
-			}
-		}
-
-		// @modified or tag
-		if (element instanceof SettingsTreeSettingElement && this.viewState.tagFilters) {
-			if (!element.matchesAllTags(this.viewState.tagFilters)) {
 				return false;
 			}
 		}
@@ -2087,7 +2307,7 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 				return SETTINGS_ENUM_TEMPLATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.StringOrEnumArray) {
+			if (element.valueType === SettingValueType.Array) {
 				return SETTINGS_ARRAY_TEMPLATE_ID;
 			}
 
@@ -2101,6 +2321,10 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 
 			if (element.valueType === SettingValueType.BooleanObject) {
 				return SETTINGS_BOOL_OBJECT_TEMPLATE_ID;
+			}
+
+			if (element.valueType === SettingValueType.LanguageTag) {
+				return SETTINGS_COMPLEX_TEMPLATE_ID;
 			}
 
 			return SETTINGS_COMPLEX_TEMPLATE_ID;
@@ -2137,18 +2361,31 @@ export class NonCollapsibleObjectTreeModel<T> extends ObjectTreeModel<T> {
 }
 
 class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<SettingsTreeElement> {
+	constructor(private readonly configurationService: IConfigurationService) {
+	}
+
 	getAriaLabel(element: SettingsTreeElement) {
 		if (element instanceof SettingsTreeSettingElement) {
-			const modifiedText = element.isConfigured ? localize('settings.Modified', 'Modified.') : '';
+			const ariaLabelSections: string[] = [];
+			ariaLabelSections.push(`${element.displayCategory} ${element.displayLabel}.`);
 
-			const otherOverridesStart = element.isConfigured ?
-				localize('alsoConfiguredIn', "Also modified in") :
-				localize('configuredIn', "Modified in");
-			const otherOverridesList = element.overriddenScopeList.join(', ');
-			const otherOverridesLabel = element.overriddenScopeList.length ? `${otherOverridesStart} ${otherOverridesList}. ` : '';
+			if (element.isConfigured) {
+				const modifiedText = localize('settings.Modified', 'Modified.');
+				ariaLabelSections.push(modifiedText);
+			}
+
+			const miscLabelAriaLabel = this.getMiscLabelAriaLabel(element);
+			if (miscLabelAriaLabel.length) {
+				ariaLabelSections.push(`${miscLabelAriaLabel}.`);
+			}
 
 			const descriptionWithoutSettingLinks = fixSettingLinks(element.description, false);
-			return `${element.displayCategory} ${element.displayLabel}. ${descriptionWithoutSettingLinks}. ${modifiedText} ${otherOverridesLabel}`;
+			if (descriptionWithoutSettingLinks.length) {
+				ariaLabelSections.push(descriptionWithoutSettingLinks);
+			}
+			return ariaLabelSections.join(' ');
+		} else if (element instanceof SettingsTreeGroupElement) {
+			return element.label;
 		} else {
 			return element.id;
 		}
@@ -2156,6 +2393,39 @@ class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<Se
 
 	getWidgetAriaLabel() {
 		return localize('settings', "Settings");
+	}
+
+	private getMiscLabelAriaLabel(element: SettingsTreeSettingElement): string {
+		const ariaLabelSections: string[] = [];
+
+		// Add other overrides text
+		const otherOverridesStart = element.isConfigured ?
+			localize('alsoConfiguredIn', "Also modified in") :
+			localize('configuredIn', "Modified in");
+		const otherOverridesList = element.overriddenScopeList.join(', ');
+		if (element.overriddenScopeList.length) {
+			ariaLabelSections.push(`${otherOverridesStart} ${otherOverridesList}`);
+		}
+
+		// Add sync ignored text
+		const ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this.configurationService);
+		if (ignoredSettings.includes(element.setting.key)) {
+			ariaLabelSections.push(localize('syncIgnoredTitle', "Settings sync does not sync this setting"));
+		}
+
+		// Add default override indicator text
+		if (element.setting.defaultValueSource) {
+			const defaultValueSource = element.setting.defaultValueSource;
+			if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
+				const extensionSource = defaultValueSource.displayName ?? defaultValueSource.id;
+				ariaLabelSections.push(localize('defaultOverriddenDetails', "Default value overridden by {0}", extensionSource));
+			} else if (typeof defaultValueSource === 'string') {
+				ariaLabelSections.push(localize('defaultOverriddenDetails', "Default value overridden by {0}", defaultValueSource));
+			}
+		}
+
+		const ariaLabel = ariaLabelSections.join('. ');
+		return ariaLabel;
 	}
 }
 
@@ -2183,7 +2453,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 						return e.id;
 					}
 				},
-				accessibilityProvider: new SettingsTreeAccessibilityProvider(),
+				accessibilityProvider: new SettingsTreeAccessibilityProvider(configurationService),
 				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
@@ -2203,64 +2473,64 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				// Links appear inside other elements in markdown. CSS opacity acts like a mask. So we have to dynamically compute the description color to avoid
 				// applying an opacity to the link color.
 				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.9));
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description { color: ${fgWithOpacity}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-description { color: ${fgWithOpacity}; }`);
 				collector.addRule(`.settings-editor > .settings-body .settings-toc-container .monaco-list-row:not(.selected) { color: ${fgWithOpacity}; }`);
 
 				const disabledfgColor = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.7));
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-description { color: ${disabledfgColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-description { color: ${disabledfgColor}; }`);
 
 				// Hack for subpixel antialiasing
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides,
-					.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored { color: ${fgWithOpacity}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides,
+					.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored { color: ${fgWithOpacity}; }`);
 			}
 
 			const errorColor = theme.getColor(errorForeground);
 			if (errorColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-deprecation-message { color: ${errorColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-deprecation-message { color: ${errorColor}; }`);
 			}
 
 			const invalidInputBackground = theme.getColor(inputValidationErrorBackground);
 			if (invalidInputBackground) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message { background-color: ${invalidInputBackground}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-validation-message { background-color: ${invalidInputBackground}; }`);
 			}
 
 			const invalidInputForeground = theme.getColor(inputValidationErrorForeground);
 			if (invalidInputForeground) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message { color: ${invalidInputForeground}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-validation-message { color: ${invalidInputForeground}; }`);
 			}
 
 			const invalidInputBorder = theme.getColor(inputValidationErrorBorder);
 			if (invalidInputBorder) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message { border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.invalid-input .setting-item-control .monaco-inputbox.idle { outline-width: 0; border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-validation-message { border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item.invalid-input .setting-item-control .monaco-inputbox.idle { outline-width: 0; border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
 			}
 
 			const focusedRowBackgroundColor = theme.getColor(focusedRowBackground);
 			if (focusedRowBackgroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.focused .settings-row-inner-container { background-color: ${focusedRowBackgroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .monaco-list-row.focused .settings-row-inner-container { background-color: ${focusedRowBackgroundColor}; }`);
 			}
 
 			const rowHoverBackgroundColor = theme.getColor(rowHoverBackground);
 			if (rowHoverBackgroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row:not(.focused) .settings-row-inner-container:hover { background-color: ${rowHoverBackgroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .monaco-list-row:not(.focused) .settings-row-inner-container:hover { background-color: ${rowHoverBackgroundColor}; }`);
 			}
 
 			const focusedRowBorderColor = theme.getColor(focusedRowBorder);
 			if (focusedRowBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .setting-item-contents { outline: 1px solid ${focusedRowBorderColor} }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .settings-group-title-label { outline: 1px solid ${focusedRowBorderColor} }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .setting-item-contents { outline: 1px solid ${focusedRowBorderColor} }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .settings-group-title-label { outline: 1px solid ${focusedRowBorderColor} }`);
 			}
 
 			const headerForegroundColor = theme.getColor(settingsHeaderForeground);
 			if (headerForegroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label { color: ${headerForegroundColor}; }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-label { color: ${headerForegroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .settings-group-title-label { color: ${headerForegroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-label { color: ${headerForegroundColor}; }`);
 			}
 
 			const focusBorderColor = theme.getColor(focusBorder);
 			if (focusBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-trust-description a:focus { outline-color: ${focusBorderColor} }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:focus { outline-color: ${focusBorderColor} }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-trust-description a:focus { outline-color: ${focusBorderColor} }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:focus { outline-color: ${focusBorderColor} }`);
 			}
 		}));
 

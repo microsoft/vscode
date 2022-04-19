@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { HistoryInputBox, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -14,10 +14,12 @@ import { Emitter, Event as CommonEvent } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import type { IThemable } from 'vs/base/common/styler';
 import * as nls from 'vs/nls';
-import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { ContextScopedHistoryInputBox } from 'vs/platform/history/browser/contextScopedHistoryWidget';
+import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { attachCheckboxStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { attachToggleStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IOptions {
@@ -49,7 +51,8 @@ export class PatternInputWidget extends Widget implements IThemable {
 	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
 		@IThemeService protected themeService: IThemeService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 		options = {
@@ -151,7 +154,8 @@ export class PatternInputWidget extends Widget implements IThemable {
 			validationOptions: {
 				validation: undefined
 			},
-			history: options.history || []
+			history: options.history || [],
+			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService)
 		}, this.contextKeyService);
 		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
 		this._register(this.inputBox.onDidChange(() => this._onSubmit.fire(true)));
@@ -192,11 +196,12 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService);
+		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService, keybindingService);
 	}
 
-	private useSearchInEditorsBox!: Checkbox;
+	private useSearchInEditorsBox!: Toggle;
 
 	override dispose(): void {
 		super.dispose();
@@ -209,6 +214,7 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 
 	setOnlySearchInOpenEditors(value: boolean) {
 		this.useSearchInEditorsBox.checked = value;
+		this._onChangeSearchInEditorsBoxEmitter.fire();
 	}
 
 	protected override getSubcontrolsWidth(): number {
@@ -216,7 +222,7 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 	}
 
 	protected override renderSubcontrols(controlsDiv: HTMLDivElement): void {
-		this.useSearchInEditorsBox = this._register(new Checkbox({
+		this.useSearchInEditorsBox = this._register(new Toggle({
 			icon: Codicon.book,
 			title: nls.localize('onlySearchInOpenEditors', "Search only in Open Editors"),
 			isChecked: false,
@@ -227,7 +233,7 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 				this.inputBox.focus();
 			}
 		}));
-		this._register(attachCheckboxStyler(this.useSearchInEditorsBox, this.themeService));
+		this._register(attachToggleStyler(this.useSearchInEditorsBox, this.themeService));
 		controlsDiv.appendChild(this.useSearchInEditorsBox.domNode);
 		super.renderSubcontrols(controlsDiv);
 	}
@@ -242,11 +248,12 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService);
+		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService, keybindingService);
 	}
 
-	private useExcludesAndIgnoreFilesBox!: Checkbox;
+	private useExcludesAndIgnoreFilesBox!: Toggle;
 
 	override dispose(): void {
 		super.dispose();
@@ -267,7 +274,7 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 	}
 
 	protected override renderSubcontrols(controlsDiv: HTMLDivElement): void {
-		this.useExcludesAndIgnoreFilesBox = this._register(new Checkbox({
+		this.useExcludesAndIgnoreFilesBox = this._register(new Toggle({
 			icon: Codicon.exclude,
 			actionClassName: 'useExcludesAndIgnoreFiles',
 			title: nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files"),
@@ -279,7 +286,7 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 				this.inputBox.focus();
 			}
 		}));
-		this._register(attachCheckboxStyler(this.useExcludesAndIgnoreFilesBox, this.themeService));
+		this._register(attachToggleStyler(this.useExcludesAndIgnoreFilesBox, this.themeService));
 
 		controlsDiv.appendChild(this.useExcludesAndIgnoreFilesBox.domNode);
 		super.renderSubcontrols(controlsDiv);

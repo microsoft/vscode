@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { nbformat } from '@jupyterlab/coreutils';
-import { NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
-import { CellOutputMetadata } from './common';
+import * as nbformat from '@jupyterlab/nbformat';
+import { NotebookCell, NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
+import { CellMetadata, CellOutputMetadata } from './common';
+import { textMimeTypes } from './deserializers';
 
 const textDecoder = new TextDecoder();
 
@@ -15,10 +16,9 @@ enum CellOutputMimeTypes {
 	stdout = 'application/vnd.code.notebook.stdout'
 }
 
-const textMimeTypes = ['text/plain', 'text/markdown', CellOutputMimeTypes.stderr, CellOutputMimeTypes.stdout];
-
 export function createJupyterCellFromNotebookCell(
-	vscCell: NotebookCellData
+	vscCell: NotebookCellData,
+	preferredLanguage: string | undefined
 ): nbformat.IRawCell | nbformat.IMarkdownCell | nbformat.ICodeCell {
 	let cell: nbformat.IRawCell | nbformat.IMarkdownCell | nbformat.ICodeCell;
 	if (vscCell.kind === NotebookCellKind.Markup) {
@@ -26,32 +26,77 @@ export function createJupyterCellFromNotebookCell(
 	} else if (vscCell.languageId === 'raw') {
 		cell = createRawCellFromNotebookCell(vscCell);
 	} else {
-		cell = createCodeCellFromNotebookCell(vscCell);
+		cell = createCodeCellFromNotebookCell(vscCell, preferredLanguage);
 	}
 	return cell;
 }
 
-function createCodeCellFromNotebookCell(cell: NotebookCellData): nbformat.ICodeCell {
-	const cellMetadata = cell.metadata?.custom as CellMetadata | undefined;
+
+/**
+ * Sort the JSON to minimize unnecessary SCM changes.
+ * Jupyter notbeooks/labs sorts the JSON keys in alphabetical order.
+ * https://github.com/microsoft/vscode-python/issues/13155
+ */
+export function sortObjectPropertiesRecursively(obj: any): any {
+	if (Array.isArray(obj)) {
+		return obj.map(sortObjectPropertiesRecursively);
+	}
+	if (obj !== undefined && obj !== null && typeof obj === 'object' && Object.keys(obj).length > 0) {
+		return (
+			Object.keys(obj)
+				.sort()
+				.reduce<Record<string, any>>((sortedObj, prop) => {
+					sortedObj[prop] = sortObjectPropertiesRecursively(obj[prop]);
+					return sortedObj;
+				}, {}) as any
+		);
+	}
+	return obj;
+}
+
+export function getCellMetadata(cell: NotebookCell | NotebookCellData) {
+	return cell.metadata?.custom as CellMetadata | undefined;
+}
+function createCodeCellFromNotebookCell(cell: NotebookCellData, preferredLanguage: string | undefined): nbformat.ICodeCell {
+	const cellMetadata = getCellMetadata(cell);
+	let metadata = cellMetadata?.metadata || {}; // This cannot be empty.
+	if (cell.languageId !== preferredLanguage) {
+		metadata = {
+			...metadata,
+			vscode: {
+				languageId: cell.languageId
+			}
+		};
+	} else {
+		// cell current language is the same as the preferred cell language in the document, flush the vscode custom language id metadata
+		metadata.vscode = undefined;
+	}
+
 	const codeCell: any = {
 		cell_type: 'code',
 		execution_count: cell.executionSummary?.executionOrder ?? null,
-		source: splitMultilineString(cell.value),
+		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
 		outputs: (cell.outputs || []).map(translateCellDisplayOutput),
-		metadata: cellMetadata?.metadata || {} // This cannot be empty.
+		metadata: metadata
 	};
+	if (cellMetadata?.id) {
+		codeCell.id = cellMetadata.id;
+	}
 	return codeCell;
 }
 
 function createRawCellFromNotebookCell(cell: NotebookCellData): nbformat.IRawCell {
-	const cellMetadata = cell.metadata?.custom as CellMetadata | undefined;
+	const cellMetadata = getCellMetadata(cell);
 	const rawCell: any = {
 		cell_type: 'raw',
-		source: splitMultilineString(cell.value),
+		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
 	if (cellMetadata?.attachments) {
 		rawCell.attachments = cellMetadata.attachments;
+	}
+	if (cellMetadata?.id) {
+		rawCell.id = cellMetadata.id;
 	}
 	return rawCell;
 }
@@ -276,11 +321,7 @@ function convertOutputMimeToJupyterOutput(mime: string, value: Uint8Array) {
 			if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
 				return Buffer.from(value).toString('base64');
 			} else {
-				// https://developer.mozilla.org/en-US/docs/Glossary/Base64#solution_1_%E2%80%93_escaping_the_string_before_encoding_it
-				const stringValue = textDecoder.decode(value);
-				return btoa(encodeURIComponent(stringValue).replace(/%([0-9A-F]{2})/g, function (_match, p1) {
-					return String.fromCharCode(Number.parseInt('0x' + p1));
-				}));
+				return btoa(value.reduce((s: string, b: number) => s + String.fromCharCode(b), ''));
 			}
 		} else if (mime.toLowerCase().includes('json')) {
 			const stringValue = textDecoder.decode(value);
@@ -295,31 +336,19 @@ function convertOutputMimeToJupyterOutput(mime: string, value: Uint8Array) {
 }
 
 function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbformat.IMarkdownCell {
-	const cellMetadata = cell.metadata?.custom as CellMetadata | undefined;
+	const cellMetadata = getCellMetadata(cell);
 	const markdownCell: any = {
 		cell_type: 'markdown',
-		source: splitMultilineString(cell.value),
+		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
 	if (cellMetadata?.attachments) {
 		markdownCell.attachments = cellMetadata.attachments;
 	}
+	if (cellMetadata?.id) {
+		markdownCell.id = cellMetadata.id;
+	}
 	return markdownCell;
-}
-
-/**
- * Metadata we store in VS Code cells.
- * This contains the original metadata from the Jupyuter cells.
- */
-interface CellMetadata {
-	/**
-	 * Stores attachments for cells.
-	 */
-	attachments?: nbformat.IAttachments;
-	/**
-	 * Stores cell metadata.
-	 */
-	metadata?: Partial<nbformat.ICellMetadata>;
 }
 
 export function pruneCell(cell: nbformat.ICell): nbformat.ICell {

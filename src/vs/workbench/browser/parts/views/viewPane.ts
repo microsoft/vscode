@@ -25,7 +25,7 @@ import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, V
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { MenuId, Action2, IAction2Options, IMenuService } from 'vs/platform/actions/common/actions';
+import { MenuId, Action2, IAction2Options, IMenuService, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -41,6 +41,7 @@ import { URI } from 'vs/base/common/uri';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
+import { IDropdownMenuActionViewItemOptions } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 
 export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
@@ -50,8 +51,8 @@ export interface IViewPaneOptions extends IPaneOptions {
 }
 
 type WelcomeActionClassification = {
-	viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	uri: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	viewId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	uri: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 const viewPaneContainerExpandedIcon = registerIcon('view-pane-container-expanded', Codicon.chevronDown, nls.localize('viewPaneContainerExpandedIcon', 'Icon for an expanded view pane container.'));
@@ -468,7 +469,15 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	protected getBackgroundColor(): string {
-		return this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND;
+		switch (this.viewDescriptorService.getViewLocationById(this.id)) {
+			case ViewContainerLocation.Panel:
+				return PANEL_BACKGROUND;
+			case ViewContainerLocation.Sidebar:
+			case ViewContainerLocation.AuxiliaryBar:
+				return SIDE_BAR_BACKGROUND;
+		}
+
+		return SIDE_BAR_BACKGROUND;
 	}
 
 	focus(): void {
@@ -500,8 +509,8 @@ export abstract class ViewPane extends Pane implements IView {
 		this._onDidChangeTitleArea.fire();
 	}
 
-	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		return createActionViewItem(this.instantiationService, action);
+	getActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
+		return createActionViewItem(this.instantiationService, action, { ...options, ...{ menuAsChild: action instanceof SubmenuItemAction } });
 	}
 
 	getActionsContext(): unknown {
@@ -557,7 +566,7 @@ export abstract class ViewPane extends Pane implements IView {
 					const button = new Button(buttonContainer, { title: node.title, supportIcons: true });
 					button.label = node.label;
 					button.onDidClick(_ => {
-						this.telemetryService.publicLog2<{ viewId: string, uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
+						this.telemetryService.publicLog2<{ viewId: string; uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
 						this.openerService.open(node.href, { allowCommands: true });
 					}, null, disposables);
 					disposables.add(button);
@@ -579,9 +588,7 @@ export abstract class ViewPane extends Pane implements IView {
 						if (typeof node === 'string') {
 							append(p, document.createTextNode(node));
 						} else {
-							const link = this.instantiationService.createInstance(Link, node, {});
-							append(p, link.el);
-							disposables.add(link);
+							const link = disposables.add(this.instantiationService.createInstance(Link, p, node, {}));
 
 							if (precondition && node.href.startsWith('command:')) {
 								const updateEnablement = () => link.enabled = this.contextKeyService.contextMatchesRules(precondition);

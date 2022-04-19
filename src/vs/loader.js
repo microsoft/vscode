@@ -30,6 +30,7 @@ var AMDLoader;
             this._isNode = false;
             this._isElectronRenderer = false;
             this._isWebWorker = false;
+            this._isElectronNodeIntegrationWebWorker = false;
         }
         Object.defineProperty(Environment.prototype, "isWindows", {
             get: function () {
@@ -63,6 +64,14 @@ var AMDLoader;
             enumerable: false,
             configurable: true
         });
+        Object.defineProperty(Environment.prototype, "isElectronNodeIntegrationWebWorker", {
+            get: function () {
+                this._detect();
+                return this._isElectronNodeIntegrationWebWorker;
+            },
+            enumerable: false,
+            configurable: true
+        });
         Environment.prototype._detect = function () {
             if (this._detected) {
                 return;
@@ -72,6 +81,7 @@ var AMDLoader;
             this._isNode = (typeof module !== 'undefined' && !!module.exports);
             this._isElectronRenderer = (typeof process !== 'undefined' && typeof process.versions !== 'undefined' && typeof process.versions.electron !== 'undefined' && process.type === 'renderer');
             this._isWebWorker = (typeof AMDLoader.global.importScripts === 'function');
+            this._isElectronNodeIntegrationWebWorker = this._isWebWorker && (typeof process !== 'undefined' && typeof process.versions !== 'undefined' && typeof process.versions.electron !== 'undefined' && process.type === 'worker');
         };
         Environment._isWindows = function () {
             if (typeof navigator !== 'undefined') {
@@ -466,17 +476,19 @@ var AMDLoader;
          * Transform a module id to a location. Appends .js to module ids
          */
         Configuration.prototype.moduleIdToPaths = function (moduleId) {
-            var isNodeModule = ((this.nodeModulesMap[moduleId] === true)
-                || (this.options.amdModulesPattern instanceof RegExp && !this.options.amdModulesPattern.test(moduleId)));
-            if (isNodeModule) {
-                // This is a node module...
-                if (this.isBuild()) {
-                    // ...and we are at build time, drop it
-                    return ['empty:'];
-                }
-                else {
-                    // ...and at runtime we create a `shortcut`-path
-                    return ['node|' + moduleId];
+            if (this._env.isNode) {
+                var isNodeModule = ((this.nodeModulesMap[moduleId] === true)
+                    || (this.options.amdModulesPattern instanceof RegExp && !this.options.amdModulesPattern.test(moduleId)));
+                if (isNodeModule) {
+                    // This is a node module...
+                    if (this.isBuild()) {
+                        // ...and we are at build time, drop it
+                        return ['empty:'];
+                    }
+                    else {
+                        // ...and at runtime we create a `shortcut`-path
+                        return ['node|' + moduleId];
+                    }
                 }
             }
             var result = moduleId;
@@ -681,39 +693,76 @@ var AMDLoader;
         };
         return BrowserScriptLoader;
     }());
+    function canUseEval(moduleManager) {
+        var trustedTypesPolicy = moduleManager.getConfig().getOptionsLiteral().trustedTypesPolicy;
+        try {
+            var func = (trustedTypesPolicy
+                ? self.eval(trustedTypesPolicy.createScript('', 'true'))
+                : new Function('true'));
+            func.call(self);
+            return true;
+        }
+        catch (err) {
+            return false;
+        }
+    }
     var WorkerScriptLoader = /** @class */ (function () {
         function WorkerScriptLoader() {
+            this._cachedCanUseEval = null;
         }
-        WorkerScriptLoader.prototype.load = function (moduleManager, scriptSrc, callback, errorback) {
-            var trustedTypesPolicy = moduleManager.getConfig().getOptionsLiteral().trustedTypesPolicy;
-            var isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(scriptSrc) && scriptSrc.substring(0, self.origin.length) !== self.origin);
-            if (!isCrossOrigin) {
-                // use `fetch` if possible because `importScripts`
-                // is synchronous and can lead to deadlocks on Safari
-                fetch(scriptSrc).then(function (response) {
-                    if (response.status !== 200) {
-                        throw new Error(response.statusText);
-                    }
-                    return response.text();
-                }).then(function (text) {
-                    text = text + "\n//# sourceURL=" + scriptSrc;
-                    var func = (trustedTypesPolicy
-                        ? self.eval(trustedTypesPolicy.createScript('', text))
-                        : new Function(text));
-                    func.call(self);
-                    callback();
-                }).then(undefined, errorback);
-                return;
+        WorkerScriptLoader.prototype._canUseEval = function (moduleManager) {
+            if (this._cachedCanUseEval === null) {
+                this._cachedCanUseEval = canUseEval(moduleManager);
             }
-            try {
-                if (trustedTypesPolicy) {
-                    scriptSrc = trustedTypesPolicy.createScriptURL(scriptSrc);
+            return this._cachedCanUseEval;
+        };
+        WorkerScriptLoader.prototype.load = function (moduleManager, scriptSrc, callback, errorback) {
+            if (/^node\|/.test(scriptSrc)) {
+                var opts = moduleManager.getConfig().getOptionsLiteral();
+                var nodeRequire = ensureRecordedNodeRequire(moduleManager.getRecorder(), (opts.nodeRequire || AMDLoader.global.nodeRequire));
+                var pieces = scriptSrc.split('|');
+                var moduleExports_2 = null;
+                try {
+                    moduleExports_2 = nodeRequire(pieces[1]);
                 }
-                importScripts(scriptSrc);
+                catch (err) {
+                    errorback(err);
+                    return;
+                }
+                moduleManager.enqueueDefineAnonymousModule([], function () { return moduleExports_2; });
                 callback();
             }
-            catch (e) {
-                errorback(e);
+            else {
+                var trustedTypesPolicy_1 = moduleManager.getConfig().getOptionsLiteral().trustedTypesPolicy;
+                var isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(scriptSrc) && scriptSrc.substring(0, self.origin.length) !== self.origin);
+                if (!isCrossOrigin && this._canUseEval(moduleManager)) {
+                    // use `fetch` if possible because `importScripts`
+                    // is synchronous and can lead to deadlocks on Safari
+                    fetch(scriptSrc).then(function (response) {
+                        if (response.status !== 200) {
+                            throw new Error(response.statusText);
+                        }
+                        return response.text();
+                    }).then(function (text) {
+                        text = text + "\n//# sourceURL=" + scriptSrc;
+                        var func = (trustedTypesPolicy_1
+                            ? self.eval(trustedTypesPolicy_1.createScript('', text))
+                            : new Function(text));
+                        func.call(self);
+                        callback();
+                    }).then(undefined, errorback);
+                    return;
+                }
+                try {
+                    if (trustedTypesPolicy_1) {
+                        scriptSrc = trustedTypesPolicy_1.createScriptURL(scriptSrc);
+                    }
+                    importScripts(scriptSrc);
+                    callback();
+                }
+                catch (e) {
+                    errorback(e);
+                }
             }
         };
         return WorkerScriptLoader;
@@ -811,15 +860,15 @@ var AMDLoader;
             var recorder = moduleManager.getRecorder();
             if (/^node\|/.test(scriptSrc)) {
                 var pieces = scriptSrc.split('|');
-                var moduleExports_2 = null;
+                var moduleExports_3 = null;
                 try {
-                    moduleExports_2 = nodeRequire(pieces[1]);
+                    moduleExports_3 = nodeRequire(pieces[1]);
                 }
                 catch (err) {
                     errorback(err);
                     return;
                 }
-                moduleManager.enqueueDefineAnonymousModule([], function () { return moduleExports_2; });
+                moduleManager.enqueueDefineAnonymousModule([], function () { return moduleExports_3; });
                 callback();
             }
             else {
@@ -1469,7 +1518,7 @@ var AMDLoader;
         ModuleManager.prototype._onLoadError = function (moduleId, err) {
             var error = this._createLoadError(moduleId, err);
             if (!this._modules2[moduleId]) {
-                this._modules2[moduleId] = new Module(moduleId, this._moduleIdProvider.getStrModuleId(moduleId), [], function () { }, function () { }, null);
+                this._modules2[moduleId] = new Module(moduleId, this._moduleIdProvider.getStrModuleId(moduleId), [], function () { }, null, null);
             }
             // Find any 'local' error handlers, walk the entire chain of inverse dependencies if necessary.
             var seenModuleId = [];
@@ -1860,9 +1909,7 @@ var AMDLoader;
     RequireFunc.getStats = function () {
         return moduleManager.getLoaderEvents();
     };
-    RequireFunc.define = function () {
-        return DefineFunc.apply(null, arguments);
-    };
+    RequireFunc.define = DefineFunc;
     function init() {
         if (typeof AMDLoader.global.require !== 'undefined' || typeof require !== 'undefined') {
             var _nodeRequire = (AMDLoader.global.require || require);
@@ -1874,7 +1921,7 @@ var AMDLoader;
                 RequireFunc.__$__nodeRequire = nodeRequire;
             }
         }
-        if (env.isNode && !env.isElectronRenderer) {
+        if (env.isNode && !env.isElectronRenderer && !env.isElectronNodeIntegrationWebWorker) {
             module.exports = RequireFunc;
             require = RequireFunc;
         }

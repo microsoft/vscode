@@ -49,7 +49,7 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 
 	const helper = getEmmetHelper();
 
-	const operationRanges = editor.selections.sort((a, b) => a.start.compareTo(b.start)).map(selection => {
+	const operationRanges = Array.from(editor.selections).sort((a, b) => a.start.compareTo(b.start)).map(selection => {
 		let rangeToReplace: vscode.Range = selection;
 		// wrap around the node if the selection falls inside its open or close tag
 		{
@@ -707,13 +707,13 @@ export function getSyntaxFromArgs(args: { [x: string]: string }): string | undef
 	const language: string = args['language'];
 	const parentMode: string = args['parentMode'];
 	const excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ? vscode.workspace.getConfiguration('emmet')['excludeLanguages'] : [];
-	if (excludedLanguages.indexOf(language) > -1) {
+	if (excludedLanguages.includes(language)) {
 		return;
 	}
 
-	let syntax = getEmmetMode((mappedModes[language] ? mappedModes[language] : language), excludedLanguages);
+	let syntax = getEmmetMode(mappedModes[language] ?? language, mappedModes, excludedLanguages);
 	if (!syntax) {
-		syntax = getEmmetMode((mappedModes[parentMode] ? mappedModes[parentMode] : parentMode), excludedLanguages);
+		syntax = getEmmetMode(mappedModes[parentMode] ?? parentMode, mappedModes, excludedLanguages);
 	}
 
 	return syntax;

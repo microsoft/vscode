@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { $, addDisposableListener, append, DOMEvent, EventHelper, EventType } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, EventHelper, EventType } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
 import { AnchorAlignment, IAnchor, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
@@ -31,7 +31,7 @@ export class BaseDropdown extends ActionRunner {
 	private contents?: HTMLElement;
 
 	private visible: boolean | undefined;
-	private _onDidChangeVisibility = new Emitter<boolean>();
+	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	constructor(container: HTMLElement, options: IBaseDropdownOptions) {
@@ -121,7 +121,7 @@ export class BaseDropdown extends ActionRunner {
 		return !!this.visible;
 	}
 
-	protected onEvent(e: DOMEvent, activeElement: HTMLElement): void {
+	protected onEvent(_e: Event, activeElement: HTMLElement): void {
 		this.hide();
 	}
 

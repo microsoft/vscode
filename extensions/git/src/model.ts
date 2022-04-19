@@ -4,19 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel, commands } from 'vscode';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise, logTimestamp } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
-import { APIState as State, RemoteSourceProvider, CredentialsProvider, PushErrorHandler, PublishEvent } from './api/git';
+import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher } from './api/git';
 import { Askpass } from './askpass';
-import { IRemoteSourceProviderRegistry } from './remoteProvider';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
+import { IRemoteSourcePublisherRegistry } from './remotePublisher';
+import { Log, LogLevel } from './log';
 
 const localize = nls.loadMessageBundle();
 
@@ -48,7 +50,7 @@ interface OpenRepository extends Disposable {
 	repository: Repository;
 }
 
-export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRegistry {
+export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerRegistry {
 
 	private _onDidOpenRepository = new EventEmitter<Repository>();
 	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
@@ -95,19 +97,20 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 		return eventToPromise(filterEvent(this.onDidChangeState, s => s === 'initialized')) as Promise<any>;
 	}
 
-	private remoteSourceProviders = new Set<RemoteSourceProvider>();
+	private remoteSourcePublishers = new Set<RemoteSourcePublisher>();
 
-	private _onDidAddRemoteSourceProvider = new EventEmitter<RemoteSourceProvider>();
-	readonly onDidAddRemoteSourceProvider = this._onDidAddRemoteSourceProvider.event;
+	private _onDidAddRemoteSourcePublisher = new EventEmitter<RemoteSourcePublisher>();
+	readonly onDidAddRemoteSourcePublisher = this._onDidAddRemoteSourcePublisher.event;
 
-	private _onDidRemoveRemoteSourceProvider = new EventEmitter<RemoteSourceProvider>();
-	readonly onDidRemoveRemoteSourceProvider = this._onDidRemoveRemoteSourceProvider.event;
+	private _onDidRemoveRemoteSourcePublisher = new EventEmitter<RemoteSourcePublisher>();
+	readonly onDidRemoveRemoteSourcePublisher = this._onDidRemoveRemoteSourcePublisher.event;
 
+	private showRepoOnHomeDriveRootWarning = true;
 	private pushErrorHandlers = new Set<PushErrorHandler>();
 
 	private disposables: Disposable[] = [];
 
-	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private outputChannel: OutputChannel) {
+	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private outputChannel: OutputChannel, private telemetryReporter: TelemetryReporter) {
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
 		workspace.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
@@ -133,12 +136,18 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 	}
 
 	/**
-	 * Scans the first level of each workspace folder, looking
-	 * for git repositories.
+	 * Scans each workspace folder, looking for git repositories. By
+	 * default it scans one level deep but that can be changed using
+	 * the git.repositoryScanMaxDepth setting.
 	 */
 	private async scanWorkspaceFolders(): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+
+		// Log repository scan settings
+		if (Log.logLevel <= LogLevel.Trace) {
+			this.outputChannel.appendLine(`${logTimestamp()} Trace: autoRepositoryDetection="${autoRepositoryDetection}"`);
+		}
 
 		if (autoRepositoryDetection !== true && autoRepositoryDetection !== 'subFolders') {
 			return;
@@ -146,12 +155,17 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 
 		await Promise.all((workspace.workspaceFolders || []).map(async folder => {
 			const root = folder.uri.fsPath;
-			const children = await new Promise<string[]>((c, e) => fs.readdir(root, (err, r) => err ? e(err) : c(r)));
-			const subfolders = new Set(children.filter(child => child !== '.git').map(child => path.join(root, child)));
 
+			// Workspace folder children
+			const repositoryScanMaxDepth = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<number>('repositoryScanMaxDepth', 1);
+			const repositoryScanIgnoredFolders = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<string[]>('repositoryScanIgnoredFolders', []);
+
+			const subfolders = new Set(await this.traverseWorkspaceFolder(root, repositoryScanMaxDepth, repositoryScanIgnoredFolders));
+
+			// Repository scan folders
 			const scanPaths = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<string[]>('scanRepositories') || [];
 			for (const scanPath of scanPaths) {
-				if (scanPath !== '.git') {
+				if (scanPath === '.git') {
 					continue;
 				}
 
@@ -165,6 +179,31 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 
 			await Promise.all([...subfolders].map(f => this.openRepository(f)));
 		}));
+	}
+
+	private async traverseWorkspaceFolder(workspaceFolder: string, maxDepth: number, repositoryScanIgnoredFolders: string[]): Promise<string[]> {
+		const result: string[] = [];
+		const foldersToTravers = [{ path: workspaceFolder, depth: 0 }];
+
+		while (foldersToTravers.length > 0) {
+			const currentFolder = foldersToTravers.shift()!;
+
+			if (currentFolder.depth < maxDepth || maxDepth === -1) {
+				const children = await fs.promises.readdir(currentFolder.path, { withFileTypes: true });
+				const childrenFolders = children
+					.filter(dirent =>
+						dirent.isDirectory() && dirent.name !== '.git' &&
+						!repositoryScanIgnoredFolders.find(f => pathEquals(dirent.name, f)))
+					.map(dirent => path.join(currentFolder.path, dirent.name));
+
+				result.push(...childrenFolders);
+				foldersToTravers.push(...childrenFolders.map(folder => {
+					return { path: folder, depth: currentFolder.depth + 1 };
+				}));
+			}
+		}
+
+		return result;
 	}
 
 	private onPossibleGitRepositoryChange(uri: Uri): void {
@@ -271,7 +310,7 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 			// Check if the folder is a bare repo: if it has a file named HEAD && `rev-parse --show -cdup` is empty
 			try {
 				fs.accessSync(path.join(repoPath, 'HEAD'), fs.constants.F_OK);
-				const result = await this.git.exec(repoPath, ['-C', repoPath, 'rev-parse', '--show-cdup'], { log: false });
+				const result = await this.git.exec(repoPath, ['-C', repoPath, 'rev-parse', '--show-cdup']);
 				if (result.stderr.trim() === '' && result.stdout.trim() === '') {
 					return;
 				}
@@ -296,14 +335,32 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 				return;
 			}
 
+			// On Window, opening a git repository from the root of the HOMEDRIVE poses a security risk.
+			// We will only a open git repository from the root of the HOMEDRIVE if the user explicitly
+			// opens the HOMEDRIVE as a folder. Only show the warning once during repository discovery.
+			if (process.platform === 'win32' && process.env.HOMEDRIVE && pathEquals(`${process.env.HOMEDRIVE}\\`, repositoryRoot)) {
+				const isRepoInWorkspaceFolders = (workspace.workspaceFolders ?? []).find(f => pathEquals(f.uri.fsPath, repositoryRoot))!!;
+
+				if (!isRepoInWorkspaceFolders) {
+					if (this.showRepoOnHomeDriveRootWarning) {
+						window.showWarningMessage(localize('repoOnHomeDriveRootWarning', "Unable to automatically open the git repository at '{0}'. To open that git repository, open it directly as a folder in VS Code.", repositoryRoot));
+						this.showRepoOnHomeDriveRootWarning = false;
+					}
+
+					return;
+				}
+			}
+
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this.globalState, this.outputChannel);
+			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this.globalState, this.outputChannel, this.telemetryReporter);
 
 			this.open(repository);
-			await repository.status();
+			repository.status(); // do not await this, we want SCM to know about the repo asap
 		} catch (ex) {
 			// noop
-			this.outputChannel.appendLine(`Opening repository for path='${repoPath}' failed; ex=${ex}`);
+			if (Log.logLevel <= LogLevel.Trace) {
+				this.outputChannel.appendLine(`${logTimestamp()} Trace: Opening repository for path='${repoPath}' failed; ex=${ex}`);
+			}
 		}
 	}
 
@@ -329,7 +386,7 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 	}
 
 	private open(repository: Repository): void {
-		this.outputChannel.appendLine(`Open repository: ${repository.root}`);
+		this.outputChannel.appendLine(`${logTimestamp()} Open repository: ${repository.root}`);
 
 		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === RepositoryState.Disposed);
 		const disappearListener = onDidDisappearRepository(() => dispose());
@@ -386,7 +443,7 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 			return;
 		}
 
-		this.outputChannel.appendLine(`Close repository: ${repository.root}`);
+		this.outputChannel.appendLine(`${logTimestamp()} Close repository: ${repository.root}`);
 		openRepository.dispose();
 	}
 
@@ -496,22 +553,22 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 		return undefined;
 	}
 
-	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
-		this.remoteSourceProviders.add(provider);
-		this._onDidAddRemoteSourceProvider.fire(provider);
+	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable {
+		this.remoteSourcePublishers.add(publisher);
+		this._onDidAddRemoteSourcePublisher.fire(publisher);
 
 		return toDisposable(() => {
-			this.remoteSourceProviders.delete(provider);
-			this._onDidRemoveRemoteSourceProvider.fire(provider);
+			this.remoteSourcePublishers.delete(publisher);
+			this._onDidRemoveRemoteSourcePublisher.fire(publisher);
 		});
+	}
+
+	getRemoteSourcePublishers(): RemoteSourcePublisher[] {
+		return [...this.remoteSourcePublishers.values()];
 	}
 
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable {
 		return this.askpass.registerCredentialsProvider(provider);
-	}
-
-	getRemoteProviders(): RemoteSourceProvider[] {
-		return [...this.remoteSourceProviders.values()];
 	}
 
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable {

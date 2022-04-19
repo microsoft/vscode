@@ -8,7 +8,6 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWo
 import { LifecyclePhase, ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -18,13 +17,14 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITextFileService, ITextFileSaveEvent, ITextFileResolveEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { extname, basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { guessMimeTypes } from 'vs/base/common/mime';
+import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { hash } from 'vs/base/common/hash';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 type TelemetryData = {
 	mimeType: string;
@@ -35,11 +35,11 @@ type TelemetryData = {
 };
 
 type FileTelemetryDataFragment = {
-	mimeType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	ext: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	path: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	reason?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	allowlistedjson?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	mimeType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	path: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	reason?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	allowlistedjson?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 export class TelemetryContribution extends Disposable implements IWorkbenchContribution {
@@ -50,46 +50,45 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IActivityBarService activityBarService: IActivityBarService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEditorService editorService: IEditorService,
 		@IKeybindingService keybindingsService: IKeybindingService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IViewletService viewletService: IViewletService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@ITextFileService textFileService: ITextFileService
 	) {
 		super();
 
-		const { filesToOpenOrCreate, filesToDiff } = environmentService.configuration;
-		const activeViewlet = viewletService.getActiveViewlet();
+		const { filesToOpenOrCreate, filesToDiff } = environmentService;
+		const activeViewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
 		type WindowSizeFragment = {
-			innerHeight: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			innerWidth: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			outerHeight: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			outerWidth: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			innerHeight: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			innerWidth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			outerHeight: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			outerWidth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 		};
 
 		type WorkspaceLoadClassification = {
-			userAgent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			emptyWorkbench: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			userAgent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			emptyWorkbench: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 			windowSize: WindowSizeFragment;
-			'workbench.filesToOpenOrCreate': { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			'workbench.filesToDiff': { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			customKeybindingsCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			theme: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			language: { classification: 'SystemMetaData', purpose: 'BusinessInsight' };
-			pinnedViewlets: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			restoredViewlet?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			restoredEditors: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			startupKind: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			'workbench.filesToOpenOrCreate': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			'workbench.filesToDiff': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			customKeybindingsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			theme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			language: { classification: 'SystemMetaData'; purpose: 'BusinessInsight' };
+			pinnedViewlets: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			restoredViewlet?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			restoredEditors: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			startupKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 		};
 
 		type WorkspaceLoadEvent = {
 			userAgent: string;
-			windowSize: { innerHeight: number, innerWidth: number, outerHeight: number, outerWidth: number };
+			windowSize: { innerHeight: number; innerWidth: number; outerHeight: number; outerWidth: number };
 			emptyWorkbench: boolean;
 			'workbench.filesToOpenOrCreate': number;
 			'workbench.filesToDiff': number;
@@ -111,7 +110,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			customKeybindingsCount: keybindingsService.customKeybindingsCount(),
 			theme: themeService.getColorTheme().id,
 			language,
-			pinnedViewlets: activityBarService.getPinnedViewContainerIds(),
+			pinnedViewlets: paneCompositeService.getPinnedPaneCompositeIds(ViewContainerLocation.Sidebar),
 			restoredViewlet: activeViewlet ? activeViewlet.getId() : undefined,
 			restoredEditors: editorService.visibleEditors.length,
 			startupKind: lifecycleService.startupKind
@@ -135,7 +134,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		const settingsType = this.getTypeIfSettings(e.model.resource);
 		if (settingsType) {
 			type SettingsReadClassification = {
-				settingsType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				settingsType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};
 
 			this.telemetryService.publicLog2<{ settingsType: string }, SettingsReadClassification>('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
@@ -150,7 +149,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		const settingsType = this.getTypeIfSettings(e.model.resource);
 		if (settingsType) {
 			type SettingsWrittenClassification = {
-				settingsType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				settingsType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};
 			this.telemetryService.publicLog2<{ settingsType: string }, SettingsWrittenClassification>('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
 		} else {
@@ -201,7 +200,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		const fileName = basename(resource);
 		const path = resource.scheme === Schemas.file ? resource.fsPath : resource.path;
 		const telemetryData = {
-			mimeType: guessMimeTypes(resource).join(', '),
+			mimeType: getMimeTypes(resource).join(', '),
 			ext,
 			path: hash(path),
 			reason,

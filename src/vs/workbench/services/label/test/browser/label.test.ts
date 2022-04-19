@@ -172,9 +172,9 @@ suite('multi-root workspace', () => {
 			TestEnvironmentService,
 			new TestContextService(
 				new Workspace('test-workspace', [
-					new WorkspaceFolder({ uri: sources, index: 0, name: 'Sources' }, { uri: sources.toString() }),
-					new WorkspaceFolder({ uri: tests, index: 1, name: 'Tests' }, { uri: tests.toString() }),
-					new WorkspaceFolder({ uri: other, index: 2, name: resources.basename(other) }, { uri: other.toString() }),
+					new WorkspaceFolder({ uri: sources, index: 0, name: 'Sources' }),
+					new WorkspaceFolder({ uri: tests, index: 1, name: 'Tests' }),
+					new WorkspaceFolder({ uri: other, index: 2, name: resources.basename(other) }),
 				])),
 			new TestPathService());
 	});
@@ -261,7 +261,7 @@ suite('workspace at FSP root', () => {
 			TestEnvironmentService,
 			new TestContextService(
 				new Workspace('test-workspace', [
-					new WorkspaceFolder({ uri: rootFolder, index: 0, name: 'FSProotFolder' }, { uri: rootFolder.toString() }),
+					new WorkspaceFolder({ uri: rootFolder, index: 0, name: 'FSProotFolder' }),
 				])),
 			new TestPathService());
 		labelService.registerFormatter({
@@ -302,5 +302,13 @@ suite('workspace at FSP root', () => {
 			const generated = labelService.getUriLabel(URI.parse(uriString), { relative: true });
 			assert.strictEqual(generated, label);
 		});
+	});
+
+	test('relative label with explicit path separator', () => {
+		let generated = labelService.getUriLabel(URI.parse('myscheme://myauthority/some/folder/test.txt'), { relative: true, separator: '/' });
+		assert.strictEqual(generated, 'some/folder/test.txt');
+
+		generated = labelService.getUriLabel(URI.parse('myscheme://myauthority/some/folder/test.txt'), { relative: true, separator: '\\' });
+		assert.strictEqual(generated, 'some\\folder\\test.txt');
 	});
 });

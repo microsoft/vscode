@@ -9,6 +9,9 @@ const path = require('path');
 const task = require('./lib/task');
 const { hygiene } = require('./hygiene');
 
+/**
+ * @param {string} actualPath
+ */
 function checkPackageJSON(actualPath) {
 	const actual = require(path.join(__dirname, '..', actualPath));
 	const rootPackageJSON = require('../package.json');

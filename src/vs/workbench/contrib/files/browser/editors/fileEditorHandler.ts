@@ -5,7 +5,8 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEditorInput, IEditorSerializer } from 'vs/workbench/common/editor';
+import { IEditorSerializer } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { isEqual } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -21,16 +22,16 @@ interface ISerializedFileEditorInput {
 	name?: string;
 	description?: string;
 	encoding?: string;
-	modeId?: string;
+	modeId?: string; // should be `languageId` but is kept for backwards compatibility
 }
 
 export class FileEditorInputSerializer implements IEditorSerializer {
 
-	canSerialize(editorInput: IEditorInput): boolean {
+	canSerialize(editorInput: EditorInput): boolean {
 		return true;
 	}
 
-	serialize(editorInput: IEditorInput): string {
+	serialize(editorInput: EditorInput): string {
 		const fileEditorInput = editorInput as FileEditorInput;
 		const resource = fileEditorInput.resource;
 		const preferredResource = fileEditorInput.preferredResource;
@@ -40,7 +41,7 @@ export class FileEditorInputSerializer implements IEditorSerializer {
 			name: fileEditorInput.getPreferredName(),
 			description: fileEditorInput.getPreferredDescription(),
 			encoding: fileEditorInput.getEncoding(),
-			modeId: fileEditorInput.getPreferredMode() // only using the preferred user associated mode here if available to not store redundant data
+			modeId: fileEditorInput.getPreferredLanguageId() // only using the preferred user associated language here if available to not store redundant data
 		};
 
 		return JSON.stringify(serializedFileEditorInput);
@@ -54,9 +55,9 @@ export class FileEditorInputSerializer implements IEditorSerializer {
 			const name = serializedFileEditorInput.name;
 			const description = serializedFileEditorInput.description;
 			const encoding = serializedFileEditorInput.encoding;
-			const mode = serializedFileEditorInput.modeId;
+			const languageId = serializedFileEditorInput.modeId;
 
-			const fileEditorInput = accessor.get(ITextEditorService).createTextEditor({ resource, label: name, description, encoding, mode, forceFile: true }) as FileEditorInput;
+			const fileEditorInput = accessor.get(ITextEditorService).createTextEditor({ resource, label: name, description, encoding, languageId, forceFile: true }) as FileEditorInput;
 			if (preferredResource) {
 				fileEditorInput.setPreferredResource(preferredResource);
 			}
@@ -80,7 +81,7 @@ export class FileEditorWorkingCopyEditorHandler extends Disposable implements IW
 
 	private installHandler(): void {
 		this._register(this.workingCopyEditorService.registerHandler({
-			handles: workingCopy => workingCopy.typeId === NO_TYPE_ID && this.fileService.canHandleResource(workingCopy.resource),
+			handles: workingCopy => workingCopy.typeId === NO_TYPE_ID && this.fileService.hasProvider(workingCopy.resource),
 			// Naturally it would make sense here to check for `instanceof FileEditorInput`
 			// but because some custom editors also leverage text file based working copies
 			// we need to do a weaker check by only comparing for the resource

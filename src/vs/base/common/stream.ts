@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * The payload that flows in readable stream events.
@@ -77,6 +77,15 @@ export interface Readable<T> {
 	 * null to indicate that no more data can be read.
 	 */
 	read(): T | null;
+}
+
+export function isReadable<T>(obj: unknown): obj is Readable<T> {
+	const candidate = obj as Readable<T> | undefined;
+	if (!candidate) {
+		return false;
+	}
+
+	return typeof candidate.read === 'function';
 }
 
 /**
@@ -159,8 +168,8 @@ export function isReadableBufferedStream<T>(obj: unknown): obj is ReadableBuffer
 	return isReadableStream(candidate.stream) && Array.isArray(candidate.buffer) && typeof candidate.ended === 'boolean';
 }
 
-export interface IReducer<T> {
-	(data: T[]): T;
+export interface IReducer<T, R = T> {
+	(data: T[]): R;
 }
 
 export interface IDataTransformer<Original, Transformed> {
@@ -504,9 +513,9 @@ export function peekReadable<T>(readable: Readable<T>, reducer: IReducer<T>, max
  * a stream fully, awaiting all the events without caring
  * about the data.
  */
-export function consumeStream<T>(stream: ReadableStreamEvents<T>, reducer: IReducer<T>): Promise<T>;
+export function consumeStream<T, R = T>(stream: ReadableStreamEvents<T>, reducer: IReducer<T, R>): Promise<R>;
 export function consumeStream(stream: ReadableStreamEvents<unknown>): Promise<undefined>;
-export function consumeStream<T>(stream: ReadableStreamEvents<T>, reducer?: IReducer<T>): Promise<T | undefined> {
+export function consumeStream<T, R = T>(stream: ReadableStreamEvents<T>, reducer?: IReducer<T, R>): Promise<R | undefined> {
 	return new Promise((resolve, reject) => {
 		const chunks: T[] = [];
 
@@ -558,14 +567,31 @@ export interface IStreamListener<T> {
 /**
  * Helper to listen to all events of a T stream in proper order.
  */
-export function listenStream<T>(stream: ReadableStreamEvents<T>, listener: IStreamListener<T>): void {
-	stream.on('error', error => listener.onError(error));
-	stream.on('end', () => listener.onEnd());
+export function listenStream<T>(stream: ReadableStreamEvents<T>, listener: IStreamListener<T>): IDisposable {
+	let destroyed = false;
+
+	stream.on('error', error => {
+		if (!destroyed) {
+			listener.onError(error);
+		}
+	});
+
+	stream.on('end', () => {
+		if (!destroyed) {
+			listener.onEnd();
+		}
+	});
 
 	// Adding the `data` listener will turn the stream
 	// into flowing mode. As such it is important to
 	// add this listener last (DO NOT CHANGE!)
-	stream.on('data', data => listener.onData(data));
+	stream.on('data', data => {
+		if (!destroyed) {
+			listener.onData(data);
+		}
+	});
+
+	return toDisposable(() => destroyed = true);
 }
 
 /**

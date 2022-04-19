@@ -3,24 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, Event as IpcEvent, ipcMain } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import { coalesce } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDiagnosticInfo, IDiagnosticInfoOptions, IRemoteDiagnosticError, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
-import { IWindowSettings } from 'vs/platform/windows/common/windows';
-import { ICodeWindow, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ICodeWindow } from 'vs/platform/window/electron-main/window';
+import { IWindowSettings } from 'vs/platform/window/common/window';
+import { IOpenConfiguration, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 export const ID = 'launchMainService';
@@ -31,17 +30,11 @@ export interface IStartArguments {
 	userEnv: IProcessEnvironment;
 }
 
-export interface IRemoteDiagnosticOptions {
-	includeProcesses?: boolean;
-	includeWorkspaceMetadata?: boolean;
-}
-
 export interface ILaunchMainService {
 	readonly _serviceBrand: undefined;
 	start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
 	getMainProcessId(): Promise<number>;
 	getMainProcessInfo(): Promise<IMainProcessInfo>;
-	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]>;
 }
 
 export class LaunchMainService implements ILaunchMainService {
@@ -97,7 +90,7 @@ export class LaunchMainService implements ILaunchMainService {
 		}
 	}
 
-	private parseOpenUrl(args: NativeParsedArgs): { uri: URI, url: string }[] {
+	private parseOpenUrl(args: NativeParsedArgs): { uri: URI; url: string }[] {
 		if (args['open-url'] && args._urls && args._urls.length > 0) {
 			// --open-url must contain -- followed by the url(s)
 			// process.argv is used over args._ as args._ are resolved to file paths at this point
@@ -121,9 +114,17 @@ export class LaunchMainService implements ILaunchMainService {
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
 		const remoteAuthority = args.remote || undefined;
 
+		const baseConfig: IOpenConfiguration = {
+			context,
+			cli: args,
+			userEnv,
+			waitMarkerFileURI,
+			remoteAuthority
+		};
+
 		// Special case extension development
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, { context, cli: args, userEnv, waitMarkerFileURI, remoteAuthority });
+			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, baseConfig);
 		}
 
 		// Start without file/folder arguments
@@ -159,13 +160,9 @@ export class LaunchMainService implements ILaunchMainService {
 			// Open new Window
 			if (openNewWindow) {
 				usedWindows = this.windowsMainService.open({
-					context,
-					cli: args,
-					userEnv,
+					...baseConfig,
 					forceNewWindow: true,
-					forceEmpty: true,
-					waitMarkerFileURI,
-					remoteAuthority
+					forceEmpty: true
 				});
 			}
 
@@ -173,11 +170,14 @@ export class LaunchMainService implements ILaunchMainService {
 			else {
 				const lastActive = this.windowsMainService.getLastActiveWindow();
 				if (lastActive) {
-					lastActive.focus();
+					this.windowsMainService.openExistingWindow(lastActive, baseConfig);
 
 					usedWindows = [lastActive];
 				} else {
-					usedWindows = this.windowsMainService.open({ context, cli: args, forceEmpty: true, remoteAuthority });
+					usedWindows = this.windowsMainService.open({
+						...baseConfig,
+						forceEmpty: true
+					});
 				}
 			}
 		}
@@ -185,18 +185,14 @@ export class LaunchMainService implements ILaunchMainService {
 		// Start with file/folder arguments
 		else {
 			usedWindows = this.windowsMainService.open({
-				context,
-				cli: args,
-				userEnv,
+				...baseConfig,
 				forceNewWindow: args['new-window'],
 				preferNewWindow: !args['reuse-window'] && !args.wait,
 				forceReuseWindow: args['reuse-window'],
 				diffMode: args.diff,
 				addMode: args.add,
 				noRecentEntry: !!args['skip-add-to-recently-opened'],
-				waitMarkerFileURI,
-				gotoLineMode: args.goto,
-				remoteAuthority
+				gotoLineMode: args.goto
 			});
 		}
 
@@ -237,41 +233,6 @@ export class LaunchMainService implements ILaunchMainService {
 			screenReader: !!app.accessibilitySupportEnabled,
 			gpuFeatureStatus: app.getGPUFeatureStatus()
 		};
-	}
-
-	async getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]> {
-		const windows = this.windowsMainService.getWindows();
-		const diagnostics: Array<IDiagnosticInfo | IRemoteDiagnosticError | undefined> = await Promise.all(windows.map(window => {
-			return new Promise<IDiagnosticInfo | IRemoteDiagnosticError | undefined>((resolve) => {
-				const remoteAuthority = window.remoteAuthority;
-				if (remoteAuthority) {
-					const replyChannel = `vscode:getDiagnosticInfoResponse${window.id}`;
-					const args: IDiagnosticInfoOptions = {
-						includeProcesses: options.includeProcesses,
-						folders: options.includeWorkspaceMetadata ? this.getFolderURIs(window) : undefined
-					};
-
-					window.sendWhenReady('vscode:getDiagnosticInfo', CancellationToken.None, { replyChannel, args });
-
-					ipcMain.once(replyChannel, (_: IpcEvent, data: IRemoteDiagnosticInfo) => {
-						// No data is returned if getting the connection fails.
-						if (!data) {
-							resolve({ hostName: remoteAuthority, errorMessage: `Unable to resolve connection to '${remoteAuthority}'.` });
-						}
-
-						resolve(data);
-					});
-
-					setTimeout(() => {
-						resolve({ hostName: remoteAuthority, errorMessage: `Fetching remote diagnostics for '${remoteAuthority}' timed out.` });
-					}, 5000);
-				} else {
-					resolve(undefined);
-				}
-			});
-		}));
-
-		return diagnostics.filter((x): x is IRemoteDiagnosticInfo | IRemoteDiagnosticError => !!x);
 	}
 
 	private getFolderURIs(window: ICodeWindow): URI[] {

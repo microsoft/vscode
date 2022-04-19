@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import Severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILocalization } from 'vs/platform/localizations/common/localizations';
+import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 
 export const MANIFEST_CACHE_FOLDER = 'CachedExtensions';
 export const USER_MANIFEST_CACHE_FILE = 'user';
 export const BUILTIN_MANIFEST_CACHE_FILE = 'builtin';
+export const UNDEFINED_PUBLISHER = 'undefined_publisher';
 
 export interface ICommand {
 	command: string;
@@ -25,7 +28,10 @@ export interface IConfigurationProperty {
 }
 
 export interface IConfiguration {
-	properties: { [key: string]: IConfigurationProperty; };
+	id?: string;
+	order?: number;
+	title?: string;
+	properties: { [key: string]: IConfigurationProperty };
 }
 
 export interface IDebugger {
@@ -86,7 +92,7 @@ export interface IView {
 export interface IColor {
 	id: string;
 	description: string;
-	defaults: { light: string, dark: string, highContrast: string };
+	defaults: { light: string; dark: string; highContrast: string };
 }
 
 export interface IWebviewEditor {
@@ -118,9 +124,9 @@ export interface IWalkthroughStep {
 	readonly title: string;
 	readonly description: string | undefined;
 	readonly media:
-	| { image: string | { dark: string, light: string, hc: string }, altText: string, markdown?: never, svg?: never }
-	| { markdown: string, image?: never, svg?: never }
-	| { svg: string, altText: string, markdown?: never, image?: never }
+	| { image: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; svg?: never }
+	| { markdown: string; image?: never; svg?: never }
+	| { svg: string; altText: string; markdown?: never; image?: never };
 	readonly completionEvents?: string[];
 	/** @deprecated use `completionEvents: 'onCommand:...'` */
 	readonly doneOn?: { command: string };
@@ -128,7 +134,7 @@ export interface IWalkthroughStep {
 }
 
 export interface IWalkthrough {
-	readonly id: string,
+	readonly id: string;
 	readonly title: string;
 	readonly description: string;
 	readonly steps: IWalkthroughStep[];
@@ -144,8 +150,28 @@ export interface IStartEntry {
 	readonly category: 'file' | 'folder' | 'notebook';
 }
 
+export interface INotebookEntry {
+	readonly type: string;
+	readonly displayName: string;
+}
+
 export interface INotebookRendererContribution {
 	readonly id: string;
+	readonly displayName: string;
+	readonly mimeTypes: string[];
+}
+
+export interface ITranslation {
+	id: string;
+	path: string;
+}
+
+export interface ILocalizationContribution {
+	languageId: string;
+	languageName?: string;
+	localizedLanguageName?: string;
+	translations: ITranslation[];
+	minimalTranslations?: { [key: string]: string };
 }
 
 export interface IExtensionContributions {
@@ -164,12 +190,13 @@ export interface IExtensionContributions {
 	viewsContainers?: { [location: string]: IViewContainer[] };
 	views?: { [location: string]: IView[] };
 	colors?: IColor[];
-	localizations?: ILocalization[];
+	localizations?: ILocalizationContribution[];
 	readonly customEditors?: readonly IWebviewEditor[];
 	readonly codeActions?: readonly ICodeActionContribution[];
 	authentication?: IAuthenticationContribution[];
 	walkthroughs?: IWalkthrough[];
 	startEntries?: IStartEntry[];
+	readonly notebooks?: INotebookEntry[];
 	readonly notebookRenderer?: INotebookRendererContribution[];
 }
 
@@ -180,14 +207,13 @@ export interface IExtensionCapabilities {
 
 
 export const ALL_EXTENSION_KINDS: readonly ExtensionKind[] = ['ui', 'workspace', 'web'];
-export type ExtensionKind = 'ui' | 'workspace' | 'web';
 
 export type LimitedWorkspaceSupportType = 'limited';
 export type ExtensionUntrustedWorkspaceSupportType = boolean | LimitedWorkspaceSupportType;
-export type ExtensionUntrustedWorkspaceSupport = { supported: true; } | { supported: false, description: string } | { supported: LimitedWorkspaceSupportType, description: string, restrictedConfigurations?: string[] };
+export type ExtensionUntrustedWorkspaceSupport = { supported: true } | { supported: false; description: string } | { supported: LimitedWorkspaceSupportType; description: string; restrictedConfigurations?: string[] };
 
 export type ExtensionVirtualWorkspaceSupportType = boolean | LimitedWorkspaceSupportType;
-export type ExtensionVirtualWorkspaceSupport = boolean | { supported: true; } | { supported: false | LimitedWorkspaceSupportType, description: string };
+export type ExtensionVirtualWorkspaceSupport = boolean | { supported: true } | { supported: false | LimitedWorkspaceSupportType; description: string };
 
 export function getWorkspaceSupportTypeMessage(supportType: ExtensionUntrustedWorkspaceSupport | ExtensionVirtualWorkspaceSupport | undefined): string | undefined {
 	if (typeof supportType === 'object' && supportType !== null) {
@@ -232,34 +258,58 @@ export const EXTENSION_CATEGORIES = [
 	'Other',
 ];
 
-export interface IExtensionManifest {
-	readonly name: string;
-	readonly displayName?: string;
-	readonly publisher: string;
-	readonly version: string;
-	readonly engines: { readonly vscode: string };
-	readonly description?: string;
-	readonly main?: string;
-	readonly browser?: string;
-	readonly icon?: string;
-	readonly categories?: string[];
-	readonly keywords?: string[];
-	readonly activationEvents?: string[];
-	readonly extensionDependencies?: string[];
-	readonly extensionPack?: string[];
-	readonly extensionKind?: ExtensionKind | ExtensionKind[];
-	readonly contributes?: IExtensionContributions;
-	readonly repository?: { url: string; };
-	readonly bugs?: { url: string; };
-	readonly enableProposedApi?: boolean;
-	readonly api?: string;
-	readonly scripts?: { [key: string]: string; };
-	readonly capabilities?: IExtensionCapabilities;
+export interface IRelaxedExtensionManifest {
+	name: string;
+	displayName?: string;
+	publisher: string;
+	version: string;
+	engines: { readonly vscode: string };
+	description?: string;
+	main?: string;
+	browser?: string;
+	icon?: string;
+	categories?: string[];
+	keywords?: string[];
+	activationEvents?: string[];
+	extensionDependencies?: string[];
+	extensionPack?: string[];
+	extensionKind?: ExtensionKind | ExtensionKind[];
+	contributes?: IExtensionContributions;
+	repository?: { url: string };
+	bugs?: { url: string };
+	enabledApiProposals?: readonly string[];
+	api?: string;
+	scripts?: { [key: string]: string };
+	capabilities?: IExtensionCapabilities;
 }
+
+export type IExtensionManifest = Readonly<IRelaxedExtensionManifest>;
 
 export const enum ExtensionType {
 	System,
 	User
+}
+
+export const enum TargetPlatform {
+	WIN32_X64 = 'win32-x64',
+	WIN32_IA32 = 'win32-ia32',
+	WIN32_ARM64 = 'win32-arm64',
+
+	LINUX_X64 = 'linux-x64',
+	LINUX_ARM64 = 'linux-arm64',
+	LINUX_ARMHF = 'linux-armhf',
+
+	ALPINE_X64 = 'alpine-x64',
+	ALPINE_ARM64 = 'alpine-arm64',
+
+	DARWIN_X64 = 'darwin-x64',
+	DARWIN_ARM64 = 'darwin-arm64',
+
+	WEB = 'web',
+
+	UNIVERSAL = 'universal',
+	UNKNOWN = 'unknown',
+	UNDEFINED = 'undefined',
 }
 
 export interface IExtension {
@@ -268,8 +318,11 @@ export interface IExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly manifest: IExtensionManifest;
 	readonly location: URI;
+	readonly targetPlatform: TargetPlatform;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
+	readonly isValid: boolean;
+	readonly validations: readonly [Severity, string][];
 }
 
 /**
@@ -327,22 +380,33 @@ export class ExtensionIdentifier {
 	}
 }
 
-export interface IExtensionDescription extends IExtensionManifest {
-	readonly identifier: ExtensionIdentifier;
-	readonly uuid?: string;
-	readonly isBuiltin: boolean;
-	readonly isUserBuiltin: boolean;
-	readonly isUnderDevelopment: boolean;
-	readonly extensionLocation: URI;
-	enableProposedApi?: boolean;
+export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest {
+	id?: string;
+	identifier: ExtensionIdentifier;
+	uuid?: string;
+	targetPlatform: TargetPlatform;
+	isBuiltin: boolean;
+	isUserBuiltin: boolean;
+	isUnderDevelopment: boolean;
+	extensionLocation: URI;
 }
+
+export type IExtensionDescription = Readonly<IRelaxedExtensionDescription>;
 
 export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
 	return manifest.contributes && manifest.contributes.localizations ? manifest.contributes.localizations.length > 0 : false;
 }
 
-export function isAuthenticaionProviderExtension(manifest: IExtensionManifest): boolean {
+export function isAuthenticationProviderExtension(manifest: IExtensionManifest): boolean {
 	return manifest.contributes && manifest.contributes.authentication ? manifest.contributes.authentication.length > 0 : false;
+}
+
+export function isResolverExtension(manifest: IExtensionManifest, remoteAuthority: string | undefined): boolean {
+	if (remoteAuthority) {
+		const activationEvent = `onResolveRemoteAuthority:${getRemoteName(remoteAuthority)}`;
+		return manifest.activationEvents?.indexOf(activationEvent) !== -1;
+	}
+	return false;
 }
 
 export const IBuiltinExtensionsScannerService = createDecorator<IBuiltinExtensionsScannerService>('IBuiltinExtensionsScannerService');

@@ -5,21 +5,25 @@
 
 import { ChildProcess, spawn, SpawnOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
-import { homedir } from 'os';
+import { homedir, release, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { Event } from 'vs/base/common/event';
-import { isAbsolute, join } from 'vs/base/common/path';
-import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
+import { isAbsolute, resolve } from 'vs/base/common/path';
+import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { randomPort } from 'vs/base/common/ports';
 import { isString } from 'vs/base/common/types';
 import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
+import { watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
 import { addArg, parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from 'vs/platform/environment/node/stdin';
 import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
 import product from 'vs/platform/product/common/product';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { randomPath } from 'vs/base/common/extpath';
+import { Utils } from 'vs/platform/profiling/common/profiling';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
@@ -189,6 +193,8 @@ export async function main(argv: string[]): Promise<any> {
 			}
 		}
 
+		const isMacOSBigSurOrNewer = isMacintosh && release() > '20.0.0';
+
 		// If we are started with --wait create a random temporary file
 		// and pass it over to the starting instance. We can use this file
 		// to wait for it to be deleted to monitor that the edited file
@@ -205,10 +211,29 @@ export async function main(argv: string[]): Promise<any> {
 			// - the wait marker file has been deleted (e.g. when closing the editor)
 			// - the launched process terminates (e.g. due to a crash)
 			processCallbacks.push(async child => {
+				let childExitPromise;
+				if (isMacOSBigSurOrNewer) {
+					// On Big Sur, we resolve the following promise only when the child,
+					// i.e. the open command, exited with a signal or error. Otherwise, we
+					// wait for the marker file to be deleted or for the child to error.
+					childExitPromise = new Promise<void>(resolve => {
+						// Only resolve this promise if the child (i.e. open) exited with an error
+						child.on('exit', (code, signal) => {
+							if (code !== 0 || signal) {
+								resolve();
+							}
+						});
+					});
+				} else {
+					// On other platforms, we listen for exit in case the child exits before the
+					// marker file is deleted.
+					childExitPromise = Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'));
+				}
 				try {
 					await Promise.race([
 						whenDeleted(waitMarkerFilePath!),
-						Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'))
+						Event.toPromise(Event.fromNodeEventEmitter(child, 'error')),
+						childExitPromise
 					]);
 				} finally {
 					if (stdinFilePath) {
@@ -232,7 +257,7 @@ export async function main(argv: string[]): Promise<any> {
 				throw new Error('Failed to find free ports for profiler. Make sure to shutdown all instances of the editor first.');
 			}
 
-			const filenamePrefix = join(homedir(), 'prof-' + Math.random().toString(16).slice(-4));
+			const filenamePrefix = randomPath(homedir(), 'prof');
 
 			addArg(argv, `--inspect-brk=${portMain}`);
 			addArg(argv, `--remote-debugging-port=${portRenderer}`);
@@ -245,7 +270,7 @@ export async function main(argv: string[]): Promise<any> {
 			processCallbacks.push(async _child => {
 
 				class Profiler {
-					static async start(name: string, filenamePrefix: string, opts: { port: number, tries?: number, target?: (targets: Target[]) => Target }) {
+					static async start(name: string, filenamePrefix: string, opts: { port: number; tries?: number; target?: (targets: Target[]) => Target }) {
 						const profiler = await import('v8-inspect-profiler');
 
 						let session: ProfilingSession;
@@ -261,17 +286,17 @@ export async function main(argv: string[]): Promise<any> {
 									return;
 								}
 								let suffix = '';
-								let profile = await session.stop();
+								let result = await session.stop();
 								if (!process.env['VSCODE_DEV']) {
 									// when running from a not-development-build we remove
 									// absolute filenames because we don't want to reveal anything
 									// about users. We also append the `.txt` suffix to make it
 									// easier to attach these files to GH issues
-									profile = profiler.rewriteAbsolutePaths(profile, 'piiRemoved');
+									result.profile = Utils.rewriteAbsolutePaths(result.profile, 'piiRemoved');
 									suffix = '.txt';
 								}
 
-								await profiler.writeProfile(profile, `${filenamePrefix}.${name}.cpuprofile${suffix}`);
+								writeFileSync(`${filenamePrefix}.${name}.cpuprofile${suffix}`, JSON.stringify(result.profile, undefined, 4));
 							}
 						};
 					}
@@ -337,7 +362,87 @@ export async function main(argv: string[]): Promise<any> {
 			options['stdio'] = 'ignore';
 		}
 
-		const child = spawn(process.execPath, argv.slice(2), options);
+		let child: ChildProcess;
+		if (!isMacOSBigSurOrNewer) {
+			// We spawn process.execPath directly
+			child = spawn(process.execPath, argv.slice(2), options);
+		} else {
+			// On Big Sur, we spawn using the open command to obtain behavior
+			// similar to if the app was launched from the dock
+			// https://github.com/microsoft/vscode/issues/102975
+
+			// The following args are for the open command itself, rather than for VS Code:
+			// -n creates a new instance.
+			//    Without -n, the open command re-opens the existing instance as-is.
+			// -g starts the new instance in the background.
+			//    Later, Electron brings the instance to the foreground.
+			//    This way, Mac does not automatically try to foreground the new instance, which causes
+			//    focusing issues when the new instance only sends data to a previous instance and then closes.
+			const spawnArgs = ['-n', '-g'];
+			// -a opens the given application.
+			spawnArgs.push('-a', process.execPath); // -a: opens a specific application
+
+			if (verbose) {
+				spawnArgs.push('--wait-apps'); // `open --wait-apps`: blocks until the launched app is closed (even if they were already running)
+
+				// The open command only allows for redirecting stderr and stdout to files,
+				// so we make it redirect those to temp files, and then use a logger to
+				// redirect the file output to the console
+				for (const outputType of ['stdout', 'stderr']) {
+
+					// Tmp file to target output to
+					const tmpName = randomPath(tmpdir(), `code-${outputType}`);
+					writeFileSync(tmpName, '');
+					spawnArgs.push(`--${outputType}`, tmpName);
+
+					// Listener to redirect content to stdout/stderr
+					processCallbacks.push(async child => {
+						try {
+							const stream = outputType === 'stdout' ? process.stdout : process.stderr;
+
+							const cts = new CancellationTokenSource();
+							child.on('close', () => {
+								// We must dispose the token to stop watching,
+								// but the watcher might still be reading data.
+								setTimeout(() => cts.dispose(true), 200);
+							});
+							await watchFileContents(tmpName, chunk => stream.write(chunk), () => { /* ignore */ }, cts.token);
+						} finally {
+							unlinkSync(tmpName);
+						}
+					});
+				}
+			}
+
+			for (const e in env) {
+				// Ignore the _ env var, because the open command
+				// ignores it anyway.
+				// Pass the rest of the env vars in to fix
+				// https://github.com/microsoft/vscode/issues/134696.
+				if (e !== '_') {
+					spawnArgs.push('--env');
+					spawnArgs.push(`${e}=${env[e]}`);
+				}
+			}
+
+			spawnArgs.push('--args', ...argv.slice(2)); // pass on our arguments
+
+			if (env['VSCODE_DEV']) {
+				// If we're in development mode, replace the . arg with the
+				// vscode source arg. Because the OSS app isn't bundled,
+				// it needs the full vscode source arg to launch properly.
+				const curdir = '.';
+				const launchDirIndex = spawnArgs.indexOf(curdir);
+				if (launchDirIndex !== -1) {
+					spawnArgs[launchDirIndex] = resolve(curdir);
+				}
+			}
+
+			// We already passed over the env variables
+			// using the --env flags, so we can leave them out here.
+			// Also, we don't need to pass env._, which is different from argv._
+			child = spawn('open', spawnArgs, { ...options, env: {} });
+		}
 
 		return Promise.all(processCallbacks.map(callback => callback(child)));
 	}

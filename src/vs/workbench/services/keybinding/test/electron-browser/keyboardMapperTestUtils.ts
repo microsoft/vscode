@@ -6,8 +6,7 @@
 import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { ScanCodeBinding } from 'vs/base/common/scanCode';
+import { Keybinding, KeybindingModifier, ResolvedKeybinding, SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
 import { Promises } from 'vs/base/node/pfs';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
@@ -20,7 +19,7 @@ export interface IResolvedKeybinding {
 	isWYSIWYG: boolean;
 	isChord: boolean;
 	dispatchParts: (string | null)[];
-	singleModifierDispatchParts: (string | null)[];
+	singleModifierDispatchParts: (KeybindingModifier | null)[];
 }
 
 function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {
@@ -70,7 +69,7 @@ export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMa
 		const expected = buff.toString().replace(/\r\n/g, '\n');
 		const actual = mapper.dumpDebugInfo().replace(/\r\n/g, '\n');
 		if (actual !== expected && writeFileIfDifferent) {
-			const destPath = filePath.replace(/vscode[\/\\]out[\/\\]vs/, 'vscode/src/vs');
+			const destPath = filePath.replace(/[\/\\]out[\/\\]vs[\/\\]workbench/, '/src/vs/workbench');
 			Promises.writeFile(destPath, actual);
 		}
 		assert.deepStrictEqual(actual, expected);

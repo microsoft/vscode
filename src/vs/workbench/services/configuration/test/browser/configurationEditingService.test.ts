@@ -14,7 +14,7 @@ import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationEditingService, ConfigurationEditingErrorCode, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
-import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH, USER_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
+import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH, USER_STANDALONE_CONFIGURATIONS, IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -30,19 +30,24 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
-import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
+import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentService';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { getSingleFolderWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
-import { IUserConfigurationFileService, UserConfigurationFileService } from 'vs/platform/configuration/common/userConfigurationFileService';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+
+export class ConfigurationCache implements IConfigurationCache {
+	needsCaching(resource: URI): boolean { return false; }
+	async read(): Promise<string> { return ''; }
+	async write(): Promise<void> { }
+	async remove(): Promise<void> { }
+}
 
 suite('ConfigurationEditingService', () => {
 
@@ -89,7 +94,7 @@ suite('ConfigurationEditingService', () => {
 		environmentService = TestEnvironmentService;
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService, null));
-		disposables.add(fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, logService))));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, logService))));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
@@ -101,7 +106,6 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
 		instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
 		instantiationService.stub(ICommandService, CommandService);
-		instantiationService.stub(IUserConfigurationFileService, new UserConfigurationFileService(environmentService, fileService, logService));
 		testObject = instantiationService.createInstance(ConfigurationEditingService);
 	});
 
@@ -109,52 +113,57 @@ suite('ConfigurationEditingService', () => {
 
 	test('errors cases - invalid key', async () => {
 		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'unknown.key', value: 'value' });
-			assert.fail('Should fail with ERROR_UNKNOWN_KEY');
+			await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'unknown.key', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY);
+			return;
 		}
+		assert.fail('Should fail with ERROR_UNKNOWN_KEY');
 	});
 
 	test('errors cases - no workspace', async () => {
 		await workspaceService.initialize({ id: uuid.generateUuid() });
 		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'configurationEditing.service.testSetting', value: 'value' });
-			assert.fail('Should fail with ERROR_NO_WORKSPACE_OPENED');
+			await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED);
+			return;
 		}
+		assert.fail('Should fail with ERROR_NO_WORKSPACE_OPENED');
 	});
 
 	test('errors cases - invalid configuration', async () => {
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
 		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
-			assert.fail('Should fail with ERROR_INVALID_CONFIGURATION');
+			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION);
+			return;
 		}
+		assert.fail('Should fail with ERROR_INVALID_CONFIGURATION');
 	});
 
 	test('errors cases - invalid global tasks configuration', async () => {
 		const resource = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
 		await fileService.writeFile(resource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
 		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks.configurationEditing.service.testSetting', value: 'value' });
-			assert.fail('Should fail with ERROR_INVALID_CONFIGURATION');
+			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks.configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION);
+			return;
 		}
+		assert.fail('Should fail with ERROR_INVALID_CONFIGURATION');
 	});
 
 	test('errors cases - dirty', async () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
-			assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
+			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
+			return;
 		}
+		assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
 	});
 
 	test('do not notify error', async () => {
@@ -163,11 +172,12 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, onDidAddNotification: undefined!, onDidRemoveNotification: undefined!, notify: null!, error: null!, info: null!, warn: null!, status: null!, setFilter: null! });
 		try {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
-			assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
 		} catch (error) {
 			assert.strictEqual(false, target.calledOnce);
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
+			return;
 		}
+		assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
 	});
 
 	test('write one setting - empty file', async () => {

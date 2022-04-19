@@ -6,7 +6,8 @@
 import { groupBy } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Iterable } from 'vs/base/common/iterator';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -16,7 +17,7 @@ import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/work
 import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { ResolvedTestRunRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ResolvedTestRunRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
@@ -24,14 +25,21 @@ import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { AmbiguousRunTestsRequest, IMainThreadTestController, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 
 export class TestService extends Disposable implements ITestService {
 	declare readonly _serviceBrand: undefined;
 	private testControllers = new Map<string, IMainThreadTestController>();
 
 	private readonly cancelExtensionTestRunEmitter = new Emitter<{ runId: string | undefined }>();
-	private readonly processDiffEmitter = new Emitter<TestsDiff>();
+	private readonly willProcessDiffEmitter = new Emitter<TestsDiff>();
+	private readonly didProcessDiffEmitter = new Emitter<TestsDiff>();
+	private readonly testRefreshCancellations = new Set<CancellationTokenSource>();
 	private readonly providerCount: IContextKey<number>;
+	private readonly canRefreshTests: IContextKey<boolean>;
+	private readonly isRefreshingTests: IContextKey<boolean>;
 	/**
 	 * Cancellation for runs requested by the user being managed by the UI.
 	 * Test runs initiated by extensions are not included here.
@@ -41,7 +49,12 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly onDidProcessDiff = this.processDiffEmitter.event;
+	public readonly onWillProcessDiff = this.willProcessDiffEmitter.event;
+
+	/**
+	 * @inheritdoc
+	 */
+	public readonly onDidProcessDiff = this.didProcessDiffEmitter.event;
 
 	/**
 	 * @inheritdoc
@@ -71,14 +84,18 @@ export class TestService extends Disposable implements ITestService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService private readonly storage: IStorageService,
+		@IEditorService private readonly editorService: IEditorService,
 		@ITestProfileService private readonly testProfiles: ITestProfileService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITestResultService private readonly testResults: ITestResultService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
 		this.excluded = instantiationService.createInstance(TestExclusions);
 		this.providerCount = TestingContextKeys.providerCount.bindTo(contextKeyService);
+		this.canRefreshTests = TestingContextKeys.canRefreshTests.bindTo(contextKeyService);
+		this.isRefreshingTests = TestingContextKeys.isRefreshingTests.bindTo(contextKeyService);
 	}
 
 	/**
@@ -191,7 +208,7 @@ export class TestService extends Disposable implements ITestService {
 					this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', err.message));
 				})
 			);
-
+			await this.saveAllBeforeTest(req);
 			await Promise.all(requests);
 			return result;
 		} finally {
@@ -204,8 +221,48 @@ export class TestService extends Disposable implements ITestService {
 	 * @inheritdoc
 	 */
 	public publishDiff(_controllerId: string, diff: TestsDiff) {
+		this.willProcessDiffEmitter.fire(diff);
 		this.collection.apply(diff);
-		this.processDiffEmitter.fire(diff);
+		this.didProcessDiffEmitter.fire(diff);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public getTestController(id: string) {
+		return this.testControllers.get(id);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public async refreshTests(controllerId?: string): Promise<void> {
+		const cts = new CancellationTokenSource();
+		this.testRefreshCancellations.add(cts);
+		this.isRefreshingTests.set(true);
+
+		try {
+			if (controllerId) {
+				await this.testControllers.get(controllerId)?.refreshTests(cts.token);
+			} else {
+				await Promise.all([...this.testControllers.values()].map(c => c.refreshTests(cts.token)));
+			}
+		} finally {
+			this.testRefreshCancellations.delete(cts);
+			this.isRefreshingTests.set(this.testRefreshCancellations.size > 0);
+			cts.dispose();
+		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public cancelRefreshTests(): void {
+		for (const cts of this.testRefreshCancellations) {
+			cts.cancel();
+		}
+		this.testRefreshCancellations.clear();
+		this.isRefreshingTests.set(false);
 	}
 
 	/**
@@ -214,12 +271,15 @@ export class TestService extends Disposable implements ITestService {
 	public registerTestController(id: string, controller: IMainThreadTestController): IDisposable {
 		this.testControllers.set(id, controller);
 		this.providerCount.set(this.testControllers.size);
+		this.updateCanRefresh();
 
-		return toDisposable(() => {
+		const disposable = new DisposableStore();
+
+		disposable.add(toDisposable(() => {
 			const diff: TestsDiff = [];
 			for (const root of this.collection.rootItems) {
 				if (root.controllerId === id) {
-					diff.push([TestDiffOpType.Remove, root.item.extId]);
+					diff.push({ op: TestDiffOpType.Remove, itemId: root.item.extId });
 				}
 			}
 
@@ -227,8 +287,28 @@ export class TestService extends Disposable implements ITestService {
 
 			if (this.testControllers.delete(id)) {
 				this.providerCount.set(this.testControllers.size);
+				this.updateCanRefresh();
 			}
-		});
+		}));
+
+		disposable.add(controller.canRefresh.onDidChange(this.updateCanRefresh, this));
+
+		return disposable;
+	}
+
+	private async saveAllBeforeTest(req: ResolvedTestRunRequest, configurationService: IConfigurationService = this.configurationService, editorService: IEditorService = this.editorService): Promise<void> {
+		if (req.isUiTriggered === false) {
+			return;
+		}
+		const saveBeforeTest: boolean = getTestingConfiguration(this.configurationService, TestingConfigKeys.SaveBeforeTest);
+		if (saveBeforeTest) {
+			await editorService.saveAll();
+		}
+		return;
+	}
+
+	private updateCanRefresh() {
+		this.canRefreshTests.set(Iterable.some(this.testControllers.values(), t => t.canRefresh.value));
 	}
 }
 

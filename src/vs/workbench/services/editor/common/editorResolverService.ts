@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
+import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { posix } from 'vs/base/common/path';
@@ -15,7 +16,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurati
 import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorInputWithOptions, IEditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInputWithOptions, EditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
 
@@ -76,7 +77,7 @@ export const enum ResolvedStatus {
 	NONE = 2,
 }
 
-export type ResolvedEditor = IEditorInputWithOptionsAndGroup | ResolvedStatus;
+export type ResolvedEditor = EditorInputWithOptionsAndGroup | ResolvedStatus;
 
 export type RegisteredEditorOptions = {
 	/**
@@ -102,7 +103,7 @@ export type RegisteredEditorInfo = {
 	priority: RegisteredEditorPriority;
 };
 
-type EditorInputFactoryResult = IEditorInputWithOptions | Promise<IEditorInputWithOptions>;
+type EditorInputFactoryResult = EditorInputWithOptions | Promise<EditorInputWithOptions>;
 
 export type EditorInputFactoryFunction = (editorInput: IResourceEditorInput | ITextResourceEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
 
@@ -127,6 +128,11 @@ export interface IEditorResolverService {
 	updateUserAssociations(globPattern: string, editorID: string): void;
 
 	/**
+	 * Emitted when an editor is registered or unregistered.
+	 */
+	readonly onDidChangeEditorRegistrations: Event<void>;
+
+	/**
 	 * Registers a specific editor.
 	 * @param globPattern The glob pattern for this registration
 	 * @param editorInfo Information about the registration
@@ -143,19 +149,24 @@ export interface IEditorResolverService {
 	): IDisposable;
 
 	/**
-	 * Given an editor resolves it to the suitable IEditorInputWithOptionsAndGroup based on user extensions, settings, and built-in editors
+	 * Given an editor resolves it to the suitable EditorInputWithOptionsAndGroup based on user extensions, settings, and built-in editors
 	 * @param editor The editor to resolve
 	 * @param preferredGroup The group you want to open the editor in
-	 * @returns An IEditorInputWithOptionsAndGroup if there is an available editor or a status of how to proceed
+	 * @returns An EditorInputWithOptionsAndGroup if there is an available editor or a status of how to proceed
 	 */
-	resolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor>;
+	resolveEditor(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor>;
 
 	/**
 	 * Given a resource returns all the editor ids that match that resource. If there is exclusive editor we return an empty array
 	 * @param resource The resource
 	 * @returns A list of editor ids
 	 */
-	getEditorIds(resource: URI): string[];
+	getEditors(resource: URI): RegisteredEditorInfo[];
+
+	/**
+	 * A set of all the editors that are registered to the editor resolver.
+	 */
+	getEditors(): RegisteredEditorInfo[];
 }
 
 //#endregion

@@ -6,9 +6,9 @@
 import { localize } from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
-import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
+import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isMacintosh, isWeb, isIOS, isNative } from 'vs/base/common/platform';
@@ -38,8 +38,10 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IsMacNativeContext, IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 
-export type IOpenRecentAction = IAction & { uri: URI, remoteAuthority?: string };
+export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
 
 MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	submenu: MenuId.MenubarFileMenu,
@@ -220,7 +222,7 @@ export abstract class MenubarControl extends Disposable {
 		this.menuUpdater.schedule();
 	}
 
-	protected calculateActionLabel(action: { id: string; label: string; }): string {
+	protected calculateActionLabel(action: { id: string; label: string }): string {
 		let label = action.label;
 		switch (action.id) {
 			default:
@@ -335,7 +337,7 @@ export abstract class MenubarControl extends Disposable {
 
 			return this.hostService.openWindow([openable], {
 				forceNewWindow: !!openInNewWindow,
-				remoteAuthority
+				remoteAuthority: remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
 			});
 		});
 
@@ -374,6 +376,7 @@ export class CustomMenubarControl extends MenubarControl {
 	private alwaysOnMnemonics: boolean = false;
 	private focusInsideMenubar: boolean = false;
 	private visible: boolean = true;
+	private actionRunner: IActionRunner;
 	private readonly webNavigationMenu = this._register(this.menuService.createMenu(MenuId.MenubarHomeMenu, this.contextKeyService));
 
 	private readonly _onVisibilityChange: Emitter<boolean>;
@@ -394,6 +397,7 @@ export class CustomMenubarControl extends MenubarControl {
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHostService hostService: IHostService,
 		@ICommandService commandService: ICommandService
 	) {
@@ -401,6 +405,11 @@ export class CustomMenubarControl extends MenubarControl {
 
 		this._onVisibilityChange = this._register(new Emitter<boolean>());
 		this._onFocusStateChange = this._register(new Emitter<boolean>());
+
+		this.actionRunner = this._register(new ActionRunner());
+		this.actionRunner.onDidRun(e => {
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'menu' });
+		});
 
 		this.workspacesService.getRecentlyOpened().then((recentlyOpened) => {
 			this.recentlyOpened = recentlyOpened;
@@ -584,7 +593,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 	private insertActionsBefore(nextAction: IAction, target: IAction[]): void {
 		switch (nextAction.id) {
-			case 'workbench.action.openRecent':
+			case OpenRecentAction.ID:
 				target.push(...this.getOpenRecentActions());
 				break;
 
@@ -811,6 +820,7 @@ export class CustomMenubarControl extends MenubarControl {
 			enableMnemonics: this.currentEnableMenuBarMnemonics,
 			disableAltFocus: this.currentDisableMenuBarAltFocus,
 			visibility: this.currentMenubarVisibility,
+			actionRunner: this.actionRunner,
 			getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 			alwaysOnMnemonics: this.alwaysOnMnemonics,
 			compactMode: this.currentCompactMenuMode,

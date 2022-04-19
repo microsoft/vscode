@@ -58,6 +58,7 @@ suite('MinimapCharRenderer', () => {
 
 	function createFakeImageData(width: number, height: number): ImageData {
 		return {
+			colorSpace: 'srgb',
 			width: width,
 			height: height,
 			data: new Uint8ClampedArray(width * height * Constants.RGBA_CHANNELS_CNT)
@@ -78,7 +79,7 @@ suite('MinimapCharRenderer', () => {
 			imageData.data[4 * i + 2] = background.b;
 			imageData.data[4 * i + 3] = 255;
 		}
-		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, 2, false, false);
+		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, 255, background, 255, 2, false, false);
 
 		let actual: number[] = [];
 		for (let i = 0; i < imageData.data.length; i++) {
@@ -108,7 +109,7 @@ suite('MinimapCharRenderer', () => {
 			imageData.data[4 * i + 3] = 255;
 		}
 
-		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, 1, false, false);
+		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, 255, background, 255, 1, false, false);
 
 		let actual: number[] = [];
 		for (let i = 0; i < imageData.data.length; i++) {

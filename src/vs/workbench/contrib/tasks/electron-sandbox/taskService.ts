@@ -15,7 +15,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { TerminalTaskSystem } from 'vs/workbench/contrib/tasks/browser/terminalTaskSystem';
 import { IConfirmationResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TerminateResponseCode } from 'vs/base/common/processes';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -30,19 +30,19 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 interface WorkspaceFolderConfigurationResult {
 	workspaceFolder: IWorkspaceFolder;
@@ -54,7 +54,7 @@ export class TaskService extends AbstractTaskService {
 	constructor(@IConfigurationService configurationService: IConfigurationService,
 		@IMarkerService markerService: IMarkerService,
 		@IOutputService outputService: IOutputService,
-		@IPanelService panelService: IPanelService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IViewsService viewsService: IViewsService,
 		@ICommandService commandService: ICommandService,
 		@IEditorService editorService: IEditorService,
@@ -87,7 +87,7 @@ export class TaskService extends AbstractTaskService {
 		super(configurationService,
 			markerService,
 			outputService,
-			panelService,
+			paneCompositeService,
 			viewsService,
 			commandService,
 			editorService,

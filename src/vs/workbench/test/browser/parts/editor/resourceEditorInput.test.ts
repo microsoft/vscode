@@ -11,9 +11,11 @@ import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resource
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorInputCapabilities, Verbosity } from 'vs/workbench/common/editor';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('ResourceEditorInput', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 
 	class TestResourceEditorInput extends AbstractResourceEditorInput {
@@ -30,7 +32,12 @@ suite('ResourceEditorInput', () => {
 	}
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	test('basics', async () => {
@@ -50,6 +57,5 @@ suite('ResourceEditorInput', () => {
 
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Untitled), true);
-		assert.strictEqual(input.isOrphaned(), false);
 	});
 });

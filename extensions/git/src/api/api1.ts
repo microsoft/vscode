@@ -5,12 +5,13 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, RemoteSourceProvider, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands } from 'vscode';
-import { mapEvent } from '../util';
+import { combinedDisposable, mapEvent } from '../util';
 import { toGitUri } from '../uri';
-import { pickRemoteSource, PickRemoteSourceOptions } from '../remoteSource';
 import { GitExtensionImpl } from './extension';
+import { GitBaseApi } from '../git-base';
+import { PickRemoteSourceOptions } from './git-base';
 
 class ApiInputBox implements InputBox {
 	set value(value: string) { this._inputBox.value = value; }
@@ -67,7 +68,7 @@ export class ApiRepository implements Repository {
 		return this._repository.apply(patch, reverse);
 	}
 
-	getConfigs(): Promise<{ key: string; value: string; }[]> {
+	getConfigs(): Promise<{ key: string; value: string }[]> {
 		return this._repository.getConfigs();
 	}
 
@@ -83,11 +84,11 @@ export class ApiRepository implements Repository {
 		return this._repository.getGlobalConfig(key);
 	}
 
-	getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number; }> {
+	getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number }> {
 		return this._repository.getObjectDetails(treeish, path);
 	}
 
-	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
+	detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {
 		return this._repository.detectObjectType(object);
 	}
 
@@ -101,6 +102,14 @@ export class ApiRepository implements Repository {
 
 	getCommit(ref: string): Promise<Commit> {
 		return this._repository.getCommit(ref);
+	}
+
+	add(paths: string[]) {
+		return this._repository.add(paths.map(p => Uri.file(p)));
+	}
+
+	revert(paths: string[]) {
+		return this._repository.revert(paths.map(p => Uri.file(p)));
 	}
 
 	clean(paths: string[]) {
@@ -171,6 +180,14 @@ export class ApiRepository implements Repository {
 
 	getMergeBase(ref1: string, ref2: string): Promise<string> {
 		return this._repository.getMergeBase(ref1, ref2);
+	}
+
+	tag(name: string, upstream: string): Promise<void> {
+		return this._repository.tag(name, upstream);
+	}
+
+	deleteTag(name: string): Promise<void> {
+		return this._repository.deleteTag(name);
 	}
 
 	status(): Promise<void> {
@@ -283,7 +300,18 @@ export class ApiImpl implements API {
 	}
 
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
-		return this._model.registerRemoteSourceProvider(provider);
+		const disposables: Disposable[] = [];
+
+		if (provider.publishRepository) {
+			disposables.push(this._model.registerRemoteSourcePublisher(provider as RemoteSourcePublisher));
+		}
+		disposables.push(GitBaseApi.getAPI().registerRemoteSourceProvider(provider));
+
+		return combinedDisposable(disposables);
+	}
+
+	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable {
+		return this._model.registerRemoteSourcePublisher(publisher);
 	}
 
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable {
@@ -370,11 +398,7 @@ export function registerAPICommands(extension: GitExtensionImpl): Disposable {
 	}));
 
 	disposables.push(commands.registerCommand('git.api.getRemoteSources', (opts?: PickRemoteSourceOptions) => {
-		if (!extension.model) {
-			return;
-		}
-
-		return pickRemoteSource(extension.model, opts as any);
+		return commands.executeCommand('git-base.api.getRemoteSources', opts);
 	}));
 
 	return Disposable.from(...disposables);

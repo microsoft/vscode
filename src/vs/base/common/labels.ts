@@ -12,9 +12,9 @@ import { rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 
 export interface IWorkspaceFolderProvider {
-	getWorkspaceFolder(resource: URI): { uri: URI, name?: string; } | null;
+	getWorkspaceFolder(resource: URI): { uri: URI; name?: string } | null;
 	getWorkspace(): {
-		folders: { uri: URI, name?: string; }[];
+		folders: { uri: URI; name?: string }[];
 	};
 }
 
@@ -92,15 +92,15 @@ export function getBaseLabel(resource: URI | string | undefined): string | undef
 	return base;
 }
 
-export function normalizeDriveLetter(path: string): string {
-	if (hasDriveLetter(path)) {
+export function normalizeDriveLetter(path: string, continueAsWindows?: boolean): string {
+	if (hasDriveLetter(path, continueAsWindows)) {
 		return path.charAt(0).toUpperCase() + path.slice(1);
 	}
 
 	return path;
 }
 
-let normalizedUserHomeCached: { original: string; normalized: string; } = Object.create(null);
+let normalizedUserHomeCached: { original: string; normalized: string } = Object.create(null);
 export function tildify(path: string, userHome: string): string {
 	if (isWindows || !path || !userHome) {
 		return path; // unsupported
@@ -279,7 +279,7 @@ interface ISegment {
  * @param value string to which template is applied
  * @param values the values of the templates to use
  */
-export function template(template: string, values: { [key: string]: string | ISeparator | undefined | null; } = Object.create(null)): string {
+export function template(template: string, values: { [key: string]: string | ISeparator | undefined | null } = Object.create(null)): string {
 	const segments: ISegment[] = [];
 
 	let inVariable = false;
@@ -383,7 +383,7 @@ export function unmnemonicLabel(label: string): string {
 /**
  * Splits a path in name and parent path, supporting both '/' and '\'
  */
-export function splitName(fullPath: string): { name: string, parentPath: string; } {
+export function splitName(fullPath: string): { name: string; parentPath: string } {
 	const p = fullPath.indexOf('/') !== -1 ? posix : win32;
 	const name = p.basename(fullPath);
 	const parentPath = p.dirname(fullPath);

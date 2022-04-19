@@ -21,7 +21,7 @@ import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { isWeb, OperatingSystem } from 'vs/base/common/platform';
-import { isPortPrivileged, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { isPortPrivileged, ITunnelService, RemoteTunnel } from 'vs/platform/tunnel/common/tunnel';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -43,6 +43,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
+		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 	) {
@@ -76,7 +77,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 
 		if (this.environmentService.remoteAuthority && viewEnabled) {
 			const viewContainer = await this.getViewContainer();
-			const tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService), this.environmentService);
+			const tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService, this.tunnelService), this.environmentService);
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			if (viewContainer) {
 				this.remoteExplorerService.enablePortsFeatures();
@@ -199,7 +200,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		remoteAgentService.getEnvironment().then(environment => {
 			if (environment?.os !== OperatingSystem.Linux) {
 				Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-					.registerDefaultConfigurations([{ 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT }]);
+					.registerDefaultConfigurations([{ overrides: { 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT } }]);
 				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService, externalOpenerService,
 					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, hostService, logService, () => false));
 			} else {
@@ -263,12 +264,13 @@ class OnAutoForwardedAction extends Disposable {
 					break;
 				}
 				case OnPortForward.Silent: break;
-				default:
+				default: {
 					const elapsed = new Date().getTime() - this.lastNotifyTime.getTime();
 					this.logService.trace(`ForwardedPorts: (OnAutoForwardedAction) time elapsed since last notification ${elapsed} ms`);
 					if (elapsed > OnAutoForwardedAction.NOTIFY_COOL_DOWN) {
 						await this.showNotification(tunnel);
 					}
+				}
 			}
 		}
 	}
@@ -611,7 +613,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 		return allTunnels;
 	}
 
-	private async handleCandidateUpdate(removed: Map<string, { host: string, port: number }>) {
+	private async handleCandidateUpdate(removed: Map<string, { host: string; port: number }>) {
 		const removedPorts: number[] = [];
 		for (const removedPort of removed) {
 			const key = removedPort[0];

@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI as uri } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent, IReplElement, IExpression, IReplElementSource, IDataBreakpoint, IDebugSessionOptions, IEvaluate, IAdapterManager, IRawStoppedDetails, IInstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import Severity from 'vs/base/common/severity';
-import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
-import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
-import { ExceptionBreakpoint, Expression, DataBreakpoint, FunctionBreakpoint, Breakpoint, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
-import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { Event } from 'vs/base/common/event';
+import Severity from 'vs/base/common/severity';
+import { URI as uri } from 'vs/base/common/uri';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
+import { AdapterEndEvent, IAdapterManager, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IConfig, IConfigurationManager, IDataBreakpoint, IDebugger, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEvaluate, IExceptionBreakpoint, IExceptionInfo, IExpression, IFunctionBreakpoint, IInstructionBreakpoint, ILaunch, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IReplElementSource, IStackFrame, IThread, IViewModel, LoadedSourceEvent, State } from 'vs/workbench/contrib/debug/common/debug';
+import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
+import { Breakpoint, DataBreakpoint, DebugModel, ExceptionBreakpoint, Expression, FunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
+import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
+import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 const fileService = new TestFileService();
 export const mockUriIdentityService = new UriIdentityService(fileService);
@@ -105,7 +105,7 @@ export class MockDebugService implements IDebugService {
 
 	moveWatchExpression(id: string, position: number): void { }
 
-	updateFunctionBreakpoint(id: string, update: { name?: string, hitCondition?: string, condition?: string }): Promise<void> {
+	updateFunctionBreakpoint(id: string, update: { name?: string; hitCondition?: string; condition?: string }): Promise<void> {
 		throw new Error('not implemented');
 	}
 
@@ -156,8 +156,6 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
-	logToRepl(session: IDebugSession, value: string): void { }
-
 	sourceIsNotAvailable(uri: uri): void { }
 
 	tryToAutoFocusStackFrame(thread: IThread): Promise<any> {
@@ -170,6 +168,24 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
+	readonly autoExpandLazyVariables = false;
+
+	getMemory(memoryReference: string): IMemoryRegion {
+		throw new Error('Method not implemented.');
+	}
+
+	get onDidInvalidateMemory(): Event<DebugProtocol.MemoryEvent> {
+		throw new Error('Not implemented');
+	}
+
+	readMemory(memoryReference: string, offset: number, count: number): Promise<DebugProtocol.ReadMemoryResponse | undefined> {
+		throw new Error('Method not implemented.');
+	}
+
+	writeMemory(memoryReference: string, offset: number, data: string, allowPartial?: boolean): Promise<DebugProtocol.WriteMemoryResponse | undefined> {
+		throw new Error('Method not implemented.');
+	}
+
 	get compoundRoot(): DebugCompoundRoot | undefined {
 		return undefined;
 	}
@@ -178,7 +194,7 @@ export class MockSession implements IDebugSession {
 		return false;
 	}
 
-	stepInTargets(frameId: number): Promise<{ id: number; label: string; }[]> {
+	stepInTargets(frameId: number): Promise<{ id: number; label: string }[]> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -190,7 +206,7 @@ export class MockSession implements IDebugSession {
 		throw new Error('Method not implemented.');
 	}
 
-	dataBreakpointInfo(name: string, variablesReference?: number | undefined): Promise<{ dataId: string | null; description: string; canPersist?: boolean | undefined; } | undefined> {
+	dataBreakpointInfo(name: string, variablesReference?: number | undefined): Promise<{ dataId: string | null; description: string; canPersist?: boolean | undefined } | undefined> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -229,8 +245,7 @@ export class MockSession implements IDebugSession {
 		return Promise.resolve(undefined);
 	}
 
-	appendToRepl(data: string | IExpression, severity: Severity, source?: IReplElementSource): void { }
-	logToRepl(sev: Severity, args: any[], frame?: { uri: uri; line: number; column: number; }) { }
+	appendToRepl(data: string | IExpression, severity: Severity, isImportant?: boolean, source?: IReplElementSource): void { }
 
 	configuration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };
 	unresolvedConfiguration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };
@@ -298,7 +313,7 @@ export class MockSession implements IDebugSession {
 		throw new Error('not implemented');
 	}
 
-	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig }) { }
+	setConfiguration(configuration: { resolved: IConfig; unresolved: IConfig }) { }
 
 	getAllThreads(): IThread[] {
 		return [];

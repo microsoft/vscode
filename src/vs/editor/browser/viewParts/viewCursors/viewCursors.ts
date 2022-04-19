@@ -10,11 +10,12 @@ import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { editorCursorBackground, editorCursorForeground } from 'vs/editor/common/view/editorColorRegistry';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { editorCursorBackground, editorCursorForeground } from 'vs/editor/common/core/editorColorRegistry';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as viewEvents from 'vs/editor/common/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { isHighContrast } from 'vs/platform/theme/common/theme';
 
 export class ViewCursors extends ViewPart {
 
@@ -344,7 +345,8 @@ export class ViewCursors extends ViewPart {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		let renderData: IViewCursorRenderData[] = [], renderDataLen = 0;
+		const renderData: IViewCursorRenderData[] = [];
+		let renderDataLen = 0;
 
 		const primaryRenderData = this._primaryCursor.render(ctx);
 		if (primaryRenderData) {
@@ -373,8 +375,9 @@ registerThemingParticipant((theme, collector) => {
 		if (!caretBackground) {
 			caretBackground = caret.opposite();
 		}
+		collector.addRule(`.monaco-editor .inputarea.ime-input { caret-color: ${caret}; }`);
 		collector.addRule(`.monaco-editor .cursors-layer .cursor { background-color: ${caret}; border-color: ${caret}; color: ${caretBackground}; }`);
-		if (theme.type === 'hc') {
+		if (isHighContrast(theme.type)) {
 			collector.addRule(`.monaco-editor .cursors-layer.has-selection .cursor { border-left: 1px solid ${caretBackground}; border-right: 1px solid ${caretBackground}; }`);
 		}
 	}

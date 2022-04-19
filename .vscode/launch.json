@@ -50,6 +50,15 @@
 		{
 			"type": "node",
 			"request": "attach",
+			"name": "Attach to Pty Host Process",
+			"port": 5877,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "attach",
 			"name": "Attach to CLI Process",
 			"port": 5874,
 			"outFiles": [
@@ -99,6 +108,24 @@
 			],
 			"outFiles": [
 				"${workspaceFolder}/extensions/git/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 6
+			}
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code Github Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceFolder}/extensions/github/testWorkspace",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/github",
+				"--extensionTestsPath=${workspaceFolder}/extensions/github/out/test"
+			],
+			"outFiles": [
+				"${workspaceFolder}/extensions/github/out/**/*.js"
 			],
 			"presentation": {
 				"group": "5_tests",
@@ -217,8 +244,6 @@
 			"runtimeArgs": [
 				"--inspect=5875",
 				"--no-cached-data",
-				// for breakpoint freeze: https://github.com/microsoft/vscode/issues/122225#issuecomment-885377304
-				"--js-flags=\"--regexp_interpret_all\"",
 				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
 				"--disable-features=CalculateNativeWinOcclusion",
 			],
@@ -237,10 +262,16 @@
 			}
 		},
 		{
-			"type": "node",
+			"type": "pwa-node",
 			"request": "launch",
-			"name": "VS Code (Web)",
-			"program": "${workspaceFolder}/resources/web/code-web.js",
+			"name": "VS Code Server (Web)",
+			"runtimeExecutable": "${workspaceFolder}/scripts/code-server.sh",
+			"windows": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code-server.bat",
+			},
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
 			"presentation": {
 				"group": "0_vscode",
 				"order": 2
@@ -272,9 +303,9 @@
 			"request": "launch",
 			"outFiles": [],
 			"perScriptSourcemaps": "yes",
-			"name": "VS Code (Web, Chrome)",
-			"url": "http://localhost:8080",
-			"preLaunchTask": "Run web",
+			"name": "VS Code Server (Web, Chrome)",
+			"url": "http://localhost:8080?tkn=dev-token",
+			"preLaunchTask": "Run code server",
 			"presentation": {
 				"group": "0_vscode",
 				"order": 3
@@ -285,10 +316,10 @@
 			"request": "launch",
 			"outFiles": [],
 			"perScriptSourcemaps": "yes",
-			"name": "VS Code (Web, Edge)",
-			"url": "http://localhost:8080",
+			"name": "VS Code Server (Web, Edge)",
+			"url": "http://localhost:8080?tkn=dev-token",
 			"pauseForSourceMap": false,
-			"preLaunchTask": "Run web",
+			"preLaunchTask": "Run code server",
 			"presentation": {
 				"group": "0_vscode",
 				"order": 3

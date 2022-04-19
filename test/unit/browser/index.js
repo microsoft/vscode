@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
+'use strict';
 
 const path = require('path');
 const glob = require('glob');
@@ -13,7 +14,7 @@ const createStatsCollector = require('../../../node_modules/mocha/lib/stats-coll
 const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const minimatch = require('minimatch');
-const playwright = require('playwright');
+const playwright = require('@playwright/test');
 const { applyReporter } = require('../reporter');
 
 // opts
@@ -24,6 +25,7 @@ const optimist = require('optimist')
 	.describe('run', 'only run tests matching <relative_file_path>').string('run')
 	.describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
 	.describe('debug', 'do not run browsers headless').alias('debug', ['debug-browser']).boolean('debug')
+	.describe('sequential', 'only run suites for a single browser at a time').boolean('sequential')
 	.describe('browser', 'browsers in which tests should run').string('browser').default('browser', ['chromium', 'firefox', 'webkit'])
 	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', defaultReporterName)
 	.describe('reporter-options', 'the mocha reporter options').string('reporter-options').default('reporter-options', '')
@@ -49,12 +51,12 @@ const withReporter = (function () {
 						mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${browserType}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
 					}
 				});
-			}
+			};
 		}
 	} else {
 		return (_, runner) => applyReporter(runner, argv);
 	}
-})()
+})();
 
 const outdir = argv.build ? 'out-build' : 'out';
 const out = path.join(__dirname, `../../../${outdir}`);
@@ -81,7 +83,7 @@ const testModules = (async function () {
 	} else {
 		// glob patterns (--glob)
 		const defaultGlob = '**/*.test.js';
-		const pattern = argv.run || defaultGlob
+		const pattern = argv.run || defaultGlob;
 		isDefaultModules = pattern === defaultGlob;
 
 		promise = new Promise((resolve, reject) => {
@@ -89,7 +91,7 @@ const testModules = (async function () {
 				if (err) {
 					reject(err);
 				} else {
-					resolve(files)
+					resolve(files);
 				}
 			});
 		});
@@ -106,7 +108,7 @@ const testModules = (async function () {
 			}
 		}
 		return modules;
-	})
+	});
 })();
 
 function consoleLogFn(msg) {
@@ -135,7 +137,7 @@ async function runTestsInBrowser(testModules, browserType) {
 
 	const emitter = new events.EventEmitter();
 	await page.exposeFunction('mocha_report', (type, data1, data2) => {
-		emitter.emit(type, data1, data2)
+		emitter.emit(type, data1, data2);
 	});
 
 	page.on('console', async msg => {
@@ -234,18 +236,25 @@ testModules.then(async modules => {
 	const browserTypes = Array.isArray(argv.browser)
 		? argv.browser : [argv.browser];
 
-	const promises = browserTypes.map(async browserType => {
-		try {
-			return await runTestsInBrowser(modules, browserType);
-		} catch (err) {
-			console.error(err);
-			process.exit(1);
+	let messages = [];
+	let didFail = false;
+
+	try {
+		if (argv.sequential) {
+			for (const browserType of browserTypes) {
+				messages.push(await runTestsInBrowser(modules, browserType));
+			}
+		} else {
+			messages = await Promise.all(browserTypes.map(async browserType => {
+				return await runTestsInBrowser(modules, browserType);
+			}));
 		}
-	});
+	} catch (err) {
+		console.error(err);
+		process.exit(1);
+	}
 
 	// aftermath
-	let didFail = false;
-	const messages = await Promise.all(promises);
 	for (let msg of messages) {
 		if (msg) {
 			didFail = true;

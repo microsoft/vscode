@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import * as resources from 'vs/base/common/resources';
 import { ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
@@ -32,8 +32,8 @@ export function registerColorThemeExtensionPoint() {
 						type: 'string'
 					},
 					uiTheme: {
-						description: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme. \'hc-black\' is the dark high contrast theme.'),
-						enum: [VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME]
+						description: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme. \'hc-black\' is the dark high contrast theme, \'hc-light\' is the light high contrast theme.'),
+						enum: [VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME]
 					},
 					path: {
 						description: nls.localize('vscode.extension.contributes.themes.path', 'Path of the tmTheme file. The path is relative to the extension folder and is typically \'./colorthemes/awesome-color-theme.json\'.'),
@@ -141,14 +141,9 @@ export class ThemeRegistry<T extends IThemeData> {
 				previousIds[theme.id] = theme;
 			}
 			this.extensionThemes.length = 0;
-			for (let ext of extensions) {
-				let extensionData: ExtensionData = {
-					extensionId: ext.description.identifier.value,
-					extensionPublisher: ext.description.publisher,
-					extensionName: ext.description.name,
-					extensionIsBuiltin: ext.description.isBuiltin
-				};
-				this.onThemes(extensionData, ext.description.extensionLocation, ext.value, ext.collector);
+			for (const ext of extensions) {
+				const extensionData = ExtensionData.fromName(ext.description.publisher, ext.description.name, ext.description.isBuiltin);
+				this.onThemes(extensionData, ext.description.extensionLocation, ext.value, this.extensionThemes, ext.collector);
 			}
 			for (const theme of this.extensionThemes) {
 				if (!previousIds[theme.id]) {
@@ -162,18 +157,18 @@ export class ThemeRegistry<T extends IThemeData> {
 		});
 	}
 
-	private onThemes(extensionData: ExtensionData, extensionLocation: URI, themes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
-		if (!Array.isArray(themes)) {
-			collector.error(nls.localize(
+	private onThemes(extensionData: ExtensionData, extensionLocation: URI, themeContributions: IThemeExtensionPoint[], resultingThemes: T[] = [], log?: ExtensionMessageCollector): T[] {
+		if (!Array.isArray(themeContributions)) {
+			log?.error(nls.localize(
 				'reqarray',
 				"Extension point `{0}` must be an array.",
 				this.themesExtPoint.name
 			));
-			return;
+			return resultingThemes;
 		}
-		themes.forEach(theme => {
+		themeContributions.forEach(theme => {
 			if (!theme.path || !types.isString(theme.path)) {
-				collector.error(nls.localize(
+				log?.error(nls.localize(
 					'reqpath',
 					"Expected string in `contributes.{0}.path`. Provided value: {1}",
 					this.themesExtPoint.name,
@@ -182,7 +177,7 @@ export class ThemeRegistry<T extends IThemeData> {
 				return;
 			}
 			if (this.idRequired && (!theme.id || !types.isString(theme.id))) {
-				collector.error(nls.localize(
+				log?.error(nls.localize(
 					'reqid',
 					"Expected string in `contributes.{0}.id`. Provided value: {1}",
 					this.themesExtPoint.name,
@@ -193,12 +188,13 @@ export class ThemeRegistry<T extends IThemeData> {
 
 			const themeLocation = resources.joinPath(extensionLocation, theme.path);
 			if (!resources.isEqualOrParent(themeLocation, extensionLocation)) {
-				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", this.themesExtPoint.name, themeLocation.path, extensionLocation.path));
+				log?.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", this.themesExtPoint.name, themeLocation.path, extensionLocation.path));
 			}
 
 			let themeData = this.create(theme, themeLocation, extensionData);
-			this.extensionThemes.push(themeData);
+			resultingThemes.push(themeData);
 		});
+		return resultingThemes;
 	}
 
 	public findThemeById(themeId: string, defaultId?: string): T | undefined {
@@ -244,6 +240,14 @@ export class ThemeRegistry<T extends IThemeData> {
 
 	public getThemes(): T[] {
 		return this.extensionThemes;
+	}
+
+	public getMarketplaceThemes(manifest: any, extensionLocation: URI, extensionData: ExtensionData): T[] {
+		const themes = manifest?.contributes?.[this.themesExtPoint.name];
+		if (Array.isArray(themes)) {
+			return this.onThemes(extensionData, extensionLocation, themes);
+		}
+		return [];
 	}
 
 }

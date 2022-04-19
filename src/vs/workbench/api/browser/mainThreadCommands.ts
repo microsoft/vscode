@@ -5,10 +5,12 @@
 
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { revive } from 'vs/base/common/marshalling';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { SerializableObjectWithBuffers, Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+
 
 @extHostNamedCustomer(MainContext.MainThreadCommands)
 export class MainThreadCommands implements MainThreadCommandsShape {
@@ -72,7 +74,10 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		}
 	}
 
-	async $executeCommand<T>(id: string, args: any[], retry: boolean): Promise<T | undefined> {
+	async $executeCommand<T>(id: string, args: any[] | SerializableObjectWithBuffers<any[]>, retry: boolean): Promise<T | undefined> {
+		if (args instanceof SerializableObjectWithBuffers) {
+			args = args.value;
+		}
 		for (let i = 0; i < args.length; i++) {
 			args[i] = revive(args[i]);
 		}
@@ -90,7 +95,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 
 // --- command doc
 
-function _generateMarkdown(description: string | ICommandHandlerDescription): string {
+function _generateMarkdown(description: string | Dto<ICommandHandlerDescription> | ICommandHandlerDescription): string {
 	if (typeof description === 'string') {
 		return description;
 	} else {

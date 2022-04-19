@@ -54,6 +54,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private async getValidConfigBasedTips(folder: URI): Promise<IConfigBasedExtensionTip[]> {
 		const result: IConfigBasedExtensionTip[] = [];
 		for (const [configPath, tip] of this.allConfigBasedTips) {
+			if (tip.configScheme && tip.configScheme !== folder.scheme) {
+				continue;
+			}
 			try {
 				const content = await this.fileService.readFile(joinPath(folder, configPath));
 				const recommendationByRemote: Map<string, IConfigBasedExtensionTip> = new Map<string, IConfigBasedExtensionTip>();
@@ -65,7 +68,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 								extensionName: value.name,
 								configName: tip.configName,
 								important: !!value.important,
-								isExtensionPack: !!value.isExtensionPack
+								isExtensionPack: !!value.isExtensionPack,
+								whenNotInstalled: value.whenNotInstalled
 							});
 						}
 					} else {
@@ -74,7 +78,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							extensionName: value.name,
 							configName: tip.configName,
 							important: !!value.important,
-							isExtensionPack: !!value.isExtensionPack
+							isExtensionPack: !!value.isExtensionPack,
+							whenNotInstalled: value.whenNotInstalled
 						});
 					}
 				});

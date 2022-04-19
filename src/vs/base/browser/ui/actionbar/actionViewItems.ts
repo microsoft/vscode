@@ -145,7 +145,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 			// menus do not use the click event
 			if (!(this.options && this.options.isMenu)) {
-				platform.setImmediate(() => this.onClick(e));
+				this.onClick(e);
 			}
 		}));
 
@@ -329,6 +329,7 @@ export class ActionViewItem extends BaseActionViewItem {
 
 		if (title && this.label) {
 			this.label.title = title;
+			this.label.setAttribute('aria-label', title);
 		}
 	}
 

@@ -11,7 +11,7 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/com
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, SortBy, InstallExtensionResult, CURRENT_TARGET_PLATFORM
+	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, SortBy, InstallExtensionResult, getTargetPlatform, IExtensionInfo
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
@@ -35,7 +35,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { SinonStub } from 'sinon';
 import { IExperimentService, ExperimentState, ExperimentActionType, ExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentServiceImpl';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentService';
 import { ExtensionType, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -44,6 +44,9 @@ import { IMenuService } from 'vs/platform/actions/common/actions';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { Schemas } from 'vs/base/common/network';
+import { platform } from 'vs/base/common/platform';
+import { arch } from 'vs/base/common/process';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 suite('ExtensionsListView Tests', () => {
 
@@ -79,6 +82,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
+		instantiationService.stub(IProductService, {});
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -94,13 +98,14 @@ suite('ExtensionsListView Tests', () => {
 			onDidUninstallExtension: didUninstallEvent.event,
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
-			async getExtensionsReport() { return []; },
+			async getExtensionsControlManifest() { return { malicious: [] }; },
+			async getTargetPlatform() { return getTargetPlatform(platform, arch); }
 		});
 		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IMenuService, new TestMenuService());
 
-		const localExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local', targetPlatform: CURRENT_TARGET_PLATFORM, };
+		const localExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local' };
 		instantiationService.stub(IExtensionManagementServerService, <Partial<IExtensionManagementServerService>>{
 			get localExtensionManagementServer(): IExtensionManagementServer {
 				return localExtensionManagementServer;
@@ -158,8 +163,9 @@ suite('ExtensionsListView Tests', () => {
 
 	setup(async () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localEnabledTheme, localEnabledLanguage, localRandom, localDisabledTheme, localDisabledLanguage, builtInTheme, builtInBasic]);
-		instantiationService.stubPromise(IExtensionManagementService, 'getExtensionsReport', []);
+		instantiationService.stubPromise(IExtensionManagementService, 'getExtensgetExtensionsControlManifestionsReport', {});
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', []);
 		instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', []);
 
 		instantiationService.stub(IViewDescriptorService, {
@@ -346,15 +352,15 @@ suite('ExtensionsListView Tests', () => {
 			workspaceRecommendationB,
 			configBasedRecommendationA,
 		];
-		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...workspaceRecommendedExtensions));
+		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', workspaceRecommendedExtensions);
 
 		return testableView.show('@recommended:workspace').then(result => {
 			assert.ok(target.calledOnce);
-			const options: IQueryOptions = target.args[0][0];
-			assert.strictEqual(options.names!.length, workspaceRecommendedExtensions.length);
+			const extensionInfos: IExtensionInfo[] = target.args[0][0];
+			assert.strictEqual(extensionInfos.length, workspaceRecommendedExtensions.length);
 			assert.strictEqual(result.length, workspaceRecommendedExtensions.length);
 			for (let i = 0; i < workspaceRecommendedExtensions.length; i++) {
-				assert.strictEqual(options.names![i], workspaceRecommendedExtensions[i].identifier.id);
+				assert.strictEqual(extensionInfos[i].id, workspaceRecommendedExtensions[i].identifier.id);
 				assert.strictEqual(result.get(i).identifier.id, workspaceRecommendedExtensions[i].identifier.id);
 			}
 		});
@@ -367,16 +373,16 @@ suite('ExtensionsListView Tests', () => {
 			configBasedRecommendationB,
 			otherRecommendationA
 		];
-		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...allRecommendedExtensions));
+		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', allRecommendedExtensions);
 
 		return testableView.show('@recommended').then(result => {
-			const options: IQueryOptions = target.args[0][0];
+			const extensionInfos: IExtensionInfo[] = target.args[0][0];
 
 			assert.ok(target.calledOnce);
-			assert.strictEqual(options.names!.length, allRecommendedExtensions.length);
+			assert.strictEqual(extensionInfos.length, allRecommendedExtensions.length);
 			assert.strictEqual(result.length, allRecommendedExtensions.length);
 			for (let i = 0; i < allRecommendedExtensions.length; i++) {
-				assert.strictEqual(options.names![i], allRecommendedExtensions[i].identifier.id);
+				assert.strictEqual(extensionInfos[i].id, allRecommendedExtensions[i].identifier.id);
 				assert.strictEqual(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
 			}
 		});
@@ -393,16 +399,16 @@ suite('ExtensionsListView Tests', () => {
 			configBasedRecommendationB,
 			otherRecommendationA,
 		];
-		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...allRecommendedExtensions));
+		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', allRecommendedExtensions);
 
 		return testableView.show('@recommended:all').then(result => {
-			const options: IQueryOptions = target.args[0][0];
+			const extensionInfos: IExtensionInfo[] = target.args[0][0];
 
 			assert.ok(target.calledOnce);
-			assert.strictEqual(options.names!.length, allRecommendedExtensions.length);
+			assert.strictEqual(extensionInfos.length, allRecommendedExtensions.length);
 			assert.strictEqual(result.length, allRecommendedExtensions.length);
 			for (let i = 0; i < allRecommendedExtensions.length; i++) {
-				assert.strictEqual(options.names![i], allRecommendedExtensions[i].identifier.id);
+				assert.strictEqual(extensionInfos[i].id, allRecommendedExtensions[i].identifier.id);
 				assert.strictEqual(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
 			}
 		});
@@ -414,18 +420,18 @@ suite('ExtensionsListView Tests', () => {
 			fileBasedRecommendationA
 		];
 		const experimentTarget = <SinonStub>instantiationService.stubPromise(IExperimentService, 'getCuratedExtensionsList', curatedList.map(e => e.identifier.id));
-		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...curatedList));
+		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', curatedList);
 
 		return testableView.show('curated:mykey').then(result => {
 			const curatedKey: string = experimentTarget.args[0][0];
-			const options: IQueryOptions = queryTarget.args[0][0];
+			const extensionInfos: IExtensionInfo[] = queryTarget.args[0][0];
 
 			assert.ok(experimentTarget.calledOnce);
 			assert.ok(queryTarget.calledOnce);
-			assert.strictEqual(options.names!.length, curatedList.length);
+			assert.strictEqual(extensionInfos.length, curatedList.length);
 			assert.strictEqual(result.length, curatedList.length);
 			for (let i = 0; i < curatedList.length; i++) {
-				assert.strictEqual(options.names![i], curatedList[i].identifier.id);
+				assert.strictEqual(extensionInfos[i].id, curatedList[i].identifier.id);
 				assert.strictEqual(result.get(i).identifier.id, curatedList[i].identifier.id);
 			}
 			assert.strictEqual(curatedKey, 'mykey');
@@ -486,6 +492,7 @@ suite('ExtensionsListView Tests', () => {
 			}
 		}]);
 
+		testableView.resetSearchExperiments();
 		testableView.dispose();
 		testableView = instantiationService.createInstance(ExtensionsListView, {}, {});
 
@@ -542,8 +549,9 @@ suite('ExtensionsListView Tests', () => {
 	}
 
 	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: any = {}): IGalleryExtension {
-		const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', allTargetPlatforms: [CURRENT_TARGET_PLATFORM], properties: {}, assets: {}, ...properties });
-		galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], targetPlatform: CURRENT_TARGET_PLATFORM, ...galleryExtensionProperties };
+		const targetPlatform = getTargetPlatform(platform, arch);
+		const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', allTargetPlatforms: [targetPlatform], properties: {}, assets: {}, ...properties });
+		galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], targetPlatform, ...galleryExtensionProperties };
 		galleryExtension.assets = { ...galleryExtension.assets, ...assets };
 		galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: generateUuid() };
 		return <IGalleryExtension>galleryExtension;

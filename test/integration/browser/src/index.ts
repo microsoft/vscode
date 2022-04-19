@@ -5,14 +5,14 @@
 
 import * as path from 'path';
 import * as cp from 'child_process';
-import * as playwright from 'playwright';
+import * as playwright from '@playwright/test';
 import * as url from 'url';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
 import * as optimistLib from 'optimist';
-import { StdioOptions } from 'node:child_process';
+import { promisify } from 'util';
 
 const optimist = optimistLib
 	.describe('workspacePath', 'path to the workspace (folder or *.code-workspace file) to open in the test').string('workspacePath')
@@ -45,20 +45,32 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 			console.error(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
 		}
 	});
+	page.on('console', async msg => {
+		try {
+			if (msg.type() === 'error' || msg.type() === 'warning') {
+				consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
+			}
+		} catch (err) {
+			console.error('Error logging console', err);
+		}
+	});
+	page.on('requestfailed', e => {
+		console.error('Request Failed', e.url(), e.failure()?.errorText);
+	});
 
 	const host = endpoint.host;
 	const protocol = 'vscode-remote';
 
-	const testWorkspaceUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.workspacePath)).path, protocol, host, slashes: true });
+	const testWorkspacePath = URI.file(path.resolve(optimist.argv.workspacePath)).path;
 	const testExtensionUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionDevelopmentPath)).path, protocol, host, slashes: true });
 	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
 
-	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","5f19eee5dc9588ca96192f89587b5878b7d7180d"],["skipWelcome","true"]]`;
+	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","181b43c0e2949e36ecb623d8cc6de29d4fa2bae8"],["skipWelcome","true"]]`;
 
-	if (path.extname(testWorkspaceUri) === '.code-workspace') {
-		await page.goto(`${endpoint.href}&workspace=${testWorkspaceUri}&payload=${payloadParam}`);
+	if (path.extname(testWorkspacePath) === '.code-workspace') {
+		await page.goto(`${endpoint.href}&workspace=${testWorkspacePath}&payload=${payloadParam}`);
 	} else {
-		await page.goto(`${endpoint.href}&folder=${testWorkspaceUri}&payload=${payloadParam}`);
+		await page.goto(`${endpoint.href}&folder=${testWorkspacePath}&payload=${payloadParam}`);
 	}
 
 	await page.exposeFunction('codeAutomationLog', (type: string, args: any[]) => {
@@ -73,22 +85,30 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 		}
 
 		try {
-			await pkill(server.pid);
+			await promisify(kill)(server.pid!);
 		} catch (error) {
-			console.error(`Error when killing server process tree: ${error}`);
+			console.error(`Error when killing server process tree (pid: ${server.pid}): ${error}`);
 		}
 
 		process.exit(code);
 	});
 }
 
-function pkill(pid: number): Promise<void> {
-	return new Promise((c, e) => {
-		kill(pid, error => error ? e(error) : c());
-	});
+function consoleLogFn(msg: playwright.ConsoleMessage) {
+	const type = msg.type();
+	const candidate = console[type];
+	if (candidate) {
+		return candidate;
+	}
+
+	if (type === 'warning') {
+		return console.warn;
+	}
+
+	return console.log;
 }
 
-async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.UrlWithStringQuery, server: cp.ChildProcess }> {
+async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.UrlWithStringQuery; server: cp.ChildProcess }> {
 
 	// Ensure a tmp user-data-dir is used for the tests
 	const tmpDir = tmp.dirSync({ prefix: 't' });
@@ -98,7 +118,6 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	const userDataDir = path.join(testDataPath, 'd');
 
 	const env = {
-		VSCODE_AGENT_FOLDER: userDataDir,
 		VSCODE_BROWSER: browserType,
 		...process.env
 	};
@@ -106,29 +125,29 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	const root = path.join(__dirname, '..', '..', '..', '..');
 	const logsPath = path.join(root, '.build', 'logs', 'integration-tests-browser');
 
-	const serverArgs = ['--browser', 'none', '--driver', 'web', '--enable-proposed-api', '--disable-telemetry'];
+	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust'];
 
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
-		serverLocation = path.join(process.env.VSCODE_REMOTE_SERVER_PATH, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
-		serverArgs.push(`--logsPath=${logsPath}`);
+		const { serverApplicationName } = require(path.join(process.env.VSCODE_REMOTE_SERVER_PATH, 'product.json'));
+		serverLocation = path.join(process.env.VSCODE_REMOTE_SERVER_PATH, 'bin', `${serverApplicationName}${process.platform === 'win32' ? '.cmd' : ''}`);
 
 		if (optimist.argv.debug) {
 			console.log(`Starting built server from '${serverLocation}'`);
-			console.log(`Storing log files into '${logsPath}'`);
 		}
 	} else {
-		serverLocation = path.join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
-		serverArgs.push('--logsPath', logsPath);
+		serverLocation = path.join(root, `scripts/code-server.${process.platform === 'win32' ? 'bat' : 'sh'}`);
 		process.env.VSCODE_DEV = '1';
 
 		if (optimist.argv.debug) {
 			console.log(`Starting server out of sources from '${serverLocation}'`);
-			console.log(`Storing log files into '${logsPath}'`);
 		}
 	}
 
-	const stdio: StdioOptions = optimist.argv.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
+	console.log(`Storing log files into '${logsPath}'`);
+	serverArgs.push('--logsPath', logsPath);
+
+	const stdio: cp.StdioOptions = optimist.argv.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
 
 	let serverProcess = cp.spawn(
 		serverLocation,
@@ -142,8 +161,14 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	}
 
 	process.on('exit', () => serverProcess.kill());
-	process.on('SIGINT', () => serverProcess.kill());
-	process.on('SIGTERM', () => serverProcess.kill());
+	process.on('SIGINT', () => {
+		serverProcess.kill();
+		process.exit(128 + 2); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+	});
+	process.on('SIGTERM', () => {
+		serverProcess.kill();
+		process.exit(128 + 15); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+	});
 
 	return new Promise(c => {
 		serverProcess.stdout!.on('data', data => {

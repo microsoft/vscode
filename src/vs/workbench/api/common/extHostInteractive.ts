@@ -17,7 +17,7 @@ export class ExtHostInteractive implements ExtHostInteractiveShape {
 		private _textDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		private _commands: ExtHostCommands
 	) {
-		const apiCommand = new ApiCommand(
+		const openApiCommand = new ApiCommand(
 			'interactive.open',
 			'_interactive.open',
 			'Open interactive window and return notebook editor and input URI',
@@ -27,7 +27,7 @@ export class ExtHostInteractive implements ExtHostInteractiveShape {
 				new ApiCommandArgument('controllerId', 'Notebook controller Id', v => true, v => v),
 				new ApiCommandArgument('title', 'Interactive editor title', v => true, v => v)
 			],
-			new ApiCommandResult<{ notebookUri: UriComponents, inputUri: UriComponents, notebookEditorId?: string }, { notebookUri: URI, inputUri: URI, notebookEditor?: NotebookEditor }>('Notebook and input URI', (v: { notebookUri: UriComponents, inputUri: UriComponents, notebookEditorId?: string }) => {
+			new ApiCommandResult<{ notebookUri: UriComponents; inputUri: UriComponents; notebookEditorId?: string }, { notebookUri: URI; inputUri: URI; notebookEditor?: NotebookEditor }>('Notebook and input URI', (v: { notebookUri: UriComponents; inputUri: UriComponents; notebookEditorId?: string }) => {
 				if (v.notebookEditorId !== undefined) {
 					const editor = this._extHostNotebooks.getEditorById(v.notebookEditorId);
 					return { notebookUri: URI.revive(v.notebookUri), inputUri: URI.revive(v.inputUri), notebookEditor: editor.apiEditor };
@@ -35,15 +35,15 @@ export class ExtHostInteractive implements ExtHostInteractiveShape {
 				return { notebookUri: URI.revive(v.notebookUri), inputUri: URI.revive(v.inputUri) };
 			})
 		);
-		this._commands.registerApiCommand(apiCommand);
+		this._commands.registerApiCommand(openApiCommand);
 	}
 
-	$willAddInteractiveDocument(uri: UriComponents, eol: string, modeId: string, notebookUri: UriComponents) {
+	$willAddInteractiveDocument(uri: UriComponents, eol: string, languageId: string, notebookUri: UriComponents) {
 		this._textDocumentsAndEditors.acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				EOL: eol,
 				lines: [''],
-				modeId: modeId,
+				languageId: languageId,
 				uri: uri,
 				isDirty: false,
 				versionId: 1,

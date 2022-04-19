@@ -16,8 +16,9 @@ import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_FILTER } from 'vs/platform/workspace/common/workspace';
 
 export const IDialogMainService = createDecorator<IDialogMainService>('dialogMainService');
 
@@ -55,7 +56,8 @@ export class DialogMainService implements IDialogMainService {
 	private readonly noWindowDialogueQueue = new Queue<MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>();
 
 	constructor(
-		@IStateMainService private readonly stateMainService: IStateMainService
+		@IStateMainService private readonly stateMainService: IStateMainService,
+		@ILogService private readonly logService: ILogService
 	) {
 	}
 
@@ -155,7 +157,9 @@ export class DialogMainService implements IDialogMainService {
 		// prevent duplicates of the same dialog queueing at the same time
 		const fileDialogLock = this.acquireFileDialogLock(options, window);
 		if (!fileDialogLock) {
-			throw new Error('A file save dialog is already or will be showing for the window with the same configuration');
+			this.logService.error('[DialogMainService]: file save dialog is already or will be showing for the window with the same configuration');
+
+			return { canceled: true };
 		}
 
 		try {
@@ -203,7 +207,9 @@ export class DialogMainService implements IDialogMainService {
 		// prevent duplicates of the same dialog queueing at the same time
 		const fileDialogLock = this.acquireFileDialogLock(options, window);
 		if (!fileDialogLock) {
-			throw new Error('A file open dialog is already or will be showing for the window with the same configuration');
+			this.logService.error('[DialogMainService]: file open dialog is already or will be showing for the window with the same configuration');
+
+			return { canceled: true, filePaths: [] };
 		}
 
 		try {
@@ -239,6 +245,8 @@ export class DialogMainService implements IDialogMainService {
 		// we figure this out by `hashing` the configuration
 		// options for the dialog to prevent duplicates
 
+		this.logService.trace('[DialogMainService]: request to acquire file dialog lock', options);
+
 		let windowFileDialogLocks = this.windowFileDialogLocks.get(window.id);
 		if (!windowFileDialogLocks) {
 			windowFileDialogLocks = new Set();
@@ -250,9 +258,13 @@ export class DialogMainService implements IDialogMainService {
 			return undefined; // prevent duplicates, return
 		}
 
+		this.logService.trace('[DialogMainService]: new file dialog lock created', options);
+
 		windowFileDialogLocks.add(optionsHash);
 
 		return toDisposable(() => {
+			this.logService.trace('[DialogMainService]: file dialog lock disposed', options);
+
 			windowFileDialogLocks?.delete(optionsHash);
 
 			// if the window has no more dialog locks, delete it from the set of locks

@@ -7,29 +7,39 @@ import { parse as jsonParse, getNodeType } from 'vs/base/common/json';
 import { forEach } from 'vs/base/common/collections';
 import { localize } from 'vs/nls';
 import { extname, basename } from 'vs/base/common/path';
-import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/snippetParser';
-import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/snippetVariables';
+import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/browser/snippetVariables';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IdleValue } from 'vs/base/common/async';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { relativePath } from 'vs/base/common/resources';
 import { isObject } from 'vs/base/common/types';
 import { Iterable } from 'vs/base/common/iterator';
+import { tail } from 'vs/base/common/arrays';
 
 class SnippetBodyInsights {
 
 	readonly codeSnippet: string;
+
+	/** The snippet uses bad placeholders which collide with variable names */
 	readonly isBogous: boolean;
-	readonly needsClipboard: boolean;
+
+	/** The snippet has no placeholder of the final placeholder is at the end */
+	readonly isTrivial: boolean;
+
+	readonly usesClipboardVariable: boolean;
+	readonly usesSelectionVariable: boolean;
 
 	constructor(body: string) {
 
 		// init with defaults
 		this.isBogous = false;
-		this.needsClipboard = false;
+		this.isTrivial = false;
+		this.usesClipboardVariable = false;
+		this.usesSelectionVariable = false;
 		this.codeSnippet = body;
 
 		// check snippet...
@@ -39,6 +49,15 @@ class SnippetBodyInsights {
 		let placeholderMax = 0;
 		for (const placeholder of textmateSnippet.placeholders) {
 			placeholderMax = Math.max(placeholderMax, placeholder.index);
+		}
+
+		// mark snippet as trivial when there is no placeholders or when the only
+		// placeholder is the final tabstop and it is at the very end.
+		if (textmateSnippet.placeholders.length === 0) {
+			this.isTrivial = true;
+		} else if (placeholderMax === 0) {
+			const last = tail(textmateSnippet.children);
+			this.isTrivial = last instanceof Placeholder && last.isFinalTabstop;
 		}
 
 		let stack = [...textmateSnippet.children];
@@ -58,8 +77,14 @@ class SnippetBodyInsights {
 					this.isBogous = true;
 				}
 
-				if (marker.name === 'CLIPBOARD') {
-					this.needsClipboard = true;
+				switch (marker.name) {
+					case 'CLIPBOARD':
+						this.usesClipboardVariable = true;
+						break;
+					case 'SELECTION':
+					case 'TM_SELECTED_TEXT':
+						this.usesSelectionVariable = true;
+						break;
 				}
 
 			} else {
@@ -89,7 +114,8 @@ export class Snippet {
 		readonly body: string,
 		readonly source: string,
 		readonly snippetSource: SnippetSource,
-		readonly snippetIdentifier?: string
+		readonly snippetIdentifier?: string,
+		readonly extensionId?: ExtensionIdentifier,
 	) {
 		this.prefixLow = prefix.toLowerCase();
 		this._bodyInsights = new IdleValue(() => new SnippetBodyInsights(this.body));
@@ -103,14 +129,26 @@ export class Snippet {
 		return this._bodyInsights.value.isBogous;
 	}
 
+	get isTrivial(): boolean {
+		return this._bodyInsights.value.isTrivial;
+	}
+
 	get needsClipboard(): boolean {
-		return this._bodyInsights.value.needsClipboard;
+		return this._bodyInsights.value.usesClipboardVariable;
+	}
+
+	get usesSelection(): boolean {
+		return this._bodyInsights.value.usesSelectionVariable;
 	}
 
 	static compare(a: Snippet, b: Snippet): number {
 		if (a.snippetSource < b.snippetSource) {
 			return -1;
 		} else if (a.snippetSource > b.snippetSource) {
+			return 1;
+		} else if (a.source < b.source) {
+			return -1;
+		} else if (a.source > b.source) {
 			return 1;
 		} else if (a.name > b.name) {
 			return 1;
@@ -295,7 +333,8 @@ export class SnippetFile {
 				body,
 				source,
 				this.source,
-				this._extension && `${relativePath(this._extension.extensionLocation, this.location)}/${name}`
+				this._extension && `${relativePath(this._extension.extensionLocation, this.location)}/${name}`,
+				this._extension?.identifier,
 			));
 		}
 	}

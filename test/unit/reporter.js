@@ -19,7 +19,7 @@ exports.importMochaReporter = name => {
 
 	const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', name);
 	return require(reporterPath);
-}
+};
 
 exports.applyReporter = (runner, argv) => {
 	let Reporter;
@@ -39,4 +39,4 @@ exports.applyReporter = (runner, argv) => {
 	reporterOptions = reporterOptions.reduce((r, o) => Object.assign(r, parseReporterOption(o)), {});
 
 	return new Reporter(runner, { reporterOptions });
-}
+};

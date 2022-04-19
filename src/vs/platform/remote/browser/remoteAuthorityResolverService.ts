@@ -63,7 +63,8 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 			const pieces = authority.split(':');
 			return { authority: { authority, host: pieces[0], port: parseInt(pieces[1], 10), connectionToken } };
 		}
-		return { authority: { authority, host: authority, port: 80, connectionToken } };
+		const port = (/^https:/.test(window.location.href) ? 443 : 80);
+		return { authority: { authority, host: authority, port: port, connectionToken } };
 	}
 
 	_clearResolvedAuthority(authority: string): void {

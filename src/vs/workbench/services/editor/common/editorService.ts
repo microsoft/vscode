@@ -5,11 +5,13 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, IFindEditorOptions } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorGroup, IEditorReplacement, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ICloseEditorOptions, IEditorGroup, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
+import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -42,7 +44,15 @@ export interface ISaveEditorsOptions extends ISaveOptions {
 }
 
 export interface IUntypedEditorReplacement {
-	readonly editor: IEditorInput;
+
+	/**
+	 * The editor to replace.
+	 */
+	readonly editor: EditorInput;
+
+	/**
+	 * The replacement for the editor.
+	 */
 	readonly replacement: IUntypedEditorInput;
 
 	/**
@@ -78,6 +88,17 @@ export interface IOpenEditorsOptions {
 	readonly validateTrust?: boolean;
 }
 
+export interface IEditorsChangeEvent {
+	/**
+	 * The group which had the editor change
+	 */
+	groupId: GroupIdentifier;
+	/*
+	 * The event fired from the model
+	 */
+	event: IGroupModelChangeEvent;
+}
+
 export interface IEditorService {
 
 	readonly _serviceBrand: undefined;
@@ -97,14 +118,10 @@ export interface IEditorService {
 	readonly onDidVisibleEditorsChange: Event<void>;
 
 	/**
-	 * An aggregated event for a set of editor related events
-	 * across all editor groups:
-	 * - active editor changes
-	 * - editors opening/closing
-	 * - editors moving
-	 * - groups moving (unless they are empty)
+	 * An aggregated event for any change to any editor across
+	 * all groups.
 	 */
-	readonly onDidEditorsChange: Event<void>;
+	readonly onDidEditorsChange: Event<IEditorsChangeEvent>;
 
 	/**
 	 * Emitted when an editor is closed.
@@ -124,7 +141,7 @@ export interface IEditorService {
 	 * located in the currently active editor group. It will be `undefined` if the active
 	 * editor group has no editors open.
 	 */
-	readonly activeEditor: IEditorInput | undefined;
+	readonly activeEditor: EditorInput | undefined;
 
 	/**
 	 * The currently active text editor control or `undefined` if there is currently no active
@@ -135,11 +152,11 @@ export interface IEditorService {
 	readonly activeTextEditorControl: IEditor | IDiffEditor | undefined;
 
 	/**
-	 * The currently active text editor mode or `undefined` if there is currently no active
+	 * The currently active text editor language id or `undefined` if there is currently no active
 	 * editor or the active editor control is neither a text nor a diff editor. If the active
-	 * editor is a diff editor, the modified side's mode will be taken.
+	 * editor is a diff editor, the modified side's language id will be taken.
 	 */
-	readonly activeTextEditorMode: string | undefined;
+	readonly activeTextEditorLanguageId: string | undefined;
 
 	/**
 	 * All editor panes that are currently visible across all editor groups.
@@ -152,7 +169,7 @@ export interface IEditorService {
 	 * All editors that are currently visible. An editor is visible when it is opened in an
 	 * editor group and active in that group. Multiple editor groups can be opened at the same time.
 	 */
-	readonly visibleEditors: readonly IEditorInput[];
+	readonly visibleEditors: readonly EditorInput[];
 
 	/**
 	 * All text editor widgets that are currently visible across all editor groups. A text editor
@@ -166,7 +183,7 @@ export interface IEditorService {
 	 *
 	 * This includes active as well as inactive editors in each editor group.
 	 */
-	readonly editors: readonly IEditorInput[];
+	readonly editors: readonly EditorInput[];
 
 	/**
 	 * The total number of editors that are opened either inactive or active.
@@ -198,7 +215,20 @@ export interface IEditorService {
 	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditorPane | undefined>;
 	openEditor(editor: IUntypedEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
-	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
+
+	/**
+	 * @deprecated using this method is a sign that your editor has not adopted the editor
+	 * resolver yet. Please use `IEditorResolverService.registerEditor` to make your editor
+	 * known to the workbench and then use untyped editor inputs for opening:
+	 *
+	 * ```ts
+	 * editorService.openEditor({ resource });
+	 * ```
+	 *
+	 * If you already have an `EditorInput` in hand and must use it for opening, use `group.openEditor`
+	 * instead, via `IEditorGroupService`.
+	 */
+	openEditor(editor: EditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
 
 	/**
 	 * Open editors in an editor group.
@@ -225,11 +255,6 @@ export interface IEditorService {
 	replaceEditors(replacements: IUntypedEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
 
 	/**
-	 * @deprecated when using `IEditorInput`, please call `group.replaceEditors` directly.
-	 */
-	replaceEditors(replacements: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-
-	/**
 	 * Find out if the provided editor is opened in any editor group.
 	 *
 	 * Note: An editor can be opened but not actively visible.
@@ -242,7 +267,17 @@ export interface IEditorService {
 	/**
 	 * Find out if the provided editor is visible in any editor group.
 	 */
-	isVisible(editor: IEditorInput): boolean;
+	isVisible(editor: EditorInput): boolean;
+
+	/**
+	 * Close an editor in a specific editor group.
+	 */
+	closeEditor(editor: IEditorIdentifier, options?: ICloseEditorOptions): Promise<void>;
+
+	/**
+	 * Close multiple editors in specific editor groups.
+	 */
+	closeEditors(editors: readonly IEditorIdentifier[], options?: ICloseEditorOptions): Promise<void>;
 
 	/**
 	 * This method will return an entry for each editor that reports
@@ -253,10 +288,8 @@ export interface IEditorService {
 	 * same resource is opened in different editors. To find the specific
 	 * editor, use the `IResourceEditorInputIdentifier` as input.
 	 */
-	findEditors(resource: URI): readonly IEditorIdentifier[];
-	findEditors(editor: IResourceEditorInputIdentifier): readonly IEditorIdentifier[];
-	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): readonly IEditorInput[];
-	findEditors(editor: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
+	findEditors(resource: URI, options?: IFindEditorOptions): readonly IEditorIdentifier[];
+	findEditors(editor: IResourceEditorInputIdentifier, options?: IFindEditorOptions): readonly IEditorIdentifier[];
 
 	/**
 	 * Save the provided list of editors.

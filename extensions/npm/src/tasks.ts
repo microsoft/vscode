@@ -34,13 +34,13 @@ let cachedTasks: TaskWithLocation[] | undefined = undefined;
 const INSTALL_SCRIPT = 'install';
 
 export interface TaskLocation {
-	document: Uri,
-	line: Position
+	document: Uri;
+	line: Position;
 }
 
 export interface TaskWithLocation {
-	task: Task,
-	location?: Location
+	task: Task;
+	location?: Location;
 }
 
 export class NpmTaskProvider implements TaskProvider {
@@ -67,7 +67,7 @@ export class NpmTaskProvider implements TaskProvider {
 				return undefined;
 			}
 			if (kind.path) {
-				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/' + kind.path + 'package.json' });
+				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/' + kind.path + `${kind.path.endsWith('/') ? '' : '/'}` + 'package.json' });
 			} else {
 				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/package.json' });
 			}
@@ -105,23 +105,21 @@ function isTestTask(name: string): boolean {
 	return false;
 }
 
-function getPrePostScripts(scripts: any): Set<string> {
+function isPrePostScript(name: string): boolean {
 	const prePostScripts: Set<string> = new Set([
 		'preuninstall', 'postuninstall', 'prepack', 'postpack', 'preinstall', 'postinstall',
 		'prepack', 'postpack', 'prepublish', 'postpublish', 'preversion', 'postversion',
 		'prestop', 'poststop', 'prerestart', 'postrestart', 'preshrinkwrap', 'postshrinkwrap',
 		'pretest', 'postest', 'prepublishOnly'
 	]);
-	let keys = Object.keys(scripts);
-	for (const script of keys) {
-		const prepost = ['pre' + script, 'post' + script];
-		prepost.forEach(each => {
-			if (scripts[each] !== undefined) {
-				prePostScripts.add(each);
-			}
-		});
+
+	const prepost = ['pre' + name, 'post' + name];
+	for (const knownScript of prePostScripts) {
+		if (knownScript === prepost[0] || knownScript === prepost[1]) {
+			return true;
+		}
 	}
-	return prePostScripts;
+	return false;
 }
 
 export function isWorkspaceFolder(value: any): value is WorkspaceFolder {
@@ -132,11 +130,11 @@ export async function getPackageManager(extensionContext: ExtensionContext, fold
 	let packageManagerName = workspace.getConfiguration('npm', folder).get<string>('packageManager', 'npm');
 
 	if (packageManagerName === 'auto') {
-		const { name, multiplePMDetected } = await findPreferredPM(folder.fsPath);
+		const { name, multipleLockFilesDetected: multiplePMDetected } = await findPreferredPM(folder.fsPath);
 		packageManagerName = name;
 		const neverShowWarning = 'npm.multiplePMWarning.neverShow';
 		if (showWarning && multiplePMDetected && !extensionContext.globalState.get<boolean>(neverShowWarning)) {
-			const multiplePMWarning = localize('npm.multiplePMWarning', 'Using {0} as the preferred package manager. Found multiple lockfiles for {1}.', packageManagerName, folder.fsPath);
+			const multiplePMWarning = localize('npm.multiplePMWarning', 'Using {0} as the preferred package manager. Found multiple lockfiles for {1}.  To resolve this issue, delete the lockfiles that don\'t match your preferred package manager or change the setting "npm.packageManager" to a value other than "auto".', packageManagerName, folder.fsPath);
 			const neverShowAgain = localize('npm.multiplePMWarning.doNotShow', "Do not show again");
 			const learnMore = localize('npm.multiplePMWarning.learnMore', "Learn more");
 			window.showInformationMessage(multiplePMWarning, learnMore, neverShowAgain).then(result => {
@@ -277,26 +275,10 @@ async function provideNpmScriptsForFolder(context: ExtensionContext, packageJson
 
 	const result: TaskWithLocation[] = [];
 
-	const prePostScripts = getPrePostScripts(scripts);
 	const packageManager = await getPackageManager(context, folder.uri, showWarning);
 
 	for (const { name, value, nameRange } of scripts.scripts) {
-		const task = await createTask(packageManager, name, ['run', name], folder!, packageJsonUri, value);
-		const lowerCaseTaskName = name.toLowerCase();
-		if (isBuildTask(lowerCaseTaskName)) {
-			task.group = TaskGroup.Build;
-		} else if (isTestTask(lowerCaseTaskName)) {
-			task.group = TaskGroup.Test;
-		}
-		if (prePostScripts.has(name)) {
-			task.group = TaskGroup.Clean; // hack: use Clean group to tag pre/post scripts
-		}
-
-		// todo@connor4312: all scripts are now debuggable, what is a 'debug script'?
-		if (isDebugScript(value)) {
-			task.group = TaskGroup.Rebuild; // hack: use Rebuild group to tag debug scripts
-		}
-
+		const task = await createTask(packageManager, name, ['run', name], folder!, packageJsonUri, value, undefined);
 		result.push({ task, location: new Location(packageJsonUri, nameRange) });
 	}
 
@@ -312,7 +294,7 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 	return script;
 }
 
-export async function createTask(packageManager: string, script: NpmTaskDefinition | string, cmd: string[], folder: WorkspaceFolder, packageJsonUri: Uri, detail?: string, matcher?: any): Promise<Task> {
+export async function createTask(packageManager: string, script: NpmTaskDefinition | string, cmd: string[], folder: WorkspaceFolder, packageJsonUri: Uri, scriptValue?: string, matcher?: any): Promise<Task> {
 	let kind: NpmTaskDefinition;
 	if (typeof script === 'string') {
 		kind = { type: 'npm', script: script };
@@ -342,13 +324,25 @@ export async function createTask(packageManager: string, script: NpmTaskDefiniti
 	}
 
 	let relativePackageJson = getRelativePath(packageJsonUri);
-	if (relativePackageJson.length) {
-		kind.path = relativePackageJson;
+	if (relativePackageJson.length && !kind.path) {
+		kind.path = relativePackageJson.substring(0, relativePackageJson.length - 1);
 	}
 	let taskName = getTaskName(kind.script, relativePackageJson);
 	let cwd = path.dirname(packageJsonUri.fsPath);
 	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(packageManager, getCommandLine(cmd), { cwd: cwd }), matcher);
-	task.detail = detail;
+	task.detail = scriptValue;
+
+	const lowerCaseTaskName = kind.script.toLowerCase();
+	if (isBuildTask(lowerCaseTaskName)) {
+		task.group = TaskGroup.Build;
+	} else if (isTestTask(lowerCaseTaskName)) {
+		task.group = TaskGroup.Test;
+	} else if (isPrePostScript(lowerCaseTaskName)) {
+		task.group = TaskGroup.Clean; // hack: use Clean group to tag pre/post scripts
+	} else if (scriptValue && isDebugScript(scriptValue)) {
+		// todo@connor4312: all scripts are now debuggable, what is a 'debug script'?
+		task.group = TaskGroup.Rebuild; // hack: use Rebuild group to tag debug scripts
+	}
 	return task;
 }
 
@@ -416,7 +410,7 @@ export async function startDebugging(context: ExtensionContext, scriptName: stri
 }
 
 
-export type StringMap = { [s: string]: string; };
+export type StringMap = { [s: string]: string };
 
 export function findScriptAtPosition(document: TextDocument, buffer: string, position: Position): string | undefined {
 	const read = readScripts(document, buffer);

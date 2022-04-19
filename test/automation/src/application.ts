@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
 import { Workbench } from './workbench';
-import { Code, spawn, SpawnOptions } from './code';
-import { Logger } from './logger';
+import { Code, launch, LaunchOptions } from './code';
+import { Logger, measureAndLog } from './logger';
 
 export const enum Quality {
 	Dev,
@@ -15,33 +13,26 @@ export const enum Quality {
 	Stable
 }
 
-export interface ApplicationOptions extends SpawnOptions {
+export interface ApplicationOptions extends LaunchOptions {
 	quality: Quality;
-	workspacePath: string;
-	waitTime: number;
-	screenshotsPath: string | null;
+	readonly workspacePath: string;
 }
 
 export class Application {
-
-	private _code: Code | undefined;
-	private _workbench: Workbench | undefined;
 
 	constructor(private options: ApplicationOptions) {
 		this._userDataPath = options.userDataDir;
 		this._workspacePathOrFolder = options.workspacePath;
 	}
 
+	private _code: Code | undefined;
+	get code(): Code { return this._code!; }
+
+	private _workbench: Workbench | undefined;
+	get workbench(): Workbench { return this._workbench!; }
+
 	get quality(): Quality {
 		return this.options.quality;
-	}
-
-	get code(): Code {
-		return this._code!;
-	}
-
-	get workbench(): Workbench {
-		return this._workbench!;
 	}
 
 	get logger(): Logger {
@@ -70,76 +61,100 @@ export class Application {
 		return this._userDataPath;
 	}
 
-	async start(): Promise<any> {
+	async start(): Promise<void> {
 		await this._start();
 		await this.code.waitForElement('.explorer-folders-view');
 	}
 
-	async restart(options: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
-		await this.stop();
-		await new Promise(c => setTimeout(c, 1000));
-		await this._start(options.workspaceOrFolder, options.extraArgs);
+	async restart(options?: { workspaceOrFolder?: string; extraArgs?: string[] }): Promise<void> {
+		await measureAndLog((async () => {
+			await this.stop();
+			await this._start(options?.workspaceOrFolder, options?.extraArgs);
+		})(), 'Application#restart()', this.logger);
 	}
 
-	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<any> {
+	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<void> {
 		this._workspacePathOrFolder = workspaceOrFolder;
-		await this.startApplication(extraArgs);
-		await this.checkWindowReady();
+
+		// Launch Code...
+		const code = await this.startApplication(extraArgs);
+
+		// ...and make sure the window is ready to interact
+		await measureAndLog(this.checkWindowReady(code), 'Application#checkWindowReady()', this.logger);
 	}
 
-	async reload(): Promise<any> {
-		this.code.reload()
-			.catch(err => null); // ignore the connection drop errors
-
-		// needs to be enough to propagate the 'Reload Window' command
-		await new Promise(c => setTimeout(c, 1500));
-		await this.checkWindowReady();
-	}
-
-	async stop(): Promise<any> {
+	async stop(): Promise<void> {
 		if (this._code) {
-			await this._code.exit();
-			this._code.dispose();
-			this._code = undefined;
-		}
-	}
-
-	async captureScreenshot(name: string): Promise<void> {
-		if (this.options.screenshotsPath) {
-			const raw = await this.code.capturePage();
-			const buffer = Buffer.from(raw, 'base64');
-			const screenshotPath = path.join(this.options.screenshotsPath, `${name}.png`);
-			if (this.options.log) {
-				this.logger.log('*** Screenshot recorded:', screenshotPath);
+			try {
+				await this._code.exit();
+			} finally {
+				this._code = undefined;
 			}
-			fs.writeFileSync(screenshotPath, buffer);
 		}
 	}
 
-	private async startApplication(extraArgs: string[] = []): Promise<any> {
-		this._code = await spawn({
+	async startTracing(name: string): Promise<void> {
+		await this._code?.startTracing(name);
+	}
+
+	async stopTracing(name: string, persist: boolean): Promise<void> {
+		await this._code?.stopTracing(name, persist);
+	}
+
+	private async startApplication(extraArgs: string[] = []): Promise<Code> {
+		const code = this._code = await launch({
 			...this.options,
 			extraArgs: [...(this.options.extraArgs || []), ...extraArgs],
 		});
 
 		this._workbench = new Workbench(this._code, this.userDataPath);
+
+		return code;
 	}
 
-	private async checkWindowReady(): Promise<any> {
-		if (!this.code) {
-			console.error('No code instance found');
-			return;
-		}
+	private async checkWindowReady(code: Code): Promise<void> {
 
-		await this.code.waitForWindowIds(ids => ids.length > 0);
-		await this.code.waitForElement('.monaco-workbench');
+		// We need a rendered workbench
+		await this.checkWorkbenchReady(code);
 
+		// Remote but not web: wait for a remote connection state change
 		if (this.remote) {
-			await this.code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', ' TestResolver', undefined, 2000);
+			await measureAndLog(code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', undefined, statusHostLabel => {
+				this.logger.log(`checkWindowReady: remote indicator text is ${statusHostLabel}`);
+
+				// The absence of "Opening Remote" is not a strict
+				// indicator for a successful connection, but we
+				// want to avoid hanging here until timeout because
+				// this method is potentially called from a location
+				// that has no tracing enabled making it hard to
+				// diagnose this. As such, as soon as the connection
+				// state changes away from the "Opening Remote..." one
+				// we return.
+				return !statusHostLabel.includes('Opening Remote');
+			}, 300 /* = 30s of retry */), 'Application#checkWindowReady: wait for remote indicator', this.logger);
+		}
+	}
+
+	private async checkWorkbenchReady(code: Code): Promise<void> {
+
+		// Web / Legacy: just poll for workbench element
+		if (this.web) {
+			await measureAndLog(code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
 		}
 
-		// wait a bit, since focus might be stolen off widgets
-		// as soon as they open (e.g. quick access)
-		await new Promise(c => setTimeout(c, 1000));
+		// Desktop (playwright): we see hangs, where IPC messages
+		// are not delivered (https://github.com/microsoft/vscode/issues/146785)
+		// Workaround is to try to reload the window when that happens
+		else {
+			try {
+				await measureAndLog(code.waitForElement('.monaco-workbench', undefined, 100 /* 10s of retry */), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
+			} catch (error) {
+				this.logger.log(`checkWindowReady: giving up after 10s, reloading window and trying again...`);
+
+				await code.driver.reload();
+
+				return this.checkWorkbenchReady(code);
+			}
+		}
 	}
 }

@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { Change, IRemoteUserData, IResourcePreview as IBaseResourcePreview, IUserDataManifest, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, IRemoteUserData, IResourcePreview as IBaseResourcePreview, IUserDataManifest, IUserDataSyncConfiguration, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
 interface ITestResourcePreview extends IResourcePreview {
@@ -24,7 +24,7 @@ interface ITestResourcePreview extends IResourcePreview {
 class TestSynchroniser extends AbstractSynchroniser {
 
 	syncBarrier: Barrier = new Barrier();
-	syncResult: { hasConflicts: boolean, hasError: boolean } = { hasConflicts: false, hasError: false };
+	syncResult: { hasConflicts: boolean; hasError: boolean } = { hasConflicts: false, hasError: false };
 	onDoSyncCall: Emitter<void> = this._register(new Emitter<void>());
 	failWhenGettingLatestRemoteUserData: boolean = false;
 
@@ -41,7 +41,7 @@ class TestSynchroniser extends AbstractSynchroniser {
 		return super.getLatestRemoteUserData(manifest, lastSyncUserData);
 	}
 
-	protected override async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, apply: boolean): Promise<SyncStatus> {
+	protected override async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, apply: boolean, userDataSyncConfiguration: IUserDataSyncConfiguration): Promise<SyncStatus> {
 		this.cancelled = false;
 		this.onDoSyncCall.fire();
 		await this.syncBarrier.wait();
@@ -50,10 +50,10 @@ class TestSynchroniser extends AbstractSynchroniser {
 			return SyncStatus.Idle;
 		}
 
-		return super.doSync(remoteUserData, lastSyncUserData, apply);
+		return super.doSync(remoteUserData, lastSyncUserData, apply, userDataSyncConfiguration);
 	}
 
-	protected override async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean, token: CancellationToken): Promise<ITestResourcePreview[]> {
+	protected override async generateSyncPreview(remoteUserData: IRemoteUserData): Promise<ITestResourcePreview[]> {
 		if (this.syncResult.hasError) {
 			throw new Error('failed');
 		}
@@ -74,6 +74,10 @@ class TestSynchroniser extends AbstractSynchroniser {
 			remoteChange: Change.Modified,
 			acceptedResource: this.localResource.with(({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })),
 		}];
+	}
+
+	protected async hasRemoteChanged(lastSyncUserData: IRemoteUserData): Promise<boolean> {
+		return true;
 	}
 
 	protected async getMergeResult(resourcePreview: ITestResourcePreview, token: CancellationToken): Promise<IMergeResult> {
@@ -161,6 +165,8 @@ class TestSynchroniser extends AbstractSynchroniser {
 		this.onDidTriggerLocalChangeCall.fire();
 	}
 
+	hasLocalData(): Promise<boolean> { throw new Error('not implemented'); }
+	getAssociatedResources(): Promise<{ resource: URI; comparableResource: URI }[]> { throw new Error('not implemented'); }
 }
 
 suite('TestSynchronizer - Auto Sync', () => {
@@ -252,19 +258,6 @@ suite('TestSynchronizer - Auto Sync', () => {
 		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 
 		await testObject.stop();
-	});
-
-	test('sync should not run if disabled', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		client.instantiationService.get(IUserDataSyncResourceEnablementService).setResourceEnablement(testObject.resource, false);
-
-		const actual: SyncStatus[] = [];
-		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
-
-		await testObject.sync(await client.manifest());
-
-		assert.deepStrictEqual(actual, []);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 	});
 
 	test('sync should not run if there are conflicts', async () => {
@@ -506,7 +499,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
-		const preview = await testObject.preview(await client.manifest());
+		const preview = await testObject.preview(await client.manifest(), {});
 
 		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
@@ -518,7 +511,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 
 		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
@@ -532,7 +525,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 
 		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
@@ -546,7 +539,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
 
@@ -563,7 +556,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		await testObject.sync(await client.manifest());
 
 		const manifest = await client.manifest();
-		let preview = await testObject.preview(manifest);
+		let preview = await testObject.preview(manifest, {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.apply(false);
 
@@ -584,7 +577,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 
 		const manifest = await client.manifest();
 		const expectedContent = manifest!.latest![testObject.resource];
-		let preview = await testObject.preview(manifest);
+		let preview = await testObject.preview(manifest, {});
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.apply(false);
 
@@ -603,7 +596,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		await testObject.sync(await client.manifest());
 
 		const expectedContent = (await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString();
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
 		preview = await testObject.apply(false);
@@ -621,7 +614,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 
 		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
@@ -637,7 +630,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 
 		const manifest = await client.manifest();
 		const expectedContent = manifest!.latest![testObject.resource];
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.apply(false);
 
@@ -654,7 +647,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 
@@ -669,7 +662,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
@@ -685,7 +678,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 
@@ -700,7 +693,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
@@ -716,7 +709,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.merge(preview!.resourcePreviews[0].remoteResource);
@@ -732,7 +725,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
@@ -750,7 +743,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		await testObject.sync(await client.manifest());
 
 		const expectedContent = (await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString();
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
@@ -770,7 +763,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		await testObject.sync(await client.manifest());
 
 		const expectedContent = (await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString();
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
@@ -792,7 +785,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 
 		const manifest = await client.manifest();
 		const expectedContent = manifest!.latest![testObject.resource];
-		let preview = await testObject.preview(manifest);
+		let preview = await testObject.preview(manifest, {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
@@ -812,7 +805,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
-		const preview = await testObject.preview(await client.manifest());
+		const preview = await testObject.preview(await client.manifest(), {});
 
 		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
@@ -824,7 +817,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 
 		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
@@ -838,7 +831,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
-		const preview = await testObject.preview(await client.manifest());
+		const preview = await testObject.preview(await client.manifest(), {});
 		await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		await testObject.discard(preview!.resourcePreviews[0].previewResource);
 
@@ -853,7 +846,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		const content = await testObject.resolveContent(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, content);
@@ -872,7 +865,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		const manifest = await client.manifest();
 		const expectedContent = manifest!.latest![testObject.resource];
-		let preview = await testObject.preview(manifest);
+		let preview = await testObject.preview(manifest, {});
 
 		await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
@@ -891,7 +884,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		const content = await testObject.resolveContent(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, content);
 
@@ -909,7 +902,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		const manifest = await client.manifest();
 		const expectedContent = manifest!.latest![testObject.resource];
-		let preview = await testObject.preview(manifest);
+		let preview = await testObject.preview(manifest, {});
 
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.apply(false);
@@ -927,7 +920,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 
@@ -942,7 +935,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
@@ -958,7 +951,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 
@@ -973,7 +966,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
@@ -989,7 +982,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.merge(preview!.resourcePreviews[0].remoteResource);
@@ -1005,7 +998,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.merge(preview!.resourcePreviews[0].remoteResource);
@@ -1021,7 +1014,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		testObject.syncResult = { hasConflicts: false, hasError: false };
 		testObject.syncBarrier.open();
 
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
@@ -1039,7 +1032,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		await testObject.sync(await client.manifest());
 
 		const expectedContent = (await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString();
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
@@ -1059,7 +1052,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		await testObject.sync(await client.manifest());
 
 		const expectedContent = (await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString();
-		let preview = await testObject.preview(await client.manifest());
+		let preview = await testObject.preview(await client.manifest(), {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);

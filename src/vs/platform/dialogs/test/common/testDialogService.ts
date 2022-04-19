@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 
 export class TestDialogService implements IDialogService {
 
 	declare readonly _serviceBrand: undefined;
+
+	readonly onWillShowDialog = Event.None;
+	readonly onDidShowDialog = Event.None;
 
 	private confirmResult: IConfirmationResult | undefined = undefined;
 	setConfirmResult(result: IConfirmationResult) {

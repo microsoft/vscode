@@ -17,14 +17,7 @@ export interface IRemoteTerminalProcessReplayEvent {
 	events: ReplayEntry[];
 }
 
-export interface ITerminalSerializer {
-	handleData(data: string): void;
-	handleResize(cols: number, rows: number): void;
-	generateReplayEvent(): Promise<IPtyHostProcessReplayEvent>;
-	setUnicodeVersion?(version: '6' | '11'): void;
-}
-
-export class TerminalRecorder implements ITerminalSerializer {
+export class TerminalRecorder {
 
 	private _entries: RecorderEntry[];
 	private _totalDataLength: number = 0;
@@ -91,7 +84,12 @@ export class TerminalRecorder implements ITerminalSerializer {
 			}
 		});
 		return {
-			events: this._entries.map(entry => ({ cols: entry.cols, rows: entry.rows, data: entry.data[0] ?? '' }))
+			events: this._entries.map(entry => ({ cols: entry.cols, rows: entry.rows, data: entry.data[0] ?? '' })),
+			// No command restoration is needed when relaunching terminals
+			commands: {
+				isWindowsPty: false,
+				commands: []
+			}
 		};
 	}
 

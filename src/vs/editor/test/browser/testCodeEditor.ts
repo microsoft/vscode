@@ -3,42 +3,68 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IActiveCodeEditor, IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { EditorConfiguration, IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { View } from 'vs/editor/browser/view/viewImpl';
+import { View } from 'vs/editor/browser/view';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
-import { IConfiguration, IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ModelService } from 'vs/editor/common/services/modelService';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
 import { TestCodeEditorService, TestCommandService } from 'vs/editor/test/browser/editorTestServices';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { TestEditorWorkerService } from 'vs/editor/test/common/services/testEditorWorkerService';
+import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
+import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { TestClipboardService } from 'vs/platform/clipboard/test/common/testClipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { BrandedService, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { BrandedService, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { NullTelemetryServiceShape } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 
 export interface ITestCodeEditor extends IActiveCodeEditor {
 	getViewModel(): ViewModel | undefined;
 	registerAndInstantiateContribution<T extends IEditorContribution, Services extends BrandedService[]>(id: string, ctor: new (editor: ICodeEditor, ...services: Services) => T): T;
+	registerDisposable(disposable: IDisposable): void;
 }
 
 export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 
 	//#region testing overrides
-	protected override _createConfiguration(options: Readonly<IEditorConstructionOptions>): IConfiguration {
+	protected override _createConfiguration(isSimpleWidget: boolean, options: Readonly<IEditorConstructionOptions>): EditorConfiguration {
 		return new TestConfiguration(options);
 	}
 	protected override _createView(viewModel: ViewModel): [View, boolean] {
@@ -58,19 +84,13 @@ export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 	public getViewModel(): ViewModel | undefined {
 		return this._modelData ? this._modelData.viewModel : undefined;
 	}
-	public registerAndInstantiateContribution<T extends IEditorContribution, Services extends BrandedService[]>(id: string, ctor: new (editor: ICodeEditor, ...services: Services) => T): T {
-		const r: T = this._instantiationService.createInstance(ctor as IEditorContributionCtor, this);
+	public registerAndInstantiateContribution<T extends IEditorContribution>(id: string, ctor: new (editor: ICodeEditor, ...services: BrandedService[]) => T): T {
+		const r: T = this._instantiationService.createInstance(ctor, this);
 		this._contributions[id] = r;
 		return r;
 	}
-}
-
-class TestCodeEditorWithAutoModelDisposal extends TestCodeEditor {
-	public override dispose() {
-		super.dispose();
-		if (this._modelData) {
-			this._modelData.model.dispose();
-		}
+	public registerDisposable(disposable: IDisposable): void {
+		this._register(disposable);
 	}
 }
 
@@ -86,96 +106,121 @@ class TestEditorDomElement {
 
 export interface TestCodeEditorCreationOptions extends editorOptions.IEditorOptions {
 	/**
-	 * The initial model associated with this code editor.
-	 */
-	model?: ITextModel;
-	serviceCollection?: ServiceCollection;
-	/**
 	 * If the editor has text focus.
 	 * Defaults to true.
 	 */
 	hasTextFocus?: boolean;
 }
 
-export function withTestCodeEditor(text: string | string[] | null, options: TestCodeEditorCreationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel) => void): void {
-	// create a model if necessary and remember it in order to dispose it.
-	if (!options.model) {
-		if (typeof text === 'string') {
-			options.model = createTextModel(text);
-		} else if (text) {
-			options.model = createTextModel(text.join('\n'));
-		}
-	}
-
-	const editor = createTestCodeEditor(options);
-	const viewModel = editor.getViewModel()!;
-	viewModel.setHasFocus(true);
-	callback(<ITestCodeEditor>editor, editor.getViewModel()!);
-
-	editor.dispose();
+export interface TestCodeEditorInstantiationOptions extends TestCodeEditorCreationOptions {
+	/**
+	 * Services to use.
+	 */
+	serviceCollection?: ServiceCollection;
 }
 
-export async function withAsyncTestCodeEditor(text: string | string[] | null, options: TestCodeEditorCreationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel, instantiationService: IInstantiationService) => Promise<void>): Promise<void> {
-	// create a model if necessary and remember it in order to dispose it.
-	let model: TextModel | undefined;
-	if (!options.model) {
-		if (typeof text === 'string') {
-			model = options.model = createTextModel(text);
-		} else if (text) {
-			model = options.model = createTextModel(text.join('\n'));
-		}
-	}
-
-	const [instantiationService, editor, disposable] = doCreateTestCodeEditor(options);
-	const viewModel = editor.getViewModel()!;
-	viewModel.setHasFocus(true);
-	await callback(<ITestCodeEditor>editor, editor.getViewModel()!, instantiationService);
-
-	editor.dispose();
-	model?.dispose();
-	disposable.dispose();
+export function withTestCodeEditor(text: ITextModel | string | string[] | ITextBufferFactory, options: TestCodeEditorInstantiationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel, instantiationService: TestInstantiationService) => void): void {
+	return _withTestCodeEditor(text, options, callback);
 }
 
-export function createTestCodeEditor(options: TestCodeEditorCreationOptions): ITestCodeEditor {
-	const [, editor] = doCreateTestCodeEditor(options);
+export async function withAsyncTestCodeEditor(text: ITextModel | string | string[] | ITextBufferFactory, options: TestCodeEditorInstantiationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel, instantiationService: TestInstantiationService) => Promise<void>): Promise<void> {
+	return _withTestCodeEditor(text, options, callback);
+}
+
+function isTextModel(arg: ITextModel | string | string[] | ITextBufferFactory): arg is ITextModel {
+	return Boolean(arg && (arg as ITextModel).uri);
+}
+
+function _withTestCodeEditor(arg: ITextModel | string | string[] | ITextBufferFactory, options: TestCodeEditorInstantiationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel, instantiationService: TestInstantiationService) => void): void;
+function _withTestCodeEditor(arg: ITextModel | string | string[] | ITextBufferFactory, options: TestCodeEditorInstantiationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel, instantiationService: TestInstantiationService) => Promise<void>): Promise<void>;
+function _withTestCodeEditor(arg: ITextModel | string | string[] | ITextBufferFactory, options: TestCodeEditorInstantiationOptions, callback: (editor: ITestCodeEditor, viewModel: ViewModel, instantiationService: TestInstantiationService) => Promise<void> | void): Promise<void> | void {
+	const disposables = new DisposableStore();
+	const instantiationService = createCodeEditorServices(disposables, options.serviceCollection);
+	delete options.serviceCollection;
+
+	// create a model if necessary
+	let model: ITextModel;
+	if (isTextModel(arg)) {
+		model = arg;
+	} else {
+		model = disposables.add(instantiateTextModel(instantiationService, Array.isArray(arg) ? arg.join('\n') : arg));
+	}
+
+	const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model, options));
+	const viewModel = editor.getViewModel()!;
+	viewModel.setHasFocus(true);
+	const result = callback(<ITestCodeEditor>editor, editor.getViewModel()!, instantiationService);
+	if (result) {
+		return result.then(() => disposables.dispose());
+	}
+
+	disposables.dispose();
+}
+
+export function createCodeEditorServices(disposables: DisposableStore, services: ServiceCollection = new ServiceCollection()): TestInstantiationService {
+	const serviceIdentifiers: ServiceIdentifier<any>[] = [];
+	const define = <T>(id: ServiceIdentifier<T>, ctor: new (...args: any[]) => T) => {
+		if (!services.has(id)) {
+			services.set(id, new SyncDescriptor(ctor));
+		}
+		serviceIdentifiers.push(id);
+	};
+	const defineInstance = <T>(id: ServiceIdentifier<T>, instance: T) => {
+		if (!services.has(id)) {
+			services.set(id, instance);
+		}
+		serviceIdentifiers.push(id);
+	};
+
+	define(IAccessibilityService, TestAccessibilityService);
+	define(IClipboardService, TestClipboardService);
+	define(IEditorWorkerService, TestEditorWorkerService);
+	defineInstance(IOpenerService, NullOpenerService);
+	define(INotificationService, TestNotificationService);
+	define(IDialogService, TestDialogService);
+	define(IUndoRedoService, UndoRedoService);
+	define(ILanguageService, LanguageService);
+	define(ILanguageConfigurationService, TestLanguageConfigurationService);
+	define(IConfigurationService, TestConfigurationService);
+	define(ITextResourcePropertiesService, TestTextResourcePropertiesService);
+	define(IThemeService, TestThemeService);
+	define(ILogService, NullLogService);
+	define(IModelService, ModelService);
+	define(ICodeEditorService, TestCodeEditorService);
+	define(IContextKeyService, MockContextKeyService);
+	define(ICommandService, TestCommandService);
+	define(ITelemetryService, NullTelemetryServiceShape);
+	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
+	define(ILanguageFeaturesService, LanguageFeaturesService);
+
+	const instantiationService = new TestInstantiationService(services, true);
+	disposables.add(toDisposable(() => {
+		for (const id of serviceIdentifiers) {
+			const instanceOrDescriptor = services.get(id);
+			if (typeof instanceOrDescriptor.dispose === 'function') {
+				instanceOrDescriptor.dispose();
+			}
+		}
+	}));
+	return instantiationService;
+}
+
+export function createTestCodeEditor(model: ITextModel | undefined, options: TestCodeEditorInstantiationOptions = {}): ITestCodeEditor {
+	const disposables = new DisposableStore();
+	const instantiationService = createCodeEditorServices(disposables, options.serviceCollection);
+	delete options.serviceCollection;
+
+	const editor = instantiateTestCodeEditor(instantiationService, model || null, options);
+	editor.registerDisposable(disposables);
 	return editor;
 }
 
-function doCreateTestCodeEditor(options: TestCodeEditorCreationOptions): [IInstantiationService, ITestCodeEditor, IDisposable] {
-	const store = new DisposableStore();
-
-	const model = options.model;
-	delete options.model;
-
-	const services: ServiceCollection = options.serviceCollection || new ServiceCollection();
-	delete options.serviceCollection;
-
-	const instantiationService: IInstantiationService = new InstantiationService(services);
-
-	if (!services.has(ICodeEditorService)) {
-		services.set(ICodeEditorService, store.add(new TestCodeEditorService()));
-	}
-	if (!services.has(IContextKeyService)) {
-		services.set(IContextKeyService, store.add(new MockContextKeyService()));
-	}
-	if (!services.has(INotificationService)) {
-		services.set(INotificationService, new TestNotificationService());
-	}
-	if (!services.has(ICommandService)) {
-		services.set(ICommandService, new TestCommandService(instantiationService));
-	}
-	if (!services.has(IThemeService)) {
-		services.set(IThemeService, new TestThemeService());
-	}
-	if (!services.has(ITelemetryService)) {
-		services.set(ITelemetryService, NullTelemetryService);
-	}
-
+export function instantiateTestCodeEditor(instantiationService: IInstantiationService, model: ITextModel | null, options: TestCodeEditorCreationOptions = {}): ITestCodeEditor {
 	const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 		contributions: []
 	};
 	const editor = instantiationService.createInstance(
-		TestCodeEditorWithAutoModelDisposal,
+		TestCodeEditor,
 		<HTMLElement><any>new TestEditorDomElement(),
 		options,
 		codeEditorWidgetOptions
@@ -185,5 +230,7 @@ function doCreateTestCodeEditor(options: TestCodeEditorCreationOptions): [IInsta
 	}
 	editor.setHasTextFocus(options.hasTextFocus);
 	editor.setModel(model);
-	return [instantiationService, <ITestCodeEditor>editor, store];
+	const viewModel = editor.getViewModel();
+	viewModel?.setHasFocus(options.hasTextFocus);
+	return <ITestCodeEditor>editor;
 }

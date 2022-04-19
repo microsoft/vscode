@@ -7,17 +7,19 @@ import * as vscode from 'vscode';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostTimelineShape, MainThreadTimelineShape, IMainContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { Timeline, TimelineItem, TimelineOptions, TimelineProvider, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
+import { Timeline, TimelineItem, TimelineOptions, TimelineProvider } from 'vs/workbench/contrib/timeline/common/timeline';
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
+import { ThemeIcon, MarkdownString as MarkdownStringType } from 'vs/workbench/api/common/extHostTypes';
+import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { isString } from 'vs/base/common/types';
 
 export interface IExtHostTimeline extends ExtHostTimelineShape {
 	readonly _serviceBrand: undefined;
-	$getTimeline(id: string, uri: UriComponents, options: vscode.TimelineOptions, token: vscode.CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
+	$getTimeline(id: string, uri: UriComponents, options: vscode.TimelineOptions, token: vscode.CancellationToken): Promise<Timeline | undefined>;
 }
 
 export const IExtHostTimeline = createDecorator<IExtHostTimeline>('IExtHostTimeline');
@@ -49,9 +51,9 @@ export class ExtHostTimeline implements IExtHostTimeline {
 		});
 	}
 
-	async $getTimeline(id: string, uri: UriComponents, options: vscode.TimelineOptions, token: vscode.CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined> {
+	async $getTimeline(id: string, uri: UriComponents, options: vscode.TimelineOptions, token: vscode.CancellationToken): Promise<Timeline | undefined> {
 		const provider = this._providers.get(id);
-		return provider?.provideTimeline(URI.revive(uri), options, token, internalOptions);
+		return provider?.provideTimeline(URI.revive(uri), options, token);
 	}
 
 	registerTimelineProvider(scheme: string | string[], provider: vscode.TimelineProvider, _extensionId: ExtensionIdentifier, commandConverter: CommandsConverter): IDisposable {
@@ -69,8 +71,8 @@ export class ExtHostTimeline implements IExtHostTimeline {
 			...provider,
 			scheme: scheme,
 			onDidChange: undefined,
-			async provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions) {
-				if (internalOptions?.resetCache) {
+			async provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken) {
+				if (options?.resetCache) {
 					timelineDisposables.clear();
 
 					// For now, only allow the caching of a single Uri
@@ -85,7 +87,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 
 				// TODO: Should we bother converting all the data if we aren't caching? Meaning it is being requested by an extension?
 
-				const convertItem = convertTimelineItem(uri, internalOptions);
+				const convertItem = convertTimelineItem(uri, options);
 				return {
 					...result,
 					source: provider.id,
@@ -104,7 +106,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 	}
 
 	private convertTimelineItem(source: string, commandConverter: CommandsConverter, disposables: DisposableStore) {
-		return (uri: URI, options?: InternalTimelineOptions) => {
+		return (uri: URI, options?: TimelineOptions) => {
 			let items: Map<string, vscode.TimelineItem> | undefined;
 			if (options?.cacheResults) {
 				let itemsByUri = this._itemsBySourceAndUriMap.get(source);
@@ -143,6 +145,23 @@ export class ExtHostTimeline implements IExtHostTimeline {
 					}
 				}
 
+				let tooltip;
+				if (MarkdownStringType.isMarkdownString(props.tooltip)) {
+					tooltip = MarkdownString.from(props.tooltip);
+				}
+				else if (isString(props.tooltip)) {
+					tooltip = props.tooltip;
+				}
+				// TODO @jkearl, remove once migration complete.
+				else if (MarkdownStringType.isMarkdownString((props as any).detail)) {
+					console.warn('Using deprecated TimelineItem.detail, migrate to TimelineItem.tooltip');
+					tooltip = MarkdownString.from((props as any).detail);
+				}
+				else if (isString((props as any).detail)) {
+					console.warn('Using deprecated TimelineItem.detail, migrate to TimelineItem.tooltip');
+					tooltip = (props as any).detail;
+				}
+
 				return {
 					...props,
 					id: props.id ?? undefined,
@@ -152,6 +171,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 					icon: icon,
 					iconDark: iconDark,
 					themeIcon: themeIcon,
+					tooltip,
 					accessibilityInformation: item.accessibilityInformation
 				};
 			};

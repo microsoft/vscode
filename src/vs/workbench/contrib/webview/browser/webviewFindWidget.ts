@@ -14,20 +14,24 @@ export interface WebviewFindDelegate {
 	readonly onDidStopFind: Event<void>;
 	readonly checkImeCompletionState: boolean;
 	find(value: string, previous: boolean): void;
-	startFind(value: string): void;
+	updateFind(value: string): void;
 	stopFind(keepSelection?: boolean): void;
 	focus(): void;
 }
 
 export class WebviewFindWidget extends SimpleFindWidget {
-	protected _findWidgetFocused: IContextKey<boolean>;
+	protected async _getResultCount(dataChanged?: boolean): Promise<{ resultIndex: number; resultCount: number } | undefined> {
+		return undefined;
+	}
+
+	protected readonly _findWidgetFocused: IContextKey<boolean>;
 
 	constructor(
 		private readonly _delegate: WebviewFindDelegate,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(contextViewService, contextKeyService, undefined, false, _delegate.checkImeCompletionState);
+		super(contextViewService, contextKeyService, undefined, { showOptionButtons: false, checkImeCompletionState: _delegate.checkImeCompletionState });
 		this._findWidgetFocused = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 
 		this._register(_delegate.hasFindResult(hasResult => {
@@ -53,10 +57,10 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		this._delegate.focus();
 	}
 
-	public _onInputChanged(): boolean {
+	protected _onInputChanged(): boolean {
 		const val = this.inputValue;
 		if (val) {
-			this._delegate.startFind(val);
+			this._delegate.updateFind(val);
 		} else {
 			this._delegate.stopFind(false);
 		}

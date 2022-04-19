@@ -17,6 +17,7 @@ import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
+let logIfWslNotInstalled: boolean = true;
 
 export function detectAvailableProfiles(
 	profiles: unknown,
@@ -27,7 +28,7 @@ export function detectAvailableProfiles(
 	fsProvider?: IFsProvider,
 	logService?: ILogService,
 	variableResolver?: (text: string[]) => Promise<string[]>,
-	testPwshSourcePaths?: string[],
+	testPwshSourcePaths?: string[]
 ): Promise<ITerminalProfile[]> {
 	fsProvider = fsProvider || {
 		existsFile: pfs.SymlinkSupport.existsFile,
@@ -130,7 +131,10 @@ async function detectAvailableWindowsProfiles(
 				}
 			}
 		} catch (e) {
-			logService?.info('WSL is not installed, so could not detect WSL profiles');
+			if (logIfWslNotInstalled) {
+				logService?.info('WSL is not installed, so could not detect WSL profiles');
+				logIfWslNotInstalled = false;
+			}
 		}
 	}
 
@@ -150,7 +154,7 @@ async function transformToTerminalProfiles(
 		if (profile === null) { continue; }
 		let originalPaths: string[];
 		let args: string[] | string | undefined;
-		let icon: ThemeIcon | URI | { light: URI, dark: URI } | undefined = undefined;
+		let icon: ThemeIcon | URI | { light: URI; dark: URI } | undefined = undefined;
 		if ('source' in profile) {
 			const source = profileSources?.get(profile.source);
 			if (!source) {
@@ -168,7 +172,7 @@ async function transformToTerminalProfiles(
 		} else {
 			originalPaths = Array.isArray(profile.path) ? profile.path : [profile.path];
 			args = isWindows ? profile.args : Array.isArray(profile.args) ? profile.args : undefined;
-			icon = validateIcon(profile.icon) || undefined;
+			icon = validateIcon(profile.icon);
 		}
 
 		const paths = (await variableResolver?.(originalPaths)) || originalPaths.slice();
@@ -232,7 +236,7 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 	const profiles: ITerminalProfile[] = [];
 	const distroOutput = await new Promise<string>((resolve, reject) => {
 		// wsl.exe output is encoded in utf16le (ie. A -> 0x4100)
-		cp.exec('wsl.exe -l -q', { encoding: 'utf16le' }, (err, stdout) => {
+		cp.exec('wsl.exe -l -q', { encoding: 'utf16le', timeout: 1000 }, (err, stdout) => {
 			if (err) {
 				return reject('Problem occurred when getting wsl distros');
 			}
@@ -263,7 +267,8 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 			path: wslPath,
 			args: [`-d`, `${distroName}`],
 			isDefault: profileName === defaultProfileName,
-			icon: getWslIcon(distroName)
+			icon: getWslIcon(distroName),
+			isAutoDetected: false
 		};
 		// Add the profile
 		profiles.push(profile);
@@ -323,6 +328,7 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: IUnresolvedTe
 		if (value === null || (!('path' in value) && !('source' in value))) {
 			profilesMap.delete(profileName);
 		} else {
+			value.icon = value.icon || profilesMap.get(profileName)?.icon;
 			profilesMap.set(profileName, value);
 		}
 	}
@@ -347,6 +353,8 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 		if (!executable) {
 			return validateProfilePaths(profileName, defaultProfileName, potentialPaths, fsProvider, shellEnv, args);
 		}
+		profile.path = executable;
+		profile.isFromPath = true;
 		return profile;
 	}
 
@@ -359,7 +367,7 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 }
 
 export interface IFsProvider {
-	existsFile(path: string): Promise<boolean>,
+	existsFile(path: string): Promise<boolean>;
 	readFile(path: string): Promise<Buffer>;
 }
 
@@ -371,7 +379,7 @@ interface IPotentialTerminalProfile {
 	profileName: string;
 	paths: string[];
 	args?: string[];
-	icon?: ThemeIcon | URI | { light: URI, dark: URI };
+	icon?: ThemeIcon | URI | { light: URI; dark: URI };
 }
 
 export type IUnresolvedTerminalProfile = ITerminalExecutable | ITerminalProfileSource | null;

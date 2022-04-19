@@ -49,7 +49,7 @@ export function applyLineChanges(original: TextDocument, modified: TextDocument,
 	return result.join('');
 }
 
-export function toLineRanges(selections: Selection[], textDocument: TextDocument): Range[] {
+export function toLineRanges(selections: readonly Selection[], textDocument: TextDocument): Range[] {
 	const lineRanges = selections.map(s => {
 		const startLine = textDocument.lineAt(s.start.line);
 		const endLine = textDocument.lineAt(s.end.line);

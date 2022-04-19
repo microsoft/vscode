@@ -8,7 +8,8 @@ import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, IWorkspaceIdentifier, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
 
 suite('History Storage', () => {
 
@@ -104,39 +105,6 @@ suite('History Storage', () => {
 			workspaces: [{ label: 'def', remoteAuthority: 'test', workspace: toWorkspace(testWSPath) }, { folderUri: testRemoteFolderURI, remoteAuthority: 'test' }]
 		};
 		assertRestoring(ro, 'authority');
-	});
-
-	test('open 1_33', () => {
-		const v1_33 = `{
-			"workspaces3": [
-				{
-					"id": "53b714b46ef1a2d4346568b4f591028c",
-					"configURIPath": "file:///home/user/workspaces/testing/custom.code-workspace"
-				},
-				"file:///home/user/workspaces/testing/folding"
-			],
-			"files2": [
-				"file:///home/user/.config/code-oss-dev/storage.json"
-			],
-			"workspaceLabels": [
-				null,
-				"abc"
-			],
-			"fileLabels": [
-				"def"
-			]
-		}`;
-
-		let windowsState = restoreRecentlyOpened(JSON.parse(v1_33), new NullLogService());
-		let expected: IRecentlyOpened = {
-			files: [{ label: 'def', fileUri: URI.parse('file:///home/user/.config/code-oss-dev/storage.json') }],
-			workspaces: [
-				{ workspace: { id: '53b714b46ef1a2d4346568b4f591028c', configPath: URI.parse('file:///home/user/workspaces/testing/custom.code-workspace') } },
-				{ label: 'abc', folderUri: URI.parse('file:///home/user/workspaces/testing/folding') }
-			]
-		};
-
-		assertEqualRecentlyOpened(windowsState, expected, 'v1_33');
 	});
 
 	test('open 1_55', () => {

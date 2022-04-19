@@ -80,6 +80,8 @@
 }
 
 .monaco-workbench.hc-black .open-editors .open-editor,
-.monaco-workbench.hc-black .open-editors .editor-group {
+.monaco-workbench.hc-black .open-editors .editor-group,
+.monaco-workbench.hc-light .open-editors .open-editor,
+.monaco-workbench.hc-light .open-editors .editor-group {
 	line-height: 20px;
 }

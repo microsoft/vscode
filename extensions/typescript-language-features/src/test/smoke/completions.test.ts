@@ -14,7 +14,7 @@ const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 const insertModes = Object.freeze(['insert', 'replace']);
 
 suite.skip('TypeScript Completions', () => {
-	const configDefaults: VsCodeConfiguration = Object.freeze({
+	const configDefaults = Object.freeze<VsCodeConfiguration>({
 		[Config.autoClosingBrackets]: 'always',
 		[Config.typescriptCompleteFunctionCalls]: false,
 		[Config.insertMode]: 'insert',
@@ -98,7 +98,7 @@ suite.skip('TypeScript Completions', () => {
 		});
 	});
 
-	test('Should insert backets when completing dot properties with spaces in name', async () => {
+	test('Should insert brackets when completing dot properties with spaces in name', async () => {
 		await enumerateConfig(testDocumentUri, Config.insertMode, insertModes, async config => {
 			const editor = await createTestEditor(testDocumentUri,
 				'const x = { "hello world": 1 };',

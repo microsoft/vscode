@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../commandManager';
-import { MarkdownPreviewManager } from '../features/previewManager';
+import { MarkdownPreviewManager } from '../preview/previewManager';
 
 export class ShowSourceCommand implements Command {
 	public readonly id = 'markdown.showSource';
@@ -18,7 +18,7 @@ export class ShowSourceCommand implements Command {
 		const { activePreviewResource, activePreviewResourceColumn } = this.previewManager;
 		if (activePreviewResource && activePreviewResourceColumn) {
 			return vscode.workspace.openTextDocument(activePreviewResource).then(document => {
-				vscode.window.showTextDocument(document, activePreviewResourceColumn);
+				return vscode.window.showTextDocument(document, activePreviewResourceColumn);
 			});
 		}
 		return undefined;

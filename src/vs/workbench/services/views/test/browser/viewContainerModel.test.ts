@@ -16,6 +16,8 @@ import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewD
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Event } from 'vs/base/common/event';
+import { getViewsStateStorageId } from 'vs/workbench/services/views/common/viewContainerModel';
 
 const ViewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
@@ -47,7 +49,7 @@ suite('ViewContainerModel', () => {
 
 	setup(() => {
 		disposableStore = new DisposableStore();
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposableStore);
 		contextKeyService = instantiationService.createInstance(ContextKeyService);
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		storageService = instantiationService.get(IStorageService);
@@ -376,7 +378,8 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should disappear after setting visibility to false');
 		assert.strictEqual(target.elements.length, 0);
 
-		const targetEvent = sinon.spy(testObject.onDidRemoveVisibleViewDescriptors);
+		const targetEvent = sinon.spy();
+		testObject.onDidRemoveVisibleViewDescriptors(targetEvent);
 		key.set(false);
 		await new Promise(c => setTimeout(c, 30));
 		assert.ok(!targetEvent.called, 'remove event should not be called since it is already hidden');
@@ -401,7 +404,8 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
 		assert.strictEqual(target.elements.length, 0);
 
-		const targetEvent = sinon.spy(testObject.onDidAddVisibleViewDescriptors);
+		const targetEvent = sinon.spy();
+		testObject.onDidAddVisibleViewDescriptors(targetEvent);
 		testObject.setVisible('view1', true);
 		assert.ok(!targetEvent.called, 'add event should not be called since it is already visible');
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
@@ -427,7 +431,8 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
 		assert.strictEqual(target.elements.length, 0);
 
-		const targetEvent = sinon.spy(testObject.onDidAddVisibleViewDescriptors);
+		const targetEvent = sinon.spy();
+		testObject.onDidAddVisibleViewDescriptors(targetEvent);
 		testObject.setVisible('view1', false);
 		assert.ok(!targetEvent.called, 'add event should not be called since it is disabled');
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
@@ -457,7 +462,8 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
 		assert.strictEqual(target.elements.length, 0);
 
-		const targetEvent = sinon.spy(testObject.onDidAddVisibleViewDescriptors);
+		const targetEvent = sinon.spy();
+		testObject.onDidAddVisibleViewDescriptors(targetEvent);
 		testObject.setVisible('view1', true);
 		assert.ok(!targetEvent.called, 'add event should not be called since it is disabled');
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
@@ -513,6 +519,292 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(target.elements[2].id, 'view3');
 		assert.strictEqual(target.elements[3].id, 'view4');
 		assert.strictEqual(target.elements[4].id, 'view5');
+	});
+
+	test('add event is triggered only once when view is set visible while it is set active', async function () {
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+		const viewDescriptor: IViewDescriptor = {
+			id: 'view1',
+			ctorDescriptor: null!,
+			name: 'Test View 1',
+			when: ContextKeyExpr.equals('showview1', true),
+			canToggleVisibility: true
+		};
+
+		const key = contextKeyService.createKey('showview1', true);
+		key.set(false);
+		ViewsRegistry.registerViews([viewDescriptor], container);
+		testObject.setVisible('view1', false);
+
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
+
+		const targetEvent = sinon.spy();
+		testObject.onDidAddVisibleViewDescriptors(targetEvent);
+		Event.once(testObject.onDidChangeActiveViewDescriptors)(() => testObject.setVisible('view1', true));
+		key.set(true);
+		await new Promise(c => setTimeout(c, 30));
+		assert.strictEqual(targetEvent.callCount, 1);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 1);
+		assert.strictEqual(target.elements.length, 1);
+		assert.strictEqual(target.elements[0].id, 'view1');
+	});
+
+	test('add event is not triggered only when view is set hidden while it is set active', async function () {
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+		const viewDescriptor: IViewDescriptor = {
+			id: 'view1',
+			ctorDescriptor: null!,
+			name: 'Test View 1',
+			when: ContextKeyExpr.equals('showview1', true),
+			canToggleVisibility: true
+		};
+
+		const key = contextKeyService.createKey('showview1', true);
+		key.set(false);
+		ViewsRegistry.registerViews([viewDescriptor], container);
+
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
+
+		const targetEvent = sinon.spy();
+		testObject.onDidAddVisibleViewDescriptors(targetEvent);
+		Event.once(testObject.onDidChangeActiveViewDescriptors)(() => testObject.setVisible('view1', false));
+		key.set(true);
+		await new Promise(c => setTimeout(c, 30));
+		assert.strictEqual(targetEvent.callCount, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
+	});
+
+	test('#142087: view descriptor visibility is not reset', async function () {
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const viewDescriptor: IViewDescriptor = {
+			id: 'view1',
+			ctorDescriptor: null!,
+			name: 'Test View 1',
+			canToggleVisibility: true
+		};
+
+		storageService.store(getViewsStateStorageId('test.state'), JSON.stringify([{
+			id: viewDescriptor.id,
+			isHidden: true,
+			order: undefined
+		}]), StorageScope.GLOBAL, StorageTarget.USER);
+
+		ViewsRegistry.registerViews([viewDescriptor], container);
+
+		assert.strictEqual(testObject.isVisible(viewDescriptor.id), false);
+		assert.strictEqual(testObject.activeViewDescriptors[0].id, viewDescriptor.id);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+	});
+
+	test('remove event is triggered properly if mutliple views are hidden at the same time', async function () {
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+		const viewDescriptor1: IViewDescriptor = {
+			id: 'view1',
+			ctorDescriptor: null!,
+			name: 'Test View 1',
+			canToggleVisibility: true
+		};
+		const viewDescriptor2: IViewDescriptor = {
+			id: 'view2',
+			ctorDescriptor: null!,
+			name: 'Test View 2',
+			canToggleVisibility: true
+		};
+		const viewDescriptor3: IViewDescriptor = {
+			id: 'view3',
+			ctorDescriptor: null!,
+			name: 'Test View 3',
+			canToggleVisibility: true
+		};
+
+		ViewsRegistry.registerViews([viewDescriptor1, viewDescriptor2, viewDescriptor3], container);
+
+		const remomveEvent = sinon.spy();
+		testObject.onDidRemoveVisibleViewDescriptors(remomveEvent);
+
+		const addEvent = sinon.spy();
+		testObject.onDidAddVisibleViewDescriptors(addEvent);
+
+		storageService.store(getViewsStateStorageId('test.state'), JSON.stringify([{
+			id: viewDescriptor1.id,
+			isHidden: false,
+			order: undefined
+		}, {
+			id: viewDescriptor2.id,
+			isHidden: true,
+			order: undefined
+		}, {
+			id: viewDescriptor3.id,
+			isHidden: true,
+			order: undefined
+		}]), StorageScope.GLOBAL, StorageTarget.USER);
+
+		assert.ok(!addEvent.called, 'add event should not be called');
+		assert.ok(remomveEvent.calledOnce, 'remove event should be called');
+		assert.deepStrictEqual(remomveEvent.args[0][0], [{
+			viewDescriptor: viewDescriptor3,
+			index: 2
+		}, {
+			viewDescriptor: viewDescriptor2,
+			index: 1
+		}]);
+		assert.strictEqual(target.elements.length, 1);
+		assert.strictEqual(target.elements[0].id, viewDescriptor1.id);
+	});
+
+	test('add event is triggered properly if mutliple views are hidden at the same time', async function () {
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+		const viewDescriptor1: IViewDescriptor = {
+			id: 'view1',
+			ctorDescriptor: null!,
+			name: 'Test View 1',
+			canToggleVisibility: true
+		};
+		const viewDescriptor2: IViewDescriptor = {
+			id: 'view2',
+			ctorDescriptor: null!,
+			name: 'Test View 2',
+			canToggleVisibility: true
+		};
+		const viewDescriptor3: IViewDescriptor = {
+			id: 'view3',
+			ctorDescriptor: null!,
+			name: 'Test View 3',
+			canToggleVisibility: true
+		};
+
+		ViewsRegistry.registerViews([viewDescriptor1, viewDescriptor2, viewDescriptor3], container);
+		testObject.setVisible(viewDescriptor1.id, false);
+		testObject.setVisible(viewDescriptor3.id, false);
+
+		const removeEvent = sinon.spy();
+		testObject.onDidRemoveVisibleViewDescriptors(removeEvent);
+
+		const addEvent = sinon.spy();
+		testObject.onDidAddVisibleViewDescriptors(addEvent);
+
+		storageService.store(getViewsStateStorageId('test.state'), JSON.stringify([{
+			id: viewDescriptor1.id,
+			isHidden: false,
+			order: undefined
+		}, {
+			id: viewDescriptor2.id,
+			isHidden: false,
+			order: undefined
+		}, {
+			id: viewDescriptor3.id,
+			isHidden: false,
+			order: undefined
+		}]), StorageScope.GLOBAL, StorageTarget.USER);
+
+		assert.ok(!removeEvent.called, 'remove event should not be called');
+
+		assert.ok(addEvent.calledOnce, 'add event should be called once');
+		assert.deepStrictEqual(addEvent.args[0][0], [{
+			viewDescriptor: viewDescriptor1,
+			index: 0,
+			collapsed: false,
+			size: undefined
+		}, {
+			viewDescriptor: viewDescriptor3,
+			index: 2,
+			collapsed: false,
+			size: undefined
+		}]);
+
+		assert.strictEqual(target.elements.length, 3);
+		assert.strictEqual(target.elements[0].id, viewDescriptor1.id);
+		assert.strictEqual(target.elements[1].id, viewDescriptor2.id);
+		assert.strictEqual(target.elements[2].id, viewDescriptor3.id);
+	});
+
+	test('add and remove events are triggered properly if mutliple views are hidden and added at the same time', async function () {
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+		const viewDescriptor1: IViewDescriptor = {
+			id: 'view1',
+			ctorDescriptor: null!,
+			name: 'Test View 1',
+			canToggleVisibility: true
+		};
+		const viewDescriptor2: IViewDescriptor = {
+			id: 'view2',
+			ctorDescriptor: null!,
+			name: 'Test View 2',
+			canToggleVisibility: true
+		};
+		const viewDescriptor3: IViewDescriptor = {
+			id: 'view3',
+			ctorDescriptor: null!,
+			name: 'Test View 3',
+			canToggleVisibility: true
+		};
+		const viewDescriptor4: IViewDescriptor = {
+			id: 'view4',
+			ctorDescriptor: null!,
+			name: 'Test View 4',
+			canToggleVisibility: true
+		};
+
+		ViewsRegistry.registerViews([viewDescriptor1, viewDescriptor2, viewDescriptor3, viewDescriptor4], container);
+		testObject.setVisible(viewDescriptor1.id, false);
+
+		const removeEvent = sinon.spy();
+		testObject.onDidRemoveVisibleViewDescriptors(removeEvent);
+
+		const addEvent = sinon.spy();
+		testObject.onDidAddVisibleViewDescriptors(addEvent);
+
+		storageService.store(getViewsStateStorageId('test.state'), JSON.stringify([{
+			id: viewDescriptor1.id,
+			isHidden: false,
+			order: undefined
+		}, {
+			id: viewDescriptor2.id,
+			isHidden: true,
+			order: undefined
+		}, {
+			id: viewDescriptor3.id,
+			isHidden: false,
+			order: undefined
+		}, {
+			id: viewDescriptor4.id,
+			isHidden: true,
+			order: undefined
+		}]), StorageScope.GLOBAL, StorageTarget.USER);
+
+		assert.ok(removeEvent.calledOnce, 'remove event should be called once');
+		assert.deepStrictEqual(removeEvent.args[0][0], [{
+			viewDescriptor: viewDescriptor4,
+			index: 2
+		}, {
+			viewDescriptor: viewDescriptor2,
+			index: 0
+		}]);
+
+		assert.ok(addEvent.calledOnce, 'add event should be called once');
+		assert.deepStrictEqual(addEvent.args[0][0], [{
+			viewDescriptor: viewDescriptor1,
+			index: 0,
+			collapsed: false,
+			size: undefined
+		}]);
+		assert.strictEqual(target.elements.length, 2);
+		assert.strictEqual(target.elements[0].id, viewDescriptor1.id);
+		assert.strictEqual(target.elements[1].id, viewDescriptor3.id);
 	});
 
 });

@@ -3,7 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference path='../../../../src/vs/vscode.d.ts'/>
-/// <reference path='../../../../src/vs/vscode.proposed.d.ts'/>
-
 declare module 'markdown-it-front-matter';

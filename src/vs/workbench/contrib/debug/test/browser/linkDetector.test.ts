@@ -10,19 +10,26 @@ import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { isWindows } from 'vs/base/common/platform';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Debug - Link Detector', () => {
 
+	let disposables: DisposableStore;
 	let linkDetector: LinkDetector;
 
 	/**
 	 * Instantiate a {@link LinkDetector} for use by the functions being tested.
 	 */
 	setup(() => {
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
+		disposables = new DisposableStore();
+		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(ITunnelService, { canTunnel: () => false });
 		linkDetector = instantiationService.createInstance(LinkDetector);
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	/**

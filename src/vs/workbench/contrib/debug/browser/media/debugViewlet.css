@@ -129,7 +129,7 @@
 .debug-pane .monaco-list-row .monaco-action-bar {
 	display: none;
 	flex-shrink: 0;
-	margin-right: 1px;
+	margin-right: 6px;
 }
 
 .debug-pane .monaco-list-row:hover .monaco-action-bar,
@@ -216,9 +216,21 @@
 	font-size: 11px;
 }
 
+.debug-pane .monaco-list-row .expression {
+	display: flex;
+}
+
+.debug-pane .monaco-list-row .expression .actionbar-spacer {
+	flex-grow: 1;
+}
+
+.debug-pane .monaco-list-row .expression .value {
+	overflow: hidden;
+	white-space: pre;
+	text-overflow: ellipsis;
+}
+
 .debug-pane .monaco-list-row .expression .value.changed {
-	padding: 2px;
-	margin: 4px;
 	border-radius: 4px;
 }
 

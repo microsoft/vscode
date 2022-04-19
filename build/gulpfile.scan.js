@@ -29,7 +29,7 @@ const BUILD_TARGETS = [
 ];
 
 BUILD_TARGETS.forEach(buildTarget => {
-	const dashed = (str) => (str ? `-${str}` : ``);
+	const dashed = (/** @type {string | null} */ str) => (str ? `-${str}` : ``);
 	const platform = buildTarget.platform;
 	const arch = buildTarget.arch;
 
@@ -76,7 +76,14 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 
 	const exe = () => {
 		return gulp.src(dependenciesSrc, { base: '.', dot: true })
-			.pipe(filter(['**/*.node']))
+			.pipe(filter([
+				'**/*.node',
+				// Exclude these paths.
+				// We don't build the prebuilt node files so we don't scan them
+				'!**/prebuilds/**/*.node',
+				// These are 3rd party modules that we should ignore
+				'!**/@parcel/watcher/**/*',
+				'!**/native-is-elevated/**/*']))
 			.pipe(gulp.dest(destinationExe));
 	};
 

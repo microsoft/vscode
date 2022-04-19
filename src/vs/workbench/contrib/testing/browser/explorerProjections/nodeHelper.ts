@@ -10,7 +10,7 @@ import { IActionableTestTreeElement, TestExplorerTreeElement, TestItemTreeElemen
 
 export const testIdentityProvider: IIdentityProvider<TestItemTreeElement> = {
 	getId(element) {
-		return element.treeId;
+		return element.treeId + '\0' + element.test.expand;
 	}
 };
 

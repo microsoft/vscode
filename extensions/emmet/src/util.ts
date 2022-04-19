@@ -8,7 +8,7 @@ import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
 import { Node as FlatNode, HtmlNode as HtmlFlatNode, Property as FlatProperty, Rule as FlatRule, CssToken as FlatCssToken, Stylesheet as FlatStylesheet } from 'EmmetFlatNode';
 import { DocumentStreamReader } from './bufferStream';
-import * as EmmetHelper from 'vscode-emmet-helper';
+import * as EmmetHelper from '@vscode/emmet-helper';
 import { TextDocument as LSTextDocument } from 'vscode-languageserver-textdocument';
 import { getRootNode } from './parseDocument';
 
@@ -26,7 +26,7 @@ export function getEmmetHelper() {
 	// Lazy load vscode-emmet-helper instead of importing it
 	// directly to reduce the start-up time of the extension
 	if (!_emmetHelper) {
-		_emmetHelper = require('vscode-emmet-helper');
+		_emmetHelper = require('@vscode/emmet-helper');
 	}
 	return _emmetHelper;
 }
@@ -42,9 +42,9 @@ export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
 	}
 	if (forceRefresh || _currentExtensionsPath !== extensionsPath) {
 		_currentExtensionsPath = extensionsPath;
-		const rootPath = vscode.workspace.workspaceFolders?.length ? vscode.workspace.workspaceFolders[0].uri : undefined;
+		const rootPaths = vscode.workspace.workspaceFolders?.length ? vscode.workspace.workspaceFolders.map(f => f.uri) : undefined;
 		const fileSystem = vscode.workspace.fs;
-		helper.updateExtensionsPath(extensionsPath, fileSystem, rootPath, _homeDir).catch(err => {
+		helper.updateExtensionsPath(extensionsPath, fileSystem, rootPaths, _homeDir).catch(err => {
 			if (Array.isArray(extensionsPath) && extensionsPath.length) {
 				vscode.window.showErrorMessage(err.message);
 			}
@@ -84,19 +84,19 @@ export function migrateEmmetExtensionsPath() {
  * Mapping between languages that support Emmet and completion trigger characters
  */
 export const LANGUAGE_MODES: { [id: string]: string[] } = {
-	'html': ['!', '.', '}', ':', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'jade': ['!', '.', '}', ':', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'slim': ['!', '.', '}', ':', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'haml': ['!', '.', '}', ':', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'xml': ['.', '}', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'xsl': ['!', '.', '}', '*', '$', '/', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'html': ['!', '.', '}', ':', '*', '$', ']', '/', '>', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'jade': ['!', '.', '}', ':', '*', '$', ']', '/', '>', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'slim': ['!', '.', '}', ':', '*', '$', ']', '/', '>', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'haml': ['!', '.', '}', ':', '*', '$', ']', '/', '>', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'xml': ['.', '}', '*', '$', ']', '/', '>', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'xsl': ['!', '.', '}', '*', '$', '/', ']', '>', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'css': [':', '!', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'scss': [':', '!', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'sass': [':', '!', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'less': [':', '!', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'stylus': [':', '!', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'javascriptreact': ['!', '.', '}', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'typescriptreact': ['!', '.', '}', '*', '$', ']', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+	'javascriptreact': ['!', '.', '}', '*', '$', ']', '/', '>', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'typescriptreact': ['!', '.', '}', '*', '$', ']', '/', '>', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 };
 
 export function isStyleSheet(syntax: string): boolean {
@@ -116,19 +116,19 @@ export function validate(allowStylesheet: boolean = true): boolean {
 	return true;
 }
 
-export function getMappingForIncludedLanguages(): any {
+export function getMappingForIncludedLanguages(): Record<string, string> {
 	// Explicitly map languages that have built-in grammar in VS Code to their parent language
 	// to get emmet completion support
 	// For other languages, users will have to use `emmet.includeLanguages` or
 	// language specific extensions can provide emmet completion support
-	const MAPPED_MODES: Object = {
+	const MAPPED_MODES: Record<string, string> = {
 		'handlebars': 'html',
 		'php': 'html'
 	};
 
-	const finalMappedModes = Object.create(null);
-	let includeLanguagesConfig = vscode.workspace.getConfiguration('emmet')['includeLanguages'];
-	let includeLanguages = Object.assign({}, MAPPED_MODES, includeLanguagesConfig ? includeLanguagesConfig : {});
+	const finalMappedModes: Record<string, string> = {};
+	const includeLanguagesConfig = vscode.workspace.getConfiguration('emmet').get<Record<string, string>>('includeLanguages');
+	const includeLanguages = Object.assign({}, MAPPED_MODES, includeLanguagesConfig ?? {});
 	Object.keys(includeLanguages).forEach(syntax => {
 		if (typeof includeLanguages[syntax] === 'string' && LANGUAGE_MODES[includeLanguages[syntax]]) {
 			finalMappedModes[syntax] = includeLanguages[syntax];
@@ -145,19 +145,29 @@ export function getMappingForIncludedLanguages(): any {
 *
 * @param excludedLanguages Array of language ids that user has chosen to exclude for emmet
 */
-export function getEmmetMode(language: string, excludedLanguages: string[]): string | undefined {
-	if (!language || excludedLanguages.indexOf(language) > -1) {
+export function getEmmetMode(language: string, mappedModes: Record<string, string>, excludedLanguages: string[]): string | undefined {
+	if (!language || excludedLanguages.includes(language)) {
 		return;
 	}
+
+	if (language === 'jsx-tags') {
+		language = 'javascriptreact';
+	}
+
+	if (mappedModes[language]) {
+		language = mappedModes[language];
+	}
+
 	if (/\b(typescriptreact|javascriptreact|jsx-tags)\b/.test(language)) { // treat tsx like jsx
-		return 'jsx';
+		language = 'jsx';
 	}
-	if (language === 'sass-indented') { // map sass-indented to sass
-		return 'sass';
+	else if (language === 'sass-indented') { // map sass-indented to sass
+		language = 'sass';
 	}
-	if (language === 'jade') {
-		return 'pug';
+	else if (language === 'jade' || language === 'pug') {
+		language = 'pug';
 	}
+
 	const syntaxes = getSyntaxes();
 	if (syntaxes.markup.includes(language) || syntaxes.stylesheet.includes(language)) {
 		return language;
@@ -216,7 +226,7 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	}
 
 	function consumeBlockCommentBackwards() {
-		if (stream.peek() === slash) {
+		if (!stream.sof() && stream.peek() === slash) {
 			if (stream.backUp(1) === star) {
 				stream.pos = findOpeningCommentBeforePosition(stream.pos) ?? startOffset;
 			} else {

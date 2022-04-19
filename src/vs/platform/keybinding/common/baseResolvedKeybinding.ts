@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { illegalArgument } from 'vs/base/common/errors';
-import { AriaLabelProvider, ElectronAcceleratorLabelProvider, Modifiers, UILabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
-import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
+import { AriaLabelProvider, ElectronAcceleratorLabelProvider, UILabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
+import { IBaseKeybinding, KeybindingModifier, ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 
-export abstract class BaseResolvedKeybinding<T extends Modifiers> extends ResolvedKeybinding {
+export abstract class BaseResolvedKeybinding<T extends IBaseKeybinding> extends ResolvedKeybinding {
 
 	protected readonly _os: OperatingSystem;
 	protected readonly _parts: T[];
@@ -32,7 +32,12 @@ export abstract class BaseResolvedKeybinding<T extends Modifiers> extends Resolv
 
 	public getElectronAccelerator(): string | null {
 		if (this._parts.length > 1) {
-			// Electron cannot handle chords
+			// [Electron Accelerators] Electron cannot handle chords
+			return null;
+		}
+		if (this._parts[0].isDuplicateModifierCase()) {
+			// [Electron Accelerators] Electron cannot handle modifier only keybindings
+			// e.g. "shift shift"
 			return null;
 		}
 		return ElectronAcceleratorLabelProvider.toLabel(this._os, this._parts, (keybinding) => this._getElectronAccelerator(keybinding));
@@ -69,7 +74,7 @@ export abstract class BaseResolvedKeybinding<T extends Modifiers> extends Resolv
 		return this._parts.map((keybinding) => this._getDispatchPart(keybinding));
 	}
 
-	public getSingleModifierDispatchParts(): (string | null)[] {
+	public getSingleModifierDispatchParts(): (KeybindingModifier | null)[] {
 		return this._parts.map((keybinding) => this._getSingleModifierDispatchPart(keybinding));
 	}
 
@@ -79,5 +84,5 @@ export abstract class BaseResolvedKeybinding<T extends Modifiers> extends Resolv
 	protected abstract _getUserSettingsLabel(keybinding: T): string | null;
 	protected abstract _isWYSIWYG(keybinding: T): boolean;
 	protected abstract _getDispatchPart(keybinding: T): string | null;
-	protected abstract _getSingleModifierDispatchPart(keybinding: T): string | null;
+	protected abstract _getSingleModifierDispatchPart(keybinding: T): KeybindingModifier | null;
 }

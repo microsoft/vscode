@@ -3,44 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as strings from 'vs/base/common/strings';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { ITextModel } from 'vs/editor/common/model';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfiguration, IConfig, IDebugAdapterDescriptorFactory, IDebugAdapter, IDebugSession, IAdapterDescriptor, IDebugAdapterFactory, CONTEXT_DEBUGGERS_AVAILABLE, IAdapterManager, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/contrib/debug/common/debug';
-import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { launchSchema, debuggersExtPoint, breakpointsExtPoint, presentationSchema } from 'vs/workbench/contrib/debug/common/debugSchemas';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
+import * as strings from 'vs/base/common/strings';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorModel } from 'vs/editor/common/editorCommon';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ITextModel } from 'vs/editor/common/model';
+import * as nls from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { Breakpoints } from 'vs/workbench/contrib/debug/common/breakpoints';
+import { CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE, IAdapterDescriptor, IAdapterManager, IConfig, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugAdapterFactory, IDebugConfiguration, IDebugSession, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/contrib/debug/common/debug';
+import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
+import { breakpointsExtPoint, debuggersExtPoint, launchSchema, presentationSchema } from 'vs/workbench/contrib/debug/common/debugSchemas';
+import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
+import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
-export class AdapterManager implements IAdapterManager {
+export class AdapterManager extends Disposable implements IAdapterManager {
 
 	private debuggers: Debugger[];
 	private adapterDescriptorFactories: IDebugAdapterDescriptorFactory[];
 	private debugAdapterFactories = new Map<string, IDebugAdapterFactory>();
 	private debuggersAvailable: IContextKey<boolean>;
+	private debugExtensionsAvailable: IContextKey<boolean>;
 	private readonly _onDidRegisterDebugger = new Emitter<void>();
 	private readonly _onDidDebuggersExtPointRead = new Emitter<void>();
-	private breakpointModeIdsSet = new Set<string>();
+	private breakpointContributions: Breakpoints[] = [];
+	private debuggerWhenKeys = new Set<string>();
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -49,14 +53,29 @@ export class AdapterManager implements IAdapterManager {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IModeService private readonly modeService: IModeService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
+		super();
 		this.adapterDescriptorFactories = [];
 		this.debuggers = [];
 		this.registerListeners();
 		this.debuggersAvailable = CONTEXT_DEBUGGERS_AVAILABLE.bindTo(contextKeyService);
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(this.debuggerWhenKeys)) {
+				this.debuggersAvailable.set(this.hasEnabledDebuggers());
+				this.updateDebugAdapterSchema();
+			}
+		}));
+		this.debugExtensionsAvailable = CONTEXT_DEBUG_EXTENSION_AVAILABLE.bindTo(contextKeyService);
+		this.debugExtensionsAvailable.set(true); // Avoid a flash of the default message before extensions load.
+		this._register(this.onDidDebuggersExtPointRead(() => {
+			this.debugExtensionsAvailable.set(this.debuggers.length > 0);
+		}));
+		this.lifecycleService.when(LifecyclePhase.Eventually)
+			.then(() => this.debugExtensionsAvailable.set(this.debuggers.length > 0)); // If no extensions with a debugger contribution are loaded
 	}
 
 	private registerListeners(): void {
@@ -72,7 +91,9 @@ export class AdapterManager implements IAdapterManager {
 						if (existing) {
 							existing.merge(rawAdapter, added.description);
 						} else {
-							this.debuggers.push(this.instantiationService.createInstance(Debugger, this, rawAdapter, added.description));
+							const dbg = this.instantiationService.createInstance(Debugger, this, rawAdapter, added.description);
+							dbg.when?.keys().forEach(key => this.debuggerWhenKeys.add(key));
+							this.debuggers.push(dbg);
 						}
 					}
 				});
@@ -92,74 +113,72 @@ export class AdapterManager implements IAdapterManager {
 				this.debuggers = this.debuggers.filter(d => removedTypes.indexOf(d.type) === -1);
 			});
 
-			// update the schema to include all attributes, snippets and types from extensions.
-			const items = (<IJSONSchema>launchSchema.properties!['configurations'].items);
-			const taskSchema = TaskDefinitionRegistry.getJsonSchema();
-			const definitions: IJSONSchemaMap = {
-				'common': {
-					properties: {
-						'name': {
-							type: 'string',
-							description: nls.localize('debugName', "Name of configuration; appears in the launch configuration dropdown menu."),
-							default: 'Launch'
-						},
-						'debugServer': {
-							type: 'number',
-							description: nls.localize('debugServer', "For debug extension development only: if a port is specified VS Code tries to connect to a debug adapter running in server mode"),
-							default: 4711
-						},
-						'preLaunchTask': {
-							anyOf: [taskSchema, {
-								type: ['string']
-							}],
-							default: '',
-							defaultSnippets: [{ body: { task: '', type: '' } }],
-							description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
-						},
-						'postDebugTask': {
-							anyOf: [taskSchema, {
-								type: ['string'],
-							}],
-							default: '',
-							defaultSnippets: [{ body: { task: '', type: '' } }],
-							description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
-						},
-						'presentation': presentationSchema,
-						'internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
-					}
-				}
-			};
-			launchSchema.definitions = definitions;
-			items.oneOf = [];
-			items.defaultSnippets = [];
-			this.debuggers.forEach(adapter => {
-				const schemaAttributes = adapter.getSchemaAttributes(definitions);
-				if (schemaAttributes && items.oneOf) {
-					items.oneOf.push(...schemaAttributes);
-				}
-				const configurationSnippets = adapter.configurationSnippets;
-				if (configurationSnippets && items.defaultSnippets) {
-					items.defaultSnippets.push(...configurationSnippets);
-				}
-			});
-			jsonRegistry.registerSchema(launchSchemaId, launchSchema);
-
+			this.updateDebugAdapterSchema();
 			this._onDidDebuggersExtPointRead.fire();
 		});
 
-		breakpointsExtPoint.setHandler((extensions, delta) => {
-			delta.removed.forEach(removed => {
-				removed.value.forEach(breakpoints => this.breakpointModeIdsSet.delete(breakpoints.language));
-			});
-			delta.added.forEach(added => {
-				added.value.forEach(breakpoints => this.breakpointModeIdsSet.add(breakpoints.language));
-			});
+		breakpointsExtPoint.setHandler(extensions => {
+			this.breakpointContributions = extensions.flatMap(ext => ext.value.map(breakpoint => this.instantiationService.createInstance(Breakpoints, breakpoint)));
 		});
+	}
+
+	private updateDebugAdapterSchema(): void {
+		// update the schema to include all attributes, snippets and types from extensions.
+		const items = (<IJSONSchema>launchSchema.properties!['configurations'].items);
+		const taskSchema = TaskDefinitionRegistry.getJsonSchema();
+		const definitions: IJSONSchemaMap = {
+			'common': {
+				properties: {
+					'name': {
+						type: 'string',
+						description: nls.localize('debugName', "Name of configuration; appears in the launch configuration dropdown menu."),
+						default: 'Launch'
+					},
+					'debugServer': {
+						type: 'number',
+						description: nls.localize('debugServer', "For debug extension development only: if a port is specified VS Code tries to connect to a debug adapter running in server mode"),
+						default: 4711
+					},
+					'preLaunchTask': {
+						anyOf: [taskSchema, {
+							type: ['string']
+						}],
+						default: '',
+						defaultSnippets: [{ body: { task: '', type: '' } }],
+						description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
+					},
+					'postDebugTask': {
+						anyOf: [taskSchema, {
+							type: ['string'],
+						}],
+						default: '',
+						defaultSnippets: [{ body: { task: '', type: '' } }],
+						description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
+					},
+					'presentation': presentationSchema,
+					'internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
+				}
+			}
+		};
+		launchSchema.definitions = definitions;
+		items.oneOf = [];
+		items.defaultSnippets = [];
+		this.debuggers.forEach(adapter => {
+			const schemaAttributes = adapter.getSchemaAttributes(definitions);
+			if (schemaAttributes && items.oneOf) {
+				items.oneOf.push(...schemaAttributes);
+			}
+			const configurationSnippets = adapter.configurationSnippets;
+			if (configurationSnippets && items.defaultSnippets) {
+				items.defaultSnippets.push(...configurationSnippets);
+			}
+		});
+		jsonRegistry.registerSchema(launchSchemaId, launchSchema);
 	}
 
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterLauncher: IDebugAdapterFactory): IDisposable {
 		debugTypes.forEach(debugType => this.debugAdapterFactories.set(debugType, debugAdapterLauncher));
-		this.debuggersAvailable.set(this.debugAdapterFactories.size > 0);
+		this.debuggersAvailable.set(this.hasEnabledDebuggers());
 		this._onDidRegisterDebugger.fire();
 
 		return {
@@ -169,12 +188,19 @@ export class AdapterManager implements IAdapterManager {
 		};
 	}
 
-	hasDebuggers(): boolean {
-		return this.debugAdapterFactories.size > 0;
+	hasEnabledDebuggers(): boolean {
+		for (const [type] of this.debugAdapterFactories) {
+			const dbg = this.getDebugger(type);
+			if (dbg && dbg.enabled) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	createDebugAdapter(session: IDebugSession): IDebugAdapter | undefined {
-		let factory = this.debugAdapterFactories.get(session.configuration.type);
+		const factory = this.debugAdapterFactories.get(session.configuration.type);
 		if (factory) {
 			return factory.createDebugAdapter(session);
 		}
@@ -182,7 +208,7 @@ export class AdapterManager implements IAdapterManager {
 	}
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
-		let factory = this.debugAdapterFactories.get(debugType);
+		const factory = this.debugAdapterFactories.get(debugType);
 		if (factory) {
 			return factory.substituteVariables(folder, config);
 		}
@@ -190,7 +216,7 @@ export class AdapterManager implements IAdapterManager {
 	}
 
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
-		let factory = this.debugAdapterFactories.get(debugType);
+		const factory = this.debugAdapterFactories.get(debugType);
 		if (factory) {
 			return factory.runInTerminal(args, sessionId);
 		}
@@ -242,8 +268,8 @@ export class AdapterManager implements IAdapterManager {
 	}
 
 	canSetBreakpointsIn(model: ITextModel): boolean {
-		const modeId = model.getLanguageIdentifier().language;
-		if (!modeId || modeId === 'jsonc' || modeId === 'log') {
+		const languageId = model.getLanguageId();
+		if (!languageId || languageId === 'jsonc' || languageId === 'log') {
 			// do not allow breakpoints in our settings files and output
 			return false;
 		}
@@ -251,7 +277,7 @@ export class AdapterManager implements IAdapterManager {
 			return true;
 		}
 
-		return this.breakpointModeIdsSet.has(modeId);
+		return this.breakpointContributions.some(breakpoints => breakpoints.language === languageId && breakpoints.enabled);
 	}
 
 	getDebugger(type: string): Debugger | undefined {
@@ -259,13 +285,15 @@ export class AdapterManager implements IAdapterManager {
 	}
 
 	isDebuggerInterestedInLanguage(language: string): boolean {
-		return !!this.debuggers.find(a => language && a.languages && a.languages.indexOf(language) >= 0);
+		return !!this.debuggers
+			.filter(d => d.enabled)
+			.find(a => language && a.languages && a.languages.indexOf(language) >= 0);
 	}
 
 	async guessDebugger(gettingConfigurations: boolean, type?: string): Promise<Debugger | undefined> {
 		if (type) {
 			const adapter = this.getDebugger(type);
-			return Promise.resolve(adapter);
+			return adapter && adapter.enabled ? adapter : undefined;
 		}
 
 		const activeTextEditorControl = this.editorService.activeTextEditorControl;
@@ -274,11 +302,13 @@ export class AdapterManager implements IAdapterManager {
 		let model: IEditorModel | null = null;
 		if (isCodeEditor(activeTextEditorControl)) {
 			model = activeTextEditorControl.getModel();
-			const language = model ? model.getLanguageIdentifier().language : undefined;
+			const language = model ? model.getLanguageId() : undefined;
 			if (language) {
-				languageLabel = this.modeService.getLanguageName(language);
+				languageLabel = this.languageService.getLanguageName(language);
 			}
-			const adapters = this.debuggers.filter(a => language && a.languages && a.languages.indexOf(language) >= 0);
+			const adapters = this.debuggers
+				.filter(a => a.enabled)
+				.filter(a => language && a.languages && a.languages.indexOf(language) >= 0);
 			if (adapters.length === 1) {
 				return adapters[0];
 			}
@@ -291,11 +321,13 @@ export class AdapterManager implements IAdapterManager {
 		// Or if a breakpoint can be set in the current file (good hint that an extension can handle it)
 		if ((!languageLabel || gettingConfigurations || (model && this.canSetBreakpointsIn(model))) && candidates.length === 0) {
 			await this.activateDebuggers('onDebugInitialConfigurations');
-			candidates = this.debuggers.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider());
+			candidates = this.debuggers
+				.filter(a => a.enabled)
+				.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider());
 		}
 
 		candidates.sort((first, second) => first.label.localeCompare(second.label));
-		const picks: { label: string, debugger?: Debugger, type?: string }[] = candidates.map(c => ({ label: c.label, debugger: c }));
+		const picks: { label: string; debugger?: Debugger; type?: string }[] = candidates.map(c => ({ label: c.label, debugger: c }));
 
 		if (picks.length === 0 && languageLabel) {
 			if (languageLabel.indexOf(' ') >= 0) {
@@ -314,7 +346,7 @@ export class AdapterManager implements IAdapterManager {
 		const placeHolder = nls.localize('selectDebug', "Select environment");
 
 		picks.push({ label: languageLabel ? nls.localize('installLanguage', "Install an extension for {0}...", languageLabel) : nls.localize('installExt', "Install extension...") });
-		return this.quickInputService.pick<{ label: string, debugger?: Debugger }>(picks, { activeItem: picks[0], placeHolder })
+		return this.quickInputService.pick<{ label: string; debugger?: Debugger }>(picks, { activeItem: picks[0], placeHolder })
 			.then(picked => {
 				if (picked && picked.debugger) {
 					return picked.debugger;

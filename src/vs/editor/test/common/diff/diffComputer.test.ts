@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
-import { IChange, ICharChange, ILineChange } from 'vs/editor/common/editorCommon';
+import { DiffComputer, IChange, ICharChange, ILineChange } from 'vs/editor/common/diff/diffComputer';
 
 function extractCharChangeRepresentation(change: ICharChange, expectedChange: ICharChange | null): ICharChange {
 	let hasOriginal = expectedChange && expectedChange.originalStartLineNumber > 0;

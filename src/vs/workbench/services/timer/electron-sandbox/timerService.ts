@@ -9,8 +9,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IStartupMetrics, AbstractTimerService, Writeable, ITimerService } from 'vs/workbench/services/timer/browser/timerService';
@@ -20,6 +18,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 export class TimerService extends AbstractTimerService {
 
@@ -30,8 +29,7 @@ export class TimerService extends AbstractTimerService {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IExtensionService extensionService: IExtensionService,
 		@IUpdateService updateService: IUpdateService,
-		@IViewletService viewletService: IViewletService,
-		@IPanelService panelService: IPanelService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IEditorService editorService: IEditorService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -39,12 +37,12 @@ export class TimerService extends AbstractTimerService {
 		@IProductService private readonly _productService: IProductService,
 		@IStorageService private readonly _storageService: IStorageService
 	) {
-		super(lifecycleService, contextService, extensionService, updateService, viewletService, panelService, editorService, accessibilityService, telemetryService, layoutService);
-		this.setPerformanceMarks('main', _environmentService.configuration.perfMarks);
+		super(lifecycleService, contextService, extensionService, updateService, paneCompositeService, editorService, accessibilityService, telemetryService, layoutService);
+		this.setPerformanceMarks('main', _environmentService.window.perfMarks);
 	}
 
 	protected _isInitialStartup(): boolean {
-		return Boolean(this._environmentService.configuration.isInitialStartup);
+		return Boolean(this._environmentService.window.isInitialStartup);
 	}
 	protected _didUseCachedData(): boolean {
 		return didUseCachedData(this._productService, this._storageService, this._environmentService);
@@ -99,7 +97,7 @@ export function didUseCachedData(productService: IProductService, storageService
 	// this being the first start with the commit
 	// or subsequent
 	if (typeof _didUseCachedData !== 'boolean') {
-		if (!environmentService.configuration.codeCachePath || !productService.commit) {
+		if (!environmentService.window.isCodeCaching || !productService.commit) {
 			_didUseCachedData = false; // we only produce cached data whith commit and code cache path
 		} else if (storageService.get(lastRunningCommitStorageKey, StorageScope.GLOBAL) === productService.commit) {
 			_didUseCachedData = true; // subsequent start on same commit, assume cached data is there

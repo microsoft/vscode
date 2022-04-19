@@ -102,7 +102,7 @@ export interface IssueReporterWindowConfiguration extends ISandboxConfiguration 
 		type: string;
 		arch: string;
 		release: string;
-	}
+	};
 }
 
 export interface ProcessExplorerWindowConfiguration extends ISandboxConfiguration {

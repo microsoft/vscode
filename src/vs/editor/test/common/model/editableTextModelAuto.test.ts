@@ -4,17 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
 
 const GENERATE_TESTS = false;
 
 suite('EditorModel Auto Tests', () => {
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): ISingleEditOperation {
 		return {
-			identifier: null,
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			text: text.join('\n'),
 			forceMoveMarkers: false
@@ -194,7 +193,7 @@ class TestModel {
 
 	public initialContent: string;
 	public resultingContent: string;
-	public edits: IIdentifiedSingleEditOperation[];
+	public edits: ISingleEditOperation[];
 
 	private static _generateOffsetToPosition(content: string): Position[] {
 		let result: Position[] = [];

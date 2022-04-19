@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { getTelemetryLevel, NullTelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITelemetryService, ITelemetryInfo, ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
@@ -17,6 +17,7 @@ import { TelemetryService as BaseTelemetryService, ITelemetryServiceConfig } fro
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IObservableValue } from 'vs/base/common/observableValue';
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
@@ -35,16 +36,16 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	) {
 		super();
 
-		if (getTelemetryLevel(productService, environmentService) >= TelemetryLevel.LOG) {
+		if (supportsTelemetry(productService, environmentService)) {
 			const channel = sharedProcessService.getChannel('telemetryAppender');
 			const config: ITelemetryServiceConfig = {
-				appender: new TelemetryAppenderClient(channel),
+				appenders: [new TelemetryAppenderClient(channel)],
 				commonProperties: resolveWorkbenchCommonProperties(storageService, fileService, environmentService.os.release, environmentService.os.hostname, productService.commit, productService.version, environmentService.machineId, productService.msftInternalDomains, environmentService.installSourcePath, environmentService.remoteAuthority),
-				piiPaths: [environmentService.appRoot, environmentService.extensionsPath],
+				piiPaths: getPiiPathsFromEnvironment(environmentService),
 				sendErrorTelemetry: true
 			};
 
-			this.impl = this._register(new BaseTelemetryService(config, configurationService));
+			this.impl = this._register(new BaseTelemetryService(config, configurationService, productService));
 		} else {
 			this.impl = NullTelemetryService;
 		}
@@ -52,16 +53,12 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		this.sendErrorTelemetry = this.impl.sendErrorTelemetry;
 	}
 
-	setEnabled(value: boolean): void {
-		return this.impl.setEnabled(value);
-	}
-
 	setExperimentProperty(name: string, value: string): void {
 		return this.impl.setExperimentProperty(name, value);
 	}
 
-	get isOptedIn(): boolean {
-		return this.impl.isOptedIn;
+	get telemetryLevel(): IObservableValue<TelemetryLevel> {
+		return this.impl.telemetryLevel;
 	}
 
 	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {

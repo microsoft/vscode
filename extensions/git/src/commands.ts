@@ -6,15 +6,15 @@
 import * as os from 'os';
 import * as path from 'path';
 import { Command, commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
-import TelemetryReporter from 'vscode-extension-telemetry';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
-import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourceProvider } from './api/git';
+import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri } from './uri';
-import { grep, isDescendant, pathEquals } from './util';
+import { grep, isDescendant, logTimestamp, pathEquals, relativePath } from './util';
 import { Log, LogLevel } from './log';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
@@ -186,7 +186,7 @@ function command(commandId: string, options: ScmCommandOptions = {}): Function {
 // 	'image/bmp'
 // ];
 
-async function categorizeResourceByResolution(resources: Resource[]): Promise<{ merge: Resource[], resolved: Resource[], unresolved: Resource[], deletionConflicts: Resource[] }> {
+async function categorizeResourceByResolution(resources: Resource[]): Promise<{ merge: Resource[]; resolved: Resource[]; unresolved: Resource[]; deletionConflicts: Resource[] }> {
 	const selection = resources.filter(s => s instanceof Resource) as Resource[];
 	const merge = selection.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
 	const isBothAddedOrModified = (s: Resource) => s.type === Status.BOTH_MODIFIED || s.type === Status.BOTH_ADDED;
@@ -282,7 +282,7 @@ interface PushOptions {
 		remote?: string;
 		refspec?: string;
 		setUpstream?: boolean;
-	}
+	};
 }
 
 class CommandErrorOutputTextDocumentContentProvider implements TextDocumentContentProvider {
@@ -353,7 +353,7 @@ export class CommandCenter {
 		}
 
 		Log.logLevel = choice.logLevel;
-		this.outputChannel.appendLine(localize('changed', "Log level changed to: {0}", LogLevel[Log.logLevel]));
+		this.outputChannel.appendLine(localize('changed', "{0} Log level changed to: {1}", logTimestamp(), LogLevel[Log.logLevel]));
 	}
 
 	@command('git.refresh', { repository: true })
@@ -392,7 +392,7 @@ export class CommandCenter {
 
 	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
-			url = await pickRemoteSource(this.model, {
+			url = await pickRemoteSource({
 				providerLabel: provider => localize('clonefrom', "Clone from {0}", provider.name),
 				urlLabel: localize('repourl', "Clone from URL")
 			});
@@ -544,7 +544,7 @@ export class CommandCenter {
 			} else {
 				const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
 				const pick = { label: localize('choose', "Choose Folder...") };
-				const items: { label: string, folder?: WorkspaceFolder }[] = [
+				const items: { label: string; folder?: WorkspaceFolder }[] = [
 					...workspace.workspaceFolders.map(folder => ({ label: folder.name, description: folder.uri.fsPath, folder })),
 					pick
 				];
@@ -686,6 +686,10 @@ export class CommandCenter {
 		}
 
 		const activeTextEditor = window.activeTextEditor;
+		// Must extract these now because opening a new document will change the activeTextEditor reference
+		const previousVisibleRange = activeTextEditor?.visibleRanges[0];
+		const previousURI = activeTextEditor?.document.uri;
+		const previousSelection = activeTextEditor?.selection;
 
 		for (const uri of uris) {
 			const opts: TextDocumentShowOptions = {
@@ -694,27 +698,29 @@ export class CommandCenter {
 				viewColumn: ViewColumn.Active
 			};
 
-			let document;
-			try {
-				document = await workspace.openTextDocument(uri);
-			} catch (error) {
-				await commands.executeCommand('vscode.open', uri, {
-					...opts,
-					override: arg instanceof Resource && arg.type === Status.BOTH_MODIFIED ? false : undefined
-				});
+			await commands.executeCommand('vscode.open', uri, {
+				...opts,
+				override: arg instanceof Resource && arg.type === Status.BOTH_MODIFIED ? false : undefined
+			});
+
+			const document = window.activeTextEditor?.document;
+
+			// If the document doesn't match what we opened then don't attempt to select the range
+			// Additioanlly if there was no previous document we don't have information to select a range
+			if (document?.uri.toString() !== uri.toString() || !activeTextEditor || !previousURI || !previousSelection) {
 				continue;
 			}
 
 			// Check if active text editor has same path as other editor. we cannot compare via
 			// URI.toString() here because the schemas can be different. Instead we just go by path.
-			if (activeTextEditor && activeTextEditor.document.uri.path === uri.path) {
+			if (previousURI.path === uri.path && document) {
 				// preserve not only selection but also visible range
-				opts.selection = activeTextEditor.selection;
-				const previousVisibleRanges = activeTextEditor.visibleRanges;
+				opts.selection = previousSelection;
 				const editor = await window.showTextDocument(document, opts);
-				editor.revealRange(previousVisibleRanges[0]);
-			} else {
-				await commands.executeCommand('vscode.open', uri, opts);
+				// This should always be defined but just in case
+				if (previousVisibleRange) {
+					editor.revealRange(previousVisibleRange);
+				}
 			}
 		}
 	}
@@ -797,7 +803,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const from = path.relative(repository.root, fromUri.fsPath);
+		const from = relativePath(repository.root, fromUri.fsPath);
 		let to = await window.showInputBox({
 			value: from,
 			valueSelection: [from.length - path.basename(from).length, from.length]
@@ -814,14 +820,14 @@ export class CommandCenter {
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		this.outputChannel.appendLine(`git.stage ${resourceStates.length}`);
+		this.outputChannel.appendLine(`${logTimestamp()} git.stage ${resourceStates.length}`);
 
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
-			this.outputChannel.appendLine(`git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null}`);
+			this.outputChannel.appendLine(`${logTimestamp()} git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null}`);
 
 			if (!resource) {
 				return;
@@ -864,7 +870,7 @@ export class CommandCenter {
 		const untracked = selection.filter(s => s.resourceGroupType === ResourceGroupType.Untracked);
 		const scmResources = [...workingTree, ...untracked, ...resolved, ...unresolved];
 
-		this.outputChannel.appendLine(`git.stage.scmResources ${scmResources.length}`);
+		this.outputChannel.appendLine(`${logTimestamp()} git.stage.scmResources ${scmResources.length}`);
 		if (!scmResources.length) {
 			return;
 		}
@@ -1677,7 +1683,7 @@ export class CommandCenter {
 		return this._checkout(repository, { detached: true, treeish });
 	}
 
-	private async _checkout(repository: Repository, opts?: { detached?: boolean, treeish?: string }): Promise<boolean> {
+	private async _checkout(repository: Repository, opts?: { detached?: boolean; treeish?: string }): Promise<boolean> {
 		if (typeof opts?.treeish === 'string') {
 			await repository.checkout(opts?.treeish, opts);
 			return true;
@@ -2129,7 +2135,7 @@ export class CommandCenter {
 				}
 
 				const branchName = repository.HEAD.name;
-				const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
+				const message = localize('confirm publish branch', "The branch '{0}' has no remote branch. Would you like to publish this branch?", branchName);
 				const yes = localize('ok', "OK");
 				const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -2216,7 +2222,7 @@ export class CommandCenter {
 
 	@command('git.addRemote', { repository: true })
 	async addRemote(repository: Repository): Promise<string | undefined> {
-		const url = await pickRemoteSource(this.model, {
+		const url = await pickRemoteSource({
 			providerLabel: provider => localize('addfrom', "Add remote from {0}", provider.name),
 			urlLabel: localize('addFrom', "Add remote from URL")
 		});
@@ -2279,7 +2285,7 @@ export class CommandCenter {
 			return;
 		} else if (!HEAD.upstream) {
 			const branchName = HEAD.name;
-			const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
+			const message = localize('confirm publish branch', "The branch '{0}' has no remote branch. Would you like to publish this branch?", branchName);
 			const yes = localize('ok', "OK");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -2297,7 +2303,7 @@ export class CommandCenter {
 		const shouldPrompt = !isReadonly && config.get<boolean>('confirmSync') === true;
 
 		if (shouldPrompt) {
-			const message = localize('sync is unpredictable', "This action will push and pull commits to and from '{0}/{1}'.", HEAD.upstream.remote, HEAD.upstream.name);
+			const message = localize('sync is unpredictable', "This action will pull and push commits from and to '{0}/{1}'.", HEAD.upstream.remote, HEAD.upstream.name);
 			const yes = localize('ok', "OK");
 			const neverAgain = localize('never again', "OK, Don't Show Again");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
@@ -2361,19 +2367,19 @@ export class CommandCenter {
 		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
-			const providers = this.model.getRemoteProviders().filter(p => !!p.publishRepository);
+			const publishers = this.model.getRemoteSourcePublishers();
 
-			if (providers.length === 0) {
+			if (publishers.length === 0) {
 				window.showWarningMessage(localize('no remotes to publish', "Your repository has no remotes configured to publish to."));
 				return;
 			}
 
-			let provider: RemoteSourceProvider;
+			let publisher: RemoteSourcePublisher;
 
-			if (providers.length === 1) {
-				provider = providers[0];
+			if (publishers.length === 1) {
+				publisher = publishers[0];
 			} else {
-				const picks = providers
+				const picks = publishers
 					.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + localize('publish to', "Publish to {0}", provider.name), alwaysShow: true, provider }));
 				const placeHolder = localize('pick provider', "Pick a provider to publish the branch '{0}' to:", branchName);
 				const choice = await window.showQuickPick(picks, { placeHolder });
@@ -2382,10 +2388,10 @@ export class CommandCenter {
 					return;
 				}
 
-				provider = choice.provider;
+				publisher = choice.provider;
 			}
 
-			await provider.publishRepository!(new ApiRepository(repository));
+			await publisher.publishRepository(new ApiRepository(repository));
 			this.model.firePublishEvent(repository, branchName);
 
 			return;
@@ -2597,6 +2603,29 @@ export class CommandCenter {
 		await repository.dropStash(stash.index);
 	}
 
+	@command('git.stashDropAll', { repository: true })
+	async stashDropAll(repository: Repository): Promise<void> {
+		const stashes = await repository.getStashes();
+
+		if (stashes.length === 0) {
+			window.showInformationMessage(localize('no stashes', "There are no stashes in the repository."));
+			return;
+		}
+
+		// request confirmation for the operation
+		const yes = localize('yes', "Yes");
+		const question = stashes.length === 1 ?
+			localize('drop one stash', "Are you sure you want to drop ALL stashes? There is 1 stash that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.") :
+			localize('drop all stashes', "Are you sure you want to drop ALL stashes? There are {0} stashes that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.", stashes.length);
+
+		const result = await window.showWarningMessage(question, yes);
+		if (result !== yes) {
+			return;
+		}
+
+		await repository.dropStash();
+	}
+
 	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {
 		const stashes = await repository.getStashes();
 
@@ -2641,12 +2670,12 @@ export class CommandCenter {
 		else if (item.previousRef === 'HEAD' && item.ref === '~') {
 			title = localize('git.title.index', '{0} (Index)', basename);
 		} else {
-			title = localize('git.title.diffRefs', '{0} ({1}) ⟷ {0} ({2})', basename, item.shortPreviousRef, item.shortRef);
+			title = localize('git.title.diffRefs', '{0} ({1}) ↔ {0} ({2})', basename, item.shortPreviousRef, item.shortRef);
 		}
 
 		return {
 			command: 'vscode.diff',
-			title: 'Open Comparison',
+			title: localize('git.timeline.openDiffCommand', "Open Comparison"),
 			arguments: [toGitUri(uri, item.previousRef), item.ref === '' ? uri : toGitUri(uri, item.ref), title, options]
 		};
 	}
@@ -2669,7 +2698,7 @@ export class CommandCenter {
 		env.clipboard.writeText(item.message);
 	}
 
-	private _selectedForCompare: { uri: Uri, item: GitTimelineItem } | undefined;
+	private _selectedForCompare: { uri: Uri; item: GitTimelineItem } | undefined;
 
 	@command('git.timeline.selectForCompare', { repository: false })
 	async timelineSelectForCompare(item: TimelineItem, uri: Uri | undefined, _source: string) {
@@ -2711,7 +2740,7 @@ export class CommandCenter {
 		}
 
 
-		const title = localize('git.title.diff', '{0} ⟷ {1}', leftTitle, rightTitle);
+		const title = localize('git.title.diff', '{0} ↔ {1}', leftTitle, rightTitle);
 		await commands.executeCommand('vscode.diff', selected.ref === '' ? uri : toGitUri(uri, selected.ref), item.ref === '' ? uri : toGitUri(uri, item.ref), title);
 	}
 
@@ -2722,6 +2751,17 @@ export class CommandCenter {
 		} else {
 			await window.showInformationMessage(localize('no rebase', "No rebase in progress."));
 		}
+	}
+
+	@command('git.closeAllDiffEditors', { repository: true })
+	closeDiffEditors(repository: Repository): void {
+		const resources = [
+			...repository.indexGroup.resourceStates.map(r => r.resourceUri.fsPath),
+			...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath),
+			...repository.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath)
+		];
+
+		repository.closeDiffEditors(resources, resources, true);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
@@ -2814,7 +2854,7 @@ export class CommandCenter {
 						type = 'warning';
 						options.modal = false;
 						break;
-					case GitErrorCodes.AuthenticationFailed:
+					case GitErrorCodes.AuthenticationFailed: {
 						const regex = /Authentication failed for '(.*)'/i;
 						const match = regex.exec(err.stderr || String(err));
 
@@ -2822,12 +2862,13 @@ export class CommandCenter {
 							? localize('auth failed specific', "Failed to authenticate to git remote:\n\n{0}", match[1])
 							: localize('auth failed', "Failed to authenticate to git remote.");
 						break;
+					}
 					case GitErrorCodes.NoUserNameConfigured:
 					case GitErrorCodes.NoUserEmailConfigured:
 						message = localize('missing user info', "Make sure you configure your 'user.name' and 'user.email' in git.");
-						choices.set(localize('learn more', "Learn More"), () => commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/book/en/v2/Getting-Started-First-Time-Git-Setup')));
+						choices.set(localize('learn more', "Learn More"), () => commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-setup-git')));
 						break;
-					default:
+					default: {
 						const hint = (err.stderr || err.message || String(err))
 							.replace(/^error: /mi, '')
 							.replace(/^> husky.*$/mi, '')
@@ -2840,6 +2881,7 @@ export class CommandCenter {
 							: localize('git error', "Git error");
 
 						break;
+					}
 				}
 
 				if (!message) {
@@ -2871,10 +2913,10 @@ export class CommandCenter {
 	private getSCMResource(uri?: Uri): Resource | undefined {
 		uri = uri ? uri : (window.activeTextEditor && window.activeTextEditor.document.uri);
 
-		this.outputChannel.appendLine(`git.getSCMResource.uri ${uri && uri.toString()}`);
+		this.outputChannel.appendLine(`${logTimestamp()} git.getSCMResource.uri ${uri && uri.toString()}`);
 
 		for (const r of this.model.repositories.map(r => r.root)) {
-			this.outputChannel.appendLine(`repo root ${r}`);
+			this.outputChannel.appendLine(`${logTimestamp()} repo root ${r}`);
 		}
 
 		if (!uri) {
@@ -2928,7 +2970,7 @@ export class CommandCenter {
 			}
 
 			return result;
-		}, [] as { repository: Repository, resources: Uri[] }[]);
+		}, [] as { repository: Repository; resources: Uri[] }[]);
 
 		const promises = groups
 			.map(({ repository, resources }) => fn(repository as Repository, isSingleResource ? resources[0] : resources));

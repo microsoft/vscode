@@ -17,12 +17,11 @@ import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, isEditorInputWithOptionsAndGroup, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { decorateFileEditorLabel } from 'vs/workbench/common/editor/resourceEditorInput';
+import { EditorInputCapabilities, GroupIdentifier, IMoveResult, IRevertOptions, ISaveOptions, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
@@ -32,8 +31,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		resource: URI,
 		viewType: string,
 		group: GroupIdentifier | undefined,
-		options?: { readonly customClasses?: string, readonly oldResource?: URI },
-	): IEditorInput {
+		options?: { readonly customClasses?: string; readonly oldResource?: URI },
+	): EditorInput {
 		return instantiationService.invokeFunction(accessor => {
 			// If it's an untitled file we must populate the untitledDocumentData
 			const untitledString = accessor.get(IUntitledTextEditorService).getValue(resource);
@@ -66,14 +65,13 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		resource: URI,
 		viewType: string,
 		id: string,
-		webview: WebviewOverlay,
-		options: { startsDirty?: boolean, backupId?: string, untitledDocumentData?: VSBuffer, readonly oldResource?: URI },
+		webview: IOverlayWebview,
+		options: { startsDirty?: boolean; backupId?: string; untitledDocumentData?: VSBuffer; readonly oldResource?: URI },
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 		@IFileService private readonly fileService: IFileService
 	) {
@@ -126,6 +124,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	public override get capabilities(): EditorInputCapabilities {
 		let capabilities = EditorInputCapabilities.None;
 
+		capabilities |= EditorInputCapabilities.CanDropIntoEditor;
+
 		if (!this.customEditorService.getCustomEditorCapabilities(this.viewType)?.supportsMultipleEditorsPerDocument) {
 			capabilities |= EditorInputCapabilities.Singleton;
 		}
@@ -148,8 +148,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	override getName(): string {
-		const name = basename(this.labelService.getUriLabel(this.resource));
-		return this.decorateLabel(name);
+		return basename(this.labelService.getUriLabel(this.resource));
 	}
 
 	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
@@ -221,23 +220,16 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	override getTitle(verbosity?: Verbosity): string {
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				return this.decorateLabel(this.shortTitle);
+				return this.shortTitle;
 			case Verbosity.LONG:
-				return this.decorateLabel(this.longTitle);
+				return this.longTitle;
 			default:
 			case Verbosity.MEDIUM:
-				return this.decorateLabel(this.mediumTitle);
+				return this.mediumTitle;
 		}
 	}
 
-	private decorateLabel(label: string): string {
-		const readonly = this.hasCapability(EditorInputCapabilities.Readonly);
-		const orphaned = !!this._modelRef?.object.isOrphaned();
-
-		return decorateFileEditorLabel(label, { orphaned, readonly });
-	}
-
-	public override matches(other: IEditorInput | IUntypedEditorInput): boolean {
+	public override matches(other: EditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(other)) {
 			return true;
 		}
@@ -246,7 +238,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			&& isEqual(this.resource, other.resource));
 	}
 
-	public override copy(): IEditorInput {
+	public override copy(): EditorInput {
 		return CustomEditorInput.create(this.instantiationService, this.resource, this.viewType, this.group, this.webview.options);
 	}
 
@@ -257,7 +249,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this._modelRef.object.isDirty();
 	}
 
-	public override async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	public override async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {
 		if (!this._modelRef) {
 			return undefined;
 		}
@@ -267,14 +259,15 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return undefined; // save cancelled
 		}
 
+		// Different URIs == untyped input returned to allow resolver to possibly resolve to a different editor type
 		if (!isEqual(target, this.resource)) {
-			return CustomEditorInput.create(this.instantiationService, target, this.viewType, groupId);
+			return { resource: target };
 		}
 
 		return this;
 	}
 
-	public override async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	public override async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {
 		if (!this._modelRef) {
 			return undefined;
 		}
@@ -311,7 +304,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			const oldCapabilities = this.capabilities;
 			this._modelRef = this._register(assertIsDefined(await this.customEditorService.models.tryRetain(this.resource, this.viewType)));
 			this._register(this._modelRef.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-			this._register(this._modelRef.object.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
 			this._register(this._modelRef.object.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
 			// If we're loading untitled file data we should ensure it's dirty
 			if (this._untitledDocumentData) {
@@ -328,32 +320,9 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return null;
 	}
 
-	public override async rename(group: GroupIdentifier, newResource: URI): Promise<{ editor: IEditorInput } | undefined> {
-		// See if we can keep using the same custom editor provider
-		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
-		if (editorInfo?.matches(newResource)) {
-			return { editor: this.doMove(group, newResource) };
-		}
-
-		const resolvedEditor = await this.editorResolverService.resolveEditor({ resource: newResource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }, undefined);
-		return isEditorInputWithOptionsAndGroup(resolvedEditor) ? { editor: resolvedEditor.editor } : undefined;
-	}
-
-	private doMove(group: GroupIdentifier, newResource: URI): IEditorInput {
-		if (!this._moveHandler) {
-			return CustomEditorInput.create(this.instantiationService, newResource, this.viewType, group, { oldResource: this.resource });
-		}
-
-		this._moveHandler(newResource);
-		const newEditor = this.instantiationService.createInstance(CustomEditorInput,
-			newResource,
-			this.viewType,
-			this.id,
-			undefined!,  // this webview is replaced in the transfer call
-			{ startsDirty: this._defaultDirtyState, backupId: this._backupId });
-		this.transfer(newEditor);
-		newEditor.updateGroup(group);
-		return newEditor;
+	public override async rename(group: GroupIdentifier, newResource: URI): Promise<IMoveResult | undefined> {
+		// We return an untyped editor input which can then be resolved in the editor service
+		return { editor: { resource: newResource } };
 	}
 
 	public undo(): void | Promise<void> {

@@ -9,12 +9,16 @@ import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { INotebookCellStatusBarItemProvider, INotebookContributionData, NotebookData as NotebookData, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookCellStatusBarItemProvider, INotebookContributionData, NotebookData as NotebookData, NotebookExtensionDescription, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookContentProvider, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, MainContext, MainThreadNotebookShape, NotebookExtensionDescription } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol';
+import { ILogService } from 'vs/platform/log/common/log';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { assertType } from 'vs/base/common/types';
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks implements MainThreadNotebookShape {
@@ -22,7 +26,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _proxy: ExtHostNotebookShape;
-	private readonly _notebookProviders = new Map<string, { controller: INotebookContentProvider, disposable: IDisposable }>();
+	private readonly _notebookProviders = new Map<string, { controller: INotebookContentProvider; disposable: IDisposable }>();
 	private readonly _notebookSerializer = new Map<number, IDisposable>();
 	private readonly _notebookCellStatusBarRegistrations = new Map<number, IDisposable>();
 
@@ -30,6 +34,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		extHostContext: IExtHostContext,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookCellStatusBarService private readonly _cellStatusBarService: INotebookCellStatusBarService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
 	}
@@ -81,7 +86,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		this._notebookProviders.set(viewType, { controller, disposable });
 	}
 
-	async $updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata; }): Promise<void> {
+	async $updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata }): Promise<void> {
 		const provider = this._notebookProviders.get(viewType);
 
 		if (provider && options) {
@@ -107,11 +112,17 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		const registration = this._notebookService.registerNotebookSerializer(viewType, extension, {
 			options,
 			dataToNotebook: async (data: VSBuffer): Promise<NotebookData> => {
+				const sw = new StopWatch(true);
 				const dto = await this._proxy.$dataToNotebook(handle, data, CancellationToken.None);
-				return NotebookDto.fromNotebookDataDto(dto.value);
+				const result = NotebookDto.fromNotebookDataDto(dto.value);
+				this._logService.trace('[NotebookSerializer] dataToNotebook DONE', extension.id, sw.elapsed());
+				return result;
 			},
 			notebookToData: (data: NotebookData): Promise<VSBuffer> => {
-				return this._proxy.$notebookToData(handle, new SerializableObjectWithBuffers(NotebookDto.toNotebookDataDto(data)), CancellationToken.None);
+				const sw = new StopWatch(true);
+				const result = this._proxy.$notebookToData(handle, new SerializableObjectWithBuffers(NotebookDto.toNotebookDataDto(data)), CancellationToken.None);
+				this._logService.trace('[NotebookSerializer] notebookToData DONE', extension.id, sw.elapsed());
+				return result;
 			}
 		});
 		const disposables = new DisposableStore();
@@ -175,3 +186,36 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		}
 	}
 }
+
+CommandsRegistry.registerCommand('_executeDataToNotebook', async (accessor, ...args) => {
+
+	const [notebookType, bytes] = args;
+	assertType(typeof notebookType === 'string', 'string');
+	assertType(bytes instanceof VSBuffer, 'VSBuffer');
+
+	const notebookService = accessor.get(INotebookService);
+	const info = await notebookService.withNotebookDataProvider(notebookType);
+	if (!(info instanceof SimpleNotebookProviderInfo)) {
+		return;
+	}
+
+	const dto = await info.serializer.dataToNotebook(bytes);
+	return NotebookDto.toNotebookDataDto(dto);
+});
+
+CommandsRegistry.registerCommand('_executeNotebookToData', async (accessor, ...args) => {
+
+	const [notebookType, dto] = args;
+	assertType(typeof notebookType === 'string', 'string');
+	assertType(typeof dto === 'object', 'NotebookDataDto');
+
+	const notebookService = accessor.get(INotebookService);
+	const info = await notebookService.withNotebookDataProvider(notebookType);
+	if (!(info instanceof SimpleNotebookProviderInfo)) {
+		return;
+	}
+
+	const data = NotebookDto.fromNotebookDataDto(dto);
+	const bytes = await info.serializer.notebookToData(data);
+	return bytes;
+});

@@ -5,8 +5,10 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { splitGlobAware } from 'vs/base/common/glob';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TestTag } from 'vs/workbench/api/common/extHostTypeConverters';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
+import { namespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export interface ITestExplorerFilterState {
 	_serviceBrand: undefined;
@@ -26,9 +28,19 @@ export interface ITestExplorerFilterState {
 	readonly globList: readonly { include: boolean; text: string }[];
 
 	/**
-	 * The user requested to filter for only the specified tags.
+	 * The user requested to filter including tags.
 	 */
-	readonly onlyTags: ReadonlySet<string>;
+	readonly includeTags: ReadonlySet<string>;
+
+	/**
+	 * The user requested to filter excluding tags.
+	 */
+	readonly excludeTags: ReadonlySet<string>;
+
+	/**
+	 * Whether fuzzy searching is enabled.
+	 */
+	readonly fuzzy: MutableObservableValue<boolean>;
 
 	/**
 	 * Focuses the filter input in the test explorer view.
@@ -53,7 +65,7 @@ export interface ITestExplorerFilterState {
 
 export const ITestExplorerFilterState = createDecorator<ITestExplorerFilterState>('testingFilterState');
 
-const tagRe = /@([^ ,:]+)/g;
+const tagRe = /!?@([^ ,:]+)/g;
 const trimExtraWhitespace = (str: string) => str.replace(/\s\s+/g, ' ').trim();
 
 export class TestExplorerFilterState implements ITestExplorerFilterState {
@@ -68,14 +80,26 @@ export class TestExplorerFilterState implements ITestExplorerFilterState {
 	public globList: { include: boolean; text: string }[] = [];
 
 	/** @inheritdoc */
-	public onlyTags = new Set<string>();
+	public includeTags = new Set<string>();
+
+	/** @inheritdoc */
+	public excludeTags = new Set<string>();
 
 	/** @inheritdoc */
 	public readonly text = new MutableObservableValue('');
 
+	/** @inheritdoc */
+	public readonly fuzzy = MutableObservableValue.stored(new StoredValue<boolean>({
+		key: 'testHistoryFuzzy',
+		scope: StorageScope.GLOBAL,
+		target: StorageTarget.USER,
+	}, this.storageService), false);
+
 	public readonly reveal = new MutableObservableValue</* test ID */string | undefined>(undefined);
 
 	public readonly onDidRequestInputFocus = this.focusEmitter.event;
+
+	constructor(@IStorageService private readonly storageService: IStorageService) { }
 
 	/** @inheritdoc */
 	public focusInput() {
@@ -90,7 +114,8 @@ export class TestExplorerFilterState implements ITestExplorerFilterState {
 
 		this.termFilterState = {};
 		this.globList = [];
-		this.onlyTags.clear();
+		this.includeTags.clear();
+		this.excludeTags.clear();
 
 		let globText = '';
 		let lastIndex = 0;
@@ -124,7 +149,11 @@ export class TestExplorerFilterState implements ITestExplorerFilterState {
 					}
 				}
 
-				this.onlyTags.add(TestTag.namespace(match[1], tagId));
+				if (match[0].startsWith('!')) {
+					this.excludeTags.add(namespaceTestTag(match[1], tagId));
+				} else {
+					this.includeTags.add(namespaceTestTag(match[1], tagId));
+				}
 				nextIndex++;
 			}
 

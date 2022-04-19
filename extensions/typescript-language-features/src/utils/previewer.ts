@@ -39,9 +39,9 @@ function getTagBodyText(
 		return undefined;
 	}
 
-	// Convert to markdown code block if it is not already one
+	// Convert to markdown code block if it does not already contain one
 	function makeCodeblock(text: string): string {
-		if (text.match(/^\s*[~`]{3}/g)) {
+		if (/^\s*[~`]{3}/m.test(text)) {
 			return text;
 		}
 		return '```\n' + text + '\n```';
@@ -49,15 +49,16 @@ function getTagBodyText(
 
 	const text = convertLinkTags(tag.text, filePathConverter);
 	switch (tag.name) {
-		case 'example':
+		case 'example': {
 			// check for caption tags, fix for #79704
 			const captionTagMatches = text.match(/<caption>(.*?)<\/caption>\s*(\r\n|\n)/);
 			if (captionTagMatches && captionTagMatches.index === 0) {
-				return captionTagMatches[1] + '\n\n' + makeCodeblock(text.substr(captionTagMatches[0].length));
+				return captionTagMatches[1] + '\n' + makeCodeblock(text.substr(captionTagMatches[0].length));
 			} else {
 				return makeCodeblock(text);
 			}
-		case 'author':
+		}
+		case 'author': {
 			// fix obsucated email address, #80898
 			const emailMatch = text.match(/(.+)\s<([-.\w]+@[-.\w]+)>/);
 
@@ -66,6 +67,7 @@ function getTagBodyText(
 			} else {
 				return `${emailMatch[1]} ${emailMatch[2]}`;
 			}
+		}
 		case 'default':
 			return makeCodeblock(text);
 	}
@@ -81,7 +83,7 @@ function getTagDocumentation(
 		case 'augments':
 		case 'extends':
 		case 'param':
-		case 'template':
+		case 'template': {
 			const body = (convertLinkTags(tag.text, filePathConverter)).split(/^(\S+)\s*-?\s*/);
 			if (body?.length === 3) {
 				const param = body[1];
@@ -90,8 +92,9 @@ function getTagDocumentation(
 				if (!doc) {
 					return label;
 				}
-				return label + (doc.match(/\r\n|\n/g) ? '  \n' + processInlineTags(doc) : ` — ${processInlineTags(doc)}`);
+				return label + (doc.match(/\r\n|\n/g) ? '  \n' + processInlineTags(doc) : ` \u2014 ${processInlineTags(doc)}`);
 			}
+		}
 	}
 
 	// Generic tag
@@ -100,7 +103,7 @@ function getTagDocumentation(
 	if (!text) {
 		return label;
 	}
-	return label + (text.match(/\r\n|\n/g) ? '  \n' + text : ` — ${text}`);
+	return label + (text.match(/\r\n|\n/g) ? '  \n' + text : ` \u2014 ${text}`);
 }
 
 export function plainWithLinks(
@@ -127,7 +130,7 @@ function convertLinkTags(
 
 	const out: string[] = [];
 
-	let currentLink: { name?: string, target?: Proto.FileSpan, text?: string, readonly linkcode: boolean } | undefined;
+	let currentLink: { name?: string; target?: Proto.FileSpan; text?: string; readonly linkcode: boolean } | undefined;
 	for (const part of parts) {
 		switch (part.kind) {
 			case 'link':
@@ -196,9 +199,11 @@ export function markdownDocumentation(
 	documentation: Proto.SymbolDisplayPart[] | string,
 	tags: Proto.JSDocTagInfo[],
 	filePathConverter: IFilePathToResourceConverter,
+	baseUri: vscode.Uri | undefined,
 ): vscode.MarkdownString {
 	const out = new vscode.MarkdownString();
 	addMarkdownDocumentation(out, documentation, tags, filePathConverter);
+	out.baseUri = baseUri;
 	return out;
 }
 

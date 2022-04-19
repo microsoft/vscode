@@ -27,15 +27,15 @@ const $ = dom.$;
 
 export class StartDebugActionViewItem extends BaseActionViewItem {
 
-	private static readonly SEPARATOR = '─────────';
+	private static readonly SEPARATOR = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 
 	private container!: HTMLElement;
 	private start!: HTMLElement;
 	private selectBox: SelectBox;
-	private debugOptions: { label: string, handler: (() => Promise<boolean>) }[] = [];
+	private debugOptions: { label: string; handler: (() => Promise<boolean>) }[] = [];
 	private toDispose: IDisposable[];
 	private selected = 0;
-	private providers: { label: string, type: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[] = [];
+	private providers: { label: string; type: string; pick: () => Promise<{ launch: ILaunch; config: IConfig } | undefined> }[] = [];
 
 	constructor(
 		private context: unknown,
@@ -74,7 +74,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		container.classList.add('start-debug-action-item');
 		this.start = dom.append(container, $(ThemeIcon.asCSSSelector(debugStart)));
 		const keybinding = this.keybindingService.lookupKeybinding(this.action.id)?.getLabel();
-		let keybindingLabel = keybinding ? ` (${keybinding})` : '';
+		const keybindingLabel = keybinding ? ` (${keybinding})` : '';
 		this.start.title = this.action.label + keybindingLabel;
 		this.start.setAttribute('role', 'button');
 

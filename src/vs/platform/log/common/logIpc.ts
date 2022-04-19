@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { AbstractLoggerService, AbstractMessageLogger, AdapterLogger, ILogger, ILoggerOptions, ILoggerService, ILogService, LogLevel, LogService } from 'vs/platform/log/common/log';
+import { AbstractLoggerService, AbstractMessageLogger, AdapterLogger, ILogger, ILoggerOptions, ILoggerService, ILogService, log, LogLevel, LogService } from 'vs/platform/log/common/log';
 
 export class LogLevelChannel implements IServerChannel {
 
@@ -100,15 +100,7 @@ export class LoggerChannel implements IServerChannel {
 			throw new Error('Create the logger before logging');
 		}
 		for (const [level, message] of messages) {
-			switch (level) {
-				case LogLevel.Trace: logger.trace(message); break;
-				case LogLevel.Debug: logger.debug(message); break;
-				case LogLevel.Info: logger.info(message); break;
-				case LogLevel.Warning: logger.warn(message); break;
-				case LogLevel.Error: logger.error(message); break;
-				case LogLevel.Critical: logger.critical(message); break;
-				default: throw new Error('Invalid log level');
-			}
+			log(logger, level, message);
 		}
 	}
 }

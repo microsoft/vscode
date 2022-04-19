@@ -7,9 +7,10 @@ import { Emitter } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { MainContext, MainThreadTimelineShape, IExtHostContext, ExtHostTimelineShape, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, ITimelineService, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
+import { MainContext, MainThreadTimelineShape, ExtHostTimelineShape, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, ITimelineService, Timeline } from 'vs/workbench/contrib/timeline/common/timeline';
+import { revive } from 'vs/base/common/marshalling';
 
 @extHostNamedCustomer(MainContext.MainThreadTimeline)
 export class MainThreadTimeline implements MainThreadTimelineShape {
@@ -39,8 +40,8 @@ export class MainThreadTimeline implements MainThreadTimelineShape {
 		this._timelineService.registerTimelineProvider({
 			...provider,
 			onDidChange: onDidChange.event,
-			provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions) {
-				return proxy.$getTimeline(provider.id, uri, options, token, internalOptions);
+			async provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken) {
+				return revive<Timeline>(await proxy.$getTimeline(provider.id, uri, options, token));
 			},
 			dispose() {
 				emitters.delete(provider.id);

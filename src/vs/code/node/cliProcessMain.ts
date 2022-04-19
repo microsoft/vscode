@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import { gracefulify } from 'graceful-fs';
 import { hostname, release } from 'os';
 import { raceTimeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -14,6 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isAbsolute, join } from 'vs/base/common/path';
 import { cwd } from 'vs/base/common/process';
+import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -24,9 +23,11 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
+import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -45,9 +46,11 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { combinedAppender, getTelemetryLevel, NullTelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 class CliMain extends Disposable {
 
@@ -55,9 +58,6 @@ class CliMain extends Disposable {
 		private argv: NativeParsedArgs
 	) {
 		super();
-
-		// Enable gracefulFs
-		gracefulify(fs);
 
 		this.registerListeners();
 	}
@@ -89,7 +89,10 @@ class CliMain extends Disposable {
 			await this.doRun(environmentService, extensionManagementCLIService, fileService);
 
 			// Flush the remaining data in AI adapter (with 1s timeout)
-			return raceTimeout(combinedAppender(...appenders).flush(), 1000);
+			await Promise.all(appenders.map(a => {
+				raceTimeout(a.flush(), 1000);
+			}));
+			return;
 		});
 	}
 
@@ -110,7 +113,7 @@ class CliMain extends Disposable {
 		// Log
 		const logLevel = getLogLevel(environmentService);
 		const loggers: ILogger[] = [];
-		loggers.push(new SpdLogLogger('cli', join(environmentService.logsPath, 'cli.log'), true, logLevel));
+		loggers.push(new SpdLogLogger('cli', join(environmentService.logsPath, 'cli.log'), true, false, logLevel));
 		if (logLevel === LogLevel.Trace) {
 			loggers.push(new ConsoleLogger(logLevel));
 		}
@@ -132,6 +135,9 @@ class CliMain extends Disposable {
 		// Init config
 		await configurationService.initialize();
 
+		// URI Identity
+		services.set(IUriIdentityService, new UriIdentityService(fileService));
+
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 
@@ -139,6 +145,7 @@ class CliMain extends Disposable {
 		services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
 		// Extensions
+		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));
 		services.set(IExtensionManagementCLIService, new SyncDescriptor(ExtensionManagementCLIService));
@@ -148,20 +155,20 @@ class CliMain extends Disposable {
 
 		// Telemetry
 		const appenders: AppInsightsAppender[] = [];
-		if (getTelemetryLevel(productService, environmentService) >= TelemetryLevel.USER) {
+		if (supportsTelemetry(productService, environmentService)) {
 			if (productService.aiConfig && productService.aiConfig.asimovKey) {
 				appenders.push(new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey));
 			}
 
-			const { appRoot, extensionsPath, installSourcePath } = environmentService;
+			const { installSourcePath } = environmentService;
 
 			const config: ITelemetryServiceConfig = {
-				appender: combinedAppender(...appenders),
+				appenders,
 				sendErrorTelemetry: false,
 				commonProperties: (async () => {
 					let machineId: string | undefined = undefined;
 					try {
-						const storageContents = await Promises.readFile(join(environmentService.userDataPath, 'storage.json'));
+						const storageContents = await Promises.readFile(joinPath(environmentService.globalStorageHome, 'storage.json').fsPath);
 						machineId = JSON.parse(storageContents.toString())[machineIdKey];
 					} catch (error) {
 						if (error.code !== 'ENOENT') {
@@ -171,7 +178,7 @@ class CliMain extends Disposable {
 
 					return resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, machineId, productService.msftInternalDomains, installSourcePath);
 				})(),
-				piiPaths: [appRoot, extensionsPath]
+				piiPaths: getPiiPathsFromEnvironment(environmentService)
 			};
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
@@ -214,7 +221,8 @@ class CliMain extends Disposable {
 
 		// Install Extension
 		else if (this.argv['install-extension'] || this.argv['install-builtin-extension']) {
-			return extensionManagementCLIService.installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.argv['install-builtin-extension'] || [], !!this.argv['do-not-sync'], !!this.argv['force']);
+			const installOptions: InstallOptions = { isMachineScoped: !!this.argv['do-not-sync'], installPreReleaseVersion: !!this.argv['pre-release'] };
+			return extensionManagementCLIService.installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.argv['install-builtin-extension'] || [], installOptions, !!this.argv['force']);
 		}
 
 		// Uninstall Extension

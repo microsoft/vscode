@@ -111,7 +111,7 @@ function getTopLevelDeclaration(ts: typeof import('typescript'), sourceFile: ts.
 }
 
 
-function getNodeText(sourceFile: ts.SourceFile, node: { pos: number; end: number; }): string {
+function getNodeText(sourceFile: ts.SourceFile, node: { pos: number; end: number }): string {
 	return sourceFile.getFullText().substring(node.pos, node.end);
 }
 
@@ -178,25 +178,6 @@ function getMassagedTopLevelDeclarationText(ts: typeof import('typescript'), sou
 				// life..
 			}
 		});
-	} else if (declaration.kind === ts.SyntaxKind.VariableStatement) {
-		const jsDoc = result.substr(0, declaration.getLeadingTriviaWidth(sourceFile));
-		if (jsDoc.indexOf('@monacodtsreplace') >= 0) {
-			const jsDocLines = jsDoc.split(/\r\n|\r|\n/);
-			let directives: [RegExp, string][] = [];
-			for (const jsDocLine of jsDocLines) {
-				const m = jsDocLine.match(/^\s*\* \/([^/]+)\/([^/]+)\/$/);
-				if (m) {
-					directives.push([new RegExp(m[1], 'g'), m[2]]);
-				}
-			}
-			// remove the jsdoc
-			result = result.substr(jsDoc.length);
-			if (directives.length > 0) {
-				// apply replace directives
-				const replacer = createReplacerFromDirectives(directives);
-				result = replacer(result);
-			}
-		}
 	}
 	result = result.replace(/export default /g, 'export ');
 	result = result.replace(/export declare /g, 'export ');
@@ -480,7 +461,7 @@ function generateDeclarationFile(ts: typeof import('typescript'), recipe: string
 			let replacer = createReplacer(m2[2]);
 
 			let typeNames = m2[3].split(/,/);
-			let typesToExcludeMap: { [typeName: string]: boolean; } = {};
+			let typesToExcludeMap: { [typeName: string]: boolean } = {};
 			let typesToExcludeArr: string[] = [];
 			typeNames.forEach((typeName) => {
 				typeName = typeName.trim();
@@ -612,13 +593,13 @@ class CacheEntry {
 	constructor(
 		public readonly sourceFile: ts.SourceFile,
 		public readonly mtime: number
-	) {}
+	) { }
 }
 
 export class DeclarationResolver {
 
 	public readonly ts: typeof import('typescript');
-	private _sourceFileCache: { [moduleId: string]: CacheEntry | null; };
+	private _sourceFileCache: { [moduleId: string]: CacheEntry | null };
 
 	constructor(private readonly _fsProvider: FSProvider) {
 		this.ts = require('typescript') as typeof import('typescript');
@@ -686,8 +667,8 @@ export function run3(resolver: DeclarationResolver): IMonacoDeclarationResult | 
 
 
 
-interface ILibMap { [libName: string]: string; }
-interface IFileMap { [fileName: string]: string; }
+interface ILibMap { [libName: string]: string }
+interface IFileMap { [fileName: string]: string }
 
 class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 
@@ -741,6 +722,12 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 	}
 	isDefaultLibFileName(fileName: string): boolean {
 		return fileName === this.getDefaultLibFileName(this._compilerOptions);
+	}
+	readFile(path: string, _encoding?: string): string | undefined {
+		return this._files[path] || this._libs[path];
+	}
+	fileExists(path: string): boolean {
+		return path in this._files || path in this._libs;
 	}
 }
 

@@ -71,7 +71,7 @@ export interface IWorkingCopyBackupService {
 	/**
 	 * Discards the working copy backup associated with the identifier if it exists.
 	 */
-	discardBackup(identifier: IWorkingCopyIdentifier): Promise<void>;
+	discardBackup(identifier: IWorkingCopyIdentifier, token?: CancellationToken): Promise<void>;
 
 	/**
 	 * Discards all working copy backups.

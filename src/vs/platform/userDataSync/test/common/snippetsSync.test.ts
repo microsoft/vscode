@@ -12,8 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
-import { IResourcePreview, ISyncData, IUserDataSyncService, IUserDataSyncStoreService, PREVIEW_DIR_NAME, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
+import { IResourcePreview, ISyncData, IUserDataSyncStoreService, PREVIEW_DIR_NAME, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
 const tsSnippet1 = `{
@@ -158,7 +157,7 @@ suite('SnippetsSync', () => {
 	setup(async () => {
 		testClient = disposableStore.add(new UserDataSyncClient(server));
 		await testClient.setUp(true);
-		testObject = (testClient.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getSynchroniser(SyncResource.Snippets) as SnippetsSynchroniser;
+		testObject = testClient.getSynchronizer(SyncResource.Snippets) as SnippetsSynchroniser;
 		disposableStore.add(toDisposable(() => testClient.instantiationService.get(IUserDataSyncStoreService).clear()));
 
 		client2 = disposableStore.add(new UserDataSyncClient(server));
@@ -677,7 +676,7 @@ suite('SnippetsSync', () => {
 
 		await updateSnippet('html.json', htmlSnippet2, testClient);
 		await updateSnippet('typescript.json', tsSnippet2, testClient);
-		let preview = await testObject.preview(await testClient.manifest());
+		let preview = await testObject.preview(await testClient.manifest(), {});
 
 		assert.strictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews,
@@ -703,7 +702,7 @@ suite('SnippetsSync', () => {
 
 		await updateSnippet('html.json', htmlSnippet2, testClient);
 		await updateSnippet('typescript.json', tsSnippet2, testClient);
-		let preview = await testObject.preview(await testClient.manifest());
+		let preview = await testObject.preview(await testClient.manifest(), {});
 
 		assert.strictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews,
@@ -730,7 +729,7 @@ suite('SnippetsSync', () => {
 
 		await updateSnippet('html.json', htmlSnippet2, testClient);
 		await updateSnippet('typescript.json', tsSnippet2, testClient);
-		let preview = await testObject.preview(await testClient.manifest());
+		let preview = await testObject.preview(await testClient.manifest(), {});
 
 		assert.strictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews,
@@ -757,7 +756,7 @@ suite('SnippetsSync', () => {
 
 		await updateSnippet('html.json', htmlSnippet1, testClient);
 		await updateSnippet('typescript.json', tsSnippet2, testClient);
-		let preview = await testObject.preview(await testClient.manifest());
+		let preview = await testObject.preview(await testClient.manifest(), {});
 
 		assert.strictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews,
@@ -786,7 +785,7 @@ suite('SnippetsSync', () => {
 
 		await updateSnippet('html.json', htmlSnippet1, testClient);
 		await updateSnippet('typescript.json', tsSnippet2, testClient);
-		let preview = await testObject.preview(await testClient.manifest());
+		let preview = await testObject.preview(await testClient.manifest(), {});
 
 		assert.strictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews,
@@ -813,7 +812,7 @@ suite('SnippetsSync', () => {
 
 		await updateSnippet('html.json', htmlSnippet2, testClient);
 		await updateSnippet('typescript.json', tsSnippet2, testClient);
-		let preview = await testObject.preview(await testClient.manifest());
+		let preview = await testObject.preview(await testClient.manifest(), {});
 
 		assert.strictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews,
@@ -846,7 +845,7 @@ suite('SnippetsSync', () => {
 
 		await updateSnippet('html.json', htmlSnippet2, testClient);
 		await updateSnippet('typescript.json', tsSnippet2, testClient);
-		let preview = await testObject.preview(await testClient.manifest());
+		let preview = await testObject.preview(await testClient.manifest(), {});
 
 		assert.strictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews,
@@ -881,7 +880,7 @@ suite('SnippetsSync', () => {
 
 		await updateSnippet('html.json', htmlSnippet2, testClient);
 		await updateSnippet('typescript.json', tsSnippet2, testClient);
-		let preview = await testObject.preview(await testClient.manifest());
+		let preview = await testObject.preview(await testClient.manifest(), {});
 
 		assert.strictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews,
@@ -911,7 +910,7 @@ suite('SnippetsSync', () => {
 
 		await updateSnippet('html.json', htmlSnippet2, testClient);
 		await updateSnippet('typescript.json', tsSnippet2, testClient);
-		let preview = await testObject.preview(await testClient.manifest());
+		let preview = await testObject.preview(await testClient.manifest(), {});
 
 		assert.strictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews,
@@ -942,7 +941,7 @@ suite('SnippetsSync', () => {
 
 		await updateSnippet('html.json', htmlSnippet2, testClient);
 		await updateSnippet('typescript.json', tsSnippet2, testClient);
-		let preview = await testObject.preview(await testClient.manifest());
+		let preview = await testObject.preview(await testClient.manifest(), {});
 
 		assert.strictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews,

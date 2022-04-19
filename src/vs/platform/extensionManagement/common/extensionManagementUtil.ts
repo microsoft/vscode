@@ -4,8 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareIgnoreCase } from 'vs/base/common/strings';
-import { IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, ILocalExtension, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
+import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, IExtensionsControlManifest, getTargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionIdentifier, IExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
+import { isLinux, platform } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { getErrorMessage } from 'vs/base/common/errors';
+import { ILogService } from 'vs/platform/log/common/log';
+import { arch } from 'vs/base/common/process';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -17,29 +23,50 @@ export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifi
 	return compareIgnoreCase(a.id, b.id) === 0;
 }
 
-export class ExtensionIdentifierWithVersion implements IExtensionIdentifierWithVersion {
+const ExtensionKeyRegex = /^([^.]+\..+)-(\d+\.\d+\.\d+)(-(.+))?$/;
+
+export class ExtensionKey {
+
+	static create(extension: IExtension | IGalleryExtension): ExtensionKey {
+		const version = (extension as IExtension).manifest ? (extension as IExtension).manifest.version : (extension as IGalleryExtension).version;
+		const targetPlatform = (extension as IExtension).manifest ? (extension as IExtension).targetPlatform : (extension as IGalleryExtension).properties.targetPlatform;
+		return new ExtensionKey(extension.identifier, version, targetPlatform);
+	}
+
+	static parse(key: string): ExtensionKey | null {
+		const matches = ExtensionKeyRegex.exec(key);
+		return matches && matches[1] && matches[2] ? new ExtensionKey({ id: matches[1] }, matches[2], matches[4] as TargetPlatform || undefined) : null;
+	}
 
 	readonly id: string;
-	readonly uuid?: string;
 
 	constructor(
 		identifier: IExtensionIdentifier,
-		readonly version: string
+		readonly version: string,
+		readonly targetPlatform: TargetPlatform = TargetPlatform.UNDEFINED,
 	) {
 		this.id = identifier.id;
-		this.uuid = identifier.uuid;
 	}
 
-	key(): string {
-		return `${this.id}-${this.version}`;
+	toString(): string {
+		return `${this.id}-${this.version}${this.targetPlatform !== TargetPlatform.UNDEFINED ? `-${this.targetPlatform}` : ''}`;
 	}
 
 	equals(o: any): boolean {
-		if (!(o instanceof ExtensionIdentifierWithVersion)) {
+		if (!(o instanceof ExtensionKey)) {
 			return false;
 		}
-		return areSameExtensions(this, o) && this.version === o.version;
+		return areSameExtensions(this, o) && this.version === o.version && this.targetPlatform === o.targetPlatform;
 	}
+}
+
+const EXTENSION_IDENTIFIER_WITH_VERSION_REGEX = /^([^.]+\..+)@((prerelease)|(\d+\.\d+\.\d+(-.*)?))$/;
+export function getIdAndVersion(id: string): [string, string | undefined] {
+	const matches = EXTENSION_IDENTIFIER_WITH_VERSION_REGEX.exec(id);
+	if (matches && matches[1]) {
+		return [adoptToGalleryExtensionId(matches[1]), matches[2]];
+	}
+	return [adoptToGalleryExtensionId(id), undefined];
 }
 
 export function getExtensionId(publisher: string, name: string): string {
@@ -96,6 +123,7 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 		"publisherId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"publisherName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"isPreReleaseVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"dependencies": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 		"${include}": [
 			"${GalleryExtensionTelemetryData2}"
@@ -110,6 +138,7 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 		publisherId: extension.publisherId,
 		publisherName: extension.publisher,
 		publisherDisplayName: extension.publisherDisplayName,
+		isPreReleaseVersion: extension.properties.isPreReleaseVersion,
 		dependencies: !!(extension.properties.dependencies && extension.properties.dependencies.length > 0),
 		...extension.telemetryData
 	};
@@ -117,12 +146,12 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 
 export const BetterMergeId = new ExtensionIdentifier('pprice.better-merge');
 
-export function getMaliciousExtensionsSet(report: IReportedExtension[]): Set<string> {
+export function getMaliciousExtensionsSet(manifest: IExtensionsControlManifest): Set<string> {
 	const result = new Set<string>();
 
-	for (const extension of report) {
-		if (extension.malicious) {
-			result.add(extension.id.id);
+	if (manifest.malicious) {
+		for (const extension of manifest.malicious) {
+			result.add(extension.id);
 		}
 	}
 
@@ -146,4 +175,31 @@ export function getExtensionDependencies(installedExtensions: ReadonlyArray<IExt
 	}
 
 	return dependencies;
+}
+
+export async function isAlpineLinux(fileService: IFileService, logService: ILogService): Promise<boolean> {
+	if (!isLinux) {
+		return false;
+	}
+	let content: string | undefined;
+	try {
+		const fileContent = await fileService.readFile(URI.file('/etc/os-release'));
+		content = fileContent.value.toString();
+	} catch (error) {
+		try {
+			const fileContent = await fileService.readFile(URI.file('/usr/lib/os-release'));
+			content = fileContent.value.toString();
+		} catch (error) {
+			/* Ignore */
+			logService.debug(`Error while getting the os-release file.`, getErrorMessage(error));
+		}
+	}
+	return !!content && (content.match(/^ID=([^\u001b\r\n]*)/m) || [])[1] === 'alpine';
+}
+
+export async function computeTargetPlatform(fileService: IFileService, logService: ILogService): Promise<TargetPlatform> {
+	const alpineLinux = await isAlpineLinux(fileService, logService);
+	const targetPlatform = getTargetPlatform(alpineLinux ? 'alpine' : platform, arch);
+	logService.debug('ComputeTargetPlatform:', targetPlatform);
+	return targetPlatform;
 }

@@ -14,16 +14,19 @@ import { Schemas } from 'vs/base/common/network';
 import { IFileWorkingCopyManager, FileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { TestUntitledFileWorkingCopyModel, TestUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/untitledFileWorkingCopy.test';
 import { UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('FileWorkingCopyManager', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	let manager: IFileWorkingCopyManager<TestStoredFileWorkingCopyModel, TestUntitledFileWorkingCopyModel>;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		accessor.fileService.registerProvider(Schemas.file, new TestInMemoryFileSystemProvider());
@@ -37,12 +40,13 @@ suite('FileWorkingCopyManager', () => {
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
 			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-			accessor.environmentService, accessor.dialogService
+			accessor.environmentService, accessor.dialogService, accessor.decorationsService
 		);
 	});
 
 	teardown(() => {
 		manager.dispose();
+		disposables.dispose();
 	});
 
 	test('onDidCreate, get, workingCopies', async () => {

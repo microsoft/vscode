@@ -8,7 +8,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as nls from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { LanguageId } from 'vs/editor/common/modes';
 import { SnippetFile, Snippet } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 
 export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
@@ -28,9 +27,9 @@ export interface ISnippetsService {
 
 	updateEnablement(snippet: Snippet, enabled: boolean): void;
 
-	getSnippets(languageId: LanguageId, opt?: ISnippetGetOptions): Promise<Snippet[]>;
+	getSnippets(languageId: string, opt?: ISnippetGetOptions): Promise<Snippet[]>;
 
-	getSnippetsSync(languageId: LanguageId, opt?: ISnippetGetOptions): Snippet[];
+	getSnippetsSync(languageId: string, opt?: ISnippetGetOptions): Snippet[];
 }
 
 const languageScopeSchemaId = 'vscode://schemas/snippets';

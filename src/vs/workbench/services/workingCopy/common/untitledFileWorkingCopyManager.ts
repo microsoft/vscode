@@ -79,7 +79,7 @@ export interface INewUntitledFileWorkingCopyWithAssociatedResourceOptions extend
 	 * Note: currently it is not possible to specify the `scheme` to use. The
 	 * untitled file working copy will saved to the default local or remote resource.
 	 */
-	associatedResource: { authority?: string; path?: string; query?: string; fragment?: string; }
+	associatedResource: { authority?: string; path?: string; query?: string; fragment?: string };
 }
 
 export interface INewOrExistingUntitledFileWorkingCopyOptions extends INewUntitledFileWorkingCopyOptions {
@@ -152,7 +152,7 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 	private massageOptions(options: IInternalUntitledFileWorkingCopyOptions): IInternalUntitledFileWorkingCopyOptions {
 		const massagedOptions: IInternalUntitledFileWorkingCopyOptions = Object.create(null);
 
-		// Handle associcated resource
+		// Handle associated resource
 		if (options.associatedResource) {
 			massagedOptions.untitledResource = URI.from({
 				scheme: Schemas.untitled,
@@ -233,8 +233,8 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 		}
 	}
 
-	protected override remove(resource: URI): void {
-		super.remove(resource);
+	protected override remove(resource: URI): boolean {
+		const removed = super.remove(resource);
 
 		// Dispose any exsting working copy listeners
 		const workingCopyListener = this.mapResourceToWorkingCopyListeners.get(resource);
@@ -242,6 +242,8 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 			dispose(workingCopyListener);
 			this.mapResourceToWorkingCopyListeners.delete(resource);
 		}
+
+		return removed;
 	}
 
 	//#endregion

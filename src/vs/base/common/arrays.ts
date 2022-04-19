@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
+import { CancellationError } from 'vs/base/common/errors';
 import { ISplice } from 'vs/base/common/sequence';
 
 /**
@@ -198,7 +198,7 @@ export function sortedDiff<T>(before: ReadonlyArray<T>, after: ReadonlyArray<T>,
  * Takes two *sorted* arrays and computes their delta (removed, added elements).
  * Finishes in `Math.min(before.length, after.length)` steps.
  */
-export function delta<T>(before: ReadonlyArray<T>, after: ReadonlyArray<T>, compare: (a: T, b: T) => number): { removed: T[], added: T[] } {
+export function delta<T>(before: ReadonlyArray<T>, after: ReadonlyArray<T>, compare: (a: T, b: T) => number): { removed: T[]; added: T[] } {
 	const splices = sortedDiff(before, after, compare);
 	const removed: T[] = [];
 	const added: T[] = [];
@@ -254,10 +254,10 @@ export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: numb
 			const result = array.slice(0, n).sort(compare);
 			for (let i = n, m = Math.min(n + batch, o); i < o; i = m, m = Math.min(m + batch, o)) {
 				if (i > n) {
-					await new Promise(resolve => setTimeout(resolve)); // nextTick() would starve I/O.
+					await new Promise(resolve => setTimeout(resolve)); // any other delay function would starve I/O
 				}
 				if (token && token.isCancellationRequested) {
-					throw canceled();
+					throw new CancellationError();
 				}
 				topStep(array, compare, result, i, m);
 			}
@@ -300,7 +300,7 @@ export function coalesceInPlace<T>(array: Array<T | undefined | null>): void {
 }
 
 /**
- * Moves the element in the array for the provided positions.
+ * @deprecated Use `Array.copyWithin` instead
  */
 export function move(array: any[], from: number, to: number): void {
 	array.splice(to, 0, array.splice(from, 1)[0]);
@@ -324,53 +324,42 @@ export function isNonEmptyArray<T>(obj: T[] | readonly T[] | undefined | null): 
 
 /**
  * Removes duplicates from the given array. The optional keyFn allows to specify
- * how elements are checked for equality by returning a unique string for each.
+ * how elements are checked for equality by returning an alternate value for each.
  */
-export function distinct<T>(array: ReadonlyArray<T>, keyFn?: (t: T) => string): T[] {
-	if (!keyFn) {
-		return array.filter((element, position) => {
-			return array.indexOf(element) === position;
-		});
-	}
+export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => any = value => value): T[] {
+	const seen = new Set<any>();
 
-	const seen: { [key: string]: boolean; } = Object.create(null);
-	return array.filter((elem) => {
-		const key = keyFn(elem);
-		if (seen[key]) {
-			return false;
-		}
-
-		seen[key] = true;
-
-		return true;
-	});
-}
-
-export function distinctES6<T>(array: ReadonlyArray<T>): T[] {
-	const seen = new Set<T>();
 	return array.filter(element => {
-		if (seen.has(element)) {
+		const key = keyFn!(element);
+		if (seen.has(key)) {
 			return false;
 		}
-
-		seen.add(element);
+		seen.add(key);
 		return true;
 	});
 }
 
-export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
-	const seen: { [key: string]: boolean; } = Object.create(null);
+export function uniqueFilter<T, R>(keyFn: (t: T) => R): (t: T) => boolean {
+	const seen = new Set<R>();
 
 	return element => {
 		const key = keyFn(element);
 
-		if (seen[key]) {
+		if (seen.has(key)) {
 			return false;
 		}
 
-		seen[key] = true;
+		seen.add(key);
 		return true;
 	};
+}
+
+export function findLast<T>(arr: readonly T[], predicate: (item: T) => boolean): T | undefined {
+	const idx = lastIndex(arr, predicate);
+	if (idx === -1) {
+		return undefined;
+	}
+	return arr[idx];
 }
 
 export function lastIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
@@ -391,6 +380,12 @@ export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoun
 	return array.length > 0 ? array[0] : notFoundValue;
 }
 
+export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
+export function lastOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
+export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
+	return array.length > 0 ? array[array.length - 1] : notFoundValue;
+}
+
 export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): number {
 	let result = 0;
 
@@ -401,6 +396,9 @@ export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArra
 	return result;
 }
 
+/**
+ * @deprecated Use `[].flat()`
+ */
 export function flatten<T>(arr: T[][]): T[] {
 	return (<T[]>[]).concat(...arr);
 }
@@ -432,9 +430,9 @@ export function range(arg: number, to?: number): number[] {
 	return result;
 }
 
-export function index<T>(array: ReadonlyArray<T>, indexer: (t: T) => string): { [key: string]: T; };
-export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, mapper: (t: T) => R): { [key: string]: R; };
-export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, mapper?: (t: T) => R): { [key: string]: R; } {
+export function index<T>(array: ReadonlyArray<T>, indexer: (t: T) => string): { [key: string]: T };
+export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, mapper: (t: T) => R): { [key: string]: R };
+export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, mapper?: (t: T) => R): { [key: string]: R } {
 	return array.reduce((r, t) => {
 		r[indexer(t)] = mapper ? mapper(t) : t;
 		return r;
@@ -444,6 +442,8 @@ export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, 
 /**
  * Inserts an element into an array. Returns a function which, when
  * called, will remove that element from the array.
+ *
+ * @deprecated In almost all cases, use a `Set<T>` instead.
  */
 export function insert<T>(array: T[], element: T): () => void {
 	array.push(element);
@@ -453,6 +453,8 @@ export function insert<T>(array: T[], element: T): () => void {
 
 /**
  * Removes an element from an array if it can be found.
+ *
+ * @deprecated In almost all cases, use a `Set<T>` instead.
  */
 export function remove<T>(array: T[], element: T): T | undefined {
 	const index = array.indexOf(element);
@@ -522,6 +524,12 @@ export function pushToEnd<T>(arr: T[], value: T): void {
 	if (index > -1) {
 		arr.splice(index, 1);
 		arr.push(value);
+	}
+}
+
+export function pushMany<T>(arr: T[], items: ReadonlyArray<T>): void {
+	for (const item of items) {
+		arr.push(item);
 	}
 }
 
@@ -603,37 +611,62 @@ function getActualStartIndex<T>(array: T[], start: number): number {
 }
 
 /**
- * Like Math.min with a delegate, and returns the winning index
- */
-export function minIndex<T>(array: readonly T[], fn: (value: T) => number): number {
-	let minValue = Number.MAX_SAFE_INTEGER;
-	let minIdx = 0;
-	array.forEach((value, i) => {
-		const thisValue = fn(value);
-		if (thisValue < minValue) {
-			minValue = thisValue;
-			minIdx = i;
-		}
-	});
+ * A comparator `c` defines a total order `<=` on `T` as following:
+ * `c(a, b) <= 0` iff `a` <= `b`.
+ * We also have `c(a, b) == 0` iff `c(b, a) == 0`.
+*/
+export type Comparator<T> = (a: T, b: T) => number;
 
-	return minIdx;
+export function compareBy<TItem, TCompareBy>(selector: (item: TItem) => TCompareBy, comparator: Comparator<TCompareBy>): Comparator<TItem> {
+	return (a, b) => comparator(selector(a), selector(b));
 }
 
 /**
- * Like Math.max with a delegate, and returns the winning index
- */
-export function maxIndex<T>(array: readonly T[], fn: (value: T) => number): number {
-	let minValue = Number.MIN_SAFE_INTEGER;
-	let maxIdx = 0;
-	array.forEach((value, i) => {
-		const thisValue = fn(value);
-		if (thisValue > minValue) {
-			minValue = thisValue;
-			maxIdx = i;
-		}
-	});
+ * The natural order on numbers.
+*/
+export const numberComparator: Comparator<number> = (a, b) => a - b;
 
-	return maxIdx;
+/**
+ * Returns the first item that is equal to or greater than every other item.
+*/
+export function findMaxBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
+	if (items.length === 0) {
+		return undefined;
+	}
+
+	let max = items[0];
+	for (let i = 1; i < items.length; i++) {
+		const item = items[i];
+		if (comparator(item, max) > 0) {
+			max = item;
+		}
+	}
+	return max;
+}
+
+/**
+ * Returns the last item that is equal to or greater than every other item.
+*/
+export function findLastMaxBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
+	if (items.length === 0) {
+		return undefined;
+	}
+
+	let max = items[0];
+	for (let i = 1; i < items.length; i++) {
+		const item = items[i];
+		if (comparator(item, max) >= 0) {
+			max = item;
+		}
+	}
+	return max;
+}
+
+/**
+ * Returns the first item that is equal to or less than every other item.
+*/
+export function findMinBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
+	return findMaxBy(items, (a, b) => -comparator(a, b));
 }
 
 export class ArrayQueue<T> {
@@ -681,6 +714,22 @@ export class ArrayQueue<T> {
 		}
 		const result = endIdx === this.lastIdx ? null : this.items.slice(endIdx + 1, this.lastIdx + 1);
 		this.lastIdx = endIdx;
+		return result;
+	}
+
+	peek(): T | undefined {
+		return this.items[this.firstIdx];
+	}
+
+	dequeue(): T | undefined {
+		const result = this.items[this.firstIdx];
+		this.firstIdx++;
+		return result;
+	}
+
+	takeCount(count: number): T[] {
+		const result = this.items.slice(this.firstIdx, this.firstIdx + count);
+		this.firstIdx += count;
 		return result;
 	}
 }

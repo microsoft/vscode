@@ -75,7 +75,7 @@ export interface IConcatFile {
 
 export interface IBundleData {
 	graph: IGraph;
-	bundles: { [moduleId: string]: string[]; };
+	bundles: { [moduleId: string]: string[] };
 }
 
 export interface IBundleResult {
@@ -91,7 +91,7 @@ interface IPartialBundleResult {
 
 export interface ILoaderConfig {
 	isBuild?: boolean;
-	paths?: { [path: string]: any; };
+	paths?: { [path: string]: any };
 }
 
 /**
@@ -100,16 +100,19 @@ export interface ILoaderConfig {
 export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callback: (err: any, result: IBundleResult | null) => void): void {
 	const entryPointsMap: IEntryPointMap = {};
 	entryPoints.forEach((module: IEntryPoint) => {
+		if (entryPointsMap[module.name]) {
+			throw new Error(`Cannot have two entry points with the same name '${module.name}'`);
+		}
 		entryPointsMap[module.name] = module;
 	});
 
-	const allMentionedModulesMap: { [modules: string]: boolean; } = {};
+	const allMentionedModulesMap: { [modules: string]: boolean } = {};
 	entryPoints.forEach((module: IEntryPoint) => {
 		allMentionedModulesMap[module.name] = true;
-		(module.include || []).forEach(function (includedModule) {
+		module.include?.forEach(function (includedModule) {
 			allMentionedModulesMap[includedModule] = true;
 		});
-		(module.exclude || []).forEach(function (excludedModule) {
+		module.exclude?.forEach(function (excludedModule) {
 			allMentionedModulesMap[excludedModule] = true;
 		});
 	});
@@ -280,7 +283,7 @@ function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
 		}
 
 		// Do one pass to record the usage counts for each module id
-		const useCounts: { [moduleId: string]: number; } = {};
+		const useCounts: { [moduleId: string]: number } = {};
 		destFile.sources.forEach((source) => {
 			const matches = source.contents.match(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/);
 			if (!matches) {
@@ -299,7 +302,7 @@ function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
 			return useCounts[b] - useCounts[a];
 		});
 
-		const replacementMap: { [moduleId: string]: number; } = {};
+		const replacementMap: { [moduleId: string]: number } = {};
 		sortedByUseModules.forEach((module, index) => {
 			replacementMap[module] = index;
 		});
@@ -596,7 +599,7 @@ function visit(rootNodes: string[], graph: IGraph): INodeSet {
 function topologicalSort(graph: IGraph): string[] {
 
 	const allNodes: INodeSet = {},
-		outgoingEdgeCount: { [node: string]: number; } = {},
+		outgoingEdgeCount: { [node: string]: number } = {},
 		inverseEdges: IGraph = {};
 
 	Object.keys(graph).forEach((fromNode: string) => {

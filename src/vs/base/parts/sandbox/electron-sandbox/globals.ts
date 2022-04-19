@@ -35,6 +35,11 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	readonly sandboxed: boolean;
 
 	/**
+	 * The `process.pid` property returns the PID of the process.
+	 */
+	readonly pid: number;
+
+	/**
 	 * A list of versions for the current node.js/electron configuration.
 	 */
 	readonly versions: { [key: string]: string | undefined };
@@ -94,16 +99,15 @@ export interface ISandboxNodeProcess extends INodeProcess {
 export interface IpcMessagePort {
 
 	/**
-	 * Establish a connection via `MessagePort` to a target. The main process
-	 * will need to transfer the port over to the `channelResponse` after listening
-	 * to `channelRequest` with a payload of `requestNonce` so that the
-	 * source can correlate the response.
+	 * Acquire a `MessagePort`. The main process will transfer the port over to
+	 * the `responseChannel` with a payload of `requestNonce` so that the source can
+	 * correlate the response.
 	 *
 	 * The source should install a `window.on('message')` listener, ensuring `e.data`
-	 * matches `requestNonce`, `e.source` matches `window` and then receiving the
-	 * `MessagePort` via `e.ports[0]`.
+	 * matches `nonce`, `e.source` matches `window` and then receiving the `MessagePort`
+	 * via `e.ports[0]`.
 	 */
-	connect(channelRequest: string, channelResponse: string, requestNonce: string): void;
+	acquire(responseChannel: string, nonce: string): void;
 }
 
 export interface ISandboxContext {

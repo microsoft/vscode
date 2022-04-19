@@ -13,11 +13,14 @@ import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/works
 import { TaskEvent, TaskEventKind, TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { withUndefinedAsNull } from 'vs/base/common/types';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { createErrorWithActions } from 'vs/base/common/errors';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { createErrorWithActions } from 'vs/base/common/errorMessage';
+import { Action } from 'vs/base/common/actions';
+import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 function once(match: (e: TaskEvent) => boolean, event: Event<TaskEvent>): Event<TaskEvent> {
 	return (listener, thisArgs = null, disposables?) => {
@@ -48,7 +51,8 @@ export class DebugTaskRunner {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@ICommandService private readonly commandService: ICommandService
 	) { }
 
 	cancel(): void {
@@ -64,7 +68,7 @@ export class DebugTaskRunner {
 				return TaskRunResult.Failure;
 			}
 
-			const errorCount = taskId ? this.markerService.getStatistics().errors : 0;
+			const errorCount = taskId ? this.markerService.read({ severities: MarkerSeverity.Error, take: 2 }).length : 0;
 			const successExitCode = taskSummary && taskSummary.exitCode === 0;
 			const failureExitCode = taskSummary && taskSummary.exitCode !== 0;
 			const onTaskErrors = this.configurationService.getValue<IDebugConfiguration>('debug').onTaskErrors;
@@ -158,7 +162,7 @@ export class DebugTaskRunner {
 			const errorMessage = typeof taskId === 'string'
 				? nls.localize('DebugTaskNotFoundWithTaskId', "Could not find the task '{0}'.", taskId)
 				: nls.localize('DebugTaskNotFound', "Could not find the specified task.");
-			return Promise.reject(createErrorWithActions(errorMessage));
+			return Promise.reject(createErrorWithActions(errorMessage, [new Action(DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, undefined, true, () => this.commandService.executeCommand(DEBUG_CONFIGURE_COMMAND_ID))]));
 		}
 
 		// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
@@ -200,7 +204,7 @@ export class DebugTaskRunner {
 			return taskPromise.then(withUndefinedAsNull);
 		});
 
-		return new Promise(async (c, e) => {
+		return new Promise((c, e) => {
 			const waitForInput = new Promise<void>(resolve => once(e => (e.kind === TaskEventKind.AcquiredInput) && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
 				resolve();
 			}));
@@ -210,17 +214,18 @@ export class DebugTaskRunner {
 				c(result);
 			}, error => e(error));
 
-			await waitForInput;
-			const waitTime = task.configurationProperties.isBackground ? 5000 : 10000;
+			waitForInput.then(() => {
+				const waitTime = task.configurationProperties.isBackground ? 5000 : 10000;
 
-			setTimeout(() => {
-				if (!taskStarted) {
-					const errorMessage = typeof taskId === 'string'
-						? nls.localize('taskNotTrackedWithTaskId', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", taskId)
-						: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", JSON.stringify(taskId));
-					e({ severity: severity.Error, message: errorMessage });
-				}
-			}, waitTime);
+				setTimeout(() => {
+					if (!taskStarted) {
+						const errorMessage = typeof taskId === 'string'
+							? nls.localize('taskNotTrackedWithTaskId', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", taskId)
+							: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", JSON.stringify(taskId));
+						e({ severity: severity.Error, message: errorMessage });
+					}
+				}, waitTime);
+			});
 		});
 	}
 }

@@ -18,7 +18,7 @@ export interface IWorkbenchSettingsConfiguration {
 			useNaturalLanguageSearchPost: boolean;
 			enableNaturalLanguageSearch: boolean;
 			enableNaturalLanguageSearchFeedback: boolean;
-		}
+		};
 	};
 }
 
@@ -42,6 +42,7 @@ export interface ISearchProvider {
 
 export const SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'settings.action.clearSearchResults';
 export const SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU = 'settings.action.showContextMenu';
+export const SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS = 'settings.action.suggestFilters';
 
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);
 export const CONTEXT_SETTINGS_JSON_EDITOR = new RawContextKey<boolean>('inSettingsJSONEditor', false);
@@ -51,6 +52,7 @@ export const CONTEXT_SETTINGS_ROW_FOCUS = new RawContextKey<boolean>('settingRow
 export const CONTEXT_KEYBINDINGS_EDITOR = new RawContextKey<boolean>('inKeybindings', false);
 export const CONTEXT_KEYBINDINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inKeybindingsSearch', false);
 export const CONTEXT_KEYBINDING_FOCUS = new RawContextKey<boolean>('keybindingFocus', false);
+export const CONTEXT_WHEN_FOCUS = new RawContextKey<boolean>('whenFocus', false);
 
 export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.searchKeybindings';
 export const KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'keybindings.editor.clearSearchResults';
@@ -74,6 +76,10 @@ export const MODIFIED_SETTING_TAG = 'modified';
 export const EXTENSION_SETTING_TAG = 'ext:';
 export const FEATURE_SETTING_TAG = 'feature:';
 export const ID_SETTING_TAG = 'id:';
+export const LANGUAGE_SETTING_TAG = 'lang:';
+export const GENERAL_TAG_SETTING_TAG = 'tag:';
 export const WORKSPACE_TRUST_SETTING_TAG = 'workspaceTrust';
 export const REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG = 'requireTrustedWorkspace';
 export const KEYBOARD_LAYOUT_OPEN_PICKER = 'workbench.action.openKeyboardLayoutPicker';
+
+export const ENABLE_LANGUAGE_FILTER = true;

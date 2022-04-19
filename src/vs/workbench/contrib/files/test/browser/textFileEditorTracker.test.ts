@@ -28,6 +28,8 @@ import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('Files - TextFileEditorTracker', () => {
 
@@ -50,7 +52,7 @@ suite('Files - TextFileEditorTracker', () => {
 	});
 
 	async function createTracker(autoSaveEnabled = false): Promise<TestServiceAccessor> {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		if (autoSaveEnabled) {
 			const configurationService = new TestConfigurationService();
@@ -60,7 +62,8 @@ suite('Files - TextFileEditorTracker', () => {
 
 			instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
 				<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
-				configurationService
+				configurationService,
+				new TestContextService(TestWorkspace)
 			));
 		}
 

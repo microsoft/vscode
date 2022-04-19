@@ -9,13 +9,13 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Barrier } from 'vs/base/common/async';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -383,7 +383,7 @@ export interface IStartupMetrics {
 	readonly totalmem?: number;
 	readonly freemem?: number;
 	readonly meminfo?: IMemoryInfo;
-	readonly cpus?: { count: number; speed: number; model: string; };
+	readonly cpus?: { count: number; speed: number; model: string };
 	readonly loadavg?: number[];
 }
 
@@ -468,8 +468,7 @@ export abstract class AbstractTimerService implements ITimerService {
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IUpdateService private readonly _updateService: IUpdateService,
-		@IViewletService private readonly _viewletService: IViewletService,
-		@IPanelService private readonly _panelService: IPanelService,
+		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -527,12 +526,12 @@ export abstract class AbstractTimerService implements ITimerService {
 		// event and it is "normalized" to a relative timestamp where the first mark
 		// defines the start
 		for (const [source, marks] of this.getPerformanceMarks()) {
-			type Mark = { source: string; name: string; relativeStartTime: number; startTime: number; };
+			type Mark = { source: string; name: string; relativeStartTime: number; startTime: number };
 			type MarkClassification = {
-				source: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth'; },
-				name: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth'; },
-				relativeStartTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; },
-				startTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; },
+				source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				relativeStartTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 			};
 
 			let lastMark: perf.PerformanceMark = marks[0];
@@ -553,8 +552,8 @@ export abstract class AbstractTimerService implements ITimerService {
 		const initialStartup = this._isInitialStartup();
 		const startMark = initialStartup ? 'code/didStartMain' : 'code/willOpenNewWindow';
 
-		const activeViewlet = this._viewletService.getActiveViewlet();
-		const activePanel = this._panelService.getActivePanel();
+		const activeViewlet = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
+		const activePanel = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 		const info: Writeable<IStartupMetrics> = {
 			version: 2,
 			ellapsed: this._marks.getDuration(startMark, 'code/didStartWorkbench'),

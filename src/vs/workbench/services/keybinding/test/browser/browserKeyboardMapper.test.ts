@@ -24,7 +24,7 @@ class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
 		this._keymapInfos.push(...keymapInfos.map(info => (new KeymapInfo(info.layout, info.secondaryLayouts, info.mapping, info.isUserKeyboardLayout))));
 		this._mru = this._keymapInfos;
 		this._initialized = true;
-		this.onKeyboardLayoutChanged();
+		this.setLayoutFromBrowserAPI();
 		const usLayout = this.getUSStandardLayout();
 		if (usLayout) {
 			this.setActiveKeyMapping(usLayout.mapping);

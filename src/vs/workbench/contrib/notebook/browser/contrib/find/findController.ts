@@ -6,34 +6,42 @@
 import 'vs/css!./media/notebookFind';
 import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
 import * as strings from 'vs/base/common/strings';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellEditState, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, getNotebookEditorFromEditorPane, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { INotebookEditor, CellEditState, INotebookEditorContribution, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Range } from 'vs/editor/common/core/range';
-import { MATCHES_LIMIT } from 'vs/editor/contrib/find/findModel';
+import { MATCHES_LIMIT } from 'vs/editor/contrib/find/browser/findModel';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindReplaceWidget';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import * as DOM from 'vs/base/browser/dom';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, IMenuService } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/findController';
+import { StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/browser/findController';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from 'vs/editor/contrib/find/findWidget';
+import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from 'vs/editor/contrib/find/browser/findWidget';
 import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { FindMatch, ITextModel } from 'vs/editor/common/model';
+import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
+import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { Schemas } from 'vs/base/common/network';
+import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { URI } from 'vs/base/common/uri';
+import { isEqual } from 'vs/base/common/resources';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';
 let MAX_MATCHES_COUNT_WIDTH = 69;
-
+const PROGRESS_BAR_DELAY = 200; // show progress for at least 200ms
 
 export class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.find';
@@ -48,14 +56,15 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
-
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IMenuService menuService: IMenuService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(contextViewService, contextKeyService, themeService, new FindReplaceState(), true);
+		super(contextViewService, contextKeyService, themeService, configurationService, menuService, contextMenuService, instantiationService, new FindReplaceState<NotebookFindFilters>());
 		this._findModel = new FindModel(this._notebookEditor, this._state, this._configurationService);
 
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
-
 		this._findWidgetFocused = KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
 		this.updateTheme(themeService.getColorTheme());
@@ -63,14 +72,35 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			this.updateTheme(themeService.getColorTheme());
 		}));
 
-		this._register(this._state.onFindReplaceStateChange(() => {
+		this._register(this._state.onFindReplaceStateChange((e) => {
 			this.onInputChanged();
+
+			if (e.isSearching) {
+				if (this._state.isSearching) {
+					this._progressBar.infinite().show(PROGRESS_BAR_DELAY);
+				} else {
+					this._progressBar.stop().hide();
+				}
+			}
+
+			if (this._findModel.currentMatch >= 0) {
+				const currentMatch = this._findModel.getCurrentMatch();
+				this._replaceBtn.setEnabled(currentMatch.isModelMatch);
+			}
+
+			const matches = this._findModel.findMatches;
+			this._replaceAllBtn.setEnabled(matches.length > 0 && matches.find(match => match.modelMatchCount < match.matches.length) === undefined);
+
+			if (e.filters) {
+				this._findInput.updateFilterState((this._state.filters?.markupPreview ?? false) || (this._state.filters?.codeOutput ?? false));
+			}
 		}));
 
 		this._register(DOM.addDisposableListener(this.getDomNode(), DOM.EventType.FOCUS, e => {
 			this._previousFocusElement = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : undefined;
 		}, true));
 	}
+
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 		if (e.equals(KeyCode.Enter)) {
@@ -114,13 +144,24 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			this._findModel.find(false);
 		}
 
-		const { cell, match } = this._findModel.getCurrentMatch();
-		this._progressBar.infinite().show();
+		const currentMatch = this._findModel.getCurrentMatch();
+		const cell = currentMatch.cell;
+		if (currentMatch.isModelMatch) {
+			const match = currentMatch.match as FindMatch;
 
-		const viewModel = this._notebookEditor._getViewModel();
-		viewModel.replaceOne(cell, match.range, this.replaceValue).then(() => {
-			this._progressBar.stop();
-		});
+			this._progressBar.infinite().show(PROGRESS_BAR_DELAY);
+
+			const replacePattern = this.replacePattern;
+			const replaceString = replacePattern.buildReplaceString(match.matches, this._state.preserveCase);
+
+			const viewModel = this._notebookEditor._getViewModel();
+			viewModel.replaceOne(cell, match.range, replaceString).then(() => {
+				this._progressBar.stop();
+			});
+		} else {
+			// this should not work
+			console.error('Replace does not work for output match');
+		}
 	}
 
 	protected replaceAll() {
@@ -128,10 +169,25 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			return;
 		}
 
-		this._progressBar.infinite().show();
+		this._progressBar.infinite().show(PROGRESS_BAR_DELAY);
+
+		const replacePattern = this.replacePattern;
+
+		const cellFindMatches = this._findModel.findMatches;
+		const replaceStrings: string[] = [];
+		cellFindMatches.forEach(cellFindMatch => {
+			const findMatches = cellFindMatch.matches;
+			findMatches.forEach((findMatch, index) => {
+				if (index < cellFindMatch.modelMatchCount) {
+					const match = findMatch as FindMatch;
+					const matches = match.matches;
+					replaceStrings.push(replacePattern.buildReplaceString(matches, this._state.preserveCase));
+				}
+			});
+		});
 
 		const viewModel = this._notebookEditor._getViewModel();
-		viewModel.replaceAll(this._findModel.findMatches, this.replaceValue).then(() => {
+		viewModel.replaceAll(this._findModel.findMatches, replaceStrings).then(() => {
 			this._progressBar.stop();
 		});
 	}
@@ -205,6 +261,8 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		super.hide();
 		this._state.change({ isRevealed: false }, false);
 		this._findModel.clear();
+		this._notebookEditor.findStop();
+		this._progressBar.stop();
 
 		if (this._hideTimeout === null) {
 			if (this._showTimeout !== null) {
@@ -256,7 +314,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 			if (this._state.matchesCount >= MATCHES_LIMIT) {
 				matchesCount += '+';
 			}
-			let matchesPosition: string = this._findModel.currentMatch < 0 ? '?' : String((this._findModel.currentMatch + 1));
+			const matchesPosition: string = this._findModel.currentMatch < 0 ? '?' : String((this._findModel.currentMatch + 1));
 			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
 		} else {
 			label = NLS_NO_RESULTS;
@@ -322,7 +380,7 @@ registerAction2(class extends Action2 {
 			title: { value: localize('notebookActions.findInNotebook', "Find in Notebook"), original: 'Find in Notebook' },
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, EditorContextKeys.focus.toNegated()),
-				primary: KeyCode.KEY_F | KeyMod.CtrlCmd,
+				primary: KeyCode.KeyF | KeyMod.CtrlCmd,
 				weight: KeybindingWeight.WorkbenchContrib
 			}
 		});
@@ -341,6 +399,17 @@ registerAction2(class extends Action2 {
 	}
 });
 
+function notebookContainsTextModel(uri: URI, textModel: ITextModel) {
+	if (textModel.uri.scheme === Schemas.vscodeNotebookCell) {
+		const cellUri = CellUri.parse(textModel.uri);
+		if (cellUri && isEqual(cellUri.notebook, uri)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: ICodeEditor, args: any) => {
 	const editorService = accessor.get(IEditorService);
 	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
@@ -350,7 +419,14 @@ StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: 
 	}
 
 	if (!editor.hasEditorFocus() && !editor.hasWebviewFocus()) {
-		return false;
+		const codeEditorService = accessor.get(ICodeEditorService);
+		// check if the active pane contains the active text editor
+		const textEditor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
+		if (editor.hasModel() && textEditor && textEditor.hasModel() && notebookContainsTextModel(editor.textModel.uri, textEditor.getModel())) {
+			// the active text editor is in notebook editor
+		} else {
+			return false;
+		}
 	}
 
 	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
@@ -367,6 +443,10 @@ StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, codeE
 	}
 
 	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
-	controller.replace();
-	return true;
+	if (controller) {
+		controller.replace();
+		return true;
+	}
+
+	return false;
 });

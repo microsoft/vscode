@@ -12,11 +12,11 @@ import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementSer
 import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IURLHandler, IURLService, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -28,6 +28,9 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { CancellationToken } from 'vs/base/common/cancellation';
+
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -74,6 +77,14 @@ export interface IExtensionUrlHandler {
 	unregisterExtensionHandler(extensionId: ExtensionIdentifier): void;
 }
 
+export interface ExtensionUrlHandlerEvent {
+	readonly extensionId: string;
+}
+
+export interface ExtensionUrlHandlerClassification extends GDPRClassification<ExtensionUrlHandlerEvent> {
+	readonly extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+}
+
 /**
  * This class handles URLs which are directed towards extensions.
  * If a URL is directed towards an inactive extension, it buffers it,
@@ -88,7 +99,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	readonly _serviceBrand: undefined;
 
 	private extensionHandlers = new Map<string, IURLHandler>();
-	private uriBuffer = new Map<string, { timestamp: number, uri: URI }[]>();
+	private uriBuffer = new Map<string, { timestamp: number; uri: URI }[]>();
 	private userTrustedExtensionsStorage: UserTrustedExtensionIdStorage;
 	private disposable: IDisposable;
 
@@ -104,6 +115,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProgressService private readonly progressService: IProgressService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExtensionUrlTrustService private readonly extensionUrlTrustService: IExtensionUrlTrustService
 	) {
 		this.userTrustedExtensionsStorage = new UserTrustedExtensionIdStorage(storageService);
@@ -130,11 +142,13 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		const extensionId = uri.authority;
+		this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/start', { extensionId });
+
 		const wasHandlerAvailable = this.extensionHandlers.has(ExtensionIdentifier.toKey(extensionId));
 		const extension = await this.extensionService.getExtension(extensionId);
 
 		if (!extension) {
-			await this.handleUnhandledURL(uri, { id: extensionId });
+			await this.handleUnhandledURL(uri, { id: extensionId }, options);
 			return true;
 		}
 
@@ -160,6 +174,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			});
 
 			if (!result.confirmed) {
+				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/cancel', { extensionId });
 				return true;
 			}
 
@@ -173,7 +188,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		if (handler) {
 			if (!wasHandlerAvailable) {
 				// forward it directly
-				return await handler.handleURL(uri, options);
+				return await this.handleURLByExtension(extensionId, handler, uri, options);
 			}
 
 			// let the ExtensionUrlHandler instance handle this
@@ -202,7 +217,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		const uris = this.uriBuffer.get(ExtensionIdentifier.toKey(extensionId)) || [];
 
 		for (const { uri } of uris) {
-			handler.handleURL(uri);
+			this.handleURLByExtension(extensionId, handler, uri);
 		}
 
 		this.uriBuffer.delete(ExtensionIdentifier.toKey(extensionId));
@@ -212,50 +227,17 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		this.extensionHandlers.delete(ExtensionIdentifier.toKey(extensionId));
 	}
 
-	private async handleUnhandledURL(uri: URI, extensionIdentifier: IExtensionIdentifier): Promise<void> {
+	private async handleURLByExtension(extensionId: ExtensionIdentifier | string, handler: IURLHandler, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+		this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/end', { extensionId: ExtensionIdentifier.toKey(extensionId) });
+		return await handler.handleURL(uri, options);
+	}
+
+	private async handleUnhandledURL(uri: URI, extensionIdentifier: IExtensionIdentifier, options?: IOpenURLOptions): Promise<void> {
 		const installedExtensions = await this.extensionManagementService.getInstalled();
-		const extension = installedExtensions.filter(e => areSameExtensions(e.identifier, extensionIdentifier))[0];
-
-		// Extension is installed
-		if (extension) {
-			const enabled = this.extensionEnablementService.isEnabled(extension);
-
-			// Extension is not running. Reload the window to handle.
-			if (enabled) {
-				const result = await this.dialogService.confirm({
-					message: localize('reloadAndHandle', "Extension '{0}' is not loaded. Would you like to reload the window to load the extension and open the URL?", extension.manifest.displayName || extension.manifest.name),
-					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-					primaryButton: localize('reloadAndOpen', "&&Reload Window and Open"),
-					type: 'question'
-				});
-
-				if (!result.confirmed) {
-					return;
-				}
-
-				await this.reloadAndHandle(uri);
-			}
-
-			// Extension is disabled. Enable the extension and reload the window to handle.
-			else if (this.extensionEnablementService.canChangeEnablement(extension)) {
-				const result = await this.dialogService.confirm({
-					message: localize('enableAndHandle', "Extension '{0}' is disabled. Would you like to enable the extension and reload the window to open the URL?", extension.manifest.displayName || extension.manifest.name),
-					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-					primaryButton: localize('enableAndReload', "&&Enable and Open"),
-					type: 'question'
-				});
-
-				if (!result.confirmed) {
-					return;
-				}
-
-				await this.extensionEnablementService.setEnablement([extension], EnablementState.EnabledGlobally);
-				await this.reloadAndHandle(uri);
-			}
-		}
+		let extension = installedExtensions.find(e => areSameExtensions(e.identifier, extensionIdentifier));
 
 		// Extension is not installed
-		else {
+		if (!extension) {
 			let galleryExtension: IGalleryExtension | undefined;
 
 			try {
@@ -268,45 +250,100 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 				return;
 			}
 
+			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/install_extension/start', { extensionId: extensionIdentifier.id });
+
 			// Install the Extension and reload the window to handle.
 			const result = await this.dialogService.confirm({
-				message: localize('installAndHandle', "Extension '{0}' is not installed. Would you like to install the extension and reload the window to open this URL?", galleryExtension.displayName || galleryExtension.name),
+				message: localize('installAndHandle', "Extension '{0}' is not installed. Would you like to install the extension and open this URL?", galleryExtension.displayName || galleryExtension.name),
 				detail: `${galleryExtension.displayName || galleryExtension.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-				primaryButton: localize('install', "&&Install"),
+				primaryButton: localize('install and open', "&&Install and Open"),
 				type: 'question'
 			});
 
 			if (!result.confirmed) {
+				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/install_extension/cancel', { extensionId: extensionIdentifier.id });
 				return;
 			}
 
+			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/install_extension/accept', { extensionId: extensionIdentifier.id });
+
 			try {
-				await this.progressService.withProgress({
+				extension = await this.progressService.withProgress({
 					location: ProgressLocation.Notification,
 					title: localize('Installing', "Installing Extension '{0}'...", galleryExtension.displayName || galleryExtension.name)
 				}, () => this.extensionManagementService.installFromGallery(galleryExtension!));
-
-				this.notificationService.prompt(
-					Severity.Info,
-					localize('reload', "Would you like to reload the window and open the URL '{0}'?", uri.toString()),
-					[{ label: localize('Reload', "Reload Window and Open"), run: () => this.reloadAndHandle(uri) }],
-					{ sticky: true }
-				);
 			} catch (error) {
 				this.notificationService.error(error);
+				return;
 			}
+		}
+
+		// Extension is installed but not enabled
+		if (!this.extensionEnablementService.isEnabled(extension)) {
+			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/enable_extension/start', { extensionId: extensionIdentifier.id });
+			const result = await this.dialogService.confirm({
+				message: localize('enableAndHandle', "Extension '{0}' is disabled. Would you like to enable the extension and open the URL?", extension.manifest.displayName || extension.manifest.name),
+				detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
+				primaryButton: localize('enableAndReload', "&&Enable and Open"),
+				type: 'question'
+			});
+
+			if (!result.confirmed) {
+				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/enable_extension/cancel', { extensionId: extensionIdentifier.id });
+				return;
+			}
+
+			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/enable_extension/accept', { extensionId: extensionIdentifier.id });
+			await this.extensionEnablementService.setEnablement([extension], EnablementState.EnabledGlobally);
+		}
+
+		if (this.extensionService.canAddExtension(toExtensionDescription(extension))) {
+			await this.waitUntilExtensionIsAdded(extensionIdentifier);
+			await this.handleURL(uri, { ...options, trusted: true });
+		}
+
+		/* Extension cannot be added and require window reload */
+		else {
+			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/activate_extension/start', { extensionId: extensionIdentifier.id });
+			const result = await this.dialogService.confirm({
+				message: localize('reloadAndHandle', "Extension '{0}' is not loaded. Would you like to reload the window to load the extension and open the URL?", extension.manifest.displayName || extension.manifest.name),
+				detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
+				primaryButton: localize('reloadAndOpen', "&&Reload Window and Open"),
+				type: 'question'
+			});
+
+			if (!result.confirmed) {
+				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/activate_extension/cancel', { extensionId: extensionIdentifier.id });
+				return;
+			}
+
+			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/activate_extension/accept', { extensionId: extensionIdentifier.id });
+			this.storageService.store(URL_TO_HANDLE, JSON.stringify(uri.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			await this.hostService.reload();
 		}
 	}
 
-	private async reloadAndHandle(url: URI): Promise<void> {
-		this.storageService.store(URL_TO_HANDLE, JSON.stringify(url.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		await this.hostService.reload();
+	private async waitUntilExtensionIsAdded(extensionId: IExtensionIdentifier): Promise<void> {
+		if (!(await this.extensionService.getExtension(extensionId.id))) {
+			await new Promise<void>((c, e) => {
+				const disposable = this.extensionService.onDidChangeExtensions(async () => {
+					try {
+						if (await this.extensionService.getExtension(extensionId.id)) {
+							disposable.dispose();
+							c();
+						}
+					} catch (error) {
+						e(error);
+					}
+				});
+			});
+		}
 	}
 
 	// forget about all uris buffered more than 5 minutes ago
 	private garbageCollect(): void {
 		const now = new Date().getTime();
-		const uriBuffer = new Map<string, { timestamp: number, uri: URI }[]>();
+		const uriBuffer = new Map<string, { timestamp: number; uri: URI }[]>();
 
 		this.uriBuffer.forEach((uris, extensionId) => {
 			uris = uris.filter(({ timestamp }) => now - timestamp < FIVE_MINUTES);

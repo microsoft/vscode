@@ -21,7 +21,7 @@ export function splitJoinTag() {
 	}
 
 	return editor.edit(editBuilder => {
-		editor.selections.reverse().forEach(selection => {
+		Array.from(editor.selections).reverse().forEach(selection => {
 			const documentText = document.getText();
 			const offset = document.offsetAt(selection.start);
 			const nodeToUpdate = getHtmlFlatNode(documentText, rootNode, offset, true);
@@ -53,7 +53,7 @@ function getRangesToReplace(document: vscode.TextDocument, nodeToUpdate: HtmlFla
 		rangeToReplace = offsetRangeToVsRange(document, start, end);
 		textToReplaceWith = '/>';
 
-		const emmetMode = getEmmetMode(document.languageId, []) || '';
+		const emmetMode = getEmmetMode(document.languageId, {}, []) ?? '';
 		const emmetConfig = getEmmetConfiguration(emmetMode);
 		if (emmetMode && emmetConfig.syntaxProfiles[emmetMode] &&
 			(emmetConfig.syntaxProfiles[emmetMode]['selfClosingStyle'] === 'xhtml' || emmetConfig.syntaxProfiles[emmetMode]['self_closing_tag'] === 'xhtml')) {

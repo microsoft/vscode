@@ -6,19 +6,19 @@
 import * as assert from 'assert';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
-import { MetadataConsts } from 'vs/editor/common/modes';
+import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { MetadataConsts } from 'vs/editor/common/languages';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { CharacterMapping, RenderLineInput, renderViewLine2 as renderViewLine, LineRange, DomPosition } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
-import { ViewLineToken, ViewLineTokens } from 'vs/editor/test/common/core/viewLineToken';
+import { InlineDecorationType } from 'vs/editor/common/viewModel';
+import { TestLineToken, TestLineTokens } from 'vs/editor/test/common/core/testLineToken';
 
-function createViewLineTokens(viewLineTokens: ViewLineToken[]): IViewLineTokens {
-	return new ViewLineTokens(viewLineTokens);
+function createViewLineTokens(viewLineTokens: TestLineToken[]): IViewLineTokens {
+	return new TestLineTokens(viewLineTokens);
 }
 
-function createPart(endIndex: number, foreground: number): ViewLineToken {
-	return new ViewLineToken(endIndex, (
+function createPart(endIndex: number, foreground: number): TestLineToken {
+	return new TestLineToken(endIndex, (
 		foreground << MetadataConsts.FOREGROUND_OFFSET
 	) >>> 0);
 }
@@ -34,7 +34,7 @@ suite('viewLineRenderer.renderLine', () => {
 			strings.isBasicASCII(lineContent),
 			false,
 			0,
-			createViewLineTokens([new ViewLineToken(lineContent.length, 0)]),
+			createViewLineTokens([new TestLineToken(lineContent.length, 0)]),
 			[],
 			tabSize,
 			0,
@@ -79,8 +79,8 @@ suite('viewLineRenderer.renderLine', () => {
 		assertCharacterReplacement('xxxx\t', 4, 'xxxx\u00a0\u00a0\u00a0\u00a0', [0, 1, 2, 3, 4, 8]);
 	});
 
-	function assertParts(lineContent: string, tabSize: number, parts: ViewLineToken[], expected: string, info: CharacterMappingInfo[]): void {
-		let _actual = renderViewLine(new RenderLineInput(
+	function assertParts(lineContent: string, tabSize: number, parts: TestLineToken[], expected: string, info: CharacterMappingInfo[]): void {
+		const _actual = renderViewLine(new RenderLineInput(
 			false,
 			true,
 			lineContent,
@@ -123,7 +123,7 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('overflow', () => {
-		let _actual = renderViewLine(new RenderLineInput(
+		const _actual = renderViewLine(new RenderLineInput(
 			false,
 			true,
 			'Hello world!',
@@ -158,7 +158,7 @@ suite('viewLineRenderer.renderLine', () => {
 			null
 		));
 
-		let expectedOutput = [
+		const expectedOutput = [
 			'<span class="mtk0">H</span>',
 			'<span class="mtk1">e</span>',
 			'<span class="mtk2">l</span>',
@@ -184,8 +184,8 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('typical line', () => {
-		let lineText = '\t    export class Game { // http://test.com     ';
-		let lineParts = createViewLineTokens([
+		const lineText = '\t    export class Game { // http://test.com     ';
+		const lineParts = createViewLineTokens([
 			createPart(5, 1),
 			createPart(11, 2),
 			createPart(12, 3),
@@ -199,7 +199,7 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(43, 11),
 			createPart(48, 12),
 		]);
-		let expectedOutput = [
+		const expectedOutput = [
 			'<span class="mtkz" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
 			'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
 			'<span class="mtk2">export</span>',
@@ -260,9 +260,9 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('issue #2255: Weird line rendering part 1', () => {
-		let lineText = '\t\t\tcursorStyle:\t\t\t\t\t\t(prevOpts.cursorStyle !== newOpts.cursorStyle),';
+		const lineText = '\t\t\tcursorStyle:\t\t\t\t\t\t(prevOpts.cursorStyle !== newOpts.cursorStyle),';
 
-		let lineParts = createViewLineTokens([
+		const lineParts = createViewLineTokens([
 			createPart(3, 1), // 3 chars
 			createPart(15, 2), // 12 chars
 			createPart(21, 3), // 6 chars
@@ -274,7 +274,7 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(67, 9), // 1 char
 			createPart(68, 10), // 2 chars
 		]);
-		let expectedOutput = [
+		const expectedOutput = [
 			'<span class="mtk1">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
 			'<span class="mtk2">cursorStyle:</span>',
 			'<span class="mtk3">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
@@ -327,9 +327,9 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('issue #2255: Weird line rendering part 2', () => {
-		let lineText = ' \t\t\tcursorStyle:\t\t\t\t\t\t(prevOpts.cursorStyle !== newOpts.cursorStyle),';
+		const lineText = ' \t\t\tcursorStyle:\t\t\t\t\t\t(prevOpts.cursorStyle !== newOpts.cursorStyle),';
 
-		let lineParts = createViewLineTokens([
+		const lineParts = createViewLineTokens([
 			createPart(4, 1), // 4 chars
 			createPart(16, 2), // 12 chars
 			createPart(22, 3), // 6 chars
@@ -341,7 +341,7 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(68, 9), // 1 char
 			createPart(69, 10), // 2 chars
 		]);
-		let expectedOutput = [
+		const expectedOutput = [
 			'<span class="mtk1">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
 			'<span class="mtk2">cursorStyle:</span>',
 			'<span class="mtk3">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
@@ -454,23 +454,23 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('issue microsoft/monaco-editor#280: Improved source code rendering for RTL languages', () => {
-		let lineText = 'var קודמות = \"מיותר קודמות צ\'ט של, אם לשון העברית שינויים ויש, אם\";';
+		const lineText = 'var קודמות = \"מיותר קודמות צ\'ט של, אם לשון העברית שינויים ויש, אם\";';
 
-		let lineParts = createViewLineTokens([
+		const lineParts = createViewLineTokens([
 			createPart(3, 6),
 			createPart(13, 1),
 			createPart(66, 20),
 			createPart(67, 1),
 		]);
 
-		let expectedOutput = [
+		const expectedOutput = [
 			'<span class="mtk6">var</span>',
-			'<span class="mtk1">\u00a0קודמות\u00a0=\u00a0</span>',
-			'<span class="mtk20">"מיותר\u00a0קודמות\u00a0צ\'ט\u00a0של,\u00a0אם\u00a0לשון\u00a0העברית\u00a0שינויים\u00a0ויש,\u00a0אם"</span>',
+			'<span style="unicode-bidi:isolate" class="mtk1">\u00a0קודמות\u00a0=\u00a0</span>',
+			'<span style="unicode-bidi:isolate" class="mtk20">"מיותר\u00a0קודמות\u00a0צ\'ט\u00a0של,\u00a0אם\u00a0לשון\u00a0העברית\u00a0שינויים\u00a0ויש,\u00a0אם"</span>',
 			'<span class="mtk1">;</span>'
 		].join('');
 
-		let _actual = renderViewLine(new RenderLineInput(
+		const _actual = renderViewLine(new RenderLineInput(
 			false,
 			true,
 			lineText,
@@ -496,15 +496,118 @@ suite('viewLineRenderer.renderLine', () => {
 		assert.strictEqual(_actual.containsRTL, true);
 	});
 
+	test('issue #137036: Issue in RTL languages in recent versions', () => {
+		const lineText = '<option value=\"العربية\">العربية</option>';
+
+		const lineParts = createViewLineTokens([
+			createPart(1, 2),
+			createPart(7, 3),
+			createPart(8, 4),
+			createPart(13, 5),
+			createPart(14, 4),
+			createPart(23, 6),
+			createPart(24, 2),
+			createPart(31, 4),
+			createPart(33, 2),
+			createPart(39, 3),
+			createPart(40, 2),
+		]);
+
+		const expectedOutput = [
+			'<span class="mtk2">&lt;</span>',
+			'<span class="mtk3">option</span>',
+			'<span class="mtk4">\u00a0</span>',
+			'<span class="mtk5">value</span>',
+			'<span class="mtk4">=</span>',
+			'<span style="unicode-bidi:isolate" class="mtk6">"العربية"</span>',
+			'<span class="mtk2">&gt;</span>',
+			'<span style="unicode-bidi:isolate" class="mtk4">العربية</span>',
+			'<span class="mtk2">&lt;/</span>',
+			'<span class="mtk3">option</span>',
+			'<span class="mtk2">&gt;</span>',
+		].join('');
+
+		const _actual = renderViewLine(new RenderLineInput(
+			false,
+			true,
+			lineText,
+			false,
+			false,
+			true,
+			0,
+			lineParts,
+			[],
+			4,
+			0,
+			10,
+			10,
+			10,
+			-1,
+			'none',
+			false,
+			false,
+			null
+		));
+
+		assert.strictEqual(_actual.html, '<span dir="ltr">' + expectedOutput + '</span>');
+		assert.strictEqual(_actual.containsRTL, true);
+	});
+
+	test('issue #99589: Rendering whitespace influences bidi layout', () => {
+		const lineText = '    [\"🖨️ چاپ فاکتور\",\"🎨 تنظیمات\"]';
+
+		const lineParts = createViewLineTokens([
+			createPart(5, 2),
+			createPart(21, 3),
+			createPart(22, 2),
+			createPart(34, 3),
+			createPart(35, 2),
+		]);
+
+		const expectedOutput = [
+			'<span class="mtkw">\u00b7\u00b7\u00b7\u00b7</span>',
+			'<span class="mtk2">[</span>',
+			'<span style="unicode-bidi:isolate" class="mtk3">"🖨️\u00a0چاپ\u00a0فاکتور"</span>',
+			'<span class="mtk2">,</span>',
+			'<span style="unicode-bidi:isolate" class="mtk3">"🎨\u00a0تنظیمات"</span>',
+			'<span class="mtk2">]</span>'
+		].join('');
+
+		const _actual = renderViewLine(new RenderLineInput(
+			true,
+			true,
+			lineText,
+			false,
+			false,
+			true,
+			0,
+			lineParts,
+			[],
+			4,
+			0,
+			10,
+			10,
+			10,
+			-1,
+			'all',
+			false,
+			false,
+			null
+		));
+
+		assert.strictEqual(_actual.html, '<span dir="ltr">' + expectedOutput + '</span>');
+		assert.strictEqual(_actual.containsRTL, true);
+	});
+
 	test('issue #6885: Splits large tokens', () => {
 		//                                                                                                                  1         1         1
 		//                        1         2         3         4         5         6         7         8         9         0         1         2
 		//               1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234
-		let _lineText = 'This is just a long line that contains very interesting text. This is just a long line that contains very interesting text.';
+		const _lineText = 'This is just a long line that contains very interesting text. This is just a long line that contains very interesting text.';
 
 		function assertSplitsTokens(message: string, lineText: string, expectedOutput: string[]): void {
-			let lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
-			let actual = renderViewLine(new RenderLineInput(
+			const lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
+			const actual = renderViewLine(new RenderLineInput(
 				false,
 				true,
 				lineText,
@@ -604,11 +707,11 @@ suite('viewLineRenderer.renderLine', () => {
 		//                                                                                                                  1         1         1
 		//                        1         2         3         4         5         6         7         8         9         0         1         2
 		//               1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234
-		let _lineText = 'This is just a long line that contains very interesting text. This is just a long line that contains very interesting text.';
+		const _lineText = 'This is just a long line that contains very interesting text. This is just a long line that contains very interesting text.';
 
 		function assertSplitsTokens(message: string, lineText: string, expectedOutput: string[]): void {
-			let lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
-			let actual = renderViewLine(new RenderLineInput(
+			const lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
+			const actual = renderViewLine(new RenderLineInput(
 				false,
 				true,
 				lineText,
@@ -647,10 +750,10 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('issue #20624: Unaligned surrogate pairs are corrupted at multiples of 50 columns', () => {
-		let lineText = 'a𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷';
+		const lineText = 'a𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷';
 
-		let lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
-		let actual = renderViewLine(new RenderLineInput(
+		const lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
+		const actual = renderViewLine(new RenderLineInput(
 			false,
 			true,
 			lineText,
@@ -671,19 +774,19 @@ suite('viewLineRenderer.renderLine', () => {
 			false,
 			null
 		));
-		let expectedOutput = [
+		const expectedOutput = [
 			'<span class="mtk1">a𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷𠮷</span>',
 		];
 		assert.strictEqual(actual.html, '<span>' + expectedOutput.join('') + '</span>');
 	});
 
 	test('issue #6885: Does not split large tokens in RTL text', () => {
-		let lineText = 'את גרמנית בהתייחסות שמו, שנתי המשפט אל חפש, אם כתב אחרים ולחבר. של התוכן אודות בויקיפדיה כלל, של עזרה כימיה היא. על עמוד יוצרים מיתולוגיה סדר, אם שכל שתפו לעברית שינויים, אם שאלות אנגלית עזה. שמות בקלות מה סדר.';
-		let lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
-		let expectedOutput = [
-			'<span class="mtk1">את\u00a0גרמנית\u00a0בהתייחסות\u00a0שמו,\u00a0שנתי\u00a0המשפט\u00a0אל\u00a0חפש,\u00a0אם\u00a0כתב\u00a0אחרים\u00a0ולחבר.\u00a0של\u00a0התוכן\u00a0אודות\u00a0בויקיפדיה\u00a0כלל,\u00a0של\u00a0עזרה\u00a0כימיה\u00a0היא.\u00a0על\u00a0עמוד\u00a0יוצרים\u00a0מיתולוגיה\u00a0סדר,\u00a0אם\u00a0שכל\u00a0שתפו\u00a0לעברית\u00a0שינויים,\u00a0אם\u00a0שאלות\u00a0אנגלית\u00a0עזה.\u00a0שמות\u00a0בקלות\u00a0מה\u00a0סדר.</span>'
+		const lineText = 'את גרמנית בהתייחסות שמו, שנתי המשפט אל חפש, אם כתב אחרים ולחבר. של התוכן אודות בויקיפדיה כלל, של עזרה כימיה היא. על עמוד יוצרים מיתולוגיה סדר, אם שכל שתפו לעברית שינויים, אם שאלות אנגלית עזה. שמות בקלות מה סדר.';
+		const lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
+		const expectedOutput = [
+			'<span style="unicode-bidi:isolate" class="mtk1">את\u00a0גרמנית\u00a0בהתייחסות\u00a0שמו,\u00a0שנתי\u00a0המשפט\u00a0אל\u00a0חפש,\u00a0אם\u00a0כתב\u00a0אחרים\u00a0ולחבר.\u00a0של\u00a0התוכן\u00a0אודות\u00a0בויקיפדיה\u00a0כלל,\u00a0של\u00a0עזרה\u00a0כימיה\u00a0היא.\u00a0על\u00a0עמוד\u00a0יוצרים\u00a0מיתולוגיה\u00a0סדר,\u00a0אם\u00a0שכל\u00a0שתפו\u00a0לעברית\u00a0שינויים,\u00a0אם\u00a0שאלות\u00a0אנגלית\u00a0עזה.\u00a0שמות\u00a0בקלות\u00a0מה\u00a0סדר.</span>'
 		];
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			false,
 			true,
 			lineText,
@@ -739,9 +842,9 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('issue #19673: Monokai Theme bad-highlighting in line wrap', () => {
-		let lineText = '    MongoCallback<string>): void {';
+		const lineText = '    MongoCallback<string>): void {';
 
-		let lineParts = createViewLineTokens([
+		const lineParts = createViewLineTokens([
 			createPart(17, 1),
 			createPart(18, 2),
 			createPart(24, 3),
@@ -751,7 +854,7 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(32, 7),
 			createPart(34, 8),
 		]);
-		let expectedOutput = [
+		const expectedOutput = [
 			'<span class="">\u00a0\u00a0\u00a0\u00a0</span>',
 			'<span class="mtk1">MongoCallback</span>',
 			'<span class="mtk2">&lt;</span>',
@@ -763,7 +866,7 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span class="mtk8">\u00a0{</span>'
 		].join('');
 
-		let _actual = renderViewLine(new RenderLineInput(
+		const _actual = renderViewLine(new RenderLineInput(
 			true,
 			true,
 			lineText,
@@ -845,8 +948,8 @@ function assertCharacterMapping3(actual: CharacterMapping, expectedInfo: Charact
 
 suite('viewLineRenderer.renderLine 2', () => {
 
-	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all', selections: LineRange[] | null, expected: string): void {
-		let actual = renderViewLine(new RenderLineInput(
+	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: TestLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all', selections: LineRange[] | null, expected: string): void {
+		const actual = renderViewLine(new RenderLineInput(
 			fontIsMonospace,
 			true,
 			lineContent,
@@ -873,9 +976,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #18616: Inline decorations ending at the text length are no longer rendered', () => {
 
-		let lineContent = 'https://microsoft.com';
+		const lineContent = 'https://microsoft.com';
 
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			false,
 			true,
 			lineContent,
@@ -897,7 +1000,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="mtk3 link">https://microsoft.com</span>',
 			'</span>'
@@ -908,9 +1011,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #19207: Link in Monokai is not rendered correctly', () => {
 
-		let lineContent = '\'let url = `http://***/_api/web/lists/GetByTitle(\\\'Teambuildingaanvragen\\\')/items`;\'';
+		const lineContent = '\'let url = `http://***/_api/web/lists/GetByTitle(\\\'Teambuildingaanvragen\\\')/items`;\'';
 
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			true,
 			true,
 			lineContent,
@@ -940,7 +1043,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="mtk6">\'let\u00a0url\u00a0=\u00a0`</span>',
 			'<span class="mtk6 detected-link">http://***/_api/web/lists/GetByTitle(</span>',
@@ -1421,7 +1524,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	test('createLineParts can handle unsorted inline decorations', () => {
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			false,
 			true,
 			'Hello world',
@@ -1467,9 +1570,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #11485: Visible whitespace conflicts with before decorator attachment', () => {
 
-		let lineContent = '\tbla';
+		const lineContent = '\tbla';
 
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			false,
 			true,
 			lineContent,
@@ -1491,7 +1594,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="mtkw before">\u2192\u00a0\u00a0\u00a0</span>',
 			'<span class="mtk3">bla</span>',
@@ -1503,9 +1606,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #32436: Non-monospace font + visible whitespace + After decorator causes line to "jump"', () => {
 
-		let lineContent = '\tbla';
+		const lineContent = '\tbla';
 
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			false,
 			true,
 			lineContent,
@@ -1527,7 +1630,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="mtkz" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
 			'<span class="mtk3 before">b</span>',
@@ -1540,9 +1643,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #30133: Empty lines don\'t render inline decorations', () => {
 
-		let lineContent = '';
+		const lineContent = '';
 
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			false,
 			true,
 			lineContent,
@@ -1564,7 +1667,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="before"></span>',
 			'</span>'
@@ -1575,7 +1678,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #37208: Collapsing bullet point containing emoji in Markdown document results in [??] character', () => {
 
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			true,
 			true,
 			'  1. 🙏',
@@ -1597,7 +1700,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="mtk3">\u00a0\u00a01.\u00a0</span>',
 			'<span class="mtk3 inline-folded">🙏</span>',
@@ -1609,7 +1712,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #37401 #40127: Allow both before and after decorations on empty line', () => {
 
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			true,
 			true,
 			'',
@@ -1634,7 +1737,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="before"></span>',
 			'<span class="after"></span>',
@@ -1646,7 +1749,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #118759: enable multiple text editor decorations in empty lines', () => {
 
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			true,
 			true,
 			'',
@@ -1673,7 +1776,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="before1"></span>',
 			'<span class="before2"></span>',
@@ -1687,7 +1790,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #38935: GitLens end-of-line blame no longer rendering', () => {
 
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			true,
 			true,
 			'\t}',
@@ -1712,7 +1815,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="mtk3">\u00a0\u00a0\u00a0\u00a0}</span>',
 			'<span class="ced-TextEditorDecorationType2-5e9b9b3f-3 ced-TextEditorDecorationType2-3"></span><span class="ced-TextEditorDecorationType2-5e9b9b3f-4 ced-TextEditorDecorationType2-4"></span>',
@@ -1722,9 +1825,49 @@ suite('viewLineRenderer.renderLine 2', () => {
 		assert.deepStrictEqual(actual.html, expected);
 	});
 
+	test('issue #136622: Inline decorations are not rendering on non-ASCII lines when renderControlCharacters is on', () => {
+
+		const actual = renderViewLine(new RenderLineInput(
+			true,
+			true,
+			'some text £',
+			false,
+			false,
+			false,
+			0,
+			createViewLineTokens([createPart(11, 3)]),
+			[
+				new LineDecoration(5, 5, 'inlineDec1', InlineDecorationType.After),
+				new LineDecoration(6, 6, 'inlineDec2', InlineDecorationType.Before),
+			],
+			4,
+			0,
+			10,
+			10,
+			10,
+			10000,
+			'none',
+			true,
+			false,
+			null
+		));
+
+		const expected = [
+			'<span>',
+			'<span class="mtk3">some</span>',
+			'<span class="mtk3 inlineDec1"></span>',
+			'<span class="mtk3">\u00a0</span>',
+			'<span class="mtk3 inlineDec2"></span>',
+			'<span class="mtk3">text\u00a0£</span>',
+			'</span>'
+		].join('');
+
+		assert.deepStrictEqual(actual.html, expected);
+	});
+
 	test('issue #22832: Consider fullwidth characters when rendering tabs', () => {
 
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			true,
 			true,
 			'asd = "擦"\t\t#asd',
@@ -1746,7 +1889,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="mtk3">asd\u00a0=\u00a0"擦"\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0#asd</span>',
 			'</span>'
@@ -1757,7 +1900,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #22832: Consider fullwidth characters when rendering tabs (render whitespace)', () => {
 
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			true,
 			true,
 			'asd = "擦"\t\t#asd',
@@ -1779,7 +1922,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="mtk3">asd</span>',
 			'<span class="mtkw">\u00b7</span>',
@@ -1796,7 +1939,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #22352: COMBINING ACUTE ACCENT (U+0301)', () => {
 
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			true,
 			true,
 			'12345689012345678901234568901234567890123456890abába',
@@ -1818,7 +1961,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="mtk3">12345689012345678901234568901234567890123456890abába</span>',
 			'</span>'
@@ -1829,7 +1972,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #22352: Partially Broken Complex Script Rendering of Tamil', () => {
 
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			true,
 			true,
 			' JoyShareல் பின்தொடர்ந்து, விடீயோ, ஜோக்குகள், அனிமேசன், நகைச்சுவை படங்கள் மற்றும் செய்திகளை பெறுவீர்',
@@ -1851,7 +1994,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="mtk3">\u00a0JoyShareல்\u00a0பின்தொடர்ந்து,\u00a0விடீயோ,\u00a0ஜோக்குகள்,\u00a0</span>',
 			'<span class="mtk3">அனிமேசன்,\u00a0நகைச்சுவை\u00a0படங்கள்\u00a0மற்றும்\u00a0செய்திகளை\u00a0</span>',
@@ -1864,7 +2007,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #42700: Hindi characters are not being rendered properly', () => {
 
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			true,
 			true,
 			' वो ऐसा क्या है जो हमारे अंदर भी है और बाहर भी है। जिसकी वजह से हम सब हैं। जिसने इस सृष्टि की रचना की है।',
@@ -1886,7 +2029,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="mtk3">\u00a0वो\u00a0ऐसा\u00a0क्या\u00a0है\u00a0जो\u00a0हमारे\u00a0अंदर\u00a0भी\u00a0है\u00a0और\u00a0बाहर\u00a0भी\u00a0है।\u00a0</span>',
 			'<span class="mtk3">जिसकी\u00a0वजह\u00a0से\u00a0हम\u00a0सब\u00a0हैं।\u00a0जिसने\u00a0इस\u00a0सृष्टि\u00a0की\u00a0रचना\u00a0की\u00a0</span>',
@@ -1898,7 +2041,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	test('issue #38123: editor.renderWhitespace: "boundary" renders whitespace at line wrap point when line is wrapped', () => {
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			true,
 			true,
 			'This is a long line which never uses more than two spaces. ',
@@ -1920,7 +2063,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="mtk3">This\u00a0is\u00a0a\u00a0long\u00a0line\u00a0which\u00a0never\u00a0uses\u00a0more\u00a0than\u00a0two</span><span class="mtk3">\u00a0spaces.</span><span class="mtk3">\u00a0</span>',
 			'</span>'
@@ -1930,7 +2073,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	test('issue #33525: Long line with ligatures takes a long time to paint decorations', () => {
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			false,
 			false,
 			'append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to',
@@ -1952,7 +2095,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="mtk3">append\u00a0data\u00a0to\u00a0append\u00a0data\u00a0to\u00a0append\u00a0data\u00a0to\u00a0</span>',
 			'<span class="mtk3">append\u00a0data\u00a0to\u00a0append\u00a0data\u00a0to\u00a0append\u00a0data\u00a0to\u00a0</span>',
@@ -1966,7 +2109,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	test('issue #33525: Long line with ligatures takes a long time to paint decorations - not possible', () => {
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			false,
 			false,
 			'appenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatato',
@@ -1988,7 +2131,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			null
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="mtk3">appenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatato</span>',
 			'</span>'
@@ -1998,7 +2141,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	test('issue #91936: Semantic token color highlighting fails on line with selected text', () => {
-		let actual = renderViewLine(new RenderLineInput(
+		const actual = renderViewLine(new RenderLineInput(
 			false,
 			true,
 			'                    else if ($s = 08) then \'\\b\'',
@@ -2039,7 +2182,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			[new LineRange(0, 47)]
 		));
 
-		let expected = [
+		const expected = [
 			'<span>',
 			'<span class="mtkz" style="width:10px">\u00b7</span>',
 			'<span class="mtkz" style="width:10px">\u00b7</span>',
@@ -2114,6 +2257,38 @@ suite('viewLineRenderer.renderLine 2', () => {
 		assert.deepStrictEqual(actual.html, expected);
 	});
 
+	test('issue #116939: Important control characters aren\'t rendered', () => {
+		const actual = renderViewLine(new RenderLineInput(
+			false,
+			false,
+			`transferBalance(5678,${String.fromCharCode(0x202E)}6776,4321${String.fromCharCode(0x202C)},"USD");`,
+			false,
+			false,
+			false,
+			0,
+			createViewLineTokens([createPart(42, 3)]),
+			[],
+			4,
+			0,
+			10,
+			10,
+			10,
+			10000,
+			'none',
+			true,
+			false,
+			null
+		));
+
+		const expected = [
+			'<span>',
+			'<span class="mtk3">transferBalance(5678,</span><span class="mtkcontrol">[U+202E]</span><span class="mtk3">6776,4321</span><span class="mtkcontrol">[U+202C]</span><span class="mtk3">,"USD");</span>',
+			'</span>'
+		].join('');
+
+		assert.deepStrictEqual(actual.html, expected);
+	});
+
 	test('issue #124038: Multiple end-of-line text decorations get merged', () => {
 		const actual = renderViewLine(new RenderLineInput(
 			true,
@@ -2162,8 +2337,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 
-	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
-		let renderLineOutput = renderViewLine(new RenderLineInput(
+	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: TestLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
+		const renderLineOutput = renderViewLine(new RenderLineInput(
 			false,
 			true,
 			lineContent,
@@ -2192,7 +2367,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	}
 
 	test('getColumnOfLinePartOffset 1 - simple text', () => {
-		let testGetColumnOfLinePartOffset = createTestGetColumnOfLinePartOffset(
+		const testGetColumnOfLinePartOffset = createTestGetColumnOfLinePartOffset(
 			'hello world',
 			4,
 			[
@@ -2215,7 +2390,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	test('getColumnOfLinePartOffset 2 - regular JS', () => {
-		let testGetColumnOfLinePartOffset = createTestGetColumnOfLinePartOffset(
+		const testGetColumnOfLinePartOffset = createTestGetColumnOfLinePartOffset(
 			'var x = 3;',
 			4,
 			[
@@ -2247,7 +2422,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	test('getColumnOfLinePartOffset 3 - tab with tab size 6', () => {
-		let testGetColumnOfLinePartOffset = createTestGetColumnOfLinePartOffset(
+		const testGetColumnOfLinePartOffset = createTestGetColumnOfLinePartOffset(
 			'\t',
 			6,
 			[
@@ -2265,7 +2440,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	test('getColumnOfLinePartOffset 4 - once indented line, tab size 4', () => {
-		let testGetColumnOfLinePartOffset = createTestGetColumnOfLinePartOffset(
+		const testGetColumnOfLinePartOffset = createTestGetColumnOfLinePartOffset(
 			'\tfunction',
 			4,
 			[
@@ -2291,7 +2466,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	});
 
 	test('getColumnOfLinePartOffset 5 - twice indented line, tab size 4', () => {
-		let testGetColumnOfLinePartOffset = createTestGetColumnOfLinePartOffset(
+		const testGetColumnOfLinePartOffset = createTestGetColumnOfLinePartOffset(
 			'\t\tfunction',
 			4,
 			[

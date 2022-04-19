@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Command } from 'vs/editor/common/modes';
+import { Command } from 'vs/editor/common/languages';
 import { ISequence } from 'vs/base/common/sequence';
 import { IAction } from 'vs/base/common/actions';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -65,6 +65,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChangeCommitTemplate: Event<string>;
 	readonly onDidChangeStatusBarCommands?: Event<Command[]>;
 	readonly acceptInputCommand?: Command;
+	readonly actionButton?: ISCMActionButtonDescriptor;
 	readonly statusBarCommands?: Command[];
 	readonly onDidChange: Event<void>;
 
@@ -94,6 +95,17 @@ export enum SCMInputChangeReason {
 export interface ISCMInputChangeEvent {
 	readonly value: string;
 	readonly reason?: SCMInputChangeReason;
+}
+
+export interface ISCMActionButtonDescriptor {
+	command: Command;
+	description?: string;
+}
+
+export interface ISCMActionButton {
+	readonly type: 'actionButton';
+	readonly repository: ISCMRepository;
+	readonly button?: ISCMActionButtonDescriptor;
 }
 
 export interface ISCMInput {
@@ -167,6 +179,9 @@ export interface ISCMViewService {
 	readonly _serviceBrand: undefined;
 
 	readonly menus: ISCMMenus;
+
+	repositories: ISCMRepository[];
+	readonly onDidChangeRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
 
 	visibleRepositories: ISCMRepository[];
 	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;

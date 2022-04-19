@@ -10,7 +10,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IBaseSerializableStorageRequest, ISerializableItemsChangeEvent, ISerializableUpdateRequest, Key, Value } from 'vs/platform/storage/common/storageIpc';
 import { IStorageChangeEvent, IStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { reviveIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class StorageDatabaseChannel extends Disposable implements IServerChannel {
 
@@ -100,18 +100,6 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 
 				if (items.delete) {
 					items.delete.forEach(key => storage.delete(key));
-				}
-
-				break;
-			}
-
-			case 'close': {
-
-				// We only allow to close workspace scoped storage because
-				// global storage is shared across all windows and closes
-				// only on shutdown.
-				if (workspace) {
-					return storage.close();
 				}
 
 				break;

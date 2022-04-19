@@ -19,7 +19,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TextFileContentProvider } from 'vs/workbench/contrib/files/common/files';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { SAVE_FILE_AS_LABEL } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { SAVE_FILE_AS_LABEL } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { INotificationService, INotificationHandle, INotificationActions, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -29,7 +29,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { isWindows } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IEditorIdentifier, SaveReason } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, SaveReason, SideBySideEditor } from 'vs/workbench/common/editor';
 import { hash } from 'vs/base/common/hash';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
@@ -67,7 +67,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 	}
 
 	private registerListeners(): void {
-		this._register(this.textFileService.files.onDidSave(event => this.onFileSavedOrReverted(event.model.resource)));
+		this._register(this.textFileService.files.onDidSave(e => this.onFileSavedOrReverted(e.model.resource)));
 		this._register(this.textFileService.files.onDidRevert(model => this.onFileSavedOrReverted(model.resource)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 	}
@@ -224,6 +224,8 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 	}
 
 	override async run(notification: IDisposable): Promise<void> {
+
+		// Remember this as global state
 		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true, StorageScope.GLOBAL, StorageTarget.USER);
 
 		// Hide notification
@@ -337,7 +339,7 @@ class SaveModelAsAction extends Action {
 	private findEditor(): IEditorIdentifier | undefined {
 		let preferredMatchingEditor: IEditorIdentifier | undefined;
 
-		const editors = this.editorService.findEditors(this.model.resource);
+		const editors = this.editorService.findEditors(this.model.resource, { supportSideBySide: SideBySideEditor.PRIMARY });
 		for (const identifier of editors) {
 			if (identifier.editor instanceof FileEditorInput) {
 				// We prefer a `FileEditorInput` for "Save As", but it is possible

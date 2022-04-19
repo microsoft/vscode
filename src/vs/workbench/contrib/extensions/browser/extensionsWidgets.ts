@@ -19,9 +19,9 @@ import { Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, ratingIcon, remoteIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, ratingIcon, remoteIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, verifiedPublisherIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { registerColor, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -158,6 +158,29 @@ export class RatingsWidget extends ExtensionWidget {
 	}
 }
 
+export class RunningPreReleaseVersionIndicatorWidget extends ExtensionWidget {
+
+	constructor(
+		private readonly container: HTMLElement,
+	) {
+		super();
+		container.classList.add('extension-pre-release');
+		this.render();
+	}
+
+	render(): void {
+		this.container.innerText = '';
+
+		if (!this.extension
+			|| this.extension.state !== ExtensionState.Installed
+			|| !this.extension.local?.isPreReleaseVersion) {
+			return;
+		}
+
+		append(this.container, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
+	}
+}
+
 export class RecommendationWidget extends ExtensionWidget {
 
 	private element?: HTMLElement;
@@ -183,7 +206,7 @@ export class RecommendationWidget extends ExtensionWidget {
 
 	render(): void {
 		this.clear();
-		if (!this.extension) {
+		if (!this.extension || this.extension.state === ExtensionState.Installed) {
 			return;
 		}
 		const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
@@ -192,6 +215,48 @@ export class RecommendationWidget extends ExtensionWidget {
 			const recommendation = append(this.element, $('.recommendation'));
 			append(recommendation, $('span' + ThemeIcon.asCSSSelector(ratingIcon)));
 		}
+	}
+
+}
+
+export class PreReleaseBookmarkWidget extends ExtensionWidget {
+
+	private element?: HTMLElement;
+	private readonly disposables = this._register(new DisposableStore());
+
+	constructor(
+		private parent: HTMLElement,
+	) {
+		super();
+		this.render();
+		this._register(toDisposable(() => this.clear()));
+	}
+
+	private clear(): void {
+		if (this.element) {
+			this.parent.removeChild(this.element);
+		}
+		this.element = undefined;
+		this.disposables.clear();
+	}
+
+	render(): void {
+		this.clear();
+		if (!this.extension) {
+			return;
+		}
+		if (this.extension.isBuiltin) {
+			return;
+		}
+		if (!this.extension.hasPreReleaseVersion) {
+			return;
+		}
+		if (this.extension.state === ExtensionState.Installed && this.extension.local?.isPreReleaseVersion) {
+			return;
+		}
+		this.element = append(this.parent, $('div.extension-bookmark'));
+		const preRelease = append(this.element, $('.pre-release'));
+		append(preRelease, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
 	}
 
 }
@@ -304,26 +369,26 @@ export class ExtensionPackCountWidget extends ExtensionWidget {
 
 export class SyncIgnoredWidget extends ExtensionWidget {
 
-	private element: HTMLElement;
-
 	constructor(
-		container: HTMLElement,
+		private readonly container: HTMLElement,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
 		super();
-		this.element = append(container, $('span.extension-sync-ignored' + ThemeIcon.asCSSSelector(syncIgnoredIcon)));
-		this.element.title = localize('syncingore.label', "This extension is ignored during sync.");
-		this.element.classList.add(...ThemeIcon.asClassNameArray(syncIgnoredIcon));
-		this.element.classList.add('hide');
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectedKeys.includes('settingsSync.ignoredExtensions'))(() => this.render()));
-		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => this.update()));
+		this._register(userDataSyncEnablementService.onDidChangeEnablement(() => this.update()));
 		this.render();
 	}
 
 	render(): void {
-		this.element.classList.toggle('hide', !(this.extension && this.extension.state === ExtensionState.Installed && this.userDataAutoSyncEnablementService.isEnabled() && this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension)));
+		this.container.innerText = '';
+
+		if (this.extension && this.extension.state === ExtensionState.Installed && this.userDataSyncEnablementService.isEnabled() && this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension)) {
+			const element = append(this.container, $('span.extension-sync-ignored' + ThemeIcon.asCSSSelector(syncIgnoredIcon)));
+			element.title = localize('syncingore.label', "This extension is ignored during sync.");
+			element.classList.add(...ThemeIcon.asClassNameArray(syncIgnoredIcon));
+		}
 	}
 }
 
@@ -415,7 +480,11 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
-		markdown.appendMarkdown(`**${this.extension.displayName}**&nbsp;_v${this.extension.version}_`);
+		markdown.appendMarkdown(`**${this.extension.displayName}**&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${this.extension.version}_**&nbsp;</span>`);
+		if (this.extension.state === ExtensionState.Installed ? this.extension.local?.isPreReleaseVersion : this.extension.gallery?.properties.isPreReleaseVersion) {
+			const extensionPreReleaseIcon = this.themeService.getColorTheme().getColor(extensionPreReleaseIconColor);
+			markdown.appendMarkdown(`**&nbsp;**&nbsp;<span style="color:#ffffff;background-color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">&nbsp;$(${preReleaseIcon.id})&nbsp;${localize('pre-release-label', "Pre-Release")}&nbsp;</span>`);
+		}
 		markdown.appendText(`\n`);
 
 		if (this.extension.description) {
@@ -423,12 +492,20 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			markdown.appendText(`\n`);
 		}
 
+		if (this.extension.publisherDomain?.verified) {
+			const bgColor = this.themeService.getColorTheme().getColor(extensionVerifiedPublisherIconColor);
+			const publisherVerifiedTooltip = localize('publisher verified tooltip', "This publisher has verified ownership of {0}", `[${URI.parse(this.extension.publisherDomain.link).authority}](${this.extension.publisherDomain.link})`);
+			markdown.appendMarkdown(`<span style="color:${bgColor ? Color.Format.CSS.formatHex(bgColor) : '#ffffff'};">$(${verifiedPublisherIcon.id})</span>&nbsp;${publisherVerifiedTooltip}`);
+			markdown.appendText(`\n`);
+		}
+
+		const preReleaseMessage = ExtensionHoverWidget.getPreReleaseMessage(this.extension);
 		const extensionRuntimeStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
 		const extensionStatus = this.extensionStatusAction.status;
 		const reloadRequiredMessage = this.reloadAction.enabled ? this.reloadAction.tooltip : '';
 		const recommendationMessage = this.getRecommendationMessage(this.extension);
 
-		if (extensionRuntimeStatus || extensionStatus || reloadRequiredMessage || recommendationMessage) {
+		if (extensionRuntimeStatus || extensionStatus || reloadRequiredMessage || recommendationMessage || preReleaseMessage) {
 
 			markdown.appendMarkdown(`---`);
 			markdown.appendText(`\n`);
@@ -471,6 +548,12 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 				markdown.appendText(`\n`);
 			}
 
+			if (preReleaseMessage) {
+				const extensionPreReleaseIcon = this.themeService.getColorTheme().getColor(extensionPreReleaseIconColor);
+				markdown.appendMarkdown(`<span style="color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">$(${preReleaseIcon.id})</span>&nbsp;${preReleaseMessage}`);
+				markdown.appendText(`\n`);
+			}
+
 			if (recommendationMessage) {
 				markdown.appendMarkdown(recommendationMessage);
 				markdown.appendText(`\n`);
@@ -481,18 +564,37 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 	}
 
 	private getRecommendationMessage(extension: IExtension): string | undefined {
-		const recommendation = this.extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()];
-		if (recommendation?.reasonText) {
-			const bgColor = this.themeService.getColorTheme().getColor(extensionButtonProminentBackground);
-			return `<span style="color:${bgColor ? Color.Format.CSS.formatHex(bgColor) : '#ffffff'};">$(${starEmptyIcon.id})</span>&nbsp;${recommendation.reasonText}`;
+		if (extension.state === ExtensionState.Installed) {
+			return undefined;
 		}
-		return undefined;
+		const recommendation = this.extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()];
+		if (!recommendation?.reasonText) {
+			return undefined;
+		}
+		const bgColor = this.themeService.getColorTheme().getColor(extensionButtonProminentBackground);
+		return `<span style="color:${bgColor ? Color.Format.CSS.formatHex(bgColor) : '#ffffff'};">$(${starEmptyIcon.id})</span>&nbsp;${recommendation.reasonText}`;
+	}
+
+	static getPreReleaseMessage(extension: IExtension): string | undefined {
+		if (!extension.hasPreReleaseVersion) {
+			return undefined;
+		}
+		if (extension.isBuiltin) {
+			return undefined;
+		}
+		if (extension.local?.isPreReleaseVersion || extension.gallery?.properties.isPreReleaseVersion) {
+			return undefined;
+		}
+		const preReleaseVersionLink = `[${localize('Show prerelease version', "Pre-Release version")}](${URI.parse(`command:workbench.extensions.action.showPreReleaseVersion?${encodeURIComponent(JSON.stringify([extension.identifier.id]))}`)})`;
+		return localize('has prerelease', "This extension has a {0} available", preReleaseVersionLink);
 	}
 
 }
 
 // Rating icon
-export const extensionRatingIconColor = registerColor('extensionIcon.starForeground', { light: '#DF6100', dark: '#FF8E00', hc: '#FF8E00' }, localize('extensionIconStarForeground', "The icon color for extension ratings."), true);
+export const extensionRatingIconColor = registerColor('extensionIcon.starForeground', { light: '#DF6100', dark: '#FF8E00', hcDark: '#FF8E00', hcLight: textLinkForeground }, localize('extensionIconStarForeground', "The icon color for extension ratings."), true);
+export const extensionVerifiedPublisherIconColor = registerColor('extensionIcon.verifiedForeground', { dark: textLinkForeground, light: textLinkForeground, hcDark: textLinkForeground, hcLight: textLinkForeground }, localize('extensionIconVerifiedForeground', "The icon color for extension verified publisher."), true);
+export const extensionPreReleaseIconColor = registerColor('extensionIcon.preReleaseForeground', { dark: '#1d9271', light: '#1d9271', hcDark: '#1d9271', hcLight: textLinkForeground }, localize('extensionPreReleaseForeground', "The icon color for pre-release extension."), true);
 
 registerThemingParticipant((theme, collector) => {
 	const extensionRatingIcon = theme.getColor(extensionRatingIconColor);
@@ -510,4 +612,10 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.extension-bookmark .recommendation { border-top-color: ${bgColor}; }`);
 		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .recommendation .codicon { color: ${bgColor}; }`);
 	}
+
+	const extensionVerifiedPublisherIcon = theme.getColor(extensionVerifiedPublisherIconColor);
+	if (extensionVerifiedPublisherIcon) {
+		collector.addRule(`${ThemeIcon.asCSSSelector(verifiedPublisherIcon)} { color: ${extensionVerifiedPublisherIcon}; }`);
+	}
+
 });

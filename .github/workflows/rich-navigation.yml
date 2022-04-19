@@ -10,9 +10,9 @@ on:
 
 jobs:
   richnav:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: actions/cache@v2
         id: caching-stage
@@ -24,7 +24,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 14
+          node-version: 16
 
       - name: Install dependencies
         if: steps.caching-stage.outputs.cache-hit != 'true'
@@ -36,6 +36,5 @@ jobs:
         with:
           languages: typescript
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          typescriptVersion: 0.6.0-next.19
           configFiles: .lsifrc.json
         continue-on-error: true

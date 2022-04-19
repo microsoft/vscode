@@ -21,11 +21,11 @@ export interface IWorkbenchQuickAccessConfiguration {
 		commandPalette: {
 			history: number;
 			preserveInput: boolean;
-		},
+		};
 		quickOpen: {
 			enableExperimentalNewVersion: boolean;
 			preserveInput: boolean;
-		}
+		};
 	};
 }
 

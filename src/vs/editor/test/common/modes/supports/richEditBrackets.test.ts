@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { BracketsUtils } from 'vs/editor/common/modes/supports/richEditBrackets';
+import { BracketsUtils } from 'vs/editor/common/languages/supports/richEditBrackets';
 
 suite('richEditBrackets', () => {
 

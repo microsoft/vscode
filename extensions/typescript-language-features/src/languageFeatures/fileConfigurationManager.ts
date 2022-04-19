@@ -9,23 +9,9 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { Disposable } from '../utils/dispose';
 import * as fileSchemes from '../utils/fileSchemes';
-import { isTypeScriptDocument } from '../utils/languageModeIds';
+import { isTypeScriptDocument } from '../utils/languageIds';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
-
-namespace ExperimentalProto {
-	export interface UserPreferences extends Proto.UserPreferences {
-		displayPartsForJSDoc: true
-
-		includeInlayParameterNameHints?: 'none' | 'literals' | 'all';
-		includeInlayParameterNameHintsWhenArgumentMatchesName?: boolean;
-		includeInlayFunctionParameterTypeHints?: boolean;
-		includeInlayVariableTypeHints?: boolean;
-		includeInlayPropertyDeclarationTypeHints?: boolean;
-		includeInlayFunctionLikeReturnTypeHints?: boolean;
-		includeInlayEnumMemberValueHints?: boolean;
-	}
-}
 
 interface FileConfiguration {
 	readonly formatOptions: Proto.FormatCodeSettings;
@@ -41,10 +27,10 @@ export default class FileConfigurationManager extends Disposable {
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
-		onCaseInsenitiveFileSystem: boolean
+		onCaseInsensitiveFileSystem: boolean
 	) {
 		super();
-		this.formatOptions = new ResourceMap(undefined, { onCaseInsenitiveFileSystem });
+		this.formatOptions = new ResourceMap(undefined, { onCaseInsensitiveFileSystem });
 		vscode.workspace.onDidCloseTextDocument(textDocument => {
 			// When a document gets closed delete the cached formatting options.
 			// This is necessary since the tsserver now closed a project when its
@@ -181,16 +167,17 @@ export default class FileConfigurationManager extends Disposable {
 
 		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript' : 'javascript',
-			document.uri);
+			document);
 
 		const preferencesConfig = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
-			document.uri);
+			document);
 
-		const preferences: ExperimentalProto.UserPreferences = {
+		const preferences: Proto.UserPreferences = {
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),
+			jsxAttributeCompletionStyle: getJsxAttributeCompletionStyle(preferencesConfig),
 			allowTextChangesInNewFiles: document.uri.scheme === fileSchemes.file,
 			providePrefixAndSuffixTextForRename: preferencesConfig.get<boolean>('renameShorthandProperties', true) === false ? false : preferencesConfig.get<boolean>('useAliasesForRenames', true),
 			allowRenameOfImportPath: true,
@@ -199,6 +186,10 @@ export default class FileConfigurationManager extends Disposable {
 			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
 			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
 			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
+			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
+			// @ts-expect-error until 4.7
+			includeCompletionsWithObjectLiteralMethodSnippets: config.get<boolean>('suggest.objectLiteralMethodSnippets.enabled', true),
+			useLabelDetailsInCompletionEntries: true,
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
 			...getInlayHintsPreferences(config),
@@ -260,6 +251,14 @@ function getImportModuleSpecifierEndingPreference(config: vscode.WorkspaceConfig
 		case 'minimal': return 'minimal';
 		case 'index': return 'index';
 		case 'js': return 'js';
+		default: return 'auto';
+	}
+}
+
+function getJsxAttributeCompletionStyle(config: vscode.WorkspaceConfiguration) {
+	switch (config.get<string>('jsxAttributeCompletionStyle')) {
+		case 'braces': return 'braces';
+		case 'none': return 'none';
 		default: return 'auto';
 	}
 }

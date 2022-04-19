@@ -8,7 +8,7 @@ import { IChannel, IServerChannel, getDelayedChannel, IPCLogger } from 'vs/base/
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { connectRemoteAgentManagement, IConnectionOptions, ISocketFactory, PersistentConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
@@ -16,7 +16,7 @@ import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics
 import { Emitter } from 'vs/base/common/event';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { URI } from 'vs/base/common/uri';
@@ -69,6 +69,13 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 		return this._environment;
 	}
 
+	getExtensionHostExitInfo(reconnectionToken: string): Promise<IExtensionHostExitInfo | null> {
+		return this._withChannel(
+			(channel, connection) => RemoteExtensionEnvironmentChannelClient.getExtensionHostExitInfo(channel, connection.remoteAuthority, reconnectionToken),
+			null
+		);
+	}
+
 	whenExtensionsReady(): Promise<void> {
 		return this._withChannel(
 			channel => RemoteExtensionEnvironmentChannelClient.whenExtensionsReady(channel),
@@ -97,22 +104,22 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 		);
 	}
 
-	disableTelemetry(): Promise<void> {
-		return this._withChannel(
-			channel => RemoteExtensionEnvironmentChannelClient.disableTelemetry(channel),
+	updateTelemetryLevel(telemetryLevel: TelemetryLevel): Promise<void> {
+		return this._withTelemetryChannel(
+			channel => RemoteExtensionEnvironmentChannelClient.updateTelemetryLevel(channel, telemetryLevel),
 			undefined
 		);
 	}
 
 	logTelemetry(eventName: string, data: ITelemetryData): Promise<void> {
-		return this._withChannel(
+		return this._withTelemetryChannel(
 			channel => RemoteExtensionEnvironmentChannelClient.logTelemetry(channel, eventName, data),
 			undefined
 		);
 	}
 
 	flushTelemetry(): Promise<void> {
-		return this._withChannel(
+		return this._withTelemetryChannel(
 			channel => RemoteExtensionEnvironmentChannelClient.flushTelemetry(channel),
 			undefined
 		);
@@ -124,6 +131,14 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 			return Promise.resolve(fallback);
 		}
 		return connection.withChannel('remoteextensionsenvironment', (channel) => callback(channel, connection));
+	}
+
+	private _withTelemetryChannel<R>(callback: (channel: IChannel, connection: IRemoteAgentConnection) => Promise<R>, fallback: R): Promise<R> {
+		const connection = this.getConnection();
+		if (!connection) {
+			return Promise.resolve(fallback);
+		}
+		return connection.withChannel('telemetry', (channel) => callback(channel, connection));
 	}
 }
 

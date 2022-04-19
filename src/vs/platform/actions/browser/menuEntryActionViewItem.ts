@@ -15,7 +15,8 @@ import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'v
 import { isLinux, isWindows, OS } from 'vs/base/common/platform';
 import 'vs/css!./menuEntryActionViewItem';
 import { localize } from 'vs/nls';
-import { ICommandAction, Icon, IMenu, IMenuActionOptions, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuActionOptions, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { ICommandAction, Icon } from 'vs/platform/action/common/action';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -24,7 +25,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
-export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, primaryGroup?: string): IDisposable {
+export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): IDisposable {
 	const groups = menu.getActions(options);
 	const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
 	const useAlternativeActions = modifierKeyEmitter.keyStatus.altKey || ((isWindows || isLinux) && modifierKeyEmitter.keyStatus.shiftKey);
@@ -32,7 +33,7 @@ export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuAct
 	return asDisposable(groups);
 }
 
-export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, primaryGroup?: string | ((actionGroup: string) => boolean), primaryMaxCount?: number, shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean, useSeparatorsInPrimaryActions?: boolean): IDisposable {
+export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string | ((actionGroup: string) => boolean), primaryMaxCount?: number, shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean, useSeparatorsInPrimaryActions?: boolean): IDisposable {
 	const groups = menu.getActions(options);
 	const isPrimaryAction = typeof primaryGroup === 'string' ? (actionGroup: string) => actionGroup === primaryGroup : primaryGroup;
 
@@ -53,7 +54,7 @@ function asDisposable(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActio
 
 
 function fillInActions(
-	groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[]; },
+	groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[] },
 	useAlternativeActions: boolean,
 	isPrimaryAction: (actionGroup: string) => boolean = actionGroup => actionGroup === 'navigation',
 	primaryMaxCount: number = Number.MAX_SAFE_INTEGER,
@@ -71,7 +72,7 @@ function fillInActions(
 		secondaryBucket = target.secondary;
 	}
 
-	const submenuInfo = new Set<{ group: string, action: SubmenuAction, index: number }>();
+	const submenuInfo = new Set<{ group: string; action: SubmenuAction; index: number }>();
 
 	for (const [group, actions] of groups) {
 
@@ -171,7 +172,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		let alternativeKeyDown = this._altKey.keyStatus.altKey || ((isWindows || isLinux) && this._altKey.keyStatus.shiftKey);
 
 		const updateAltState = () => {
-			const wantsAltCommand = mouseOver && alternativeKeyDown;
+			const wantsAltCommand = mouseOver && alternativeKeyDown && !!this._commandAction.alt?.enabled;
 			if (wantsAltCommand !== this._wantsAltCommand) {
 				this._wantsAltCommand = wantsAltCommand;
 				this.updateLabel();
@@ -213,7 +214,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			let title = keybindingLabel
 				? localize('titleAndKb', "{0} ({1})", tooltip, keybindingLabel)
 				: tooltip;
-			if (!this._wantsAltCommand && this._menuItemAction.alt) {
+			if (!this._wantsAltCommand && this._menuItemAction.alt?.enabled) {
 				const altTooltip = this._menuItemAction.alt.tooltip || this._menuItemAction.alt.label;
 				const altKeybinding = this._keybindingService.lookupKeybinding(this._menuItemAction.alt.id, this._contextKeyService);
 				const altKeybindingLabel = altKeybinding && altKeybinding.getLabel();
@@ -223,6 +224,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 				title += `\n[${UILabelProvider.modifierLabels[OS].altKey}] ${altTitleSection}`;
 			}
 			this.label.title = title;
+			this.label.setAttribute('aria-label', title);
 		}
 	}
 
@@ -286,7 +288,7 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 		@IContextMenuService contextMenuService: IContextMenuService
 	) {
 		const dropdownOptions = Object.assign({}, options ?? Object.create(null), {
-			menuAsChild: options?.menuAsChild ?? true,
+			menuAsChild: options?.menuAsChild ?? false,
 			classNames: options?.classNames ?? (ThemeIcon.isThemeIcon(action.item.icon) ? ThemeIcon.asClassName(action.item.icon) : undefined),
 		});
 

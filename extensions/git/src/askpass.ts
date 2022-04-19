@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { window, InputBoxOptions, Uri, OutputChannel, Disposable, workspace } from 'vscode';
-import { IDisposable, EmptyDisposable, toDisposable } from './util';
+import { IDisposable, EmptyDisposable, toDisposable, logTimestamp } from './util';
 import * as path from 'path';
 import { IIPCHandler, IIPCServer, createIPCServer } from './ipc/ipcServer';
 import { CredentialsProvider, Credentials } from './api/git';
@@ -19,7 +19,7 @@ export class Askpass implements IIPCHandler {
 		try {
 			return new Askpass(await createIPCServer(context));
 		} catch (err) {
-			outputChannel.appendLine(`[error] Failed to create git askpass IPC: ${err}`);
+			outputChannel.appendLine(`${logTimestamp()} [error] Failed to create git askpass IPC: ${err}`);
 			return new Askpass();
 		}
 	}
@@ -30,7 +30,7 @@ export class Askpass implements IIPCHandler {
 		}
 	}
 
-	async handle({ request, host }: { request: string, host: string }): Promise<string> {
+	async handle({ request, host }: { request: string; host: string }): Promise<string> {
 		const config = workspace.getConfiguration('git', null);
 		const enabled = config.get<boolean>('enabled');
 
@@ -72,19 +72,26 @@ export class Askpass implements IIPCHandler {
 		return await window.showInputBox(options) || '';
 	}
 
-	getEnv(): { [key: string]: string; } {
+	getEnv(): { [key: string]: string } {
 		if (!this.ipc) {
 			return {
 				GIT_ASKPASS: path.join(__dirname, 'askpass-empty.sh')
 			};
 		}
 
-		return {
+		let env: { [key: string]: string } = {
 			...this.ipc.getEnv(),
-			GIT_ASKPASS: path.join(__dirname, 'askpass.sh'),
 			VSCODE_GIT_ASKPASS_NODE: process.execPath,
+			VSCODE_GIT_ASKPASS_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',
 			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js')
 		};
+
+		const config = workspace.getConfiguration('git');
+		if (config.get<boolean>('useIntegratedAskPass')) {
+			env.GIT_ASKPASS = path.join(__dirname, 'askpass.sh');
+		}
+
+		return env;
 	}
 
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable {

@@ -18,7 +18,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
 import { Schemas } from 'vs/base/common/network';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -39,7 +39,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		@IOpenerService openerService: IOpenerService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IDialogService dialogService: IDialogService,
-		@IModeService modeService: IModeService,
+		@ILanguageService languageService: ILanguageService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
 		@ILabelService labelService: ILabelService,
 		@IPathService pathService: IPathService,
@@ -48,7 +48,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super(hostService, contextService, historyService, environmentService, instantiationService,
-			configurationService, fileService, openerService, dialogService, modeService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService);
+			configurationService, fileService, openerService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService);
 	}
 
 	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
@@ -59,11 +59,11 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		};
 	}
 
-	private shouldUseSimplified(schema: string): { useSimplified: boolean, isSetting: boolean } {
+	private shouldUseSimplified(schema: string): { useSimplified: boolean; isSetting: boolean } {
 		const setting = (this.configurationService.getValue('files.simpleDialog.enable') === true);
 		const newWindowSetting = (this.configurationService.getValue('window.openFilesInNewWindow') === 'on');
 		return {
-			useSimplified: ((schema !== Schemas.file) && (schema !== Schemas.userData)) || setting,
+			useSimplified: ((schema !== Schemas.file) && (schema !== Schemas.vscodeUserData)) || setting,
 			isSetting: newWindowSetting
 		};
 	}

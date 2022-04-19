@@ -19,11 +19,13 @@ import { IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { PartsSplash } from 'vs/workbench/electron-sandbox/splash';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
-import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
+import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
+import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
+import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 
 // Actions
 (function registerActions(): void {
@@ -47,7 +49,7 @@ import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/c
 			id: CloseWindowAction.ID,
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(EditorsVisibleContext.toNegated(), SingleEditorGroupsContext),
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_W
+			primary: KeyMod.CtrlCmd | KeyCode.KeyW
 		});
 	}
 
@@ -61,32 +63,42 @@ import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/c
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'workbench.action.quit',
 		weight: KeybindingWeight.WorkbenchContrib,
-		handler(accessor: ServicesAccessor) {
+		async handler(accessor: ServicesAccessor) {
 			const nativeHostService = accessor.get(INativeHostService);
+			const configurationService = accessor.get(IConfigurationService);
+
+			const confirmBeforeClose = configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
+			if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed)) {
+				const confirmed = await NativeWindow.confirmOnShutdown(accessor, ShutdownReason.QUIT);
+				if (!confirmed) {
+					return; // quit prevented by user
+				}
+			}
+
 			nativeHostService.quit();
 		},
 		when: undefined,
-		mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q },
-		linux: { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q }
+		mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyQ },
+		linux: { primary: KeyMod.CtrlCmd | KeyCode.KeyQ }
 	});
 
 	// Actions: macOS Native Tabs
 	if (isMacintosh) {
-		[
+		for (const command of [
 			{ handler: NewWindowTabHandler, id: 'workbench.action.newWindowTab', title: { value: localize('newTab', "New Window Tab"), original: 'New Window Tab' } },
 			{ handler: ShowPreviousWindowTabHandler, id: 'workbench.action.showPreviousWindowTab', title: { value: localize('showPreviousTab', "Show Previous Window Tab"), original: 'Show Previous Window Tab' } },
 			{ handler: ShowNextWindowTabHandler, id: 'workbench.action.showNextWindowTab', title: { value: localize('showNextWindowTab', "Show Next Window Tab"), original: 'Show Next Window Tab' } },
 			{ handler: MoveWindowTabToNewWindowHandler, id: 'workbench.action.moveWindowTabToNewWindow', title: { value: localize('moveWindowTabToNewWindow', "Move Window Tab to New Window"), original: 'Move Window Tab to New Window' } },
 			{ handler: MergeWindowTabsHandlerHandler, id: 'workbench.action.mergeAllWindowTabs', title: { value: localize('mergeAllWindowTabs', "Merge All Windows"), original: 'Merge All Windows' } },
 			{ handler: ToggleWindowTabsBarHandler, id: 'workbench.action.toggleWindowTabsBar', title: { value: localize('toggleWindowTabsBar', "Toggle Window Tabs Bar"), original: 'Toggle Window Tabs Bar' } }
-		].forEach(command => {
+		]) {
 			CommandsRegistry.registerCommand(command.id, command.handler);
 
 			MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 				command,
 				when: ContextKeyExpr.equals('config.window.nativeTabs', true)
 			});
-		});
+		}
 	}
 
 	// Actions: Developer
@@ -233,7 +245,8 @@ import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/c
 				'type': 'boolean',
 				'description': localize('telemetry.enableCrashReporting', "Enable crash reports to be collected. This helps us improve stability. \nThis option requires restart to take effect."),
 				'default': true,
-				'tags': ['usesOnlineServices', 'telemetry']
+				'tags': ['usesOnlineServices', 'telemetry'],
+				'markdownDeprecationMessage': localize('enableCrashReporterDeprecated', "If this setting is false, no telemetry will be sent regardless of the new setting's value. Deprecated due to being combined into the {0} setting.", `\`#${TELEMETRY_SETTING_ID}#\``),
 			}
 		}
 	});
@@ -321,11 +334,4 @@ import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/c
 	}
 
 	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, schema);
-})();
-
-// Workbench Contributions
-(function registerWorkbenchContributions() {
-
-	// Splash
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(PartsSplash, LifecyclePhase.Starting);
 })();

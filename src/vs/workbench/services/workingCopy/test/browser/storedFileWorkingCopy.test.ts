@@ -6,15 +6,15 @@
 import * as assert from 'assert';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
+import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, isStoredFileWorkingCopySaveEvent, IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { bufferToStream, newWriteableBufferStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { basename } from 'vs/base/common/resources';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
-import { SaveReason } from 'vs/workbench/common/editor';
+import { SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { Promises } from 'vs/base/common/async';
 import { consumeReadable, consumeStream, isReadableStream } from 'vs/base/common/stream';
 
@@ -92,17 +92,21 @@ suite('StoredFileWorkingCopy', function () {
 
 	const factory = new TestStoredFileWorkingCopyModelFactory();
 
+	let disposables: DisposableStore;
 	let resource = URI.file('test/resource');
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 	let workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>;
 
 	function createWorkingCopy(uri: URI = resource) {
-		return new StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>('testStoredFileWorkingCopyType', uri, basename(uri), factory, accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService);
+		const workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModel> = new StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>('testStoredFileWorkingCopyType', uri, basename(uri), factory, options => workingCopy.resolve(options), accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService);
+
+		return workingCopy;
 	}
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		workingCopy = createWorkingCopy();
@@ -110,6 +114,7 @@ suite('StoredFileWorkingCopy', function () {
 
 	teardown(() => {
 		workingCopy.dispose();
+		disposables.dispose();
 	});
 
 	test('registers with working copy service', async () => {
@@ -155,6 +160,11 @@ suite('StoredFileWorkingCopy', function () {
 			contentChangeCounter++;
 		});
 
+		let savedCounter = 0;
+		workingCopy.onDidSave(() => {
+			savedCounter++;
+		});
+
 		// Dirty from: Model content change
 		workingCopy.model?.updateContents('hello dirty');
 		assert.strictEqual(contentChangeCounter, 1);
@@ -168,6 +178,7 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
 		assert.strictEqual(changeDirtyCounter, 2);
+		assert.strictEqual(savedCounter, 1);
 
 		// Dirty from: Initial contents
 		await workingCopy.resolve({ contents: bufferToStream(VSBuffer.fromString('hello dirty stream')) });
@@ -414,10 +425,10 @@ suite('StoredFileWorkingCopy', function () {
 
 	test('save (no errors)', async () => {
 		let savedCounter = 0;
-		let lastSavedReason: SaveReason | undefined = undefined;
-		workingCopy.onDidSave(reason => {
+		let lastSaveEvent: IStoredFileWorkingCopySaveEvent | undefined = undefined;
+		workingCopy.onDidSave(e => {
 			savedCounter++;
-			lastSavedReason = reason;
+			lastSaveEvent = e;
 		});
 
 		let saveErrorCounter = 0;
@@ -438,17 +449,22 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(savedCounter, 1);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(lastSavedReason, SaveReason.EXPLICIT);
+		assert.strictEqual(lastSaveEvent!.reason, SaveReason.EXPLICIT);
+		assert.ok(lastSaveEvent!.stat);
+		assert.ok(isStoredFileWorkingCopySaveEvent(lastSaveEvent!));
 		assert.strictEqual(workingCopy.model?.pushedStackElement, true);
 
 		// save reason
 		workingCopy.model?.updateContents('hello save');
-		await workingCopy.save({ reason: SaveReason.AUTO });
+
+		const source = SaveSourceRegistry.registerSource('testSource', 'Hello Save');
+		await workingCopy.save({ reason: SaveReason.AUTO, source });
 
 		assert.strictEqual(savedCounter, 2);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(lastSavedReason, SaveReason.AUTO);
+		assert.strictEqual((lastSaveEvent as IStoredFileWorkingCopySaveEvent).reason, SaveReason.AUTO);
+		assert.strictEqual((lastSaveEvent as IStoredFileWorkingCopySaveEvent).source, source);
 
 		// multiple saves in parallel are fine and result
 		// in a single save when content does not change
@@ -599,6 +615,22 @@ suite('StoredFileWorkingCopy', function () {
 		}
 
 		assert.ok(error);
+	});
+
+	test('save - returns false when save fails', async function () {
+		await workingCopy.resolve();
+
+		try {
+			accessor.fileService.writeShouldThrowError = new FileOperationError('write error', FileOperationResult.FILE_PERMISSION_DENIED);
+
+			const res = await workingCopy.save({ force: true });
+			assert.strictEqual(res, false);
+		} finally {
+			accessor.fileService.writeShouldThrowError = undefined;
+		}
+
+		const res = await workingCopy.save({ force: true });
+		assert.strictEqual(res, true);
 	});
 
 	test('save participant', async () => {

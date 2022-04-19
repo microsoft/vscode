@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtension, isResolverExtension } from 'vs/platform/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -22,6 +22,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 // --- bisect service
 
@@ -35,7 +37,7 @@ export interface IExtensionBisectService {
 	isActive: boolean;
 	disabledCount: number;
 	start(extensions: ILocalExtension[]): Promise<void>;
-	next(seeingBad: boolean): Promise<{ id: string, bad: boolean } | undefined>;
+	next(seeingBad: boolean): Promise<{ id: string; bad: boolean } | undefined>;
 	reset(): Promise<void>;
 }
 
@@ -102,21 +104,20 @@ class ExtensionBisectService implements IExtensionBisectService {
 			// bisect isn't active
 			return false;
 		}
-		if (this._isRemoteResolver(extension)) {
+		if (isResolverExtension(extension.manifest, this._envService.remoteAuthority)) {
 			// the current remote resolver extension cannot be disabled
+			return false;
+		}
+		if (this._isEnabledInEnv(extension)) {
+			// Extension enabled in env cannot be disabled
 			return false;
 		}
 		const disabled = this._disabled.get(extension.identifier.id);
 		return disabled ?? false;
 	}
 
-	private _isRemoteResolver(extension: IExtension): boolean {
-		if (extension.manifest.enableProposedApi !== true) {
-			return false;
-		}
-		const idx = this._envService.remoteAuthority?.indexOf('+');
-		const activationEvent = `onResolveRemoteAuthority:${this._envService.remoteAuthority?.substr(0, idx)}`;
-		return Boolean(extension.manifest.activationEvents?.find(e => e === activationEvent));
+	private _isEnabledInEnv(extension: IExtension): boolean {
+		return Array.isArray(this._envService.enableExtensions) && this._envService.enableExtensions.some(id => areSameExtensions({ id }, extension.identifier));
 	}
 
 	async start(extensions: ILocalExtension[]): Promise<void> {
@@ -129,7 +130,7 @@ class ExtensionBisectService implements IExtensionBisectService {
 		await this._storageService.flush();
 	}
 
-	async next(seeingBad: boolean): Promise<{ id: string; bad: boolean; } | undefined> {
+	async next(seeingBad: boolean): Promise<{ id: string; bad: boolean } | undefined> {
 		if (!this._state) {
 			throw new Error('invalid state');
 		}
@@ -195,9 +196,13 @@ class ExtensionBisectUi {
 			run: () => this._commandService.executeCommand('extension.bisect.stop')
 		};
 
+		const message = this._extensionBisectService.disabledCount === 1
+			? localize('bisect.singular', "Extension Bisect is active and has disabled 1 extension. Check if you can still reproduce the problem and proceed by selecting from these options.")
+			: localize('bisect.plural', "Extension Bisect is active and has disabled {0} extensions. Check if you can still reproduce the problem and proceed by selecting from these options.", this._extensionBisectService.disabledCount);
+
 		this._notificationService.prompt(
 			Severity.Info,
-			localize('bisect', "Extension Bisect is active and has disabled {0} extensions. Check if you can still reproduce the problem and proceed by selecting from these options.", this._extensionBisectService.disabledCount),
+			message,
 			[goodPrompt, badPrompt, stop],
 			{ sticky: true }
 		);
@@ -214,14 +219,14 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'extension.bisect.start',
 			title: { value: localize('title.start', "Start Extension Bisect"), original: 'Start Extension Bisect' },
-			category: localize('help', "Help"),
+			category: CATEGORIES.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive.negate(),
 			menu: {
 				id: MenuId.ViewContainerTitle,
 				when: ContextKeyExpr.equals('viewContainer', 'workbench.view.extensions'),
 				group: '2_enablement',
-				order: 3
+				order: 4
 			}
 		});
 	}
@@ -253,7 +258,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'extension.bisect.next',
-			title: localize('title.isBad', "Continue Extension Bisect"),
+			title: { value: localize('title.isBad', "Continue Extension Bisect"), original: 'Continue Extension Bisect' },
 			category: localize('help', "Help"),
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive
@@ -340,7 +345,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'extension.bisect.stop',
-			title: localize('title.stop', "Stop Extension Bisect"),
+			title: { value: localize('title.stop', "Stop Extension Bisect"), original: 'Stop Extension Bisect' },
 			category: localize('help', "Help"),
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive

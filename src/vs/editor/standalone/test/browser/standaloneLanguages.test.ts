@@ -6,19 +6,21 @@
 import * as assert from 'assert';
 import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
-import { Token } from 'vs/editor/common/core/token';
-import { IState, LanguageId, LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
-import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
-import { ILineTokens, IToken, TokenizationSupport2Adapter, TokensProvider } from 'vs/editor/standalone/browser/standaloneLanguages';
-import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Token, IState, LanguageId, MetadataConsts } from 'vs/editor/common/languages';
+import { TokenTheme } from 'vs/editor/common/languages/supports/tokenization';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { ILineTokens, IToken, TokenizationSupportAdapter, TokensProvider } from 'vs/editor/standalone/browser/standaloneLanguages';
+import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
+import { UnthemedProductIconTheme } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IFileIconTheme, IColorTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { IFileIconTheme, IColorTheme, ITokenStyle, IProductIconTheme } from 'vs/platform/theme/common/themeService';
 
 suite('TokenizationSupport2Adapter', () => {
 
-	const languageIdentifier = new LanguageIdentifier('tttt', LanguageId.PlainText);
-	const tokenMetadata = (languageIdentifier.id << MetadataConsts.LANGUAGEID_OFFSET);
+	const languageId = 'tttt';
+	// const tokenMetadata = (LanguageId.PlainText << MetadataConsts.LANGUAGEID_OFFSET);
 
 	class MockTokenTheme extends TokenTheme {
 		private counter = 0;
@@ -80,8 +82,15 @@ suite('TokenizationSupport2Adapter', () => {
 				hidesExplorerArrows: false
 			};
 		}
+
+		private _builtInProductIconTheme = new UnthemedProductIconTheme();
+
+		public getProductIconTheme(): IProductIconTheme {
+			return this._builtInProductIconTheme;
+		}
 		public readonly onDidColorThemeChange = new Emitter<IColorTheme>().event;
 		public readonly onDidFileIconThemeChange = new Emitter<IFileIconTheme>().event;
+		public readonly onDidProductIconThemeChange = new Emitter<IProductIconTheme>().event;
 	}
 
 	class MockState implements IState {
@@ -95,7 +104,7 @@ suite('TokenizationSupport2Adapter', () => {
 		}
 	}
 
-	function testBadTokensProvider(providerTokens: IToken[], offsetDelta: number, expectedClassicTokens: Token[], expectedModernTokens: number[]): void {
+	function testBadTokensProvider(providerTokens: IToken[], expectedClassicTokens: Token[], expectedModernTokens: number[]): void {
 
 		class BadTokensProvider implements TokensProvider {
 			public getInitialState(): IState {
@@ -109,95 +118,70 @@ suite('TokenizationSupport2Adapter', () => {
 			}
 		}
 
-		const adapter = new TokenizationSupport2Adapter(new MockThemeService(), languageIdentifier, new BadTokensProvider());
+		const disposables = new DisposableStore();
+		const languageService = disposables.add(new LanguageService());
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		const adapter = new TokenizationSupportAdapter(
+			languageId,
+			new BadTokensProvider(),
+			languageService,
+			new MockThemeService()
+		);
 
-		const actualClassicTokens = adapter.tokenize('whatever', true, MockState.INSTANCE, offsetDelta);
+		const actualClassicTokens = adapter.tokenize('whatever', true, MockState.INSTANCE);
 		assert.deepStrictEqual(actualClassicTokens.tokens, expectedClassicTokens);
 
-		const actualModernTokens = adapter.tokenize2('whatever', true, MockState.INSTANCE, offsetDelta);
+		const actualModernTokens = adapter.tokenizeEncoded('whatever', true, MockState.INSTANCE);
 		const modernTokens: number[] = [];
 		for (let i = 0; i < actualModernTokens.tokens.length; i++) {
 			modernTokens[i] = actualModernTokens.tokens[i];
 		}
+
+		// Add the encoded language id to the expected tokens
+		const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
+		const tokenLanguageMetadata = (encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET);
+		for (let i = 1; i < expectedModernTokens.length; i += 2) {
+			expectedModernTokens[i] |= tokenLanguageMetadata;
+		}
 		assert.deepStrictEqual(modernTokens, expectedModernTokens);
+
+		disposables.dispose();
 	}
 
-	test('tokens always start at index 0 (no offset delta)', () => {
+	test('tokens always start at index 0', () => {
 		testBadTokensProvider(
 			[
 				{ startIndex: 7, scopes: 'foo' },
 				{ startIndex: 0, scopes: 'bar' }
 			],
-			0,
 			[
-				new Token(0, 'foo', languageIdentifier.language),
-				new Token(0, 'bar', languageIdentifier.language),
+				new Token(0, 'foo', languageId),
+				new Token(0, 'bar', languageId),
 			],
 			[
-				0, tokenMetadata | (0 << MetadataConsts.FOREGROUND_OFFSET),
-				0, tokenMetadata | (1 << MetadataConsts.FOREGROUND_OFFSET)
+				0, (0 << MetadataConsts.FOREGROUND_OFFSET),
+				0, (1 << MetadataConsts.FOREGROUND_OFFSET)
 			]
 		);
 	});
 
-	test('tokens always start after each other (no offset delta)', () => {
+	test('tokens always start after each other', () => {
 		testBadTokensProvider(
 			[
 				{ startIndex: 0, scopes: 'foo' },
 				{ startIndex: 5, scopes: 'bar' },
 				{ startIndex: 3, scopes: 'foo' },
 			],
-			0,
 			[
-				new Token(0, 'foo', languageIdentifier.language),
-				new Token(5, 'bar', languageIdentifier.language),
-				new Token(5, 'foo', languageIdentifier.language),
+				new Token(0, 'foo', languageId),
+				new Token(5, 'bar', languageId),
+				new Token(5, 'foo', languageId),
 			],
 			[
-				0, tokenMetadata | (0 << MetadataConsts.FOREGROUND_OFFSET),
-				5, tokenMetadata | (1 << MetadataConsts.FOREGROUND_OFFSET),
-				5, tokenMetadata | (2 << MetadataConsts.FOREGROUND_OFFSET)
+				0, (0 << MetadataConsts.FOREGROUND_OFFSET),
+				5, (1 << MetadataConsts.FOREGROUND_OFFSET),
+				5, (2 << MetadataConsts.FOREGROUND_OFFSET)
 			]
 		);
 	});
-
-	test('tokens always start at index 0 (with offset delta)', () => {
-		testBadTokensProvider(
-			[
-				{ startIndex: 7, scopes: 'foo' },
-				{ startIndex: 0, scopes: 'bar' }
-			],
-			7,
-			[
-				new Token(7, 'foo', languageIdentifier.language),
-				new Token(7, 'bar', languageIdentifier.language),
-			],
-			[
-				7, tokenMetadata | (0 << MetadataConsts.FOREGROUND_OFFSET),
-				7, tokenMetadata | (1 << MetadataConsts.FOREGROUND_OFFSET)
-			]
-		);
-	});
-
-	test('tokens always start after each other (with offset delta)', () => {
-		testBadTokensProvider(
-			[
-				{ startIndex: 0, scopes: 'foo' },
-				{ startIndex: 5, scopes: 'bar' },
-				{ startIndex: 3, scopes: 'foo' },
-			],
-			7,
-			[
-				new Token(7, 'foo', languageIdentifier.language),
-				new Token(12, 'bar', languageIdentifier.language),
-				new Token(12, 'foo', languageIdentifier.language),
-			],
-			[
-				7, tokenMetadata | (0 << MetadataConsts.FOREGROUND_OFFSET),
-				12, tokenMetadata | (1 << MetadataConsts.FOREGROUND_OFFSET),
-				12, tokenMetadata | (2 << MetadataConsts.FOREGROUND_OFFSET)
-			]
-		);
-	});
-
 });

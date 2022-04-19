@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./notebookDiff';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import * as DOM from 'vs/base/browser/dom';
-import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, IListStyles, isMonacoEditor, IStyleController, MouseController } from 'vs/base/browser/ui/list/listWidget';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -24,21 +24,24 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
+import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { PixelRatio } from 'vs/base/browser/browser';
 
 export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<DiffElementViewModelBase> {
-	// private readonly lineHeight: number;
+	private readonly lineHeight: number;
 
 	constructor(
 		@IConfigurationService readonly configurationService: IConfigurationService
 	) {
-		// const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		// this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
+		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
+		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value).lineHeight;
 	}
 
 	getHeight(element: DiffElementViewModelBase): number {
-		return 100;
+		return element.getHeight(this.lineHeight);
 	}
 
 	hasDynamicHeight(element: DiffElementViewModelBase): boolean {
@@ -229,6 +232,10 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 
 		const editor = this.instantiationService.createInstance(DiffEditorWidget, editorContainer, {
 			...fixedDiffEditorOptions,
+			padding: {
+				top: 24,
+				bottom: 12
+			},
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 			originalEditable: false,
 			ignoreTrimWhitespace: false,
@@ -274,6 +281,17 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 	}
 }
 
+export class NotebookMouseController<T> extends MouseController<T> {
+	protected override onViewPointer(e: IListMouseEvent<T>): void {
+		if (isMonacoEditor(e.browserEvent.target as HTMLElement)) {
+			const focus = typeof e.index === 'undefined' ? [] : [e.index];
+			this.list.setFocus(focus, e.browserEvent);
+		} else {
+			super.onViewPointer(e);
+		}
+	}
+}
+
 export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase> implements IDisposable, IStyleController {
 	private styleElement?: HTMLStyleElement;
 
@@ -295,6 +313,10 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
 	}
 
+	protected override createMouseController(options: IListOptions<DiffElementViewModelBase>): MouseController<DiffElementViewModelBase> {
+		return new NotebookMouseController(this);
+	}
+
 	getAbsoluteTopOfElement(element: DiffElementViewModelBase): number {
 		const index = this.indexOf(element);
 		// if (index === undefined || index < 0 || index >= this.length) {
@@ -303,6 +325,10 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		// }
 
 		return this.view.elementTop(index);
+	}
+
+	getScrollHeight() {
+		return this.view.scrollHeight;
 	}
 
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {

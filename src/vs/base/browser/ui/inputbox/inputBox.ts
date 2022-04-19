@@ -92,11 +92,11 @@ const defaultOpts = {
 export class InputBox extends Widget {
 	private contextViewProvider?: IContextViewProvider;
 	element: HTMLElement;
-	private input: HTMLInputElement;
+	protected input: HTMLInputElement;
 	private actionbar?: ActionBar;
 	private options: IInputOptions;
 	private message: IMessage | null;
-	private placeholder: string;
+	protected placeholder: string;
 	private tooltip: string;
 	private ariaLabel: string;
 	private validation?: IInputValidator;
@@ -363,11 +363,8 @@ export class InputBox extends Widget {
 	}
 
 	public set paddingRight(paddingRight: number) {
-		if (this.options.flexibleHeight && this.options.flexibleWidth) {
-			this.input.style.width = `calc(100% - ${paddingRight}px)`;
-		} else {
-			this.input.style.paddingRight = paddingRight + 'px';
-		}
+		// Set width to avoid hint text overlapping buttons
+		this.input.style.width = `calc(100% - ${paddingRight}px)`;
 
 		if (this.mirror) {
 			this.mirror.style.paddingRight = paddingRight + 'px';
@@ -634,15 +631,75 @@ export class InputBox extends Widget {
 
 export interface IHistoryInputOptions extends IInputOptions {
 	history: string[];
+	readonly showHistoryHint?: () => boolean;
 }
 
 export class HistoryInputBox extends InputBox implements IHistoryNavigationWidget {
 
 	private readonly history: HistoryNavigator<string>;
+	private observer: MutationObserver | undefined;
 
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IHistoryInputOptions) {
+		const NLS_PLACEHOLDER_HISTORY_HINT = nls.localize({ key: 'history.inputbox.hint', comment: ['Text will be prefixed with \u21C5 plus a single space, then used as a hint where input field keeps history'] }, "for history");
+		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX = ` or \u21C5 ${NLS_PLACEHOLDER_HISTORY_HINT}`;
+		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS = ` (\u21C5 ${NLS_PLACEHOLDER_HISTORY_HINT})`;
 		super(container, contextViewProvider, options);
 		this.history = new HistoryNavigator<string>(options.history, 100);
+
+		// Function to append the history suffix to the placeholder if necessary
+		const addSuffix = () => {
+			if (options.showHistoryHint && options.showHistoryHint() && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX) && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS) && this.history.getHistory().length) {
+				const suffix = this.placeholder.endsWith(')') ? NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX : NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS;
+				const suffixedPlaceholder = this.placeholder + suffix;
+				if (options.showPlaceholderOnFocus && document.activeElement !== this.input) {
+					this.placeholder = suffixedPlaceholder;
+				}
+				else {
+					this.setPlaceHolder(suffixedPlaceholder);
+				}
+			}
+		};
+
+		// Spot the change to the textarea class attribute which occurs when it changes between non-empty and empty,
+		// and add the history suffix to the placeholder if not yet present
+		this.observer = new MutationObserver((mutationList: MutationRecord[], observer: MutationObserver) => {
+			mutationList.forEach((mutation: MutationRecord) => {
+				if (!mutation.target.textContent) {
+					addSuffix();
+				}
+			});
+		});
+		this.observer.observe(this.input, { attributeFilter: ['class'] });
+
+		this.onfocus(this.input, () => addSuffix());
+		this.onblur(this.input, () => {
+			const resetPlaceholder = (historyHint: string) => {
+				if (!this.placeholder.endsWith(historyHint)) {
+					return false;
+				}
+				else {
+					const revertedPlaceholder = this.placeholder.slice(0, this.placeholder.length - historyHint.length);
+					if (options.showPlaceholderOnFocus) {
+						this.placeholder = revertedPlaceholder;
+					}
+					else {
+						this.setPlaceHolder(revertedPlaceholder);
+					}
+					return true;
+				}
+			};
+			if (!resetPlaceholder(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS)) {
+				resetPlaceholder(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX);
+			}
+		});
+	}
+
+	override dispose() {
+		super.dispose();
+		if (this.observer) {
+			this.observer.disconnect();
+			this.observer = undefined;
+		}
 	}
 
 	public addToHistory(): void {
