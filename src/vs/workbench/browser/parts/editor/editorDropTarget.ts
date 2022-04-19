@@ -101,7 +101,7 @@ class DropOverlay extends Themable {
 		container.appendChild(this.overlay);
 
 		if (this.enableDropIntoEditor) {
-			this.dropIntoPromptElement = renderFormattedText(localize('dropIntoEditorPrompt', "Hold __shift__ to drop into editor"), {});
+			this.dropIntoPromptElement = renderFormattedText(localize('dropIntoEditorPrompt', "Hold __{0}__ to drop into editor", isMacintosh ? '⇧' : 'Shift'), {});
 			this.dropIntoPromptElement.classList.add('editor-group-overlay-drop-into-prompt');
 			this.overlay.appendChild(this.dropIntoPromptElement);
 		}
