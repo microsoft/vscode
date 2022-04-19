@@ -87,6 +87,9 @@ declare module 'vscode' {
 		 * The uri of the modified notebook.
 		 */
 		readonly modified: Uri;
+		/**
+		 * The type of notebook. Maps to {@linkcode NotebookDocument.notebookType NotebookDocuments's notebookType}
+		 */
 		readonly notebookType: string;
 		constructor(original: Uri, modified: Uri, notebookType: string);
 	}
@@ -150,6 +153,9 @@ declare module 'vscode' {
 		export const tabGroups: TabGroups;
 	}
 
+	/**
+	 * An event describing change to tabs.
+	 */
 	export interface TabChangeEvent {
 		/**
 		 * The tabs that have been opened
@@ -186,7 +192,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a group of tabs. A tab group itself consists of multiple tab
+	 * Represents a group of tabs. A tab group itself consists of multiple tabs.
 	 */
 	export interface TabGroup {
 		/**
@@ -219,6 +225,9 @@ declare module 'vscode' {
 		readonly tabs: readonly Tab[];
 	}
 
+	/**
+	 * Represents the main editor area which consists of multple groups which contain tabs.
+	 */
 	export interface TabGroups {
 		/**
 		 * All the groups within the group container

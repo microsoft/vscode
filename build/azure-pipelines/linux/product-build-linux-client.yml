@@ -148,7 +148,7 @@ steps:
       rm -rf remote/node_modules
       tar -xzf $(Build.ArtifactStagingDirectory)/reh_node_modules-$(VSCODE_ARCH).tar.gz --directory $(Build.SourcesDirectory)/remote
     displayName: Extract server node_modules output
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'armhf'))
 
   - script: |
       set -e

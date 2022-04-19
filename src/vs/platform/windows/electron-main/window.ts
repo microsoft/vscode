@@ -29,7 +29,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
-import { IGlobalStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { IGlobalStorageMainService, IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
@@ -106,23 +106,23 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private _lastFocusTime = -1;
 	get lastFocusTime(): number { return this._lastFocusTime; }
 
-	get backupPath(): string | undefined { return this.currentConfig?.backupPath; }
+	get backupPath(): string | undefined { return this._config?.backupPath; }
 
-	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this.currentConfig?.workspace; }
+	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
 
-	get remoteAuthority(): string | undefined { return this.currentConfig?.remoteAuthority; }
+	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
 
-	private currentConfig: INativeWindowConfiguration | undefined;
-	get config(): INativeWindowConfiguration | undefined { return this.currentConfig; }
+	private _config: INativeWindowConfiguration | undefined;
+	get config(): INativeWindowConfiguration | undefined { return this._config; }
 
 	private hiddenTitleBarStyle: boolean | undefined;
 	get hasHiddenTitleBarStyle(): boolean { return !!this.hiddenTitleBarStyle; }
 
-	get isExtensionDevelopmentHost(): boolean { return !!(this.currentConfig?.extensionDevelopmentPath); }
+	get isExtensionDevelopmentHost(): boolean { return !!(this._config?.extensionDevelopmentPath); }
 
-	get isExtensionTestHost(): boolean { return !!(this.currentConfig?.extensionTestsPath); }
+	get isExtensionTestHost(): boolean { return !!(this._config?.extensionTestsPath); }
 
-	get isExtensionDevelopmentTestFromCli(): boolean { return this.isExtensionDevelopmentHost && this.isExtensionTestHost && !this.currentConfig?.debugId; }
+	get isExtensionDevelopmentTestFromCli(): boolean { return this.isExtensionDevelopmentHost && this.isExtensionTestHost && !this._config?.debugId; }
 
 	//#endregion
 
@@ -150,6 +150,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IFileService private readonly fileService: IFileService,
 		@IGlobalStorageMainService private readonly globalStorageMainService: IGlobalStorageMainService,
+		@IStorageMainService private readonly storageMainService: IStorageMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
@@ -439,7 +440,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			// Associate properties from the load request if provided
 			if (this.pendingLoadConfig) {
-				this.currentConfig = this.pendingLoadConfig;
+				this._config = this.pendingLoadConfig;
 
 				this.pendingLoadConfig = undefined;
 			}
@@ -452,16 +453,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Window (Un)Maximize
 		this._win.on('maximize', (e: Event) => {
-			if (this.currentConfig) {
-				this.currentConfig.maximized = true;
+			if (this._config) {
+				this._config.maximized = true;
 			}
 
 			app.emit('browser-window-maximize', e, this._win);
 		});
 
 		this._win.on('unmaximize', (e: Event) => {
-			if (this.currentConfig) {
-				this.currentConfig.maximized = false;
+			if (this._config) {
+				this._config.maximized = false;
 			}
 
 			app.emit('browser-window-unmaximize', e, this._win);
@@ -496,6 +497,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		if (!this.marketplaceHeadersPromise) {
 			this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.productService, this.environmentMainService, this.configurationService, this.fileService, this.globalStorageMainService);
 		}
+
 		return this.marketplaceHeadersPromise;
 	}
 
@@ -546,7 +548,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 				// If we run smoke tests, we never want to show a blocking dialog
 				if (this.environmentMainService.args['enable-smoke-test-driver']) {
-					this.destroyWindow(false);
+					this.destroyWindow(false, false);
 					return;
 				}
 
@@ -575,13 +577,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
 						noLink: true,
 						defaultId: 0,
-						cancelId: 1
+						cancelId: 1,
+						checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
 					}, this._win);
 
 					// Handle choice
 					if (result.response !== 1 /* keep waiting */) {
 						const reopen = result.response === 0;
-						this.destroyWindow(reopen);
+						this.destroyWindow(reopen, result.checkboxChecked);
 					}
 				}
 
@@ -605,18 +608,32 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						message,
 						detail: localize('appCrashedDetail', "We are sorry for the inconvenience. You can reopen the window to continue where you left off."),
 						noLink: true,
-						defaultId: 0
+						defaultId: 0,
+						checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
 					}, this._win);
 
 					// Handle choice
 					const reopen = result.response === 0;
-					this.destroyWindow(reopen);
+					this.destroyWindow(reopen, result.checkboxChecked);
 				}
 				break;
 		}
 	}
 
-	private destroyWindow(reopen: boolean): void {
+	private async destroyWindow(reopen: boolean, skipRestoreEditors: boolean): Promise<void> {
+		const workspace = this._config?.workspace;
+
+		//  check to discard editor state first
+		if (skipRestoreEditors && workspace) {
+			try {
+				const workspaceStorage = this.storageMainService.workspaceStorage(workspace);
+				await workspaceStorage.init();
+				workspaceStorage.delete('memento/workbench.parts.editor');
+				await workspaceStorage.close();
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
 
 		// 'close' event will not be fired on destroy(), so signal crash via explicit event
 		this._onDidDestroy.fire();
@@ -625,15 +642,15 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win?.destroy();
 
 		// ask the windows service to open a new fresh window if specified
-		if (reopen && this.config) {
+		if (reopen && this._config) {
 
 			// We have to reconstruct a openable from the current workspace
-			let workspace: IWorkspaceToOpen | IFolderToOpen | undefined = undefined;
+			let uriToOpen: IWorkspaceToOpen | IFolderToOpen | undefined = undefined;
 			let forceEmpty = undefined;
-			if (isSingleFolderWorkspaceIdentifier(this.openedWorkspace)) {
-				workspace = { folderUri: this.openedWorkspace.uri };
-			} else if (isWorkspaceIdentifier(this.openedWorkspace)) {
-				workspace = { workspaceUri: this.openedWorkspace.configPath };
+			if (isSingleFolderWorkspaceIdentifier(workspace)) {
+				uriToOpen = { folderUri: workspace.uri };
+			} else if (isWorkspaceIdentifier(workspace)) {
+				uriToOpen = { workspaceUri: workspace.configPath };
 			} else {
 				forceEmpty = true;
 			}
@@ -641,12 +658,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			// Delegate to windows service
 			const [window] = this.windowsMainService.open({
 				context: OpenContext.API,
-				userEnv: this.config.userEnv,
+				userEnv: this._config.userEnv,
 				cli: {
 					...this.environmentMainService.args,
 					_: [] // we pass in the workspace to open explicitly via `urisToOpen`
 				},
-				urisToOpen: workspace ? [workspace] : undefined,
+				urisToOpen: uriToOpen ? [uriToOpen] : undefined,
 				forceEmpty,
 				forceNewWindow: true,
 				remoteAuthority: this.remoteAuthority
@@ -659,8 +676,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Make sure to update our workspace config if we detect that it
 		// was deleted
-		if (this.openedWorkspace?.id === workspace.id && this.currentConfig) {
-			this.currentConfig.workspace = undefined;
+		if (this._config?.workspace?.id === workspace.id && this._config) {
+			this._config.workspace = undefined;
 		}
 	}
 
@@ -726,7 +743,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// If this is the first time the window is loaded, we associate the paths
 		// directly with the window because we assume the loading will just work
 		if (this.readyState === ReadyState.NONE) {
-			this.currentConfig = configuration;
+			this._config = configuration;
 		}
 
 		// Otherwise, the window is currently showing a folder and if there is an
@@ -777,7 +794,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Also, preserve the environment if we're loading from an
 		// extension development host that had its environment set
 		// (for https://github.com/microsoft/vscode/issues/123508)
-		const currentUserEnv = (this.currentConfig ?? this.pendingLoadConfig)?.userEnv;
+		const currentUserEnv = (this._config ?? this.pendingLoadConfig)?.userEnv;
 		if (currentUserEnv) {
 			const shouldPreserveLaunchCliEnvironment = isLaunchedFromCli(currentUserEnv) && !isLaunchedFromCli(configuration.userEnv);
 			const shouldPreserveDebugEnvironmnet = this.isExtensionDevelopmentHost;
@@ -817,7 +834,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	async reload(cli?: NativeParsedArgs): Promise<void> {
 
 		// Copy our current config for reuse
-		const configuration = Object.assign({}, this.currentConfig);
+		const configuration = Object.assign({}, this._config);
 
 		// Validate workspace
 		configuration.workspace = await this.validateWorkspaceBeforeReload(configuration);

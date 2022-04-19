@@ -107,7 +107,7 @@ const testDataPath = path.join(os.tmpdir(), 'vscsmoke');
 if (fs.existsSync(testDataPath)) {
 	rimraf.sync(testDataPath);
 }
-fs.mkdirSync(testDataPath);
+mkdirp.sync(testDataPath);
 process.once('exit', () => {
 	try {
 		rimraf.sync(testDataPath);
