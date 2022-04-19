@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
-import type { InputBox, InputBoxOptions, InputBoxValidationSeverity, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
+import { InputBox, InputBoxOptions, InputBoxValidationMessage, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickItemButtonEvent, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
 import { ExtHostQuickOpenShape, IMainContext, MainContext, TransferQuickInput, TransferQuickInputButton, TransferQuickPickItemOrSeparator } from './extHost.protocol';
 import { URI } from 'vs/base/common/uri';
-import { ThemeIcon, QuickInputButtons, QuickPickItemKind } from 'vs/workbench/api/common/extHostTypes';
+import { ThemeIcon, QuickInputButtons, QuickPickItemKind, InputBoxValidationSeverity } from 'vs/workbench/api/common/extHostTypes';
 import { isCancellationError } from 'vs/base/common/errors';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { coalesce } from 'vs/base/common/arrays';
@@ -46,7 +45,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _commands: ExtHostCommands;
 
 		private _onDidSelectItem?: (handle: number) => void;
-		private _validateInput?: (input: string) => string | { content: string; severity: Severity } | undefined | null | Thenable<string | { content: string; severity: Severity } | undefined | null>;
+		private _validateInput?: (input: string) => string | InputBoxValidationMessage | undefined | null | Thenable<string | InputBoxValidationMessage | undefined | null>;
 
 		private _sessions = new Map<number, ExtHostQuickInput>();
 
@@ -148,7 +147,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		showInput(options?: InputBoxOptions, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
 
 			// global validate fn used in callback below
-			this._validateInput = options ? options.validateInput : undefined;
+			this._validateInput = options ? options.validateInput2 ?? options.validateInput : undefined;
 
 			return proxy.$input(options, typeof this._validateInput === 'function', token)
 				.then(undefined, err => {
@@ -160,11 +159,36 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 				});
 		}
 
-		$validateInput(input: string): Promise<string | { content: string; severity: Severity } | null | undefined> {
-			if (this._validateInput) {
-				return asPromise(() => this._validateInput!(input));
+		async $validateInput(input: string): Promise<string | { content: string; severity: Severity } | null | undefined> {
+			if (!this._validateInput) {
+				return;
 			}
-			return Promise.resolve(undefined);
+
+			const result = await this._validateInput(input);
+			if (!result || typeof result === 'string') {
+				return result;
+			}
+
+			let severity: Severity;
+			switch (result.severity) {
+				case InputBoxValidationSeverity.Info:
+					severity = Severity.Info;
+					break;
+				case InputBoxValidationSeverity.Warning:
+					severity = Severity.Warning;
+					break;
+				case InputBoxValidationSeverity.Error:
+					severity = Severity.Error;
+					break;
+				default:
+					severity = result.message ? Severity.Error : Severity.Ignore;
+					break;
+			}
+
+			return {
+				content: result.message,
+				severity
+			};
 		}
 
 		// ---- workspace folder picker
@@ -675,7 +699,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _password = false;
 		private _prompt: string | undefined;
 		private _validationMessage: string | undefined;
-		private _validationMessage2: string | { content: string; severity: InputBoxValidationSeverity } | undefined;
+		private _validationMessage2: string | InputBoxValidationMessage | undefined;
 
 		constructor(private readonly extension: IExtensionDescription, onDispose: () => void) {
 			super(extension.identifier, onDispose);
@@ -713,7 +737,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			return this._validationMessage2;
 		}
 
-		set validationMessage2(validationMessage: string | { content: string; severity: InputBoxValidationSeverity } | undefined) {
+		set validationMessage2(validationMessage: string | InputBoxValidationMessage | undefined) {
 			checkProposedApiEnabled(this.extension, 'inputBoxSeverity');
 			this._validationMessage2 = validationMessage;
 			if (!validationMessage) {
@@ -721,7 +745,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			} else if (typeof validationMessage === 'string') {
 				this.update({ validationMessage, severity: Severity.Error });
 			} else {
-				this.update({ validationMessage: validationMessage.content, severity: validationMessage.severity ?? Severity.Error });
+				this.update({ validationMessage: validationMessage.message, severity: validationMessage.severity ?? Severity.Error });
 			}
 		}
 	}

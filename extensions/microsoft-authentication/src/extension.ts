@@ -48,7 +48,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				*/
 				telemetryReporter.sendTelemetryEvent('logout');
 
-				const session = await loginService.removeSession(id);
+				const session = await loginService.removeSessionById(id);
 				if (session) {
 					onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
 				}

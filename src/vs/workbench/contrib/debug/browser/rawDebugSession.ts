@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
-import { Action } from 'vs/base/common/actions';
+import { toAction } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
 import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { formatPII, isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
@@ -284,7 +284,8 @@ export class RawDebugSession implements IDisposable {
 	 */
 	disconnect(args: DebugProtocol.DisconnectArguments): Promise<any> {
 		const terminateDebuggee = this.capabilities.supportTerminateDebuggee ? args.terminateDebuggee : undefined;
-		return this.shutdown(undefined, args.restart, terminateDebuggee);
+		const suspendDebuggee = this.capabilities.supportTerminateDebuggee && this.capabilities.supportSuspendDebuggee ? args.suspendDebuggee : undefined;
+		return this.shutdown(undefined, args.restart, terminateDebuggee, suspendDebuggee);
 	}
 
 	//---- DAP requests
@@ -553,12 +554,20 @@ export class RawDebugSession implements IDisposable {
 
 	//---- private
 
-	private async shutdown(error?: Error, restart = false, terminateDebuggee: boolean | undefined = undefined): Promise<any> {
+	private async shutdown(error?: Error, restart = false, terminateDebuggee: boolean | undefined = undefined, suspendDebuggee: boolean | undefined = undefined): Promise<any> {
 		if (!this.inShutdown) {
 			this.inShutdown = true;
 			if (this.debugAdapter) {
 				try {
-					const args = typeof terminateDebuggee === 'boolean' ? { restart, terminateDebuggee } : { restart };
+					const args: DebugProtocol.DisconnectArguments = { restart };
+					if (typeof terminateDebuggee === 'boolean') {
+						args.terminateDebuggee = terminateDebuggee;
+					}
+
+					if (typeof suspendDebuggee === 'boolean') {
+						args.suspendDebuggee = suspendDebuggee;
+					}
+
 					this.send('disconnect', args, undefined, 2000);
 				} catch (e) {
 					// Catch the potential 'disconnect' error - no need to show it to the user since the adapter is shutting down
@@ -738,11 +747,7 @@ export class RawDebugSession implements IDisposable {
 			const uri = URI.parse(url);
 			// Use a suffixed id if uri invokes a command, so default 'Open launch.json' command is suppressed on dialog
 			const actionId = uri.scheme === Schemas.command ? 'debug.moreInfo.command' : 'debug.moreInfo';
-			return createErrorWithActions(userMessage, {
-				actions: [new Action(actionId, label, undefined, true, async () => {
-					this.openerService.open(uri, { allowCommands: true });
-				})]
-			});
+			return createErrorWithActions(userMessage, [toAction({ id: actionId, label, run: () => this.openerService.open(uri, { allowCommands: true }) })]);
 		}
 		if (showErrors && error && error.format && error.showUser) {
 			this.notificationService.error(userMessage);

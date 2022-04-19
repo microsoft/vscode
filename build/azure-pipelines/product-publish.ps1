@@ -29,8 +29,8 @@ if (Test-Path $ARTIFACT_PROCESSED_WILDCARD_PATH) {
 	# This means that the latest artifact_processed_*.txt file has all of the contents of the previous ones.
 	# Note: The kusto-like syntax only works in PS7+ and only in scripts, not at the REPL.
 	Get-ChildItem $ARTIFACT_PROCESSED_WILDCARD_PATH
-		| Sort-Object
-		| Select-Object -Last 1
+		# Sort by file name length first and then Name to make sure we sort numerically. Ex. 12 comes after 9.
+		| Sort-Object { $_.Name.Length },Name -Bottom 1
 		| Get-Content
 		| ForEach-Object {
 			$set.Add($_) | Out-Null

@@ -42,6 +42,7 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 
 		// Acquire a message port connected to the shared process
 		mark('code/willConnectSharedProcess');
+		this.logService.trace('Renderer->SharedProcess#connect: before acquirePort');
 		const port = await acquirePort('vscode:createSharedProcessMessageChannel', 'vscode:createSharedProcessMessageChannelResult');
 		mark('code/didConnectSharedProcess');
 		this.logService.trace('Renderer->SharedProcess#connect: connection established');

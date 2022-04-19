@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputService, IOutputChannel, OUTPUT_VIEW_ID, OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
-import { Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
+import { Extensions, IOutputChannelRegistry, IOutputService, IOutputChannel, OUTPUT_VIEW_ID, OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
 import { MainThreadOutputServiceShape, MainContext, ExtHostOutputServiceShape, ExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { UriComponents, URI } from 'vs/base/common/uri';

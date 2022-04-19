@@ -20,6 +20,7 @@
 	"markdown.trace.desc": "Enable debug logging for the Markdown extension.",
 	"markdown.preview.refresh.title": "Refresh Preview",
 	"markdown.preview.toggleLock.title": "Toggle Preview Locking",
+	"markdown.findAllFileReferences": "Find File References",
 	"configuration.markdown.preview.openMarkdownLinks.description": "Controls how links to other Markdown files in the Markdown preview should be opened.",
 	"configuration.markdown.preview.openMarkdownLinks.inEditor": "Try to open links in the editor.",
 	"configuration.markdown.preview.openMarkdownLinks.inPreview": "Try to open links in the Markdown preview.",
@@ -27,5 +28,6 @@
 	"configuration.markdown.links.openLocation.currentGroup": "Open links in the active editor group.",
 	"configuration.markdown.links.openLocation.beside": "Open links beside the active editor.",
 	"configuration.markdown.suggest.paths.enabled.description": "Enable/disable path suggestions for markdown links",
+	"configuration.markdown.editor.drop.enabled": "Enable/disable dropping into the markdown editor to insert shift. Requires enabling `#workbench.editor.dropIntoEditor.enabled#`.",
 	"workspaceTrust": "Required for loading styles configured in the workspace."
 }

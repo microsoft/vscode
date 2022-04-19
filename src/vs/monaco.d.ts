@@ -3723,6 +3723,10 @@ declare namespace monaco.editor {
 		 */
 		enabled?: boolean;
 		/**
+		 *
+		 */
+		toggle?: 'show' | 'hide' | null;
+		/**
 		 * Font size of inline hints.
 		 * Default to 90% of the editor font size.
 		 */
@@ -6328,6 +6332,10 @@ declare namespace monaco.languages {
 
 	export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 		readonly items: readonly TItem[];
+		/**
+		 * A list of commands associated with the inline completions of this list.
+		 */
+		readonly commands?: Command[];
 	}
 
 	export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {

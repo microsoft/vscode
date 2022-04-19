@@ -259,7 +259,9 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 	}
 
 	override show(where: IRange) {
-		this.editor.revealRangeInCenterIfOutsideViewport(where, ScrollType.Smooth);
+		setTimeout(() => {
+			this.editor.revealRangeInCenterIfOutsideViewport({ ...where, endLineNumber: where.startLineNumber + 1, endColumn: 1 }, ScrollType.Smooth);
+		});
 		super.show(where, this.layoutData.heightInLines || 18);
 	}
 

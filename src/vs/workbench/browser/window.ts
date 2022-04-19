@@ -65,9 +65,9 @@ export class BrowserWindow extends Disposable {
 		this._register(addDisposableListener(this.layoutService.container, EventType.DROP, e => EventHelper.stop(e, true)));
 
 		// Fullscreen (Browser)
-		[EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE].forEach(event => {
+		for (const event of [EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE]) {
 			this._register(addDisposableListener(document, event, () => setFullscreen(!!detectFullscreen())));
-		});
+		}
 
 		// Fullscreen (Native)
 		this._register(addDisposableThrottledListener(viewport, EventType.RESIZE, () => {
@@ -112,16 +112,20 @@ export class BrowserWindow extends Disposable {
 
 	private create(): void {
 
-		// Driver
-		if (this.environmentService.options?.developmentOptions?.enableSmokeTestDriver) {
-			(async () => this._register(await registerWindowDriver()))();
-		}
-
 		// Handle open calls
 		this.setupOpenHandlers();
 
 		// Label formatting
 		this.registerLabelFormatters();
+
+		// Smoke Test Driver
+		this.setupDriver();
+	}
+
+	private setupDriver(): void {
+		if (this.environmentService.enableSmokeTestDriver) {
+			registerWindowDriver();
+		}
 	}
 
 	private setupOpenHandlers(): void {

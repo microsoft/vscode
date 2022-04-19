@@ -2333,7 +2333,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			let viewLineCounts: number[] | null = null;
 			for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
 				const lineIndex = lineNumber - lineChange.originalStartLineNumber;
-				const lineTokens = this._originalModel.getLineTokens(lineNumber);
+				const lineTokens = this._originalModel.tokenization.getLineTokens(lineNumber);
 				const lineContent = lineTokens.getLineContent();
 				const lineBreakData = lineBreaks[lineBreakIndex++];
 				const actualDecorations = LineDecoration.filter(decorations, lineNumber, 1, lineContent.length + 1);

@@ -321,12 +321,15 @@ class CellContentProvider implements ITextModelContentProvider {
 			}
 		}
 
-		if (result) {
-			const once = Event.any(result.onWillDispose, ref.object.notebook.onWillDispose)(() => {
-				once.dispose();
-				ref.dispose();
-			});
+		if (!result) {
+			ref.dispose();
+			return null;
 		}
+
+		const once = Event.any(result.onWillDispose, ref.object.notebook.onWillDispose)(() => {
+			once.dispose();
+			ref.dispose();
+		});
 
 		return result;
 	}
@@ -399,12 +402,15 @@ class CellInfoContentProvider {
 			}
 		}
 
-		if (result) {
-			const once = result.onWillDispose(() => {
-				once.dispose();
-				ref.dispose();
-			});
+		if (!result) {
+			ref.dispose();
+			return null;
 		}
+
+		const once = result.onWillDispose(() => {
+			once.dispose();
+			ref.dispose();
+		});
 
 		return result;
 	}
@@ -471,34 +477,36 @@ class CellInfoContentProvider {
 		const cell = ref.object.notebook.cells.find(cell => !!cell.outputs.find(op => op.outputId === data.outputId));
 
 		if (!cell) {
+			ref.dispose();
 			return null;
 		}
 
 		const result = this._getResult(data, cell);
 
-		if (result) {
-			const model = this._modelService.createModel(result.content, result.mode, resource);
-			const cellModelListener = Event.any(cell.onDidChangeOutputs ?? Event.None, cell.onDidChangeOutputItems ?? Event.None)(() => {
-				const newResult = this._getResult(data, cell);
-
-				if (!newResult) {
-					return;
-				}
-
-				model.setValue(newResult.content);
-				model.setMode(newResult.mode.languageId);
-			});
-
-			const once = model.onWillDispose(() => {
-				once.dispose();
-				cellModelListener.dispose();
-				ref.dispose();
-			});
-
-			return model;
+		if (!result) {
+			ref.dispose();
+			return null;
 		}
 
-		return null;
+		const model = this._modelService.createModel(result.content, result.mode, resource);
+		const cellModelListener = Event.any(cell.onDidChangeOutputs ?? Event.None, cell.onDidChangeOutputItems ?? Event.None)(() => {
+			const newResult = this._getResult(data, cell);
+
+			if (!newResult) {
+				return;
+			}
+
+			model.setValue(newResult.content);
+			model.setMode(newResult.mode.languageId);
+		});
+
+		const once = model.onWillDispose(() => {
+			once.dispose();
+			cellModelListener.dispose();
+			ref.dispose();
+		});
+
+		return model;
 	}
 }
 
@@ -551,6 +559,15 @@ class NotebookEditorManager implements IWorkbenchContribution {
 			for (const group of editorGroups.groups) {
 				const staleInputs = group.editors.filter(input => input instanceof NotebookEditorInput && input.viewType === e);
 				group.closeEditors(staleInputs);
+			}
+		}));
+
+		// CLOSE editors when we are about to open conflicting notebooks
+		this._disposables.add(_notebookEditorModelService.onWillFailWithConflict(e => {
+			for (const group of editorGroups.groups) {
+				const conflictInputs = group.editors.filter(input => input instanceof NotebookEditorInput && input.viewType !== e.viewType && isEqual(input.resource, e.resource));
+				const p = group.closeEditors(conflictInputs);
+				e.waitUntil(p);
 			}
 		}));
 	}
@@ -874,6 +891,23 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['always', 'never', 'fromEditor'],
 			default: 'fromEditor'
+		},
+		[NotebookSetting.outputLineHeight]: {
+			markdownDescription: nls.localize('notebook.outputLineHeight', "Line height of the output text for notebook cells.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values."),
+			type: 'number',
+			default: 22,
+			tags: ['notebookLayout']
+		},
+		[NotebookSetting.outputFontSize]: {
+			markdownDescription: nls.localize('notebook.outputFontSize', "Font size for the output text for notebook cells. When set to 0 `#editor.fontSize#` is used."),
+			type: 'number',
+			default: 0,
+			tags: ['notebookLayout']
+		},
+		[NotebookSetting.outputFontFamily]: {
+			markdownDescription: nls.localize('notebook.outputFontFamily', "The font family for the output text for notebook cells. When set to empty, the `#editor.fontFamily#` is used."),
+			type: 'string',
+			tags: ['notebookLayout']
 		},
 	}
 });

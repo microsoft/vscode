@@ -37,10 +37,11 @@ import { preloadsScriptStr, RendererMetadata } from 'vs/workbench/contrib/notebo
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellUri, INotebookRendererInfo, NotebookSetting, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, IResolvedNotebookKernel, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewElement, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, ToWebviewMessage } from './webviewMessages';
@@ -88,8 +89,11 @@ interface BacklayerWebviewOptions {
 	readonly runGutter: number;
 	readonly dragAndDropEnabled: boolean;
 	readonly fontSize: number;
+	readonly outputFontSize: number;
 	readonly fontFamily: string;
+	readonly outputFontFamily: string;
 	readonly markupFontSize: number;
+	readonly outputLineHeight: number;
 }
 
 export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
@@ -204,8 +208,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			'notebook-output-node-left-padding': `${this.options.outputNodeLeftPadding}px`,
 			'notebook-markdown-min-height': `${this.options.previewNodePadding * 2}px`,
 			'notebook-markup-font-size': typeof this.options.markupFontSize === 'number' && this.options.markupFontSize > 0 ? `${this.options.markupFontSize}px` : `calc(${this.options.fontSize}px * 1.2)`,
-			'notebook-cell-output-font-size': `${this.options.fontSize}px`,
-			'notebook-cell-output-font-family': this.options.fontFamily,
+			'notebook-cell-output-font-size': `${this.options.outputFontSize || this.options.fontSize}px`,
+			'notebook-cell-output-line-height': `${this.options.outputLineHeight}px`,
+			'notebook-cell-output-font-family': this.options.outputFontFamily || this.options.fontFamily,
 			'notebook-cell-markup-empty-content': nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit."),
 			'notebook-cell-renderer-not-found-error': nls.localize({
 				key: 'notebook.error.rendererNotFound',
@@ -522,6 +527,8 @@ var requirejs = (function() {
 		this.webview = this._createInset(this.webviewService, content);
 		this.webview.mountTo(this.element);
 		this._register(this.webview);
+
+		this._register(new WebviewWindowDragMonitor(() => this.webview));
 
 		this._register(this.webview.onDidClickLink(link => {
 			if (this._disposed) {
@@ -897,7 +904,7 @@ var requirejs = (function() {
 		}
 
 		this._preloadsCache.clear();
-		if (this._currentKernel) {
+		if (this._currentKernel?.type === NotebookKernelType.Resolved) {
 			this._updatePreloadsFromKernel(this._currentKernel);
 		}
 
@@ -1394,14 +1401,14 @@ var requirejs = (function() {
 		const previousKernel = this._currentKernel;
 		this._currentKernel = kernel;
 
-		if (previousKernel && previousKernel.preloadUris.length > 0) {
+		if (previousKernel?.type === NotebookKernelType.Resolved && previousKernel.preloadUris.length > 0) {
 			this.webview?.reload(); // preloads will be restored after reload
-		} else if (kernel) {
+		} else if (kernel?.type === NotebookKernelType.Resolved) {
 			this._updatePreloadsFromKernel(kernel);
 		}
 	}
 
-	private _updatePreloadsFromKernel(kernel: INotebookKernel) {
+	private _updatePreloadsFromKernel(kernel: IResolvedNotebookKernel) {
 		const resources: IControllerPreload[] = [];
 		for (const preload of kernel.preloadUris) {
 			const uri = this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')
@@ -1427,7 +1434,7 @@ var requirejs = (function() {
 
 		const mixedResourceRoots = [
 			...(this.localResourceRootsCache || []),
-			...(this._currentKernel ? [this._currentKernel.localResourceRoot] : []),
+			...(this._currentKernel?.type === NotebookKernelType.Resolved ? [this._currentKernel.localResourceRoot] : []),
 		];
 
 		this.webview.localResourcesRoot = mixedResourceRoots;

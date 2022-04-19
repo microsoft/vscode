@@ -172,6 +172,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	}
 
 	@memoize
+	get enableSmokeTestDriver() { return this.options.developmentOptions?.enableSmokeTestDriver; }
+
+	@memoize
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
 
 	@memoize
@@ -202,7 +205,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get logExtensionHostCommunication(): boolean { return this.payload?.get('logExtensionHostCommunication') === 'true'; }
 
 	@memoize
-	get skipReleaseNotes(): boolean { return false; }
+	get skipReleaseNotes(): boolean { return this.payload?.get('skipReleaseNotes') === 'true'; }
 
 	@memoize
 	get skipWelcome(): boolean { return this.payload?.get('skipWelcome') === 'true'; }

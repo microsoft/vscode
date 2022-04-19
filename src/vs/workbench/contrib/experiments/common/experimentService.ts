@@ -21,6 +21,7 @@ import { asJson, IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -182,7 +183,8 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
 		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -227,6 +229,10 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	}
 
 	protected async getExperiments(): Promise<IRawExperiment[] | null> {
+		if (this.environmentService.enableSmokeTestDriver || this.environmentService.extensionTestsLocationURI) {
+			return []; // TODO@sbatten add CLI argument (https://github.com/microsoft/vscode-internalbacklog/issues/2855)
+		}
+
 		const experimentsUrl = this.configurationService.getValue<string>('_workbench.experimentsUrl') || this.productService.experimentsUrl;
 		if (!experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
 			return [];

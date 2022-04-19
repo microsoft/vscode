@@ -79,8 +79,7 @@ export interface NativeParsedArgs {
 	'max-memory'?: string;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
-	'driver'?: string;
-	'driver-verbose'?: boolean;
+	'enable-smoke-test-driver'?: boolean;
 	'remote'?: string;
 	'force'?: boolean;
 	'do-not-sync'?: boolean;

@@ -2032,7 +2032,7 @@ declare module 'vscode' {
 	 * (like `**​/*.{ts,js}` or `*.{ts,js}`) or a {@link RelativePattern relative pattern}.
 	 *
 	 * Glob patterns can have the following syntax:
-	 * * `*` to match one or more characters in a path segment
+	 * * `*` to match zero or more characters in a path segment
 	 * * `?` to match on one character in a path segment
 	 * * `**` to match any number of path segments, including none
 	 * * `{}` to group conditions (e.g. `**​/*.{ts,js}` matches all TypeScript and JavaScript files)
@@ -3530,7 +3530,7 @@ declare module 'vscode' {
 		 * value starting at 1.
 		 * @return This snippet string.
 		 */
-		appendChoice(values: string[], number?: number): SnippetString;
+		appendChoice(values: readonly string[], number?: number): SnippetString;
 
 		/**
 		 * Builder-function that appends a variable (`${VAR}`) to
@@ -3568,7 +3568,7 @@ declare module 'vscode' {
 		 * be a range or a range and a placeholder text. The placeholder text should be the identifier of the symbol
 		 * which is being renamed - when omitted the text in the returned range is used.
 		 *
-		 * *Note: * This function should throw an error or return a rejected thenable when the provided location
+		 * *Note:* This function should throw an error or return a rejected thenable when the provided location
 		 * doesn't allow for a rename.
 		 *
 		 * @param document The document in which rename will be invoked.
@@ -3622,7 +3622,7 @@ declare module 'vscode' {
 		 * @param tokenType The token type.
 		 * @param tokenModifiers The token modifiers.
 		 */
-		push(range: Range, tokenType: string, tokenModifiers?: string[]): void;
+		push(range: Range, tokenType: string, tokenModifiers?: readonly string[]): void;
 
 		/**
 		 * Finish and create a `SemanticTokens` instance.
@@ -4893,7 +4893,7 @@ declare module 'vscode' {
 		 * @return Selection ranges or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
-		provideSelectionRanges(document: TextDocument, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[]>;
+		provideSelectionRanges(document: TextDocument, positions: readonly Position[], token: CancellationToken): ProviderResult<SelectionRange[]>;
 	}
 
 	/**
@@ -8066,6 +8066,19 @@ declare module 'vscode' {
 		 *   `package.json`, any `ArrayBuffer` values that appear in `message` will be more
 		 *   efficiently transferred to the webview and will also be correctly recreated inside
 		 *   of the webview.
+		 *
+		 * @return A promise that resolves when the message is posted to a webview or when it is
+		 * dropped because the message was not deliverable.
+		 *
+		 *   Returns `true` if the message was posted to the webview. Messages can only be posted to
+		 * live webviews (i.e. either visible webviews or hidden webviews that set `retainContextWhenHidden`).
+		 *
+		 *   A response of `true` does not mean that the message was actually received by the webview.
+		 *   For example, no message listeners may be have been hooked up inside the webview or the webview may
+		 *   have been destroyed after the message was posted but before it was received.
+		 *
+		 *   If you want confirm that a message as actually received, you can try having your webview posting a
+		 *   confirmation message back to your extension.
 		 */
 		postMessage(message: any): Thenable<boolean>;
 
@@ -8885,7 +8898,7 @@ declare module 'vscode' {
 		 *   }
 		 * });
 		 *
-		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://my.extension/did-authenticate`));
+		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse(vscode.env.uriScheme + '://my.extension/did-authenticate'));
 		 * await vscode.env.openExternal(callableUri);
 		 * ```
 		 *
@@ -9522,7 +9535,7 @@ declare module 'vscode' {
 		 * @return A new Terminal.
 		 * @throws When running in an environment where a new process cannot be started.
 		 */
-		export function createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): Terminal;
+		export function createTerminal(name?: string, shellPath?: string, shellArgs?: readonly string[] | string): Terminal;
 
 		/**
 		 * Creates a {@link Terminal} with a backing shell process.
@@ -9830,7 +9843,7 @@ declare module 'vscode' {
 		 *
 		 * Note that mime types that cannot be sent to the extension will be omitted.
 		 */
-		readonly dropMimeTypes: string[];
+		readonly dropMimeTypes: readonly string[];
 
 		/**
 		 * The mime types that the {@link TreeDragAndDropController.handleDrag `handleDrag`} method of this `TreeDragAndDropController` may add to the tree data transfer.
@@ -9838,7 +9851,7 @@ declare module 'vscode' {
 		 *
 		 * The recommended mime type of the tree (`application/vnd.code.tree.<treeidlowercase>`) will be automatically added.
 		 */
-		readonly dragMimeTypes: string[];
+		readonly dragMimeTypes: readonly string[];
 
 		/**
 		 * When the user starts dragging items from this `DragAndDropController`, `handleDrag` will be called.
@@ -9856,7 +9869,7 @@ declare module 'vscode' {
 		 * @param dataTransfer The data transfer associated with this drag.
 		 * @param token A cancellation token indicating that drag has been cancelled.
 		 */
-		handleDrag?(source: T[], dataTransfer: DataTransfer, token: CancellationToken): Thenable<void> | void;
+		handleDrag?(source: readonly T[], dataTransfer: DataTransfer, token: CancellationToken): Thenable<void> | void;
 
 		/**
 		 * Called when a drag and drop action results in a drop on the tree that this `DragAndDropController` belongs to.
@@ -11000,7 +11013,7 @@ declare module 'vscode' {
 		 *
 		 * @param thenable A thenable that resolves to {@link TextEdit pre-save-edits}.
 		 */
-		waitUntil(thenable: Thenable<TextEdit[]>): void;
+		waitUntil(thenable: Thenable<readonly TextEdit[]>): void;
 
 		/**
 		 * Allows to pause the event loop until the provided thenable resolved.
@@ -11406,11 +11419,18 @@ declare module 'vscode' {
 		 * By default, all opened {@link workspace.workspaceFolders workspace folders} will be watched
 		 * for file changes recursively.
 		 *
-		 * Additional folders can be added for file watching by providing a {@link RelativePattern} with
-		 * a `base` that is outside of any of the currently opened workspace folders. If the `pattern` is
-		 * complex (e.g. contains `**` or path segments), the folder will be watched recursively and
-		 * otherwise will be watched non-recursively (i.e. only changes to the first level of the path
-		 * will be reported).
+		 * Additional paths can be added for file watching by providing a {@link RelativePattern} with
+		 * a `base` path to watch. If the `pattern` is complex (e.g. contains `**` or path segments),
+		 * the path will be watched recursively and otherwise will be watched non-recursively (i.e. only
+		 * changes to the first level of the path will be reported).
+		 *
+		 * *Note* that requests for recursive file watchers for a `base` path that is inside the opened
+		 * workspace are ignored given all opened {@link workspace.workspaceFolders workspace folders} are
+		 * watched for file changes recursively by default. Non-recursive file watchers however are always
+		 * supported, even inside the opened workspace because they allow to bypass the configured settings
+		 * for excludes (`files.watcherExclude`). If you need to watch in a location that is typically
+		 * excluded (for example `node_modules` or `.git` folder), then you can use a non-recursive watcher
+		 * in the workspace for this purpose.
 		 *
 		 * If possible, keep the use of recursive watchers to a minimum because recursive file watching
 		 * is quite resource intense.
@@ -13114,7 +13134,7 @@ declare module 'vscode' {
 		 * this execution.
 		 * @return A thenable that resolves when the operation finished.
 		 */
-		replaceOutput(out: NotebookCellOutput | NotebookCellOutput[], cell?: NotebookCell): Thenable<void>;
+		replaceOutput(out: NotebookCellOutput | readonly NotebookCellOutput[], cell?: NotebookCell): Thenable<void>;
 
 		/**
 		 * Append to the output of the cell that is executing or to another cell that is affected by this execution.
@@ -13124,7 +13144,7 @@ declare module 'vscode' {
 		 * this execution.
 		 * @return A thenable that resolves when the operation finished.
 		 */
-		appendOutput(out: NotebookCellOutput | NotebookCellOutput[], cell?: NotebookCell): Thenable<void>;
+		appendOutput(out: NotebookCellOutput | readonly NotebookCellOutput[], cell?: NotebookCell): Thenable<void>;
 
 		/**
 		 * Replace all output items of existing cell output.
@@ -13133,7 +13153,7 @@ declare module 'vscode' {
 		 * @param output Output object that already exists.
 		 * @return A thenable that resolves when the operation finished.
 		 */
-		replaceOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput): Thenable<void>;
+		replaceOutputItems(items: NotebookCellOutputItem | readonly NotebookCellOutputItem[], output: NotebookCellOutput): Thenable<void>;
 
 		/**
 		 * Append output items to existing cell output.
@@ -13142,7 +13162,7 @@ declare module 'vscode' {
 		 * @param output Output object that already exists.
 		 * @return A thenable that resolves when the operation finished.
 		 */
-		appendOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput): Thenable<void>;
+		appendOutputItems(items: NotebookCellOutputItem | readonly NotebookCellOutputItem[], output: NotebookCellOutput): Thenable<void>;
 	}
 
 	/**

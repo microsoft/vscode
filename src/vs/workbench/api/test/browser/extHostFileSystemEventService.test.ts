@@ -14,6 +14,7 @@ suite('ExtHostFileSystemEventService', () => {
 		const protocol: IMainContext = {
 			getProxy: () => { return undefined!; },
 			set: undefined!,
+			dispose: undefined!,
 			assertRegistered: undefined!,
 			drain: undefined!
 		};

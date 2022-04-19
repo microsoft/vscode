@@ -26,6 +26,7 @@ import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistr
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { historyNavigationVisible } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { InternalQuickSuggestionsOptions, QuickSuggestionsValue } from 'vs/editor/common/config/editorOptions';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export const Context = {
 	Visible: historyNavigationVisible,
@@ -66,6 +67,9 @@ export class CompletionItem {
 	idx?: number;
 	word?: string;
 
+	// instrumentation
+	readonly extensionId?: ExtensionIdentifier;
+
 	// resolving
 	private _isResolved?: boolean;
 	private _resolveCache?: Promise<void>;
@@ -88,6 +92,8 @@ export class CompletionItem {
 
 		this.sortTextLow = completion.sortText && completion.sortText.toLowerCase();
 		this.filterTextLow = completion.filterText && completion.filterText.toLowerCase();
+
+		this.extensionId = completion.extensionId;
 
 		// normalize ranges
 		if (Range.isIRange(completion.range)) {

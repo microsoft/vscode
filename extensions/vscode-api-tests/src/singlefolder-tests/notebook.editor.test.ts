@@ -107,8 +107,8 @@ import * as utils from '../utils';
 		assert.strictEqual(editor.document.uri.toString(), resource.toString());
 	});
 
-	test.skip('Active/Visible Editor', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139078
-		const firstEditorOpen = utils.asPromise(vscode.window.onDidChangeActiveNotebookEditor);
+	test('Active/Visible Editor', async function () {
+		const firstEditorOpen = onDidOpenNotebookEditor();
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const firstEditor = await vscode.window.showNotebookDocument(resource);
 		await firstEditorOpen;
@@ -116,14 +116,16 @@ import * as utils from '../utils';
 		assert.strictEqual(vscode.window.visibleNotebookEditors.includes(firstEditor), true);
 
 		const secondEditor = await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Beside });
-		assert.strictEqual(secondEditor === vscode.window.activeNotebookEditor, true);
+		// There is no guarantee that when `showNotebookDocument` resolves, the active notebook editor is already updated correctly.
+		// assert.strictEqual(secondEditor === vscode.window.activeNotebookEditor, true);
 		assert.notStrictEqual(firstEditor, secondEditor);
 		assert.strictEqual(vscode.window.visibleNotebookEditors.includes(secondEditor), true);
 		assert.strictEqual(vscode.window.visibleNotebookEditors.includes(firstEditor), true);
 		assert.strictEqual(vscode.window.visibleNotebookEditors.length, 2);
+		await utils.closeAllEditors();
 	});
 
-	test.skip('Notebook Editor Event - onDidChangeVisibleNotebookEditors on open/close', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139958
+	test('Notebook Editor Event - onDidChangeVisibleNotebookEditors on open/close', async function () {
 		const openedEditor = utils.asPromise(vscode.window.onDidChangeVisibleNotebookEditors);
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		await vscode.window.showNotebookDocument(resource);

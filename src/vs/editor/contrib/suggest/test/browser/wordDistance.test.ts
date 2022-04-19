@@ -25,7 +25,7 @@ import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 suite('suggest, word distance', function () {
 
@@ -38,7 +38,8 @@ suite('suggest, word distance', function () {
 		disposables.clear();
 		const instantiationService = createCodeEditorServices(disposables);
 		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		const languageService = instantiationService.get(ILanguageService);
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			brackets: [
 				['{', '}'],

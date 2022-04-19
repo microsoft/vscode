@@ -7,7 +7,7 @@ import * as glob from 'vs/base/common/glob';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { isDocumentExcludePattern, TransientCellMetadata, TransientDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelService, IResolvedNotebookKernel, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor): {
@@ -66,13 +66,13 @@ CommandsRegistry.registerCommand('_resolveNotebookKernels', async (accessor, arg
 	const uri = URI.revive(args.uri as UriComponents);
 	const kernels = notebookKernelService.getMatchingKernel({ uri, viewType: args.viewType });
 
-	return kernels.all.map(provider => ({
+	return kernels.all.filter(kernel => kernel.type === NotebookKernelType.Resolved).map((provider) => ({
 		id: provider.id,
 		label: provider.label,
 		kind: provider.kind,
 		description: provider.description,
 		detail: provider.detail,
 		isPreferred: false, // todo@jrieken,@rebornix
-		preloads: provider.preloadUris,
+		preloads: (provider as IResolvedNotebookKernel).preloadUris,
 	}));
 });

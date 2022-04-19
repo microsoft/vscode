@@ -1,0 +1,95 @@
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "16.x"
+
+  - task: AzureKeyVault@1
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode
+      SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
+
+  - script: |
+      set -e
+      cat << EOF > ~/.netrc
+      machine github.com
+      login vscode
+      password $(github-distro-mixin-password)
+      EOF
+
+      git config user.email "vscode@microsoft.com"
+      git config user.name "VSCode"
+    displayName: Prepare tooling
+
+  - script: |
+      set -e
+      git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
+      echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
+      git checkout FETCH_HEAD
+    condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
+    displayName: Checkout override commit
+
+  - script: |
+      set -e
+      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
+    displayName: Merge distro
+
+  - script: |
+      mkdir -p .build
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js x64 $ENABLE_TERRAPIN > .build/yarnlockhash
+    displayName: Prepare yarn cache flags
+
+  - task: Cache@2
+    inputs:
+      key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
+      path: .build/node_modules_cache
+      cacheHitVar: NODE_MODULES_RESTORED
+    displayName: Restore node_modules cache
+
+  - script: |
+      set -e
+      tar -xzf .build/node_modules_cache/cache.tgz
+    displayName: Extract node_modules cache
+
+  - script: |
+      set -e
+      node build/azure-pipelines/mixin
+    displayName: Mix in quality
+
+  - download: current
+    artifact: unsigned_vscode_client_darwin_x64_archive
+    displayName: Download x64 artifact
+
+  - download: current
+    artifact: unsigned_vscode_client_darwin_arm64_archive
+    displayName: Download arm64 artifact
+
+  - script: |
+      set -e
+      cp $(Pipeline.Workspace)/unsigned_vscode_client_darwin_x64_archive/VSCode-darwin-x64.zip $(agent.builddirectory)/VSCode-darwin-x64.zip
+      cp $(Pipeline.Workspace)/unsigned_vscode_client_darwin_arm64_archive/VSCode-darwin-arm64.zip $(agent.builddirectory)/VSCode-darwin-arm64.zip
+      unzip $(agent.builddirectory)/VSCode-darwin-x64.zip -d $(agent.builddirectory)/VSCode-darwin-x64
+      unzip $(agent.builddirectory)/VSCode-darwin-arm64.zip -d $(agent.builddirectory)/VSCode-darwin-arm64
+      DEBUG=* node build/darwin/create-universal-app.js
+    displayName: Create Universal App
+
+  - script: |
+      set -e
+      security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+      security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
+      security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+      echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
+      security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
+      security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
+      VSCODE_ARCH=$(VSCODE_ARCH) DEBUG=electron-osx-sign* node build/darwin/sign.js
+    displayName: Set Hardened Entitlements
+
+  - script: |
+      set -e
+      pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
+    displayName: Archive build
+
+  - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
+    artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+    displayName: Publish client archive

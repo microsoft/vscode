@@ -69,6 +69,8 @@ import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { BrowserCredentialsService } from 'vs/workbench/services/credentials/browser/credentialsService';
 import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export class BrowserMain extends Disposable {
 
@@ -116,13 +118,18 @@ export class BrowserMain extends Disposable {
 			const timerService = accessor.get(ITimerService);
 			const openerService = accessor.get(IOpenerService);
 			const productService = accessor.get(IProductService);
+			const telemetryService = accessor.get(ITelemetryService);
+			const progessService = accessor.get(IProgressService);
 
 			return {
 				commands: {
 					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
 				},
 				env: {
-					uriScheme: productService.urlProtocol,
+					telemetryLevel: telemetryService.telemetryLevel,
+					async getUriScheme(): Promise<string> {
+						return productService.urlProtocol;
+					},
 					async retrievePerformanceMarks() {
 						await timerService.whenReady();
 
@@ -131,6 +138,9 @@ export class BrowserMain extends Disposable {
 					async openUri(uri: URI): Promise<boolean> {
 						return openerService.open(uri, {});
 					}
+				},
+				window: {
+					withProgress: (options, task) => progessService.withProgress(options, task)
 				},
 				shutdown: () => lifecycleService.shutdown()
 			};

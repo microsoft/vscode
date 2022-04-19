@@ -20,7 +20,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { localize } from 'vs/nls';
-import { canceled } from 'vs/base/common/errors';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -35,6 +34,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncStoreTypeSynchronizer } from 'vs/platform/userDataSync/common/globalStateSync';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { CancellationError } from 'vs/base/common/errors';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight' };
@@ -272,7 +272,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		const picked = await this.pick();
 		if (!picked) {
-			throw canceled();
+			throw new CancellationError();
 		}
 
 		// User did not pick an account or login failed
@@ -450,7 +450,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				return 'manual';
 		}
 		this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
-		throw canceled();
+		throw new CancellationError();
 	}
 
 	private async syncManually(task: IManualSyncTask): Promise<void> {
@@ -769,7 +769,7 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 		}
 		await this.manualSync.task.stop();
 		this.updatePreview([]);
-		this._onDidCompleteManualSync.fire(canceled());
+		this._onDidCompleteManualSync.fire(new CancellationError());
 	}
 
 	async pull(): Promise<void> {

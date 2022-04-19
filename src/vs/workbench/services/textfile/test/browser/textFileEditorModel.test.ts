@@ -12,7 +12,6 @@ import { toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { assertIsDefined } from 'vs/base/common/types';
 import { createTextBufferFactory, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -334,7 +333,7 @@ suite('Files - TextFileEditorModel', () => {
 
 	test('encoding updates with language based configuration', async function () {
 		const languageId = 'text-file-model-test';
-		ModesRegistry.registerLanguage({
+		const registration = accessor.languageService.registerLanguage({
 			id: languageId,
 		});
 
@@ -365,11 +364,12 @@ suite('Files - TextFileEditorModel', () => {
 
 		model.dispose();
 		listener.dispose();
+		registration.dispose();
 	});
 
 	test('create with language', async function () {
 		const languageId = 'text-file-model-test';
-		ModesRegistry.registerLanguage({
+		const registration = accessor.languageService.registerLanguage({
 			id: languageId,
 		});
 
@@ -381,6 +381,8 @@ suite('Files - TextFileEditorModel', () => {
 
 		model.dispose();
 		assert.ok(!accessor.modelService.getModel(model.resource));
+
+		registration.dispose();
 	});
 
 	test('disposes when underlying model is destroyed', async function () {

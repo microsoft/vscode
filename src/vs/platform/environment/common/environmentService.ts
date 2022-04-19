@@ -230,8 +230,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get crashReporterId(): string | undefined { return this.args['crash-reporter-id']; }
 	get crashReporterDirectory(): string | undefined { return this.args['crash-reporter-directory']; }
 
-	get driverHandle(): string | undefined { return this.args['driver']; }
-
 	@memoize
 	get telemetryLogResource(): URI { return URI.file(join(this.logsPath, 'telemetry.log')); }
 	get disableTelemetry(): boolean { return !!this.args['disable-telemetry']; }

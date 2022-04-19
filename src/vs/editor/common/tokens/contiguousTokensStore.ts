@@ -211,5 +211,7 @@ function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
 		| (FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
 		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
 		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+		// If there is no grammar, we just take a guess and try to match brackets.
+		| (MetadataConsts.BALANCED_BRACKETS_MASK)
 	) >>> 0;
 }

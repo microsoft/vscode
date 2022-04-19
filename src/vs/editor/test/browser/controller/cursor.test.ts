@@ -24,7 +24,6 @@ import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModelEventDispatcher';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { URI } from 'vs/base/common/uri';
@@ -1370,7 +1369,7 @@ suite('Editor Controller', () => {
 		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 		languageService = instantiationService.get(ILanguageService);
 
-		disposables.add(ModesRegistry.registerLanguage({ id: surroundingLanguageId }));
+		disposables.add(languageService.registerLanguage({ id: surroundingLanguageId }));
 		disposables.add(languageConfigurationService.register(surroundingLanguageId, {
 			autoClosingPairs: [{ open: '(', close: ')' }]
 		}));
@@ -1382,7 +1381,7 @@ suite('Editor Controller', () => {
 			unIndentedLinePattern: /^(?!.*([;{}]|\S:)\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!.*(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$))/
 		});
 
-		disposables.add(ModesRegistry.registerLanguage({ id: electricCharLanguageId }));
+		disposables.add(languageService.registerLanguage({ id: electricCharLanguageId }));
 		disposables.add(languageConfigurationService.register(electricCharLanguageId, {
 			__electricCharacterSupport: {
 				docComment: { open: '/**', close: ' */' }
@@ -1404,7 +1403,7 @@ suite('Editor Controller', () => {
 	function setupOnEnterLanguage(indentAction: IndentAction): string {
 		const onEnterLanguageId = 'onEnterMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: onEnterLanguageId }));
+		disposables.add(languageService.registerLanguage({ id: onEnterLanguageId }));
 		disposables.add(languageConfigurationService.register(onEnterLanguageId, {
 			onEnterRules: [{
 				beforeText: /.*/,
@@ -1417,7 +1416,7 @@ suite('Editor Controller', () => {
 	}
 
 	function setupIndentRulesLanguage(languageId: string, indentationRules: IndentationRule): string {
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			indentationRules: indentationRules
 		}));
@@ -1425,7 +1424,7 @@ suite('Editor Controller', () => {
 	}
 
 	function setupAutoClosingLanguage() {
-		disposables.add(ModesRegistry.registerLanguage({ id: autoClosingLanguageId }));
+		disposables.add(languageService.registerLanguage({ id: autoClosingLanguageId }));
 		disposables.add(languageConfigurationService.register(autoClosingLanguageId, {
 			autoClosingPairs: [
 				{ open: '{', close: '}' },
@@ -1751,7 +1750,7 @@ suite('Editor Controller', () => {
 	test('issue #47733: Undo mangles unicode characters', () => {
 		const languageId = 'myMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			surroundingPairs: [{ open: '%', close: '%' }]
 		}));
@@ -2752,7 +2751,7 @@ suite('Editor Controller', () => {
 			withTestCodeEditor(model, {}, (editor2, cursor2) => {
 
 				editor1.onDidChangeCursorPosition(() => {
-					model.tokenizeIfCheap(1);
+					model.tokenization.tokenizeIfCheap(1);
 				});
 
 				model.applyEdits([{ range: new Range(1, 1, 1, 1), text: '-' }]);
@@ -3271,7 +3270,7 @@ suite('Editor Controller', () => {
 	test('issue #115033: indent and appendText', () => {
 		const languageId = 'onEnterMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			onEnterRules: [{
 				beforeText: /.*/,
@@ -3335,7 +3334,7 @@ suite('Editor Controller', () => {
 
 	test('removeAutoWhitespace on: removes only whitespace the cursor added 2', () => {
 		const languageId = 'testLang';
-		const registration = ModesRegistry.registerLanguage({ id: languageId });
+		const registration = languageService.registerLanguage({ id: languageId });
 		const model = createTextModel(
 			[
 				'    if (a) {',
@@ -3681,7 +3680,7 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(1, 12, 1, 12));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(2, 2, 2, 2));
 
 			moveTo(editor, viewModel, 3, 13, false);
@@ -3744,7 +3743,7 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(2, 14, 2, 14));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(3, 1, 3, 1));
 
 			moveTo(editor, viewModel, 5, 16, false);
@@ -3772,7 +3771,7 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(2, 11, 2, 11));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(3, 3, 3, 3));
 
 			viewModel.type('console.log();', 'keyboard');
@@ -3857,7 +3856,7 @@ suite('Editor Controller', () => {
 			viewModel.type('\n', 'keyboard');
 			assertCursor(viewModel, new Selection(2, 5, 2, 5));
 
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 
 			moveTo(editor, viewModel, 3, 13, false);
 			assertCursor(viewModel, new Selection(3, 13, 3, 13));
@@ -3879,7 +3878,7 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(1, 12, 1, 12));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(2, 5, 2, 5));
 
 			moveTo(editor, viewModel, 3, 16, false);
@@ -3904,7 +3903,7 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(1, 12, 1, 12));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(2, 2, 2, 2));
 
 			moveTo(editor, viewModel, 3, 16, false);
@@ -4456,7 +4455,7 @@ suite('Editor Controller', () => {
 	test('issue #36090: JS: editor.autoIndent seems to be broken', () => {
 		const languageId = 'jsMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			brackets: [
 				['{', '}'],
@@ -4511,7 +4510,7 @@ suite('Editor Controller', () => {
 	test('issue #115304: OnEnter broken for TS', () => {
 		const languageId = 'jsMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			onEnterRules: javascriptOnEnterRules
 		}));
@@ -4544,7 +4543,7 @@ suite('Editor Controller', () => {
 	test('issue #38261: TAB key results in bizarre indentation in C++ mode ', () => {
 		const languageId = 'indentRulesMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			brackets: [
 				['{', '}'],
@@ -4615,13 +4614,13 @@ suite('Editor Controller', () => {
 			assertCursor(viewModel, new Selection(1, 9, 1, 9));
 
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(2, 2, 2, 2));
 
 			moveTo(editor, viewModel, 1, 9, false);
 			assertCursor(viewModel, new Selection(1, 9, 1, 9));
 			viewModel.type('\n', 'keyboard');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertCursor(viewModel, new Selection(2, 2, 2, 2));
 		});
 	});
@@ -4629,7 +4628,7 @@ suite('Editor Controller', () => {
 	test('typing in json', () => {
 		const languageId = 'indentRulesMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			brackets: [
 				['{', '}'],
@@ -4932,7 +4931,7 @@ suite('Editor Controller', () => {
 			text: ['const markup = highlight'],
 			languageId: autoClosingLanguageId
 		}, (editor, model, viewModel) => {
-			model.forceTokenization(1);
+			model.tokenization.forceTokenization(1);
 			assertType(editor, model, viewModel, 1, 25, '`', '``', `auto closes \` @ (1, 25)`);
 		});
 	});
@@ -4945,7 +4944,7 @@ suite('Editor Controller', () => {
 			{},
 			(editor, viewModel) => {
 				const model = viewModel.model;
-				model.forceTokenization(1);
+				model.tokenization.forceTokenization(1);
 				assertType(editor, model, viewModel, 1, 28, '`', '`', `does not auto close \` @ (1, 28)`);
 			}
 		);
@@ -4981,7 +4980,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -5025,7 +5024,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -5056,7 +5055,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -5086,7 +5085,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -5132,7 +5131,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -5177,7 +5176,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 						assertType(editor, model, viewModel, lineNumber, column, '"', '""', `auto closes @ (${lineNumber}, ${column})`);
@@ -5311,7 +5310,7 @@ suite('Editor Controller', () => {
 				const autoCloseColumns = extractAutoClosingSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
-					model.forceTokenization(lineNumber);
+					model.tokenization.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === AutoClosingColumnType.Special1) {
 						assertType(editor, model, viewModel, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
 					} else if (autoCloseColumns[column] === AutoClosingColumnType.Special2) {
@@ -5347,7 +5346,7 @@ suite('Editor Controller', () => {
 	test('issue #72177: multi-character autoclose with conflicting patterns', () => {
 		const languageId = 'autoClosingModeMultiChar';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			autoClosingPairs: [
 				{ open: '(', close: ')' },
@@ -5386,7 +5385,7 @@ suite('Editor Controller', () => {
 	test('issue #55314: Do not auto-close when ending with open', () => {
 		const languageId = 'myElectricMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			autoClosingPairs: [
 				{ open: '{', close: '}' },
@@ -5409,15 +5408,15 @@ suite('Editor Controller', () => {
 			],
 			languageId: languageId
 		}, (editor, model, viewModel) => {
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertType(editor, model, viewModel, 1, 4, '"', '"', `does not double quote when ending with open`);
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertType(editor, model, viewModel, 2, 4, '"', '"', `does not double quote when ending with open`);
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertType(editor, model, viewModel, 3, 4, '"', '"', `does not double quote when ending with open`);
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertType(editor, model, viewModel, 4, 2, '"', '"', `does not double quote when ending with open`);
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			assertType(editor, model, viewModel, 4, 3, '"', '"', `does not double quote when ending with open`);
 		});
 	});
@@ -5448,50 +5447,50 @@ suite('Editor Controller', () => {
 			}
 
 			// First gif
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste1 = teste\' ok');
 			assert.strictEqual(model.getLineContent(1), 'teste1 = teste\' ok');
 
 			viewModel.setSelections('test', [new Selection(1, 1000, 1, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste2 = teste \'ok');
 			assert.strictEqual(model.getLineContent(2), 'teste2 = teste \'ok\'');
 
 			viewModel.setSelections('test', [new Selection(2, 1000, 2, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste3 = teste" ok');
 			assert.strictEqual(model.getLineContent(3), 'teste3 = teste" ok');
 
 			viewModel.setSelections('test', [new Selection(3, 1000, 3, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste4 = teste "ok');
 			assert.strictEqual(model.getLineContent(4), 'teste4 = teste "ok"');
 
 			// Second gif
 			viewModel.setSelections('test', [new Selection(4, 1000, 4, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste \'');
 			assert.strictEqual(model.getLineContent(5), 'teste \'\'');
 
 			viewModel.setSelections('test', [new Selection(5, 1000, 5, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste "');
 			assert.strictEqual(model.getLineContent(6), 'teste ""');
 
 			viewModel.setSelections('test', [new Selection(6, 1000, 6, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste\'');
 			assert.strictEqual(model.getLineContent(7), 'teste\'');
 
 			viewModel.setSelections('test', [new Selection(7, 1000, 7, 1000)]);
 			typeCharacters(viewModel, '\n');
-			model.forceTokenization(model.getLineCount());
+			model.tokenization.forceTokenization(model.getLineCount());
 			typeCharacters(viewModel, 'teste"');
 			assert.strictEqual(model.getLineContent(8), 'teste"');
 		});
@@ -5652,7 +5651,7 @@ suite('Editor Controller', () => {
 	test('issue #85983 - editor.autoClosingBrackets: beforeWhitespace is incorrect for Python', () => {
 		const languageId = 'pythonMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			autoClosingPairs: [
 				{ open: '{', close: '}' },
@@ -6005,7 +6004,7 @@ suite('Editor Controller', () => {
 	test('issue #41825: Special handling of quotes in surrounding pairs', () => {
 		const languageId = 'myMode';
 
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		disposables.add(languageConfigurationService.register(languageId, {
 			surroundingPairs: [
 				{ open: '"', close: '"' },

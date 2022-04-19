@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
+import { BracketKind } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
 import { ITextModel } from 'vs/editor/common/model';
 import { Length, lengthAdd, lengthGetLineCount, lengthToObj, lengthZero } from './length';
 import { SmallImmutableSet } from './smallImmutableSet';
@@ -626,11 +627,10 @@ export class TextAstNode extends ImmutableLeafAstNode {
 export class BracketAstNode extends ImmutableLeafAstNode {
 	public static create(
 		length: Length,
-		languageId: string,
-		text: string,
+		bracketInfo: BracketKind,
 		bracketIds: SmallImmutableSet<OpeningBracketId>
 	): BracketAstNode {
-		const node = new BracketAstNode(length, languageId, text, bracketIds);
+		const node = new BracketAstNode(length, bracketInfo, bracketIds);
 		return node;
 	}
 
@@ -644,8 +644,7 @@ export class BracketAstNode extends ImmutableLeafAstNode {
 
 	private constructor(
 		length: Length,
-		public readonly languageId: string,
-		public readonly text: string,
+		public readonly bracketInfo: BracketKind,
 		/**
 		 * In case of a opening bracket, this is the id of the opening bracket.
 		 * In case of a closing bracket, this contains the ids of all opening brackets it can close.
@@ -653,6 +652,14 @@ export class BracketAstNode extends ImmutableLeafAstNode {
 		public readonly bracketIds: SmallImmutableSet<OpeningBracketId>
 	) {
 		super(length);
+	}
+
+	public get text() {
+		return this.bracketInfo.bracketText;
+	}
+
+	public get languageId() {
+		return this.bracketInfo.languageId;
 	}
 
 	public canBeReused(_openedBracketIds: SmallImmutableSet<OpeningBracketId>) {

@@ -279,6 +279,27 @@ export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBa
 	hcLight: Color.fromHex('#0F4A85').transparent(0.50)
 }, localize('editorDragAndDropBackground', "Background color when dragging editors around. The color should have transparency so that the editor contents can still shine through."));
 
+export const EDITOR_DROP_INTO_PROMPT_FOREGROUND = registerColor('editorGroup.dropIntoPromptForeground', {
+	dark: editorWidgetForeground,
+	light: editorWidgetForeground,
+	hcDark: editorWidgetForeground,
+	hcLight: editorWidgetForeground
+}, localize('editorDropIntoPromptForeground', "Foreground color of text shown over editors when dragging files. This text informs the user that they can hold shift to drop into the editor."));
+
+export const EDITOR_DROP_INTO_PROMPT_BACKGROUND = registerColor('editorGroup.dropIntoPromptBackground', {
+	dark: editorWidgetBackground,
+	light: editorWidgetBackground,
+	hcDark: editorWidgetBackground,
+	hcLight: editorWidgetBackground
+}, localize('editorDropIntoPromptBackground', "Background color of text shown over editors when dragging files. This text informs the user that they can hold shift to drop into the editor."));
+
+export const EDITOR_DROP_INTO_PROMPT_BORDER = registerColor('editorGroup.dropIntoPromptBorder', {
+	dark: null,
+	light: null,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('editorDropIntoPromptBorder', "Border color of text shown over editors when dragging files. This text informs the user that they can hold shift to drop into the editor."));
+
 export const SIDE_BY_SIDE_EDITOR_HORIZONTAL_BORDER = registerColor('sideBySideEditor.horizontalBorder', {
 	dark: EDITOR_GROUP_BORDER,
 	light: EDITOR_GROUP_BORDER,

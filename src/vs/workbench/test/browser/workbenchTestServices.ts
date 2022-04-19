@@ -21,7 +21,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorOptions, IResourceEditorInput, IEditorModel, IResourceEditorInputIdentifier, ITextResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent, IWillShutdownEventJoiner } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { FileOperationEvent, IFileService, IFileStat, IFileStatResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileWriteOptions, IFileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -865,7 +865,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	copyEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): void { }
 	async closeEditor(_editor?: EditorInput, options?: ICloseEditorOptions): Promise<boolean> { return true; }
 	async closeEditors(_editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<boolean> { return true; }
-	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void> { }
+	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean> { return true; }
 	async replaceEditors(_editors: IEditorReplacement[]): Promise<void> { }
 	pinEditor(_editor?: EditorInput): void { }
 	stickEditor(editor?: EditorInput | undefined): void { }
@@ -1227,6 +1227,7 @@ export class TestLifecycleService implements ILifecycleService {
 			join: p => {
 				this.shutdownJoiners.push(p);
 			},
+			joiners: () => [],
 			force: () => { /* No-Op in tests */ },
 			token: CancellationToken.None,
 			reason
@@ -1261,10 +1262,11 @@ export class TestBeforeShutdownEvent implements InternalBeforeShutdownEvent {
 export class TestWillShutdownEvent implements WillShutdownEvent {
 
 	value: Promise<void>[] = [];
+	joiners = () => [];
 	reason = ShutdownReason.CLOSE;
 	token = CancellationToken.None;
 
-	join(promise: Promise<void>, id: string): void {
+	join(promise: Promise<void>, joiner: IWillShutdownEventJoiner): void {
 		this.value.push(promise);
 	}
 
