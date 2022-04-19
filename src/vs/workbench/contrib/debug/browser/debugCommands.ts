@@ -31,6 +31,7 @@ import { deepClone } from 'vs/base/common/objects';
 import { isWeb, isWindows } from 'vs/base/common/platform';
 import { saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -227,6 +228,28 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	when: ContextKeyExpr.and(CONTEXT_JUMP_TO_CURSOR_SUPPORTED, EditorContextKeys.editorTextFocus),
 	group: 'debug',
 	order: 3
+});
+
+MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+	command: {
+		id: TestCommandId.DebugAtCursor,
+		title: nls.localize('testing.debugAtCursor', "Debug Test at Cursor"),
+		category: { value: nls.localize('debug', "Debug"), original: 'Debug' }
+	},
+	when: ContextKeyExpr.and(CONTEXT_JUMP_TO_CURSOR_SUPPORTED, EditorContextKeys.editorTextFocus),
+	group: 'debug',
+	order: 4
+});
+
+MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+	command: {
+		id: TestCommandId.RunAtCursor,
+		title: nls.localize('testing.runAtCursor', "Run Test at Cursor"),
+		category: { value: nls.localize('debug', "Debug"), original: 'Debug' }
+	},
+	when: ContextKeyExpr.and(CONTEXT_JUMP_TO_CURSOR_SUPPORTED, EditorContextKeys.editorTextFocus),
+	group: 'debug',
+	order: 5
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
