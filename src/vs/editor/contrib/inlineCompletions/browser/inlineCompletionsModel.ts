@@ -403,10 +403,14 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		if (!currentCompletion) {
 			return undefined;
 		}
+		const cursorPosition = this.editor.getPosition();
+		if (currentCompletion.range.getEndPosition().isBefore(cursorPosition)) {
+			return undefined;
+		}
 
 		const mode = this.editor.getOptions().get(EditorOption.inlineSuggest).mode;
 
-		const ghostText = inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, this.editor.getPosition());
+		const ghostText = inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, cursorPosition);
 		if (ghostText) {
 			if (ghostText.isEmpty()) {
 				return undefined;
