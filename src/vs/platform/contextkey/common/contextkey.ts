@@ -513,10 +513,12 @@ export class ContextKeyInExpr implements IContextKeyExpression {
 	public evaluate(context: IContext): boolean {
 		const source = context.getValue(this.valueKey);
 
-		const item = context.getValue(this.key);
+		const item = context.getValue<any>(this.key);
 
 		if (Array.isArray(source)) {
-			return (source.indexOf(item) >= 0);
+			// Intentional == for type coercion
+			// eslint-disable-next-line eqeqeq
+			return (source.some(v => v == item || (v.toString && item.toString && v.toString() === item.toString())));
 		}
 
 		if (typeof item === 'string' && typeof source === 'object' && source !== null) {

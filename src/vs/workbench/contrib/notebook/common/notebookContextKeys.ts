@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -38,7 +39,7 @@ export const NOTEBOOK_CELL_EXECUTING = new RawContextKey<boolean>('notebookCellE
 export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false);
 export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false);
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false);
-export const NOTEBOOK_CELL_RESOURCE = new RawContextKey<string>('notebookCellResource', '');
+export const NOTEBOOK_CELL_RESOURCE = new RawContextKey<URI | undefined>('notebookCellResource', undefined);
 
 // Kernels
 export const NOTEBOOK_KERNEL = new RawContextKey<string>('notebookKernel', undefined);
