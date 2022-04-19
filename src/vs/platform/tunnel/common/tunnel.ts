@@ -176,6 +176,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	protected _tunnelProvider: ITunnelProvider | undefined;
 	protected _canElevate: boolean = false;
 	private _privacyOptions: TunnelPrivacy[] = [];
+	private _lastProviderOptions: TunnelOptions | undefined;
 
 	public constructor(
 		@ILogService protected readonly logService: ILogService
@@ -384,14 +385,21 @@ export abstract class AbstractTunnelService implements ITunnelService {
 
 	protected createWithProvider(tunnelProvider: ITunnelProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
 		this.logService.trace(`ForwardedPorts: (TunnelService) Creating tunnel with provider ${remoteHost}:${remotePort} on local port ${localPort}.`);
-
+		if (this._lastProviderOptions) {
+			this.logService.warn(`ForwardedPorts: (TunnelService) Another call to create a tunnel has occurred before the last one completed. This call will be ignored.`);
+			return;
+		}
 		const preferredLocalPort = localPort === undefined ? remotePort : localPort;
 		const creationInfo = { elevationRequired: elevateIfNeeded ? isPortPrivileged(preferredLocalPort) : false };
 		const tunnelOptions: TunnelOptions = { remoteAddress: { host: remoteHost, port: remotePort }, localAddressPort: localPort, privacy, public: privacy ? (privacy !== TunnelPrivacyId.Private) : undefined, protocol };
+		this._lastProviderOptions = tunnelOptions;
 		const tunnel = tunnelProvider.forwardPort(tunnelOptions, creationInfo);
 		this.logService.trace('ForwardedPorts: (TunnelService) Tunnel created by provider.');
 		if (tunnel) {
 			this.addTunnelToMap(remoteHost, remotePort, tunnel);
+			tunnel.finally(() => this._lastProviderOptions = undefined);
+		} else {
+			this._lastProviderOptions = undefined;
 		}
 		return tunnel;
 	}
