@@ -838,7 +838,23 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}));
 		this._register(this.settingRenderers.onApplyLanguageFilter((lang: string) => {
-			this.focusSearch(`@${LANGUAGE_SETTING_TAG}${lang}`);
+			if (this.searchWidget) {
+				const splitSearchQuery = this.searchWidget.getValue().trimEnd().split(' ');
+				const filter = `@${LANGUAGE_SETTING_TAG}${lang}`;
+
+				// If the query contained the word markdown before,
+				// and we want it to be @lang:markdown, we should just replace
+				// that part of the query directly.
+				const index = splitSearchQuery.findIndex(word => word === lang);
+				if (index !== -1) {
+					splitSearchQuery[index] = filter;
+				} else {
+					splitSearchQuery.push(filter);
+				}
+
+				this.searchWidget.setValue(splitSearchQuery.join(' '));
+				this.searchWidget.focus();
+			}
 		}));
 
 		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsTree,
