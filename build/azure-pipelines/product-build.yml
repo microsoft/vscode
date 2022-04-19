@@ -207,6 +207,13 @@ stages:
                 steps:
                   - template: linux/product-build-linux-server.yml
 
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+              - job: arm64
+                variables:
+                  VSCODE_ARCH: arm64
+                steps:
+                  - template: linux/product-build-linux-server.yml
+
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
       - stage: Linux
         dependsOn:
