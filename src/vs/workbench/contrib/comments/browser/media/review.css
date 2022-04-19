@@ -222,10 +222,6 @@
 	max-width: 100%;
 }
 
-.review-widget .body .comment-body .markdown-codeblock.comment-markdown span {
-	font-size: 13px;
-}
-
 .review-widget .body .comment-form {
 	margin: 8px 20px;
 }

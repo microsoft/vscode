@@ -25,14 +25,3 @@ export function applyFontInfo(domNode: FastDomNode<HTMLElement> | HTMLElement, f
 		domNode.style.letterSpacing = fontInfo.letterSpacing + 'px';
 	}
 }
-
-export function applyFontInfoToStyleSheet(styleElement: HTMLStyleElement, cssClass: string, fontInfo: BareFontInfo): void {
-	styleElement.textContent = `.${cssClass} {
-		font-family: ${fontInfo.getMassagedFontFamily(browser.isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null)};
-		font-weight: ${fontInfo.fontWeight};
-		font-size: ${fontInfo.fontSize}px;
-		font-feature-settings: ${fontInfo.fontFeatureSettings};
-		line-height: ${fontInfo.lineHeight}px;
-		letter-spacing: ${fontInfo.letterSpacing}px;
-	}`;
-}

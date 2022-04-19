@@ -13,9 +13,8 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { applyFontInfoToStyleSheet } from 'vs/editor/browser/config/domFontInfo';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { createStyleSheet } from 'vs/base/browser/dom';
 
 export interface IMarkdownRenderResult extends IDisposable {
 	element: HTMLElement;
@@ -24,7 +23,7 @@ export interface IMarkdownRenderResult extends IDisposable {
 export interface IMarkdownRendererOptions {
 	editor?: ICodeEditor;
 	codeBlockFontFamily?: string;
-	additionalClasses?: string[];
+	codeBlockFontSize?: string;
 }
 
 /**
@@ -84,20 +83,19 @@ export class MarkdownRenderer {
 				const html = await tokenizeToString(this._languageService, value, languageId);
 
 				const element = document.createElement('span');
-				element.classList.add('markdown-codeblock');
-				if (this._options.additionalClasses) {
-					element.classList.add(...this._options.additionalClasses);
-				}
 
 				element.innerHTML = (MarkdownRenderer._ttpTokenizer?.createHTML(html) ?? html) as string;
 
 				// use "good" font
 				if (this._options.editor) {
 					const fontInfo = this._options.editor.getOption(EditorOption.fontInfo);
-					const styleSheet = createStyleSheet(element);
-					applyFontInfoToStyleSheet(styleSheet, 'markdown-codeblock', fontInfo);
+					applyFontInfo(element, fontInfo);
 				} else if (this._options.codeBlockFontFamily) {
 					element.style.fontFamily = this._options.codeBlockFontFamily;
+				}
+
+				if (this._options.codeBlockFontSize !== undefined) {
+					element.style.fontSize = this._options.codeBlockFontSize;
 				}
 
 				return element;
