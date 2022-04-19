@@ -111,6 +111,12 @@ exports.config = {
         darwinBundleDocumentType(['scss', 'sass'], 'SASS', 'file'),
         darwinBundleDocumentType(['sql'], 'SQL', 'script'),
         darwinBundleDocumentType(['ts'], 'TypeScript', 'file'),
+        {
+            name: 'Folder',
+            role: 'Editor',
+            utis: ['public.folder'],
+            iconFile: 'resources/darwin/default.icns'
+        },
         darwinBundleDocumentType(['tsx', 'jsx'], 'React', 'source code'),
         darwinBundleDocumentType(['vue'], 'Vue', 'source code'),
         darwinBundleDocumentType(['ascx', 'csproj', 'dtd', 'plist', 'wxi', 'wxl', 'wxs', 'xml', 'xaml'], 'XML'),
