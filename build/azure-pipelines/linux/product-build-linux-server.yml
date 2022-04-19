@@ -67,8 +67,10 @@ steps:
 
   - script: |
       set -e
-      docker run -e VSCODE_QUALITY -v $(pwd):/root/vscode -v ~/.netrc:/root/.netrc vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-arm64 /root/vscode/build/azure-pipelines/linux/scripts/install-remote-dependencies.sh
+      docker run -e VSCODE_QUALITY -e GITHUB_TOKEN -v $(pwd):/root/vscode -v ~/.netrc:/root/.netrc vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-arm64 /root/vscode/build/azure-pipelines/linux/scripts/install-remote-dependencies.sh
     displayName: Install dependencies via qemu
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
 
   - script: |
