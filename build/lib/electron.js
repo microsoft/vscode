@@ -37,7 +37,7 @@ const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSyn
  * If you call `darwinBundleDocumentType(..., 'bat', 'Windows command script')`, the file type is `"Windows command script"`,
  * and the `'bat'` darwin icon is used.
  */
-function darwinBundleDocumentType(extensions, icon, nameOrSuffix) {
+function darwinBundleDocumentType(extensions, icon, nameOrSuffix, utis) {
     // If given a suffix, generate a name from it. If not given anything, default to 'document'
     if (isDocumentSuffix(nameOrSuffix) || !nameOrSuffix) {
         nameOrSuffix = icon.charAt(0).toUpperCase() + icon.slice(1) + ' ' + (nameOrSuffix ?? 'document');
@@ -46,8 +46,9 @@ function darwinBundleDocumentType(extensions, icon, nameOrSuffix) {
         name: nameOrSuffix,
         role: 'Editor',
         ostypes: ['TEXT', 'utxt', 'TUTX', '****'],
-        extensions: extensions,
-        iconFile: 'resources/darwin/' + icon + '.icns'
+        extensions,
+        iconFile: 'resources/darwin/' + icon + '.icns',
+        utis
     };
 }
 /**
@@ -65,11 +66,11 @@ function darwinBundleDocumentTypes(types, icon) {
     return Object.keys(types).map((name) => {
         const extensions = types[name];
         return {
-            name: name,
+            name,
             role: 'Editor',
             ostypes: ['TEXT', 'utxt', 'TUTX', '****'],
             extensions: Array.isArray(extensions) ? extensions : [extensions],
-            iconFile: 'resources/darwin/' + icon + '.icns',
+            iconFile: 'resources/darwin/' + icon + '.icns'
         };
     });
 }
@@ -156,7 +157,9 @@ exports.config = {
         darwinBundleDocumentType([
             'containerfile', 'ctp', 'dot', 'edn', 'handlebars', 'hbs', 'ml', 'mli',
             'pl', 'pl6', 'pm', 'pm6', 'pod', 'pp', 'properties', 'psgi', 'rt', 't'
-        ], 'default', product.nameLong + ' document')
+        ], 'default', product.nameLong + ' document'),
+        // Folder support ()
+        darwinBundleDocumentType([], 'default', 'Folder', ['public.folder'])
     ],
     darwinBundleURLTypes: [{
             role: 'Viewer',
