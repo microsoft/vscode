@@ -174,6 +174,7 @@ stages:
                 timeoutInMinutes: 120
                 variables:
                   VSCODE_ARCH: x64
+                  VSCODE_STEP_ON_IT: true
                 steps:
                   - template: win32/product-build-win32.yml
 
@@ -182,6 +183,7 @@ stages:
                 timeoutInMinutes: 120
                 variables:
                   VSCODE_ARCH: x64
+                  VSCODE_PUBLISH: false
                 steps:
                   - template: win32/product-build-win32.yml
 
@@ -190,6 +192,7 @@ stages:
                 timeoutInMinutes: 120
                 variables:
                   VSCODE_ARCH: ia32
+                  VSCODE_STEP_ON_IT: true
                 steps:
                   - template: win32/product-build-win32.yml
 
@@ -198,6 +201,7 @@ stages:
                 timeoutInMinutes: 120
                 variables:
                   VSCODE_ARCH: ia32
+                  VSCODE_PUBLISH: false
                 steps:
                   - template: win32/product-build-win32.yml
 
