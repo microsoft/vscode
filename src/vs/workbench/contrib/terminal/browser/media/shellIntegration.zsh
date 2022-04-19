@@ -12,9 +12,8 @@ builtin unset ZDOTDIR
 # as disable it by unsetting the variable.
 VSCODE_SHELL_INTEGRATION=1
 
-
-if [[ $options[norcs] = off  && -f ~/.zshrc ]]; then
-	. ~/.zshrc
+if [[ $options[norcs] = off  && -f $USER_ZDOTDIR/.zshrc ]]; then
+	. $USER_ZDOTDIR/.zshrc
 fi
 
 # Shell integration was disabled by the shell, exit without warning assuming either the shell has
