@@ -150,9 +150,13 @@ export function timeout(i: number) {
 }
 
 export async function retryWithRestart(app: Application, testFn: () => Promise<unknown>, retries = 3, timeoutMs = 20000): Promise<unknown> {
+	let lastError: Error | undefined = undefined;
 	for (let i = 0; i < retries; i++) {
 		const result = await Promise.race([
-			testFn().then(() => true, error => { throw error; }),
+			testFn().then(() => true, error => {
+				lastError = error;
+				return false;
+			}),
 			timeout(timeoutMs).then(() => false)
 		]);
 
@@ -162,6 +166,8 @@ export async function retryWithRestart(app: Application, testFn: () => Promise<u
 
 		await app.restart();
 	}
+
+	throw lastError ?? new Error('retryWithRestart failed with an unknown error');
 }
 
 export interface ITask<T> {
