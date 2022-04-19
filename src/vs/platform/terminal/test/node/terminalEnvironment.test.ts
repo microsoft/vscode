@@ -84,14 +84,14 @@ suite('platform - terminalEnvironment', () => {
 		});
 
 		if (process.platform !== 'win32') {
-			suite.only('zsh', () => {
+			suite('zsh', () => {
 				suite('should override args', () => {
 					const expectedDir = /.+\/vscode-zsh/;
 					const expectedDests = [/.+\/vscode-zsh\/.zshrc/, /.+\/vscode-zsh\/.zprofile/, /.+\/vscode-zsh\/.zshenv/];
 					const expectedSources = [
 						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration.zsh/,
 						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-profile.zsh/,
-						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegrationl-env.zsh/
+						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-env.zsh/
 					];
 					function assertIsEnabled(result: IShellIntegrationConfigInjection) {
 						strictEqual(Object.keys(result.envMixin!).length, 1);
