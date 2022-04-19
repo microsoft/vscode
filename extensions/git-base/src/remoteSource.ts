@@ -103,16 +103,18 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 		.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + (options.providerLabel ? options.providerLabel(provider) : provider.name), alwaysShow: true, provider }));
 
 	const recentSources: (QuickPickItem & { url?: string })[] = [];
-	const recentRemoteProviders = model.getRecentRemoteProviders();
-	for (const provider of recentRemoteProviders) {
-		const sources = (await provider.getRemoteSources() ?? []).map((item) => {
-			return {
-				...item,
-				label: (item.icon ? `$(${item.icon}) ` : '') + item.name,
-				url: typeof item.url === 'string' ? item.url : item.url[0]
-			};
-		});
-		recentSources.push(...sources);
+	if (options.showRecentSources) {
+		const recentRemoteProviders = model.getRecentRemoteProviders();
+		for (const provider of recentRemoteProviders) {
+			const sources = (await provider.getRemoteSources() ?? []).map((item) => {
+				return {
+					...item,
+					label: (item.icon ? `$(${item.icon}) ` : '') + item.name,
+					url: typeof item.url === 'string' ? item.url : item.url[0]
+				};
+			});
+			recentSources.push(...sources);
+		}
 	}
 
 	const items = [

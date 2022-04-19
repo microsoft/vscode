@@ -37,6 +37,7 @@ export interface PickRemoteSourceOptions {
 	readonly title?: string;
 	readonly placeholder?: string;
 	readonly branch?: boolean; // then result is PickRemoteSourceResult
+	readonly showRecentSources?: boolean;
 }
 
 export interface PickRemoteSourceResult {
