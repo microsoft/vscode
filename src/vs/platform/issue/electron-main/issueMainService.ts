@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, BrowserWindowConstructorOptions, Display, ipcMain, IpcMainEvent, screen } from 'electron';
+import { BrowserWindow, BrowserWindowConstructorOptions, Display, IpcMainEvent, screen } from 'electron';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { arch, release, type } from 'os';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -65,14 +66,14 @@ export class IssueMainService implements ICommonIssueService {
 	}
 
 	private registerListeners(): void {
-		ipcMain.on('vscode:issueSystemInfoRequest', async event => {
+		validatedIpcMain.on('vscode:issueSystemInfoRequest', async event => {
 			const [info, remoteData] = await Promise.all([this.launchMainService.getMainProcessInfo(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })]);
 			const msg = await this.diagnosticsService.getSystemInfo(info, remoteData);
 
 			this.safeSend(event, 'vscode:issueSystemInfoResponse', msg);
 		});
 
-		ipcMain.on('vscode:listProcesses', async event => {
+		validatedIpcMain.on('vscode:listProcesses', async event => {
 			const processes = [];
 
 			try {
@@ -102,7 +103,7 @@ export class IssueMainService implements ICommonIssueService {
 			this.safeSend(event, 'vscode:listProcessesResponse', processes);
 		});
 
-		ipcMain.on('vscode:issueReporterClipboard', async event => {
+		validatedIpcMain.on('vscode:issueReporterClipboard', async event => {
 			const messageOptions = {
 				title: this.productService.nameLong,
 				message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub directly. The data will be copied to the clipboard, please paste it into the GitHub issue page that is opened."),
@@ -122,12 +123,12 @@ export class IssueMainService implements ICommonIssueService {
 			}
 		});
 
-		ipcMain.on('vscode:issuePerformanceInfoRequest', async event => {
+		validatedIpcMain.on('vscode:issuePerformanceInfoRequest', async event => {
 			const performanceInfo = await this.getPerformanceInfo();
 			this.safeSend(event, 'vscode:issuePerformanceInfoResponse', performanceInfo);
 		});
 
-		ipcMain.on('vscode:issueReporterConfirmClose', async () => {
+		validatedIpcMain.on('vscode:issueReporterConfirmClose', async () => {
 			const messageOptions = {
 				title: this.productService.nameLong,
 				message: localize('confirmCloseIssueReporter', "Your input will not be saved. Are you sure you want to close this window?"),
@@ -152,7 +153,7 @@ export class IssueMainService implements ICommonIssueService {
 			}
 		});
 
-		ipcMain.on('vscode:workbenchCommand', (_: unknown, commandInfo: { id: any; from: any; args: any }) => {
+		validatedIpcMain.on('vscode:workbenchCommand', (_: unknown, commandInfo: { id: any; from: any; args: any }) => {
 			const { id, from, args } = commandInfo;
 
 			let parentWindow: BrowserWindow | null;
@@ -172,23 +173,23 @@ export class IssueMainService implements ICommonIssueService {
 			}
 		});
 
-		ipcMain.on('vscode:openExternal', (_: unknown, arg: string) => {
+		validatedIpcMain.on('vscode:openExternal', (_: unknown, arg: string) => {
 			this.nativeHostMainService.openExternal(undefined, arg);
 		});
 
-		ipcMain.on('vscode:closeIssueReporter', event => {
+		validatedIpcMain.on('vscode:closeIssueReporter', event => {
 			if (this.issueReporterWindow) {
 				this.issueReporterWindow.close();
 			}
 		});
 
-		ipcMain.on('vscode:closeProcessExplorer', event => {
+		validatedIpcMain.on('vscode:closeProcessExplorer', event => {
 			if (this.processExplorerWindow) {
 				this.processExplorerWindow.close();
 			}
 		});
 
-		ipcMain.on('vscode:windowsInfoRequest', async event => {
+		validatedIpcMain.on('vscode:windowsInfoRequest', async event => {
 			const mainProcessInfo = await this.launchMainService.getMainProcessInfo();
 			this.safeSend(event, 'vscode:windowsInfoResponse', mainProcessInfo.windows);
 		});

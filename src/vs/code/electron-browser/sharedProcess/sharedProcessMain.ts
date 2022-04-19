@@ -148,7 +148,7 @@ class SharedProcessMain extends Disposable {
 			const logService = accessor.get(ILogService);
 
 			// Log info
-			logService.info('sharedProcess configuration', JSON.stringify(this.configuration));
+			logService.trace('sharedProcess configuration', JSON.stringify(this.configuration));
 
 			// Channels
 			this.initChannels(accessor);

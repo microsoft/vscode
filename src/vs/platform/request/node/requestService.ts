@@ -62,7 +62,7 @@ export class RequestService extends Disposable implements IRequestService {
 	}
 
 	async request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		this.logService.info('RequestService#request (node) - begin', options.url);
+		this.logService.trace('RequestService#request (node) - begin', options.url);
 
 		const { proxyUrl, strictSSL } = this;
 
@@ -95,11 +95,11 @@ export class RequestService extends Disposable implements IRequestService {
 		try {
 			const res = await this._request(options, token);
 
-			this.logService.info('RequestService#request (node) - success', options.url);
+			this.logService.trace('RequestService#request (node) - success', options.url);
 
 			return res;
 		} catch (error) {
-			this.logService.error('RequestService#request (node) - error', options.url, error);
+			this.logService.trace('RequestService#request (node) - error', options.url, error);
 
 			throw error;
 		}

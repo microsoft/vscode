@@ -487,7 +487,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		};
 	}
 
-	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, displayName: string): void {
+	$registerCompletionsProvider(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, displayName: string): void {
 		const provider: languages.CompletionItemProvider = {
 			triggerCharacters,
 			_debugDisplayName: displayName,

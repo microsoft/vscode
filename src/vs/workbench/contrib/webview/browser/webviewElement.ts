@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFirefox } from 'vs/base/browser/browser';
-import { addDisposableListener } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IAction } from 'vs/base/common/actions';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -59,6 +59,7 @@ export const enum WebviewMessageChannels {
 	didKeydown = 'did-keydown',
 	didKeyup = 'did-keyup',
 	didContextMenu = 'did-context-menu',
+	dragStart = 'drag-start',
 }
 
 interface IKeydownEvent {
@@ -350,6 +351,10 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			}
 		}));
 
+		this._register(this.on(WebviewMessageChannels.dragStart, () => {
+			this.startBlockingIframeDragEvents();
+		}));
+
 		if (options.enableFindWidget) {
 			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
 			this.styledFindWidget();
@@ -489,7 +494,30 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		if (this._webviewFindWidget) {
 			parent.appendChild(this._webviewFindWidget.getDomNode());
 		}
+
+		[EventType.MOUSE_DOWN, EventType.MOUSE_MOVE, EventType.DROP].forEach(eventName => {
+			this._register(addDisposableListener(parent, eventName, () => {
+				this.stopBlockingIframeDragEvents();
+			}));
+		});
+
+		[parent, window].forEach(node => this._register(addDisposableListener(node as HTMLElement, EventType.DRAG_END, () => {
+			this.stopBlockingIframeDragEvents();
+		})));
+
 		parent.appendChild(this.element);
+	}
+
+	private startBlockingIframeDragEvents() {
+		if (this.element) {
+			this.element.style.pointerEvents = 'none';
+		}
+	}
+
+	private stopBlockingIframeDragEvents() {
+		if (this.element) {
+			this.element.style.pointerEvents = 'auto';
+		}
 	}
 
 	protected webviewContentEndpoint(encodedWebviewOrigin: string): string {
@@ -685,18 +713,14 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	}
 
 	windowDidDragStart(): void {
-		// Webview break drag and droping around the main window (no events are generated when you are over them)
+		// Webview break drag and dropping around the main window (no events are generated when you are over them)
 		// Work around this by disabling pointer events during the drag.
 		// https://github.com/electron/electron/issues/18226
-		if (this.element) {
-			this.element.style.pointerEvents = 'none';
-		}
+		this.startBlockingIframeDragEvents();
 	}
 
 	windowDidDragEnd(): void {
-		if (this.element) {
-			this.element.style.pointerEvents = '';
-		}
+		this.stopBlockingIframeDragEvents();
 	}
 
 	public selectAll() {

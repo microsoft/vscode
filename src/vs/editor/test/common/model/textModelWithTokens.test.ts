@@ -272,7 +272,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 	});
 });
 
-suite('TextModelWithTokens', () => {
+suite('TextModelWithTokens 2', () => {
 
 	test('bracket matching 3', () => {
 		const text = [
@@ -359,10 +359,12 @@ suite('TextModelWithTokens', () => {
 		const otherMetadata1 = (
 			(encodedMode1 << MetadataConsts.LANGUAGEID_OFFSET)
 			| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+			| (MetadataConsts.BALANCED_BRACKETS_MASK)
 		) >>> 0;
 		const otherMetadata2 = (
 			(encodedMode2 << MetadataConsts.LANGUAGEID_OFFSET)
 			| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+			| (MetadataConsts.BALANCED_BRACKETS_MASK)
 		) >>> 0;
 
 		const tokenizationSupport: ITokenizationSupport = {
@@ -441,7 +443,10 @@ suite('TextModelWithTokens', () => {
 		model.tokenization.forceTokenization(2);
 		model.tokenization.forceTokenization(3);
 
-		assert.deepStrictEqual(model.bracketPairs.matchBracket(new Position(2, 14)), [new Range(2, 13, 2, 14), new Range(2, 18, 2, 19)]);
+		assert.deepStrictEqual(
+			model.bracketPairs.matchBracket(new Position(2, 14)),
+			[new Range(2, 13, 2, 14), new Range(2, 18, 2, 19)]
+		);
 
 		disposables.dispose();
 	});

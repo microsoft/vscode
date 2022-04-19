@@ -2565,16 +2565,16 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					default: defaults.fontFamily,
 					markdownDescription: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
 				},
-				'editor.inlayHints.displayStyle': {
-					type: 'string',
-					enum: ['standard', 'compact'],
-					enumDescriptions: [
-						nls.localize('inlayHints.displayStyle.standard', "Renders inlay hints with the default style."),
-						nls.localize('inlayHints.displayStyle.compact', "Renders inlay hints without any padding, and removes the rounded borders."),
-					],
-					default: defaults.displayStyle,
-					description: nls.localize('inlayHints.displayStyle', "Controls the display style of inlay hints.")
-				}
+				// 'editor.inlayHints.displayStyle': {
+				// 	type: 'string',
+				// 	enum: ['standard', 'compact'],
+				// 	enumDescriptions: [
+				// 		nls.localize('inlayHints.displayStyle.standard', "Renders inlay hints with the default style."),
+				// 		nls.localize('inlayHints.displayStyle.compact', "Renders inlay hints without any padding, and removes the rounded borders."),
+				// 	],
+				// 	default: defaults.displayStyle,
+				// 	description: nls.localize('inlayHints.displayStyle', "Controls the display style of inlay hints.")
+				// }
 			}
 		);
 	}

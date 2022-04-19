@@ -215,22 +215,22 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			this._logService.info('[WT] Enter getCanonicalUri()...');
 		}
 
+		let canonicalUri = uri;
 		if (this.environmentService.remoteAuthority && uri.scheme === Schemas.vscodeRemote) {
 			if (isCI) {
 				this._logService.info('[WT] Return this.remoteAuthorityResolverService.getCanonicalURI(uri)...');
 			}
 
-			return this.remoteAuthorityResolverService.getCanonicalURI(uri);
-		}
-
-		if (uri.scheme === 'vscode-vfs') {
+			canonicalUri = await this.remoteAuthorityResolverService.getCanonicalURI(uri);
+		} else if (uri.scheme === 'vscode-vfs') {
 			const index = uri.authority.indexOf('+');
 			if (index !== -1) {
-				return uri.with({ authority: uri.authority.substr(0, index) });
+				canonicalUri = uri.with({ authority: uri.authority.substr(0, index) });
 			}
 		}
 
-		return uri;
+		// ignore query and fragent section of uris always
+		return canonicalUri.with({ query: null, fragment: null });
 	}
 
 	private async resolveCanonicalUris(): Promise<void> {

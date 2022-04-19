@@ -67,7 +67,7 @@ namespace SemanticTokenLegendRequest {
 
 export interface RuntimeEnvironment {
 	fileFs?: FileSystemProvider;
-	configureHttpRequests?(proxy: string, strictSSL: boolean): void;
+	configureHttpRequests?(proxy: string | undefined, strictSSL: boolean): void;
 	readonly timer: {
 		setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable;
 		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;

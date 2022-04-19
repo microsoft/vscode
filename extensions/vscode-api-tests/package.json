@@ -19,7 +19,6 @@
     "fsChunks",
     "inlineCompletions",
     "notebookCellExecutionState",
-    "notebookConcatTextDocument",
     "notebookContentProvider",
     "notebookControllerKind",
     "notebookDebugOptions",

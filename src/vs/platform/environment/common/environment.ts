@@ -132,9 +132,6 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	extensionsDownloadPath: string;
 	builtinExtensionsPath: string;
 
-	// --- smoke test support
-	driverHandle?: string;
-
 	// --- use keytar for credentials
 	disableKeytar?: boolean;
 
