@@ -169,8 +169,16 @@ stages:
           - Compile
         pool: vscode-1es-windows
         jobs:
-          - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32, true)) }}:
               - job: Windows
+                timeoutInMinutes: 120
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: win32/product-build-win32.yml
+
+          - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+              - job: WindowsTest
                 timeoutInMinutes: 120
                 variables:
                   VSCODE_ARCH: x64
@@ -179,6 +187,14 @@ stages:
 
           - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true)) }}:
               - job: Windows32
+                timeoutInMinutes: 120
+                variables:
+                  VSCODE_ARCH: ia32
+                steps:
+                  - template: win32/product-build-win32.yml
+
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true)) }}:
+              - job: Windows32Test
                 timeoutInMinutes: 120
                 variables:
                   VSCODE_ARCH: ia32
