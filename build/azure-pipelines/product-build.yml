@@ -178,7 +178,7 @@ stages:
                 steps:
                   - template: win32/product-build-win32.yml
 
-          - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+          - ${{ if and(eq(parameters.VSCODE_BUILD_WIN32, true), eq(variables['VSCODE_STEP_ON_IT'], false)) }}:
               - job: WindowsTest
                 timeoutInMinutes: 120
                 variables:
@@ -196,7 +196,7 @@ stages:
                 steps:
                   - template: win32/product-build-win32.yml
 
-          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true)) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true), eq(variables['VSCODE_STEP_ON_IT'], false)) }}:
               - job: Windows32Test
                 timeoutInMinutes: 120
                 variables:
