@@ -90,39 +90,39 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 			this.createModifiedAction(),
 			this.createAction(
 				'extSettingsSearch',
-				localize('extSettingsSearch', "Extension ID"),
+				localize('extSettingsSearch', "Extension ID..."),
 				localize('extSettingsSearchTooltip', "Add extension ID filter"),
 				`@${EXTENSION_SETTING_TAG}`,
 				false
 			),
 			this.createAction(
 				'featuresSettingsSearch',
-				localize('featureSettingsSearch', "Feature"),
+				localize('featureSettingsSearch', "Feature..."),
 				localize('featureSettingsSearchTooltip', "Add feature filter"),
 				`@${FEATURE_SETTING_TAG}`,
 				true
 			),
 			this.createAction(
-				'idSettingsSearch',
-				localize('idSettingsSearch', "Setting ID"),
-				localize('idSettingsSearchTooltip', "Add setting ID filter"),
-				`@${ID_SETTING_TAG}`,
-				false
+				'tagSettingsSearch',
+				localize('tagSettingsSearch', "Tag..."),
+				localize('tagSettingsSearchTooltip', "Add tag filter"),
+				`@${GENERAL_TAG_SETTING_TAG}`,
+				true
 			),
 			this.createAction(
 				'langSettingsSearch',
-				localize('langSettingsSearch', "Language"),
+				localize('langSettingsSearch', "Language..."),
 				localize('langSettingsSearchTooltip', "Add language ID filter"),
 				`@${LANGUAGE_SETTING_TAG}`,
 				true
 			),
 			this.createAction(
-				'tagSettingsSearch',
-				localize('tagSettingsSearch', "Tag"),
-				localize('tagSettingsSearchTooltip', "Add tag filter"),
-				`@${GENERAL_TAG_SETTING_TAG}`,
-				true
-			),
+				'idSettingsSearch',
+				localize('idSettingsSearch', "Setting ID..."),
+				localize('idSettingsSearchTooltip', "Add setting ID filter"),
+				`@${ID_SETTING_TAG}`,
+				false
+			)
 		];
 	}
 }

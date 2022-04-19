@@ -19,7 +19,7 @@ import { IExtHostReadyMessage, IExtHostSocketMessage, IExtHostReduceGraceTimeMes
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
-import { removeDangerousEnvVariables } from 'vs/base/node/processes';
+import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
 
 export async function buildUserEnvironment(startParamsEnv: { [key: string]: string | null } = {}, withUserShellEnvironment: boolean, language: string, isDebug: boolean, environmentService: IServerEnvironmentService, logService: ILogService): Promise<IProcessEnvironment> {

@@ -45,10 +45,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 		if (this.type === AuthProviderType.github) {
 			this._githubServer = new GitHubServer(
-				// We only can use the Device Code flow when we are running with a remote extension host.
-				context.extension.extensionKind === vscode.ExtensionKind.Workspace
-				// This should only matter when we are running in code-oss. See the other change in this commit.
-				|| vscode.env.uiKind === vscode.UIKind.Desktop,
+				// We only can use the Device Code flow when we have a full node environment because of CORS.
+				context.extension.extensionKind === vscode.ExtensionKind.Workspace || vscode.env.uiKind === vscode.UIKind.Desktop,
 				this._logger,
 				this._telemetryReporter);
 		} else {
