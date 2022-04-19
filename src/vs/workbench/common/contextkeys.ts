@@ -51,7 +51,6 @@ export const ActiveEditorAvailableEditorIdsContext = new RawContextKey<string>('
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false, localize('textCompareEditorVisible', "Whether a text compare editor is visible"));
 export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false, localize('textCompareEditorActive', "Whether a text compare editor is active"));
 export const SideBySideEditorActiveContext = new RawContextKey<boolean>('sideBySideEditorActive', false, localize('sideBySideEditorActive', "Whether a side by side editor is active"));
-// TODO : introduce new context key for the type of file (as a string?)
 export const EditorFileTypeContext = new RawContextKey<string>('editorFileType', '', localize('editorFileType', "The file type of an editor"));
 
 // Editor Group Context Keys
@@ -150,7 +149,7 @@ export class ResourceContextKey implements IContextKey<URI> {
 	static readonly Path = new RawContextKey<string>('resourcePath', undefined, { type: 'string', description: localize('resourcePath', "The full path of the resource") });
 	static readonly LangId = new RawContextKey<string>('resourceLangId', undefined, { type: 'string', description: localize('resourceLangId', "The language identifier of the resource") });
 	static readonly Resource = new RawContextKey<URI>('resource', undefined, { type: 'URI', description: localize('resource', "The full value of the resource including scheme and path") });
-	static readonly Extension = new RawContextKey<string>('resourceExtname', undefined, { type: 'string', description: localize('resourceExtname', "The extension name of the resource") }); //EXTENSION NAME!!!
+	static readonly Extension = new RawContextKey<string>('resourceExtname', undefined, { type: 'string', description: localize('resourceExtname', "The extension name of the resource") });
 	static readonly HasResource = new RawContextKey<boolean>('resourceSet', undefined, { type: 'boolean', description: localize('resourceSet', "Whether a resource is present or not") });
 	static readonly IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', undefined, { type: 'boolean', description: localize('isFileSystemResource', "Whether the resource is backed by a file system provider") });
 
