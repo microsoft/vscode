@@ -65,9 +65,9 @@ export class BrowserWindow extends Disposable {
 		this._register(addDisposableListener(this.layoutService.container, EventType.DROP, e => EventHelper.stop(e, true)));
 
 		// Fullscreen (Browser)
-		[EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE].forEach(event => {
+		for (const event of [EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE]) {
 			this._register(addDisposableListener(document, event, () => setFullscreen(!!detectFullscreen())));
-		});
+		}
 
 		// Fullscreen (Native)
 		this._register(addDisposableThrottledListener(viewport, EventType.RESIZE, () => {

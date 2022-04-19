@@ -132,11 +132,11 @@ export class NativeWindow extends Disposable {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
 		// prevent opening a real URL inside the window
-		[EventType.DRAG_OVER, EventType.DROP].forEach(event => {
+		for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
 			window.document.body.addEventListener(event, (e: DragEvent) => {
 				EventHelper.stop(e);
 			});
-		});
+		}
 
 		// Support runAction event
 		ipcRenderer.on('vscode:runAction', async (event: unknown, request: INativeRunActionInWindowRequest) => {
@@ -812,9 +812,9 @@ export class NativeWindow extends Disposable {
 	private doAddFolders(): void {
 		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
 
-		this.pendingFoldersToAdd.forEach(folder => {
+		for (const folder of this.pendingFoldersToAdd) {
 			foldersToAdd.push(({ uri: folder }));
-		});
+		}
 
 		this.pendingFoldersToAdd = [];
 
