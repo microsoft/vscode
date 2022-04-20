@@ -11722,6 +11722,16 @@ declare module 'vscode' {
 		export function openNotebookDocument(notebookType: string, content?: NotebookData): Thenable<NotebookDocument>;
 
 		/**
+		 * An event that is emitted when a {@link NotebookDocument notebook} has changed.
+		 */
+		export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
+
+		/**
+		 * An event that is emitted when a {@link NotebookDocument notebook} is saved.
+		 */
+		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
+
+		/**
 		 * Register a {@link NotebookSerializer notebook serializer}.
 		 *
 		 * A notebook serializer must be contributed through the `notebooks` extension point. When opening a notebook file, the editor will send
@@ -12441,6 +12451,39 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a notebook editor that is attached to a {@link NotebookDocument notebook}.
+	 * Additional properties of the NotebookEditor are available in the proposed
+	 * API, which will be finalized later.
+	 */
+	export interface NotebookEditor {
+
+	}
+
+	/**
+	 * Renderer messaging is used to communicate with a single renderer. It's returned from {@link notebooks.createRendererMessaging}.
+	 */
+	export interface NotebookRendererMessaging {
+		/**
+		 * An event that fires when a message is received from a renderer.
+		 */
+		readonly onDidReceiveMessage: Event<{
+			readonly editor: NotebookEditor;
+			readonly message: any;
+		}>;
+
+		/**
+		 * Send a message to one or all renderer.
+		 *
+		 * @param message Message to send
+		 * @param editor Editor to target with the message. If not provided, the
+		 * message is sent to all renderers.
+		 * @returns a boolean indicating whether the message was successfully
+		 * delivered to any renderer.
+		 */
+		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
+	}
+
+	/**
 	 * A notebook cell kind.
 	 */
 	export enum NotebookCellKind {
@@ -12501,39 +12544,6 @@ declare module 'vscode' {
 		 * The most recent {@link NotebookCellExecutionSummary execution summary} for this cell.
 		 */
 		readonly executionSummary: NotebookCellExecutionSummary | undefined;
-	}
-
-	/**
-	 * Represents a notebook editor that is attached to a {@link NotebookDocument notebook}.
-	 * Additional properties of the NotebookEditor are available in the proposed
-	 * API, which will be finalized later.
-	 */
-	export interface NotebookEditor {
-
-	}
-
-	/**
-	 * Renderer messaging is used to communicate with a single renderer. It's returned from {@link notebooks.createRendererMessaging}.
-	 */
-	export interface NotebookRendererMessaging {
-		/**
-		 * An event that fires when a message is received from a renderer.
-		 */
-		readonly onDidReceiveMessage: Event<{
-			readonly editor: NotebookEditor;
-			readonly message: any;
-		}>;
-
-		/**
-		 * Send a message to one or all renderer.
-		 *
-		 * @param message Message to send
-		 * @param editor Editor to target with the message. If not provided, the
-		 * message is sent to all renderers.
-		 * @returns a boolean indicating whether the message was successfully
-		 * delivered to any renderer.
-		 */
-		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
 	}
 
 	/**
@@ -12613,6 +12623,94 @@ declare module 'vscode' {
 		 * has been saved. Will return false if the file was not dirty or when save failed.
 		 */
 		save(): Thenable<boolean>;
+	}
+
+	/**
+	 * Describes a change to a notebook cell.
+	 *
+	 * @see {@link NotebookDocumentChangeEvent}
+	 */
+	export interface NotebookDocumentCellChange {
+
+		/**
+		 * The affected notebook.
+		 */
+		readonly cell: NotebookCell;
+
+		/**
+		 * The document of the cell or `undefined` when it did not change.
+		 *
+		 * *Note* that you should use the {@link workspace.onDidChangeTextDocument onDidChangeTextDocument}-event
+		 * for detailed change information, like what edits have been performed.
+		 */
+		readonly document: TextDocument | undefined;
+
+		/**
+		 * The new metadata of the cell or `undefined` when it did not change.
+		 */
+		readonly metadata: { [key: string]: any } | undefined;
+
+		/**
+		 * The new outputs of the cell or `undefined` when they did not change.
+		 */
+		readonly outputs: readonly NotebookCellOutput[] | undefined;
+
+		/**
+		 * The new execution summary of the cell or `undefined` when it did not change.
+		 */
+		readonly executionSummary: NotebookCellExecutionSummary | undefined;
+	}
+
+	/**
+	 * Describes a structural change to a notebook document, e.g newly added and removed cells.
+	 *
+	 * @see {@link NotebookDocumentChangeEvent}
+	 */
+	export interface NotebookDocumentContentChange {
+
+		/**
+		 * The range at which cells have been either added or removed.
+		 *
+		 * Note that no cells have been {@link NotebookDocumentContentChange.removedCells removed}
+		 * when this range is {@link NotebookRange.isEmpty empty}.
+		 */
+		readonly range: NotebookRange;
+
+		/**
+		 * Cells that have been added to the document.
+		 */
+		readonly addedCells: readonly NotebookCell[];
+
+		/**
+		 * Cells that have been removed from the document.
+		 */
+		readonly removedCells: readonly NotebookCell[];
+	}
+
+	/**
+	 * An event describing a transactional {@link NotebookDocument notebook} change.
+	 */
+	export interface NotebookDocumentChangeEvent {
+
+		/**
+		 * The affected notebook.
+		 */
+		readonly notebook: NotebookDocument;
+
+		/**
+		 * The new metadata of the notebook or `undefined` when it did not change.
+		 */
+		readonly metadata: { [key: string]: any } | undefined;
+
+		/**
+		 * An array of content changes describing added or removed {@link NotebookCell cells}.
+		 */
+		readonly contentChanges: readonly NotebookDocumentContentChange[];
+
+		/**
+		 * An array of {@link NotebookDocumentCellChange cell changes}.
+		 */
+		readonly cellChanges: readonly NotebookDocumentCellChange[];
 	}
 
 	/**

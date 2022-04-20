@@ -523,12 +523,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		const commandDataToNotebook = new ApiCommand(
 			'vscode.executeDataToNotebook', '_executeDataToNotebook', 'Invoke notebook serializer',
 			[notebookTypeArg, new ApiCommandArgument<Uint8Array, VSBuffer>('data', 'Bytes to convert to data', v => v instanceof Uint8Array, v => VSBuffer.wrap(v))],
-			new ApiCommandResult<NotebookDataDto, vscode.NotebookData>('Notebook Data', dto => typeConverters.NotebookData.to(dto))
+			new ApiCommandResult<SerializableObjectWithBuffers<NotebookDataDto>, vscode.NotebookData>('Notebook Data', data => typeConverters.NotebookData.to(data.value))
 		);
 
 		const commandNotebookToData = new ApiCommand(
 			'vscode.executeNotebookToData', '_executeNotebookToData', 'Invoke notebook serializer',
-			[notebookTypeArg, new ApiCommandArgument<vscode.NotebookData, NotebookDataDto>('NotebookData', 'Notebook data to convert to bytes', v => true, v => typeConverters.NotebookData.from(v))],
+			[notebookTypeArg, new ApiCommandArgument<vscode.NotebookData, SerializableObjectWithBuffers<NotebookDataDto>>('NotebookData', 'Notebook data to convert to bytes', v => true, v => new SerializableObjectWithBuffers(typeConverters.NotebookData.from(v)))],
 			new ApiCommandResult<VSBuffer, Uint8Array>('Bytes', dto => dto.buffer)
 		);
 

@@ -72,7 +72,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		}
 
 		// Module loading tricks
-		const interceptor = this._instaService.createInstance(NodeModuleRequireInterceptor, extensionApiFactory, this._registry);
+		const interceptor = this._instaService.createInstance(NodeModuleRequireInterceptor, extensionApiFactory, this._myRegistry);
 		await interceptor.install();
 		performance.mark('code/extHost/didInitAPI');
 

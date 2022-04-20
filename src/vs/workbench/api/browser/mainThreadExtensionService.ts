@@ -26,6 +26,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { FileAccess } from 'vs/base/common/network';
+import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {
@@ -204,8 +205,8 @@ class ExtensionHostProxy implements IExtensionHostProxy {
 		const uriComponents = await this._actual.$getCanonicalURI(remoteAuthority, uri);
 		return (uriComponents ? URI.revive(uriComponents) : uriComponents);
 	}
-	startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
-		return this._actual.$startExtensionHost(enabledExtensionIds);
+	startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+		return this._actual.$startExtensionHost(extensionsDelta);
 	}
 	extensionTestsExecute(): Promise<number> {
 		return this._actual.$extensionTestsExecute();
@@ -225,8 +226,8 @@ class ExtensionHostProxy implements IExtensionHostProxy {
 	updateRemoteConnectionData(connectionData: IRemoteConnectionData): Promise<void> {
 		return this._actual.$updateRemoteConnectionData(connectionData);
 	}
-	deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
-		return this._actual.$deltaExtensions(toAdd, toRemove);
+	deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+		return this._actual.$deltaExtensions(extensionsDelta);
 	}
 	test_latency(n: number): Promise<number> {
 		return this._actual.$test_latency(n);

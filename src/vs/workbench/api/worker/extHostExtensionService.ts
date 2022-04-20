@@ -44,7 +44,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		// initialize API and register actors
 		const apiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
-		this._fakeModules = this._instaService.createInstance(WorkerRequireInterceptor, apiFactory, this._registry);
+		this._fakeModules = this._instaService.createInstance(WorkerRequireInterceptor, apiFactory, this._myRegistry);
 		await this._fakeModules.install();
 		performance.mark('code/extHost/didInitAPI');
 
