@@ -714,11 +714,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	private _startExtensionHost(): Promise<void> {
-
-		console.log(`$startExtensionHost CALLED!`);
-		console.log(`myExtensions: ${this._myRegistry.getAllExtensionDescriptions().length} extensions`);
-		console.log(`allExtensions: ${this._globalRegistry.getAllExtensionDescriptions().length} extensions`);
-
 		if (this._started) {
 			throw new Error(`Extension host is already started!`);
 		}
