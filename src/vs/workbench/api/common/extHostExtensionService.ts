@@ -106,7 +106,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private readonly _secretState: ExtHostSecretState;
 	private readonly _storagePath: IExtensionStoragePaths;
 	private readonly _activator: ExtensionsActivator;
-	private _extensionPathIndex: Promise<TernarySearchTree<URI, IExtensionDescription>> | null;
+	private _extensionPathIndex: Promise<ExtensionPaths> | null;
 
 	private readonly _resolvers: { [authorityPrefix: string]: vscode.RemoteAuthorityResolver };
 
@@ -330,9 +330,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	// create trie to enable fast 'filename -> extension id' look up
-	public async getExtensionPathIndex(): Promise<TernarySearchTree<URI, IExtensionDescription>> {
+	public async getExtensionPathIndex(): Promise<ExtensionPaths> {
 		if (!this._extensionPathIndex) {
-			this._extensionPathIndex = this._createExtensionPathIndex(this._myRegistry.getAllExtensionDescriptions());
+			this._extensionPathIndex = this._createExtensionPathIndex(this._myRegistry.getAllExtensionDescriptions()).then((searchTree) => {
+				return new ExtensionPaths(searchTree);
+			});
 		}
 		return this._extensionPathIndex;
 	}
@@ -712,6 +714,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	private _startExtensionHost(): Promise<void> {
+
+		console.log(`$startExtensionHost CALLED!`);
+		console.log(`myExtensions: ${this._myRegistry.getAllExtensionDescriptions().length} extensions`);
+		console.log(`allExtensions: ${this._globalRegistry.getAllExtensionDescriptions().length} extensions`);
+
 		if (this._started) {
 			throw new Error(`Extension host is already started!`);
 		}
@@ -835,18 +842,28 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		return result;
 	}
 
-	public $startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
-		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
-		this._globalRegistry.deltaExtensions(extensionsDelta.toAdd, extensionsDelta.toRemove);
+	private static _applyExtensionsDelta(oldGlobalRegistry: ExtensionDescriptionRegistry, oldMyRegistry: ExtensionDescriptionRegistry, extensionsDelta: IExtensionDescriptionDelta) {
+		const globalRegistry = new ExtensionDescriptionRegistry(oldGlobalRegistry.getAllExtensionDescriptions());
+		globalRegistry.deltaExtensions(extensionsDelta.toAdd, extensionsDelta.toRemove);
 
-		const myExtensions = extensionIdentifiersArrayToSet(this._myRegistry.getAllExtensionDescriptions().map(extension => extension.identifier));
+		const myExtensionsSet = extensionIdentifiersArrayToSet(oldMyRegistry.getAllExtensionDescriptions().map(extension => extension.identifier));
 		for (const extensionId of extensionsDelta.myToRemove) {
-			myExtensions.delete(ExtensionIdentifier.toKey(extensionId));
+			myExtensionsSet.delete(ExtensionIdentifier.toKey(extensionId));
 		}
 		for (const extensionId of extensionsDelta.myToAdd) {
-			myExtensions.add(ExtensionIdentifier.toKey(extensionId));
+			myExtensionsSet.add(ExtensionIdentifier.toKey(extensionId));
 		}
-		this._myRegistry.set(filterExtensions(this._globalRegistry, myExtensions));
+		const myExtensions = filterExtensions(globalRegistry, myExtensionsSet);
+
+		return { globalRegistry, myExtensions };
+	}
+
+	public $startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
+
+		const { globalRegistry, myExtensions } = AbstractExtHostExtensionService._applyExtensionsDelta(this._globalRegistry, this._myRegistry, extensionsDelta);
+		this._globalRegistry.set(globalRegistry.getAllExtensionDescriptions());
+		this._myRegistry.set(myExtensions);
 
 		return this._startExtensionHost();
 	}
@@ -875,32 +892,13 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	public async $deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
 		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
 
-		this._globalRegistry.deltaExtensions(extensionsDelta.toAdd, extensionsDelta.toRemove);
-
-		const myExtensions = extensionIdentifiersArrayToSet(this._myRegistry.getAllExtensionDescriptions().map(extension => extension.identifier));
-		for (const extensionId of extensionsDelta.myToRemove) {
-			myExtensions.delete(ExtensionIdentifier.toKey(extensionId));
-		}
-		for (const extensionId of extensionsDelta.myToAdd) {
-			myExtensions.add(ExtensionIdentifier.toKey(extensionId));
-		}
-		this._myRegistry.set(filterExtensions(this._globalRegistry, myExtensions));
-
-		console.log(`TODO: update the extension path trie!`);
-
-		// const trie = await this.getExtensionPathIndex();
-
-		// await Promise.all(toRemove.map(async (extensionId) => {
-		// 	const extensionDescription = this._myRegistry.getExtensionDescription(extensionId);
-		// 	if (extensionDescription) {
-		// 		trie.delete(await this._realPathExtensionUri(extensionDescription.extensionLocation));
-		// 	}
-		// }));
-
-		// await Promise.all(toAdd.map(async (extensionDescription) => {
-		// 	const realpathUri = await this._realPathExtensionUri(extensionDescription.extensionLocation);
-		// 	trie.set(realpathUri, extensionDescription);
-		// }));
+		// First build up and update the trie and only afterwards apply the delta
+		const { globalRegistry, myExtensions } = AbstractExtHostExtensionService._applyExtensionsDelta(this._globalRegistry, this._myRegistry, extensionsDelta);
+		const newSearchTree = await this._createExtensionPathIndex(myExtensions);
+		const extensionsPaths = await this.getExtensionPathIndex();
+		extensionsPaths.setSearchTree(newSearchTree);
+		this._globalRegistry.set(globalRegistry.getAllExtensionDescriptions());
+		this._myRegistry.set(myExtensions);
 
 		return Promise.resolve(undefined);
 	}
@@ -972,7 +970,7 @@ export interface IExtHostExtensionService extends AbstractExtHostExtensionServic
 	activateByIdWithErrors(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
 	getExtensionExports(extensionId: ExtensionIdentifier): IExtensionAPI | null | undefined;
 	getExtensionRegistry(): Promise<ExtensionDescriptionRegistry>;
-	getExtensionPathIndex(): Promise<TernarySearchTree<URI, IExtensionDescription>>;
+	getExtensionPathIndex(): Promise<ExtensionPaths>;
 	registerRemoteAuthorityResolver(authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver): vscode.Disposable;
 
 	onDidChangeRemoteConnectionData: Event<void>;
@@ -1030,4 +1028,23 @@ function getRemoteAuthorityPrefix(remoteAuthority: string): string {
 		return remoteAuthority;
 	}
 	return remoteAuthority.substring(0, plusIndex);
+}
+
+export class ExtensionPaths {
+
+	constructor(
+		private _searchTree: TernarySearchTree<URI, IExtensionDescription>
+	) { }
+
+	setSearchTree(searchTree: TernarySearchTree<URI, IExtensionDescription>): void {
+		this._searchTree = searchTree;
+	}
+
+	findSubstr(key: URI): IExtensionDescription | undefined {
+		return this._searchTree.findSubstr(key);
+	}
+
+	forEach(callback: (value: IExtensionDescription, index: URI) => any): void {
+		return this._searchTree.forEach(callback);
+	}
 }
