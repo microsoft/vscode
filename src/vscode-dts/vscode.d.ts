@@ -9420,7 +9420,7 @@ declare module 'vscode' {
 		 * If language id is not provided, then **Log** is used as default language id.
 		 *
 		 * You can access the visible or active output channel as a {@link TextDocument text document} from {@link window.visibleTextEditors visible editors} or {@link window.activeTextEditor active editor}
-		 * and use the langrage id to contribute language features like syntax coloring, code lens etc.,
+		 * and use the language id to contribute language features like syntax coloring, code lens etc.,
 		 *
 		 * @param name Human-readable string which will be used to represent the channel in the UI.
 		 * @param languageId The identifier of the language associated with the channel.
