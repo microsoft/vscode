@@ -164,7 +164,7 @@ suite('markdown: find all references', () => {
 		);
 	});
 
-	test('Should find references from link definition', async () => {
+	test('Should find header references from link definition', async () => {
 		const uri = workspacePath('doc.md');
 		const doc = new InMemoryDocument(uri, joinLines(
 			`# A b C`,
@@ -464,6 +464,28 @@ suite('markdown: find all references', () => {
 				{ uri: other1Uri, line: 1 },
 			);
 		}
+	});
+
+	test('Should support finding references to unknown file', async () => {
+		const uri1 = workspacePath('doc1.md');
+		const doc1 = new InMemoryDocument(uri1, joinLines(
+			`![img](/images/more/image.png)`,
+			``,
+			`[ref]: /images/more/image.png`,
+		));
+
+		const uri2 = workspacePath('sub', 'doc2.md');
+		const doc2 = new InMemoryDocument(uri2, joinLines(
+			`![img](/images/more/image.png)`,
+		));
+
+
+		const refs = await getReferences(doc1, new vscode.Position(0, 10), new InMemoryWorkspaceMarkdownDocuments([doc1, doc2]));
+		assertReferencesEqual(refs!,
+			{ uri: uri1, line: 0 },
+			{ uri: uri1, line: 2 },
+			{ uri: uri2, line: 0 },
+		);
 	});
 
 	suite('Reference links', () => {

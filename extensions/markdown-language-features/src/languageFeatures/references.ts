@@ -176,22 +176,14 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 			return references;
 		}
 
-		let targetDoc = await this.workspaceContents.getMarkdownDocument(sourceLink.href.path);
-		if (!targetDoc) {
-			// We don't think the file exists. If it doesn't already have an extension, try tacking on a `.md` and using that instead
-			if (uri.Utils.extname(sourceLink.href.path) === '') {
-				const dotMdResource = sourceLink.href.path.with({ path: sourceLink.href.path.path + '.md' });
-				targetDoc = await this.workspaceContents.getMarkdownDocument(dotMdResource);
-			}
-		}
-
-		if (!targetDoc || token.isCancellationRequested) {
+		const targetDoc = await tryFindMdDocumentForLink(sourceLink.href, this.workspaceContents);
+		if (token.isCancellationRequested) {
 			return [];
 		}
 
 		const references: MdReference[] = [];
 
-		if (sourceLink.href.fragment && sourceLink.source.fragmentRange?.contains(triggerPosition)) {
+		if (targetDoc && sourceLink.href.fragment && sourceLink.source.fragmentRange?.contains(triggerPosition)) {
 			const toc = await TableOfContents.create(this.engine, targetDoc);
 			const entry = toc.lookup(sourceLink.href.fragment);
 			if (entry) {
@@ -222,7 +214,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 				}
 			}
 		} else { // Triggered on a link without a fragment so we only require matching the file and ignore fragments
-			references.push(...this.findAllLinksToFile(targetDoc.uri, allLinksInWorkspace, sourceLink));
+			references.push(...this.findAllLinksToFile(targetDoc?.uri ?? sourceLink.href.path, allLinksInWorkspace, sourceLink));
 		}
 
 		return references;
@@ -297,3 +289,19 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 			: link.source.hrefRange;
 	}
 }
+
+export async function tryFindMdDocumentForLink(href: InternalHref, workspaceContents: MdWorkspaceContents): Promise<SkinnyTextDocument | undefined> {
+	const targetDoc = await workspaceContents.getMarkdownDocument(href.path);
+	if (targetDoc) {
+		return targetDoc;
+	}
+
+	// We don't think the file exists. If it doesn't already have an extension, try tacking on a `.md` and using that instead
+	if (uri.Utils.extname(href.path) === '') {
+		const dotMdResource = href.path.with({ path: href.path.path + '.md' });
+		return workspaceContents.getMarkdownDocument(dotMdResource);
+	}
+
+	return undefined;
+}
+
