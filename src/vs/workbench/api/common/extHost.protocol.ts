@@ -62,7 +62,7 @@ import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescrip
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/workbench/services/authentication/common/authentication';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { IStaticWorkspaceData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { IExtensionDescriptionDelta, IStaticWorkspaceData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { ActivationKind, ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { createProxyIdentifier, Dto, IRPCProtocol, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -1434,7 +1434,7 @@ export interface ExtHostExtensionServiceShape {
 	 * Returns `null` if no resolver for `remoteAuthority` is found.
 	 */
 	$getCanonicalURI(remoteAuthority: string, uri: UriComponents): Promise<UriComponents | null>;
-	$startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
+	$startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void>;
 	$extensionTestsExecute(): Promise<number>;
 	$extensionTestsExit(code: number): Promise<void>;
 	$activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
@@ -1442,7 +1442,7 @@ export interface ExtHostExtensionServiceShape {
 	$setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 	$updateRemoteConnectionData(connectionData: IRemoteConnectionData): Promise<void>;
 
-	$deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
+	$deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void>;
 
 	$test_latency(n: number): Promise<number>;
 	$test_up(b: VSBuffer): Promise<number>;
