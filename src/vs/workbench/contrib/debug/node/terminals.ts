@@ -121,7 +121,8 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 
 			quote = (s: string) => {
 				s = s.replace(/\"/g, '""');
-				return (' "><!^&'.split('').some(char => s.includes(char)) || s.length === 0) ? `"${s}"` : s;
+				s = s.replace(/([><!^&\|])/g, '^$1');
+				return (' "'.split('').some(char => s.includes(char)) || s.length === 0) ? `"${s}"` : s;
 			};
 
 			if (cwd) {
