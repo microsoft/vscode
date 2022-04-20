@@ -10,7 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, 
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -84,6 +84,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { Button, ButtonWithDescription } from 'vs/base/browser/ui/button/button';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { RepositoryContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewService';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -944,7 +945,7 @@ class RepositoryVisibilityAction extends Action2 {
 			f1: false,
 			precondition: ContextKeyExpr.or(ContextKeys.RepositoryVisibilityCount.notEqualsTo(1), ContextKeys.RepositoryVisibility(repository).isEqualTo(false)),
 			toggled: ContextKeys.RepositoryVisibility(repository).isEqualTo(true),
-			menu: { id: Menus.Repositories }
+			menu: { id: Menus.Repositories, group: '0_repositories' }
 		});
 		this.repository = repository;
 	}
@@ -1502,6 +1503,46 @@ registerAction2(SetListViewModeAction);
 registerAction2(SetTreeViewModeAction);
 registerAction2(SetListViewModeNavigationAction);
 registerAction2(SetTreeViewModeNavigationAction);
+
+abstract class RepositorySortAction extends ViewAction<SCMViewPane> {
+	constructor(private sortKey: ISCMRepositorySortKey, title: string) {
+		super({
+			id: `workbench.scm.action.repositories.setSortKey.${sortKey}`,
+			title,
+			viewId: VIEW_PANE_ID,
+			f1: false,
+			toggled: RepositoryContextKeys.RepositorySortKey.isEqualTo(sortKey),
+			menu: { id: Menus.Repositories, group: '1_sort' }
+		});
+	}
+
+	runInView(accessor: ServicesAccessor) {
+		accessor.get(ISCMViewService).toggleSortKey(this.sortKey);
+	}
+}
+
+
+class RepositorySortByDiscoveryTimeAction extends RepositorySortAction {
+	constructor() {
+		super(ISCMRepositorySortKey.DiscoveryTime, localize('repositorySortByDiscoveryTime', "Sort by Discovery Time"));
+	}
+}
+
+class RepositorySortByNameAction extends RepositorySortAction {
+	constructor() {
+		super(ISCMRepositorySortKey.Name, localize('repositorySortByName', "Sort by Name"));
+	}
+}
+
+class RepositorySortByPathAction extends RepositorySortAction {
+	constructor() {
+		super(ISCMRepositorySortKey.Path, localize('repositorySortByPath', "Sort by Path"));
+	}
+}
+
+registerAction2(RepositorySortByDiscoveryTimeAction);
+registerAction2(RepositorySortByNameAction);
+registerAction2(RepositorySortByPathAction);
 
 abstract class SetSortKeyAction extends ViewAction<SCMViewPane>  {
 	constructor(private sortKey: ViewModelSortKey, title: string) {
