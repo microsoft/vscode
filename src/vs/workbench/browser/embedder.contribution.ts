@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as perf from 'vs/base/common/performance';
+import { PerformanceMark } from 'vs/base/common/performance';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Extensions as EmbedderExt, IEmbedderApiRegistry } from 'vs/platform/embedder/common/embedderRegistry';
@@ -103,7 +103,7 @@ Registry.as<IEmbedderApiRegistry>(EmbedderExt.EmbedderApiContrib).register(Embed
 export class EmbedderTimerApi {
 	constructor(@ITimerService private readonly _timerService: ITimerService) { }
 
-	async retrievePerformanceMarks(): Promise<[source: string, marks: readonly perf.PerformanceMark[]][]> {
+	async retrievePerformanceMarks(): Promise<[source: string, marks: readonly PerformanceMark[]][]> {
 		await this._timerService.whenReady();
 		return this._timerService.getPerformanceMarks();
 	}
