@@ -104,9 +104,8 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 
 	const recentSources: (QuickPickItem & { url?: string })[] = [];
 	if (options.showRecentSources) {
-		const recentRemoteProviders = model.getRecentRemoteProviders();
-		for (const provider of recentRemoteProviders) {
-			const sources = (await provider.getRemoteSources() ?? []).map((item) => {
+		for (const { provider } of remoteProviders) {
+			const sources = (await provider.getRecentRemoteSources?.() ?? []).map((item) => {
 				return {
 					...item,
 					label: (item.icon ? `$(${item.icon}) ` : '') + item.name,

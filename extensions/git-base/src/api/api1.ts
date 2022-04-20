@@ -7,7 +7,7 @@ import { Disposable, commands } from 'vscode';
 import { Model } from '../model';
 import { pickRemoteSource } from '../remoteSource';
 import { GitBaseExtensionImpl } from './extension';
-import { API, PickRemoteSourceOptions, PickRemoteSourceResult, RecentRemoteSourceProvider, RemoteSourceProvider } from './git-base';
+import { API, PickRemoteSourceOptions, PickRemoteSourceResult, RemoteSourceProvider } from './git-base';
 
 export class ApiImpl implements API {
 
@@ -19,10 +19,6 @@ export class ApiImpl implements API {
 
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
 		return this._model.registerRemoteSourceProvider(provider);
-	}
-
-	registerRecentRemoteSourceProvider(provider: RecentRemoteSourceProvider): Disposable {
-		return this._model.registerRecentRemoteSourceProvider(provider);
 	}
 }
 

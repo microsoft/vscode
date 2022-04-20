@@ -8,7 +8,6 @@ export { ProviderResult } from 'vscode';
 
 export interface API {
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
-	registerRecentRemoteSourceProvider(provider: RecentRemoteSourceProvider): Disposable;
 	pickRemoteSource(options: PickRemoteSourceOptions): Promise<string | PickRemoteSourceResult | undefined>;
 }
 
@@ -67,18 +66,6 @@ export interface RemoteSourceProvider {
 	readonly supportsQuery?: boolean;
 
 	getBranches?(url: string): ProviderResult<string[]>;
-	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
-}
-
-export interface RecentRemoteSourceProvider {
-	readonly name: string;
-	/**
-	 * Codicon name
-	 */
-	readonly icon?: string;
-	readonly label?: string;
-	readonly placeholder?: string;
-	readonly supportsQuery?: boolean;
-
+	getRecentRemoteSources?(query?: string): ProviderResult<RemoteSource[]>;
 	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
 }
