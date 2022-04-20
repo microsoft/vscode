@@ -162,18 +162,20 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 					// Here we load even extensions that would be disabled by workspace trust
 					const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions(), /* ignore workspace trust */true);
 					const runningLocation = this._determineRunningLocation(localExtensions);
-					const localProcessExtensions = filterByRunningLocation(localExtensions, runningLocation, desiredRunningLocation);
+					const myExtensions = filterByRunningLocation(localExtensions, runningLocation, desiredRunningLocation);
 					return {
 						autoStart: false,
-						extensions: localProcessExtensions
+						allExtensions: localExtensions,
+						myExtensions: myExtensions.map(extension => extension.identifier)
 					};
 				} else {
 					// restart case
 					const allExtensions = await this.getExtensions();
-					const localProcessExtensions = this._filterByRunningLocation(allExtensions, desiredRunningLocation);
+					const myExtensions = this._filterByRunningLocation(allExtensions, desiredRunningLocation);
 					return {
 						autoStart: true,
-						extensions: localProcessExtensions
+						allExtensions: allExtensions,
+						myExtensions: myExtensions.map(extension => extension.identifier)
 					};
 				}
 			}
@@ -561,8 +563,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				extensionHostLogsPath: remoteEnv.extensionHostLogsPath,
 				globalStorageHome: remoteEnv.globalStorageHome,
 				workspaceStorageHome: remoteEnv.workspaceStorageHome,
-				extensions: remoteExtensions,
 				allExtensions: this._registry.getAllExtensionDescriptions(),
+				myExtensions: remoteExtensions.map(extension => extension.identifier),
 			});
 		}
 
@@ -583,7 +585,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	private _startExtensionHost(extensionHostManager: IExtensionHostManager, _extensions: IExtensionDescription[]): void {
 		const extensions = this._filterByExtensionHostManager(_extensions, extensionHostManager);
-		extensionHostManager.start(extensions.map(extension => extension.identifier));
+		extensionHostManager.start(this._registry.getAllExtensionDescriptions(), extensions.map(extension => extension.identifier));
 	}
 
 	public _onExtensionHostExit(code: number): void {
