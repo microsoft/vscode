@@ -88,10 +88,10 @@ export class Win32UpdateService extends AbstractUpdateService {
 			]);
 
 			if (hklm) {
-				this.logService.trace(`update#getUpdateMode: 'UpdateMode' policy defined in 'HKLM\\${policyKey}':`, hklm);
+				this.logService.info(`update#getUpdateMode: 'UpdateMode' policy defined in 'HKLM\\${policyKey}':`, hklm);
 				return hklm;
 			} else if (hkcu) {
-				this.logService.trace(`update#getUpdateMode: 'UpdateMode' policy defined in 'HKCU\\${policyKey}':`, hkcu);
+				this.logService.info(`update#getUpdateMode: 'UpdateMode' policy defined in 'HKCU\\${policyKey}':`, hkcu);
 				return hkcu;
 			}
 		}
