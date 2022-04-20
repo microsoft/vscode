@@ -55,7 +55,7 @@ class SourceDefinitionCommand implements Command {
 
 	public async execute() {
 		if (this.client.apiVersion.lt(SourceDefinitionCommand.minVersion)) {
-			vscode.window.showErrorMessage(localize('error.unsupportedVersion', "Go to Source Definition failed. Requires TypeScript 4.2+."));
+			vscode.window.showErrorMessage(localize('error.unsupportedVersion', "Go to Source Definition failed. Requires TypeScript 4.7+."));
 			return;
 		}
 
