@@ -16,9 +16,6 @@ import { Barrier } from 'vs/base/common/async';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IEmbedderApiRegistry } from 'vs/platform/embedder/common/embedderRegistry';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -645,14 +642,3 @@ export class TimerService extends AbstractTimerService {
 		info.release = navigator.appVersion;
 	}
 }
-
-export class EmbedderTimerApi {
-	constructor(@ITimerService private readonly _timerService: ITimerService) { }
-
-	async retrievePerformanceMarks(): Promise<[source: string, marks: readonly perf.PerformanceMark[]][]> {
-		await this._timerService.whenReady();
-		return this._timerService.getPerformanceMarks();
-	}
-}
-
-Registry.as<IEmbedderApiRegistry>(Extensions.EmbedderApiContrib).register('timer', new SyncDescriptor(EmbedderTimerApi));

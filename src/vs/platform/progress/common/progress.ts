@@ -7,10 +7,7 @@ import { IAction } from 'vs/base/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { Extensions, IEmbedderApiRegistry } from 'vs/platform/embedder/common/embedderRegistry';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
@@ -226,17 +223,4 @@ export interface IEditorProgressService extends IProgressIndicator {
 
 	readonly _serviceBrand: undefined;
 }
-
-export class EmbedderProgressApi {
-	constructor(@IProgressService private readonly _progressService: IProgressService) { }
-
-	withProgress<R>(
-		options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
-		task: (progress: IProgress<IProgressStep>) => Promise<R>
-	): Promise<R> {
-		return this._progressService.withProgress(options, task);
-	}
-}
-
-Registry.as<IEmbedderApiRegistry>(Extensions.EmbedderApiContrib).register('progress', new SyncDescriptor(EmbedderProgressApi));
 

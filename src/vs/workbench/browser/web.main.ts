@@ -66,8 +66,8 @@ import { BrowserCredentialsService } from 'vs/workbench/services/credentials/bro
 import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EmbedderLoggerApiKey } from 'vs/platform/log/common/webEmbedderLog';
 import { Extensions, IEmbedderApiRegistry } from 'vs/platform/embedder/common/embedderRegistry';
+import { EmbedderApiKeys } from 'vs/workbench/browser/embedder.contribution';
 
 export class BrowserMain extends Disposable {
 
@@ -112,20 +112,20 @@ export class BrowserMain extends Disposable {
 		const registry = Registry.as<IEmbedderApiRegistry>(Extensions.EmbedderApiContrib);
 
 		return {
-			commands: registry.get('commands', instantiationService),
-			product: registry.get('product', instantiationService),
-			timer: registry.get('timer', instantiationService),
-			telemetry: registry.get('telemetry', instantiationService),
+			commands: registry.get(EmbedderApiKeys.commands, instantiationService),
+			product: registry.get(EmbedderApiKeys.product, instantiationService),
+			timer: registry.get(EmbedderApiKeys.timer, instantiationService),
+			telemetry: registry.get(EmbedderApiKeys.telemetry, instantiationService),
 			env: {
-				telemetryLevel: registry.get('telemetry', instantiationService).telemetryLevel,
-				getUriScheme: registry.get('product', instantiationService).getUriScheme,
-				retrievePerformanceMarks: registry.get('timer', instantiationService).retrievePerformanceMarks,
-				openUri: registry.get('opener', instantiationService).openUri
+				telemetryLevel: registry.get(EmbedderApiKeys.telemetry, instantiationService).telemetryLevel,
+				getUriScheme: registry.get(EmbedderApiKeys.product, instantiationService).getUriScheme,
+				retrievePerformanceMarks: registry.get(EmbedderApiKeys.timer, instantiationService).retrievePerformanceMarks,
+				openUri: registry.get(EmbedderApiKeys.opener, instantiationService).openUri
 			},
-			progress: registry.get('progress', instantiationService),
-			logger: registry.get(EmbedderLoggerApiKey, instantiationService),
-			openUri: registry.get('opener', instantiationService).openUri,
-			shutdown: registry.get('lifecycle', instantiationService).shutdown
+			progress: registry.get(EmbedderApiKeys.progress, instantiationService),
+			logger: registry.get(EmbedderApiKeys.logger, instantiationService),
+			openUri: registry.get(EmbedderApiKeys.opener, instantiationService).openUri,
+			shutdown: registry.get(EmbedderApiKeys.lifecycle, instantiationService).shutdown
 		};
 	}
 

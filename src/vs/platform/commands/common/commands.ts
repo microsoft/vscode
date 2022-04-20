@@ -9,10 +9,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
-import { Extensions, IEmbedderApiRegistry } from 'vs/platform/embedder/common/embedderRegistry';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
 
 export const ICommandService = createDecorator<ICommandService>('commandService');
 
@@ -153,14 +150,4 @@ export const NullCommandService: ICommandService = {
 };
 
 CommandsRegistry.registerCommand('noop', () => { });
-
-export class EmbedderCommandsApi {
-	constructor(@ICommandService private readonly _commandService: ICommandService) { }
-
-	executeCommand(command: string, ...args: any[]): Promise<unknown> {
-		return this._commandService.executeCommand(command, args);
-	}
-}
-
-Registry.as<IEmbedderApiRegistry>(Extensions.EmbedderApiContrib).register('commands', new SyncDescriptor(EmbedderCommandsApi));
 

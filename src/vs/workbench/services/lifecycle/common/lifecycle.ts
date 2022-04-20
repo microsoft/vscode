@@ -5,10 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import { Extensions, IEmbedderApiRegistry } from 'vs/platform/embedder/common/embedderRegistry';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
@@ -282,15 +279,3 @@ export const NullLifecycleService: ILifecycleService = {
 	async when() { },
 	async shutdown() { }
 };
-
-
-export class EmbedderLifecycleApi {
-	constructor(@ILifecycleService private readonly _lifecycleService: ILifecycleService) { }
-
-	shutdown(): Promise<void> {
-		return this._lifecycleService.shutdown();
-	}
-}
-
-Registry.as<IEmbedderApiRegistry>(Extensions.EmbedderApiContrib).register('lifecycle', new SyncDescriptor(EmbedderLifecycleApi));
-
