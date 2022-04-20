@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IProductConfiguration } from 'vs/base/common/product';
-import { Extensions, IEmbedderApi, IEmbedderApiRegistry } from 'vs/platform/embedder/common/embedderRegistry';
+import { Extensions, IEmbedderApiRegistry } from 'vs/platform/embedder/common/embedderRegistry';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -19,19 +19,12 @@ export interface IProductService extends Readonly<IProductConfiguration> {
 
 export const productSchemaId = 'vscode://schemas/vscode-product';
 
-export interface IEmbedderProductApi extends IEmbedderApi {
-	product: {
-		getUriScheme(): Promise<string>;
-	};
-}
-export class EmbedderProductApi implements IEmbedderProductApi {
-	product;
-	constructor(@IProductService _productService: IProductService) {
-		this.product = {
-			getUriScheme: function (): Promise<string> {
-				return Promise.resolve(_productService.urlProtocol);
-			}
-		};
+export class EmbedderProductApi {
+	constructor(@IProductService private readonly _productService: IProductService) {
+	}
+
+	getUriScheme(): Promise<string> {
+		return Promise.resolve(this._productService.urlProtocol);
 	}
 }
 

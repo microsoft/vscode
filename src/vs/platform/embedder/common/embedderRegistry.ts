@@ -3,50 +3,88 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IObservableValue } from 'vs/base/common/observableValue';
+import { URI } from 'vs/base/common/uri';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { LogLevel } from 'vs/platform/log/common/log';
+import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 
 export const Extensions = {
 	EmbedderApiContrib: 'workbench.web.embedder.api.contrib'
 };
 
 export interface IEmbedderApi {
+	commands: {
+		executeCommand(command: string, ...args: any[]): Promise<unknown>;
+	};
+
+	progress: {
+		withProgress<R>(
+			options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
+			task: (progress: IProgress<IProgressStep>) => Promise<R>
+		): Promise<R>;
+	};
+
+	logger: {
+		log(id: string, level: LogLevel, message: string): Promise<void>;
+	};
+
+	product: {
+		getUriScheme(): Promise<string>;
+	};
+
+	timer: {
+		retrievePerformanceMarks(): Promise<[string, readonly PerformanceMark[]][]>;
+	};
+
+	telemetry: {
+		readonly telemetryLevel: IObservableValue<TelemetryLevel>;
+	};
+
+	opener: {
+		openUri(target: URI): Promise<boolean>;
+	};
+
+	lifecycle: {
+		shutdown: () => Promise<void>;
+	};
 }
 
-type IEmbedderApiKey<T> = keyof T & string;
-
-export interface IEmbedderApiDescriptor<T extends IEmbedderApi> {
-	id: IEmbedderApiKey<T>;
-	readonly descriptor: SyncDescriptor<T>;
-}
+type IEmbedderApiKey = keyof IEmbedderApi & string;
 
 export interface IEmbedderApiRegistry {
 	/**
 	 * Registers contribution for the Embedder API available to vscode-dev consumers
 	 */
-	register<T extends IEmbedderApi>(key: IEmbedderApiKey<T>, descriptor: SyncDescriptor<T>): void;
+	register<T extends IEmbedderApiKey>(key: T, descriptor: SyncDescriptor<IEmbedderApi[T]>): void;
 
 	/**
 	 * Get Embedder API for vscode-dev consumers
 	 */
-	get<T extends IEmbedderApi>(key: IEmbedderApiKey<T>, instantiationService: IInstantiationService): T[IEmbedderApiKey<T>];
+	get<T extends IEmbedderApiKey>(key: T, instantiationService: IInstantiationService): IEmbedderApi[T];
 }
 
 export class EmbedderApiRegistry implements IEmbedderApiRegistry {
-	private _contributionApis = new Map<string, SyncDescriptor<IEmbedderApi>>();
+	private _apiConstructors = new Map<IEmbedderApiKey, SyncDescriptor<IEmbedderApi[IEmbedderApiKey]>>();
+	private _hydratedApis = new Map<IEmbedderApiKey, IEmbedderApi[IEmbedderApiKey]>();
 	constructor() { }
 
-	register<T extends IEmbedderApi>(key: IEmbedderApiKey<T>, descriptor: SyncDescriptor<T>) {
-		if (!this._contributionApis.has(key)) {
-			this._contributionApis.set(key, descriptor);
+	register<T extends IEmbedderApiKey>(key: T, descriptor: SyncDescriptor<IEmbedderApi[T]>): void {
+		if (!this._apiConstructors.has(key)) {
+			this._apiConstructors.set(key, descriptor);
 		}
 	}
 
-	get<T extends IEmbedderApi>(key: IEmbedderApiKey<T>, instantiationService: IInstantiationService): T[IEmbedderApiKey<T>] {
-		if (this._contributionApis.has(key)) {
-			const api = instantiationService.createInstance<T>(this._contributionApis.get(key)!.ctor);
-			return (api as T)[key];
+	get<T extends IEmbedderApiKey>(key: T, instantiationService: IInstantiationService): IEmbedderApi[T] {
+		if (this._hydratedApis.has(key)) {
+			return this._hydratedApis.get(key)! as IEmbedderApi[T];
+		} else if (this._apiConstructors.has(key)) {
+			const api = instantiationService.createInstance(this._apiConstructors.get(key)!.ctor) as IEmbedderApi[T];
+			this._hydratedApis.set(key, api);
+			return api;
 		}
 		throw new Error(`Attempted to get API for ${key} before it was registered to EmbedderApiRegistry.`);
 	}

@@ -8,7 +8,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IEditorOptions, ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { Extensions, IEmbedderApi, IEmbedderApiRegistry } from 'vs/platform/embedder/common/embedderRegistry';
+import { Extensions, IEmbedderApiRegistry } from 'vs/platform/embedder/common/embedderRegistry';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -175,11 +175,7 @@ export function extractSelection(uri: URI): { selection: ITextEditorSelection | 
 	}
 	return { selection, uri };
 }
-
-export interface IEmbedderOpenerApi extends IEmbedderApi {
-	openUri: (target: URI) => Promise<boolean>;
-}
-export class EmbedderOpenerApi implements IEmbedderOpenerApi {
+export class EmbedderOpenerApi {
 	constructor(@IOpenerService private readonly _commandService: IOpenerService) { }
 
 	openUri(target: URI): Promise<boolean> {
@@ -187,5 +183,5 @@ export class EmbedderOpenerApi implements IEmbedderOpenerApi {
 	}
 }
 
-Registry.as<IEmbedderApiRegistry>(Extensions.EmbedderApiContrib).register('openUri', new SyncDescriptor(EmbedderOpenerApi));
+Registry.as<IEmbedderApiRegistry>(Extensions.EmbedderApiContrib).register('opener', new SyncDescriptor(EmbedderOpenerApi));
 

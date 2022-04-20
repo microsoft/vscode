@@ -13,7 +13,7 @@ import { BrowserWorkbenchEnvironmentService, IBrowserWorkbenchEnvironmentService
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { RemoteFileSystemProviderClient } from 'vs/workbench/services/remote/common/remoteFileSystemProviderClient';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { EmbedderProductApi, IProductService } from 'vs/platform/product/common/productService';
+import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
@@ -66,13 +66,7 @@ import { BrowserCredentialsService } from 'vs/workbench/services/credentials/bro
 import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EmbedderLifecycleApi } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { EmbedderProgressApi } from 'vs/platform/progress/common/progress';
-import { EmbedderTimerApi } from 'vs/workbench/services/timer/browser/timerService';
-import { EmbedderTelemetryApi } from 'vs/platform/telemetry/common/telemetry';
-import { EmbedderLoggerApiKey, EmbedderLoggerApi } from 'vs/platform/log/common/webEmbedderLog';
-import { EmbedderCommandsApi } from 'vs/platform/commands/common/commands';
-import { EmbedderOpenerApi } from 'vs/platform/opener/common/opener';
+import { EmbedderLoggerApiKey } from 'vs/platform/log/common/webEmbedderLog';
 import { Extensions, IEmbedderApiRegistry } from 'vs/platform/embedder/common/embedderRegistry';
 
 export class BrowserMain extends Disposable {
@@ -118,20 +112,20 @@ export class BrowserMain extends Disposable {
 		const registry = Registry.as<IEmbedderApiRegistry>(Extensions.EmbedderApiContrib);
 
 		return {
-			commands: registry.get<EmbedderCommandsApi>('commands', instantiationService),
-			product: registry.get<EmbedderProductApi>('product', instantiationService),
-			timer: registry.get<EmbedderTimerApi>('timer', instantiationService),
-			telemetry: registry.get<EmbedderTelemetryApi>('telemetry', instantiationService),
+			commands: registry.get('commands', instantiationService),
+			product: registry.get('product', instantiationService),
+			timer: registry.get('timer', instantiationService),
+			telemetry: registry.get('telemetry', instantiationService),
 			env: {
-				telemetryLevel: registry.get<EmbedderTelemetryApi>('telemetry', instantiationService).telemetryLevel,
-				getUriScheme: () => registry.get<EmbedderProductApi>('product', instantiationService).getUriScheme(),
-				retrievePerformanceMarks: () => registry.get<EmbedderTimerApi>('timer', instantiationService).retrievePerformanceMarks(),
-				openUri: (uri: URI) => registry.get<EmbedderOpenerApi>('openUri', instantiationService)(uri)
+				telemetryLevel: registry.get('telemetry', instantiationService).telemetryLevel,
+				getUriScheme: registry.get('product', instantiationService).getUriScheme,
+				retrievePerformanceMarks: registry.get('timer', instantiationService).retrievePerformanceMarks,
+				openUri: registry.get('opener', instantiationService).openUri
 			},
-			progress: registry.get<EmbedderProgressApi>('progress', instantiationService),
-			logger: registry.get<EmbedderLoggerApi>(EmbedderLoggerApiKey, instantiationService),
-			openUri: registry.get<EmbedderOpenerApi>('openUri', instantiationService),
-			shutdown: registry.get<EmbedderLifecycleApi>('shutdown', instantiationService)
+			progress: registry.get('progress', instantiationService),
+			logger: registry.get(EmbedderLoggerApiKey, instantiationService),
+			openUri: registry.get('opener', instantiationService).openUri,
+			shutdown: registry.get('lifecycle', instantiationService).shutdown
 		};
 	}
 

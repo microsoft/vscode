@@ -18,7 +18,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IEmbedderApi, IEmbedderApiRegistry } from 'vs/platform/embedder/common/embedderRegistry';
+import { Extensions, IEmbedderApiRegistry } from 'vs/platform/embedder/common/embedderRegistry';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -646,20 +646,12 @@ export class TimerService extends AbstractTimerService {
 	}
 }
 
-export interface IEmbedderTimerApi extends IEmbedderApi {
-	timer: {
-		retrievePerformanceMarks(): Promise<[source: string, marks: readonly perf.PerformanceMark[]][]>;
-	};
-}
-export class EmbedderTimerApi implements IEmbedderTimerApi {
-	timer;
-	constructor(@ITimerService _timerService: ITimerService) {
-		this.timer = {
-			async retrievePerformanceMarks(): Promise<[source: string, marks: readonly perf.PerformanceMark[]][]> {
-				await _timerService.whenReady();
-				return _timerService.getPerformanceMarks();
-			}
-		};
+export class EmbedderTimerApi {
+	constructor(@ITimerService private readonly _timerService: ITimerService) { }
+
+	async retrievePerformanceMarks(): Promise<[source: string, marks: readonly perf.PerformanceMark[]][]> {
+		await this._timerService.whenReady();
+		return this._timerService.getPerformanceMarks();
 	}
 }
 
