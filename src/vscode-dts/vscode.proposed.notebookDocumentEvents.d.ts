@@ -44,7 +44,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Describes a structural change to a notebook document, e.g new added and removed cells.
+	 * Describes a structural change to a notebook document, e.g newly added and removed cells.
 	 *
 	 * @see {@link NotebookDocumentChangeEvent}
 	 */
