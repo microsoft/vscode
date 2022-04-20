@@ -10,6 +10,7 @@ import { resolveDocumentLink } from '../util/openDocumentLink';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { InternalHref } from './documentLinkProvider';
 import { MdHeaderReference, MdLinkReference, MdReference, MdReferencesProvider, tryFindMdDocumentForLink } from './references';
+import * as URI from 'vscode-uri';
 
 const localize = nls.loadMessageBundle();
 
@@ -145,7 +146,17 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 
 		const targetDoc = await tryFindMdDocumentForLink(triggerHref, this.workspaceContents);
 		const targetUri = targetDoc?.uri ?? triggerHref.path;
-		const newFilePath = resolveDocumentLink(newName, triggerHref.path);
+
+		let newFilePath = resolveDocumentLink(newName, triggerHref.path);
+		if (!URI.Utils.extname(newFilePath)) {
+			// If the newly entered path doesn't have a file extension but the original file did
+			// tack on a .md file extension
+			if (URI.Utils.extname(targetUri)) {
+				newFilePath = newFilePath.with({
+					path: newFilePath.path + '.md'
+				});
+			}
+		}
 
 		// First rename the file
 		fileRenames.push({ from: targetUri.toString(), to: newFilePath.toString() });

@@ -463,6 +463,25 @@ suite('markdown: rename', () => {
 		});
 	});
 
+	test('Path rename should use .md extension on extension-less link', async () => {
+		const uri = workspacePath('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`[text](/doc#header)`,
+			`[ref]: /doc#other`,
+		));
+
+		const edit = await getRenameEdits(doc, new vscode.Position(0, 10), '/new File', new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assertEditsEqual(edit!, {
+			originalUri: uri,
+			newUri: workspacePath('new File.md'),
+		}, {
+			uri: uri, edits: [
+				new vscode.TextEdit(new vscode.Range(0, 7, 0, 11), '/new%20File'),
+				new vscode.TextEdit(new vscode.Range(1, 7, 1, 11), '/new%20File'),
+			]
+		});
+	});
+
 	test('Rename on link should use header text as placeholder', async () => {
 		const uri = workspacePath('doc.md');
 		const doc = new InMemoryDocument(uri, joinLines(
