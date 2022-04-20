@@ -12,7 +12,7 @@ declare module 'vscode' {
 	 *
 	 * @see {@link NotebookDocumentChangeEvent}
 	 */
-	export interface NotebookDocumentContentCellChange {
+	export interface NotebookDocumentCellChange {
 
 		/**
 		 * The affected notebook.
@@ -44,7 +44,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Describes a structural change to a notebook document.
+	 * Describes a structural change to a notebook document, e.g new added and removed cells.
 	 *
 	 * @see {@link NotebookDocumentChangeEvent}
 	 */
@@ -52,6 +52,9 @@ declare module 'vscode' {
 
 		/**
 		 * The range at which cells have been either added or removed.
+		 *
+		 * Note that no cells have been {@link NotebookDocumentContentChange.removedCells removed}
+		 * when this range is {@link NotebookRange.isEmpty empty}.
 		 */
 		readonly range: NotebookRange;
 
@@ -87,9 +90,9 @@ declare module 'vscode' {
 		readonly contentChanges: readonly NotebookDocumentContentChange[];
 
 		/**
-		 * An array of {@link NotebookDocumentContentCellChange cell changes}.
+		 * An array of {@link NotebookDocumentCellChange cell changes}.
 		 */
-		readonly cellChanges: readonly NotebookDocumentContentCellChange[];
+		readonly cellChanges: readonly NotebookDocumentCellChange[];
 	}
 
 	export namespace workspace {
