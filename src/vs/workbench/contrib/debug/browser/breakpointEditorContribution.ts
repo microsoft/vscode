@@ -38,6 +38,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 
 const $ = dom.$;
+const TOGGLE_BREAKPOINT_BUTTON_INDEX = 1;
 
 interface IBreakpointDecoration {
 	decorationId: string;
@@ -242,28 +243,30 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 					if (!env.isLinux && breakpoints.some(bp => !!bp.condition || !!bp.logMessage || !!bp.hitCondition)) {
 						const logPoint = breakpoints.every(bp => !!bp.logMessage);
 						const breakpointType = logPoint ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
-						const disable = breakpoints.some(bp => bp.enabled);
-						const isDisableAction = disable && isShiftPressed;
+						const enabled = breakpoints.some(bp => bp.enabled);
+						const isDisableAction = enabled && isShiftPressed;
 
-						const enabling = nls.localize('breakpointHasConditionDisabled',
+						const disabledBreakpointDialogMessage = nls.localize(
+							'breakpointHasConditionDisabled',
 							"This {0} has a {1} that will get lost on remove. Consider enabling the {0} instead.",
 							breakpointType.toLowerCase(),
 							logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")
 						);
-						const disabling = nls.localize('breakpointHasConditionEnabled',
+						const enabledBreakpointDialogMessage = nls.localize(
+							'breakpointHasConditionEnabled',
 							"This {0} has a {1} that will get lost on remove. Consider disabling the {0} instead.",
 							breakpointType.toLowerCase(),
 							logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")
 						);
 
 						const dialogActionChoicePromise = isDisableAction
-							? Promise.resolve(1)
+							? Promise.resolve(TOGGLE_BREAKPOINT_BUTTON_INDEX)
 							: this.dialogService.show(
 								severity.Info,
-								disable ? disabling : enabling,
+								enabled ? enabledBreakpointDialogMessage : disabledBreakpointDialogMessage,
 								[
 									nls.localize('removeLogPoint', "Remove {0}", breakpointType),
-									nls.localize('disableLogPoint', "{0} {1}", disable ? nls.localize('disable', "Disable") : nls.localize('enable', "Enable"), breakpointType),
+									nls.localize('disableLogPoint', "{0} {1}", enabled ? nls.localize('disable', "Disable") : nls.localize('enable', "Enable"), breakpointType),
 									nls.localize('cancel', "Cancel")
 								],
 								{ cancelId: 2 },
@@ -274,8 +277,8 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 						if (choice === 0) {
 							breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
 						}
-						if (choice === 1) {
-							breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!disable, bp));
+						if (choice === TOGGLE_BREAKPOINT_BUTTON_INDEX) {
+							breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp));
 						}
 					} else {
 						const enabled = breakpoints.some(bp => bp.enabled);
