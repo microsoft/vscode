@@ -103,6 +103,8 @@ steps:
   - script: |
       set -e
       yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Compile & Hygiene
 
   - script: |

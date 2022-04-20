@@ -181,7 +181,6 @@ import type { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/brow
 // eslint-disable-next-line no-duplicate-imports
 import type { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
 
-
 export {
 
 	// Factory

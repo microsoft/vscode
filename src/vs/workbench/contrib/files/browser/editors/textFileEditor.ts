@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { toAction } from 'vs/base/common/actions';
+import { IAction, toAction } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, BINARY_TEXT_FILE_MODE } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -180,9 +180,24 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 
 		// Similar, handle case where we were asked to open a folder in the text editor.
 		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_DIRECTORY) {
-			this.openAsFolder(input);
+			let action: IAction;
+			if (this.contextService.isInsideWorkspace(input.preferredResource)) {
+				action = toAction({
+					id: 'workbench.files.action.reveal', label: localize('reveal', "Reveal in Explorer View"), run: async () => {
+						await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
 
-			throw new Error(localize('openFolderError', "File is a directory"));
+						return this.explorerService.select(input.preferredResource, true);
+					}
+				});
+			} else {
+				action = toAction({
+					id: 'workbench.files.action.ok', label: localize('ok', "OK"), run: async () => {
+						// No operation possible, but clicking OK will close the editor
+					}
+				});
+			}
+
+			throw createErrorWithActions(new FileOperationError(localize('fileIsDirectoryError', "File is a directory"), FileOperationResult.FILE_IS_DIRECTORY), [action]);
 		}
 
 		// Offer to create a file from the error if we have a file not found and the name is valid
@@ -259,22 +274,6 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 		}
 
 		group.openEditor(editor, editorOptions);
-	}
-
-	private async openAsFolder(input: FileEditorInput): Promise<void> {
-		if (!this.group) {
-			return;
-		}
-
-		// Since we cannot open a folder, we have to restore the previous input if any and close the editor
-		await this.group.closeEditor(this.input);
-
-		// Best we can do is to reveal the folder in the explorer
-		if (this.contextService.isInsideWorkspace(input.preferredResource)) {
-			await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
-
-			this.explorerService.select(input.preferredResource, true);
-		}
 	}
 
 	override clearInput(): void {

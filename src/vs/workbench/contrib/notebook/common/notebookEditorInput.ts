@@ -102,6 +102,10 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			}
 		}
 
+		if (!(capabilities & EditorInputCapabilities.Readonly)) {
+			capabilities |= EditorInputCapabilities.CanDropIntoEditor;
+		}
+
 		return capabilities;
 	}
 

@@ -575,4 +575,10 @@ suite('Filters', () => {
 		assert.ok(bScore);
 		assert.ok(aScore[0] === bScore[0]);
 	});
+
+	test('Unexpected suggest highlighting ignores whole word match in favor of matching first letter#147423', function () {
+
+		assertMatches('i', 'machine/{id}', 'machine/{^id}', fuzzyScore);
+		assertMatches('ok', 'obobobf{ok}/user', '^obobobf{o^k}/user', fuzzyScore);
+	});
 });

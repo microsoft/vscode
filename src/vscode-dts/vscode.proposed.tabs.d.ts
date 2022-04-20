@@ -7,9 +7,6 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
-	// TODO@API name alternatives for TabKind: TabInput, TabOptions,
-
-
 	/**
 	 * The tab represents a single text based resource
 	 */
@@ -90,6 +87,9 @@ declare module 'vscode' {
 		 * The uri of the modified notebook.
 		 */
 		readonly modified: Uri;
+		/**
+		 * The type of notebook. Maps to {@linkcode NotebookDocument.notebookType NotebookDocuments's notebookType}
+		 */
 		readonly notebookType: string;
 		constructor(original: Uri, modified: Uri, notebookType: string);
 	}
@@ -153,16 +153,46 @@ declare module 'vscode' {
 		export const tabGroups: TabGroups;
 	}
 
+	/**
+	 * An event describing change to tabs.
+	 */
 	export interface TabChangeEvent {
-		// TODO@API consider: opened
-		readonly added: readonly Tab[];
-		// TODO@API consider: closed (aligns with TabGroups.close(...))
-		readonly removed: readonly Tab[];
+		/**
+		 * The tabs that have been opened
+		 */
+		readonly opened: readonly Tab[];
+		/**
+		 * The tabs that have been closed
+		 */
+		readonly closed: readonly Tab[];
+		/**
+		 * Tabs that have changed, e.g have changed
+		 * their {@link Tab.isActive active} state.
+		 */
 		readonly changed: readonly Tab[];
 	}
 
 	/**
-	 * Represents a group of tabs. A tab group itself consists of multiple tab
+	 * An event describing changes to tab groups.
+	 */
+	export interface TabGroupChangeEvent {
+		/**
+		 * Tab groups that have been opened.
+		 */
+		readonly opened: readonly TabGroup[];
+		/**
+		 * Tab groups that have been closed.
+		 */
+		readonly closed: readonly TabGroup[];
+		/**
+		 * Tab groups that have changed, e.g have changed
+		 * their {@link TabGroup.isActive active} state.
+		 */
+		readonly changed: readonly TabGroup[];
+	}
+
+	/**
+	 * Represents a group of tabs. A tab group itself consists of multiple tabs.
 	 */
 	export interface TabGroup {
 		/**
@@ -195,6 +225,9 @@ declare module 'vscode' {
 		readonly tabs: readonly Tab[];
 	}
 
+	/**
+	 * Represents the main editor area which consists of multple groups which contain tabs.
+	 */
 	export interface TabGroups {
 		/**
 		 * All the groups within the group container
@@ -209,8 +242,7 @@ declare module 'vscode' {
 		/**
 		 * An {@link Event event} which fires when {@link TabGroup tab groups} have changed.
 		 */
-		// TODO@API consider `TabGroupChangeEvent` similar to `TabChangeEvent`
-		readonly onDidChangeTabGroups: Event<readonly TabGroup[]>;
+		readonly onDidChangeTabGroups: Event<TabGroupChangeEvent>;
 
 		/**
 		 * An {@link Event event} which fires when {@link Tab tabs} have changed.

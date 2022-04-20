@@ -258,8 +258,8 @@ export class InlayHintsController implements IEditorContribution {
 		}
 
 		// mouse gestures
+		this._sessionDisposables.add(this._installDblClickGesture(() => scheduler.schedule(0)));
 		this._sessionDisposables.add(this._installLinkGesture());
-		this._sessionDisposables.add(this._installDblClickGesture());
 		this._sessionDisposables.add(this._installContextMenu());
 	}
 
@@ -329,7 +329,7 @@ export class InlayHintsController implements IEditorContribution {
 		return Array.from(lineHints);
 	}
 
-	private _installDblClickGesture(): IDisposable {
+	private _installDblClickGesture(updateInlayHints: Function): IDisposable {
 		return this._editor.onMouseUp(async e => {
 			if (e.event.detail !== 2) {
 				return;
@@ -343,6 +343,7 @@ export class InlayHintsController implements IEditorContribution {
 			if (isNonEmptyArray(part.item.hint.textEdits)) {
 				const edits = part.item.hint.textEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
 				this._editor.executeEdits('inlayHint.default', edits);
+				updateInlayHints();
 			}
 		});
 	}

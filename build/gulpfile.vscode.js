@@ -50,7 +50,6 @@ const vscodeEntryPoints = _.flatten([
 const vscodeResources = [
 	'out-build/main.js',
 	'out-build/cli.js',
-	'out-build/driver.js',
 	'out-build/bootstrap.js',
 	'out-build/bootstrap-fork.js',
 	'out-build/bootstrap-amd.js',
@@ -331,6 +330,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 			result = es.merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
 				.pipe(rename(product.nameShort + '.VisualElementsManifest.xml')));
+
+			result = es.merge(result, gulp.src('resources/win32/policies/**', { base: 'resources/win32' }));
 		} else if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
 				.pipe(replace('@@PRODNAME@@', product.nameLong))

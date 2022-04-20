@@ -416,7 +416,6 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 						className,
 						null,
 						l === start.lineNumber ? start.column : -1,
-						// TODO: Investigate if this is correct
 						l === end.lineNumber ? end.column : -1
 					)
 				);

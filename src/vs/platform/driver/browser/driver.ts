@@ -205,6 +205,10 @@ export class BrowserWindowDriver implements IWindowDriver {
 
 		throw new Error('Method not implemented.');
 	}
+
+	async exitApplication(): Promise<void> {
+		// No-op in web
+	}
 }
 
 export function registerWindowDriver(): void {

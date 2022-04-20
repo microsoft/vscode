@@ -138,7 +138,16 @@ export class TMGrammarFactory extends Disposable {
 		let grammar: IGrammar | null;
 
 		try {
-			grammar = await this._grammarRegistry.loadGrammarWithConfiguration(scopeName, encodedLanguageId, { embeddedLanguages, tokenTypes: <any>grammarDefinition.tokenTypes });
+			grammar = await this._grammarRegistry.loadGrammarWithConfiguration(
+				scopeName,
+				encodedLanguageId,
+				{
+					embeddedLanguages,
+					tokenTypes: <any>grammarDefinition.tokenTypes,
+					balancedBracketSelectors: grammarDefinition.balancedBracketSelectors,
+					unbalancedBracketSelectors: grammarDefinition.unbalancedBracketSelectors,
+				}
+			);
 		} catch (err) {
 			if (err.message && err.message.startsWith('No grammar provided for')) {
 				// No TM grammar defined
