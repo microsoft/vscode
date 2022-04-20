@@ -332,24 +332,29 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	// create trie to enable fast 'filename -> extension id' look up
 	public async getExtensionPathIndex(): Promise<TernarySearchTree<URI, IExtensionDescription>> {
 		if (!this._extensionPathIndex) {
-			this._extensionPathIndex = (async () => {
-				const tst = TernarySearchTree.forUris<IExtensionDescription>(key => {
-					// using the default/biased extUri-util because the IExtHostFileSystemInfo-service
-					// isn't ready to be used yet, e.g the knowledge about `file` protocol and others
-					// comes in while this code runs
-					return extUriBiasedIgnorePathCase.ignorePathCasing(key);
-				});
-				// const tst = TernarySearchTree.forUris<IExtensionDescription>(key => true);
-				for (const ext of this._myRegistry.getAllExtensionDescriptions()) {
-					if (this._getEntryPoint(ext)) {
-						const uri = await this._realPathExtensionUri(ext.extensionLocation);
-						tst.set(uri, ext);
-					}
-				}
-				return tst;
-			})();
+			this._extensionPathIndex = this._createExtensionPathIndex(this._myRegistry.getAllExtensionDescriptions());
 		}
 		return this._extensionPathIndex;
+	}
+
+	/**
+	 * create trie to enable fast 'filename -> extension id' look up
+	 */
+	private async _createExtensionPathIndex(extensions: IExtensionDescription[]): Promise<TernarySearchTree<URI, IExtensionDescription>> {
+		const tst = TernarySearchTree.forUris<IExtensionDescription>(key => {
+			// using the default/biased extUri-util because the IExtHostFileSystemInfo-service
+			// isn't ready to be used yet, e.g the knowledge about `file` protocol and others
+			// comes in while this code runs
+			return extUriBiasedIgnorePathCase.ignorePathCasing(key);
+		});
+		// const tst = TernarySearchTree.forUris<IExtensionDescription>(key => true);
+		await Promise.all(this._myRegistry.getAllExtensionDescriptions().map(async (ext) => {
+			if (this._getEntryPoint(ext)) {
+				const uri = await this._realPathExtensionUri(ext.extensionLocation);
+				tst.set(uri, ext);
+			}
+		}));
+		return tst;
 	}
 
 	private _deactivate(extensionId: ExtensionIdentifier): Promise<void> {
