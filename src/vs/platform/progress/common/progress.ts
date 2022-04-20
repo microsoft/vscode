@@ -223,4 +223,3 @@ export interface IEditorProgressService extends IProgressIndicator {
 
 	readonly _serviceBrand: undefined;
 }
-
