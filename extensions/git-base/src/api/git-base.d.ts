@@ -55,6 +55,10 @@ export interface RemoteSource {
 	readonly url: string | string[];
 }
 
+export interface RecentRemoteSource extends RemoteSource {
+	readonly timestamp: number;
+}
+
 export interface RemoteSourceProvider {
 	readonly name: string;
 	/**
@@ -66,7 +70,6 @@ export interface RemoteSourceProvider {
 	readonly supportsQuery?: boolean;
 
 	getBranches?(url: string): ProviderResult<string[]>;
+	getRecentRemoteSources?(query?: string): ProviderResult<RecentRemoteSource[]>;
 	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
-	getRecentRemoteSources?(query?: string): ProviderResult<RemoteSource[]>;
 }
-

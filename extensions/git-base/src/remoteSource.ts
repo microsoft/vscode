@@ -102,14 +102,14 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 	const remoteProviders = model.getRemoteProviders()
 		.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + (options.providerLabel ? options.providerLabel(provider) : provider.name), alwaysShow: true, provider }));
 
-	const recentSources: (QuickPickItem & { url?: string })[] = [];
+	const recentSources: (QuickPickItem & { url?: string; timestamp: number })[] = [];
 	if (options.showRecentSources) {
 		for (const { provider } of remoteProviders) {
 			const sources = (await provider.getRecentRemoteSources?.() ?? []).map((item) => {
 				return {
 					...item,
 					label: (item.icon ? `$(${item.icon}) ` : '') + item.name,
-					url: typeof item.url === 'string' ? item.url : item.url[0]
+					url: typeof item.url === 'string' ? item.url : item.url[0],
 				};
 			});
 			recentSources.push(...sources);
@@ -120,7 +120,7 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 		{ kind: QuickPickItemKind.Separator, label: localize('remote sources', 'remote sources') },
 		...remoteProviders,
 		{ kind: QuickPickItemKind.Separator, label: localize('recently opened', 'recently opened') },
-		...recentSources
+		...recentSources.sort((a, b) => b.timestamp - a.timestamp)
 	];
 
 	quickpick.placeholder = options.placeholder ?? (remoteProviders.length === 0
