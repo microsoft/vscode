@@ -235,12 +235,15 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 				const breakpoints = this.debugService.getModel().getBreakpoints({ uri, lineNumber });
 
 				if (breakpoints.length) {
+					const isShiftPressed = e.event.shiftKey;
+
 					// Show the dialog if there is a potential condition to be accidently lost.
 					// Do not show dialog on linux due to electron issue freezing the mouse #50026
 					if (!env.isLinux && breakpoints.some(bp => !!bp.condition || !!bp.logMessage || !!bp.hitCondition)) {
 						const logPoint = breakpoints.every(bp => !!bp.logMessage);
 						const breakpointType = logPoint ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
 						const disable = breakpoints.some(bp => bp.enabled);
+						const isDisableAction = disable && isShiftPressed;
 
 						const enabling = nls.localize('breakpointHasConditionDisabled',
 							"This {0} has a {1} that will get lost on remove. Consider enabling the {0} instead.",
@@ -253,11 +256,20 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 							logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")
 						);
 
-						const { choice } = await this.dialogService.show(severity.Info, disable ? disabling : enabling, [
-							nls.localize('removeLogPoint', "Remove {0}", breakpointType),
-							nls.localize('disableLogPoint', "{0} {1}", disable ? nls.localize('disable', "Disable") : nls.localize('enable', "Enable"), breakpointType),
-							nls.localize('cancel', "Cancel")
-						], { cancelId: 2 });
+						const dialogActionChoicePromise = isDisableAction
+							? Promise.resolve(1)
+							: this.dialogService.show(
+								severity.Info,
+								disable ? disabling : enabling,
+								[
+									nls.localize('removeLogPoint', "Remove {0}", breakpointType),
+									nls.localize('disableLogPoint', "{0} {1}", disable ? nls.localize('disable', "Disable") : nls.localize('enable', "Enable"), breakpointType),
+									nls.localize('cancel', "Cancel")
+								],
+								{ cancelId: 2 },
+							).then(({ choice }) => choice);
+
+						const choice = await dialogActionChoicePromise;
 
 						if (choice === 0) {
 							breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
@@ -267,7 +279,6 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 						}
 					} else {
 						const enabled = breakpoints.some(bp => bp.enabled);
-						const isShiftPressed = e.event.shiftKey;
 
 						if (!enabled || isShiftPressed) {
 							breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp));
