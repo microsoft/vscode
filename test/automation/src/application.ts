@@ -67,10 +67,8 @@ export class Application {
 	}
 
 	async restart(options?: { workspaceOrFolder?: string; extraArgs?: string[] }): Promise<void> {
-		await measureAndLog((async () => {
-			await this.stop();
-			await this._start(options?.workspaceOrFolder, options?.extraArgs);
-		})(), 'Application#restart()', this.logger);
+		await this.stop();
+		await this._start(options?.workspaceOrFolder, options?.extraArgs);
 	}
 
 	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<void> {
