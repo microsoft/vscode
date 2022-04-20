@@ -628,12 +628,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		await Promise.all(promises);
 	}
 
-	private async _updateExtensionsOnExtHost(extensionHostManager: IExtensionHostManager, _toAdd: IExtensionDescription[], _toRemove: ExtensionIdentifier[], removedRunningLocation: Map<string, ExtensionRunningLocation | null>): Promise<void> {
-		const toAdd = filterByExtensionHostManager(_toAdd, this._runningLocation, extensionHostManager);
-		const toRemove = _filterByExtensionHostManager(_toRemove, extId => extId, removedRunningLocation, extensionHostManager);
-		if (toRemove.length > 0 || toAdd.length > 0) {
-			await extensionHostManager.deltaExtensions(toAdd, toRemove);
-		}
+	private async _updateExtensionsOnExtHost(extensionHostManager: IExtensionHostManager, toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[], removedRunningLocation: Map<string, ExtensionRunningLocation | null>): Promise<void> {
+		const myToAdd = filterByExtensionHostManager(toAdd, this._runningLocation, extensionHostManager);
+		const myToRemove = _filterByExtensionHostManager(toRemove, extId => extId, removedRunningLocation, extensionHostManager);
+		await extensionHostManager.deltaExtensions({ toRemove, toAdd, myToRemove, myToAdd: myToAdd.map(extension => extension.identifier) });
 	}
 
 	public canAddExtension(extension: IExtensionDescription): boolean {

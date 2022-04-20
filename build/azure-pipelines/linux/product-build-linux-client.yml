@@ -21,7 +21,7 @@ steps:
       artifact: reh_node_modules-$(VSCODE_ARCH)
       path: $(Build.ArtifactStagingDirectory)
     displayName: Download server build dependencies
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'armhf'))
 
   - script: |
       set -e

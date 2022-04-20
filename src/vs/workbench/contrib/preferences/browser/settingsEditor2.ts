@@ -838,7 +838,11 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}));
 		this._register(this.settingRenderers.onApplyLanguageFilter((lang: string) => {
-			this.focusSearch(`@${LANGUAGE_SETTING_TAG}${lang}`);
+			if (this.searchWidget) {
+				// Prepend the language filter to the query.
+				const newQuery = `@${LANGUAGE_SETTING_TAG}${lang} ${this.searchWidget.getValue().trimStart()}`;
+				this.focusSearch(newQuery, false);
+			}
 		}));
 
 		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsTree,
