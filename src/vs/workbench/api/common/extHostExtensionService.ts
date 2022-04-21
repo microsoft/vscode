@@ -513,7 +513,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				get extensionMode() { return extensionMode; },
 				get extension() {
 					if (extension === undefined) {
-						extension = new Extension(that, extensionDescription.identifier, extensionDescription, extensionKind);
+						extension = new Extension(that, extensionDescription.identifier, extensionDescription, extensionKind, false);
 					}
 					return extension;
 				},
@@ -983,8 +983,9 @@ export class Extension<T extends object | null | undefined> implements vscode.Ex
 	readonly extensionPath: string;
 	readonly packageJSON: IExtensionDescription;
 	readonly extensionKind: vscode.ExtensionKind;
+	readonly isFromDifferentExtensionHost: boolean;
 
-	constructor(extensionService: IExtHostExtensionService, originExtensionId: ExtensionIdentifier, description: IExtensionDescription, kind: ExtensionKind) {
+	constructor(extensionService: IExtHostExtensionService, originExtensionId: ExtensionIdentifier, description: IExtensionDescription, kind: ExtensionKind, isFromDifferentExtensionHost: boolean) {
 		this.#extensionService = extensionService;
 		this.#originExtensionId = originExtensionId;
 		this.#identifier = description.identifier;
@@ -993,21 +994,27 @@ export class Extension<T extends object | null | undefined> implements vscode.Ex
 		this.extensionPath = path.normalize(originalFSPath(description.extensionLocation));
 		this.packageJSON = description;
 		this.extensionKind = kind;
+		this.isFromDifferentExtensionHost = isFromDifferentExtensionHost;
 	}
 
 	get isActive(): boolean {
+		// TODO@alexdima support this
 		return this.#extensionService.isActivated(this.#identifier);
 	}
 
 	get exports(): T {
-		if (this.packageJSON.api === 'none') {
+		if (this.packageJSON.api === 'none' || this.isFromDifferentExtensionHost) {
 			return undefined!; // Strict nulloverride - Public api
 		}
 		return <T>this.#extensionService.getExtensionExports(this.#identifier);
 	}
 
-	activate(): Thenable<T> {
-		return this.#extensionService.activateByIdWithErrors(this.#identifier, { startup: false, extensionId: this.#originExtensionId, activationEvent: 'api' }).then(() => this.exports);
+	async activate(): Promise<T> {
+		if (this.isFromDifferentExtensionHost) {
+			throw new Error('Cannot activate foreign extension'); // TODO@alexdima support this
+		}
+		await this.#extensionService.activateByIdWithErrors(this.#identifier, { startup: false, extensionId: this.#originExtensionId, activationEvent: 'api' });
+		return this.exports;
 	}
 }
 

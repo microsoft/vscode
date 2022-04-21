@@ -8,10 +8,9 @@ import { URI } from 'vs/base/common/uri';
 import { MainThreadTelemetryShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IExtensionApiFactory } from 'vs/workbench/api/common/extHost.api.impl';
+import { IExtensionApiFactory, IExtensionRegistries } from 'vs/workbench/api/common/extHost.api.impl';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -41,7 +40,7 @@ export abstract class RequireInterceptor {
 
 	constructor(
 		private _apiFactory: IExtensionApiFactory,
-		private _extensionRegistry: ExtensionDescriptionRegistry,
+		private _extensionRegistry: IExtensionRegistries,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IExtHostConfiguration private readonly _extHostConfiguration: IExtHostConfiguration,
 		@IExtHostExtensionService private readonly _extHostExtensionService: IExtHostExtensionService,
@@ -156,7 +155,7 @@ class VSCodeNodeModuleFactory implements INodeModuleFactory {
 	constructor(
 		private readonly _apiFactory: IExtensionApiFactory,
 		private readonly _extensionPaths: ExtensionPaths,
-		private readonly _extensionRegistry: ExtensionDescriptionRegistry,
+		private readonly _extensionRegistry: IExtensionRegistries,
 		private readonly _configProvider: ExtHostConfigProvider,
 		private readonly _logService: ILogService,
 	) {
