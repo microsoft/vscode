@@ -186,6 +186,8 @@ export interface IPathData {
 
 	/**
 	 * An optional selection to apply in the file
+	 *
+	 * @deprecated Use options instead
 	 */
 	readonly selection?: {
 		readonly startLineNumber: number;
@@ -207,8 +209,12 @@ export interface IPathData {
 	// if it exists
 	readonly openOnlyIfExists?: boolean;
 
-	// Specifies an optional id to override the editor
-	// used to edit the resource, e.g. custom editor.
+	/**
+	 * Specifies an optional id to override the editor
+	 * used to edit the resource, e.g. custom editor.
+	 *
+	 * @deprecated Use options.override instead
+	 */
 	readonly editorOverrideId?: string;
 }
 
