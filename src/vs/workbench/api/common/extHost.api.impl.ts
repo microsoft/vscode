@@ -791,7 +791,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostUriOpeners.registerExternalUriOpener(extension.identifier, id, opener, metadata);
 			},
 			get tabGroups(): vscode.TabGroups {
-				checkProposedApiEnabled(extension, 'tabs');
 				return extHostEditorTabs.tabGroups;
 			},
 			getInlineCompletionItemController<T extends vscode.InlineCompletionItem>(provider: vscode.InlineCompletionItemProvider<T>): vscode.InlineCompletionController<T> {
@@ -1345,13 +1344,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageStatusSeverity: extHostTypes.LanguageStatusSeverity,
 			QuickPickItemKind: extHostTypes.QuickPickItemKind,
 			InputBoxValidationSeverity: extHostTypes.InputBoxValidationSeverity,
-			TabKindText: extHostTypes.TextTabInput,
-			TabKindTextDiff: extHostTypes.TextDiffTabInput,
-			TabKindCustom: extHostTypes.CustomEditorTabInput,
-			TabKindNotebook: extHostTypes.NotebookEditorTabInput,
-			TabKindNotebookDiff: extHostTypes.NotebookDiffEditorTabInput,
-			TabKindWebview: extHostTypes.WebviewEditorTabInput,
-			TabKindTerminal: extHostTypes.TerminalEditorTabInput
+			TabInputText: extHostTypes.TextTabInput,
+			TabInputTextDiff: extHostTypes.TextDiffTabInput,
+			TabInputCustom: extHostTypes.CustomEditorTabInput,
+			TabInputNotebook: extHostTypes.NotebookEditorTabInput,
+			TabInputNotebookDiff: extHostTypes.NotebookDiffEditorTabInput,
+			TabInputWebview: extHostTypes.WebviewEditorTabInput,
+			TabInputTerminal: extHostTypes.TerminalEditorTabInput
 		};
 	};
 }
