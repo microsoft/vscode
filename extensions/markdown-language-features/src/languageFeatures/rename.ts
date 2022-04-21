@@ -22,8 +22,8 @@ export interface MdReferencesResponse {
 }
 
 interface MdFileRenameEdit {
-	readonly from: string;
-	readonly to: string;
+	readonly from: vscode.Uri;
+	readonly to: vscode.Uri;
 }
 
 /**
@@ -161,7 +161,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 		}
 
 		// First rename the file
-		fileRenames.push({ from: targetUri.toString(), to: resolvedNewFilePath.toString() });
+		fileRenames.push({ from: targetUri, to: resolvedNewFilePath });
 		edit.renameFile(targetUri, resolvedNewFilePath);
 
 		// Then update all refs to it
