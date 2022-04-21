@@ -245,7 +245,6 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 						// Do not show dialog on linux due to electron issue freezing the mouse #50026
 						const logPoint = breakpoints.every(bp => !!bp.logMessage);
 						const breakpointType = logPoint ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
-						const enabled = breakpoints.some(bp => bp.enabled);
 
 						const disabledBreakpointDialogMessage = nls.localize(
 							'breakpointHasConditionDisabled',
