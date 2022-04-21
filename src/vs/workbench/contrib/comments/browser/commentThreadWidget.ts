@@ -231,7 +231,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._pendingComment,
 			this,
 			this._containerDelegate.actionRunner
-		);
+		) as CommentReply<T>;
 
 		this._register(this._commentReply);
 	}
