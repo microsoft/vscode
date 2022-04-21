@@ -412,6 +412,16 @@ suite('markdown: rename', () => {
 		});
 	});
 
+	test('Path rename should use un-encoded paths as placeholder', async () => {
+		const uri = workspacePath('sub', 'doc with spaces.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`[text](/sub/doc%20with%20spaces.md)`,
+		));
+
+		const info = await prepareRename(doc, new vscode.Position(0, 10), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assert.strictEqual(info!.placeholder, '/sub/doc with spaces.md');
+	});
+
 	test('Path rename should encode paths', async () => {
 		const uri = workspacePath('sub', 'doc.md');
 		const doc = new InMemoryDocument(uri, joinLines(

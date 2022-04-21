@@ -37,6 +37,14 @@ export interface MdWorkspaceEdit {
 	readonly fileRenames?: ReadonlyArray<MdFileRenameEdit>;
 }
 
+function tryDecodeUri(str: string): string {
+	try {
+		return decodeURI(str);
+	} catch {
+		return str;
+	}
+}
+
 export class MdRenameProvider extends Disposable implements vscode.RenameProvider {
 
 	private cachedRefs?: {
@@ -98,7 +106,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 				if (!range) {
 					throw new Error(this.renameNotSupportedText);
 				}
-				return { range, placeholder: document.getText(range) };
+				return { range, placeholder: tryDecodeUri(document.getText(range)) };
 			}
 		}
 	}
