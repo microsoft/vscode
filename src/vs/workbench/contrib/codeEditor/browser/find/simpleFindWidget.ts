@@ -310,7 +310,7 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 		this._matchesCount.innerText = '';
 		let label;
-		if (count?.resultCount === -1 && count.resultIndex === -1) {
+		if (count?.resultCount === -1) {
 			label = NLS_MAX_RESULTS;
 		} else {
 			label = count === undefined || count.resultCount === 0 ? NLS_NO_RESULTS : strings.format(NLS_MATCHES_LOCATION, count.resultIndex + 1, count?.resultCount);
