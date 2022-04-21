@@ -17,6 +17,8 @@ export interface ITableColumn<TRow, TCell> {
 	readonly onDidChangeWidthConstraints?: Event<void>;
 
 	project(row: TRow): TCell;
+
+	readonly fixed?: boolean;
 }
 
 export interface ITableVirtualDelegate<TRow> {
@@ -24,7 +26,9 @@ export interface ITableVirtualDelegate<TRow> {
 	getHeight(row: TRow): number;
 }
 
-export interface ITableRenderer<TCell, TTemplateData> extends IListRenderer<TCell, TTemplateData> { }
+export interface ITableRenderer<TCell, TTemplateData> extends IListRenderer<TCell, TTemplateData> {
+	getContentWidth?(visibleTemplates: TTemplateData[]): number;
+}
 
 export interface ITableEvent<TRow> extends IListEvent<TRow> { }
 export interface ITableMouseEvent<TRow> extends IListMouseEvent<TRow> { }

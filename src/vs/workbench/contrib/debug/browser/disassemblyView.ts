@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PixelRatio } from 'vs/base/browser/browser';
+import { isFirefox, PixelRatio } from 'vs/base/browser/browser';
 import { Dimension, append, $, addStandardDisposableListener } from 'vs/base/browser/dom';
 import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -47,6 +47,7 @@ interface IDisassembledInstructionEntry {
 	isBreakpointEnabled: boolean;
 	instruction: DebugProtocol.DisassembledInstruction;
 	instructionAddress?: bigint;
+	width?: number;
 }
 
 // Special entry as a placeholer when disassembly is not available
@@ -167,13 +168,15 @@ export class DisassemblyView extends EditorPane {
 					minimumWidth: this.fontInfo.lineHeight,
 					maximumWidth: this.fontInfo.lineHeight,
 					templateId: BreakpointRenderer.TEMPLATE_ID,
-					project(row: IDisassembledInstructionEntry): IDisassembledInstructionEntry { return row; }
+					project(row: IDisassembledInstructionEntry): IDisassembledInstructionEntry { return row; },
+					fixed: true
 				},
 				{
 					label: localize('disassemblyTableColumnLabel', "instructions"),
 					tooltip: '',
 					weight: 0.3,
 					templateId: InstructionRenderer.TEMPLATE_ID,
+					minimumWidth: Number.POSITIVE_INFINITY,
 					project(row: IDisassembledInstructionEntry): IDisassembledInstructionEntry { return row; }
 				},
 			],
@@ -183,7 +186,7 @@ export class DisassemblyView extends EditorPane {
 			],
 			{
 				identityProvider: { getId: (e: IDisassembledInstructionEntry) => e.instruction.address },
-				horizontalScrolling: false,
+				horizontalScrolling: true,
 				overrideStyles: {
 					listBackground: editorBackground
 				},
@@ -594,6 +597,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 	private _topStackFrameColor: Color | undefined;
 	private _focusedStackFrameColor: Color | undefined;
+	private maximumWidth = 0;
 
 	constructor(
 		private readonly _disassemblyView: DisassemblyView,
@@ -698,6 +702,12 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		templateData.instruction.innerText = sb.build();
 
 		this.rerenderBackground(templateData.instruction, templateData.sourcecode, element);
+
+		if (element.width === undefined) {
+			templateData.instruction.parentElement!.style.width = isFirefox ? '-moz-fit-content' : 'fit-content';
+			element.width = templateData.instruction.parentElement!.getBoundingClientRect().width;
+			templateData.instruction.parentElement!.style.width = '';
+		}
 	}
 
 	disposeElement(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData, height: number | undefined): void {
@@ -766,6 +776,11 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 	private applyFontInfo(element: HTMLElement) {
 		applyFontInfo(element, this._disassemblyView.fontInfo);
 		element.style.whiteSpace = 'pre';
+	}
+
+	getContentWidth(templates: IInstructionColumnTemplateData[]): number {
+		this.maximumWidth = Math.max(this.maximumWidth, Math.max(...templates.map(template => template.currentElement?.element?.width ?? 0)));
+		return this.maximumWidth;
 	}
 }
 

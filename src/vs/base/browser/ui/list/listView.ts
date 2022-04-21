@@ -595,7 +595,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}
 	}
 
-	private eventuallyUpdateScrollWidth(): void {
+	eventuallyUpdateScrollWidth(): void {
 		if (!this.horizontalScrolling) {
 			this.scrollableElementWidthDelayer.cancel();
 			return;
@@ -886,6 +886,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 			this.cache.release(item.row);
 			item.row = null;
+			item.width = undefined;
 		}
 
 		if (this.horizontalScrolling) {

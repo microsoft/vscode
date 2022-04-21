@@ -8,6 +8,8 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { IListOptions, IListOptionsUpdate, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
 import { ISplitViewDescriptor, IView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableGestureEvent, ITableMouseEvent, ITableRenderer, ITableTouchEvent, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
+import { Delayer } from 'vs/base/common/async';
+import { illegalArgument } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
@@ -30,9 +32,12 @@ class TableListRenderer<TRow> implements IListRenderer<TRow, RowTemplateData> {
 	readonly templateId = TableListRenderer.TemplateId;
 	private renderers: ITableRenderer<TCell, unknown>[];
 	private renderedTemplates = new Set<RowTemplateData>();
+	private widthDelayer = new Delayer<void>(50);
 
 	constructor(
+		private table: Table<TRow>,
 		private columns: ITableColumn<TRow, TCell>[],
+		private headers: ColumnHeader<TRow, TCell>[],
 		renderers: ITableRenderer<TCell, unknown>[],
 		private getColumnSize: (index: number) => number
 	) {
@@ -77,6 +82,18 @@ class TableListRenderer<TRow> implements IListRenderer<TRow, RowTemplateData> {
 			const renderer = this.renderers[i];
 			renderer.renderElement(cell, index, templateData.cellTemplateData[i], height);
 		}
+		this.widthDelayer.trigger(() => {
+			for (let i = 0; i < this.columns.length; i++) {
+				if (this.columns[i].minimumWidth === Number.POSITIVE_INFINITY) {
+					// Calculate new width
+					let width = this.getContentWidth(i);
+					if (width !== undefined && width !== this.headers[i].contentSize) {
+						this.headers[i].contentSize = width;
+						this.table.setColumnWidth(i, width);
+					}
+				}
+			}
+		});
 	}
 
 	disposeElement(element: TRow, index: number, templateData: RowTemplateData, height: number | undefined): void {
@@ -103,8 +120,26 @@ class TableListRenderer<TRow> implements IListRenderer<TRow, RowTemplateData> {
 	}
 
 	layoutColumn(index: number, size: number): void {
-		for (const { cellContainers } of this.renderedTemplates) {
-			cellContainers[index].style.width = `${size}px`;
+		if (size < 0) {
+			for (const { cellContainers } of this.renderedTemplates) {
+				cellContainers[index].style.width = '';
+			}
+		} else {
+			for (const { cellContainers } of this.renderedTemplates) {
+				cellContainers[index].style.width = `${size}px`;
+			}
+		}
+	}
+
+	getContentWidth(index: number): number | undefined {
+		let getContentWidth = this.renderers[index].getContentWidth;
+		if (getContentWidth) {
+			return getContentWidth.apply(this.renderers[index], [
+				[...this.renderedTemplates]
+					.filter(template => template.container.parentElement !== undefined)
+					.map(template => template.cellTemplateData[index])]);
+		} else {
+			return undefined;
 		}
 	}
 }
@@ -119,8 +154,17 @@ function asListVirtualDelegate<TRow>(delegate: ITableVirtualDelegate<TRow>): ILi
 class ColumnHeader<TRow, TCell> implements IView {
 
 	readonly element: HTMLElement;
+	contentSize?: number;
 
-	get minimumSize() { return this.column.minimumWidth ?? 120; }
+	get minimumSize() {
+		if (!this.column.minimumWidth) {
+			return 120;
+		} else if (this.column.minimumWidth === Number.POSITIVE_INFINITY) {
+			return this.contentSize ?? 0;
+		} else {
+			return this.column.minimumWidth;
+		}
+	}
 	get maximumSize() { return this.column.maximumWidth ?? Number.POSITIVE_INFINITY; }
 	get onDidChange() { return this.column.onDidChangeWidthConstraints ?? Event.None; }
 
@@ -146,8 +190,13 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 	readonly domId = `table_id_${++Table.InstanceCount}`;
 
 	readonly domNode: HTMLElement;
+	private fixedColumnSplitview: SplitView | undefined;
 	private splitview: SplitView;
+	private fixedColumnList: List<TRow> | undefined;
 	private list: List<TRow>;
+	private readonly firstNonFixedColumn: number;
+	private readonly fixedColumnWidth: number;
+	private readonly nonFixedHeaders: ColumnHeader<TRow, TCell>[];
 	private styleElement: HTMLStyleElement;
 	protected readonly disposables = new DisposableStore();
 
@@ -191,8 +240,54 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 		_options?: ITableOptions<TRow>
 	) {
 		this.domNode = append(container, $(`.monaco-table.${this.domId}`));
+		this.firstNonFixedColumn = columns.findIndex(column => !column.fixed);
+		const fixedColumns = columns.slice(0, this.firstNonFixedColumn);
+		const nonFixedColumns = columns.slice(this.firstNonFixedColumn);
+		if (!fixedColumns.every(column => column.minimumWidth !== undefined && column.maximumWidth === column.minimumWidth)) {
+			throw illegalArgument('columns');
+		}
+		if (!nonFixedColumns.every(column => column.fixed !== true)) {
+			throw illegalArgument('columns');
+		}
+		this.fixedColumnWidth = fixedColumns.map(column => column.minimumWidth!).reduce((a, b) => a + b);
 
-		const headers = columns.map((c, i) => new ColumnHeader(c, i));
+		if (fixedColumns.length !== 0) {
+			const fixedHeaders = fixedColumns.map((c, i) => new ColumnHeader(c, i));
+			const descriptor: ISplitViewDescriptor = {
+				size: fixedHeaders.reduce((a, b) => a + b.column.weight, 0),
+				views: fixedHeaders.map(view => ({ size: view.column.minimumWidth!, view }))
+			};
+
+			this.fixedColumnSplitview = this.disposables.add(new SplitView(this.domNode, {
+				orientation: Orientation.HORIZONTAL,
+				scrollbarVisibility: ScrollbarVisibility.Hidden,
+				getSashOrthogonalSize: () => this.cachedHeight,
+				descriptor
+			}));
+
+			this.fixedColumnSplitview.el.style.height = `${virtualDelegate.headerRowHeight}px`;
+			this.fixedColumnSplitview.el.style.lineHeight = `${virtualDelegate.headerRowHeight}px`;
+
+			const renderer = new TableListRenderer(this, fixedColumns, fixedHeaders, renderers, i => this.fixedColumnSplitview!.getViewSize(i));
+			this.fixedColumnList = this.disposables.add(new List(user, this.domNode, asListVirtualDelegate(virtualDelegate), [renderer], {
+				..._options,
+				horizontalScrolling: false,
+				verticalScrollMode: ScrollbarVisibility.Hidden,
+			}));
+			this.fixedColumnList.getHTMLElement().style.width = `${this.fixedColumnWidth}px`;
+
+			Event.any(...fixedHeaders.map(h => h.onDidLayout))
+				(([index, size]) => renderer.layoutColumn(index, size), null, this.disposables);
+
+			this.fixedColumnSplitview.onDidSashReset(index => {
+				const totalWeight = fixedColumns.reduce((r, c) => r + c.weight, 0);
+				const size = fixedColumns[index].weight / totalWeight * this.cachedWidth;
+				this.splitview.resizeView(index, size);
+			}, null, this.disposables);
+		}
+
+		const headers = nonFixedColumns.map((c, i) => new ColumnHeader(c, i));
+		this.nonFixedHeaders = headers;
 		const descriptor: ISplitViewDescriptor = {
 			size: headers.reduce((a, b) => a + b.column.weight, 0),
 			views: headers.map(view => ({ size: view.column.weight, view }))
@@ -207,32 +302,56 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 
 		this.splitview.el.style.height = `${virtualDelegate.headerRowHeight}px`;
 		this.splitview.el.style.lineHeight = `${virtualDelegate.headerRowHeight}px`;
+		this.splitview.el.style.left = `${this.fixedColumnWidth}px`;
+		this.splitview.el.style.position = 'absolute';
 
-		const renderer = new TableListRenderer(columns, renderers, i => this.splitview.getViewSize(i));
+		const renderer = new TableListRenderer(this, nonFixedColumns, headers, renderers.slice(this.firstNonFixedColumn), i => this.splitview.getViewSize(i));
 		this.list = this.disposables.add(new List(user, this.domNode, asListVirtualDelegate(virtualDelegate), [renderer], _options));
+		this.list.getHTMLElement().style.position = 'absolute';
+		this.list.getHTMLElement().style.left = `${this.fixedColumnWidth}px`;
 
 		Event.any(...headers.map(h => h.onDidLayout))
-			(([index, size]) => renderer.layoutColumn(index, size), null, this.disposables);
+			(([index, size]) => {
+				renderer.layoutColumn(index, size);
+				for (let row = this.list.firstVisibleIndex; row <= this.list.lastVisibleIndex; row++) {
+					this.list.updateWidth(row);
+				}
+				this.list.eventuallyUpdateScrollWidth();
+			}, null, this.disposables);
 
 		this.splitview.onDidSashReset(index => {
-			const totalWeight = columns.reduce((r, c) => r + c.weight, 0);
-			const size = columns[index].weight / totalWeight * this.cachedWidth;
+			const totalWeight = nonFixedColumns.reduce((r, c) => r + c.weight, 0);
+			const size = nonFixedColumns[index].weight / totalWeight * this.cachedWidth;
 			this.splitview.resizeView(index, size);
 		}, null, this.disposables);
 
 		this.styleElement = createStyleSheet(this.domNode);
 		this.style({});
+
+		if (this.fixedColumnList !== undefined) {
+			this.disposables.add(this.list.onDidScroll(e => {
+				this.fixedColumnList!.scrollTop = e.scrollTop;
+			}));
+		}
+		if (this.list.options.horizontalScrolling) {
+			this.disposables.add(this.list.onDidScroll(e => {
+				this.splitview.setScrollPosition(e.scrollLeft);
+			}));
+		}
 	}
 
 	updateOptions(options: ITableOptionsUpdate): void {
+		this.fixedColumnList?.updateOptions(options);
 		this.list.updateOptions(options);
 	}
 
 	splice(start: number, deleteCount: number, elements: TRow[] = []): void {
+		this.fixedColumnList?.splice(start, deleteCount, elements);
 		this.list.splice(start, deleteCount, elements);
 	}
 
 	rerender(): void {
+		this.fixedColumnList?.rerender();
 		this.list.rerender();
 	}
 
@@ -258,11 +377,17 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 
 		this.cachedWidth = width;
 		this.cachedHeight = height;
-		this.splitview.layout(width);
+		if (!this.list.options.horizontalScrolling) {
+			this.splitview.layout(width - this.fixedColumnWidth);
+		}
 
 		const listHeight = height - this.virtualDelegate.headerRowHeight;
+		if (this.fixedColumnList !== undefined) {
+			this.fixedColumnList.getHTMLElement().style.height = `${listHeight}px`;
+			this.fixedColumnList.layout(listHeight, this.fixedColumnWidth);
+		}
 		this.list.getHTMLElement().style.height = `${listHeight}px`;
-		this.list.layout(listHeight, width);
+		this.list.layout(listHeight, width - this.fixedColumnWidth);
 	}
 
 	toggleKeyboardNavigation(): void {
@@ -347,5 +472,10 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 
 	dispose(): void {
 		this.disposables.dispose();
+	}
+
+	setColumnWidth(index: number, width: number) {
+		this.splitview.resizeView(index, width);
+		this.nonFixedHeaders[index].layout(width);
 	}
 }

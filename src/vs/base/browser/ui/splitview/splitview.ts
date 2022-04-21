@@ -560,6 +560,8 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		this._register(this.onDidScroll(e => {
 			this.viewContainer.scrollTop = e.scrollTop;
 			this.viewContainer.scrollLeft = e.scrollLeft;
+			this.sashContainer.style.top = `${-e.scrollTop}px`;
+			this.sashContainer.style.left = `${-e.scrollLeft}px`;
 		}));
 
 		append(this.el, this.scrollableElement.getDomNode());
@@ -1321,6 +1323,14 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		}
 
 		return undefined;
+	}
+
+	public setScrollPosition(pos: number): void {
+		if (this.orientation === Orientation.HORIZONTAL) {
+			this.scrollableElement.setScrollPosition({ scrollLeft: pos });
+		} else {
+			this.scrollableElement.setScrollPosition({ scrollTop: pos });
+		}
 	}
 
 	override dispose(): void {
