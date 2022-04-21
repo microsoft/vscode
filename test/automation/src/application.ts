@@ -115,7 +115,7 @@ export class Application {
 	private async checkWindowReady(code: Code): Promise<void> {
 
 		// We need a rendered workbench
-		await this.checkWorkbenchReady(code);
+		await measureAndLog(code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
 
 		// Remote but not web: wait for a remote connection state change
 		if (this.remote) {
@@ -132,29 +132,6 @@ export class Application {
 				// we return.
 				return !statusHostLabel.includes('Opening Remote');
 			}, 300 /* = 30s of retry */), 'Application#checkWindowReady: wait for remote indicator', this.logger);
-		}
-	}
-
-	private async checkWorkbenchReady(code: Code): Promise<void> {
-
-		// Web / Legacy: just poll for workbench element
-		if (this.web) {
-			await measureAndLog(code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
-		}
-
-		// Desktop (playwright): we see hangs, where IPC messages
-		// are not delivered (https://github.com/microsoft/vscode/issues/146785)
-		// Workaround is to try to reload the window when that happens
-		else {
-			try {
-				await measureAndLog(code.waitForElement('.monaco-workbench', undefined, 100 /* 10s of retry */), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
-			} catch (error) {
-				this.logger.log(`checkWindowReady: giving up after 10s, reloading window and trying again...`);
-
-				await code.driver.reload();
-
-				return this.checkWorkbenchReady(code);
-			}
 		}
 	}
 }
