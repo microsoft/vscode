@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/editordroptarget';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { addDisposableListener, DragAndDropObserver, EventHelper, EventType, isAncestor } from 'vs/base/browser/dom';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
@@ -10,7 +11,6 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
-import 'vs/css!./media/editordroptarget';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -31,7 +31,7 @@ interface IDropOperation {
 }
 
 function isDropIntoEditorEnabledGlobally(configurationService: IConfigurationService) {
-	return configurationService.getValue<boolean>('workbench.editor.dropIntoEditor.enabled');
+	return configurationService.getValue<boolean>('workbench.experimental.editor.dropIntoEditor.enabled');
 }
 
 function isDragIntoEditorEvent(e: DragEvent): boolean {
@@ -47,7 +47,9 @@ class DropOverlay extends Themable {
 	private dropIntoPromptElement?: HTMLSpanElement;
 
 	private currentDropOperation: IDropOperation | undefined;
+
 	private _disposed: boolean | undefined;
+	get disposed(): boolean { return !!this._disposed; }
 
 	private cleanupOverlayScheduler: RunOnceScheduler;
 
@@ -77,10 +79,6 @@ class DropOverlay extends Themable {
 		this.create();
 	}
 
-	get disposed(): boolean {
-		return !!this._disposed;
-	}
-
 	private create(): void {
 		const overlayOffsetHeight = this.getOverlayOffsetHeight();
 
@@ -103,7 +101,7 @@ class DropOverlay extends Themable {
 		container.appendChild(this.overlay);
 
 		if (this.enableDropIntoEditor) {
-			this.dropIntoPromptElement = renderFormattedText(localize('dropIntoEditorPrompt', "Hold __shift__ to drop into editor"), {});
+			this.dropIntoPromptElement = renderFormattedText(localize('dropIntoEditorPrompt', "Hold __{0}__ to drop into editor", isMacintosh ? '⇧' : 'Shift'), {});
 			this.dropIntoPromptElement.classList.add('editor-group-overlay-drop-into-prompt');
 			this.overlay.appendChild(this.dropIntoPromptElement);
 		}

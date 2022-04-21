@@ -212,7 +212,11 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			templateData.threadMetadata.commentPreview.title = renderedComment.element.textContent ?? '';
 		}
 
-		templateData.threadMetadata.range.textContent = `[${node.element.range.startLineNumber}-${node.element.range.endLineNumber}]`;
+		if (node.element.range.startLineNumber === node.element.range.endLineNumber) {
+			templateData.threadMetadata.range.textContent = nls.localize('commentLine', "[Ln {0}]", node.element.range.startLineNumber);
+		} else {
+			templateData.threadMetadata.range.textContent = nls.localize('commentRange', "[Ln {0}-{1}]", node.element.range.startLineNumber, node.element.range.endLineNumber);
+		}
 
 		if (!node.element.hasReply()) {
 			templateData.repliesMetadata.container.style.display = 'none';

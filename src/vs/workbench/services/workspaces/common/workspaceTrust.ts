@@ -21,8 +21,7 @@ import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isEqualAuthority } from 'vs/base/common/resources';
-import { ILogService } from 'vs/platform/log/common/log';
-import { isCI, isWeb } from 'vs/base/common/platform';
+import { isWeb } from 'vs/base/common/platform';
 
 export const WORKSPACE_TRUST_ENABLED = 'security.workspace.trust.enabled';
 export const WORKSPACE_TRUST_STARTUP_PROMPT = 'security.workspace.trust.startupPrompt';
@@ -119,8 +118,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
-		@ILogService protected readonly _logService: ILogService,
+		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService
 	) {
 		super();
 
@@ -147,10 +145,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	//#region initialize
 
 	private initializeWorkspaceTrust(): void {
-		if (isCI) {
-			this._logService.info(`[WT] Enter initializeWorkspaceTrust()...`);
-		}
-
 		// Resolve canonical Uris
 		this.resolveCanonicalUris()
 			.then(async () => {
@@ -158,15 +152,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 				await this.updateWorkspaceTrust();
 			})
 			.finally(() => {
-				if (isCI) {
-					this._logService.info(`[WT] Open workspaceResolved gate...`);
-				}
 				this._workspaceResolvedPromiseResolve();
 
 				if (!this.environmentService.remoteAuthority) {
-					if (isCI) {
-						this._logService.info(`[WT] Open workspaceTrustInitialized gate...`);
-					}
 					this._workspaceTrustInitializedPromiseResolve();
 				}
 			});
@@ -211,16 +199,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private async getCanonicalUri(uri: URI): Promise<URI> {
-		if (isCI) {
-			this._logService.info('[WT] Enter getCanonicalUri()...');
-		}
-
 		let canonicalUri = uri;
 		if (this.environmentService.remoteAuthority && uri.scheme === Schemas.vscodeRemote) {
-			if (isCI) {
-				this._logService.info('[WT] Return this.remoteAuthorityResolverService.getCanonicalURI(uri)...');
-			}
-
 			canonicalUri = await this.remoteAuthorityResolverService.getCanonicalURI(uri);
 		} else if (uri.scheme === 'vscode-vfs') {
 			const index = uri.authority.indexOf('+');
@@ -234,10 +214,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private async resolveCanonicalUris(): Promise<void> {
-		if (isCI) {
-			this._logService.info('[WT] Enter resolveCanonicalUris()...');
-		}
-
 		// Open editors
 		const filesToOpen: IPath[] = [];
 		if (this.environmentService.filesToOpenOrCreate) {
@@ -255,32 +231,16 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			this._canonicalStartupFiles.push(...canonicalFilesToOpen.filter(uri => this._canonicalStartupFiles.every(u => !this.uriIdentityService.extUri.isEqual(uri, u))));
 		}
 
-		if (isCI) {
-			this._logService.info('[WT] Done processing open editors...');
-		}
-
 		// Workspace
 		const workspaceUris = this.workspaceService.getWorkspace().folders.map(f => f.uri);
 		const canonicalWorkspaceFolders = await Promise.all(workspaceUris.map(uri => this.getCanonicalUri(uri)));
-
-		if (isCI) {
-			this._logService.info('[WT] Done processing workspace folders...');
-		}
 
 		let canonicalWorkspaceConfiguration = this.workspaceService.getWorkspace().configuration;
 		if (canonicalWorkspaceConfiguration && isSavedWorkspace(canonicalWorkspaceConfiguration, this.environmentService)) {
 			canonicalWorkspaceConfiguration = await this.getCanonicalUri(canonicalWorkspaceConfiguration);
 		}
 
-		if (isCI) {
-			this._logService.info('[WT] Done processing workspace configuration...');
-		}
-
 		this._canonicalWorkspace = new CanonicalWorkspace(this.workspaceService.getWorkspace(), canonicalWorkspaceFolders, canonicalWorkspaceConfiguration);
-
-		if (isCI) {
-			this._logService.info('[WT] Exit resolveCanonicalUris()...');
-		}
 	}
 
 	private loadTrustInfo(): IWorkspaceTrustInfo {
@@ -362,16 +322,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private async updateWorkspaceTrust(trusted?: boolean): Promise<void> {
-		if (isCI) {
-			this._logService.info(`[WT] Enter updateWorkspaceTrust()...`);
-		}
-
 		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
-			if (isCI) {
-				this._logService.info(`[WT] Workspace trust is disabled.`);
-				this._logService.info(`[WT] Exit updateWorkspaceTrust()...`);
-			}
-
 			return;
 		}
 

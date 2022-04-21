@@ -4032,7 +4032,7 @@ declare namespace monaco.editor {
 		 * Enable highlighting of the active indent guide.
 		 * Defaults to true.
 		 */
-		highlightActiveIndentation?: boolean;
+		highlightActiveIndentation?: boolean | 'always';
 	}
 
 	/**

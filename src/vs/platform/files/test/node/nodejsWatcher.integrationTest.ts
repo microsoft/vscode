@@ -392,6 +392,12 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 		return basicCrudTest(join(testDir, 'files-includes.txt'));
 	});
 
+	test('includes are supported (folder watch, relative pattern)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: [{ base: testDir, pattern: 'files-includes.txt' }], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'files-includes.txt'));
+	});
+
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (folder watch)', async function () {
 		const link = join(testDir, 'deep-linked');
 		const linkTarget = join(testDir, 'deep');
