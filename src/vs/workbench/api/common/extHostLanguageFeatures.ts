@@ -36,7 +36,7 @@ import { Emitter } from 'vs/base/common/event';
 import { raceCancellationError } from 'vs/base/common/async';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { DataTransferConverter, DataTransferDTO } from 'vs/workbench/api/common/shared/dataTransfer';
-import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { Dto, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 // --- adapter
 
@@ -2405,8 +2405,9 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentOnDropEdits(handle: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
-		return this._withAdapter(handle, DocumentOnDropAdapter, adapter => Promise.resolve(adapter.provideDocumentOnDropEdits(URI.revive(resource), position, dataTransferDto, token)), undefined, undefined);
+	$provideDocumentOnDropEdits(handle: number, resource: UriComponents, position: IPosition, dataTransferDto: SerializableObjectWithBuffers<DataTransferDTO>, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
+		return this._withAdapter(handle, DocumentOnDropAdapter, adapter =>
+			Promise.resolve(adapter.provideDocumentOnDropEdits(URI.revive(resource), position, dataTransferDto.value, token)), undefined, undefined);
 	}
 
 	// --- configuration

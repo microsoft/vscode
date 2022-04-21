@@ -3,10 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IDataTransfer, IDataTransferItem } from 'vs/workbench/common/dnd';
 
+export interface IDataTransferFileDTO {
+	readonly name: string;
+	readonly uri?: UriComponents;
+	readonly data: VSBuffer;
+}
+
 interface DataTransferItemDTO {
-	asString: string;
+	readonly asString: string;
+	readonly asFile: IDataTransferFileDTO | undefined;
 }
 
 export interface DataTransferDTO {
@@ -20,6 +29,17 @@ export namespace DataTransferConverter {
 		value.types.forEach((type, index) => {
 			newDataTransfer.set(type, {
 				asString: async () => value.items[index].asString,
+				asFile: async () => {
+					const file = value.items[index].asFile;
+					if (!file) {
+						return undefined;
+					}
+					return {
+						name: file.name,
+						uri: URI.revive(file.uri),
+						data: async () => file.data.buffer,
+					};
+				},
 				value: undefined
 			});
 		});
@@ -34,8 +54,11 @@ export namespace DataTransferConverter {
 		const entries = Array.from(value.entries());
 		for (const entry of entries) {
 			newDTO.types.push(entry[0]);
+			const stringValue = await entry[1].asString();
+			const fileValue = await entry[1].asFile();
 			newDTO.items.push({
-				asString: await entry[1].asString()
+				asString: stringValue,
+				asFile: fileValue ? { ...fileValue, data: VSBuffer.wrap(await fileValue.data()) } : undefined,
 			});
 		}
 		return newDTO;

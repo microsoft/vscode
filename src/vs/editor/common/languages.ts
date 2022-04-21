@@ -1984,11 +1984,23 @@ export enum ExternalUriOpenerPriority {
 	Preferred = 3,
 }
 
+
+/**
+ * @internal
+ */
+export interface IDataTransferFile {
+	readonly name: string;
+	readonly path?: URI;
+	data(): Promise<Uint8Array>;
+}
+
 /**
  * @internal
  */
 export interface IDataTransferItem {
+	readonly kind: 'string' | 'file';
 	asString(): Thenable<string>;
+	asFile(): Thenable<IDataTransferFile | undefined>;
 	value: any;
 }
 

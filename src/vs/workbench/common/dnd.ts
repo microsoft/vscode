@@ -3,8 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
+
+export interface IDataTransferFile {
+	readonly name: string;
+	readonly uri?: URI;
+	data(): Promise<Uint8Array>;
+}
+
 export interface IDataTransferItem {
 	asString(): Thenable<string>;
+	asFile(): Thenable<IDataTransferFile | undefined>;
 	value: any;
 }
 

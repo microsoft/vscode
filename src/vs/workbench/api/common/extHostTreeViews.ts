@@ -164,7 +164,21 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if (existingTransferOperation) {
 			(await existingTransferOperation)?.forEach((value, key) => {
 				if (value) {
-					treeDataTransfer.set(key, value);
+					treeDataTransfer.set(key, {
+						value: value.value,
+						asString: value.asString,
+						async asFile() {
+							const file = await value.asFile();
+							if (!file) {
+								return undefined;
+							}
+							return {
+								name: file.name,
+								uri: file.uri,
+								data: async () => await file.data()
+							};
+						},
+					});
 				}
 			});
 		} else if (operationUuid && treeView.handleDrag) {

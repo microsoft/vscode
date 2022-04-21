@@ -14,13 +14,12 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IDataTransferItem } from 'vs/editor/common/languages';
+import { IDataTransfer, IDataTransferItem } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { extractEditorsDropData } from 'vs/workbench/browser/dnd';
-import { IDataTransfer } from 'vs/workbench/common/dnd';
 
 
 export class DropIntoEditorController extends Disposable implements IEditorContribution {
@@ -48,13 +47,34 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 
 		const textEditorDataTransfer: IDataTransfer = new Map<string, IDataTransferItem>();
 		for (const item of dragEvent.dataTransfer.items) {
+			const type = item.type;
 			if (item.kind === 'string') {
-				const type = item.type;
 				const asStringValue = new Promise<string>(resolve => item.getAsString(resolve));
 				textEditorDataTransfer.set(type, {
+					kind: 'string',
 					asString: () => asStringValue,
+					asFile: () => Promise.resolve(undefined),
 					value: undefined
 				});
+			} else if (item.kind === 'file') {
+				const file = item.getAsFile();
+				if (file) {
+					textEditorDataTransfer.set(type, {
+						kind: 'file',
+						asString: () => Promise.resolve(''),
+						asFile: async () => {
+							const uri = file.path ? URI.parse(file.path) : undefined;
+							return {
+								name: file.name,
+								uri: uri,
+								data: async () => {
+									return new Uint8Array(await file.arrayBuffer());
+								},
+							};
+						},
+						value: undefined
+					});
+				}
 			}
 		}
 
@@ -66,7 +86,9 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 			if (editorData.length) {
 				const str = distinct(editorData).join('\n');
 				textEditorDataTransfer.set(Mimes.uriList.toLowerCase(), {
+					kind: 'string',
 					asString: () => Promise.resolve(str),
+					asFile: () => Promise.resolve(undefined),
 					value: undefined
 				});
 			}
