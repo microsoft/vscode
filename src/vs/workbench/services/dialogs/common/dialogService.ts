@@ -9,6 +9,7 @@ import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IIn
 import { DialogsModel } from 'vs/workbench/common/dialogs';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class DialogService extends Disposable implements IDialogService {
 
@@ -20,7 +21,10 @@ export class DialogService extends Disposable implements IDialogService {
 
 	readonly onDidShowDialog = this.model.onDidShowDialog;
 
-	constructor(@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService) {
+	constructor(
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ILogService private readonly logService: ILogService
+	) {
 		super();
 	}
 
@@ -34,6 +38,8 @@ export class DialogService extends Disposable implements IDialogService {
 
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		if (this.skipDialogs()) {
+			this.logService.trace('DialogService: refused to show confirmation dialog in tests.');
+
 			return { confirmed: true };
 		}
 
@@ -44,7 +50,7 @@ export class DialogService extends Disposable implements IDialogService {
 
 	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> {
 		if (this.skipDialogs()) {
-			throw new Error('Dialogs are disabled in tests');
+			throw new Error('DialogService: refused to show dialog in tests.');
 		}
 
 		const handle = this.model.show({ showArgs: { severity, message, buttons, options } });
@@ -54,7 +60,7 @@ export class DialogService extends Disposable implements IDialogService {
 
 	async input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult> {
 		if (this.skipDialogs()) {
-			throw new Error('Dialogs are disabled in tests');
+			throw new Error('DialogService: refused to show input dialog in tests.');
 		}
 
 		const handle = this.model.show({ inputArgs: { severity, message, buttons, inputs, options } });
@@ -64,7 +70,7 @@ export class DialogService extends Disposable implements IDialogService {
 
 	async about(): Promise<void> {
 		if (this.skipDialogs()) {
-			throw new Error('Dialogs are disabled in tests');
+			throw new Error('DialogService: refused to show about dialog in tests.');
 		}
 
 		const handle = this.model.show({});
