@@ -626,7 +626,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 							endColumn: isNumber(file.selection.end.line) ? (isNumber(file.selection.end.column) ? file.selection.end.column : 1) : undefined,
 						} : undefined,
 						openOnlyIfExists: file.openOnlyIfExists,
-						editorOverrideId: file.openWith
+						editorOverrideId: file.openWith,
+						options: file.options
 					};
 				})
 			};
