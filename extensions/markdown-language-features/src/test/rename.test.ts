@@ -473,12 +473,50 @@ suite('markdown: rename', () => {
 		const edit = await getRenameEdits(doc, new vscode.Position(0, 10), '/new File', new InMemoryWorkspaceMarkdownDocuments([doc]));
 		assertEditsEqual(edit!, {
 			originalUri: uri,
-			newUri: workspacePath('new File.md'),
+			newUri: workspacePath('new File.md'), // Rename on disk should use file extension
 		}, {
 			uri: uri, edits: [
-				new vscode.TextEdit(new vscode.Range(0, 7, 0, 11), '/new%20File'),
+				new vscode.TextEdit(new vscode.Range(0, 7, 0, 11), '/new%20File'), // Links should continue to use extension-less paths
 				new vscode.TextEdit(new vscode.Range(1, 7, 1, 11), '/new%20File'),
 			]
+		});
+	});
+
+	test('Path rename should use correctly resolved paths across files', async () => {
+		const uri1 = workspacePath('sub', 'doc.md');
+		const doc1 = new InMemoryDocument(uri1, joinLines(
+			`[text](./doc.md)`,
+		));
+
+		const uri2 = workspacePath('doc2.md');
+		const doc2 = new InMemoryDocument(uri2, joinLines(
+			`[text](./sub/doc.md)`,
+		));
+
+		const uri3 = workspacePath('sub2', 'doc3.md');
+		const doc3 = new InMemoryDocument(uri3, joinLines(
+			`[text](../sub/doc.md)`,
+		));
+
+		const uri4 = workspacePath('sub2', 'doc4.md');
+		const doc4 = new InMemoryDocument(uri4, joinLines(
+			`[text](/sub/doc.md)`,
+		));
+
+		const edit = await getRenameEdits(doc1, new vscode.Position(0, 10), './new/new-doc.md', new InMemoryWorkspaceMarkdownDocuments([
+			doc1, doc2, doc3, doc4,
+		]));
+		assertEditsEqual(edit!, {
+			originalUri: uri1,
+			newUri: workspacePath('sub', 'new', 'new-doc.md'),
+		}, {
+			uri: uri1, edits: [new vscode.TextEdit(new vscode.Range(0, 7, 0, 15), './new/new-doc.md')]
+		}, {
+			uri: uri2, edits: [new vscode.TextEdit(new vscode.Range(0, 7, 0, 19), './sub/new/new-doc.md')]
+		}, {
+			uri: uri3, edits: [new vscode.TextEdit(new vscode.Range(0, 7, 0, 20), '../sub/new/new-doc.md')]
+		}, {
+			uri: uri4, edits: [new vscode.TextEdit(new vscode.Range(0, 7, 0, 18), '/sub/new/new-doc.md')]
 		});
 	});
 

@@ -2,15 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import * as URI from 'vscode-uri';
 import { Slugifier } from '../slugify';
 import { Disposable } from '../util/dispose';
 import { resolveDocumentLink } from '../util/openDocumentLink';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { InternalHref } from './documentLinkProvider';
 import { MdHeaderReference, MdLinkReference, MdReference, MdReferencesProvider, tryFindMdDocumentForLink } from './references';
-import * as URI from 'vscode-uri';
 
 const localize = nls.loadMessageBundle();
 
@@ -147,25 +148,37 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 		const targetDoc = await tryFindMdDocumentForLink(triggerHref, this.workspaceContents);
 		const targetUri = targetDoc?.uri ?? triggerHref.path;
 
-		let newFilePath = resolveDocumentLink(newName, triggerHref.path);
-		if (!URI.Utils.extname(newFilePath)) {
+		let rawNewFilePath = resolveDocumentLink(newName, triggerHref.path);
+		let resolvedNewFilePath = rawNewFilePath;
+		if (!URI.Utils.extname(resolvedNewFilePath)) {
 			// If the newly entered path doesn't have a file extension but the original file did
 			// tack on a .md file extension
 			if (URI.Utils.extname(targetUri)) {
-				newFilePath = newFilePath.with({
-					path: newFilePath.path + '.md'
+				resolvedNewFilePath = resolvedNewFilePath.with({
+					path: resolvedNewFilePath.path + '.md'
 				});
 			}
 		}
 
 		// First rename the file
-		fileRenames.push({ from: targetUri.toString(), to: newFilePath.toString() });
-		edit.renameFile(targetUri, newFilePath);
+		fileRenames.push({ from: targetUri.toString(), to: resolvedNewFilePath.toString() });
+		edit.renameFile(targetUri, resolvedNewFilePath);
 
 		// Then update all refs to it
 		for (const ref of allRefsInfo.references) {
 			if (ref.kind === 'link') {
-				edit.replace(ref.link.source.resource, this.getFilePathRange(ref), encodeURI(newName));
+				// Try to preserve style of existing links
+				let newPath: string;
+				if (ref.link.source.text.startsWith('/')) {
+					const root = resolveDocumentLink('/', ref.link.source.resource);
+					newPath = '/' + path.relative(root.toString(true), rawNewFilePath.toString(true));
+				} else {
+					newPath = path.relative(URI.Utils.dirname(ref.link.source.resource).toString(true), rawNewFilePath.toString(true));
+					if (newName.startsWith('./') && !newPath.startsWith('../')) {
+						newPath = './' + newPath;
+					}
+				}
+				edit.replace(ref.link.source.resource, this.getFilePathRange(ref), encodeURI(newPath));
 			}
 		}
 
