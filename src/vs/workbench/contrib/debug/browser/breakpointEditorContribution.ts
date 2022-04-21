@@ -38,7 +38,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 
 const $ = dom.$;
-const TOGGLE_BREAKPOINT_BUTTON_INDEX = 1;
 
 interface IBreakpointDecoration {
 	decorationId: string;
@@ -260,7 +259,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 						);
 
 						const dialogActionChoicePromise = isDisableAction
-							? Promise.resolve(TOGGLE_BREAKPOINT_BUTTON_INDEX)
+							? Promise.resolve({ choice: 1 })
 							: this.dialogService.show(
 								severity.Info,
 								enabled ? enabledBreakpointDialogMessage : disabledBreakpointDialogMessage,
@@ -270,14 +269,14 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 									nls.localize('cancel', "Cancel")
 								],
 								{ cancelId: 2 },
-							).then(({ choice }) => choice);
+							);
 
-						const choice = await dialogActionChoicePromise;
+						const { choice } = await dialogActionChoicePromise;
 
 						if (choice === 0) {
 							breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
 						}
-						if (choice === TOGGLE_BREAKPOINT_BUTTON_INDEX) {
+						if (choice === 1) {
 							breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp));
 						}
 					} else {
