@@ -9,6 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -64,6 +65,7 @@ class CellStatusBarLanguageDetectionProvider implements INotebookCellStatusBarIt
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageDetectionService private readonly _languageDetectionService: ILanguageDetectionService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) { }
@@ -76,33 +78,41 @@ class CellStatusBarLanguageDetectionProvider implements INotebookCellStatusBarIt
 				return;
 			}
 
+			const enablementConfig = this._configurationService.getValue('workbench.editor.languageDetectionHints');
+			const enabled = enablementConfig === 'always' || enablementConfig === 'notebookEditors';
+			if (!enabled) {
+				return;
+			}
+
 			const currentLanguageId = cell.cellKind === CellKind.Markup ?
 				'markdown' :
 				(this._languageService.getLanguageIdByLanguageName(cell.language) || cell.language);
 
 			const kernel = this._notebookKernelService.getMatchingKernel(doc);
-			const availableLangs = kernel.selected ? kernel.selected.supportedLanguages : (kernel.suggestions.map(s => s.supportedLanguages)).flat();
-			availableLangs.push('markdown');
-			const detectedLanguageId = await this._languageDetectionService.detectLanguage(cell.uri, availableLangs);
-
 			const items: INotebookCellStatusBarItem[] = [];
 
-			if (detectedLanguageId && currentLanguageId !== detectedLanguageId) {
-				const detectedName = this._languageService.getLanguageName(detectedLanguageId) || detectedLanguageId;
-				let tooltip = localize('notebook.cell.status.autoDetectLanguage', "Set Cell Language to {0}", detectedName);
-				const keybinding = this._keybindingService.lookupKeybinding(DETECT_CELL_LANGUAGE);
-				const label = keybinding?.getLabel();
-				if (label) {
-					tooltip += ` (${label})`;
-				}
+			if (kernel.selected) {
+				const availableLangs = [];
+				availableLangs.push(...kernel.selected.supportedLanguages, 'markdown');
+				const detectedLanguageId = await this._languageDetectionService.detectLanguage(cell.uri, availableLangs);
 
-				items.push({
-					text: '$(lightbulb-autofix)',
-					command: DETECT_CELL_LANGUAGE,
-					tooltip,
-					alignment: CellStatusbarAlignment.Right,
-					priority: -Number.MAX_SAFE_INTEGER + 1
-				});
+				if (detectedLanguageId && currentLanguageId !== detectedLanguageId) {
+					const detectedName = this._languageService.getLanguageName(detectedLanguageId) || detectedLanguageId;
+					let tooltip = localize('notebook.cell.status.autoDetectLanguage', "Accept Detected Language: {0}", detectedName);
+					const keybinding = this._keybindingService.lookupKeybinding(DETECT_CELL_LANGUAGE);
+					const label = keybinding?.getLabel();
+					if (label) {
+						tooltip += ` (${label})`;
+					}
+
+					items.push({
+						text: '$(lightbulb-autofix)',
+						command: DETECT_CELL_LANGUAGE,
+						tooltip,
+						alignment: CellStatusbarAlignment.Right,
+						priority: -Number.MAX_SAFE_INTEGER + 1
+					});
+				}
 			}
 
 			return { items };

@@ -34,6 +34,8 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 	private _modelOperations: ModelOperations | undefined;
 	private _loadFailed: boolean = false;
 
+	private modelIdToCoreId = new Map<string, string>();
+
 	public async detectLanguage(uri: string, langBiases: Record<string, number> | undefined, preferHistory: boolean, supportedLangs?: string[]): Promise<string | undefined> {
 		const languages: string[] = [];
 		const confidences: number[] = [];
@@ -42,10 +44,15 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 		if (!documentTextSample) { return; }
 
 		const neuralResolver = async () => {
-			if (supportedLangs?.length) { return undefined; /* neural resolver doesnt support language tuning */ }
 			for await (const language of this.detectLanguagesImpl(documentTextSample)) {
-				languages.push(language.languageId);
-				confidences.push(language.confidence);
+				if (!this.modelIdToCoreId.has(language.languageId)) {
+					this.modelIdToCoreId.set(language.languageId, await this._host.fhr('getLanguageId', [language.languageId]));
+				}
+				const coreId = this.modelIdToCoreId.get(language.languageId);
+				if (coreId && (!supportedLangs?.length || supportedLangs.includes(coreId))) {
+					languages.push(coreId);
+					confidences.push(language.confidence);
+				}
 			}
 			stopWatch.stop();
 
@@ -160,21 +167,21 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 			// For the following languages, we increase the confidence because
 			// these are commonly used languages in VS Code and supported
 			// by the model.
-			case 'javascript':
+			case 'js':
 			case 'html':
 			case 'json':
-			case 'typescript':
+			case 'ts':
 			case 'css':
-			case 'python':
+			case 'py':
 			case 'xml':
 			case 'php':
 				modelResult.confidence += LanguageDetectionSimpleWorker.positiveConfidenceCorrectionBucket1;
 				break;
 			// case 'yaml': // YAML has been know to cause incorrect language detection because the language is pretty simple. We don't want to increase the confidence for this.
 			case 'cpp':
-			case 'shellscript':
+			case 'sh':
 			case 'java':
-			case 'csharp':
+			case 'cs':
 			case 'c':
 				modelResult.confidence += LanguageDetectionSimpleWorker.positiveConfidenceCorrectionBucket2;
 				break;
