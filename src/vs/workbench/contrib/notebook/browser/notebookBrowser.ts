@@ -11,7 +11,7 @@ import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensio
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { FindMatch, IModelDeltaDecoration, IReadonlyTextBuffer, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -281,6 +281,7 @@ export interface INotebookEditorOptions extends ITextEditorOptions {
 	readonly cellSelections?: ICellRange[];
 	readonly isReadOnly?: boolean;
 	readonly viewState?: INotebookEditorViewState;
+	readonly indexedCellOptions?: { index: number; selection?: IRange };
 }
 
 export type INotebookEditorContributionCtor = IConstructorSignature<INotebookEditorContribution, [INotebookEditor]>;
