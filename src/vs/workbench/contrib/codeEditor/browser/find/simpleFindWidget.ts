@@ -26,7 +26,6 @@ const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
 const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
 const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
-const NLS_MAX_RESULTS = nls.localize('label.maxResults', "Exceeded 10,000 Results");
 
 interface IFindOptions {
 	showOptionButtons?: boolean;
@@ -311,7 +310,7 @@ export abstract class SimpleFindWidget extends Widget {
 		this._matchesCount.innerText = '';
 		let label;
 		if (count?.resultCount === -1) {
-			label = NLS_MAX_RESULTS;
+			label = '';
 		} else {
 			label = count === undefined || count.resultCount === 0 ? NLS_NO_RESULTS : strings.format(NLS_MATCHES_LOCATION, count.resultIndex + 1, count?.resultCount);
 		}
