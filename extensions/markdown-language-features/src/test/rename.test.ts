@@ -486,21 +486,25 @@ suite('markdown: rename', () => {
 		const uri1 = workspacePath('sub', 'doc.md');
 		const doc1 = new InMemoryDocument(uri1, joinLines(
 			`[text](./doc.md)`,
+			`[ref]: ./doc.md`,
 		));
 
 		const uri2 = workspacePath('doc2.md');
 		const doc2 = new InMemoryDocument(uri2, joinLines(
 			`[text](./sub/doc.md)`,
+			`[ref]: ./sub/doc.md`,
 		));
 
 		const uri3 = workspacePath('sub2', 'doc3.md');
 		const doc3 = new InMemoryDocument(uri3, joinLines(
 			`[text](../sub/doc.md)`,
+			`[ref]: ../sub/doc.md`,
 		));
 
 		const uri4 = workspacePath('sub2', 'doc4.md');
 		const doc4 = new InMemoryDocument(uri4, joinLines(
 			`[text](/sub/doc.md)`,
+			`[ref]: /sub/doc.md`,
 		));
 
 		const edit = await getRenameEdits(doc1, new vscode.Position(0, 10), './new/new-doc.md', new InMemoryWorkspaceMarkdownDocuments([
@@ -510,13 +514,49 @@ suite('markdown: rename', () => {
 			originalUri: uri1,
 			newUri: workspacePath('sub', 'new', 'new-doc.md'),
 		}, {
-			uri: uri1, edits: [new vscode.TextEdit(new vscode.Range(0, 7, 0, 15), './new/new-doc.md')]
+			uri: uri1, edits: [
+				new vscode.TextEdit(new vscode.Range(0, 7, 0, 15), './new/new-doc.md'),
+				new vscode.TextEdit(new vscode.Range(1, 7, 1, 15), './new/new-doc.md'),
+			]
 		}, {
-			uri: uri2, edits: [new vscode.TextEdit(new vscode.Range(0, 7, 0, 19), './sub/new/new-doc.md')]
+			uri: uri2, edits: [
+				new vscode.TextEdit(new vscode.Range(0, 7, 0, 19), './sub/new/new-doc.md'),
+				new vscode.TextEdit(new vscode.Range(1, 7, 1, 19), './sub/new/new-doc.md'),
+			]
 		}, {
-			uri: uri3, edits: [new vscode.TextEdit(new vscode.Range(0, 7, 0, 20), '../sub/new/new-doc.md')]
+			uri: uri3, edits: [
+				new vscode.TextEdit(new vscode.Range(0, 7, 0, 20), '../sub/new/new-doc.md'),
+				new vscode.TextEdit(new vscode.Range(1, 7, 1, 20), '../sub/new/new-doc.md'),
+			]
 		}, {
-			uri: uri4, edits: [new vscode.TextEdit(new vscode.Range(0, 7, 0, 18), '/sub/new/new-doc.md')]
+			uri: uri4, edits: [
+				new vscode.TextEdit(new vscode.Range(0, 7, 0, 18), '/sub/new/new-doc.md'),
+				new vscode.TextEdit(new vscode.Range(1, 7, 1, 18), '/sub/new/new-doc.md'),
+			]
+		});
+	});
+
+	test('Path rename should resolve on links without prefix', async () => {
+		const uri1 = workspacePath('sub', 'doc.md');
+		const doc1 = new InMemoryDocument(uri1, joinLines(
+			`![text](images/cat.gif)`,
+		));
+
+		const uri2 = workspacePath('doc2.md');
+		const doc2 = new InMemoryDocument(uri2, joinLines(
+			`![text](sub/images/cat.gif)`,
+		));
+
+		const edit = await getRenameEdits(doc1, new vscode.Position(0, 10), 'img/cat.gif', new InMemoryWorkspaceMarkdownDocuments([
+			doc1, doc2,
+		]));
+		assertEditsEqual(edit!, {
+			originalUri: workspacePath('sub', 'images', 'cat.gif'),
+			newUri: workspacePath('sub', 'img', 'cat.gif'),
+		}, {
+			uri: uri1, edits: [new vscode.TextEdit(new vscode.Range(0, 8, 0, 22), 'img/cat.gif')]
+		}, {
+			uri: uri2, edits: [new vscode.TextEdit(new vscode.Range(0, 8, 0, 26), 'sub/img/cat.gif')]
 		});
 	});
 

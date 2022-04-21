@@ -135,20 +135,20 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 		} else if (triggerRef.kind === 'header' || (triggerRef.kind === 'link' && triggerRef.link.source.fragmentRange?.contains(position) && (triggerRef.link.kind === 'definition' || triggerRef.link.kind === 'link' && triggerRef.link.href.kind === 'internal'))) {
 			return this.renameFragment(allRefsInfo, newName);
 		} else if (triggerRef.kind === 'link' && !triggerRef.link.source.fragmentRange?.contains(position) && triggerRef.link.kind === 'link' && triggerRef.link.href.kind === 'internal') {
-			return this.renameFilePath(triggerRef.link.href, allRefsInfo, newName);
+			return this.renameFilePath(triggerRef.link.source.resource, triggerRef.link.href, allRefsInfo, newName);
 		}
 
 		return undefined;
 	}
 
-	private async renameFilePath(triggerHref: InternalHref, allRefsInfo: MdReferencesResponse, newName: string): Promise<MdWorkspaceEdit> {
+	private async renameFilePath(triggerDocument: vscode.Uri, triggerHref: InternalHref, allRefsInfo: MdReferencesResponse, newName: string): Promise<MdWorkspaceEdit> {
 		const edit = new vscode.WorkspaceEdit();
 		const fileRenames: MdFileRenameEdit[] = [];
 
 		const targetDoc = await tryFindMdDocumentForLink(triggerHref, this.workspaceContents);
 		const targetUri = targetDoc?.uri ?? triggerHref.path;
 
-		let rawNewFilePath = resolveDocumentLink(newName, triggerHref.path);
+		const rawNewFilePath = resolveDocumentLink(newName, triggerDocument);
 		let resolvedNewFilePath = rawNewFilePath;
 		if (!URI.Utils.extname(resolvedNewFilePath)) {
 			// If the newly entered path doesn't have a file extension but the original file did
