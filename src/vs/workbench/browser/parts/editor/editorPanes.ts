@@ -158,7 +158,7 @@ export class EditorPanes extends Disposable {
 			}
 
 			const buttons: string[] = [];
-			if (Array.isArray(errorActions) && errorActions.length > 0) {
+			if (errorActions && errorActions.length > 0) {
 				for (const errorAction of errorActions) {
 					buttons.push(errorAction.label);
 				}
@@ -183,10 +183,14 @@ export class EditorPanes extends Disposable {
 			);
 
 			// Make sure to run any error action if present
-			if (result.choice !== cancelId && Array.isArray(errorActions)) {
+			if (result.choice !== cancelId && errorActions) {
 				const errorAction = errorActions[result.choice];
 				if (errorAction) {
-					errorAction.run();
+					const result = errorAction.run();
+					if (result instanceof Promise) {
+						result.catch(error => this.dialogService.show(Severity.Error, toErrorMessage(error)));
+					}
+
 					errorHandled = true; // consider the error as handled!
 				}
 			}

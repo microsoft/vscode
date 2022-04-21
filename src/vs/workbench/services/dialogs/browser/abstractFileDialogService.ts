@@ -30,6 +30,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorOpenSource } from 'vs/platform/editor/common/editor';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
@@ -51,7 +52,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		@IPathService private readonly pathService: IPathService,
 		@ICommandService protected readonly commandService: ICommandService,
 		@IEditorService protected readonly editorService: IEditorService,
-		@ICodeEditorService protected readonly codeEditorService: ICodeEditorService
+		@ICodeEditorService protected readonly codeEditorService: ICodeEditorService,
+		@ILogService private readonly logService: ILogService
 	) { }
 
 	async defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
@@ -113,11 +115,22 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	async showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
-		if (this.environmentService.isExtensionDevelopment && this.environmentService.extensionTestsLocationURI) {
-			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev testing mode because we cannot assume we run interactive
+		if (this.skipDialogs()) {
+			this.logService.trace('FileDialogService: refused to show save confirmation dialog in tests.');
+
+			// no veto when we are in extension dev testing mode because we cannot assume we run interactive
+			return ConfirmResult.DONT_SAVE;
 		}
 
 		return this.doShowSaveConfirm(fileNamesOrResources);
+	}
+
+	private skipDialogs(): boolean {
+		if (this.environmentService.isExtensionDevelopment && this.environmentService.extensionTestsLocationURI) {
+			return true; // integration tests
+		}
+
+		return !!this.environmentService.enableSmokeTestDriver; // smoke tests
 	}
 
 	private async doShowSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {

@@ -26,6 +26,7 @@ import { assertNoRpc, poll } from '../utils';
 		await config.update('gpuAcceleration', 'off', ConfigurationTarget.Global);
 		// Disable env var relaunch for tests to prevent terminals relaunching themselves
 		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
+		await config.update('shellIntegration.enabled', false);
 	});
 
 	suite('Terminal', () => {
