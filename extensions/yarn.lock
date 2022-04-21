@@ -42,6 +42,11 @@ node-gyp-build@^4.3.0:
   resolved "https://registry.yarnpkg.com/node-gyp-build/-/node-gyp-build-4.3.0.tgz#9f256b03e5826150be39c764bf51e993946d71a3"
   integrity sha512-iWjXZvmboq0ja1pUGULQBexmxq8CV4xBhX7VDOTbL7ZR4FOowwY/VOtRxBN/yKxmdGoIp4j5ysNT4u3S2pDQ3Q==
 
+ts-plugin-inline-values@0.0.1:
+  version "0.0.1"
+  resolved "https://registry.yarnpkg.com/ts-plugin-inline-values/-/ts-plugin-inline-values-0.0.1.tgz#e4271f2fcab73793511ad4519f8e17e056ecf3d5"
+  integrity sha512-pSqFjzRNmkdSvcNfz3Jt3N7KeP7bzeWbTluYKAC7BXCnwWcstrYoVq6h6hf59TgNB4Q7zDMXyzKcuswRWPcpMA==
+
 typescript@4.6.3:
   version "4.6.3"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.6.3.tgz#eefeafa6afdd31d725584c67a0eaba80f6fc6c6c"

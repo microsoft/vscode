@@ -86,6 +86,7 @@ export default class LanguageProvider extends Disposable {
 			import('./languageFeatures/tagClosing').then(provider => this._register(provider.register(selector, this.description, this.client))),
 			import('./languageFeatures/typeDefinitions').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/inlayHints').then(provider => this._register(provider.register(selector, this.description, this.client, this.fileConfigurationManager))),
+			import('./languageFeatures/inlineValues').then(provider => this._register(provider.register(selector, this.client)))
 		]);
 	}
 
