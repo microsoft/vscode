@@ -303,6 +303,9 @@ import 'vs/workbench/contrib/typeHierarchy/browser/typeHierarchy.contribution';
 import 'vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsOutline';
 import 'vs/workbench/contrib/outline/browser/outline.contribution';
 
+// Language Detection
+import 'vs/workbench/contrib/languageDetection/browser/languageDetection.contribution';
+
 // Language Status
 import 'vs/workbench/contrib/languageStatus/browser/languageStatus.contribution';
 
