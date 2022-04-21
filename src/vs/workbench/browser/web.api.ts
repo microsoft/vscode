@@ -17,6 +17,7 @@ import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import { IObservableValue } from 'vs/base/common/observableValue';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -580,9 +581,16 @@ export interface IRange {
 
 export interface IDefaultEditor {
 	readonly uri: UriComponents;
+	/**
+	 * @deprecated Use options instead
+	 */
 	readonly selection?: IRange;
 	readonly openOnlyIfExists?: boolean;
+	/**
+	 * @deprecated Use options.override instead
+	 */
 	readonly openWith?: string;
+	readonly options?: IEditorOptions;
 }
 
 export interface IDefaultLayout {

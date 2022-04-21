@@ -1340,11 +1340,12 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			return;
 		}
 
-		const options: ITextEditorOptions = {
+		const options = {
+			...path.options,
 			selection: exists ? path.selection : undefined,
 			pinned: true,
 			override: path.editorOverrideId
-		};
+		} as IEditorOptions;
 
 		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
 		if (!exists) {

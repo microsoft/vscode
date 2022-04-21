@@ -8,6 +8,7 @@ import { isLinux, isMacintosh, isNative, isWeb } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { FileType } from 'vs/platform/files/common/files';
 import { LogLevel } from 'vs/platform/log/common/log';
@@ -177,6 +178,11 @@ export interface IPathData {
 
 	// the file path to open within the instance
 	readonly fileUri?: UriComponents;
+
+	/**
+	 * Optional editor options to apply in the file
+	 */
+	readonly options?: IEditorOptions;
 
 	/**
 	 * An optional selection to apply in the file
