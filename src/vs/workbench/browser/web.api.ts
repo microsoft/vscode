@@ -561,39 +561,42 @@ export interface IDefaultView {
 	readonly id: string;
 }
 
+/**
+ * @deprecated use `IDefaultEditor.options` instead
+ */
 export interface IPosition {
 	readonly line: number;
 	readonly column: number;
 }
 
+/**
+ * @deprecated use `IDefaultEditor.options` instead
+ */
 export interface IRange {
-
-	/**
-	 * The start position. It is before or equal to end position.
-	 */
 	readonly start: IPosition;
-
-	/**
-	 * The end position. It is after or equal to start position.
-	 */
 	readonly end: IPosition;
 }
 
 export interface IDefaultEditor {
+
 	readonly uri: UriComponents;
+	readonly options?: IEditorOptions;
+
+	readonly openOnlyIfExists?: boolean;
+
 	/**
-	 * @deprecated Use options instead
+	 * @deprecated use `options` instead
 	 */
 	readonly selection?: IRange;
-	readonly openOnlyIfExists?: boolean;
+
 	/**
-	 * @deprecated Use options.override instead
+	 * @deprecated use `options.override` instead
 	 */
 	readonly openWith?: string;
-	readonly options?: IEditorOptions;
 }
 
 export interface IDefaultLayout {
+
 	readonly views?: IDefaultView[];
 	readonly editors?: IDefaultEditor[];
 
@@ -657,4 +660,3 @@ export interface IDevelopmentOptions {
 	 */
 	readonly enableSmokeTestDriver?: boolean;
 }
-
