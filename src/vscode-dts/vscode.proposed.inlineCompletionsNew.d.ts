@@ -101,6 +101,7 @@ declare module 'vscode' {
 	 * Represents a collection of {@link InlineCompletionItemNew inline completion items} to be presented
 	 * in the editor.
 	 */
+	// TODO@API let keep this in `Additions` because of the insecurity about commands vs description
 	export class InlineCompletionListNew {
 		/**
 		 * The inline completion items.
