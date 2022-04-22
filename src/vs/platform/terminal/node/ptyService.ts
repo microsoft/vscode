@@ -594,7 +594,6 @@ export class PersistentTerminalProcess extends Disposable {
 			this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._terminalProcess.currentTitle });
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: this._terminalProcess.shellType });
-			this._logService.info('firing shell type', this._terminalProcess.shellType);
 			this.triggerReplay();
 		}
 		return undefined;
