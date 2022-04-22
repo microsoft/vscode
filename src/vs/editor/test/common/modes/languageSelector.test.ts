@@ -131,4 +131,23 @@ suite('LanguageSelector', function () {
 		let value = score(selector, URI.file('/home/user/Desktop/test.json'), 'json', true, undefined);
 		assert.strictEqual(value, 10);
 	});
+
+	test('NotebookType without notebook', function () {
+		let obj = {
+			uri: URI.parse('file:///my/file.bat'),
+			langId: 'bat',
+		};
+
+		let value = score({
+			language: 'bat',
+			notebookType: 'xxx'
+		}, obj.uri, obj.langId, true, undefined);
+		assert.strictEqual(value, 0);
+
+		value = score({
+			language: 'bat',
+			notebookType: '*'
+		}, obj.uri, obj.langId, true, undefined);
+		assert.strictEqual(value, 0);
+	});
 });

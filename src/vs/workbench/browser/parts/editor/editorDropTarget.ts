@@ -31,7 +31,7 @@ interface IDropOperation {
 }
 
 function isDropIntoEditorEnabledGlobally(configurationService: IConfigurationService) {
-	return configurationService.getValue<boolean>('workbench.editor.dropIntoEditor.enabled');
+	return configurationService.getValue<boolean>('workbench.experimental.editor.dropIntoEditor.enabled');
 }
 
 function isDragIntoEditorEvent(e: DragEvent): boolean {
@@ -101,7 +101,7 @@ class DropOverlay extends Themable {
 		container.appendChild(this.overlay);
 
 		if (this.enableDropIntoEditor) {
-			this.dropIntoPromptElement = renderFormattedText(localize('dropIntoEditorPrompt', "Hold __shift__ to drop into editor"), {});
+			this.dropIntoPromptElement = renderFormattedText(localize('dropIntoEditorPrompt', "Hold __{0}__ to drop into editor", isMacintosh ? '⇧' : 'Shift'), {});
 			this.dropIntoPromptElement.classList.add('editor-group-overlay-drop-into-prompt');
 			this.overlay.appendChild(this.dropIntoPromptElement);
 		}

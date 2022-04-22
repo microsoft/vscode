@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CachedFunction } from 'vs/base/common/cache';
+import { BugIndicatingError } from 'vs/base/common/errors';
 import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
 
 /**
@@ -35,14 +37,14 @@ export class LanguageBracketsConfiguration {
 			brackets = [];
 		}
 
-		const openingBracketInfos = new LazyMap((bracket: string) => {
+		const openingBracketInfos = new CachedFunction((bracket: string) => {
 			const closing = new Set<ClosingBracketKind>();
 			return {
 				info: new OpeningBracketKind(this, bracket, closing),
 				closing,
 			};
 		});
-		const closingBracketInfos = new LazyMap((bracket: string) => {
+		const closingBracketInfos = new CachedFunction((bracket: string) => {
 			const opening = new Set<OpeningBracketKind>();
 			return {
 				info: new ClosingBracketKind(this, bracket, opening),
@@ -58,8 +60,8 @@ export class LanguageBracketsConfiguration {
 			closing.opening.add(opening.info);
 		}
 
-		this._openingBrackets = new Map([...openingBracketInfos.innerMap].map(([k, v]) => [k, v.info]));
-		this._closingBrackets = new Map([...closingBracketInfos.innerMap].map(([k, v]) => [k, v.info]));
+		this._openingBrackets = new Map([...openingBracketInfos.cachedValues].map(([k, v]) => [k, v.info]));
+		this._closingBrackets = new Map([...closingBracketInfos.cachedValues].map(([k, v]) => [k, v.info]));
 	}
 
 	/**
@@ -149,40 +151,5 @@ export class ClosingBracketKind extends BracketKindBase {
 
 	public getClosedBrackets(): readonly OpeningBracketKind[] {
 		return [...this.closedBrackets];
-	}
-}
-
-// Utilities
-
-/**
- * This error indicates a bug.
- */
-class BugIndicatingError extends Error {
-	constructor(message: string) {
-		super(message);
-		Object.setPrototypeOf(this, BugIndicatingError.prototype);
-
-		// Because we know for sure only buggy code throws this,
-		// we definitely want to break here and fix the bug.
-		// eslint-disable-next-line no-debugger
-		debugger;
-	}
-}
-
-class LazyMap<TKey, TValue> {
-	private readonly _map = new Map<TKey, TValue>();
-	public get innerMap(): ReadonlyMap<TKey, TValue> {
-		return this._map;
-	}
-
-	constructor(private readonly initialize: (key: TKey) => TValue) { }
-
-	public get(key: TKey): TValue {
-		if (this._map.has(key)) {
-			return this._map.get(key)!;
-		}
-		const value = this.initialize(key);
-		this._map.set(key, value);
-		return value;
 	}
 }

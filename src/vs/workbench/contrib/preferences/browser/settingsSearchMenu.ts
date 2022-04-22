@@ -10,7 +10,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestCont
 import { localize } from 'vs/nls';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
-import { EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, GENERAL_TAG_SETTING_TAG, ID_SETTING_TAG, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, GENERAL_TAG_SETTING_TAG, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 
 export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 	private readonly suggestController: SuggestController | null;
@@ -47,6 +47,9 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 		}
 	}
 
+	/**
+	 * The created action appends a query to the search widget search string. It optionally triggers suggestions.
+	 */
 	private createAction(id: string, label: string, tooltip: string, queryToAppend: string, triggerSuggest: boolean): IAction {
 		return {
 			id,
@@ -60,24 +63,30 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 		};
 	}
 
-	private createModifiedAction(): IAction {
-		// The modified action works slightly differently than the other actions.
-		// It is more like a checkbox on/off toggle.
-		const queryContainsModifiedTag = this.searchWidget.getValue().split(' ').some(word => word === `@${MODIFIED_SETTING_TAG}`);
+	/**
+	 * The created action appends a query to the search widget search string, if the query does not exist.
+	 * Otherwise, it removes the query from the search widget search string.
+	 * The action does not trigger suggestions after adding or removing the query.
+	 */
+	private createToggleAction(id: string, label: string, tooltip: string, queryToAppend: string): IAction {
+		const splitCurrentQuery = this.searchWidget.getValue().split(' ');
+		const queryContainsQueryToAppend = splitCurrentQuery.includes(queryToAppend);
 		return {
-			id: 'modifiedSettingsSearch',
-			label: localize('modifiedSettingsSearch', "Modified"),
-			tooltip: localize('modifiedSettingsSearchTooltip', "View modified settings only"),
+			id,
+			label,
+			tooltip,
 			class: undefined,
 			enabled: true,
-			checked: queryContainsModifiedTag,
+			checked: queryContainsQueryToAppend,
 			run: () => {
-				// Append the tag, otherwise remove it from the query.
-				if (!queryContainsModifiedTag) {
-					this.searchWidget.setValue(this.searchWidget.getValue().trimEnd() + ` @${MODIFIED_SETTING_TAG}`);
+				if (!queryContainsQueryToAppend) {
+					const trimmedCurrentQuery = this.searchWidget.getValue().trimEnd();
+					const newQuery = trimmedCurrentQuery ? trimmedCurrentQuery + ' ' + queryToAppend : queryToAppend;
+					this.searchWidget.setValue(newQuery);
 				} else {
-					const queryWithoutModifiedTag = this.searchWidget.getValue().split(' ').filter(word => word !== `@${MODIFIED_SETTING_TAG}`).join(' ');
-					this.searchWidget.setValue(queryWithoutModifiedTag);
+					const queryWithRemovedTags = this.searchWidget.getValue().split(' ')
+						.filter(word => word !== queryToAppend).join(' ');
+					this.searchWidget.setValue(queryWithRemovedTags);
 				}
 				this.searchWidget.focus();
 			},
@@ -87,7 +96,12 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 
 	getActions(): IAction[] {
 		return [
-			this.createModifiedAction(),
+			this.createToggleAction(
+				'modifiedSettingsSearch',
+				localize('modifiedSettingsSearch', "Modified"),
+				localize('modifiedSettingsSearchTooltip', "Add or remove modified settings filter"),
+				`@${MODIFIED_SETTING_TAG}`
+			),
 			this.createAction(
 				'extSettingsSearch',
 				localize('extSettingsSearch', "Extension ID..."),
@@ -116,12 +130,11 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 				`@${LANGUAGE_SETTING_TAG}`,
 				true
 			),
-			this.createAction(
-				'idSettingsSearch',
-				localize('idSettingsSearch', "Setting ID..."),
-				localize('idSettingsSearchTooltip', "Add setting ID filter"),
-				`@${ID_SETTING_TAG}`,
-				false
+			this.createToggleAction(
+				'onlineSettingsSearch',
+				localize('onlineSettingsSearch', "Online services"),
+				localize('onlineSettingsSearchTooltip', "Show settings for online services"),
+				'@tag:usesOnlineServices'
 			)
 		];
 	}

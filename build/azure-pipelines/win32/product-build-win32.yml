@@ -282,7 +282,7 @@ steps:
       targetPath: .build\logs
     displayName: "Publish Log Files"
     continueOnError: true
-    condition: and(succeededOrFailed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+    condition: and(failed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results
