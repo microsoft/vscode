@@ -15680,7 +15680,7 @@ declare module 'vscode' {
 		readonly viewColumn: ViewColumn;
 
 		/**
-		 * The active {@link Tab tab} in the group. This is the tab which contents are currently
+		 * The active {@link Tab tab} in the group. This is the tab whose contents are currently
 		 * being rendered.
 		 *
 		 * *Note* that there can be one active tab per group but there can only be one {@link TabGroups.activeTabGroup active group}.
