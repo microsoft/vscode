@@ -9,6 +9,10 @@
 	flex-direction: row;
 }
 
+.monaco-workbench.mac .part.titlebar {
+	flex-direction: row-reverse;
+}
+
 /* Root Container */
 .monaco-workbench .part.titlebar>.titlebar-container {
 	box-sizing: border-box;
@@ -46,23 +50,6 @@
 	justify-content: left;
 }
 
-/* .monaco-workbench.windows .part.titlebar > .titlebar-container,
-.monaco-workbench.linux .part.titlebar > .titlebar-container {
-	margin-right: calc((100vw - env(titlebar-area-width, calc(100vw - 138px / var(--zoom-factor)))));
-}
-.monaco-workbench.windows .part.titlebar > .titlebar-container.counter-zoom,
-.monaco-workbench.linux .part.titlebar > .titlebar-container.counter-zoom {
-	margin-right: calc(var(--zoom-factor) * (100vw - env(titlebar-area-width, calc(100vw - 138px / var(--zoom-factor)))));
-}
-
-.monaco-workbench.web .part.titlebar > .titlebar-container {
-	margin-right: calc((var(--zoom-factor) * (100vw - env(titlebar-area-width, 100vw))));
-}
-
-.monaco-workbench.web .part.titlebar > .titlebar-container.counter-zoom {
-	margin-right: calc(((100vw - env(titlebar-area-width, 100vw))));
-} */
-
 /* Draggable region */
 .monaco-workbench .part.titlebar>.titlebar-container>.titlebar-drag-region {
 	top: 0;
@@ -97,9 +84,10 @@
 }
 
 /* Menubar */
-.monaco-workbench .part.titlebar>.titlebar-container>.menubar {
+.monaco-workbench .part.titlebar > .titlebar-container > .menubar {
 	/* move menubar above drag region as negative z-index on drag region cause greyscale AA */
 	z-index: 2500;
+	min-width: 36px;
 }
 
 /* Resizer */
@@ -169,6 +157,11 @@
 	height: 30px;
 	width: 138px;
 	zoom: calc(1 / var(--zoom-factor));
+}
+
+.monaco-workbench.mac .part.titlebar>.window-controls-container {
+	width: 70px;
+	height: env(titlebar-area-width, 28px);
 }
 
 .monaco-workbench.fullscreen .part.titlebar>.window-controls-container {

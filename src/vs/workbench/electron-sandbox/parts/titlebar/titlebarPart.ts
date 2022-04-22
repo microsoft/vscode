@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomFactor } from 'vs/base/browser/browser';
-import { $, addDisposableListener, append, EventType, hide, IDomNodePagePosition, prepend, show } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, EventType, hide, prepend, show } from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -30,7 +30,6 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	private maxRestoreControl: HTMLElement | undefined;
 	private dragRegion: HTMLElement | undefined;
 	private resizer: HTMLElement | undefined;
-	private windowControls: HTMLElement | undefined;
 
 	private getMacTitlebarSize() {
 		const osVersion = this.environmentService.os.release;
@@ -132,45 +131,6 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 	}
 
-	protected override adjustTitleMarginToCenter(): void {
-		if (this.customMenubar && this.menubar) {
-			// const titleBarRect = this.getTitlebarAreaRect();
-			const leftMarker = (this.appIcon ? this.appIcon.clientWidth : 0) + this.menubar.clientWidth + 10;
-			const rightMarker = this.rootContainer.clientWidth - (this.layoutControls ? this.layoutControls.clientWidth : 0) - 10;
-
-			// Not enough space to center the titlebar within window,
-			// Center between left and right controls
-			if (leftMarker > (this.rootContainer.clientWidth + (this.windowControls?.clientWidth ?? 0) - this.title.clientWidth) / 2 ||
-				rightMarker < (this.element.clientWidth + (this.windowControls?.clientWidth ?? 0) + this.title.clientWidth) / 2) {
-				this.title.style.position = '';
-				this.title.style.left = '';
-				this.title.style.transform = '';
-				return;
-			}
-		}
-
-		this.title.style.position = 'absolute';
-		this.title.style.left = '50%';
-		this.title.style.transform = 'translate(-50%, 0)';
-		this.title.style.maxWidth = `calc(100vw - ${2 * ((this.layoutControls?.clientWidth || 70) + 10)}px)`;
-	}
-
-	protected override getTitlebarAreaRect(): IDomNodePagePosition {
-		if (this.windowControls) {
-			const boundingRect = this.element.getBoundingClientRect();
-			const controlsBoundingRect = this.windowControls.getBoundingClientRect();
-			return {
-				height: boundingRect.height,
-				width: boundingRect.width - controlsBoundingRect.width,
-				left: boundingRect.left,
-				top: boundingRect.top
-			};
-		}
-
-		return super.getTitlebarAreaRect();
-
-	}
-
 	protected override installMenubar(): void {
 		super.installMenubar();
 
@@ -205,9 +165,8 @@ export class TitlebarPart extends BrowserTitleBarPart {
 
 		// Window Controls (Native Windows/Linux)
 		const hasWindowControlsOverlay = typeof (navigator as any).windowControlsOverlay !== 'undefined';
+		this.windowControls = append(this.element, $('div.window-controls-container'));
 		if (!isMacintosh && getTitleBarStyle(this.configurationService) !== 'native' && !hasWindowControlsOverlay) {
-			this.windowControls = append(this.element, $('div.window-controls-container'));
-
 			// Minimize
 			const minimizeIcon = append(this.windowControls, $('div.window-icon.window-minimize' + Codicon.chromeMinimize.cssSelector));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {

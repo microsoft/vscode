@@ -25,7 +25,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 import { URI } from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
-import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame, prepend, IDomNodePagePosition } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame, prepend } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template } from 'vs/base/common/labels';
@@ -68,6 +68,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	declare readonly _serviceBrand: undefined;
 
 	protected rootContainer!: HTMLElement;
+	protected windowControls: HTMLElement | undefined;
 	protected title!: HTMLElement;
 
 	protected customMenubar: CustomMenubarControl | undefined;
@@ -439,6 +440,8 @@ export class TitlebarPart extends Part implements ITitleService {
 			updateLayoutMenu();
 		}
 
+		this.windowControls = append(this.element, $('div.window-controls'));
+
 		// Context menu on title
 		[EventType.CONTEXT_MENU, EventType.MOUSE_DOWN].forEach(event => {
 			this._register(addDisposableListener(this.title, event, e => {
@@ -553,13 +556,13 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	protected adjustTitleMarginToCenter(): void {
 		if (this.customMenubar && this.menubar) {
-			const leftMarker = (this.appIcon ? this.appIcon.clientWidth : 0) + this.menubar.clientWidth + 10;
-			const rightMarker = this.element.clientWidth - 10;
+			const leftMarker = (this.appIcon?.clientWidth ?? 0) + this.menubar.clientWidth + 10;
+			const rightMarker = this.rootContainer.clientWidth - (this.layoutControls?.clientWidth ?? 0) - 10;
 
 			// Not enough space to center the titlebar within window,
-			// Center between menu and window controls
-			if (leftMarker > (this.element.clientWidth - this.title.clientWidth) / 2 ||
-				rightMarker < (this.element.clientWidth + this.title.clientWidth) / 2) {
+			// Center between left and right controls
+			if (leftMarker > (this.rootContainer.clientWidth + (this.windowControls?.clientWidth ?? 0) - this.title.clientWidth) / 2 ||
+				rightMarker < (this.rootContainer.clientWidth + (this.windowControls?.clientWidth ?? 0) + this.title.clientWidth) / 2) {
 				this.title.style.position = '';
 				this.title.style.left = '';
 				this.title.style.transform = '';
@@ -570,27 +573,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.title.style.position = 'absolute';
 		this.title.style.left = '50%';
 		this.title.style.transform = 'translate(-50%, 0)';
-	}
-
-	protected getTitlebarAreaRect(): IDomNodePagePosition {
-		const nav = navigator as { windowControlsOverlay?: { getTitlebarAreaRect: () => DOMRect } };
-
-		if (typeof nav.windowControlsOverlay === undefined || typeof nav.windowControlsOverlay!.getTitlebarAreaRect === undefined) {
-			this.rootContainer.getBoundingClientRect();
-		}
-
-		const nativeTitlebarRect = nav.windowControlsOverlay!.getTitlebarAreaRect();
-		let scale = 1.0;
-		if (nativeTitlebarRect.height !== this.rootContainer.clientHeight) {
-			scale = this.rootContainer.clientHeight / nativeTitlebarRect.height;
-		}
-
-		return {
-			height: nativeTitlebarRect.height * scale,
-			width: nativeTitlebarRect.width * scale,
-			left: nativeTitlebarRect.left * scale,
-			top: nativeTitlebarRect.top * scale
-		};
 	}
 
 	protected get currentMenubarVisibility(): MenuBarVisibility {
