@@ -49,7 +49,7 @@ class RemoteSourceProviderQuickPick {
 	@throttle
 	private async query(): Promise<void> {
 		try {
-			const remoteSources = await this.provider.getRemoteSources(this.quickpick.value) || [];
+			const remoteSources = await this.provider.getRemoteSources(this.quickpick?.value) || [];
 
 			this.ensureQuickPick();
 			this.quickpick!.show();
