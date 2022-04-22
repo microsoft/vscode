@@ -571,9 +571,10 @@ export class TimelinePane extends ViewPane {
 			}
 		}
 		request?.tokenSource.dispose(true);
-
+		options.cacheResults = true;
+		options.resetCache = reset;
 		request = this.timelineService.getTimeline(
-			source, uri, options, new CancellationTokenSource(), { cacheResults: true, resetCache: reset }
+			source, uri, options, new CancellationTokenSource()
 		);
 
 		if (request === undefined) {

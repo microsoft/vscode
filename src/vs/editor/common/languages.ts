@@ -833,6 +833,10 @@ export interface InlineCompletion {
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 	readonly items: readonly TItem[];
+	/**
+	 * A list of commands associated with the inline completions of this list.
+	 */
+	readonly commands?: Command[];
 }
 
 export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {

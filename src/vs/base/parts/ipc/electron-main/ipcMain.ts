@@ -109,13 +109,10 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 		}
 
 		const sender = event.senderFrame;
-		if (!sender) {
-			return true; // happens when renderer uses `ipcRenderer.postMessage` (TODO@bpasero revisit with newer Electron version)
-		}
 
 		const url = sender.url;
 		if (!url) {
-			return true; // seems to happen sometimes from the early `invoke` call from preload script
+			return true; // TODO@electron this only seems to happen from playwright runs (https://github.com/microsoft/vscode/issues/147301)
 		}
 
 		let host = 'unknown';

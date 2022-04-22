@@ -218,11 +218,11 @@ export class ExtHostNotebookDocument {
 		const result = {
 			notebook: this.apiNotebook,
 			metadata: newMetadata,
-			cellChanges: <vscode.NotebookDocumentContentCellChange[]>[],
+			cellChanges: <vscode.NotebookDocumentCellChange[]>[],
 			contentChanges: <vscode.NotebookDocumentContentChange[]>[],
 		};
 
-		type RelaxedCellChange = Partial<vscode.NotebookDocumentContentCellChange> & { cell: vscode.NotebookCell };
+		type RelaxedCellChange = Partial<vscode.NotebookDocumentCellChange> & { cell: vscode.NotebookCell };
 		const relaxedCellChanges: RelaxedCellChange[] = [];
 
 		// -- apply change and populate content changes

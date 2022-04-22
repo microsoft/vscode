@@ -19,6 +19,7 @@ import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const $ = dom.$;
 
@@ -32,6 +33,7 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 
 	constructor(
 		private editor: ICodeEditor,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -53,7 +55,7 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 		const model = this.editor.getModel();
 
 		if (model && model.uri.scheme === Schemas.untitled && model.getLanguageId() === PLAINTEXT_LANGUAGE_ID && configValue === 'text') {
-			this.untitledTextHintContentWidget = new UntitledTextEditorHintContentWidget(this.editor, this.commandService, this.configurationService, this.keybindingService);
+			this.untitledTextHintContentWidget = new UntitledTextEditorHintContentWidget(this.editor, this.editorGroupsService, this.commandService, this.configurationService, this.keybindingService);
 		}
 	}
 
@@ -72,6 +74,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		private readonly editorGroupsService: IEditorGroupsService,
 		private readonly commandService: ICommandService,
 		private readonly configurationService: IConfigurationService,
 		private readonly keybindingService: IKeybindingService,
@@ -103,6 +106,20 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 		if (!this.domNode) {
 			this.domNode = $('.untitled-hint');
 			this.domNode.style.width = 'max-content';
+
+			const editorType = $('a.editor-type');
+			editorType.style.cursor = 'pointer';
+			editorType.innerText = localize('notLookingForTextEditor', "Not looking for a text editor?");
+			const selectEditorTypeKeyBinding = this.keybindingService.lookupKeybinding('welcome.showNewFileEntries');
+			const selectEditorTypeKeybindingLabel = selectEditorTypeKeyBinding?.getLabel();
+			if (selectEditorTypeKeybindingLabel) {
+				editorType.title = localize('keyboardBindingTooltip', "{0}", selectEditorTypeKeybindingLabel);
+			}
+			this.domNode.appendChild(editorType);
+
+			this.domNode.appendChild($('br'));
+			this.domNode.appendChild($('br'));
+
 			const language = $('a.language-mode');
 			language.style.cursor = 'pointer';
 			language.innerText = localize('selectAlanguage2', "Select a language");
@@ -112,6 +129,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 				language.title = localize('keyboardBindingTooltip', "{0}", languageKeybindingLabel);
 			}
 			this.domNode.appendChild(language);
+
 			const toGetStarted = $('span');
 			toGetStarted.innerText = localize('toGetStarted', " to get started. Start typing to dismiss, or ",);
 			this.domNode.appendChild(toGetStarted);
@@ -135,6 +153,21 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.toDispose.push(dom.addDisposableListener(language, 'click', languageOnClickOrTap));
 			this.toDispose.push(dom.addDisposableListener(language, GestureEventType.Tap, languageOnClickOrTap));
 			this.toDispose.push(Gesture.addTarget(language));
+
+			const chooseEditorOnClickOrTap = async (e: MouseEvent) => {
+				e.stopPropagation();
+
+				const activeEditorInput = this.editorGroupsService.activeGroup.activeEditor;
+				const newEditorSelected = await this.commandService.executeCommand('welcome.showNewFileEntries', { from: 'hint' });
+
+				// Close the active editor as long as it is untitled (swap the editors out)
+				if (newEditorSelected && activeEditorInput !== null && activeEditorInput.resource?.scheme === Schemas.untitled) {
+					this.editorGroupsService.activeGroup.closeEditor(activeEditorInput, { preserveFocus: true });
+				}
+			};
+			this.toDispose.push(dom.addDisposableListener(editorType, 'click', chooseEditorOnClickOrTap));
+			this.toDispose.push(dom.addDisposableListener(editorType, GestureEventType.Tap, chooseEditorOnClickOrTap));
+			this.toDispose.push(Gesture.addTarget(editorType));
 
 			const dontShowOnClickOrTap = () => {
 				this.configurationService.updateValue(untitledTextEditorHintSetting, 'hidden');

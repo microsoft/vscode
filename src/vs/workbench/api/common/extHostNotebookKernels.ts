@@ -108,7 +108,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor; message: any }>();
 
 		const data: INotebookKernelDto2 = {
-			id: createKernelId(extension, id),
+			id: createKernelId(extension.identifier, id),
 			notebookType: viewType,
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
@@ -218,7 +218,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 					that._logService.trace(`NotebookController[${handle}] NOT associated to notebook, associated to THESE notebooks:`, Array.from(associatedNotebooks.keys()).map(u => u.toString()));
 					throw new Error(`notebook controller is NOT associated to notebook: ${cell.notebook.uri.toString()}`);
 				}
-				return that._createNotebookCellExecution(cell, createKernelId(extension, this.id));
+				return that._createNotebookCellExecution(cell, createKernelId(extension.identifier, this.id));
 			},
 			dispose: () => {
 				if (!isDisposed) {
@@ -255,6 +255,15 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			associatedNotebooks
 		});
 		return controller;
+	}
+
+	getIdByController(controller: vscode.NotebookController) {
+		for (const [_, candidate] of this._kernelData) {
+			if (candidate.controller === controller) {
+				return createKernelId(candidate.extensionId, controller.id);
+			}
+		}
+		return null;
 	}
 
 	$acceptNotebookAssociation(handle: number, uri: UriComponents, value: boolean): void {
@@ -583,6 +592,6 @@ class TimeoutBasedCollector<T> {
 	}
 }
 
-function createKernelId(extension: IExtensionDescription, id: string): string {
-	return `${extension.identifier.value}/${id}`;
+export function createKernelId(extensionIdentifier: ExtensionIdentifier, id: string): string {
+	return `${extensionIdentifier.value}/${id}`;
 }

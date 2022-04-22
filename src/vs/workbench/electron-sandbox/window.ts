@@ -63,7 +63,7 @@ import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { registerLegacyWindowDriver, registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
+import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 
 export class NativeWindow extends Disposable {
 
@@ -132,11 +132,11 @@ export class NativeWindow extends Disposable {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
 		// prevent opening a real URL inside the window
-		[EventType.DRAG_OVER, EventType.DROP].forEach(event => {
+		for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
 			window.document.body.addEventListener(event, (e: DragEvent) => {
 				EventHelper.stop(e);
 			});
-		});
+		}
 
 		// Support runAction event
 		ipcRenderer.on('vscode:runAction', async (event: unknown, request: INativeRunActionInWindowRequest) => {
@@ -359,7 +359,7 @@ export class NativeWindow extends Disposable {
 
 					// Progress for long running shutdown
 					if (confirmed) {
-						this.progressOnShutdown(reason);
+						this.progressOnBeforeShutdown(reason);
 					}
 
 					return !confirmed;
@@ -368,10 +368,10 @@ export class NativeWindow extends Disposable {
 		}
 
 		// Progress for long running shutdown
-		this.progressOnShutdown(reason);
+		this.progressOnBeforeShutdown(reason);
 	}
 
-	private progressOnShutdown(reason: ShutdownReason): void {
+	private progressOnBeforeShutdown(reason: ShutdownReason): void {
 		this.progressService.withProgress({
 			location: ProgressLocation.Window, 	// use window progress to not be too annoying about this operation
 			delay: 800,							// delay so that it only appears when operation takes a long time
@@ -419,19 +419,29 @@ export class NativeWindow extends Disposable {
 		});
 	}
 
-	private onWillShutdown({ reason, force }: WillShutdownEvent): void {
-		this.progressService.withProgress({
-			location: ProgressLocation.Dialog, 				// use a dialog to prevent the user from making any more interactions now
-			buttons: [this.toForceShutdownLabel(reason)],	// allow to force shutdown anyway
-			delay: 800,										// delay so that it only appears when operation takes a long time
-			cancellable: false,								// do not allow to cancel
-			sticky: true,									// do not allow to dismiss
-			title: this.toShutdownLabel(reason, false)
-		}, () => {
-			return Event.toPromise(this.lifecycleService.onDidShutdown); // dismiss this dialog when we actually shutdown
-		}, () => {
-			force();
-		});
+	private onWillShutdown({ reason, force, joiners }: WillShutdownEvent): void {
+
+		// Delay so that the dialog only appears after timeout
+		const shutdownDialogScheduler = new RunOnceScheduler(() => {
+			const pendingJoiners = joiners();
+
+			this.progressService.withProgress({
+				location: ProgressLocation.Dialog, 				// use a dialog to prevent the user from making any more interactions now
+				buttons: [this.toForceShutdownLabel(reason)],	// allow to force shutdown anyway
+				cancellable: false,								// do not allow to cancel
+				sticky: true,									// do not allow to dismiss
+				title: this.toShutdownLabel(reason, false),
+				detail: pendingJoiners.length > 0 ? localize('willShutdownDetail', "The following operations are still running: \n{0}", pendingJoiners.map(joiner => `- ${joiner.label}`).join('\n')) : undefined
+			}, () => {
+				return Event.toPromise(this.lifecycleService.onDidShutdown); // dismiss this dialog when we actually shutdown
+			}, () => {
+				force();
+			});
+		}, 1200);
+		shutdownDialogScheduler.schedule();
+
+		// Dispose scheduler when we actually shutdown
+		Event.once(this.lifecycleService.onDidShutdown)(() => shutdownDialogScheduler.dispose());
 	}
 
 	private toShutdownLabel(reason: ShutdownReason, isError: boolean): string {
@@ -640,27 +650,18 @@ export class NativeWindow extends Disposable {
 		}
 
 		// Smoke Test Driver
-		this.setupDriver();
+		if (this.environmentService.enableSmokeTestDriver) {
+			this.setupDriver();
+		}
 	}
 
 	private setupDriver(): void {
-
-		// Modern Driver
-		if (this.environmentService.enableSmokeTestDriver) {
-			const that = this;
-			registerWindowDriver({
-				async exitApplication(): Promise<number> {
-					that.nativeHostService.quit();
-
-					return that.environmentService.mainPid;
-				}
-			});
-		}
-
-		// Legacy Driver (TODO@bpasero remove me eventually)
-		else if (this.environmentService.args.driver) {
-			this.instantiationService.invokeFunction(async accessor => this._register(await registerLegacyWindowDriver(accessor, this.nativeHostService.windowId)));
-		}
+		const that = this;
+		registerWindowDriver({
+			async exitApplication(): Promise<void> {
+				return that.nativeHostService.quit();
+			}
+		});
 	}
 
 	private setupOpenHandlers(): void {
@@ -811,9 +812,9 @@ export class NativeWindow extends Disposable {
 	private doAddFolders(): void {
 		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
 
-		this.pendingFoldersToAdd.forEach(folder => {
+		for (const folder of this.pendingFoldersToAdd) {
 			foldersToAdd.push(({ uri: folder }));
-		});
+		}
 
 		this.pendingFoldersToAdd = [];
 

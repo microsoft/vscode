@@ -206,6 +206,10 @@ export class Extension implements IExtension {
 		if (!this.gallery || !this.local) {
 			return false;
 		}
+		// Do not allow updating system extensions in stable
+		if (this.type === ExtensionType.System && this.productService.quality === 'stable') {
+			return false;
+		}
 		if (!this.local.preRelease && this.gallery.properties.isPreReleaseVersion) {
 			return false;
 		}
@@ -1057,8 +1061,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				// Skip if check updates only for builtin extensions and current extension is not builtin.
 				continue;
 			}
-			if (installed.isBuiltin && !installed.local?.identifier.uuid) {
-				// Skip if the builtin extension does not have Marketplace id
+			if (installed.isBuiltin && (!installed.local?.identifier.uuid || this.productService.quality !== 'stable')) {
+				// Skip if the builtin extension does not have Marketplace identifier or the current quality is not stable.
 				continue;
 			}
 			infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });

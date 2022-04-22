@@ -2565,16 +2565,16 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					default: defaults.fontFamily,
 					markdownDescription: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
 				},
-				'editor.inlayHints.displayStyle': {
-					type: 'string',
-					enum: ['standard', 'compact'],
-					enumDescriptions: [
-						nls.localize('inlayHints.displayStyle.standard', "Renders inlay hints with the default style."),
-						nls.localize('inlayHints.displayStyle.compact', "Renders inlay hints without any padding, and removes the rounded borders."),
-					],
-					default: defaults.displayStyle,
-					description: nls.localize('inlayHints.displayStyle', "Controls the display style of inlay hints.")
-				}
+				// 'editor.inlayHints.displayStyle': {
+				// 	type: 'string',
+				// 	enum: ['standard', 'compact'],
+				// 	enumDescriptions: [
+				// 		nls.localize('inlayHints.displayStyle.standard', "Renders inlay hints with the default style."),
+				// 		nls.localize('inlayHints.displayStyle.compact', "Renders inlay hints without any padding, and removes the rounded borders."),
+				// 	],
+				// 	default: defaults.displayStyle,
+				// 	description: nls.localize('inlayHints.displayStyle', "Controls the display style of inlay hints.")
+				// }
 			}
 		);
 	}
@@ -3693,7 +3693,7 @@ export interface IGuidesOptions {
 	 * Enable highlighting of the active indent guide.
 	 * Defaults to true.
 	 */
-	highlightActiveIndentation?: boolean;
+	highlightActiveIndentation?: boolean | 'always';
 }
 
 /**
@@ -3751,8 +3751,15 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, IGuidesOptions,
 					description: nls.localize('editor.guides.indentation', "Controls whether the editor should render indent guides.")
 				},
 				'editor.guides.highlightActiveIndentation': {
-					type: 'boolean',
+					type: ['boolean', 'string'],
+					enum: [true, 'always', false],
+					enumDescriptions: [
+						nls.localize('editor.guides.highlightActiveIndentation.true', "Highlights the active indent guide."),
+						nls.localize('editor.guides.highlightActiveIndentation.always', "Highlights the active indent guide even if bracket guides are highlighted."),
+						nls.localize('editor.guides.highlightActiveIndentation.false', "Do not highlight the active indent guide."),
+					],
 					default: defaults.highlightActiveIndentation,
+
 					description: nls.localize('editor.guides.highlightActiveIndentation', "Controls whether the editor should highlight the active indent guide.")
 				}
 			}
@@ -3770,7 +3777,7 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, IGuidesOptions,
 			highlightActiveBracketPair: boolean(input.highlightActiveBracketPair, this.defaultValue.highlightActiveBracketPair),
 
 			indentation: boolean(input.indentation, this.defaultValue.indentation),
-			highlightActiveIndentation: boolean(input.highlightActiveIndentation, this.defaultValue.highlightActiveIndentation),
+			highlightActiveIndentation: primitiveSet(input.highlightActiveIndentation, this.defaultValue.highlightActiveIndentation, [true, false, 'always']),
 		};
 	}
 }

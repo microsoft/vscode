@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import assert = require('assert');
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
-import { IEditorTabDto, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TextInputDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IEditorTabDto, IEditorTabGroupDto, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TextInputDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { TextTabInput } from 'vs/workbench/api/common/extHostTypes';
@@ -126,6 +126,60 @@ suite('ExtHostEditorTabs', function () {
 		assert.strictEqual(count, 1);
 	});
 
+	test('Check TabGroupChangeEvent properties', function () {
+		const extHostEditorTabs = new ExtHostEditorTabs(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
+				// override/implement $moveTab or $closeTab
+			})
+		);
+
+		const group1Data: IEditorTabGroupDto = {
+			isActive: true,
+			viewColumn: 0,
+			groupId: 12,
+			tabs: []
+		};
+		const group2Data: IEditorTabGroupDto = { ...group1Data, groupId: 13 };
+
+		const events: vscode.TabGroupChangeEvent[] = [];
+		extHostEditorTabs.tabGroups.onDidChangeTabGroups(e => events.push(e));
+		// OPEN
+		extHostEditorTabs.$acceptEditorTabModel([group1Data]);
+		assert.deepStrictEqual(events, [{
+			changed: [],
+			closed: [],
+			opened: [extHostEditorTabs.tabGroups.activeTabGroup]
+		}]);
+
+		// OPEN, CHANGE
+		events.length = 0;
+		extHostEditorTabs.$acceptEditorTabModel([{ ...group1Data, isActive: false }, group2Data]);
+		assert.deepStrictEqual(events, [{
+			changed: [extHostEditorTabs.tabGroups.all[0]],
+			closed: [],
+			opened: [extHostEditorTabs.tabGroups.all[1]]
+		}]);
+
+		// CHANGE
+		events.length = 0;
+		extHostEditorTabs.$acceptEditorTabModel([group1Data, { ...group2Data, isActive: false }]);
+		assert.deepStrictEqual(events, [{
+			changed: extHostEditorTabs.tabGroups.all,
+			closed: [],
+			opened: []
+		}]);
+
+		// CLOSE, CHANGE
+		events.length = 0;
+		const oldActiveGroup = extHostEditorTabs.tabGroups.activeTabGroup;
+		extHostEditorTabs.$acceptEditorTabModel([group2Data]);
+		assert.deepStrictEqual(events, [{
+			changed: extHostEditorTabs.tabGroups.all,
+			closed: [oldActiveGroup],
+			opened: []
+		}]);
+	});
+
 	test('Ensure reference equality for activeTab and activeGroup', function () {
 		const extHostEditorTabs = new ExtHostEditorTabs(
 			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
@@ -175,10 +229,10 @@ suite('ExtHostEditorTabs', function () {
 		let all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 1);
 		const apiTab1 = all[0];
-		assert.ok(apiTab1.kind instanceof TextTabInput);
+		assert.ok(apiTab1.input instanceof TextTabInput);
 		assert.strictEqual(tabDto.input.kind, TabInputKind.TextInput);
 		const dtoResource = (tabDto.input as TextInputDto).uri;
-		assert.strictEqual(apiTab1.kind.uri.toString(), URI.revive(dtoResource).toString());
+		assert.strictEqual(apiTab1.input.uri.toString(), URI.revive(dtoResource).toString());
 		assert.strictEqual(apiTab1.isDirty, true);
 
 
@@ -196,8 +250,8 @@ suite('ExtHostEditorTabs', function () {
 		all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 1);
 		const apiTab2 = all[0];
-		assert.ok(apiTab1.kind instanceof TextTabInput);
-		assert.strictEqual(apiTab1.kind.uri.toString(), URI.revive(dtoResource).toString());
+		assert.ok(apiTab1.input instanceof TextTabInput);
+		assert.strictEqual(apiTab1.input.uri.toString(), URI.revive(dtoResource).toString());
 		assert.strictEqual(apiTab2.isDirty, false);
 
 		assert.strictEqual(apiTab1 === apiTab2, true);
@@ -243,10 +297,10 @@ suite('ExtHostEditorTabs', function () {
 		assert.strictEqual(all.length, 2);
 
 		const activeTab1 = extHostEditorTabs.tabGroups.activeTabGroup?.activeTab;
-		assert.ok(activeTab1?.kind instanceof TextTabInput);
+		assert.ok(activeTab1?.input instanceof TextTabInput);
 		assert.strictEqual(tabDtoAAA.input.kind, TabInputKind.TextInput);
 		const dtoAAAResource = (tabDtoAAA.input as TextInputDto).uri;
-		assert.strictEqual(activeTab1?.kind?.uri.toString(), URI.revive(dtoAAAResource)?.toString());
+		assert.strictEqual(activeTab1?.input?.uri.toString(), URI.revive(dtoAAAResource)?.toString());
 		assert.strictEqual(activeTab1?.isActive, true);
 
 		extHostEditorTabs.$acceptTabOperation({
@@ -257,10 +311,10 @@ suite('ExtHostEditorTabs', function () {
 		});
 
 		const activeTab2 = extHostEditorTabs.tabGroups.activeTabGroup?.activeTab;
-		assert.ok(activeTab2?.kind instanceof TextTabInput);
+		assert.ok(activeTab2?.input instanceof TextTabInput);
 		assert.strictEqual(tabDtoBBB.input.kind, TabInputKind.TextInput);
 		const dtoBBBResource = (tabDtoBBB.input as TextInputDto).uri;
-		assert.strictEqual(activeTab2?.kind?.uri.toString(), URI.revive(dtoBBBResource)?.toString());
+		assert.strictEqual(activeTab2?.input?.uri.toString(), URI.revive(dtoBBBResource)?.toString());
 		assert.strictEqual(activeTab2?.isActive, true);
 		assert.strictEqual(activeTab1?.isActive, false);
 	});

@@ -8,6 +8,7 @@ import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/ext
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
 import { ExtHostContext, ExtHostSecretStateShape, MainContext, MainThreadSecretStateShape } from '../common/extHost.protocol';
+import { ILogService } from 'vs/platform/log/common/log';
 
 @extHostNamedCustomer(MainContext.MainThreadSecretState)
 export class MainThreadSecretState extends Disposable implements MainThreadSecretStateShape {
@@ -19,6 +20,7 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 		extHostContext: IExtHostContext,
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
 		@IEncryptionService private readonly encryptionService: IEncryptionService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSecretState);
@@ -36,7 +38,26 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 	async $getPassword(extensionId: string, key: string): Promise<string | undefined> {
 		const fullKey = await this.getFullKey(extensionId);
 		const password = await this.credentialsService.getPassword(fullKey, key);
-		const decrypted = password && await this.encryptionService.decrypt(password);
+		if (!password) {
+			return undefined;
+		}
+
+		let decrypted: string | null;
+		try {
+			decrypted = await this.encryptionService.decrypt(password);
+		} catch (e) {
+			this.logService.error(e);
+
+			// If we are on a platform that newly started encrypting secrets before storing them,
+			// then passwords previously stored were stored un-encrypted (NOTE: but still being stored in a secure keyring).
+			// When we try to decrypt a password that wasn't encrypted previously, the encryption service will throw.
+			// To recover gracefully, we first try to encrypt & store the password (essentially migrating the secret to the new format)
+			// and then we try to read it and decrypt again.
+			const encryptedForSet = await this.encryptionService.encrypt(password);
+			await this.credentialsService.setPassword(fullKey, key, encryptedForSet);
+			const passwordEncrypted = await this.credentialsService.getPassword(fullKey, key);
+			decrypted = passwordEncrypted && await this.encryptionService.decrypt(passwordEncrypted);
+		}
 
 		if (decrypted) {
 			try {
@@ -59,7 +80,7 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 			content: value
 		});
 		const encrypted = await this.encryptionService.encrypt(toEncrypt);
-		return this.credentialsService.setPassword(fullKey, key, encrypted);
+		return await this.credentialsService.setPassword(fullKey, key, encrypted);
 	}
 
 	async $deletePassword(extensionId: string, key: string): Promise<void> {

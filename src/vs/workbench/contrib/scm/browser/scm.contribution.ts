@@ -236,7 +236,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('scm.defaultViewSortKey.path', "Sort the repository changes by path."),
 				localize('scm.defaultViewSortKey.status', "Sort the repository changes by Source Control status.")
 			],
-			description: localize('scm.defaultViewSortKey', "Controls the default Source Control repository sort mode."),
+			description: localize('scm.defaultViewSortKey', "Controls the default Source Control repository changes sort order when viewed as a list."),
 			default: 'path'
 		},
 		'scm.autoReveal': {
@@ -258,6 +258,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			markdownDescription: localize('alwaysShowRepository', "Controls whether repositories should always be visible in the Source Control view."),
 			default: false
+		},
+		'scm.repositories.sortOrder': {
+			type: 'string',
+			enum: ['discovery time', 'name', 'path'],
+			enumDescriptions: [
+				localize('scm.repositoriesSortOrder.discoveryTime', "Repositories in the Source Control Repositories view are sorted by discovery time. Repositories in the Source Control view are sorted in the order that they were selected."),
+				localize('scm.repositoriesSortOrder.name', "Repositories in the Source Control Repositories and Source Control views are sorted by repository name."),
+				localize('scm.repositoriesSortOrder.path', "Repositories in the Source Control Repositories and Source Control views are sorted by repository path.")
+			],
+			description: localize('repositoriesSortOrder', "Controls the sort order of the repositories in the source control repositories view."),
+			default: 'discovery time'
 		},
 		'scm.repositories.visible': {
 			type: 'number',

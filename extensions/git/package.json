@@ -15,7 +15,6 @@
     "scmActionButton",
     "scmSelectedProvider",
     "scmValidation",
-    "tabs",
     "timeline"
   ],
   "categories": [
@@ -2220,6 +2219,12 @@
           "type": "boolean",
           "default": true,
           "description": "%config.timeline.showAuthor%",
+          "scope": "window"
+        },
+        "git.timeline.showUncommitted": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.timeline.showUncommitted%",
           "scope": "window"
         },
         "git.showUnpublishedCommitsButton": {

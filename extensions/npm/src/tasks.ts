@@ -67,7 +67,7 @@ export class NpmTaskProvider implements TaskProvider {
 				return undefined;
 			}
 			if (kind.path) {
-				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/' + kind.path + 'package.json' });
+				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/' + kind.path + `${kind.path.endsWith('/') ? '' : '/'}` + 'package.json' });
 			} else {
 				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/package.json' });
 			}
@@ -324,7 +324,7 @@ export async function createTask(packageManager: string, script: NpmTaskDefiniti
 	}
 
 	let relativePackageJson = getRelativePath(packageJsonUri);
-	if (relativePackageJson.length) {
+	if (relativePackageJson.length && !kind.path) {
 		kind.path = relativePackageJson.substring(0, relativePackageJson.length - 1);
 	}
 	let taskName = getTaskName(kind.script, relativePackageJson);

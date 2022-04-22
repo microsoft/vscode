@@ -1924,12 +1924,12 @@ declare module 'vscode' {
 		title?: string;
 
 		/**
-		 * The value to prefill in the input box.
+		 * The value to pre-fill in the input box.
 		 */
 		value?: string;
 
 		/**
-		 * Selection of the prefilled {@linkcode InputBoxOptions.value value}. Defined as tuple of two number where the
+		 * Selection of the pre-filled {@linkcode InputBoxOptions.value value}. Defined as tuple of two number where the
 		 * first is the inclusive start index and the second the exclusive end index. When `undefined` the whole
 		 * word will be selected, when empty (start equals end) only the cursor will be set,
 		 * otherwise the defined range will be selected.
@@ -2032,7 +2032,7 @@ declare module 'vscode' {
 	 * (like `**​/*.{ts,js}` or `*.{ts,js}`) or a {@link RelativePattern relative pattern}.
 	 *
 	 * Glob patterns can have the following syntax:
-	 * * `*` to match one or more characters in a path segment
+	 * * `*` to match zero or more characters in a path segment
 	 * * `?` to match on one character in a path segment
 	 * * `**` to match any number of path segments, including none
 	 * * `{}` to group conditions (e.g. `**​/*.{ts,js}` matches all TypeScript and JavaScript files)
@@ -9045,6 +9045,11 @@ declare module 'vscode' {
 	export namespace window {
 
 		/**
+		 * Represents the grid widget within the main editor area
+		 */
+		export const tabGroups: TabGroups;
+
+		/**
 		 * The currently active editor or `undefined`. The active editor is the one
 		 * that currently has focus or, when none has focus, the one that has changed
 		 * input most recently.
@@ -9420,7 +9425,7 @@ declare module 'vscode' {
 		 * If language id is not provided, then **Log** is used as default language id.
 		 *
 		 * You can access the visible or active output channel as a {@link TextDocument text document} from {@link window.visibleTextEditors visible editors} or {@link window.activeTextEditor active editor}
-		 * and use the langage id to contribute language features like syntax coloring, code lens etc.,
+		 * and use the language id to contribute language features like syntax coloring, code lens etc.,
 		 *
 		 * @param name Human-readable string which will be used to represent the channel in the UI.
 		 * @param languageId The identifier of the language associated with the channel.
@@ -9437,7 +9442,7 @@ declare module 'vscode' {
 		 *
 		 * @return New webview panel.
 		 */
-		export function createWebviewPanel(viewType: string, title: string, showOptions: ViewColumn | { viewColumn: ViewColumn; preserveFocus?: boolean }, options?: WebviewPanelOptions & WebviewOptions): WebviewPanel;
+		export function createWebviewPanel(viewType: string, title: string, showOptions: ViewColumn | { readonly viewColumn: ViewColumn; readonly preserveFocus?: boolean }, options?: WebviewPanelOptions & WebviewOptions): WebviewPanel;
 
 		/**
 		 * Set a message to the status bar. This is a short hand for the more powerful
@@ -11504,7 +11509,7 @@ declare module 'vscode' {
 		 * vscode.workspace.createFileSystemWatcher('**​/*.js'));
 		 * ```
 		 *
-		 * *Note:* the array of workspace folders can be empy if no workspace is opened (empty window).
+		 * *Note:* the array of workspace folders can be empty if no workspace is opened (empty window).
 		 *
 		 * #### Out of workspace file watching
 		 *
@@ -11703,7 +11708,7 @@ declare module 'vscode' {
 		 * {@linkcode notebook.onDidCloseNotebookDocument onDidCloseNotebookDocument}-event can occur at any time after.
 		 *
 		 * *Note* that opening a notebook does not show a notebook editor. This function only returns a notebook document which
-		 * can be showns in a notebook editor but it can also be used for other things.
+		 * can be shown in a notebook editor but it can also be used for other things.
 		 *
 		 * @param uri The resource to open.
 		 * @returns A promise that resolves to a {@link NotebookDocument notebook}
@@ -11722,13 +11727,23 @@ declare module 'vscode' {
 		export function openNotebookDocument(notebookType: string, content?: NotebookData): Thenable<NotebookDocument>;
 
 		/**
+		 * An event that is emitted when a {@link NotebookDocument notebook} has changed.
+		 */
+		export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
+
+		/**
+		 * An event that is emitted when a {@link NotebookDocument notebook} is saved.
+		 */
+		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
+
+		/**
 		 * Register a {@link NotebookSerializer notebook serializer}.
 		 *
 		 * A notebook serializer must be contributed through the `notebooks` extension point. When opening a notebook file, the editor will send
 		 * the `onNotebook:<notebookType>` activation event, and extensions must register their serializer in return.
 		 *
 		 * @param notebookType A notebook.
-		 * @param serializer A notebook serialzier.
+		 * @param serializer A notebook serializer.
 		 * @param options Optional context options that define what parts of a notebook should be persisted
 		 * @return A {@link Disposable} that unregisters this serializer when being disposed.
 		 */
@@ -12441,6 +12456,39 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a notebook editor that is attached to a {@link NotebookDocument notebook}.
+	 * Additional properties of the NotebookEditor are available in the proposed
+	 * API, which will be finalized later.
+	 */
+	export interface NotebookEditor {
+
+	}
+
+	/**
+	 * Renderer messaging is used to communicate with a single renderer. It's returned from {@link notebooks.createRendererMessaging}.
+	 */
+	export interface NotebookRendererMessaging {
+		/**
+		 * An event that fires when a message is received from a renderer.
+		 */
+		readonly onDidReceiveMessage: Event<{
+			readonly editor: NotebookEditor;
+			readonly message: any;
+		}>;
+
+		/**
+		 * Send a message to one or all renderer.
+		 *
+		 * @param message Message to send
+		 * @param editor Editor to target with the message. If not provided, the
+		 * message is sent to all renderers.
+		 * @returns a boolean indicating whether the message was successfully
+		 * delivered to any renderer.
+		 */
+		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
+	}
+
+	/**
 	 * A notebook cell kind.
 	 */
 	export enum NotebookCellKind {
@@ -12501,39 +12549,6 @@ declare module 'vscode' {
 		 * The most recent {@link NotebookCellExecutionSummary execution summary} for this cell.
 		 */
 		readonly executionSummary: NotebookCellExecutionSummary | undefined;
-	}
-
-	/**
-	 * Represents a notebook editor that is attached to a {@link NotebookDocument notebook}.
-	 * Additional properties of the NotebookEditor are available in the proposed
-	 * API, which will be finalized later.
-	 */
-	export interface NotebookEditor {
-
-	}
-
-	/**
-	 * Renderer messaging is used to communicate with a single renderer. It's returned from {@link notebooks.createRendererMessaging}.
-	 */
-	export interface NotebookRendererMessaging {
-		/**
-		 * An event that fires when a message is received from a renderer.
-		 */
-		readonly onDidReceiveMessage: Event<{
-			readonly editor: NotebookEditor;
-			readonly message: any;
-		}>;
-
-		/**
-		 * Send a message to one or all renderer.
-		 *
-		 * @param message Message to send
-		 * @param editor Editor to target with the message. If not provided, the
-		 * message is sent to all renderers.
-		 * @returns a boolean indicating whether the message was successfully
-		 * delivered to any renderer.
-		 */
-		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
 	}
 
 	/**
@@ -12613,6 +12628,94 @@ declare module 'vscode' {
 		 * has been saved. Will return false if the file was not dirty or when save failed.
 		 */
 		save(): Thenable<boolean>;
+	}
+
+	/**
+	 * Describes a change to a notebook cell.
+	 *
+	 * @see {@link NotebookDocumentChangeEvent}
+	 */
+	export interface NotebookDocumentCellChange {
+
+		/**
+		 * The affected notebook.
+		 */
+		readonly cell: NotebookCell;
+
+		/**
+		 * The document of the cell or `undefined` when it did not change.
+		 *
+		 * *Note* that you should use the {@link workspace.onDidChangeTextDocument onDidChangeTextDocument}-event
+		 * for detailed change information, like what edits have been performed.
+		 */
+		readonly document: TextDocument | undefined;
+
+		/**
+		 * The new metadata of the cell or `undefined` when it did not change.
+		 */
+		readonly metadata: { [key: string]: any } | undefined;
+
+		/**
+		 * The new outputs of the cell or `undefined` when they did not change.
+		 */
+		readonly outputs: readonly NotebookCellOutput[] | undefined;
+
+		/**
+		 * The new execution summary of the cell or `undefined` when it did not change.
+		 */
+		readonly executionSummary: NotebookCellExecutionSummary | undefined;
+	}
+
+	/**
+	 * Describes a structural change to a notebook document, e.g newly added and removed cells.
+	 *
+	 * @see {@link NotebookDocumentChangeEvent}
+	 */
+	export interface NotebookDocumentContentChange {
+
+		/**
+		 * The range at which cells have been either added or removed.
+		 *
+		 * Note that no cells have been {@link NotebookDocumentContentChange.removedCells removed}
+		 * when this range is {@link NotebookRange.isEmpty empty}.
+		 */
+		readonly range: NotebookRange;
+
+		/**
+		 * Cells that have been added to the document.
+		 */
+		readonly addedCells: readonly NotebookCell[];
+
+		/**
+		 * Cells that have been removed from the document.
+		 */
+		readonly removedCells: readonly NotebookCell[];
+	}
+
+	/**
+	 * An event describing a transactional {@link NotebookDocument notebook} change.
+	 */
+	export interface NotebookDocumentChangeEvent {
+
+		/**
+		 * The affected notebook.
+		 */
+		readonly notebook: NotebookDocument;
+
+		/**
+		 * The new metadata of the notebook or `undefined` when it did not change.
+		 */
+		readonly metadata: { [key: string]: any } | undefined;
+
+		/**
+		 * An array of content changes describing added or removed {@link NotebookCell cells}.
+		 */
+		readonly contentChanges: readonly NotebookDocumentContentChange[];
+
+		/**
+		 * An array of {@link NotebookDocumentCellChange cell changes}.
+		 */
+		readonly cellChanges: readonly NotebookDocumentCellChange[];
 	}
 
 	/**
@@ -14289,7 +14392,7 @@ declare module 'vscode' {
 
 		/**
 		 * The range the comment thread is located within the document. The thread icon will be shown
-		 * at the first line of the range.
+		 * at the last line of the range.
 		 */
 		range: Range;
 
@@ -14541,8 +14644,6 @@ declare module 'vscode' {
 		 */
 		export function createCommentController(id: string, label: string): CommentController;
 	}
-
-	//#endregion
 
 	/**
 	 * Represents a session of a currently logged in user.
@@ -15348,6 +15449,294 @@ declare module 'vscode' {
 		 * @param message The message to show to the user.
 		 */
 		constructor(message: string | MarkdownString);
+	}
+
+	/**
+	 * The tab represents a single text based resource
+	 */
+	export class TabInputText {
+		/**
+		 * The uri represented by the tab.
+		 */
+		readonly uri: Uri;
+		/**
+		 * Constructs a text tab input with the given URI.
+		 * @param uri The URI of the tab.
+		 */
+		constructor(uri: Uri);
+	}
+
+	/**
+	 * The tab represents two text based resources
+	 * being rendered as a diff.
+	 */
+	export class TabInputTextDiff {
+		/**
+		 * The uri of the original text resource.
+		 */
+		readonly original: Uri;
+		/**
+		 * The uri of the modified text resource.
+		 */
+		readonly modified: Uri;
+		/**
+		 * Constructs a new text diff tab input with the given URIs.
+		 * @param original The uri of the original text resource.
+		 * @param modified The uri of the modified text resource.
+		 */
+		constructor(original: Uri, modified: Uri);
+	}
+
+	/**
+	 * The tab represents a custom editor.
+	 */
+	export class TabInputCustom {
+		/**
+		 * The uri which the tab is representing.
+		 */
+		readonly uri: Uri;
+		/**
+		 * The type of custom editor.
+		 */
+		readonly viewType: string;
+		/**
+		 * Constructs a custom editor tab input
+		 * @param uri The uri of the tab
+		 * @param viewType The viewtpye of the custom editor
+		 */
+		constructor(uri: Uri, viewType: string);
+	}
+
+	/**
+	 * The tab represents a webview.
+	 */
+	export class TabInputWebview {
+		/**
+		 * The type of webview. Maps to {@linkcode WebviewPanel.viewType WebviewPanel's viewType}
+		 */
+		readonly viewType: string;
+		/**
+		 * Constructs a webview tab input with the given view type.
+		 * @param viewType The type of webview. Maps to {@linkcode WebviewPanel.viewType WebviewPanel's viewType}
+		 */
+		constructor(viewType: string);
+	}
+
+	/**
+	 * The tab represents a notebook.
+	 */
+	export class TabInputNotebook {
+		/**
+		 * The uri which the tab is representing.
+		 */
+		readonly uri: Uri;
+		/**
+		 * The type of notebook. Maps to {@linkcode NotebookDocument.notebookType NotebookDocuments's notebookType}
+		 */
+		readonly notebookType: string;
+		/**
+		 * Constructs a new tab input for a notebook.
+		 * @param uri The uri of the notebook.
+		 * @param notebookType The type of notebook. Maps to {@linkcode NotebookDocument.notebookType NotebookDocuments's notebookType}
+		 */
+		constructor(uri: Uri, notebookType: string);
+	}
+
+	/**
+	 * The tabs represents two notebooks in a diff configuration.
+	 */
+	export class TabInputNotebookDiff {
+		/**
+		 * The uri of the original notebook.
+		 */
+		readonly original: Uri;
+		/**
+		 * The uri of the modified notebook.
+		 */
+		readonly modified: Uri;
+		/**
+		 * The type of notebook. Maps to {@linkcode NotebookDocument.notebookType NotebookDocuments's notebookType}
+		 */
+		readonly notebookType: string;
+		/**
+		 * Constructs a notebook diff tab input.
+		 * @param original The uri of the original unmodified notebook.
+		 * @param modified The uri of the modified notebook.
+		 * @param notebookType The type of notebook. Maps to {@linkcode NotebookDocument.notebookType NotebookDocuments's notebookType}
+		 */
+		constructor(original: Uri, modified: Uri, notebookType: string);
+	}
+
+	/**
+	 * The tab represents a terminal in the editor area.
+	 */
+	export class TabInputTerminal {
+		/**
+		 * Constructs a terminal tab input.
+		 */
+		constructor();
+	}
+
+	/**
+	 * Represents a tab within a {@link TabGroup group of tabs}.
+	 * Tabs are merely the graphical representation within the editor area.
+	 * A backing editor is not a guarantee.
+	 */
+	export interface Tab {
+
+		/**
+		 * The text displayed on the tab
+		 */
+		readonly label: string;
+
+		/**
+		 * The group which the tab belongs to
+		 */
+		readonly group: TabGroup;
+
+		/**
+		 * Defines the structure of the tab i.e. text, notebook, custom, etc.
+		 * Resource and other useful properties are defined on the tab kind.
+		 */
+		readonly input: TabInputText | TabInputTextDiff | TabInputCustom | TabInputWebview | TabInputNotebook | TabInputNotebookDiff | TabInputTerminal | unknown;
+
+		/**
+		 * Whether or not the tab is currently active.
+		 * This is dictated by being the selected tab in the group
+		 */
+		readonly isActive: boolean;
+
+		/**
+		 * Whether or not the dirty indicator is present on the tab
+		 */
+		readonly isDirty: boolean;
+
+		/**
+		 * Whether or not the tab is pinned (pin icon is present)
+		 */
+		readonly isPinned: boolean;
+
+		/**
+		 * Whether or not the tab is in preview mode.
+		 */
+		readonly isPreview: boolean;
+	}
+
+	/**
+	 * An event describing change to tabs.
+	 */
+	export interface TabChangeEvent {
+		/**
+		 * The tabs that have been opened
+		 */
+		readonly opened: readonly Tab[];
+		/**
+		 * The tabs that have been closed
+		 */
+		readonly closed: readonly Tab[];
+		/**
+		 * Tabs that have changed, e.g have changed
+		 * their {@link Tab.isActive active} state.
+		 */
+		readonly changed: readonly Tab[];
+	}
+
+	/**
+	 * An event describing changes to tab groups.
+	 */
+	export interface TabGroupChangeEvent {
+		/**
+		 * Tab groups that have been opened.
+		 */
+		readonly opened: readonly TabGroup[];
+		/**
+		 * Tab groups that have been closed.
+		 */
+		readonly closed: readonly TabGroup[];
+		/**
+		 * Tab groups that have changed, e.g have changed
+		 * their {@link TabGroup.isActive active} state.
+		 */
+		readonly changed: readonly TabGroup[];
+	}
+
+	/**
+	 * Represents a group of tabs. A tab group itself consists of multiple tabs.
+	 */
+	export interface TabGroup {
+		/**
+		 * Whether or not the group is currently active.
+		 *
+		 * *Note* that only one tab group is active at a time, but that multiple tab
+		 * groups can have an {@link TabGroup.aciveTab active tab}.
+		 *
+		 * @see {@link Tab.isActive}
+		 */
+		readonly isActive: boolean;
+
+		/**
+		 * The view column of the group
+		 */
+		readonly viewColumn: ViewColumn;
+
+		/**
+		 * The active {@link Tab tab} in the group. This is the tab whose contents are currently
+		 * being rendered.
+		 *
+		 * *Note* that there can be one active tab per group but there can only be one {@link TabGroups.activeTabGroup active group}.
+		 */
+		readonly activeTab: Tab | undefined;
+
+		/**
+		 * The list of tabs contained within the group.
+		 * This can be empty if the group has no tabs open.
+		 */
+		readonly tabs: readonly Tab[];
+	}
+
+	/**
+	 * Represents the main editor area which consists of multple groups which contain tabs.
+	 */
+	export interface TabGroups {
+		/**
+		 * All the groups within the group container
+		 */
+		readonly all: readonly TabGroup[];
+
+		/**
+		 * The currently active group
+		 */
+		readonly activeTabGroup: TabGroup;
+
+		/**
+		 * An {@link Event event} which fires when {@link TabGroup tab groups} have changed.
+		 */
+		readonly onDidChangeTabGroups: Event<TabGroupChangeEvent>;
+
+		/**
+		 * An {@link Event event} which fires when {@link Tab tabs} have changed.
+		 */
+		readonly onDidChangeTabs: Event<TabChangeEvent>;
+
+		/**
+		 * Closes the tab. This makes the tab object invalid and the tab
+		 * should no longer be used for further actions.
+		 * Note: In the case of a dirty tab, a confirmation dialog will be shown which may be cancelled. If cancelled the tab is still valid
+		 *
+		 * @param tab The tab to close.
+		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
+		 * @returns A promise that resolves to `true` when all tabs have been closed
+		 */
+		close(tab: Tab | readonly Tab[], preserveFocus?: boolean): Thenable<boolean>;
+
+		/**
+		 * Closes the tab group. This makes the tab group object invalid and the tab group
+		 * should no longer be used for furhter actions.
+		 * @param tabGroup The tab group to close.
+		 * @param preserveFocus When `true` focus will remain in its current position.
+		 * @returns A promise that resolves to `true` when all tab groups have been closed
+		 */
+		close(tabGroup: TabGroup | readonly TabGroup[], preserveFocus?: boolean): Thenable<boolean>;
 	}
 }
 

@@ -9,9 +9,10 @@ import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { CustomEditorTabInput, NotebookDiffEditorTabInput, NotebookEditorTabInput, TerminalEditorTabInput, TextDiffTabInput, TextTabInput, ViewColumn, WebviewEditorTabInput } from 'vs/workbench/api/common/extHostTypes';
+import { CustomEditorTabInput, NotebookDiffEditorTabInput, NotebookEditorTabInput, TerminalEditorTabInput, TextDiffTabInput, TextTabInput, WebviewEditorTabInput } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { assertIsDefined } from 'vs/base/common/types';
+import { diffSets } from 'vs/base/common/collections';
 
 export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
 	readonly _serviceBrand: undefined;
@@ -47,7 +48,7 @@ class ExtHostEditorTab {
 				get label() {
 					return that._dto.label;
 				},
-				get kind() {
+				get input() {
 					return that._input;
 				},
 				get isDirty() {
@@ -213,7 +214,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 
 	private readonly _proxy: MainThreadEditorTabsShape;
 	private readonly _onDidChangeTabs = new Emitter<vscode.TabChangeEvent>();
-	private readonly _onDidChangeTabGroups = new Emitter<vscode.TabGroup[]>();
+	private readonly _onDidChangeTabGroups = new Emitter<vscode.TabGroupChangeEvent>();
 
 	// Have to use ! because this gets initialized via an RPC proxy
 	private _activeGroupId!: number;
@@ -255,14 +256,14 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 						return this._closeTabs(tabsOrTabGroups as vscode.Tab[], preserveFocus);
 					}
 				},
-				move: async (tab: vscode.Tab, viewColumn: ViewColumn, index: number, preservceFocus?: boolean) => {
-					const extHostTab = this._findExtHostTabFromApi(tab);
-					if (!extHostTab) {
-						throw new Error('Invalid tab');
-					}
-					this._proxy.$moveTab(extHostTab.tabId, index, typeConverters.ViewColumn.from(viewColumn), preservceFocus);
-					return;
-				}
+				// move: async (tab: vscode.Tab, viewColumn: ViewColumn, index: number, preservceFocus?: boolean) => {
+				// 	const extHostTab = this._findExtHostTabFromApi(tab);
+				// 	if (!extHostTab) {
+				// 		throw new Error('Invalid tab');
+				// 	}
+				// 	this._proxy.$moveTab(extHostTab.tabId, index, typeConverters.ViewColumn.from(viewColumn), preservceFocus);
+				// 	return;
+				// }
 			};
 			this._apiObject = Object.freeze(obj);
 		}
@@ -271,8 +272,22 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 
 	$acceptEditorTabModel(tabGroups: IEditorTabGroupDto[]): void {
 
+		const groupIdsBefore = new Set(this._extHostTabGroups.map(group => group.groupId));
+		const groupIdsAfter = new Set(tabGroups.map(dto => dto.groupId));
+		const diff = diffSets(groupIdsBefore, groupIdsAfter);
+
+		const closed: vscode.TabGroup[] = this._extHostTabGroups.filter(group => diff.removed.includes(group.groupId)).map(group => group.apiObject);
+		const opened: vscode.TabGroup[] = [];
+		const changed: vscode.TabGroup[] = [];
+
+
 		this._extHostTabGroups = tabGroups.map(tabGroup => {
 			const group = new ExtHostEditorTabGroup(tabGroup, this._proxy, () => this._activeGroupId);
+			if (diff.added.includes(group.groupId)) {
+				opened.push(group.apiObject);
+			} else {
+				changed.push(group.apiObject);
+			}
 			return group;
 		});
 
@@ -281,7 +296,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 		if (activeTabGroupId !== undefined && this._activeGroupId !== activeTabGroupId) {
 			this._activeGroupId = activeTabGroupId;
 		}
-		this._onDidChangeTabGroups.fire(this._extHostTabGroups.map(g => g.apiObject));
+		this._onDidChangeTabGroups.fire(Object.freeze({ opened, closed, changed }));
 	}
 
 	$acceptTabGroupUpdate(groupDto: IEditorTabGroupDto) {
@@ -293,7 +308,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 		if (groupDto.isActive) {
 			this._activeGroupId = groupDto.groupId;
 		}
-		this._onDidChangeTabGroups.fire([group.apiObject]);
+		this._onDidChangeTabGroups.fire(Object.freeze({ changed: [group.apiObject], opened: [], closed: [] }));
 	}
 
 	$acceptTabOperation(operation: TabOperation) {
@@ -306,26 +321,26 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 		// Construct the tab change event based on the operation
 		switch (operation.kind) {
 			case TabModelOperationKind.TAB_OPEN:
-				this._onDidChangeTabs.fire({
-					added: [tab.apiObject],
-					removed: [],
+				this._onDidChangeTabs.fire(Object.freeze({
+					opened: [tab.apiObject],
+					closed: [],
 					changed: []
-				});
+				}));
 				return;
 			case TabModelOperationKind.TAB_CLOSE:
-				this._onDidChangeTabs.fire({
-					added: [],
-					removed: [tab.apiObject],
+				this._onDidChangeTabs.fire(Object.freeze({
+					opened: [],
+					closed: [tab.apiObject],
 					changed: []
-				});
+				}));
 				return;
 			case TabModelOperationKind.TAB_MOVE:
 			case TabModelOperationKind.TAB_UPDATE:
-				this._onDidChangeTabs.fire({
-					added: [],
-					removed: [],
+				this._onDidChangeTabs.fire(Object.freeze({
+					opened: [],
+					closed: [],
 					changed: [tab.apiObject]
-				});
+				}));
 				return;
 		}
 	}

@@ -59,7 +59,8 @@ namespace ResultLimitReachedNotification {
 interface Settings {
 	json?: {
 		schemas?: JSONSchemaSettings[];
-		format?: { enable: boolean };
+		format?: { enable?: boolean };
+		validate?: { enable?: boolean };
 		resultLimit?: number;
 	};
 	http?: {
@@ -76,6 +77,7 @@ export interface JSONSchemaSettings {
 
 namespace SettingIds {
 	export const enableFormatter = 'json.format.enable';
+	export const enableValidation = 'json.validate.enable';
 	export const enableSchemaDownload = 'json.schemaDownload.enable';
 	export const maxItemsComputed = 'json.maxItemsComputed';
 }
@@ -425,6 +427,7 @@ function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[]
 }
 
 function getSettings(): Settings {
+	const configuration = workspace.getConfiguration();
 	const httpSettings = workspace.getConfiguration('http');
 
 	const resultLimit: number = Math.trunc(Math.max(0, Number(workspace.getConfiguration().get(SettingIds.maxItemsComputed)))) || 5000;
@@ -435,6 +438,8 @@ function getSettings(): Settings {
 			proxyStrictSSL: httpSettings.get('proxyStrictSSL')
 		},
 		json: {
+			validate: { enable: configuration.get(SettingIds.enableValidation) },
+			format: { enable: configuration.get(SettingIds.enableFormatter) },
 			schemas: [],
 			resultLimit
 		}

@@ -188,9 +188,23 @@ export class ClearCommandHistoryAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 		const storageService = accessor.get(IStorageService);
+		const dialogService = accessor.get(IDialogService);
 
 		const commandHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(configurationService);
 		if (commandHistoryLength > 0) {
+
+			// Ask for confirmation
+			const { confirmed } = await dialogService.confirm({
+				message: localize('confirmClearMessage', "Do you want to clear the history of recently used commands?"),
+				detail: localize('confirmClearDetail', "This action is irreversible!"),
+				primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
+				type: 'warning'
+			});
+
+			if (!confirmed) {
+				return;
+			}
+
 			CommandsHistory.clearHistory(configurationService, storageService);
 		}
 	}

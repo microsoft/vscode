@@ -472,8 +472,13 @@ function isSeparatorAtPos(value: string, index: number): boolean {
 		case CharCode.Colon:
 		case CharCode.DollarSign:
 		case CharCode.LessThan:
+		case CharCode.GreaterThan:
 		case CharCode.OpenParen:
+		case CharCode.CloseParen:
 		case CharCode.OpenSquareBracket:
+		case CharCode.CloseSquareBracket:
+		case CharCode.OpenCurlyBrace:
+		case CharCode.CloseCurlyBrace:
 			return true;
 		case undefined:
 			return false;

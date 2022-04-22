@@ -460,6 +460,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Re-establish the title after reconnect
 			if (this.shellLaunchConfig.attachPersistentProcess) {
 				this.refreshTabLabels(this.shellLaunchConfig.attachPersistentProcess.title, this.shellLaunchConfig.attachPersistentProcess.titleSource);
+				this.setShellType(this.shellType);
 			}
 
 			if (this._fixedCols) {
@@ -1098,11 +1099,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._register(dom.addDisposableListener(xterm.raw.textarea, 'focus', () => {
 			this._terminalFocusContextKey.set(true);
-			if (this.shellType) {
-				this._terminalShellTypeContextKey.set(this.shellType.toString());
-			} else {
-				this._terminalShellTypeContextKey.reset();
-			}
 			this._onDidFocus.fire(this);
 		}));
 
@@ -1882,6 +1878,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	setShellType(shellType: TerminalShellType) {
 		this._shellType = shellType;
+		if (shellType) {
+			this._terminalShellTypeContextKey.set(shellType?.toString());
+		}
 	}
 
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
