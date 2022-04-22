@@ -46,7 +46,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 		super();
 
 		// Custom context menu: Linux/Windows if custom title is enabled
-		if (!isMacintosh && getTitleBarStyle(configurationService) === 'custom') {
+		if (false && getTitleBarStyle(configurationService) === 'custom') {
 			this.impl = new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService);
 		}
 
@@ -97,9 +97,19 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			let x: number;
 			let y: number;
 
-			const zoom = getZoomFactor();
+			let zoom = getZoomFactor();
 			if (dom.isHTMLElement(anchor)) {
 				const elementPosition = dom.getDomNodePagePosition(anchor);
+
+				let testElement: HTMLElement | null = anchor;
+				do {
+					const elementZoomLevel = (dom.getComputedStyle(testElement) as any).zoom;
+					if (elementZoomLevel !== null && elementZoomLevel !== undefined && elementZoomLevel !== '1') {
+						zoom *= elementZoomLevel;
+					}
+
+					testElement = testElement.parentElement;
+				} while (testElement !== null && testElement !== document.documentElement);
 
 				x = elementPosition.left;
 				y = elementPosition.top + elementPosition.height;

@@ -134,14 +134,14 @@ export class TitlebarPart extends BrowserTitleBarPart {
 
 	protected override adjustTitleMarginToCenter(): void {
 		if (this.customMenubar && this.menubar) {
-			const titleBarRect = this.getTitlebarAreaRect();
+			// const titleBarRect = this.getTitlebarAreaRect();
 			const leftMarker = (this.appIcon ? this.appIcon.clientWidth : 0) + this.menubar.clientWidth + 10;
-			const rightMarker = titleBarRect.left + titleBarRect.width - (this.layoutControls ? this.layoutControls.clientWidth : 0) - 10;
+			const rightMarker = this.rootContainer.clientWidth - (this.layoutControls ? this.layoutControls.clientWidth : 0) - 10;
 
 			// Not enough space to center the titlebar within window,
 			// Center between left and right controls
-			if (leftMarker > (this.element.clientWidth - this.title.clientWidth) / 2 ||
-				rightMarker < (this.element.clientWidth + this.title.clientWidth) / 2) {
+			if (leftMarker > (this.rootContainer.clientWidth + (this.windowControls?.clientWidth ?? 0) - this.title.clientWidth) / 2 ||
+				rightMarker < (this.element.clientWidth + (this.windowControls?.clientWidth ?? 0) + this.title.clientWidth) / 2) {
 				this.title.style.position = '';
 				this.title.style.left = '';
 				this.title.style.transform = '';

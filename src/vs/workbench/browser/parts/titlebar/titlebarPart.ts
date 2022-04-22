@@ -576,10 +576,21 @@ export class TitlebarPart extends Part implements ITitleService {
 		const nav = navigator as { windowControlsOverlay?: { getTitlebarAreaRect: () => DOMRect } };
 
 		if (typeof nav.windowControlsOverlay === undefined || typeof nav.windowControlsOverlay!.getTitlebarAreaRect === undefined) {
-			this.element.getBoundingClientRect();
+			this.rootContainer.getBoundingClientRect();
 		}
 
-		return nav.windowControlsOverlay!.getTitlebarAreaRect();
+		const nativeTitlebarRect = nav.windowControlsOverlay!.getTitlebarAreaRect();
+		let scale = 1.0;
+		if (nativeTitlebarRect.height !== this.rootContainer.clientHeight) {
+			scale = this.rootContainer.clientHeight / nativeTitlebarRect.height;
+		}
+
+		return {
+			height: nativeTitlebarRect.height * scale,
+			width: nativeTitlebarRect.width * scale,
+			left: nativeTitlebarRect.left * scale,
+			top: nativeTitlebarRect.top * scale
+		};
 	}
 
 	protected get currentMenubarVisibility(): MenuBarVisibility {
