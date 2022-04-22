@@ -190,6 +190,30 @@ export class BrowserWindow extends Disposable {
 				// handling explicitly to prevent the workbench from going down.
 				else {
 					this.lifecycleService.withExpectedShutdown({ disableShutdownHandling: true }, () => window.location.href = href);
+
+					// We cannot know whether the protocol handler succeeded.
+					// Display guidance in case it did not, e.g. VS Code is not installed.
+					if (matchesScheme(href, Schemas.vscode) || matchesScheme(href, 'vscode-insiders')) {
+						const showResult = await this.dialogService.show(
+							Severity.Info,
+							localize('you can close this tab', "All done. You can close this tab now."),
+							[
+								localize('continue here', "Continue here"),
+								localize('try again', "Try again"),
+								localize('install vs code', "Install VS Code")
+							],
+							{
+								cancelId: 0,
+								detail: localize('opened vs code desktop detail', "We tried opening VS Code on your computer.")
+							},
+						);
+
+						if (showResult.choice === 1) {
+							this.lifecycleService.withExpectedShutdown({ disableShutdownHandling: true }, () => window.location.href = href);
+						} else if (showResult.choice === 2) {
+							await this.openerService.open(URI.parse(`https://code.visualstudio.com/download`));
+						}
+					}
 				}
 
 				return true;
