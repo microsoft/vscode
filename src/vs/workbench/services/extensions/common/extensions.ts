@@ -283,6 +283,65 @@ export class ExtensionHostExtensions {
 	}
 }
 
+export class ExtensionIdentifierSet implements Set<ExtensionIdentifier> {
+
+	readonly [Symbol.toStringTag]: string = 'ExtensionIdentifierSet';
+
+	private readonly _map = new Map<string, ExtensionIdentifier>();
+	private readonly _toKey = ExtensionIdentifier.toKey;
+
+	constructor(values?: Iterable<ExtensionIdentifier>) {
+		if (values) {
+			for (const value of values) {
+				this.add(value);
+			}
+		}
+	}
+
+	get size(): number {
+		return this._map.size;
+	}
+
+	add(value: ExtensionIdentifier): this {
+		this._map.set(this._toKey(value), value);
+		return this;
+	}
+
+	clear(): void {
+		this._map.clear();
+	}
+
+	delete(value: ExtensionIdentifier): boolean {
+		return this._map.delete(this._toKey(value));
+	}
+
+	has(value: ExtensionIdentifier): boolean {
+		return this._map.has(this._toKey(value));
+	}
+
+	forEach(callbackfn: (value: ExtensionIdentifier, value2: ExtensionIdentifier, set: Set<ExtensionIdentifier>) => void, thisArg?: any): void {
+		this._map.forEach(value => callbackfn.call(thisArg, value, value, this));
+	}
+
+	*entries(): IterableIterator<[ExtensionIdentifier, ExtensionIdentifier]> {
+		for (let [_key, value] of this._map) {
+			yield [value, value];
+		}
+	}
+
+	keys(): IterableIterator<ExtensionIdentifier> {
+		return this._map.values();
+	}
+
+	values(): IterableIterator<ExtensionIdentifier> {
+		return this._map.values();
+	}
+
+	[Symbol.iterator](): IterableIterator<ExtensionIdentifier> {
+		return this._map.values();
+	}
+}
+
 export function extensionIdentifiersArrayToSet(extensionIds: ExtensionIdentifier[]): Set<string> {
 	const result = new Set<string>();
 	for (const extensionId of extensionIds) {
