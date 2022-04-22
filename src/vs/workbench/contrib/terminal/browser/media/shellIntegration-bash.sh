@@ -10,6 +10,10 @@ if [ -z "$VSCODE_SHELL_LOGIN" ]; then
 else
 	# Imitate -l because --init-file doesn't support it:
 	# run the first of these files that exists
+	if [ -f /etc/bash_profile ]; then
+		. /etc/bash_profile
+	fi
+	# exceute the first that exists
 	if [ -f ~/.bash_profile ]; then
 		. ~/.bash_profile
 	elif [ -f ~/.bash_login ]; then
