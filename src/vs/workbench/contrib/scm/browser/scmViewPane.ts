@@ -1070,9 +1070,14 @@ class ViewModel {
 			}
 		}
 
+		// Update sort key based on view mode
+		this.sortKey = this.getViewModelSortKey();
+
 		this.refresh();
 		this._onDidChangeMode.fire(mode);
 		this.modeContextKey.set(mode);
+
+		this.storageService.store(`scm.viewMode`, mode, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	get sortKey(): ViewModelSortKey { return this._sortKey; }
@@ -1086,6 +1091,10 @@ class ViewModel {
 		this.refresh();
 		this._onDidChangeSortKey.fire(sortKey);
 		this.sortKeyContextKey.set(sortKey);
+
+		if (this._mode === ViewModelMode.List) {
+			this.storageService.store(`scm.viewSortKey`, sortKey, StorageScope.WORKSPACE, StorageTarget.USER);
+		}
 	}
 
 	private _treeViewStateIsStale = false;
@@ -1114,23 +1123,37 @@ class ViewModel {
 	private scmProviderRootUriContextKey: IContextKey<string | undefined>;
 	private scmProviderHasRootUriContextKey: IContextKey<boolean>;
 
+	private _mode: ViewModelMode;
+	private _sortKey: ViewModelSortKey;
+	private _treeViewState: ITreeViewState | undefined;
+
 	constructor(
 		private tree: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>,
 		private inputRenderer: InputRenderer,
-		private _mode: ViewModelMode,
-		private _sortKey: ViewModelSortKey,
-		private _treeViewState: ITreeViewState | undefined,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IEditorService protected editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@ISCMViewService private scmViewService: ISCMViewService,
+		@IStorageService private storageService: IStorageService,
 		@IUriIdentityService private uriIdentityService: IUriIdentityService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
+		// View mode and sort key
+		this._mode = this.getViewModelMode();
+		this._sortKey = this.getViewModelSortKey();
+
+		// TreeView state
+		const storageViewState = this.storageService.get(`scm.viewState`, StorageScope.WORKSPACE);
+		if (storageViewState) {
+			try {
+				this._treeViewState = JSON.parse(storageViewState);
+			} catch {/* noop */ }
+		}
+
 		this.modeContextKey = ContextKeys.ViewModelMode.bindTo(contextKeyService);
-		this.modeContextKey.set(_mode);
+		this.modeContextKey.set(this._mode);
 		this.sortKeyContextKey = ContextKeys.ViewModelSortKey.bindTo(contextKeyService);
-		this.sortKeyContextKey.set(_sortKey);
+		this.sortKeyContextKey.set(this._sortKey);
 		this.areAllRepositoriesCollapsedContextKey = ContextKeys.ViewModelAreAllRepositoriesCollapsed.bindTo(contextKeyService);
 		this.isAnyRepositoryCollapsibleContextKey = ContextKeys.ViewModelIsAnyRepositoryCollapsible.bindTo(contextKeyService);
 		this.scmProviderContextKey = ContextKeys.SCMProvider.bindTo(contextKeyService);
@@ -1144,6 +1167,12 @@ class ViewModel {
 			(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
 
 		this.disposables.add(this.tree.onDidChangeCollapseState(() => this._treeViewStateIsStale = true));
+
+		this.storageService.onWillSaveState(e => {
+			if (e.reason === WillSaveStateReason.SHUTDOWN) {
+				this.storageService.store(`scm.viewState`, JSON.stringify(this.treeViewState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			}
+		});
 	}
 
 	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
@@ -1433,6 +1462,45 @@ class ViewModel {
 		}
 	}
 
+	private getViewModelMode(): ViewModelMode {
+		let mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
+		const storageMode = this.storageService.get(`scm.viewMode`, StorageScope.WORKSPACE) as ViewModelMode;
+		if (typeof storageMode === 'string') {
+			mode = storageMode;
+		}
+
+		return mode;
+	}
+
+	private getViewModelSortKey(): ViewModelSortKey {
+		// Tree
+		if (this._mode === ViewModelMode.Tree) {
+			return ViewModelSortKey.Path;
+		}
+
+		// List
+		let viewSortKey: ViewModelSortKey;
+		const viewSortKeyString = this.configurationService.getValue<'path' | 'name' | 'status'>('scm.defaultViewSortKey');
+		switch (viewSortKeyString) {
+			case 'name':
+				viewSortKey = ViewModelSortKey.Name;
+				break;
+			case 'status':
+				viewSortKey = ViewModelSortKey.Status;
+				break;
+			default:
+				viewSortKey = ViewModelSortKey.Path;
+				break;
+		}
+
+		const storageSortKey = this.storageService.get(`scm.viewSortKey`, StorageScope.WORKSPACE) as ViewModelSortKey;
+		if (typeof storageSortKey === 'string') {
+			viewSortKey = storageSortKey;
+		}
+
+		return viewSortKey;
+	}
+
 	dispose(): void {
 		this.visibilityDisposables.dispose();
 		this.disposables.dispose();
@@ -1562,6 +1630,7 @@ abstract class SetSortKeyAction extends ViewAction<SCMViewPane>  {
 			viewId: VIEW_PANE_ID,
 			f1: false,
 			toggled: ContextKeys.ViewModelSortKey.isEqualTo(sortKey),
+			precondition: ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.List),
 			menu: { id: Menus.ViewSort, group: '2_sort' }
 		});
 	}
@@ -2109,7 +2178,6 @@ export class SCMViewPane extends ViewPane {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService private menuService: IMenuService,
-		@IStorageService private storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
@@ -2196,44 +2264,9 @@ export class SCMViewPane extends ViewPane {
 
 		append(this.listContainer, overflowWidgetsDomNode);
 
-		let viewMode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
-
-		const storageMode = this.storageService.get(`scm.viewMode`, StorageScope.WORKSPACE) as ViewModelMode;
-		if (typeof storageMode === 'string') {
-			viewMode = storageMode;
-		}
-
-		let viewSortKey: ViewModelSortKey;
-		const viewSortKeyString = this.configurationService.getValue<'path' | 'name' | 'status'>('scm.defaultViewSortKey');
-		switch (viewSortKeyString) {
-			case 'name':
-				viewSortKey = ViewModelSortKey.Name;
-				break;
-			case 'status':
-				viewSortKey = ViewModelSortKey.Status;
-				break;
-			default:
-				viewSortKey = ViewModelSortKey.Path;
-				break;
-		}
-
-		const storageSortKey = this.storageService.get(`scm.viewSortKey`, StorageScope.WORKSPACE) as ViewModelSortKey;
-		if (typeof storageSortKey === 'string') {
-			viewSortKey = storageSortKey;
-		}
-
-		let viewState: ITreeViewState | undefined;
-
-		const storageViewState = this.storageService.get(`scm.viewState`, StorageScope.WORKSPACE);
-		if (storageViewState) {
-			try {
-				viewState = JSON.parse(storageViewState);
-			} catch {/* noop */ }
-		}
-
 		this._register(this.instantiationService.createInstance(RepositoryVisibilityActionController));
 
-		this._viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, viewMode, viewSortKey, viewState);
+		this._viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer);
 		this._register(this._viewModel);
 
 		this.listContainer.classList.add('file-icon-themable-tree');
@@ -2242,18 +2275,11 @@ export class SCMViewPane extends ViewPane {
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
 		this._register(this._viewModel.onDidChangeMode(this.onDidChangeMode, this));
-		this._register(this._viewModel.onDidChangeSortKey(this.onDidChangeSortKey, this));
 
 		this._register(this.onDidChangeBodyVisibility(this._viewModel.setVisible, this._viewModel));
 
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowRepositories'))(this.updateActions, this));
 		this.updateActions();
-
-		this._register(this.storageService.onWillSaveState(e => {
-			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				this.storageService.store(`scm.viewState`, JSON.stringify(this._viewModel.treeViewState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-			}
-		}));
 	}
 
 	private updateIndentStyles(theme: IFileIconTheme): void {
@@ -2265,11 +2291,6 @@ export class SCMViewPane extends ViewPane {
 
 	private onDidChangeMode(): void {
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
-		this.storageService.store(`scm.viewMode`, this._viewModel.mode, StorageScope.WORKSPACE, StorageTarget.USER);
-	}
-
-	private onDidChangeSortKey(): void {
-		this.storageService.store(`scm.viewSortKey`, this._viewModel.sortKey, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	override layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
