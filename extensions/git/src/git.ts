@@ -396,7 +396,7 @@ export class Git {
 		return Versions.compare(Versions.fromString(this.version), Versions.fromString(version));
 	}
 
-	open(repository: string, dotGit: { path: string, commonPath?: string }): Repository {
+	open(repository: string, dotGit: { path: string; commonPath?: string }): Repository {
 		return new Repository(this, repository, dotGit);
 	}
 
@@ -509,7 +509,7 @@ export class Git {
 		return repoPath;
 	}
 
-	async getRepositoryDotGit(repositoryPath: string): Promise<{ path: string, commonPath?: string }> {
+	async getRepositoryDotGit(repositoryPath: string): Promise<{ path: string; commonPath?: string }> {
 		const result = await this.exec(repositoryPath, ['rev-parse', '--git-dir', '--git-common-dir']);
 		let [dotGitPath, commonDotGitPath] = result.stdout.split('\n').map(r => r.trim());
 
@@ -873,7 +873,7 @@ export class Repository {
 	constructor(
 		private _git: Git,
 		private repositoryRoot: string,
-		readonly dotGit: { path: string, commonPath?: string }
+		readonly dotGit: { path: string; commonPath?: string }
 	) { }
 
 	get git(): Git {
