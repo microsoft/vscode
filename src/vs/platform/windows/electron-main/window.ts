@@ -38,6 +38,7 @@ import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-m
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
+import { Color } from 'vs/base/common/color';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -248,8 +249,15 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 
 				if (isWindows) {
+					// This logic will not perfectly guess the right colors to use on initialization,
+					// but prefer to keep things simple as it is temporary and not noticeable
+					const titleBarColor = this.themeMainService.getWindowSplash()?.colorInfo.titleBarBackground ?? this.themeMainService.getBackgroundColor();
+					const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
+
 					options.titleBarOverlay = {
-						height: 31
+						height: 29,
+						color: titleBarColor,
+						symbolColor
 					};
 				}
 			}
