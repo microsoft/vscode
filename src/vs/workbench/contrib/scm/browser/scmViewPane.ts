@@ -2381,6 +2381,10 @@ export class SCMViewPane extends ViewPane {
 	override shouldShowWelcome(): boolean {
 		return this.scmService.repositories.length === 0;
 	}
+
+	override getActionsContext(): unknown {
+		return this.scmViewService.visibleRepositories.length === 1 ? this.scmViewService.visibleRepositories[0].provider : undefined;
+	}
 }
 
 export const scmProviderSeparatorBorderColor = registerColor('scm.providerBorder', { dark: '#454545', light: '#C8C8C8', hcDark: contrastBorder, hcLight: contrastBorder }, localize('scm.providerBorder', "SCM Provider separator border."));
