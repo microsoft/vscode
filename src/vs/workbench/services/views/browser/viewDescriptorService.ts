@@ -607,7 +607,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private setStoredCachedViewPositionsValue(value: string): void {
-		this.storageService.store(ViewDescriptorService.CACHED_VIEW_POSITIONS, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(ViewDescriptorService.CACHED_VIEW_POSITIONS, value, StorageScope.GLOBAL, StorageTarget.PROFILE);
 	}
 
 	private getStoredCachedViewContainerLocationsValue(): string {
@@ -615,7 +615,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private setStoredCachedViewContainerLocationsValue(value: string): void {
-		this.storageService.store(ViewDescriptorService.CACHED_VIEW_CONTAINER_LOCATIONS, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(ViewDescriptorService.CACHED_VIEW_CONTAINER_LOCATIONS, value, StorageScope.GLOBAL, StorageTarget.PROFILE);
 	}
 
 	private saveViewPositionsToCache(): void {

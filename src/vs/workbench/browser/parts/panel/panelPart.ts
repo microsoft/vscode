@@ -859,7 +859,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private setStoredCachedViewletsValue(value: string): void {
-		this.storageService.store(this.pinnedPanelsKey, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(this.pinnedPanelsKey, value, StorageScope.GLOBAL, StorageTarget.PROFILE);
 	}
 
 	private getPlaceholderViewContainers(): IPlaceholderViewContainer[] {

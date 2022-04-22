@@ -284,7 +284,7 @@ class ViewDescriptorsState extends Disposable {
 	}
 
 	private setStoredGlobalViewsStatesValue(value: string): void {
-		this.storageService.store(this.globalViewsStateStorageId, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(this.globalViewsStateStorageId, value, StorageScope.GLOBAL, StorageTarget.PROFILE);
 	}
 
 }

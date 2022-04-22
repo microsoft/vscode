@@ -938,7 +938,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private setStoredPinnedViewContainersValue(value: string): void {
-		this.storageService.store(ActivitybarPart.PINNED_VIEW_CONTAINERS, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(ActivitybarPart.PINNED_VIEW_CONTAINERS, value, StorageScope.GLOBAL, StorageTarget.PROFILE);
 	}
 
 	private getPlaceholderViewContainers(): IPlaceholderViewContainer[] {
@@ -978,7 +978,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private set accountsVisibilityPreference(value: boolean) {
-		this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, value, StorageScope.GLOBAL, StorageTarget.PROFILE);
 	}
 
 	toJSON(): object {
