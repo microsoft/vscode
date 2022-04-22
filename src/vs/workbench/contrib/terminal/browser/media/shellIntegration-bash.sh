@@ -94,8 +94,10 @@ __vsc_preexec() {
 
 __vsc_update_prompt
 
-__vsc_original_ifs="$IFS"
 __vsc_prompt_cmd_original() {
+	if [[ ${IFS+set} ]]; then
+		__vsc_original_ifs="$IFS"
+	fi
 	__vsc_status="$?"
 	if [[ "$__vsc_original_prompt_command" =~ .+\;.+ ]]; then
 		IFS=';'
@@ -106,7 +108,11 @@ __vsc_prompt_cmd_original() {
 	for ((i = 0; i < ${#ADDR[@]}; i++)); do
 		builtin eval ${ADDR[i]}
 	done
-	IFS="$__vsc_original_ifs"
+	if [[ ${__vsc_original_ifs+set} ]]; then
+		IFS="$__vsc_original_ifs"
+	else
+		unset IFS
+	fi
 	__vsc_precmd
 }
 
