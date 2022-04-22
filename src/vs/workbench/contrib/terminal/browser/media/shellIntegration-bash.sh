@@ -110,6 +110,7 @@ __vsc_prompt_cmd_original() {
 	done
 	if [[ ${__vsc_original_ifs+set} ]]; then
 		IFS="$__vsc_original_ifs"
+		unset __vsc_original_ifs
 	else
 		unset IFS
 	fi
