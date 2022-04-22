@@ -165,8 +165,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 
 		// Window Controls (Native Windows/Linux)
 		const hasWindowControlsOverlay = typeof (navigator as any).windowControlsOverlay !== 'undefined';
-		this.windowControls = append(this.element, $('div.window-controls-container'));
-		if (!isMacintosh && getTitleBarStyle(this.configurationService) !== 'native' && !hasWindowControlsOverlay) {
+		if (!isMacintosh && getTitleBarStyle(this.configurationService) !== 'native' && !hasWindowControlsOverlay && this.windowControls) {
 			// Minimize
 			const minimizeIcon = append(this.windowControls, $('div.window-icon.window-minimize' + Codicon.chromeMinimize.cssSelector));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {

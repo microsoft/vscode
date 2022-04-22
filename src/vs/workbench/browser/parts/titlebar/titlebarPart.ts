@@ -197,10 +197,8 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.pendingTitle = title;
 		}
 
-		if ((isWeb || isWindows || isLinux) && this.title) {
-			if (this.lastLayoutDimensions) {
-				this.updateLayout(this.lastLayoutDimensions);
-			}
+		if (this.lastLayoutDimensions) {
+			this.updateLayout(this.lastLayoutDimensions);
 		}
 	}
 
@@ -440,7 +438,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			updateLayoutMenu();
 		}
 
-		this.windowControls = append(this.element, $('div.window-controls'));
+		this.windowControls = append(this.element, $('div.window-controls-container'));
 
 		// Context menu on title
 		[EventType.CONTEXT_MENU, EventType.MOUSE_DOWN].forEach(event => {
@@ -555,19 +553,18 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	protected adjustTitleMarginToCenter(): void {
-		if (this.customMenubar && this.menubar) {
-			const leftMarker = (this.appIcon?.clientWidth ?? 0) + this.menubar.clientWidth + 10;
-			const rightMarker = this.rootContainer.clientWidth - (this.layoutControls?.clientWidth ?? 0) - 10;
+		const base = isMacintosh ? (this.windowControls?.clientWidth ?? 0) : 0;
+		const leftMarker = base + (this.appIcon?.clientWidth ?? 0) + (this.menubar?.clientWidth ?? 0) + 10;
+		const rightMarker = base + this.rootContainer.clientWidth - (this.layoutControls?.clientWidth ?? 0) - 10;
 
-			// Not enough space to center the titlebar within window,
-			// Center between left and right controls
-			if (leftMarker > (this.rootContainer.clientWidth + (this.windowControls?.clientWidth ?? 0) - this.title.clientWidth) / 2 ||
-				rightMarker < (this.rootContainer.clientWidth + (this.windowControls?.clientWidth ?? 0) + this.title.clientWidth) / 2) {
-				this.title.style.position = '';
-				this.title.style.left = '';
-				this.title.style.transform = '';
-				return;
-			}
+		// Not enough space to center the titlebar within window,
+		// Center between left and right controls
+		if (leftMarker > (this.rootContainer.clientWidth + (this.windowControls?.clientWidth ?? 0) - this.title.clientWidth) / 2 ||
+			rightMarker < (this.rootContainer.clientWidth + (this.windowControls?.clientWidth ?? 0) + this.title.clientWidth) / 2) {
+			this.title.style.position = '';
+			this.title.style.left = '';
+			this.title.style.transform = '';
+			return;
 		}
 
 		this.title.style.position = 'absolute';

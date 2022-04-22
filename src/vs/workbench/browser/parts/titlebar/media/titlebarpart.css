@@ -17,13 +17,13 @@
 .monaco-workbench .part.titlebar>.titlebar-container {
 	box-sizing: border-box;
 	overflow: hidden;
-	flex-shrink: 0;
+	flex-shrink: 1;
+	flex-grow: 1;
 	align-items: center;
 	justify-content: center;
 	user-select: none;
 	-webkit-user-select: none;
 	display: flex;
-	transform-origin: 0 0;
 	height: 100%;
 	width: 100%;
 }
@@ -36,15 +36,11 @@
 /* Platform specific root element */
 .monaco-workbench.mac .part.titlebar>.titlebar-container {
 	line-height: 22px;
-	padding: 0 70px;
 }
 
 .monaco-workbench.web .part.titlebar>.titlebar-container,
 .monaco-workbench.windows .part.titlebar>.titlebar-container,
 .monaco-workbench.linux .part.titlebar>.titlebar-container {
-	padding: 0;
-	flex-shrink: 1;
-	flex-grow: 1;
 	height: 30px;
 	line-height: 30px;
 	justify-content: left;
@@ -164,6 +160,7 @@
 	height: env(titlebar-area-width, 28px);
 }
 
+.monaco-workbench.web .part.titlebar > .window-controls-container,
 .monaco-workbench.fullscreen .part.titlebar>.window-controls-container {
 	display: none;
 	background-color: transparent;
