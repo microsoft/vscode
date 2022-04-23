@@ -6,15 +6,17 @@
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IExtensionDescription, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription, ExtensionType, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IExtensionsScannerService, toExtensionDescription } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { timeout } from 'vs/base/common/async';
+import { GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 export class CachedExtensionScanner {
 
@@ -27,6 +29,7 @@ export class CachedExtensionScanner {
 		@IHostService private readonly _hostService: IHostService,
 		@IExtensionsScannerService private readonly _extensionsScannerService: IExtensionsScannerService,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		this.scannedExtensions = new Promise<IExtensionDescription[]>((resolve, reject) => {
 			this._scannedExtensionsResolve = resolve;
@@ -42,11 +45,25 @@ export class CachedExtensionScanner {
 	public async startScanningExtensions(): Promise<void> {
 		try {
 			const { system, user, development } = await this._scanInstalledExtensions();
+			this._reportTelemetry(user);
 			const r = dedupExtensions(system, user, development, this._logService);
 			this._scannedExtensionsResolve(r);
 		} catch (err) {
 			this._scannedExtensionsReject(err);
 		}
+	}
+
+	private _reportTelemetry(extensions: IExtensionDescription[]) {
+		const extensionIds = extensions.map(ext => ExtensionIdentifier.toKey(ext.identifier.value));
+		interface ExtensionsLoadEvent {
+			readonly extensionIds: string;
+			readonly count: number;
+		}
+		interface ExtensionsLoadClassification extends GDPRClassification<ExtensionsLoadEvent> {
+			readonly extensionIds: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+			readonly count: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+		}
+		this._telemetryService.publicLog2<ExtensionsLoadEvent, ExtensionsLoadClassification>('extensionsLoad', { extensionIds: extensionIds.join(';'), count: extensionIds.length });
 	}
 
 	private async _scanInstalledExtensions(): Promise<{ system: IExtensionDescription[]; user: IExtensionDescription[]; development: IExtensionDescription[] }> {
