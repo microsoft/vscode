@@ -453,6 +453,10 @@
 		{
 			"name": "vs/workbench/contrib/profiles",
 			"project": "vscode-profiles"
+		},
+		{
+			"name": "vs/workbench/services/profiles",
+			"project": "vscode-profiles"
 		}
 	]
 }

@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from 'vs/base/common/uuid';
+import { localize } from 'vs/nls';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ExtensionsProfile } from 'vs/workbench/services/profiles/common/extensionsProfile';
 import { GlobalStateProfile } from 'vs/workbench/services/profiles/common/globalStateProfile';
 import { IProfile, IWorkbenchProfileService } from 'vs/workbench/services/profiles/common/profile';
@@ -20,7 +22,8 @@ export class WorkbenchProfileService implements IWorkbenchProfileService {
 	private readonly extensionsProfile: ExtensionsProfile;
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		this.settingsProfile = instantiationService.createInstance(SettingsProfile);
 		this.globalStateProfile = instantiationService.createInstance(GlobalStateProfile);
@@ -40,15 +43,20 @@ export class WorkbenchProfileService implements IWorkbenchProfileService {
 	}
 
 	async setProfile(profile: IProfile): Promise<void> {
-		if (profile.settings) {
-			await this.settingsProfile.applyProfile(profile.settings);
-		}
-		if (profile.globalState) {
-			await this.globalStateProfile.applyProfile(profile.globalState);
-		}
-		if (profile.extensions) {
-			await this.extensionsProfile.applyProfile(profile.extensions);
-		}
+		this.progressService.withProgress({
+			location: ProgressLocation.Notification,
+			title: localize('profiles.applying', "Applying Profile..."),
+		}, async progress => {
+			if (profile.settings) {
+				await this.settingsProfile.applyProfile(profile.settings);
+			}
+			if (profile.globalState) {
+				await this.globalStateProfile.applyProfile(profile.globalState);
+			}
+			if (profile.extensions) {
+				await this.extensionsProfile.applyProfile(profile.extensions);
+			}
+		});
 	}
 
 }
