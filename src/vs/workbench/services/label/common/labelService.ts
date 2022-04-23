@@ -156,7 +156,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 	private doGetUriLabel(resource: URI, formatting?: ResourceLabelFormatting, options: { relative?: boolean; noPrefix?: boolean; endWithSeparator?: boolean } = {}): string {
 		if (!formatting) {
-			return getPathLabel(resource.path, { userHome: this.pathService.resolvedUserHome }, options.relative ? this.contextService : undefined);
+			return getPathLabel(resource, { userHome: this.pathService.resolvedUserHome }, options.relative ? this.contextService : undefined);
 		}
 
 		let label: string | undefined;
