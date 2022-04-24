@@ -89,4 +89,5 @@ export const enum TestCommandId {
 	ToggleAutoRun = 'testing.toggleautoRun',
 	ToggleInlineTestOutput = 'testing.toggleInlineTestOutput',
 	UnhideTestAction = 'testing.unhideTest',
+	UnhideAllTestsAction = 'testing.unhideAllTests',
 }
