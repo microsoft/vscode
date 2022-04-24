@@ -204,19 +204,19 @@ export class BrowserWindow extends Disposable {
 							Severity.Info,
 							localize('openExternalDialogTitle', "All done. You can close this tab now."),
 							[
-								localize('openExternalDialogButtonContinue', "Continue here"),
 								localize('openExternalDialogButtonRetry', "Try again"),
-								localize('openExternalDialogButtonInstall', "Install {0}", this.productService.nameLong)
+								localize('openExternalDialogButtonInstall', "Install {0}", this.productService.nameLong),
+								localize('openExternalDialogButtonContinue', "Continue here")
 							],
 							{
-								cancelId: 0,
+								cancelId: 2,
 								detail: localize('openExternalDialogDetail', "We tried opening {0} on your computer.", this.productService.nameLong)
 							},
 						);
 
-						if (showResult.choice === 1) {
+						if (showResult.choice === 0) {
 							invokeProtocolHandler();
-						} else if (showResult.choice === 2) {
+						} else if (showResult.choice === 1) {
 							await this.openerService.open(URI.parse(`http://aka.ms/vscode-install`));
 						}
 					}
