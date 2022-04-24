@@ -202,15 +202,15 @@ export class BrowserWindow extends Disposable {
 					if (matchesScheme(href, this.productService.urlProtocol)) {
 						const showResult = await this.dialogService.show(
 							Severity.Info,
-							localize('you can close this tab', "All done. You can close this tab now."),
+							localize('openExternalDialogTitle', "All done. You can close this tab now."),
 							[
-								localize('continue here', "Continue here"),
-								localize('try again', "Try again"),
-								localize('install application', "Install {0}", this.productService.nameLong)
+								localize('openExternalDialogButtonContinue', "Continue here"),
+								localize('openExternalDialogButtonRetry', "Try again"),
+								localize('openExternalDialogButtonInstall', "Install {0}", this.productService.nameLong)
 							],
 							{
 								cancelId: 0,
-								detail: localize('opened desktop application detail', "We tried opening {0} on your computer.", this.productService.nameLong)
+								detail: localize('openExternalDialogDetail', "We tried opening {0} on your computer.", this.productService.nameLong)
 							},
 						);
 
