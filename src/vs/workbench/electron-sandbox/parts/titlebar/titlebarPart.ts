@@ -30,6 +30,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	private maxRestoreControl: HTMLElement | undefined;
 	private dragRegion: HTMLElement | undefined;
 	private resizer: HTMLElement | undefined;
+	private cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
 
 	private getMacTitlebarSize() {
 		const osVersion = this.environmentService.os.release;
@@ -201,6 +202,10 @@ export class TitlebarPart extends BrowserTitleBarPart {
 
 	override updateStyles(): void {
 		super.updateStyles();
-		this.nativeHostService.updateTitleBarOverlay(this.element.style.backgroundColor, this.element.style.color);
+		if (!this.cachedWindowControlStyles ||
+			this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
+			this.cachedWindowControlStyles.fgColor !== this.element.style.color) {
+			this.nativeHostService.updateTitleBarOverlay(this.element.style.backgroundColor, this.element.style.color);
+		}
 	}
 }

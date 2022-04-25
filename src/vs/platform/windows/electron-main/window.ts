@@ -255,7 +255,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
 
 					options.titleBarOverlay = {
-						height: 29,
+						height: 29, // The smallest size of the title bar on windows accounting for the border on windows 11
 						color: titleBarColor,
 						symbolColor
 					};
