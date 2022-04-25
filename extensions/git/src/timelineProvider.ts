@@ -229,8 +229,7 @@ export class GitTimelineProvider implements TimelineProvider {
 					const date = new Date();
 
 					const item = new GitTimelineItem('', index ? '~' : 'HEAD', localize('git.timeline.uncommitedChanges', 'Uncommitted Changes'), date.getTime(), 'working', 'git:file:working');
-					// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
-					item.iconPath = new ThemeIcon('git-commit');
+					item.iconPath = new ThemeIcon('circle-outline');
 					item.description = '';
 					item.setItemDetails(you, undefined, dateFormatter.format(date), Resource.getStatusText(working.type));
 

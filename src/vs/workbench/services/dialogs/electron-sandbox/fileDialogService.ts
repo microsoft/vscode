@@ -25,6 +25,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -45,17 +46,18 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		@IPathService pathService: IPathService,
 		@ICommandService commandService: ICommandService,
 		@IEditorService editorService: IEditorService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ILogService logService: ILogService
 	) {
 		super(hostService, contextService, historyService, environmentService, instantiationService,
-			configurationService, fileService, openerService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService);
+			configurationService, fileService, openerService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService, logService);
 	}
 
 	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
 		return {
 			forceNewWindow: options.forceNewWindow,
 			telemetryExtraData: options.telemetryExtraData,
-			defaultPath: options.defaultUri && options.defaultUri.fsPath
+			defaultPath: options.defaultUri?.fsPath
 		};
 	}
 
@@ -140,7 +142,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	private toNativeSaveDialogOptions(options: ISaveDialogOptions): SaveDialogOptions {
 		options.defaultUri = options.defaultUri ? URI.file(options.defaultUri.path) : undefined;
 		return {
-			defaultPath: options.defaultUri && options.defaultUri.fsPath,
+			defaultPath: options.defaultUri?.fsPath,
 			buttonLabel: options.saveLabel,
 			filters: options.filters,
 			title: options.title
@@ -171,7 +173,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		const newOptions: OpenDialogOptions & { properties: string[] } = {
 			title: options.title,
-			defaultPath: defaultUri && defaultUri.fsPath,
+			defaultPath: defaultUri?.fsPath,
 			buttonLabel: options.openLabel,
 			filters: options.filters,
 			properties: []

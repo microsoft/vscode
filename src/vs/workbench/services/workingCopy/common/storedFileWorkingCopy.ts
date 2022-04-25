@@ -1003,7 +1003,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	}
 
 	private handleSaveError(error: Error, versionId: number, options: IStoredFileWorkingCopySaveOptions): void {
-		(options.ignoreErrorHandler ? this.logService.trace : this.logService.error)(`[stored file working copy] handleSaveError(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString(), this.typeId);
+		(options.ignoreErrorHandler ? this.logService.trace : this.logService.error).apply(this.logService, [`[stored file working copy] handleSaveError(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString(), this.typeId]);
 
 		// Return early if the save() call was made asking to
 		// handle the save error itself.

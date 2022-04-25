@@ -12,13 +12,14 @@ import { Delayer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon } from 'vs/editor/contrib/find/browser/findWidget';
+import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon, NLS_NO_RESULTS, NLS_MATCHES_LOCATION } from 'vs/editor/contrib/find/browser/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground, errorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
+import * as strings from 'vs/base/common/strings';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -307,7 +308,12 @@ export abstract class SimpleFindWidget extends Widget {
 			this._matchesCount.className = 'matchesCount';
 		}
 		this._matchesCount.innerText = '';
-		const label = count === undefined || count.resultCount === 0 ? `No Results` : `${count.resultIndex + 1} of ${count.resultCount}`;
+		let label;
+		if (count?.resultCount === -1) {
+			label = '';
+		} else {
+			label = count === undefined || count.resultCount === 0 ? NLS_NO_RESULTS : strings.format(NLS_MATCHES_LOCATION, count.resultIndex + 1, count?.resultCount);
+		}
 		this._matchesCount.appendChild(document.createTextNode(label));
 		this._matchesCount.classList.toggle('no-results', !count || count.resultCount === 0);
 		this._findInput?.domNode.insertAdjacentElement('afterend', this._matchesCount);

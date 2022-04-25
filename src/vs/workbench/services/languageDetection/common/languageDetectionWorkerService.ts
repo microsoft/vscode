@@ -19,9 +19,10 @@ export interface ILanguageDetectionService {
 
 	/**
 	 * @param resource The resource to detect the language for.
+	 * @param supportedLangs Optional. When populated, the model will only return languages from the provided list
 	 * @returns the language id for the given resource or undefined if the model is not confident enough.
 	 */
-	detectLanguage(resource: URI): Promise<string | undefined>;
+	detectLanguage(resource: URI, supportedLangs?: string[]): Promise<string | undefined>;
 }
 
 //#region Telemetry events

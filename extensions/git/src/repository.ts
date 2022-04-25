@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabKindTextDiff, TabKindNotebookDiff, RelativePattern } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -541,7 +541,7 @@ class DotGitWatcher implements IFileWatcher {
 		private repository: Repository,
 		private outputChannel: OutputChannel
 	) {
-		const rootWatcher = watch(repository.dotGit);
+		const rootWatcher = watch(repository.dotGit.path);
 		this.disposables.push(rootWatcher);
 
 		// Ignore changes to the "index.lock" file, and watchman fsmonitor hook (https://git-scm.com/docs/githooks#_fsmonitor_watchman) cookie files.
@@ -563,7 +563,7 @@ class DotGitWatcher implements IFileWatcher {
 		this.transientDisposables = dispose(this.transientDisposables);
 
 		const { name, remote } = this.repository.HEAD.upstream;
-		const upstreamPath = path.join(this.repository.dotGit, 'refs', 'remotes', remote, name);
+		const upstreamPath = path.join(this.repository.dotGit.commonPath ?? this.repository.dotGit.path, 'refs', 'remotes', remote, name);
 
 		try {
 			const upstreamWatcher = watch(upstreamPath);
@@ -842,7 +842,7 @@ export class Repository implements Disposable {
 		return this.repository.root;
 	}
 
-	get dotGit(): string {
+	get dotGit(): { path: string; commonPath?: string } {
 		return this.repository.dotGit;
 	}
 
@@ -874,7 +874,7 @@ export class Repository implements Disposable {
 			this.disposables.push(dotGitFileWatcher);
 		} catch (err) {
 			if (Log.logLevel <= LogLevel.Error) {
-				outputChannel.appendLine(`${logTimestamp()} Failed to watch '${this.dotGit}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
+				outputChannel.appendLine(`${logTimestamp()} Failed to watch path:'${this.dotGit.path}' or commonPath:'${this.dotGit.commonPath}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
 			}
 
 			onRepositoryDotGitFileChange = filterEvent(onRepositoryFileChange, uri => /\.git($|\/)/.test(uri.path));
@@ -1274,13 +1274,13 @@ export class Repository implements Disposable {
 		const diffEditorTabsToClose: Tab[] = [];
 
 		for (const tab of window.tabGroups.all.map(g => g.tabs).flat()) {
-			const { kind } = tab;
-			if (kind instanceof TabKindTextDiff || kind instanceof TabKindNotebookDiff) {
-				if (kind.modified.scheme === 'git' && indexResources.some(r => pathEquals(r, kind.modified.fsPath))) {
+			const { input } = tab;
+			if (input instanceof TabInputTextDiff || input instanceof TabInputNotebookDiff) {
+				if (input.modified.scheme === 'git' && indexResources.some(r => pathEquals(r, input.modified.fsPath))) {
 					// Index
 					diffEditorTabsToClose.push(tab);
 				}
-				if (kind.modified.scheme === 'file' && kind.original.scheme === 'git' && workingTreeResources.some(r => pathEquals(r, kind.modified.fsPath))) {
+				if (input.modified.scheme === 'file' && input.original.scheme === 'git' && workingTreeResources.some(r => pathEquals(r, input.modified.fsPath))) {
 					// Working Tree
 					diffEditorTabsToClose.push(tab);
 				}

@@ -614,7 +614,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._findInput.focus();
 	}
 
-	public show(initialInput?: string): void {
+	public show(initialInput?: string, options?: { focus?: boolean }): void {
 		if (initialInput && !this._isVisible) {
 			this._findInput.setValue(initialInput);
 		}
@@ -625,7 +625,9 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this._domNode.classList.add('visible', 'visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'false');
 
-			this.focus();
+			if (options?.focus ?? true) {
+				this.focus();
+			}
 		}, 0);
 	}
 
