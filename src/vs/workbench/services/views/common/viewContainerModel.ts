@@ -16,6 +16,8 @@ import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { isEqual } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/profiles/common/profileStorageRegistry';
+import { localize } from 'vs/nls';
 
 export function getViewsStateStorageId(viewContainerStorageId: string): string { return `${viewContainerStorageId}.hidden`; }
 
@@ -84,6 +86,7 @@ class ViewDescriptorsState extends Disposable {
 
 	constructor(
 		viewContainerStorageId: string,
+		viewContainerName: string,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
@@ -93,6 +96,12 @@ class ViewDescriptorsState extends Disposable {
 		this._register(this.storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
 
 		this.state = this.initialize();
+
+		Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry)
+			.registerKeys([{
+				key: this.globalViewsStateStorageId,
+				description: localize('globalViewsStateStorageId', "Views visibility customizations in {0} view container", viewContainerName),
+			}]);
 	}
 
 	set(id: string, state: IViewDescriptorState): void {
@@ -343,7 +352,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		super();
 
 		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(this.contextKeys))(() => this.onDidChangeContext()));
-		this.viewDescriptorsState = this._register(instantiationService.createInstance(ViewDescriptorsState, viewContainer.storageId || `${viewContainer.id}.state`));
+		this.viewDescriptorsState = this._register(instantiationService.createInstance(ViewDescriptorsState, viewContainer.storageId || `${viewContainer.id}.state`, viewContainer.title));
 		this._register(this.viewDescriptorsState.onDidChangeStoredState(items => this.updateVisibility(items)));
 
 		this._register(Event.any(

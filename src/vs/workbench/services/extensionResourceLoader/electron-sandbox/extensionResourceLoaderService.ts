@@ -8,7 +8,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { AbstractExtensionResourceLoaderService, IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { asText, IRequestService } from 'vs/platform/request/common/request';
+import { asTextOrError, IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -31,7 +31,7 @@ export class ExtensionResourceLoaderService extends AbstractExtensionResourceLoa
 		if (this.isExtensionGalleryResource(uri)) {
 			const headers = await this.getExtensionGalleryRequestHeaders();
 			const requestContext = await this._requestService.request({ url: uri.toString(), headers }, CancellationToken.None);
-			return (await asText(requestContext)) || '';
+			return (await asTextOrError(requestContext)) || '';
 		}
 		const result = await this._fileService.readFile(uri);
 		return result.value.toString();

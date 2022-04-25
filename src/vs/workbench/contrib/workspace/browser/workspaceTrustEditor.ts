@@ -50,7 +50,8 @@ import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/brow
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { getExtensionDependencies } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { posix } from 'vs/base/common/path';
+import { posix, win32 } from 'vs/base/common/path';
+import { hasDriveLetter, toSlashes } from 'vs/base/common/extpath';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -530,8 +531,10 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 
 		const accept = () => {
 			hideInputBox();
-			const uri = item.uri.with({ path: templateData.pathInput.value });
-			templateData.pathLabel.innerText = templateData.pathInput.value;
+
+			const pathToUse = templateData.pathInput.value;
+			const uri = hasDriveLetter(pathToUse) ? item.uri.with({ path: posix.sep + toSlashes(pathToUse) }) : item.uri.with({ path: pathToUse });
+			templateData.pathLabel.innerText = this.formatPath(uri);
 
 			if (uri) {
 				this.table.acceptEdit(item, uri);
@@ -563,17 +566,33 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 			reject();
 		})));
 
-		const stringValue = item.uri.scheme === Schemas.file ? URI.revive(item.uri).fsPath : item.uri.path;
+		const stringValue = this.formatPath(item.uri);
 		templateData.pathInput.value = stringValue;
 		templateData.pathLabel.innerText = stringValue;
 		templateData.element.classList.toggle('current-workspace-parent', item.parentOfWorkspaceItem);
-
-		// templateData.pathLabel.style.display = '';
 	}
 
 	disposeTemplate(templateData: ITrustedUriPathColumnTemplateData): void {
 		templateData.disposables.dispose();
 		templateData.renderDisposables.dispose();
+	}
+
+	private formatPath(uri: URI): string {
+		if (uri.scheme === Schemas.file) {
+			return uri.fsPath;
+		}
+
+		// If the path is not a file uri, but points to a windows remote, we should create windows fs path
+		// e.g. /c:/user/directory => C:\user\directory
+		if (uri.path.startsWith(posix.sep)) {
+			const pathWithoutLeadingSeparator = uri.path.substring(1);
+			const isWindowsPath = hasDriveLetter(pathWithoutLeadingSeparator, true);
+			if (isWindowsPath) {
+				return win32.normalize(pathWithoutLeadingSeparator);
+			}
+		}
+
+		return uri.path;
 	}
 
 }

@@ -19,6 +19,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { getViewsStateStorageId, ViewContainerModel } from 'vs/workbench/services/views/common/viewContainerModel';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/profiles/common/profileStorageRegistry';
 
 interface ICachedViewContainerInfo {
 	containerId: string;
@@ -142,6 +143,15 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this._register(this.storageService.onDidChangeValue((e) => { this.onDidStorageChange(e); }));
 
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.onDidRegisterExtensions()));
+
+		Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry)
+			.registerKeys([{
+				key: ViewDescriptorService.CACHED_VIEW_POSITIONS,
+				description: localize('cachedViewPositions', "View locations customizations"),
+			}, {
+				key: ViewDescriptorService.CACHED_VIEW_CONTAINER_LOCATIONS,
+				description: localize('cachedViewContainerPositions', "View Container locations customizations"),
+			}]);
 	}
 
 	private registerGroupedViews(groupedViews: Map<string, { cachedContainerInfo?: ICachedViewContainerInfo; views: IViewDescriptor[] }>): void {
