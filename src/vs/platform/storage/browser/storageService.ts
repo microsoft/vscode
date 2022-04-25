@@ -128,7 +128,7 @@ export class BrowserStorageService extends AbstractStorageService {
 
 		// Clear key/values
 		for (const scope of [StorageScope.GLOBAL, StorageScope.WORKSPACE]) {
-			for (const target of [StorageTarget.USER, StorageTarget.MACHINE, StorageTarget.PROFILE]) {
+			for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
 				for (const key of this.keys(scope, target)) {
 					this.remove(key, scope);
 				}
