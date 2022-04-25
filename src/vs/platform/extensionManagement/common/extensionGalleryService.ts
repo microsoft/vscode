@@ -23,7 +23,7 @@ import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator'
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { asJson, asText, IRequestService, isSuccess } from 'vs/platform/request/common/request';
+import { asJson, asTextOrError, IRequestService, isSuccess } from 'vs/platform/request/common/request';
 import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -995,7 +995,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	async getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string> {
 		if (extension.assets.readme) {
 			const context = await this.getAsset(extension.assets.readme, {}, token);
-			const content = await asText(context);
+			const content = await asTextOrError(context);
 			return content || '';
 		}
 		return '';
@@ -1004,7 +1004,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	async getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest | null> {
 		if (extension.assets.manifest) {
 			const context = await this.getAsset(extension.assets.manifest, {}, token);
-			const text = await asText(context);
+			const text = await asTextOrError(context);
 			return text ? JSON.parse(text) : null;
 		}
 		return null;
@@ -1024,7 +1024,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const asset = extension.assets.coreTranslations.filter(t => t[0] === languageId.toUpperCase())[0];
 		if (asset) {
 			const context = await this.getAsset(asset[1]);
-			const text = await asText(context);
+			const text = await asTextOrError(context);
 			return text ? JSON.parse(text) : null;
 		}
 		return null;
@@ -1033,7 +1033,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	async getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string> {
 		if (extension.assets.changelog) {
 			const context = await this.getAsset(extension.assets.changelog, {}, token);
-			const content = await asText(context);
+			const content = await asTextOrError(context);
 			return content || '';
 		}
 		return '';
@@ -1096,7 +1096,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			if (context.res.statusCode === 200) {
 				return context;
 			}
-			const message = await asText(context);
+			const message = await asTextOrError(context);
 			throw new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`);
 		} catch (err) {
 			if (isCancellationError(err)) {
