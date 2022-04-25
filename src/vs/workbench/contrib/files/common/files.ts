@@ -98,12 +98,14 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 			badges: boolean;
 		};
 		incrementalNaming: 'simple' | 'smart';
+		fileNesting: {
+			enabled: boolean;
+			expand: boolean;
+			patterns: { [parent: string]: string };
+		};
 		experimental: {
 			fileNesting: {
-				enabled: boolean;
 				operateAsGroup: boolean;
-				expand: boolean;
-				patterns: { [parent: string]: string };
 			};
 		};
 	};
