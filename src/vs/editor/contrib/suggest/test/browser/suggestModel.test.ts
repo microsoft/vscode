@@ -60,6 +60,7 @@ function createMockEditor(model: TextModel, languageFeaturesService: ILanguageFe
 		),
 	});
 	editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
+	editor.hasWidgetFocus = () => true;
 	return editor;
 }
 
