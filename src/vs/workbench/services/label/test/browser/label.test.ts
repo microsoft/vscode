@@ -260,7 +260,7 @@ suite('multi-root workspace', () => {
 				new Workspace('test-workspace', [
 					new WorkspaceFolder({ uri: rootFolder, index: 0, name: 'FSProotFolder' }),
 				])),
-			new TestPathService());
+			new TestPathService(undefined, rootFolder.scheme));
 
 		const generated = labelService.getUriLabel(URI.parse('myscheme://myauthority/some/folder/test.txt'), { relative: true });
 		if (isWindows) {

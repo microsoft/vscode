@@ -10,9 +10,9 @@ import * as paths from 'vs/base/common/path';
 import { Emitter } from 'vs/base/common/event';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService, IWorkspace, isWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, isUntitledWorkspace, isTemporaryWorkspace } from 'vs/platform/workspace/common/workspace';
-import { basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
+import { basenameOrAuthority, basename, joinPath, dirname, toLocalResource } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -107,7 +107,7 @@ export class LabelService extends Disposable implements ILabelService {
 	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
 
 	constructor(
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IPathService private readonly pathService: IPathService
 	) {
@@ -156,7 +156,16 @@ export class LabelService extends Disposable implements ILabelService {
 
 	private doGetUriLabel(resource: URI, formatting?: ResourceLabelFormatting, options: { relative?: boolean; noPrefix?: boolean; endWithSeparator?: boolean } = {}): string {
 		if (!formatting) {
-			return getPathLabel(resource, { userHome: this.pathService.resolvedUserHome }, options.relative ? this.contextService : undefined);
+
+			// Without a formatter we have to fallback to figuring out what the
+			// label could be given the environment. For that we convert the
+			// given resource to the default scheme and remote authority that
+			// is present in an attempt to e.g. resolve a proper relative path
+			// if that is needed.
+
+			const defaultResource = toLocalResource(resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
+
+			return getPathLabel(defaultResource, { userHome: this.pathService.resolvedUserHome }, options.relative ? this.contextService : undefined);
 		}
 
 		let label: string | undefined;
