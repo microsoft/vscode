@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isUndefined } from 'vs/base/common/types';
+import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IProfile {
-	readonly id: string;
 	readonly name?: string;
 	readonly settings?: string;
 	readonly globalState?: string;
@@ -18,7 +18,6 @@ export function isProfile(thing: any): thing is IProfile {
 	const candidate = thing as IProfile | undefined;
 
 	return !!(candidate && typeof candidate === 'object'
-		&& typeof candidate.id === 'string'
 		&& (isUndefined(candidate.name) || typeof candidate.name === 'string')
 		&& (isUndefined(candidate.settings) || typeof candidate.settings === 'string')
 		&& (isUndefined(candidate.globalState) || typeof candidate.globalState === 'string')
@@ -39,3 +38,7 @@ export interface IResourceProfile {
 	getProfileContent(): Promise<string>;
 	applyProfile(content: string): Promise<void>;
 }
+
+export const PROFILES_CATEGORY = localize('settings profiles', "Settings Profile");
+export const PROFILE_EXTENSION = 'code-profile';
+export const PROFILE_FILTER = [{ name: localize('profile', "Settings Profile"), extensions: [PROFILE_EXTENSION] }];

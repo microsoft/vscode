@@ -14,8 +14,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
-import { PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER } from 'vs/workbench/contrib/profiles/common/profiles';
-import { IProfile, isProfile, IWorkbenchProfileService } from 'vs/workbench/services/profiles/common/profile';
+import { IProfile, isProfile, IWorkbenchProfileService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER } from 'vs/workbench/services/profiles/common/profile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 registerAction2(class ExportProfileAction extends Action2 {
@@ -23,8 +22,8 @@ registerAction2(class ExportProfileAction extends Action2 {
 		super({
 			id: 'workbench.profiles.actions.exportProfile',
 			title: {
-				value: localize('export profile', "Export customizations as a Profile..."),
-				original: 'Export customizations as a Profile...'
+				value: localize('export profile', "Export Settings as a Profile..."),
+				original: 'Export Settings as a Profile...'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true
@@ -50,7 +49,7 @@ registerAction2(class ExportProfileAction extends Action2 {
 		const profile = await profileService.createProfile({ skipComments: true });
 		await textFileService.create([{ resource: profileLocation, value: JSON.stringify(profile), options: { overwrite: true } }]);
 
-		notificationService.info(localize('export success', "Profile successfully exported."));
+		notificationService.info(localize('export success', "{0}: Exported successfully.", PROFILES_CATEGORY));
 	}
 });
 
@@ -59,8 +58,8 @@ registerAction2(class ImportProfileAction extends Action2 {
 		super({
 			id: 'workbench.profiles.actions.importProfile',
 			title: {
-				value: localize('import profile', "Import customizations from a Profile..."),
-				original: 'Import customizations from a Profile...'
+				value: localize('import profile', "Import Settings from a Profile..."),
+				original: 'Import Settings from a Profile...'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true
@@ -76,8 +75,8 @@ registerAction2(class ImportProfileAction extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 
 		if (!(await dialogService.confirm({
-			title: localize('import profile title', "Import customizations from a Profile"),
-			message: localize('confiirmation message', "This will replace your current customizations. Are you sure you want to continue?"),
+			title: localize('import profile title', "Import Settings from a Profile"),
+			message: localize('confiirmation message', "This will replace your current settings. Are you sure you want to continue?"),
 		})).confirmed) {
 			return;
 		}
@@ -88,7 +87,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 			const selectFromFileItem: IQuickPickItem = { label: localize('select from file', "Import from profile file") };
 			quickPick.items = value ? [{ label: localize('select from url', "Import from URL"), description: quickPick.value }, selectFromFileItem] : [selectFromFileItem];
 		};
-		quickPick.title = localize('import profile quick pick title', "Import customizations from a Profile");
+		quickPick.title = localize('import profile quick pick title', "Import Settings from a Profile");
 		quickPick.placeholder = localize('import profile placeholder', "Provide profile URL or select profile file to import");
 		quickPick.ignoreFocusOut = true;
 		disposables.add(quickPick.onDidChangeValue(updateQuickPickItems));
