@@ -1286,7 +1286,7 @@ declare namespace monaco.editor {
 		get(): T | undefined;
 	}
 
-	export type ContextKeyValue = null | undefined | boolean | number | string;
+	export type ContextKeyValue = null | undefined | boolean | number | string | Array<null | undefined | boolean | number | string> | Record<string, null | undefined | boolean | number | string>;
 
 	export interface IEditorOverrideServices {
 		[index: string]: any;

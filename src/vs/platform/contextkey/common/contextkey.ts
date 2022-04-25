@@ -516,7 +516,7 @@ export class ContextKeyInExpr implements IContextKeyExpression {
 		const item = context.getValue(this.key);
 
 		if (Array.isArray(source)) {
-			return (source.indexOf(item) >= 0);
+			return source.includes(item as any);
 		}
 
 		if (typeof item === 'string' && typeof source === 'object' && source !== null) {
@@ -1567,7 +1567,9 @@ export class RawContextKey<T extends ContextKeyValue> extends ContextKeyDefinedE
 	}
 }
 
-export type ContextKeyValue = null | undefined | boolean | number | string;
+export type ContextKeyValue = null | undefined | boolean | number | string
+	| Array<null | undefined | boolean | number | string>
+	| Record<string, null | undefined | boolean | number | string>;
 
 export interface IContext {
 	getValue<T extends ContextKeyValue = ContextKeyValue>(key: string): T | undefined;
