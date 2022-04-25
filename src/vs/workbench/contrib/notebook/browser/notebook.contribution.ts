@@ -70,7 +70,7 @@ import 'vs/workbench/contrib/notebook/browser/controller/foldingController';
 
 // Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
-import 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
+import 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFind';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
 import 'vs/workbench/contrib/notebook/browser/contrib/gettingStarted/notebookGettingStarted';
 import 'vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions';

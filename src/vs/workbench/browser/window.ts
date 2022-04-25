@@ -18,6 +18,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
@@ -30,6 +31,7 @@ export class BrowserWindow extends Disposable {
 		@ILifecycleService private readonly lifecycleService: BrowserLifecycleService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IProductService private readonly productService: IProductService,
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
@@ -189,7 +191,35 @@ export class BrowserWindow extends Disposable {
 				// but make sure to signal this as an expected unload and disable unload
 				// handling explicitly to prevent the workbench from going down.
 				else {
-					this.lifecycleService.withExpectedShutdown({ disableShutdownHandling: true }, () => window.location.href = href);
+					const invokeProtocolHandler = () => {
+						this.lifecycleService.withExpectedShutdown({ disableShutdownHandling: true }, () => window.location.href = href);
+					};
+
+					invokeProtocolHandler();
+
+					// We cannot know whether the protocol handler succeeded.
+					// Display guidance in case it did not, e.g. the app is not installed locally.
+					if (matchesScheme(href, this.productService.urlProtocol)) {
+						const showResult = await this.dialogService.show(
+							Severity.Info,
+							localize('openExternalDialogTitle', "All done. You can close this tab now."),
+							[
+								localize('openExternalDialogButtonRetry', "Try again"),
+								localize('openExternalDialogButtonInstall', "Install {0}", this.productService.nameLong),
+								localize('openExternalDialogButtonContinue', "Continue here")
+							],
+							{
+								cancelId: 2,
+								detail: localize('openExternalDialogDetail', "We tried opening {0} on your computer.", this.productService.nameLong)
+							},
+						);
+
+						if (showResult.choice === 0) {
+							invokeProtocolHandler();
+						} else if (showResult.choice === 1) {
+							await this.openerService.open(URI.parse(`http://aka.ms/vscode-install`));
+						}
+					}
 				}
 
 				return true;

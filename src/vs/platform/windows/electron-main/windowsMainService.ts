@@ -767,7 +767,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					defaultId: 0,
 					message: uri.scheme === Schemas.file ? localize('pathNotExistTitle', "Path does not exist") : localize('uriInvalidTitle', "URI can not be opened"),
 					detail: uri.scheme === Schemas.file ?
-						localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", getPathLabel(uri.fsPath, this.environmentMainService)) :
+						localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", getPathLabel(uri, this.environmentMainService)) :
 						localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString()),
 					noLink: true
 				};
