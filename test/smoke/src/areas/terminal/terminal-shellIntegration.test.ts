@@ -6,7 +6,7 @@
 import { Application, Terminal, SettingsEditor } from '../../../../automation';
 
 export function setup() {
-	describe.only('Terminal Shell Integration', () => {
+	describe('Terminal Shell Integration', () => {
 		let terminal: Terminal;
 		let settingsEditor: SettingsEditor;
 		let app: Application;
@@ -15,13 +15,49 @@ export function setup() {
 			app = this.app as Application;
 			terminal = app.workbench.terminal;
 			settingsEditor = app.workbench.settingsEditor;
+			await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.enabled', 'true');
 		});
 
 		describe('Shell integration', function () {
-			it('should create a terminal', async () => {
-				await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.enabled', 'true');
-				await terminal.createTerminal();
-				await terminal.waitForTerminalText(buffer => buffer.some(e => e.includes('Shell integration activated')));
+			describe('Activation', function () {
+				it('should activate shell integration on creation of a terminal', async () => {
+					await terminal.createTerminal();
+					await terminal.assertShellIntegrationActivated();
+				});
+			});
+			describe('Decorations', function () {
+				describe('Should show default icons', function () {
+					it('Placeholder', async () => {
+						await terminal.createTerminal();
+						await terminal.assertShellIntegrationActivated();
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
+					});
+					it('Success', async () => {
+						await terminal.createTerminal();
+						await terminal.assertShellIntegrationActivated();
+						await terminal.runCommandInTerminal(`ls`);
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
+					});
+					it('Error', async () => {
+						await terminal.createTerminal();
+						await terminal.assertShellIntegrationActivated();
+						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 1 });
+					});
+				});
+				describe('Custom configuration', function () {
+					it('Should update and show custom icons', async () => {
+						await terminal.createTerminal();
+						await terminal.assertShellIntegrationActivated();
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
+						await terminal.runCommandInTerminal(`ls`);
+						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
+						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIcon', '"zap"');
+						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconSuccess', '"zap"');
+						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconError', '"zap"');
+						await terminal.assertCommandDecorations(undefined, { updatedIcon: "zap", count: 3 });
+					});
+				});
 			});
 		});
 	});
