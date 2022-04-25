@@ -23,12 +23,11 @@ export interface IUserHomeProvider {
 }
 
 /**
- * @deprecated use LabelService instead
+ * @deprecated use `ILabelService` instead where contributed label
+ * formatters are being used. this method is only suitable as a fallback
+ * when formatters are unknown.
  */
-export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHomeProvider, rootProvider?: IWorkspaceFolderProvider): string {
-	if (typeof resource === 'string') {
-		resource = URI.file(resource);
-	}
+export function getPathLabel(resource: URI, userHomeProvider?: IUserHomeProvider, rootProvider?: IWorkspaceFolderProvider): string {
 
 	// return early if we can resolve a relative path label from the root
 	if (rootProvider) {
@@ -40,7 +39,12 @@ export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHom
 			if (isEqual(baseResource.uri, resource)) {
 				pathLabel = ''; // no label if paths are identical
 			} else {
-				pathLabel = relativePath(baseResource.uri, resource)!;
+				pathLabel = relativePath(baseResource.uri, resource) ?? '';
+
+				// normalize
+				if (pathLabel) {
+					pathLabel = normalize(pathLabel);
+				}
 			}
 
 			if (hasMultipleRoots) {

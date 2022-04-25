@@ -32,10 +32,12 @@ import { assertNoRpc, poll } from '../utils';
 	suite('Terminal', () => {
 		let disposables: Disposable[] = [];
 
-		teardown(() => {
+		teardown(async () => {
 			assertNoRpc();
 			disposables.forEach(d => d.dispose());
 			disposables.length = 0;
+			const config = workspace.getConfiguration('terminal.integrated');
+			await config.update('shellIntegration.enabled', undefined);
 		});
 
 		test('sendText immediately after createTerminal should not throw', async () => {

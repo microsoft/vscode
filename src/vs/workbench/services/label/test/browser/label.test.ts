@@ -11,6 +11,7 @@ import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { isWindows } from 'vs/base/common/platform';
 
 suite('URI Label', () => {
 	let labelService: LabelService;
@@ -248,6 +249,25 @@ suite('multi-root workspace', () => {
 			const generated = labelService.getUriLabel(URI.file(path), { relative: true });
 			assert.strictEqual(generated, label, path);
 		});
+	});
+
+	test('relative label without formatter', () => {
+		const rootFolder = URI.parse('myscheme://myauthority/');
+
+		labelService = new LabelService(
+			TestEnvironmentService,
+			new TestContextService(
+				new Workspace('test-workspace', [
+					new WorkspaceFolder({ uri: rootFolder, index: 0, name: 'FSProotFolder' }),
+				])),
+			new TestPathService());
+
+		const generated = labelService.getUriLabel(URI.parse('myscheme://myauthority/some/folder/test.txt'), { relative: true });
+		if (isWindows) {
+			assert.strictEqual(generated, 'some\\folder\\test.txt');
+		} else {
+			assert.strictEqual(generated, 'some/folder/test.txt');
+		}
 	});
 });
 
