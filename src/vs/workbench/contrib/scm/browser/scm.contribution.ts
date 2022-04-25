@@ -236,7 +236,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('scm.defaultViewSortKey.path', "Sort the repository changes by path."),
 				localize('scm.defaultViewSortKey.status', "Sort the repository changes by Source Control status.")
 			],
-			description: localize('scm.defaultViewSortKey', "Controls the default Source Control repository sort mode."),
+			description: localize('scm.defaultViewSortKey', "Controls the default Source Control repository changes sort order when viewed as a list."),
 			default: 'path'
 		},
 		'scm.autoReveal': {

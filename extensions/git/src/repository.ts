@@ -541,7 +541,7 @@ class DotGitWatcher implements IFileWatcher {
 		private repository: Repository,
 		private outputChannel: OutputChannel
 	) {
-		const rootWatcher = watch(repository.dotGit);
+		const rootWatcher = watch(repository.dotGit.path);
 		this.disposables.push(rootWatcher);
 
 		// Ignore changes to the "index.lock" file, and watchman fsmonitor hook (https://git-scm.com/docs/githooks#_fsmonitor_watchman) cookie files.
@@ -563,7 +563,7 @@ class DotGitWatcher implements IFileWatcher {
 		this.transientDisposables = dispose(this.transientDisposables);
 
 		const { name, remote } = this.repository.HEAD.upstream;
-		const upstreamPath = path.join(this.repository.dotGit, 'refs', 'remotes', remote, name);
+		const upstreamPath = path.join(this.repository.dotGit.commonPath ?? this.repository.dotGit.path, 'refs', 'remotes', remote, name);
 
 		try {
 			const upstreamWatcher = watch(upstreamPath);
@@ -842,7 +842,7 @@ export class Repository implements Disposable {
 		return this.repository.root;
 	}
 
-	get dotGit(): string {
+	get dotGit(): { path: string; commonPath?: string } {
 		return this.repository.dotGit;
 	}
 
@@ -874,7 +874,7 @@ export class Repository implements Disposable {
 			this.disposables.push(dotGitFileWatcher);
 		} catch (err) {
 			if (Log.logLevel <= LogLevel.Error) {
-				outputChannel.appendLine(`${logTimestamp()} Failed to watch '${this.dotGit}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
+				outputChannel.appendLine(`${logTimestamp()} Failed to watch path:'${this.dotGit.path}' or commonPath:'${this.dotGit.commonPath}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
 			}
 
 			onRepositoryDotGitFileChange = filterEvent(onRepositoryFileChange, uri => /\.git($|\/)/.test(uri.path));

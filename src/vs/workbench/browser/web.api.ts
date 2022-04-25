@@ -17,6 +17,7 @@ import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import { IObservableValue } from 'vs/base/common/observableValue';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -560,32 +561,42 @@ export interface IDefaultView {
 	readonly id: string;
 }
 
+/**
+ * @deprecated use `IDefaultEditor.options` instead
+ */
 export interface IPosition {
 	readonly line: number;
 	readonly column: number;
 }
 
+/**
+ * @deprecated use `IDefaultEditor.options` instead
+ */
 export interface IRange {
-
-	/**
-	 * The start position. It is before or equal to end position.
-	 */
 	readonly start: IPosition;
-
-	/**
-	 * The end position. It is after or equal to start position.
-	 */
 	readonly end: IPosition;
 }
 
 export interface IDefaultEditor {
+
 	readonly uri: UriComponents;
-	readonly selection?: IRange;
+	readonly options?: IEditorOptions;
+
 	readonly openOnlyIfExists?: boolean;
+
+	/**
+	 * @deprecated use `options` instead
+	 */
+	readonly selection?: IRange;
+
+	/**
+	 * @deprecated use `options.override` instead
+	 */
 	readonly openWith?: string;
 }
 
 export interface IDefaultLayout {
+
 	readonly views?: IDefaultView[];
 	readonly editors?: IDefaultEditor[];
 
@@ -649,4 +660,3 @@ export interface IDevelopmentOptions {
 	 */
 	readonly enableSmokeTestDriver?: boolean;
 }
-

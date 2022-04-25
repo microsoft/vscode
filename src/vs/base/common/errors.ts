@@ -235,6 +235,10 @@ export class ExpectedError extends Error {
 export class ErrorNoTelemetry extends Error {
 
 	public static fromError(err: any): ErrorNoTelemetry {
+		if (err && err instanceof ErrorNoTelemetry) {
+			return err;
+		}
+
 		if (err && err instanceof Error) {
 			const result = new ErrorNoTelemetry();
 			result.name = err.name;

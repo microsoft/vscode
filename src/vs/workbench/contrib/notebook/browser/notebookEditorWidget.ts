@@ -1220,8 +1220,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this.viewModel.updateOptions({ isReadOnly: this._readOnly });
 
 		// reveal cell if editor options tell to do so
-		if (options?.cellOptions) {
-			const cellOptions = options.cellOptions;
+		const cellOptions = options?.cellOptions ?? this._parseIndexedCellOptions(options);
+		if (cellOptions) {
 			const cell = this.viewModel.viewCells.find(cell => cell.uri.toString() === cellOptions.resource.toString());
 			if (cell) {
 				this.focusElement(cell);
@@ -1272,6 +1272,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._updateForOptions();
 		this._onDidChangeOptions.fire();
+	}
+
+	private _parseIndexedCellOptions(options: INotebookEditorOptions | undefined) {
+		if (options?.indexedCellOptions) {
+			// convert index based selections
+			const cell = this.cellAt(options.indexedCellOptions.index);
+			if (cell) {
+				return {
+					resource: cell.uri,
+					options: {
+						selection: options.indexedCellOptions.selection,
+						preserveFocus: false
+					}
+				};
+			}
+		}
+
+		return undefined;
 	}
 
 	private _detachModel() {

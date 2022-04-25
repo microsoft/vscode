@@ -139,7 +139,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 					if (value === null) {
 						command += `set "${key}=" && `;
 					} else {
-						value = value.replace(/[^&|<>]/g, s => `^${s}`);
+						value = value.replace(/[&^|<>]/g, s => `^${s}`);
 						command += `set "${key}=${value}" && `;
 					}
 				}

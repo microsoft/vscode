@@ -12,6 +12,7 @@ import * as process from 'vs/base/common/process';
 import { format } from 'vs/base/common/strings';
 import { isString } from 'vs/base/common/types';
 import * as pfs from 'vs/base/node/pfs';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 
 export function getWindowsBuildNumber(): number {
@@ -102,7 +103,8 @@ export interface IShellIntegrationConfigInjection {
  */
 export function getShellIntegrationInjection(
 	shellLaunchConfig: IShellLaunchConfig,
-	options: ITerminalProcessOptions['shellIntegration']
+	options: ITerminalProcessOptions['shellIntegration'],
+	logService: ILogService
 ): IShellIntegrationConfigInjection | undefined {
 	// Shell integration arg injection is disabled when:
 	// - The global setting is disabled
@@ -135,6 +137,7 @@ export function getShellIntegrationInjection(
 			}
 			return { newArgs };
 		}
+		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
 		return undefined;
 	}
 
@@ -207,7 +210,7 @@ export function getShellIntegrationInjection(
 			return { newArgs, envMixin, filesToCopy };
 		}
 	}
-
+	logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
 	return undefined;
 }
 
