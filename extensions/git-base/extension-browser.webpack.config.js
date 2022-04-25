@@ -7,9 +7,9 @@
 
 'use strict';
 
-const withDefaults = require('../shared.webpack.config');
+const withBrowserDefaults = require('../shared.webpack.config').browser;
 
-module.exports = withDefaults({
+module.exports = withBrowserDefaults({
 	context: __dirname,
 	entry: {
 		extension: './src/extension.ts'
