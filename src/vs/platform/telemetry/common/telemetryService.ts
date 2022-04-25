@@ -201,8 +201,8 @@ export class TelemetryService implements ITelemetryService {
 
 		const userDataRegexes = [
 			{ label: 'Google API Key', regex: /AIza[A-Za-z0-9_\\\-]{35}/ },
-			{ label: 'Slack Token', regex: /xox[pbaors]\-[a-zA-Z0-9]+\-[a-zA-Z0-9\-]+?/ }, // last +? is lazy as a microoptimization since we don't care about the full value
-			{ label: 'Generic Secret', regex: /(key|token|sig|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/ },
+			{ label: 'Slack Token', regex: /xox[pbar]\-[A-Za-z0-9]/ },
+			{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/ },
 			{ label: 'Email', regex: /@[a-zA-Z0-9-.]+/ } // Regex which matches @*.site
 		];
 
