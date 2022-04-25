@@ -221,6 +221,7 @@ interface IQueryState {
 	readonly flags: Flags;
 	readonly criteria: ICriterium[];
 	readonly assetTypes: string[];
+	readonly source?: string;
 }
 
 const DefaultQueryState: IQueryState = {
@@ -246,6 +247,7 @@ type GalleryServiceQueryClassification = {
 	readonly statusCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly errorCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly count?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	readonly source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 type QueryTelemetryData = {
@@ -254,6 +256,7 @@ type QueryTelemetryData = {
 	readonly sortBy: string;
 	readonly sortOrder: string;
 	readonly pageNumber: string;
+	readonly source?: string;
 };
 
 type GalleryServiceQueryEvent = QueryTelemetryData & {
@@ -322,6 +325,10 @@ class Query {
 		return new Query({ ...this.state, assetTypes });
 	}
 
+	withSource(source: string): Query {
+		return new Query({ ...this.state, source });
+	}
+
 	get raw(): any {
 		const { criteria, pageNumber, pageSize, sortBy, sortOrder, flags, assetTypes } = this.state;
 		const filters = [{ criteria, pageNumber, pageSize, sortBy, sortOrder }];
@@ -339,7 +346,8 @@ class Query {
 			flags: this.state.flags,
 			sortBy: String(this.sortBy),
 			sortOrder: String(this.sortOrder),
-			pageNumber: String(this.pageNumber)
+			pageNumber: String(this.pageNumber),
+			source: this.state.source
 		};
 	}
 }
@@ -600,6 +608,9 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		if (options.queryAllVersions || isQueryForReleaseVersionFromPreReleaseVersion /* Inlcude all versions if every requested extension is for release version and has pre-release version  */) {
 			query = query.withFlags(query.flags, Flags.IncludeVersions);
 		}
+		if (options.source) {
+			query = query.withSource(options.source);
+		}
 
 		const { extensions } = await this.queryGalleryExtensions(query, { targetPlatform: options.targetPlatform ?? CURRENT_TARGET_PLATFORM, includePreRelease: includePreReleases, versions, compatible: !!options.compatible }, token);
 		if (options.source) {
@@ -715,6 +726,10 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 		if (typeof options.sortOrder === 'number') {
 			query = query.withSortOrder(options.sortOrder);
+		}
+
+		if (options.source) {
+			query = query.withSource(options.source);
 		}
 
 		const runQuery = async (query: Query, token: CancellationToken) => {
