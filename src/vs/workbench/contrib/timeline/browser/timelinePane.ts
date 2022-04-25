@@ -51,6 +51,7 @@ import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const ItemHeight = 22;
 
@@ -261,7 +262,8 @@ export class TimelinePane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super({ ...options, titleMenuId: MenuId.TimelineTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -830,6 +832,7 @@ export class TimelinePane extends ViewPane {
 
 	override setVisible(visible: boolean): void {
 		if (visible) {
+			this.extensionService.activateByEvent('onView:timeline');
 			this.visibilityDisposables = new DisposableStore();
 
 			this.editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this.visibilityDisposables);
