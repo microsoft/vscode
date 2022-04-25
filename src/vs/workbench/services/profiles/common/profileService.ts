@@ -7,6 +7,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ExtensionsProfile } from 'vs/workbench/services/profiles/common/extensionsProfile';
 import { GlobalStateProfile } from 'vs/workbench/services/profiles/common/globalStateProfile';
@@ -23,7 +24,8 @@ export class WorkbenchProfileService implements IWorkbenchProfileService {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		this.settingsProfile = instantiationService.createInstance(SettingsProfile);
 		this.globalStateProfile = instantiationService.createInstance(GlobalStateProfile);
@@ -43,7 +45,7 @@ export class WorkbenchProfileService implements IWorkbenchProfileService {
 	}
 
 	async setProfile(profile: IProfile): Promise<void> {
-		this.progressService.withProgress({
+		await this.progressService.withProgress({
 			location: ProgressLocation.Notification,
 			title: localize('profiles.applying', "Applying Profile..."),
 		}, async progress => {
@@ -57,6 +59,7 @@ export class WorkbenchProfileService implements IWorkbenchProfileService {
 				await this.extensionsProfile.applyProfile(profile.extensions);
 			}
 		});
+		this.notificationService.info(localize('applied profile', "Applied profile successfully."));
 	}
 
 }
