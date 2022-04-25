@@ -202,10 +202,14 @@ export class TitlebarPart extends BrowserTitleBarPart {
 
 	override updateStyles(): void {
 		super.updateStyles();
-		if (!this.cachedWindowControlStyles ||
-			this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
-			this.cachedWindowControlStyles.fgColor !== this.element.style.color) {
-			this.nativeHostService.updateTitleBarOverlay(this.element.style.backgroundColor, this.element.style.color);
+
+		// WCO styles only supported on Windows currently
+		if (isWindows) {
+			if (!this.cachedWindowControlStyles ||
+				this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
+				this.cachedWindowControlStyles.fgColor !== this.element.style.color) {
+				this.nativeHostService.updateTitleBarOverlay(this.element.style.backgroundColor, this.element.style.color);
+			}
 		}
 	}
 }
