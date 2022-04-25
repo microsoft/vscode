@@ -23,7 +23,7 @@ import { IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID, IWorkingCopyBa
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
+import { UTF16be, UTF16le, UTF8, UTF8_with_bom } from 'vs/workbench/services/textfile/common/encoding';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -1020,6 +1020,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		if (this.hasEncodingSetExplicitly) {
 			return; // never change the user's choice of encoding
+		}
+
+		if (this.contentEncoding === UTF8_with_bom || this.contentEncoding === UTF16be || this.contentEncoding === UTF16le) {
+			return; // never change an encoding that we can detect 100% via BOMs
 		}
 
 		const { encoding } = await this.textFileService.encoding.getPreferredReadEncoding(this.resource);

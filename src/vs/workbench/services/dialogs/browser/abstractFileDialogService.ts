@@ -87,17 +87,18 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 		if (!candidate) {
 			return this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
-		} else {
-			return resources.dirname(candidate);
 		}
+
+		return resources.dirname(candidate);
 	}
 
 	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow(), filename?: string): Promise<URI> {
 		let defaultWorkspacePath: URI | undefined;
+
 		// Check for current workspace config file first...
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configuration = this.contextService.getWorkspace().configuration;
-			if (configuration && configuration.scheme === schemeFilter && isSavedWorkspace(configuration, this.environmentService)) {
+			if (configuration?.scheme === schemeFilter && isSavedWorkspace(configuration, this.environmentService)) {
 				defaultWorkspacePath = resources.dirname(configuration) || undefined;
 			}
 		}
@@ -208,8 +209,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected addFileToRecentlyOpened(uri: URI): void {
+
 		// add the picked file into the list of recently opened
 		// only if it is outside the currently opened workspace
+
 		if (!this.contextService.isInsideWorkspace(uri)) {
 			this.workspacesService.addRecentlyOpened([{ fileUri: uri, label: this.labelService.getUriLabel(uri) }]);
 		}
