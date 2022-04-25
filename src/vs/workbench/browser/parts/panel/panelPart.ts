@@ -45,6 +45,7 @@ import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/bro
 import { IPartOptions } from 'vs/workbench/browser/part';
 import { StringSHA1 } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/profiles/common/profileStorageRegistry';
 
 interface ICachedPanel {
 	id: string;
@@ -208,6 +209,12 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		// Global Panel Actions
 		this.globalActions = this._register(this.instantiationService.createInstance(CompositeMenuActions, partId === Parts.PANEL_PART ? MenuId.PanelTitle : MenuId.AuxiliaryBarTitle, undefined, undefined));
 		this._register(this.globalActions.onDidChange(() => this.updateGlobalToolbarActions()));
+
+		Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry)
+			.registerKeys([{
+				key: this.pinnedPanelsKey,
+				description: localize('pinned view containers', "Panel entries visibility customizations")
+			}]);
 	}
 
 	protected abstract getActivityHoverOptions(): IActivityHoverOptions;
@@ -867,7 +874,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private setStoredCachedViewletsValue(value: string): void {
-		this.storageService.store(this.pinnedPanelsKey, value, StorageScope.GLOBAL, StorageTarget.PROFILE);
+		this.storageService.store(this.pinnedPanelsKey, value, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
 	private getPlaceholderViewContainers(): IPlaceholderViewContainer[] {

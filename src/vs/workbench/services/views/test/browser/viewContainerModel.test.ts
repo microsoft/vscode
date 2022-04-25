@@ -595,7 +595,7 @@ suite('ViewContainerModel', () => {
 			id: viewDescriptor.id,
 			isHidden: true,
 			order: undefined
-		}]), StorageScope.GLOBAL, StorageTarget.PROFILE);
+		}]), StorageScope.GLOBAL, StorageTarget.USER);
 
 		ViewsRegistry.registerViews([viewDescriptor], container);
 
@@ -647,7 +647,7 @@ suite('ViewContainerModel', () => {
 			id: viewDescriptor3.id,
 			isHidden: true,
 			order: undefined
-		}]), StorageScope.GLOBAL, StorageTarget.PROFILE);
+		}]), StorageScope.GLOBAL, StorageTarget.USER);
 
 		assert.ok(!addEvent.called, 'add event should not be called');
 		assert.ok(remomveEvent.calledOnce, 'remove event should be called');
@@ -707,7 +707,7 @@ suite('ViewContainerModel', () => {
 			id: viewDescriptor3.id,
 			isHidden: false,
 			order: undefined
-		}]), StorageScope.GLOBAL, StorageTarget.PROFILE);
+		}]), StorageScope.GLOBAL, StorageTarget.USER);
 
 		assert.ok(!removeEvent.called, 'remove event should not be called');
 
@@ -784,7 +784,7 @@ suite('ViewContainerModel', () => {
 			id: viewDescriptor4.id,
 			isHidden: true,
 			order: undefined
-		}]), StorageScope.GLOBAL, StorageTarget.PROFILE);
+		}]), StorageScope.GLOBAL, StorageTarget.USER);
 
 		assert.ok(removeEvent.calledOnce, 'remove event should be called once');
 		assert.deepStrictEqual(removeEvent.args[0][0], [{

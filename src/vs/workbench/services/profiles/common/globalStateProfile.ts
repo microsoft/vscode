@@ -5,8 +5,10 @@
 
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IResourceProfile } from 'vs/workbench/services/profiles/common/profile';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/profiles/common/profileStorageRegistry';
 
 interface IGlobalState {
 	storage: IStringDictionary<string>;
@@ -32,7 +34,7 @@ export class GlobalStateProfile implements IResourceProfile {
 
 	private async getLocalGlobalState(): Promise<IGlobalState> {
 		const storage: IStringDictionary<string> = {};
-		for (const key of this.storageService.keys(StorageScope.GLOBAL, StorageTarget.PROFILE)) {
+		for (const { key } of Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry).all) {
 			const value = this.storageService.get(key, StorageScope.GLOBAL);
 			if (value) {
 				storage[key] = value;
@@ -44,7 +46,7 @@ export class GlobalStateProfile implements IResourceProfile {
 	private async writeLocalGlobalState(globalState: IGlobalState): Promise<void> {
 		const profileKeys: string[] = Object.keys(globalState.storage);
 		const updatedStorage: IStringDictionary<any> = globalState.storage;
-		for (const key of this.storageService.keys(StorageScope.GLOBAL, StorageTarget.PROFILE)) {
+		for (const { key } of Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry).all) {
 			if (!profileKeys.includes(key)) {
 				// Remove the key if it does not exist in the profile
 				updatedStorage[key] = undefined;
@@ -54,7 +56,7 @@ export class GlobalStateProfile implements IResourceProfile {
 		if (updatedStorageKeys.length) {
 			this.logService.trace(`Profile: Updating global state...`);
 			for (const key of updatedStorageKeys) {
-				this.storageService.store(key, globalState.storage[key], StorageScope.GLOBAL, StorageTarget.PROFILE);
+				this.storageService.store(key, globalState.storage[key], StorageScope.GLOBAL, StorageTarget.USER);
 			}
 			this.logService.info(`Profile: Updated global state`, updatedStorageKeys);
 		}
