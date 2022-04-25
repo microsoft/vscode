@@ -307,4 +307,8 @@ export class SCMService implements ISCMService {
 		this.providerCount.set(this._repositories.size);
 		return repository;
 	}
+
+	getRepository(id: string): ISCMRepository | undefined {
+		return this._repositories.get(id);
+	}
 }

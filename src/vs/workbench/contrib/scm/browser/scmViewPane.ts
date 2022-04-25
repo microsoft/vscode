@@ -1724,7 +1724,7 @@ class SCMInputWidget extends Disposable {
 	private inputEditor: CodeEditorWidget;
 
 	private model: { readonly input: ISCMInput; readonly textModel: ITextModel } | undefined;
-	private repositoryIdContextKey: IContextKey<ISCMRepository | undefined>;
+	private repositoryIdContextKey: IContextKey<string | undefined>;
 	private repositoryDisposables = new DisposableStore();
 
 	private validation: IInputValidation | undefined;
@@ -1753,7 +1753,7 @@ class SCMInputWidget extends Disposable {
 
 		this.repositoryDisposables.dispose();
 		this.repositoryDisposables = new DisposableStore();
-		this.repositoryIdContextKey.set(input?.repository);
+		this.repositoryIdContextKey.set(input?.repository.id);
 
 		if (!input) {
 			this.model?.textModel.dispose();

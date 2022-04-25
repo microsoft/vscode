@@ -199,7 +199,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 export class SCMActiveResourceContextKeyController implements IWorkbenchContribution {
 
 	private activeResourceHasChangesContextKey: IContextKey<boolean>;
-	private activeResourceRepositoryContextKey: IContextKey<ISCMRepository | undefined>;
+	private activeResourceRepositoryContextKey: IContextKey<string | undefined>;
 	private disposables = new DisposableStore();
 	private repositoryDisposables = new Set<IDisposable>();
 
@@ -245,7 +245,7 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 				r => Boolean(r.provider.rootUri && this.uriIdentityService.extUri.isEqualOrParent(activeResource, r.provider.rootUri))
 			);
 
-			this.activeResourceRepositoryContextKey.set(activeResourceRepository);
+			this.activeResourceRepositoryContextKey.set(activeResourceRepository?.id);
 
 			for (const resourceGroup of activeResourceRepository?.provider.groups.elements ?? []) {
 				if (resourceGroup.elements
