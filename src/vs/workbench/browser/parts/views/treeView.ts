@@ -1566,6 +1566,8 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 					} else {
 						decrementStringCount();
 					}
+				} else {
+					decrementStringCount();
 				}
 			}
 		});
