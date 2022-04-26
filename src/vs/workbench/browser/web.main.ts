@@ -50,7 +50,7 @@ import { UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/com
 import { IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { localize } from 'vs/nls';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -71,8 +71,8 @@ import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostServic
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IOutputService } from 'vs/workbench/services/output/common/output';
-import { WebEmbedderLog } from 'vs/workbench/browser/parts/log/webEmbedderLog';
+import { DelayedLogChannel } from 'vs/workbench/services/output/common/delayedLogChannel';
+import { dirname, joinPath } from 'vs/base/common/resources';
 
 export class BrowserMain extends Disposable {
 
@@ -122,9 +122,10 @@ export class BrowserMain extends Disposable {
 			const productService = accessor.get(IProductService);
 			const telemetryService = accessor.get(ITelemetryService);
 			const progessService = accessor.get(IProgressService);
-			const outputService = accessor.get(IOutputService);
+			const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
+			const instantiationService = accessor.get(IInstantiationService);
 
-			const webEmbedderLogger = new WebEmbedderLog(outputService);
+			const webEmbedderLogger = instantiationService.createInstance(DelayedLogChannel, 'webEmbedder', productService.embedderIdentifier || localize('embedder', "Embedder"), joinPath(dirname(environmentService.logFile), `webEmbedder.log`));
 
 			return {
 				commands: {
@@ -145,8 +146,8 @@ export class BrowserMain extends Disposable {
 					}
 				},
 				window: {
-					log: async (id, level, message) => {
-						webEmbedderLogger.log(id, level, message);
+					log: (level, message) => {
+						webEmbedderLogger.log(level, message);
 					},
 					withProgress: (options, task) => progessService.withProgress(options, task)
 				},

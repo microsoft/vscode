@@ -133,10 +133,8 @@ export namespace window {
 	/**
 	 * {@linkcode IWorkbench.window IWorkbench.window.log}
 	 */
-	export async function log(id: string, level: LogLevel, message: string) {
-		const workbench = await workbenchPromise.p;
-
-		return workbench.window.log(id, level, message);
+	export function log(level: LogLevel, message: string) {
+		workbenchPromise.p.then(workbench => workbench.window.log(level, message));
 	}
 
 	/**
