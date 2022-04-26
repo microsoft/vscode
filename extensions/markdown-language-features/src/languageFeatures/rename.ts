@@ -186,7 +186,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 						newPath = './' + newPath;
 					}
 				}
-				edit.replace(ref.link.source.resource, this.getFilePathRange(ref), encodeURI(newPath.replace('\\', '/')));
+				edit.replace(ref.link.source.resource, this.getFilePathRange(ref), encodeURI(newPath.replace(/\\/g, '/')));
 			}
 		}
 
