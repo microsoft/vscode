@@ -146,12 +146,22 @@ export class GitHubServer implements IGitHubServer {
 		this._logger.info(`Logging in for the following scopes: ${scopes}`);
 
 		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
-		let userCancelled: boolean = false;
+		let userCancelled: boolean | undefined;
 		const yes = localize('yes', "Yes");
 		const no = localize('no', "No");
-		const getMessage = () => userCancelled
-			? localize('userCancelledMessage', "Having trouble logging in? Would you like to try a different way?")
-			: localize('otherReasonMessage', "You have not yet finished authorizing this extension to use GitHub. Would you like to keep trying?");
+		const promptToContinue = async () => {
+			if (userCancelled === undefined) {
+				// We haven't had a failure yet so wait to prompt
+				return;
+			}
+			const message = userCancelled
+				? localize('userCancelledMessage', "Having trouble logging in? Would you like to try a different way?")
+				: localize('otherReasonMessage', "You have not yet finished authorizing this extension to use GitHub. Would you like to keep trying?");
+			const result = await vscode.window.showWarningMessage(message, yes, no);
+			if (result !== yes) {
+				throw new Error('Cancelled');
+			}
+		};
 
 		const nonce = uuid();
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate?nonce=${encodeURIComponent(nonce)}`));
@@ -164,37 +174,30 @@ export class GitHubServer implements IGitHubServer {
 				this._logger.error(e);
 				userCancelled = e.message ?? e === 'User Cancelled';
 			}
-
-			let choice = await vscode.window.showWarningMessage(getMessage(), yes, no);
-			if (choice !== yes) {
-				throw new Error('Cancelled');
-			}
 		}
 
 		// Starting a local server isn't supported in web
 		if (vscode.env.uiKind === vscode.UIKind.Desktop) {
 			try {
+				await promptToContinue();
 				return await this.doLoginWithLocalServer(scopes);
 			} catch (e) {
 				this._logger.error(e);
 				userCancelled = e.message ?? e === 'User Cancelled';
 			}
-
-			let choice = await vscode.window.showWarningMessage(getMessage(), yes, no);
-			if (choice !== yes) {
-				throw new Error('Cancelled');
-			}
 		}
 
 		if (this._supportDeviceCodeFlow) {
 			try {
+				await promptToContinue();
 				return await this.doLoginDeviceCodeFlow(scopes);
 			} catch (e) {
 				this._logger.error(e);
 				userCancelled = e.message ?? e === 'User Cancelled';
 			}
-		} else {
+		} else if (!supported) {
 			try {
+				await promptToContinue();
 				return await this.doLoginWithPat(scopes);
 			} catch (e) {
 				this._logger.error(e);

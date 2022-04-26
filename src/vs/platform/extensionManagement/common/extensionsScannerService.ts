@@ -462,9 +462,10 @@ class ExtensionsScanner extends Disposable {
 				if (!manifest.publisher) {
 					manifest.publisher = UNDEFINED_PUBLISHER;
 				}
-				const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 				const metadata = manifest.__metadata;
 				delete manifest.__metadata;
+				const id = getGalleryExtensionId(manifest.publisher, manifest.name);
+				const identifier = metadata?.id ? { id, uuid: metadata.id } : { id };
 				const type = metadata?.isSystem ? ExtensionType.System : input.type;
 				const isBuiltin = type === ExtensionType.System || !!metadata?.isBuiltin;
 				const validations = validateExtensionManifest(input.productVersion, input.productDate, input.location, manifest, isBuiltin);

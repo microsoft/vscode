@@ -471,7 +471,7 @@ registerAction2(class DetectCellLanguageAction extends NotebookCellAction {
 			title: localize('detectLanguage', 'Accept Detected Language for Cell'),
 			f1: true,
 			precondition: ContextKeyExpr.and(NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
-			keybinding: { primary: KeyCode.KeyE | KeyMod.CtrlCmd, weight: KeybindingWeight.WorkbenchContrib }
+			keybinding: { primary: KeyCode.KeyD | KeyMod.Alt | KeyMod.Shift, weight: KeybindingWeight.WorkbenchContrib }
 		});
 	}
 
