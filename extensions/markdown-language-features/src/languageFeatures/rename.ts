@@ -182,7 +182,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 					newPath = '/' + path.relative(root.toString(true), rawNewFilePath.toString(true));
 				} else {
 					newPath = path.relative(URI.Utils.dirname(ref.link.source.resource).toString(true), rawNewFilePath.toString(true));
-					if (newName.startsWith('./') && !newPath.startsWith('../')) {
+					if (newName.startsWith('./') && !newPath.startsWith('../') || newName.startsWith('.\\') && !newPath.startsWith('..\\')) {
 						newPath = './' + newPath;
 					}
 				}
