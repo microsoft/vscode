@@ -914,10 +914,10 @@ wrappy@1:
   resolved "https://registry.yarnpkg.com/wrappy/-/wrappy-1.0.2.tgz#b5243d8f3ec1aa35f1364605bc0d1036e30ab69f"
   integrity sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
 
-xterm-addon-search@0.9.0-beta.22:
-  version "0.9.0-beta.22"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.9.0-beta.22.tgz#18f2eabda82709cdd64dee003879b586869e28a3"
-  integrity sha512-1I8W0bwjg6bUoNaESKHSkS9BN3Z9Xe44/zbUb6Un+pbb5Nun4LQvFwSLkAIdRrslxcbcHYIU/2Q7F1wCOWLbaA==
+xterm-addon-search@0.9.0-beta.23:
+  version "0.9.0-beta.23"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.9.0-beta.23.tgz#3f568afaddbb2cb9bb13a80deada6a3715a10172"
+  integrity sha512-kKOyOf+9ERam6IGjV5LTQJTIL6HaiecZkMcrckMY9fUyH53+kknNMfGoBmMgDXWTe8WjBdyTtiqr120koDUKVQ==
 
 xterm-addon-serialize@0.7.0-beta.12:
   version "0.7.0-beta.12"
