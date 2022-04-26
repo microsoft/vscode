@@ -15492,7 +15492,7 @@ declare module 'vscode' {
 	 */
 	export class TabInputCustom {
 		/**
-		 * The uri which the tab is representing.
+		 * The uri that the tab is representing.
 		 */
 		readonly uri: Uri;
 		/**
@@ -15502,7 +15502,7 @@ declare module 'vscode' {
 		/**
 		 * Constructs a custom editor tab input
 		 * @param uri The uri of the tab
-		 * @param viewType The viewtpye of the custom editor
+		 * @param viewType The viewtype of the custom editor
 		 */
 		constructor(uri: Uri, viewType: string);
 	}
@@ -15527,7 +15527,7 @@ declare module 'vscode' {
 	 */
 	export class TabInputNotebook {
 		/**
-		 * The uri which the tab is representing.
+		 * The uri that the tab is representing.
 		 */
 		readonly uri: Uri;
 		/**
