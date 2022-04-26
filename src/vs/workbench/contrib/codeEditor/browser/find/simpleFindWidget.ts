@@ -310,12 +310,12 @@ export abstract class SimpleFindWidget extends Widget {
 		this._matchesCount.innerText = '';
 		let label = '';
 		this._matchesCount.classList.toggle('no-results', false);
-		if (count?.resultCount === undefined || count?.resultCount <= 0) {
+		if (count?.resultCount && count?.resultCount <= 0) {
 			label = NLS_NO_RESULTS;
 			if (!!this.inputValue) {
 				this._matchesCount.classList.toggle('no-results', true);
 			}
-		} else if (count?.resultCount > 0) {
+		} else if (count?.resultCount) {
 			label = strings.format(NLS_MATCHES_LOCATION, count.resultIndex + 1, count?.resultCount);
 		}
 		this._matchesCount.appendChild(document.createTextNode(label));
