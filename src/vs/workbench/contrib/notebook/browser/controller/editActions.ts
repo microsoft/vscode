@@ -28,6 +28,7 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
@@ -478,7 +479,9 @@ registerAction2(class DetectCellLanguageAction extends NotebookCellAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const languageDetectionService = accessor.get(ILanguageDetectionService);
 		const notificationService = accessor.get(INotificationService);
-		const providerLanguages = [...context.notebookEditor.activeKernel?.supportedLanguages ?? []];
+		const kernelService = accessor.get(INotebookKernelService);
+		const kernel = kernelService.getSelectedOrSuggestedKernel(context.notebookEditor.textModel);
+		const providerLanguages = [...kernel?.supportedLanguages ?? []];
 		providerLanguages.push('markdown');
 		const detection = await languageDetectionService.detectLanguage(context.cell.uri, providerLanguages);
 		if (detection) {

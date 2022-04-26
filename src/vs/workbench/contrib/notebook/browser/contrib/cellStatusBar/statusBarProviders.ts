@@ -88,12 +88,12 @@ class CellStatusBarLanguageDetectionProvider implements INotebookCellStatusBarIt
 				'markdown' :
 				(this._languageService.getLanguageIdByLanguageName(cell.language) || cell.language);
 
-			const kernel = this._notebookKernelService.getMatchingKernel(doc);
+			const kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(doc);
 			const items: INotebookCellStatusBarItem[] = [];
 
-			if (kernel.selected) {
+			if (kernel) {
 				const availableLangs = [];
-				availableLangs.push(...kernel.selected.supportedLanguages, 'markdown');
+				availableLangs.push(...kernel.supportedLanguages, 'markdown');
 				const detectedLanguageId = await this._languageDetectionService.detectLanguage(cell.uri, availableLangs);
 
 				if (detectedLanguageId && currentLanguageId !== detectedLanguageId) {
