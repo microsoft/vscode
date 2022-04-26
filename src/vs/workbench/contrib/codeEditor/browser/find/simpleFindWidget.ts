@@ -308,14 +308,17 @@ export abstract class SimpleFindWidget extends Widget {
 			this._matchesCount.className = 'matchesCount';
 		}
 		this._matchesCount.innerText = '';
-		let label;
-		if (count?.resultCount === -1) {
-			label = '';
-		} else {
-			label = count === undefined || count.resultCount === 0 ? NLS_NO_RESULTS : strings.format(NLS_MATCHES_LOCATION, count.resultIndex + 1, count?.resultCount);
+		let label = '';
+		this._matchesCount.classList.toggle('no-results', false);
+		if (count?.resultCount && count?.resultCount <= 0) {
+			label = NLS_NO_RESULTS;
+			if (!!this.inputValue) {
+				this._matchesCount.classList.toggle('no-results', true);
+			}
+		} else if (count?.resultCount) {
+			label = strings.format(NLS_MATCHES_LOCATION, count.resultIndex + 1, count?.resultCount);
 		}
 		this._matchesCount.appendChild(document.createTextNode(label));
-		this._matchesCount.classList.toggle('no-results', !count || count.resultCount === 0);
 		this._findInput?.domNode.insertAdjacentElement('afterend', this._matchesCount);
 		this._foundMatch = !!count && count.resultCount > 0;
 	}
