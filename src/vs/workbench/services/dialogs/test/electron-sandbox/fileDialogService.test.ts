@@ -33,6 +33,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class TestFileDialogService extends FileDialogService {
 	constructor(
@@ -53,10 +54,11 @@ class TestFileDialogService extends FileDialogService {
 		@IPathService pathService: IPathService,
 		@ICommandService commandService: ICommandService,
 		@IEditorService editorService: IEditorService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ILogService logService: ILogService
 	) {
 		super(hostService, contextService, historyService, environmentService, instantiationService, configurationService, fileService,
-			openerService, nativeHostService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService);
+			openerService, nativeHostService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService, logService);
 	}
 
 	protected override getSimpleFileDialog() {

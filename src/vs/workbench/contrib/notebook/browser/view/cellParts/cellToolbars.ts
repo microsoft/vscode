@@ -20,11 +20,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { DeleteCellAction } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { registerStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/stickyScroll';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 
 export class BetweenCellToolbar extends CellPart {
 	private _betweenCellToolbar!: ToolBar;
@@ -73,28 +71,18 @@ export class BetweenCellToolbar extends CellPart {
 		this._betweenCellToolbar.context = context;
 	}
 
-	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
+	override didRenderCell(element: ICellViewModel): void {
 		this._betweenCellToolbar.context = <INotebookCellActionContext>{
 			ui: true,
 			cell: element,
-			cellTemplate: templateData,
 			notebookEditor: this._notebookEditor,
 			$mid: MarshalledId.NotebookCellActionContext
 		};
 	}
 
-	prepareLayout(): void {
-		// nothing to read
-	}
-
-	updateInternalLayoutNow(element: ICellViewModel) {
+	override updateInternalLayoutNow(element: ICellViewModel) {
 		const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
 		this._bottomCellToolbarContainer.style.transform = `translateY(${bottomToolbarOffset}px)`;
-	}
-
-
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
-		// nothing to update
 	}
 }
 
@@ -112,8 +100,6 @@ export class CellTitleToolbarPart extends CellPart {
 	private _hasActions = false;
 	private readonly _onDidUpdateActions: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidUpdateActions: Event<void> = this._onDidUpdateActions.event;
-
-	private cellDisposable = this._register(new DisposableStore());
 
 	get hasActions(): boolean {
 		return this._hasActions;
@@ -141,9 +127,8 @@ export class CellTitleToolbarPart extends CellPart {
 		this.setupChangeListeners();
 	}
 
-	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		this.cellDisposable.clear();
-		this.cellDisposable.add(registerStickyScroll(this._notebookEditor, element, this.toolbarContainer, { extraOffset: 4, min: -14 }));
+	override didRenderCell(element: ICellViewModel): void {
+		this.cellDisposables.add(registerStickyScroll(this._notebookEditor, element, this.toolbarContainer, { extraOffset: 4, min: -14 }));
 
 		this.updateContext(<INotebookCellActionContext>{
 			ui: true,
@@ -151,20 +136,6 @@ export class CellTitleToolbarPart extends CellPart {
 			notebookEditor: this._notebookEditor,
 			$mid: MarshalledId.NotebookCellActionContext
 		});
-	}
-
-	override unrenderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		this.cellDisposable.clear();
-	}
-
-	prepareLayout(): void {
-		// nothing to read
-	}
-	updateInternalLayoutNow(element: ICellViewModel): void {
-		// no op
-	}
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
-		// no op
 	}
 
 	private updateContext(toolbarContext: INotebookCellActionContext) {

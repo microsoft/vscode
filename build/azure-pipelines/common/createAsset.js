@@ -85,12 +85,15 @@ function getPlatform(product, os, arch, type) {
                     }
                     return `darwin-${arch}`;
                 case 'server':
-                    return 'server-darwin';
-                case 'web':
-                    if (arch !== 'x64') {
-                        throw new Error(`What should the platform be?: ${product} ${os} ${arch} ${type}`);
+                    if (arch === 'x64') {
+                        return 'server-darwin';
                     }
-                    return 'server-darwin-web';
+                    return `server-darwin-${arch}`;
+                case 'web':
+                    if (arch === 'x64') {
+                        return 'server-darwin-web';
+                    }
+                    return `server-darwin-${arch}-web`;
                 default:
                     throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
             }
@@ -132,7 +135,7 @@ async function main() {
     const platform = getPlatform(product, os, arch, unprocessedType);
     const type = getRealType(unprocessedType);
     const quality = getEnv('VSCODE_QUALITY');
-    const commit = getEnv('BUILD_SOURCEVERSION');
+    const commit = process.env['VSCODE_DISTRO_COMMIT'] || getEnv('BUILD_SOURCEVERSION');
     console.log('Creating asset...');
     const stat = await new Promise((c, e) => fs.stat(filePath, (err, stat) => err ? e(err) : c(stat)));
     const size = stat.size;
@@ -152,11 +155,6 @@ async function main() {
         console.log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
         return;
     }
-    const mooncakeCredential = new identity_1.ClientSecretCredential(process.env['AZURE_MOONCAKE_TENANT_ID'], process.env['AZURE_MOONCAKE_CLIENT_ID'], process.env['AZURE_MOONCAKE_CLIENT_SECRET']);
-    const mooncakeBlobServiceClient = new storage_blob_1.BlobServiceClient(`https://vscode.blob.core.chinacloudapi.cn`, mooncakeCredential, storagePipelineOptions);
-    const mooncakeContainerClient = mooncakeBlobServiceClient.getContainerClient(quality);
-    const mooncakeBlobClient = mooncakeContainerClient.getBlockBlobClient(blobName);
-    console.log('Uploading blobs to Azure storage and Mooncake Azure storage...');
     const blobOptions = {
         blobHTTPHeaders: {
             blobContentType: mime.lookup(filePath),
@@ -164,11 +162,29 @@ async function main() {
             blobCacheControl: 'max-age=31536000, public'
         }
     };
-    await (0, retry_1.retry)(() => Promise.all([
-        blobClient.uploadFile(filePath, blobOptions),
-        mooncakeBlobClient.uploadFile(filePath, blobOptions)
-    ]));
-    console.log('Blobs successfully uploaded.');
+    const uploadPromises = [
+        (0, retry_1.retry)(async () => {
+            await blobClient.uploadFile(filePath, blobOptions);
+            console.log('Blob successfully uploaded to Azure storage.');
+        })
+    ];
+    const shouldUploadToMooncake = /true/i.test(process.env['VSCODE_PUBLISH_TO_MOONCAKE'] ?? 'true');
+    if (shouldUploadToMooncake) {
+        const mooncakeCredential = new identity_1.ClientSecretCredential(process.env['AZURE_MOONCAKE_TENANT_ID'], process.env['AZURE_MOONCAKE_CLIENT_ID'], process.env['AZURE_MOONCAKE_CLIENT_SECRET']);
+        const mooncakeBlobServiceClient = new storage_blob_1.BlobServiceClient(`https://vscode.blob.core.chinacloudapi.cn`, mooncakeCredential, storagePipelineOptions);
+        const mooncakeContainerClient = mooncakeBlobServiceClient.getContainerClient(quality);
+        const mooncakeBlobClient = mooncakeContainerClient.getBlockBlobClient(blobName);
+        uploadPromises.push((0, retry_1.retry)(async () => {
+            await mooncakeBlobClient.uploadFile(filePath, blobOptions);
+            console.log('Blob successfully uploaded to Mooncake Azure storage.');
+        }));
+        console.log('Uploading blobs to Azure storage and Mooncake Azure storage...');
+    }
+    else {
+        console.log('Uploading blobs to Azure storage...');
+    }
+    await Promise.all(uploadPromises);
+    console.log('All blobs successfully uploaded.');
     const assetUrl = `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`;
     const blobPath = new URL(assetUrl).pathname;
     const mooncakeUrl = `${process.env['MOONCAKE_CDN_URL']}${blobPath}`;

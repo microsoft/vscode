@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/c6e04755d4d686653f2552183d9f102de489a0a5",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/b528e4360b4cd967aa93c2f7849e459ff91d192c",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"patterns": [
@@ -557,7 +557,7 @@
 				{
 					"name": "comment.block.fsharp",
 					"begin": "(\\(\\*(?!\\)))",
-					"end": "(\\*\\))",
+					"end": "(\\*+\\))",
 					"beginCaptures": {
 						"1": {
 							"name": "comment.block.fsharp"

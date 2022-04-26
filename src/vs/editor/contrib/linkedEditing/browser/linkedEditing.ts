@@ -457,7 +457,7 @@ function getLinkedEditingRanges(providers: LanguageFeatureRegistry<LinkedEditing
 	}), result => !!result && arrays.isNonEmptyArray(result?.ranges));
 }
 
-export const editorLinkedEditingBackground = registerColor('editor.linkedEditingBackground', { dark: Color.fromHex('#f00').transparent(0.3), light: Color.fromHex('#f00').transparent(0.3), hc: Color.fromHex('#f00').transparent(0.3) }, nls.localize('editorLinkedEditingBackground', 'Background color when the editor auto renames on type.'));
+export const editorLinkedEditingBackground = registerColor('editor.linkedEditingBackground', { dark: Color.fromHex('#f00').transparent(0.3), light: Color.fromHex('#f00').transparent(0.3), hcDark: Color.fromHex('#f00').transparent(0.3), hcLight: Color.white }, nls.localize('editorLinkedEditingBackground', 'Background color when the editor auto renames on type.'));
 registerThemingParticipant((theme, collector) => {
 	const editorLinkedEditingBackgroundColor = theme.getColor(editorLinkedEditingBackground);
 	if (editorLinkedEditingBackgroundColor) {

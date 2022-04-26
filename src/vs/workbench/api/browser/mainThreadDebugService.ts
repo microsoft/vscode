@@ -15,6 +15,7 @@ import severity from 'vs/base/common/severity';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { convertToVSCPaths, convertToDAPaths, isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterFactory {
@@ -235,7 +236,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			const saveBeforeStart = typeof options.suppressSaveBeforeStart === 'boolean' ? !options.suppressSaveBeforeStart : undefined;
 			return this.debugService.startDebugging(launch, nameOrConfig, debugOptions, saveBeforeStart);
 		} catch (err) {
-			throw new Error(err && err.message ? err.message : 'cannot start debugging');
+			throw new ErrorNoTelemetry(err && err.message ? err.message : 'cannot start debugging');
 		}
 	}
 
@@ -253,11 +254,11 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				if (response && response.success) {
 					return response.body;
 				} else {
-					return Promise.reject(new Error(response ? response.message : 'custom request failed'));
+					return Promise.reject(new ErrorNoTelemetry(response ? response.message : 'custom request failed'));
 				}
 			});
 		}
-		return Promise.reject(new Error('debug session not found'));
+		return Promise.reject(new ErrorNoTelemetry('debug session not found'));
 	}
 
 	public $getDebugProtocolBreakpoint(sessionId: DebugSessionUUID, breakpoinId: string): Promise<DebugProtocol.Breakpoint | undefined> {
@@ -265,7 +266,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		if (session) {
 			return Promise.resolve(session.getDebugProtocolBreakpoint(breakpoinId));
 		}
-		return Promise.reject(new Error('debug session not found'));
+		return Promise.reject(new ErrorNoTelemetry('debug session not found'));
 	}
 
 	public $stopDebugging(sessionId: DebugSessionUUID | undefined): Promise<void> {
@@ -277,7 +278,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		} else {	// stop all
 			return this.debugService.stopSession(undefined);
 		}
-		return Promise.reject(new Error('debug session not found'));
+		return Promise.reject(new ErrorNoTelemetry('debug session not found'));
 	}
 
 	public $appendDebugConsole(value: string): void {

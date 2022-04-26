@@ -10,6 +10,7 @@ import { basename, posix } from 'vs/base/common/path';
 import { DataUri } from 'vs/base/common/resources';
 import { startsWithUTF8BOM } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 export interface ILanguageAssociation {
 	readonly id: string;
@@ -119,11 +120,27 @@ export function clearConfiguredLanguageAssociations(): void {
 	userRegisteredAssociations = [];
 }
 
+interface IdAndMime {
+	id: string;
+	mime: string;
+}
+
 /**
  * Given a file, return the best matching mime types for it
  * based on the registered language associations.
  */
 export function getMimeTypes(resource: URI | null, firstLine?: string): string[] {
+	return getAssociations(resource, firstLine).map(item => item.mime);
+}
+
+/**
+ * @see `getMimeTypes`
+ */
+export function getLanguageIds(resource: URI | null, firstLine?: string): string[] {
+	return getAssociations(resource, firstLine).map(item => item.id);
+}
+
+function getAssociations(resource: URI | null, firstLine?: string): IdAndMime[] {
 	let path: string | undefined;
 	if (resource) {
 		switch (resource.scheme) {
@@ -141,7 +158,7 @@ export function getMimeTypes(resource: URI | null, firstLine?: string): string[]
 	}
 
 	if (!path) {
-		return [Mimes.unknown];
+		return [{ id: 'unknown', mime: Mimes.unknown }];
 	}
 
 	path = path.toLowerCase();
@@ -149,29 +166,29 @@ export function getMimeTypes(resource: URI | null, firstLine?: string): string[]
 	const filename = basename(path);
 
 	// 1.) User configured mappings have highest priority
-	const configuredLanguage = getMimeByPath(path, filename, userRegisteredAssociations);
+	const configuredLanguage = getAssociationByPath(path, filename, userRegisteredAssociations);
 	if (configuredLanguage) {
-		return [configuredLanguage, Mimes.text];
+		return [configuredLanguage, { id: PLAINTEXT_LANGUAGE_ID, mime: Mimes.text }];
 	}
 
 	// 2.) Registered mappings have middle priority
-	const registeredLanguage = getMimeByPath(path, filename, nonUserRegisteredAssociations);
+	const registeredLanguage = getAssociationByPath(path, filename, nonUserRegisteredAssociations);
 	if (registeredLanguage) {
-		return [registeredLanguage, Mimes.text];
+		return [registeredLanguage, { id: PLAINTEXT_LANGUAGE_ID, mime: Mimes.text }];
 	}
 
 	// 3.) Firstline has lowest priority
 	if (firstLine) {
-		const firstlineLanguage = getMimeByFirstline(firstLine);
+		const firstlineLanguage = getAssociationByFirstline(firstLine);
 		if (firstlineLanguage) {
-			return [firstlineLanguage, Mimes.text];
+			return [firstlineLanguage, { id: PLAINTEXT_LANGUAGE_ID, mime: Mimes.text }];
 		}
 	}
 
-	return [Mimes.unknown];
+	return [{ id: 'unknown', mime: Mimes.unknown }];
 }
 
-function getMimeByPath(path: string, filename: string, associations: ILanguageAssociationItem[]): string | undefined {
+function getAssociationByPath(path: string, filename: string, associations: ILanguageAssociationItem[]): ILanguageAssociationItem | undefined {
 	let filenameMatch: ILanguageAssociationItem | undefined = undefined;
 	let patternMatch: ILanguageAssociationItem | undefined = undefined;
 	let extensionMatch: ILanguageAssociationItem | undefined = undefined;
@@ -209,23 +226,23 @@ function getMimeByPath(path: string, filename: string, associations: ILanguageAs
 
 	// 1.) Exact name match has second highest priority
 	if (filenameMatch) {
-		return filenameMatch.mime;
+		return filenameMatch;
 	}
 
 	// 2.) Match on pattern
 	if (patternMatch) {
-		return patternMatch.mime;
+		return patternMatch;
 	}
 
 	// 3.) Match on extension comes next
 	if (extensionMatch) {
-		return extensionMatch.mime;
+		return extensionMatch;
 	}
 
 	return undefined;
 }
 
-function getMimeByFirstline(firstLine: string): string | undefined {
+function getAssociationByFirstline(firstLine: string): ILanguageAssociationItem | undefined {
 	if (startsWithUTF8BOM(firstLine)) {
 		firstLine = firstLine.substr(1);
 	}
@@ -242,7 +259,7 @@ function getMimeByFirstline(firstLine: string): string | undefined {
 
 			const matches = firstLine.match(association.firstline);
 			if (matches && matches.length > 0) {
-				return association.mime;
+				return association;
 			}
 		}
 	}

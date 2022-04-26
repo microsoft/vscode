@@ -575,7 +575,7 @@ export class FocusFilesExplorer extends Action {
 export class ShowActiveFileInExplorer extends Action {
 
 	static readonly ID = 'workbench.files.action.showActiveFileInExplorer';
-	static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Side Bar");
+	static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Explorer View");
 
 	constructor(
 		id: string,
@@ -906,7 +906,9 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 
 export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
+	const configurationService = accessor.get(IConfigurationService);
+	const groupNests = configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting.operateAsGroup;
+	const stats = explorerService.getContext(true, groupNests).filter(s => !s.isRoot);
 	if (stats.length) {
 		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, true);
 	}
@@ -914,7 +916,9 @@ export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 
 export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
+	const configurationService = accessor.get(IConfigurationService);
+	const groupNests = configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting.operateAsGroup;
+	const stats = explorerService.getContext(true, groupNests).filter(s => !s.isRoot);
 
 	if (stats.length) {
 		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, false);
@@ -924,7 +928,9 @@ export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 let pasteShouldMove = false;
 export const copyFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true);
+	const configurationService = accessor.get(IConfigurationService);
+	const groupNests = configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting.operateAsGroup;
+	const stats = explorerService.getContext(true, groupNests);
 	if (stats.length > 0) {
 		await explorerService.setToCopy(stats, false);
 		pasteShouldMove = false;
@@ -933,7 +939,9 @@ export const copyFileHandler = async (accessor: ServicesAccessor) => {
 
 export const cutFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true);
+	const configurationService = accessor.get(IConfigurationService);
+	const groupNests = configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting.operateAsGroup;
+	const stats = explorerService.getContext(true, groupNests);
 	if (stats.length > 0) {
 		await explorerService.setToCopy(stats, true);
 		pasteShouldMove = true;

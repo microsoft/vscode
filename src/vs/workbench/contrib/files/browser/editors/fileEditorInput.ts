@@ -60,6 +60,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			}
 		}
 
+		if (!(capabilities & EditorInputCapabilities.Readonly)) {
+			capabilities |= EditorInputCapabilities.CanDropIntoEditor;
+		}
+
 		return capabilities;
 	}
 
@@ -176,7 +180,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	private allowLabelOverride(): boolean {
 		return this.resource.scheme !== this.pathService.defaultUriScheme &&
-			this.resource.scheme !== Schemas.userData &&
+			this.resource.scheme !== Schemas.vscodeUserData &&
 			this.resource.scheme !== Schemas.file &&
 			this.resource.scheme !== Schemas.vscodeRemote;
 	}

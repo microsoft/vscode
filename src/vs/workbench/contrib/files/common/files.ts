@@ -98,11 +98,14 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 			badges: boolean;
 		};
 		incrementalNaming: 'simple' | 'smart';
+		fileNesting: {
+			enabled: boolean;
+			expand: boolean;
+			patterns: { [parent: string]: string };
+		};
 		experimental: {
 			fileNesting: {
-				enabled: boolean;
-				expand: boolean;
-				patterns: { [parent: string]: string };
+				operateAsGroup: boolean;
 			};
 		};
 	};
@@ -252,7 +255,7 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	isPreview(): boolean {
-		return this._group.previewEditor === this.editor;
+		return !this._group.isPinned(this.editor);
 	}
 
 	isSticky(): boolean {

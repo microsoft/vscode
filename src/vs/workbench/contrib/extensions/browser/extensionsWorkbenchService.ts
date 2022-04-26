@@ -8,7 +8,7 @@ import * as semver from 'vs/base/common/semver/semver';
 import { Event, Emitter } from 'vs/base/common/event';
 import { index, distinct } from 'vs/base/common/arrays';
 import { Promises, ThrottledDelayer } from 'vs/base/common/async';
-import { canceled, isCancellationError } from 'vs/base/common/errors';
+import { CancellationError, isCancellationError } from 'vs/base/common/errors';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -45,6 +45,7 @@ import { isBoolean, isUndefined } from 'vs/base/common/types';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IExtensionService, IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
+import { isWeb } from 'vs/base/common/platform';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -205,7 +206,8 @@ export class Extension implements IExtension {
 		if (!this.gallery || !this.local) {
 			return false;
 		}
-		if (this.type !== ExtensionType.User) {
+		// Do not allow updating system extensions in stable
+		if (this.type === ExtensionType.System && this.productService.quality === 'stable') {
 			return false;
 		}
 		if (!this.local.preRelease && this.gallery.properties.isPreReleaseVersion) {
@@ -221,7 +223,11 @@ export class Extension implements IExtension {
 	}
 
 	get outdatedTargetPlatform(): boolean {
-		return !!this.local && !!this.gallery && this.local.targetPlatform !== TargetPlatform.UNDEFINED && this.local.targetPlatform !== this.gallery.properties.targetPlatform && semver.eq(this.latestVersion, this.version);
+		return !!this.local && !!this.gallery
+			&& ![TargetPlatform.UNDEFINED, TargetPlatform.WEB].includes(this.local.targetPlatform)
+			&& this.gallery.properties.targetPlatform !== TargetPlatform.WEB
+			&& this.local.targetPlatform !== this.gallery.properties.targetPlatform
+			&& semver.eq(this.latestVersion, this.version);
 	}
 
 	get telemetryData(): any {
@@ -714,8 +720,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.queryLocal().then(() => {
 			this.resetIgnoreAutoUpdateExtensions();
 			this.eventuallyCheckForUpdates(true);
-			// Always auto update builtin extensions
-			if (!this.isAutoUpdateEnabled()) {
+			// Always auto update builtin extensions in web
+			if (isWeb && !this.isAutoUpdateEnabled()) {
 				this.autoUpdateBuiltinExtensions();
 			}
 		});
@@ -1051,9 +1057,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 		const infos: IExtensionInfo[] = [];
 		for (const installed of this.local) {
-			if (installed.type === ExtensionType.User && (!onlyBuiltin || installed.isBuiltin)) {
-				infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
+			if (onlyBuiltin && !installed.isBuiltin) {
+				// Skip if check updates only for builtin extensions and current extension is not builtin.
+				continue;
 			}
+			if (installed.isBuiltin && (!installed.local?.identifier.uuid || this.productService.quality !== 'stable')) {
+				// Skip if the builtin extension does not have Marketplace identifier or the current quality is not stable.
+				continue;
+			}
+			infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
 		}
 		if (infos.length) {
 			const targetPlatform = await extensions[0].server.extensionManagementService.getTargetPlatform();
@@ -1345,7 +1357,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 								}
 							}
 						], {
-							onCancel: () => reject(canceled())
+							onCancel: () => reject(new CancellationError())
 						});
 					});
 				}

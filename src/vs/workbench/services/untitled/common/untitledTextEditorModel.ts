@@ -15,7 +15,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IEncodingSupport, ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
@@ -93,6 +93,9 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private readonly _onDidChangeEncoding = this._register(new Emitter<void>());
 	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
 
+	private readonly _onDidSave = this._register(new Emitter<IWorkingCopySaveEvent>());
+	readonly onDidSave = this._onDidSave.event;
+
 	private readonly _onDidRevert = this._register(new Emitter<void>());
 	readonly onDidRevert = this._onDidRevert.event;
 
@@ -121,7 +124,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	//#endregion
-
 
 	constructor(
 		readonly resource: URI,
@@ -186,7 +188,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 	}
 
-
 	//#region Language
 
 	override setLanguageId(languageId: string): void {
@@ -210,7 +211,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	//#endregion
 
-
 	//#region Encoding
 
 	private configuredEncoding: string | undefined;
@@ -231,7 +231,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	//#endregion
 
-
 	//#region Dirty
 
 	private dirty = this.hasAssociatedFilePath || !!this.initialValue;
@@ -251,11 +250,15 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	//#endregion
 
-
 	//#region Save / Revert / Backup
 
 	async save(options?: ISaveOptions): Promise<boolean> {
 		const target = await this.textFileService.save(this.resource, options);
+
+		// Emit as event
+		if (target) {
+			this._onDidSave.fire({ reason: options?.reason, source: options?.source });
+		}
 
 		return !!target;
 	}
@@ -291,7 +294,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	//#endregion
-
 
 	//#region Resolve
 
@@ -418,7 +420,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	//#endregion
-
 
 	override isReadonly(): boolean {
 		return false;

@@ -105,6 +105,7 @@ suite('LanguageSelector', function () {
 		assert.strictEqual(score('javascript', obj.uri, obj.langId, true, undefined), 10);
 		assert.strictEqual(score('javascript', obj.uri, obj.langId, true, obj.notebookType), 10);
 		assert.strictEqual(score({ notebookType: 'fooBook' }, obj.uri, obj.langId, true, obj.notebookType), 10);
+		assert.strictEqual(score({ notebookType: 'fooBook', language: 'javascript', scheme: 'file' }, obj.uri, obj.langId, true, obj.notebookType), 10);
 		assert.strictEqual(score({ notebookType: 'fooBook', language: '*' }, obj.uri, obj.langId, true, obj.notebookType), 10);
 		assert.strictEqual(score({ notebookType: '*', language: '*' }, obj.uri, obj.langId, true, obj.notebookType), 5);
 		assert.strictEqual(score({ notebookType: '*', language: 'javascript' }, obj.uri, obj.langId, true, obj.notebookType), 10);
@@ -129,5 +130,24 @@ suite('LanguageSelector', function () {
 		};
 		let value = score(selector, URI.file('/home/user/Desktop/test.json'), 'json', true, undefined);
 		assert.strictEqual(value, 10);
+	});
+
+	test('NotebookType without notebook', function () {
+		let obj = {
+			uri: URI.parse('file:///my/file.bat'),
+			langId: 'bat',
+		};
+
+		let value = score({
+			language: 'bat',
+			notebookType: 'xxx'
+		}, obj.uri, obj.langId, true, undefined);
+		assert.strictEqual(value, 0);
+
+		value = score({
+			language: 'bat',
+			notebookType: '*'
+		}, obj.uri, obj.langId, true, undefined);
+		assert.strictEqual(value, 0);
 	});
 });

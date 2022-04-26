@@ -130,9 +130,9 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 	public loadFromWorkspace(): TypeScriptServiceConfiguration {
 		const configuration = vscode.workspace.getConfiguration();
 		return {
-			locale: this.extractLocale(configuration),
-			globalTsdk: this.extractGlobalTsdk(configuration),
-			localTsdk: this.extractLocalTsdk(configuration),
+			locale: this.readLocale(configuration),
+			globalTsdk: this.readGlobalTsdk(configuration),
+			localTsdk: this.readLocalTsdk(configuration),
 			npmLocation: this.readNpmLocation(configuration),
 			tsServerLogLevel: this.readTsServerLogLevel(configuration),
 			tsServerPluginPaths: this.readTsServerPluginPaths(configuration),
@@ -148,8 +148,8 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 		};
 	}
 
-	protected abstract extractGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null;
-	protected abstract extractLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null;
+	protected abstract readGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null;
+	protected abstract readLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null;
 
 	protected readTsServerLogLevel(configuration: vscode.WorkspaceConfiguration): TsServerLogLevel {
 		const setting = configuration.get<string>('typescript.tsserver.log', 'off');
@@ -168,8 +168,9 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 		return configuration.get<boolean>('typescript.disableAutomaticTypeAcquisition', false);
 	}
 
-	protected extractLocale(configuration: vscode.WorkspaceConfiguration): string | null {
-		return configuration.get<string | null>('typescript.locale', null);
+	protected readLocale(configuration: vscode.WorkspaceConfiguration): string | null {
+		const value = configuration.get<string>('typescript.locale', 'auto');
+		return !value || value === 'auto' ? null : value;
 	}
 
 	protected readUseSyntaxServer(configuration: vscode.WorkspaceConfiguration): SyntaxServerConfiguration {
@@ -220,5 +221,4 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 	protected readEnableTsServerTracing(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.tsserver.enableTracing', false);
 	}
-
 }

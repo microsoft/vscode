@@ -35,7 +35,7 @@ import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from 'v
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 import { ICoordinatesConverter, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { FocusChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent } from 'vs/editor/common/viewModelEventDispatcher';
+import { FocusChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent } from 'vs/editor/common/viewModelEventDispatcher';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -193,7 +193,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		const modelVisibleRanges = this._toModelVisibleRanges(viewVisibleRange);
 
 		for (const modelVisibleRange of modelVisibleRanges) {
-			this.model.tokenizeViewport(modelVisibleRange.startLineNumber, modelVisibleRange.endLineNumber);
+			this.model.tokenization.tokenizeViewport(modelVisibleRange.startLineNumber, modelVisibleRange.endLineNumber);
 		}
 	}
 
@@ -274,8 +274,8 @@ export class ViewModel extends Disposable implements IViewModel {
 				let hadOtherModelChange = false;
 				let hadModelLineChangeThatChangedLineMapping = false;
 
-				const changes = e.changes;
-				const versionId = (e instanceof textModelEvents.ModelRawContentChangedEvent ? e.versionId : null);
+				const changes = (e instanceof textModelEvents.InternalModelContentChangeEvent ? e.rawContentChangedEvent.changes : e.changes);
+				const versionId = (e instanceof textModelEvents.InternalModelContentChangeEvent ? e.rawContentChangedEvent.versionId : null);
 
 				// Do a first pass to compute line mappings, and a second pass to actually interpret them
 				const lineBreaksComputer = this._lines.createLineBreaksComputer();
@@ -391,6 +391,9 @@ export class ViewModel extends Disposable implements IViewModel {
 
 			try {
 				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
+				if (e instanceof textModelEvents.InternalModelContentChangeEvent) {
+					eventsCollector.emitOutgoingEvent(new ModelContentChangedEvent(e.contentChangedEvent));
+				}
 				this._cursor.onModelContentChanged(eventsCollector, e);
 			} finally {
 				this._eventDispatcher.endEmitViewEvents();
@@ -415,17 +418,20 @@ export class ViewModel extends Disposable implements IViewModel {
 			if (e.tokenizationSupportChanged) {
 				this._tokenizeViewportSoon.schedule();
 			}
+			this._eventDispatcher.emitOutgoingEvent(new ModelTokensChangedEvent(e));
 		}));
 
 		this._register(this.model.onDidChangeLanguageConfiguration((e) => {
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewLanguageConfigurationEvent());
 			this.cursorConfig = new CursorConfiguration(this.model.getLanguageId(), this.model.getOptions(), this._configuration, this.languageConfigurationService);
 			this._cursor.updateConfiguration(this.cursorConfig);
+			this._eventDispatcher.emitOutgoingEvent(new ModelLanguageConfigurationChangedEvent(e));
 		}));
 
 		this._register(this.model.onDidChangeLanguage((e) => {
 			this.cursorConfig = new CursorConfiguration(this.model.getLanguageId(), this.model.getOptions(), this._configuration, this.languageConfigurationService);
 			this._cursor.updateConfiguration(this.cursorConfig);
+			this._eventDispatcher.emitOutgoingEvent(new ModelLanguageChangedEvent(e));
 		}));
 
 		this._register(this.model.onDidChangeOptions((e) => {
@@ -447,11 +453,14 @@ export class ViewModel extends Disposable implements IViewModel {
 
 			this.cursorConfig = new CursorConfiguration(this.model.getLanguageId(), this.model.getOptions(), this._configuration, this.languageConfigurationService);
 			this._cursor.updateConfiguration(this.cursorConfig);
+
+			this._eventDispatcher.emitOutgoingEvent(new ModelOptionsChangedEvent(e));
 		}));
 
 		this._register(this.model.onDidChangeDecorations((e) => {
 			this._decorations.onModelDecorationsChanged();
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewDecorationsChangedEvent(e));
+			this._eventDispatcher.emitOutgoingEvent(new ModelDecorationsChangedEvent(e));
 		}));
 	}
 
@@ -905,7 +914,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		let result = '';
 
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			const lineTokens = this.model.getLineTokens(lineNumber);
+			const lineTokens = this.model.tokenization.getLineTokens(lineNumber);
 			const lineContent = lineTokens.getLineContent();
 			const startOffset = (lineNumber === startLineNumber ? startColumn - 1 : 0);
 			const endOffset = (lineNumber === endLineNumber ? endColumn - 1 : lineContent.length);
@@ -991,11 +1000,9 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._executeCursorEdit(eventsCollector => this._cursor.executeEdits(eventsCollector, source, edits, cursorStateComputer));
 	}
 	public startComposition(): void {
-		this._cursor.setIsDoingComposition(true);
 		this._executeCursorEdit(eventsCollector => this._cursor.startComposition(eventsCollector));
 	}
 	public endComposition(source?: string | null | undefined): void {
-		this._cursor.setIsDoingComposition(false);
 		this._executeCursorEdit(eventsCollector => this._cursor.endComposition(eventsCollector, source));
 	}
 	public type(text: string, source?: string | null | undefined): void {

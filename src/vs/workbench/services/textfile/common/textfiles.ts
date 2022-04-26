@@ -14,7 +14,7 @@ import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { areFunctions, isUndefinedOrNull } from 'vs/base/common/types';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
@@ -178,6 +178,7 @@ export class TextFileOperationError extends FileOperationError {
 }
 
 export interface IResourceEncodings {
+	getPreferredReadEncoding(resource: URI): Promise<IResourceEncoding>;
 	getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): Promise<IResourceEncoding>;
 }
 
@@ -265,12 +266,7 @@ export interface ITextFileStreamContent extends IBaseTextFileContent {
 	readonly value: ITextBufferFactory;
 }
 
-export interface ITextFileEditorModelResolveOrCreateOptions {
-
-	/**
-	 * Context why the model is being resolved or created.
-	 */
-	readonly reason?: TextFileResolveReason;
+export interface ITextFileEditorModelResolveOrCreateOptions extends ITextFileResolveOptions {
 
 	/**
 	 * The language id to use for the model text content.
@@ -281,13 +277,6 @@ export interface ITextFileEditorModelResolveOrCreateOptions {
 	 * The encoding to use when resolving the model text content.
 	 */
 	readonly encoding?: string;
-
-	/**
-	 * The contents to use for the model if known. If not
-	 * provided, the contents will be retrieved from the
-	 * underlying resource or backup if present.
-	 */
-	readonly contents?: ITextBufferFactory;
 
 	/**
 	 * If the model was already resolved before, allows to trigger
@@ -301,20 +290,26 @@ export interface ITextFileEditorModelResolveOrCreateOptions {
 		 */
 		readonly async: boolean;
 	};
-
-	/**
-	 * Allow to resolve a model even if we think it is a binary file.
-	 */
-	readonly allowBinary?: boolean;
 }
 
-export interface ITextFileSaveEvent {
+export interface ITextFileSaveEvent extends ITextFileEditorModelSaveEvent {
+
+	/**
+	 * The model that was saved.
+	 */
 	readonly model: ITextFileEditorModel;
-	readonly reason: SaveReason;
 }
 
 export interface ITextFileResolveEvent {
+
+	/**
+	 * The model that was resolved.
+	 */
 	readonly model: ITextFileEditorModel;
+
+	/**
+	 * The reason why the model was resolved.
+	 */
 	readonly reason: TextFileResolveReason;
 }
 
@@ -476,9 +471,17 @@ export interface ILanguageSupport {
 	setLanguageId(languageId: string, setExplicitly?: boolean): void;
 }
 
+export interface ITextFileEditorModelSaveEvent extends IWorkingCopySaveEvent {
+
+	/**
+	 * The resolved stat from the save operation.
+	 */
+	readonly stat: IFileStatWithMetadata;
+}
+
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, ILanguageSupport, IWorkingCopy {
 
-	readonly onDidChangeContent: Event<void>;
+	readonly onDidSave: Event<ITextFileEditorModelSaveEvent>;
 	readonly onDidSaveError: Event<void>;
 	readonly onDidChangeOrphaned: Event<void>;
 	readonly onDidChangeReadonly: Event<void>;

@@ -29,7 +29,7 @@ namespace Config {
 }
 
 suite('TypeScript References', () => {
-	const configDefaults: VsCodeConfiguration = Object.freeze({
+	const configDefaults = Object.freeze<VsCodeConfiguration>({
 		[Config.referencesCodeLens]: true,
 	});
 

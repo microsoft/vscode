@@ -29,7 +29,7 @@ import { ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from 'vs/wo
 import { ILinkHoverTargetOptions, TerminalHover } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 import type { ILink, ILinkProvider, IViewportRange, Terminal } from 'xterm';
@@ -303,11 +303,13 @@ export class TerminalLinkManager extends DisposableStore {
 			}
 		}
 
-		let fallbackLabel: string;
-		if (this._tunnelService.canTunnel(URI.parse(uri))) {
-			fallbackLabel = nls.localize('followForwardedLink', "Follow link using forwarded port");
-		} else {
-			fallbackLabel = nls.localize('followLink', "Follow link");
+		let fallbackLabel = nls.localize('followLink', "Follow link");
+		try {
+			if (this._tunnelService.canTunnel(URI.parse(uri))) {
+				fallbackLabel = nls.localize('followForwardedLink', "Follow link using forwarded port");
+			}
+		} catch {
+			// No-op, already set to fallback
 		}
 
 		const markdown = new MarkdownString('', true);

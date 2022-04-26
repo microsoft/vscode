@@ -675,7 +675,7 @@ class DecorationCSSRules {
 			hasContent = true;
 		}
 		if (lightCSS.length > 0) {
-			sheet.insertRule(`.vs${this._unThemedSelector} {${lightCSS}}`, 0);
+			sheet.insertRule(`.vs${this._unThemedSelector}, .hc-light${this._unThemedSelector} {${lightCSS}}`, 0);
 			hasContent = true;
 		}
 		if (darkCSS.length > 0) {

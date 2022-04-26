@@ -10,7 +10,7 @@ import { Emitter } from 'vs/base/common/event';
 import { FontStyle, TokenizationRegistry, TokenMetadata } from 'vs/editor/common/languages';
 import { ITokenThemeRule, TokenTheme, generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
 import { BuiltinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { hc_black, vs, vs_dark } from 'vs/editor/standalone/common/themes';
+import { hc_black, hc_light, vs, vs_dark } from 'vs/editor/standalone/common/themes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { asCssVariableName, ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
@@ -22,6 +22,7 @@ import { getIconsStyleSheet, UnthemedProductIconTheme } from 'vs/platform/theme/
 const VS_THEME_NAME = 'vs';
 const VS_DARK_THEME_NAME = 'vs-dark';
 const HC_BLACK_THEME_NAME = 'hc-black';
+const HC_LIGHT_THEME_NAME = 'hc-light';
 
 const colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
@@ -117,7 +118,8 @@ class StandaloneTheme implements IStandaloneTheme {
 	public get type(): ColorScheme {
 		switch (this.base) {
 			case VS_THEME_NAME: return ColorScheme.LIGHT;
-			case HC_BLACK_THEME_NAME: return ColorScheme.HIGH_CONTRAST;
+			case HC_BLACK_THEME_NAME: return ColorScheme.HIGH_CONTRAST_DARK;
+			case HC_LIGHT_THEME_NAME: return ColorScheme.HIGH_CONTRAST_LIGHT;
 			default: return ColorScheme.DARK;
 		}
 	}
@@ -182,6 +184,7 @@ function isBuiltinTheme(themeName: string): themeName is BuiltinTheme {
 		themeName === VS_THEME_NAME
 		|| themeName === VS_DARK_THEME_NAME
 		|| themeName === HC_BLACK_THEME_NAME
+		|| themeName === HC_LIGHT_THEME_NAME
 	);
 }
 
@@ -193,6 +196,8 @@ function getBuiltinRules(builtinTheme: BuiltinTheme): IStandaloneThemeData {
 			return vs_dark;
 		case HC_BLACK_THEME_NAME:
 			return hc_black;
+		case HC_LIGHT_THEME_NAME:
+			return hc_light;
 	}
 }
 

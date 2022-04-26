@@ -6,12 +6,12 @@
 import MarkdownIt = require('markdown-it');
 import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
-import { MarkdownContributionProvider as MarkdownContributionProvider } from './markdownExtensions';
+import { MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
-import { SkinnyTextDocument } from './tableOfContentsProvider';
-import { hash } from './util/hash';
-import { isOfScheme, Schemes } from './util/links';
+import { stringHash } from './util/hash';
 import { WebviewResourceProvider } from './util/resources';
+import { isOfScheme, Schemes } from './util/schemes';
+import { SkinnyTextDocument } from './workspaceContents';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
@@ -180,7 +180,7 @@ export class MarkdownEngine {
 		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
 	}
 
-	public resetSlugCount(): void {
+	private resetSlugCount(): void {
 		this._slugCount = new Map<string, number>();
 	}
 
@@ -237,7 +237,7 @@ export class MarkdownEngine {
 			const src = token.attrGet('src');
 			if (src) {
 				env.containingImages?.push({ src });
-				const imgHash = hash(src);
+				const imgHash = stringHash(src);
 				token.attrSet('id', `image-hash-${imgHash}`);
 
 				if (!token.attrGet('data-src')) {

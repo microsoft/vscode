@@ -102,6 +102,10 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			}
 		}
 
+		if (!(capabilities & EditorInputCapabilities.Readonly)) {
+			capabilities |= EditorInputCapabilities.CanDropIntoEditor;
+		}
+
 		return capabilities;
 	}
 
@@ -262,7 +266,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 
 		if (this.options._backupId) {
-			const info = await this._notebookService.withNotebookDataProvider(this._editorModelReference.object.notebook.uri, this._editorModelReference.object.notebook.viewType);
+			const info = await this._notebookService.withNotebookDataProvider(this._editorModelReference.object.notebook.viewType);
 			if (!(info instanceof SimpleNotebookProviderInfo)) {
 				throw new Error('CANNOT open file notebook with this provider');
 			}

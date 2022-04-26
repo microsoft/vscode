@@ -12,11 +12,11 @@ import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementSer
 import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IURLHandler, IURLService, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -148,7 +148,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		const extension = await this.extensionService.getExtension(extensionId);
 
 		if (!extension) {
-			await this.handleUnhandledURL(uri, { id: extensionId });
+			await this.handleUnhandledURL(uri, { id: extensionId }, options);
 			return true;
 		}
 
@@ -232,56 +232,12 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		return await handler.handleURL(uri, options);
 	}
 
-	private async handleUnhandledURL(uri: URI, extensionIdentifier: IExtensionIdentifier): Promise<void> {
+	private async handleUnhandledURL(uri: URI, extensionIdentifier: IExtensionIdentifier, options?: IOpenURLOptions): Promise<void> {
 		const installedExtensions = await this.extensionManagementService.getInstalled();
-		const extension = installedExtensions.filter(e => areSameExtensions(e.identifier, extensionIdentifier))[0];
-
-		// Extension is installed
-		if (extension) {
-			const enabled = this.extensionEnablementService.isEnabled(extension);
-
-			// Extension is not running. Reload the window to handle.
-			if (enabled) {
-				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/activate_extension/start', { extensionId: extensionIdentifier.id });
-				const result = await this.dialogService.confirm({
-					message: localize('reloadAndHandle', "Extension '{0}' is not loaded. Would you like to reload the window to load the extension and open the URL?", extension.manifest.displayName || extension.manifest.name),
-					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-					primaryButton: localize('reloadAndOpen', "&&Reload Window and Open"),
-					type: 'question'
-				});
-
-				if (!result.confirmed) {
-					this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/activate_extension/cancel', { extensionId: extensionIdentifier.id });
-					return;
-				}
-
-				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/activate_extension/accept', { extensionId: extensionIdentifier.id });
-				await this.reloadAndHandle(uri);
-			}
-
-			// Extension is disabled. Enable the extension and reload the window to handle.
-			else if (this.extensionEnablementService.canChangeEnablement(extension)) {
-				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/enable_extension/start', { extensionId: extensionIdentifier.id });
-				const result = await this.dialogService.confirm({
-					message: localize('enableAndHandle', "Extension '{0}' is disabled. Would you like to enable the extension and reload the window to open the URL?", extension.manifest.displayName || extension.manifest.name),
-					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-					primaryButton: localize('enableAndReload', "&&Enable and Open"),
-					type: 'question'
-				});
-
-				if (!result.confirmed) {
-					this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/enable_extension/cancel', { extensionId: extensionIdentifier.id });
-					return;
-				}
-
-				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/enable_extension/accept', { extensionId: extensionIdentifier.id });
-				await this.extensionEnablementService.setEnablement([extension], EnablementState.EnabledGlobally);
-				await this.reloadAndHandle(uri);
-			}
-		}
+		let extension = installedExtensions.find(e => areSameExtensions(e.identifier, extensionIdentifier));
 
 		// Extension is not installed
-		else {
+		if (!extension) {
 			let galleryExtension: IGalleryExtension | undefined;
 
 			try {
@@ -298,9 +254,9 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 			// Install the Extension and reload the window to handle.
 			const result = await this.dialogService.confirm({
-				message: localize('installAndHandle', "Extension '{0}' is not installed. Would you like to install the extension and reload the window to open this URL?", galleryExtension.displayName || galleryExtension.name),
+				message: localize('installAndHandle', "Extension '{0}' is not installed. Would you like to install the extension and open this URL?", galleryExtension.displayName || galleryExtension.name),
 				detail: `${galleryExtension.displayName || galleryExtension.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-				primaryButton: localize('install', "&&Install"),
+				primaryButton: localize('install and open', "&&Install and Open"),
 				type: 'question'
 			});
 
@@ -312,31 +268,76 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/install_extension/accept', { extensionId: extensionIdentifier.id });
 
 			try {
-				await this.progressService.withProgress({
+				extension = await this.progressService.withProgress({
 					location: ProgressLocation.Notification,
 					title: localize('Installing', "Installing Extension '{0}'...", galleryExtension.displayName || galleryExtension.name)
 				}, () => this.extensionManagementService.installFromGallery(galleryExtension!));
-
-				this.notificationService.prompt(
-					Severity.Info,
-					localize('reload', "Would you like to reload the window and open the URL '{0}'?", uri.toString()),
-					[{
-						label: localize('Reload', "Reload Window and Open"), run: async () => {
-							this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/install_extension/reload', { extensionId: extensionIdentifier.id });
-							await this.reloadAndHandle(uri);
-						}
-					}],
-					{ sticky: true }
-				);
 			} catch (error) {
 				this.notificationService.error(error);
+				return;
 			}
+		}
+
+		// Extension is installed but not enabled
+		if (!this.extensionEnablementService.isEnabled(extension)) {
+			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/enable_extension/start', { extensionId: extensionIdentifier.id });
+			const result = await this.dialogService.confirm({
+				message: localize('enableAndHandle', "Extension '{0}' is disabled. Would you like to enable the extension and open the URL?", extension.manifest.displayName || extension.manifest.name),
+				detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
+				primaryButton: localize('enableAndReload', "&&Enable and Open"),
+				type: 'question'
+			});
+
+			if (!result.confirmed) {
+				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/enable_extension/cancel', { extensionId: extensionIdentifier.id });
+				return;
+			}
+
+			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/enable_extension/accept', { extensionId: extensionIdentifier.id });
+			await this.extensionEnablementService.setEnablement([extension], EnablementState.EnabledGlobally);
+		}
+
+		if (this.extensionService.canAddExtension(toExtensionDescription(extension))) {
+			await this.waitUntilExtensionIsAdded(extensionIdentifier);
+			await this.handleURL(uri, { ...options, trusted: true });
+		}
+
+		/* Extension cannot be added and require window reload */
+		else {
+			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/activate_extension/start', { extensionId: extensionIdentifier.id });
+			const result = await this.dialogService.confirm({
+				message: localize('reloadAndHandle', "Extension '{0}' is not loaded. Would you like to reload the window to load the extension and open the URL?", extension.manifest.displayName || extension.manifest.name),
+				detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
+				primaryButton: localize('reloadAndOpen', "&&Reload Window and Open"),
+				type: 'question'
+			});
+
+			if (!result.confirmed) {
+				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/activate_extension/cancel', { extensionId: extensionIdentifier.id });
+				return;
+			}
+
+			this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/activate_extension/accept', { extensionId: extensionIdentifier.id });
+			this.storageService.store(URL_TO_HANDLE, JSON.stringify(uri.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			await this.hostService.reload();
 		}
 	}
 
-	private async reloadAndHandle(url: URI): Promise<void> {
-		this.storageService.store(URL_TO_HANDLE, JSON.stringify(url.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		await this.hostService.reload();
+	private async waitUntilExtensionIsAdded(extensionId: IExtensionIdentifier): Promise<void> {
+		if (!(await this.extensionService.getExtension(extensionId.id))) {
+			await new Promise<void>((c, e) => {
+				const disposable = this.extensionService.onDidChangeExtensions(async () => {
+					try {
+						if (await this.extensionService.getExtension(extensionId.id)) {
+							disposable.dispose();
+							c();
+						}
+					} catch (error) {
+						e(error);
+					}
+				});
+			});
+		}
 	}
 
 	// forget about all uris buffered more than 5 minutes ago

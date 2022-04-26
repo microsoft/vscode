@@ -65,10 +65,12 @@
 	color: rgba(255,255,255,.6);
 }
 
-.monaco-workbench.hc-black .part.editor > .content.empty > .watermark dt {
+.monaco-workbench.hc-black .part.editor > .content.empty > .watermark dt,
+.monaco-workbench.hc-light .part.editor > .content.empty > .watermark dt {
 	color: var(--vscode-editor-foreground);
 }
-.monaco-workbench.hc-black .part.editor > .content.empty > .watermark dl {
+.monaco-workbench.hc-black .part.editor > .content.empty > .watermark dl,
+.monaco-workbench.hc-light .part.editor > .content.empty > .watermark dl {
 	color: var(--vscode-editor-foreground);
 	opacity: 1;
 }

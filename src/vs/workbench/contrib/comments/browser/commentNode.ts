@@ -25,7 +25,6 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { ToggleReactionsAction, ReactionAction, ReactionActionViewItem } from './reactionsAction';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { MenuItemAction, SubmenuItemAction, IMenu } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -39,11 +38,14 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IRange } from 'vs/editor/common/core/range';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
-export class CommentNode extends Disposable {
+export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
 	private _body: HTMLElement;
 	private _md: HTMLElement | undefined;
+	private _plainText: HTMLElement | undefined;
 	private _clearTimeout: any;
 
 	private _editAction: Action | null = null;
@@ -65,7 +67,7 @@ export class CommentNode extends Disposable {
 	protected toolbar: ToolBar | undefined;
 	private _commentFormActions: CommentFormActions | null = null;
 
-	private readonly _onDidClick = new Emitter<CommentNode>();
+	private readonly _onDidClick = new Emitter<CommentNode<T>>();
 
 	public get domNode(): HTMLElement {
 		return this._domNode;
@@ -74,11 +76,10 @@ export class CommentNode extends Disposable {
 	public isEditing: boolean = false;
 
 	constructor(
-		private commentThread: languages.CommentThread,
+		private commentThread: languages.CommentThread<T>,
 		public comment: languages.Comment,
 		private owner: string,
 		private resource: URI,
-		private parentEditor: ICodeEditor,
 		private parentThread: ICommentThreadWidget,
 		private markdownRenderer: MarkdownRenderer,
 		@IThemeService private themeService: IThemeService,
@@ -125,15 +126,17 @@ export class CommentNode extends Disposable {
 	private updateCommentBody(body: string | IMarkdownString) {
 		this._body.innerText = '';
 		this._md = undefined;
+		this._plainText = undefined;
 		if (typeof body === 'string') {
-			this._body.innerText = body;
+			this._plainText = dom.append(this._body, dom.$('.comment-body-plainstring'));
+			this._plainText.innerText = body;
 		} else {
 			this._md = this.markdownRenderer.render(body).element;
 			this._body.appendChild(this._md);
 		}
 	}
 
-	public get onDidClick(): Event<CommentNode> {
+	public get onDidClick(): Event<CommentNode<T>> {
 		return this._onDidClick.event;
 	}
 
@@ -375,7 +378,7 @@ export class CommentNode extends Disposable {
 
 	private createCommentEditor(editContainer: HTMLElement): void {
 		const container = dom.append(editContainer, dom.$('.edit-textarea'));
-		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(), this.parentEditor, this.parentThread);
+		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(), this.parentThread);
 		const resource = URI.parse(`comment:commentinput-${this.comment.uniqueIdInThread}-${Date.now()}.md`);
 		this._commentEditorModel = this.modelService.createModel('', this.languageService.createByFilepathOrFirstLine(resource), resource, false);
 

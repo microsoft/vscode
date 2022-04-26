@@ -54,7 +54,7 @@ export class LabelContribution implements IWorkbenchContribution {
 
 			if (remoteEnvironment) {
 				this.labelService.registerFormatter({
-					scheme: Schemas.userData,
+					scheme: Schemas.vscodeUserData,
 					formatting
 				});
 			}

@@ -3,24 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { compareIgnoreCase, regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
-import { clearPlatformLanguageAssociations, getMimeTypes, registerPlatformLanguageAssociation } from 'vs/editor/common/services/languagesAssociations';
+import { clearPlatformLanguageAssociations, getLanguageIds, registerPlatformLanguageAssociation } from 'vs/editor/common/services/languagesAssociations';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageIdCodec, LanguageId } from 'vs/editor/common/languages';
 import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageExtensionPoint, ILanguageNameIdPair, ILanguageIcon } from 'vs/editor/common/languages/language';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 const NULL_LANGUAGE_ID = 'vs.editor.nullLanguage';
-
-LanguageConfigurationRegistry.register(NULL_LANGUAGE_ID, {});
 
 export interface IResolvedLanguage {
 	identifier: string;
@@ -121,6 +117,10 @@ export class LanguagesRegistry extends Disposable {
 		clearPlatformLanguageAssociations();
 		const desc = (<ILanguageExtensionPoint[]>[]).concat(ModesRegistry.getLanguages()).concat(this._dynamicLanguages);
 		this._registerLanguages(desc);
+	}
+
+	registerLanguage(desc: ILanguageExtensionPoint): IDisposable {
+		return ModesRegistry.registerLanguage(desc);
 	}
 
 	_registerLanguages(desc: ILanguageExtensionPoint[]): void {
@@ -362,7 +362,6 @@ export class LanguagesRegistry extends Disposable {
 		if (!resource && !firstLine) {
 			return [];
 		}
-		const mimeTypes = getMimeTypes(resource, firstLine);
-		return coalesce(mimeTypes.map(mimeType => this.getLanguageIdByMimeType(mimeType)));
+		return getLanguageIds(resource, firstLine);
 	}
 }

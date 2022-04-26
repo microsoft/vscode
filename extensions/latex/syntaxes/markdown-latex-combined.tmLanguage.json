@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/5f26a6daf70352a6f3f40b3b4437a605f5d954ee",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/4ef954d31faccf96545d736a5ccc0e09d8109f12",
 	"name": "Markdown",
 	"scopeName": "text.tex.markdown_latex_combined",
 	"patterns": [
@@ -2443,6 +2443,9 @@
 					"include": "#raw"
 				},
 				{
+					"include": "#strikethrough"
+				},
+				{
 					"include": "#escape"
 				},
 				{
@@ -2537,6 +2540,9 @@
 				},
 				{
 					"include": "#link-ref-shortcut"
+				},
+				{
+					"include": "#strikethrough"
 				}
 			]
 		},
@@ -2688,6 +2694,9 @@
 				},
 				{
 					"include": "#link-ref-shortcut"
+				},
+				{
+					"include": "#strikethrough"
 				}
 			]
 		},
@@ -2847,8 +2856,76 @@
 					"name": "punctuation.definition.raw.markdown"
 				}
 			},
-			"match": "(`+)([^`]|(?!(?<!`)\\1(?!`))`)*+(\\1)",
+			"match": "(`+)((?:[^`]|(?!(?<!`)\\1(?!`))`)*+)(\\1)",
 			"name": "markup.inline.raw.string.markdown"
+		},
+		"strikethrough": {
+			"captures": {
+				"1": {
+					"name": "punctuation.definition.strikethrough.markdown"
+				},
+				"2": {
+					"patterns": [
+						{
+							"applyEndPatternLast": 1,
+							"begin": "(?=<[^>]*?>)",
+							"end": "(?<=>)",
+							"patterns": [
+								{
+									"include": "text.html.derivative"
+								}
+							]
+						},
+						{
+							"include": "#escape"
+						},
+						{
+							"include": "#ampersand"
+						},
+						{
+							"include": "#bracket"
+						},
+						{
+							"include": "#raw"
+						},
+						{
+							"include": "#bold"
+						},
+						{
+							"include": "#italic"
+						},
+						{
+							"include": "#image-inline"
+						},
+						{
+							"include": "#link-inline"
+						},
+						{
+							"include": "#link-inet"
+						},
+						{
+							"include": "#link-email"
+						},
+						{
+							"include": "#image-ref"
+						},
+						{
+							"include": "#link-ref-literal"
+						},
+						{
+							"include": "#link-ref"
+						},
+						{
+							"include": "#link-ref-shortcut"
+						}
+					]
+				},
+				"3": {
+					"name": "punctuation.definition.strikethrough.markdown"
+				}
+			},
+			"match": "(~+)((?:[^~]|(?!(?<!~)\\1(?!~))~)*+)(\\1)",
+			"name": "markup.strikethrough.markdown"
 		}
 	}
 }

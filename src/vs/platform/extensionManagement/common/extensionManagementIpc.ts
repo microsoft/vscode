@@ -113,7 +113,7 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 			typeof (<any>thing).scheme === 'string';
 	}
 
-	private _targetPlatformPromise: Promise<TargetPlatform> | undefined;
+	protected _targetPlatformPromise: Promise<TargetPlatform> | undefined;
 	getTargetPlatform(): Promise<TargetPlatform> {
 		if (!this._targetPlatformPromise) {
 			this._targetPlatformPromise = this.channel.call<TargetPlatform>('getTargetPlatform');

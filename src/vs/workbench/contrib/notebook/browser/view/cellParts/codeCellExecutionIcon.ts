@@ -18,7 +18,7 @@ interface IExecutionItem {
 	tooltip?: string;
 }
 
-export class CodeCellExecutionIcon extends Disposable {
+export class CollapsedCodeCellExecutionIcon extends Disposable {
 	private _visible = false;
 
 	constructor(
@@ -79,9 +79,7 @@ export class CodeCellExecutionIcon extends Disposable {
 				tooltip: localize('notebook.cell.status.pending', "Pending"),
 			};
 		} else if (state === NotebookCellExecutionState.Executing) {
-			const icon = runState?.isPaused ?
-				executingStateIcon :
-				ThemeIcon.modify(executingStateIcon, 'spin');
+			const icon = ThemeIcon.modify(executingStateIcon, 'spin');
 			return <IExecutionItem>{
 				text: `$(${icon.id})`,
 				tooltip: localize('notebook.cell.status.executing', "Executing"),

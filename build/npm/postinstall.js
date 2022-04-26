@@ -20,7 +20,7 @@ function yarnInstall(location, opts) {
 	const raw = process.env['npm_config_argv'] || '{}';
 	const argv = JSON.parse(raw);
 	const original = argv.original || [];
-	const args = original.filter(arg => arg === '--ignore-optional' || arg === '--frozen-lockfile');
+	const args = original.filter(arg => arg === '--ignore-optional' || arg === '--frozen-lockfile' || arg === '--check-files');
 	if (opts.ignoreEngines) {
 		args.push('--ignore-engines');
 		delete opts.ignoreEngines;
@@ -65,11 +65,6 @@ for (let dir of dirs) {
 		if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
 		if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
 
-		// TODO@server-darwin-arm64: Remove this check when support for arm64 for the server is added on darwin
-		if (/^remote/.test(dir) && process.platform === 'darwin' && (process.arch === 'arm64' || process.env['npm_config_arch'] === 'arm64')) {
-			// darwin arm: force `x64` on remote folder
-			env['npm_config_arch'] = 'x64';
-		}
 		opts = { env };
 	} else if (/^extensions\//.test(dir)) {
 		opts = { ignoreEngines: true };

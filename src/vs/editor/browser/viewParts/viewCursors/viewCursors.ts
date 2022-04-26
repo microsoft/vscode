@@ -15,6 +15,7 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { isHighContrast } from 'vs/platform/theme/common/theme';
 
 export class ViewCursors extends ViewPart {
 
@@ -376,7 +377,7 @@ registerThemingParticipant((theme, collector) => {
 		}
 		collector.addRule(`.monaco-editor .inputarea.ime-input { caret-color: ${caret}; }`);
 		collector.addRule(`.monaco-editor .cursors-layer .cursor { background-color: ${caret}; border-color: ${caret}; color: ${caretBackground}; }`);
-		if (theme.type === 'hc') {
+		if (isHighContrast(theme.type)) {
 			collector.addRule(`.monaco-editor .cursors-layer.has-selection .cursor { border-left: 1px solid ${caretBackground}; border-right: 1px solid ${caretBackground}; }`);
 		}
 	}

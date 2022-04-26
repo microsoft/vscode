@@ -168,6 +168,12 @@ export interface ISCMMenus {
 	getRepositoryMenus(provider: ISCMProvider): ISCMRepositoryMenus;
 }
 
+export const enum ISCMRepositorySortKey {
+	DiscoveryTime = 'discoveryTime',
+	Name = 'name',
+	Path = 'path'
+}
+
 export const ISCMViewService = createDecorator<ISCMViewService>('scmView');
 
 export interface ISCMViewVisibleRepositoryChangeEvent {
@@ -180,11 +186,16 @@ export interface ISCMViewService {
 
 	readonly menus: ISCMMenus;
 
+	repositories: ISCMRepository[];
+	readonly onDidChangeRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
+
 	visibleRepositories: ISCMRepository[];
 	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
 
 	isVisible(repository: ISCMRepository): boolean;
 	toggleVisibility(repository: ISCMRepository, visible?: boolean): void;
+
+	toggleSortKey(sortKey: ISCMRepositorySortKey): void;
 
 	readonly focusedRepository: ISCMRepository | undefined;
 	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;

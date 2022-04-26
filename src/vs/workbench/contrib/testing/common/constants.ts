@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export const enum Testing {
 	// marked as "extension" so that any existing test extensions are assigned to it.
@@ -89,4 +89,5 @@ export const enum TestCommandId {
 	ToggleAutoRun = 'testing.toggleautoRun',
 	ToggleInlineTestOutput = 'testing.toggleInlineTestOutput',
 	UnhideTestAction = 'testing.unhideTest',
+	UnhideAllTestsAction = 'testing.unhideAllTests',
 }

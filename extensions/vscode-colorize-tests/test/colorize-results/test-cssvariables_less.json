@@ -8,7 +8,7 @@
 			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
 			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
 			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85"
 		}
 	},
 	{
@@ -20,7 +20,7 @@
 			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
 			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
 			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85"
 		}
 	},
 	{
@@ -116,7 +116,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -128,7 +128,7 @@
 			"dark_vs": "keyword.other.unit: #B5CEA8",
 			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8",
-			"hc_light": "keyword.other.unit: #098658"
+			"hc_light": "keyword.other.unit: #096D48"
 		}
 	},
 	{
@@ -224,7 +224,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -272,7 +272,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.function: #DCDCAA",
-			"hc_light": "support.function: #795E26"
+			"hc_light": "support.function: #5E2CBC"
 		}
 	},
 	{
@@ -356,7 +356,7 @@
 			"dark_vs": "entity.name.tag.css: #D7BA7D",
 			"light_vs": "entity.name.tag: #800000",
 			"hc_black": "entity.name.tag.css: #D7BA7D",
-			"hc_light": "entity.name.tag: #800000"
+			"hc_light": "entity.name.tag: #0F4A85"
 		}
 	},
 	{
@@ -440,7 +440,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.function: #DCDCAA",
-			"hc_light": "support.function: #795E26"
+			"hc_light": "support.function: #5E2CBC"
 		}
 	},
 	{
@@ -464,7 +464,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -512,7 +512,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.function: #DCDCAA",
-			"hc_light": "support.function: #795E26"
+			"hc_light": "support.function: #5E2CBC"
 		}
 	},
 	{
@@ -572,7 +572,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -584,7 +584,7 @@
 			"dark_vs": "keyword.other.unit: #B5CEA8",
 			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8",
-			"hc_light": "keyword.other.unit: #098658"
+			"hc_light": "keyword.other.unit: #096D48"
 		}
 	},
 	{

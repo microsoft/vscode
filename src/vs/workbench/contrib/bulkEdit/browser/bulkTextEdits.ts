@@ -144,6 +144,7 @@ export class BulkTextEdits {
 
 	constructor(
 		private readonly _label: string,
+		private readonly _code: string,
 		private readonly _editor: ICodeEditor | undefined,
 		private readonly _undoRedoGroup: UndoRedoGroup,
 		private readonly _undoRedoSource: UndoRedoSource | undefined,
@@ -231,16 +232,17 @@ export class BulkTextEdits {
 		return { canApply: true };
 	}
 
-	async apply(): Promise<void> {
+	async apply(): Promise<readonly URI[]> {
 
 		this._validateBeforePrepare();
 		const tasks = await this._createEditsTasks();
 
-		if (this._token.isCancellationRequested) {
-			return;
-		}
 		try {
+			if (this._token.isCancellationRequested) {
+				return [];
+			}
 
+			const resources: URI[] = [];
 			const validation = this._validateTasks(tasks);
 			if (!validation.canApply) {
 				throw new Error(`${validation.reason.toString()} has changed in the meantime`);
@@ -249,25 +251,30 @@ export class BulkTextEdits {
 				// This edit touches a single model => keep things simple
 				const task = tasks[0];
 				if (!task.isNoOp()) {
-					const singleModelEditStackElement = new SingleModelEditStackElement(task.model, task.getBeforeCursorState());
+					const singleModelEditStackElement = new SingleModelEditStackElement(this._label, this._code, task.model, task.getBeforeCursorState());
 					this._undoRedoService.pushElement(singleModelEditStackElement, this._undoRedoGroup, this._undoRedoSource);
 					task.apply();
 					singleModelEditStackElement.close();
+					resources.push(task.model.uri);
 				}
 				this._progress.report(undefined);
 			} else {
 				// prepare multi model undo element
 				const multiModelEditStackElement = new MultiModelEditStackElement(
 					this._label,
-					tasks.map(t => new SingleModelEditStackElement(t.model, t.getBeforeCursorState()))
+					this._code,
+					tasks.map(t => new SingleModelEditStackElement(this._label, this._code, t.model, t.getBeforeCursorState()))
 				);
 				this._undoRedoService.pushElement(multiModelEditStackElement, this._undoRedoGroup, this._undoRedoSource);
 				for (const task of tasks) {
 					task.apply();
 					this._progress.report(undefined);
+					resources.push(task.model.uri);
 				}
 				multiModelEditStackElement.close();
 			}
+
+			return resources;
 
 		} finally {
 			dispose(tasks);

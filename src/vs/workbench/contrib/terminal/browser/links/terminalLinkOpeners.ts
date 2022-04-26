@@ -17,7 +17,7 @@ import { ITerminalLinkOpener, ITerminalSimpleLink } from 'vs/workbench/contrib/t
 import { osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { ILineColumnInfo } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { getLocalLinkRegex, lineAndColumnClause, lineAndColumnClauseGroupCount, unixLineAndColumnMatchIndex, winLineAndColumnMatchIndex } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -148,7 +148,8 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 			if (result) {
 				const { uri, isDirectory } = result;
 				const linkToOpen = {
-					text: matchLink,
+					// Use the absolute URI's path here so the optional line/col get detected
+					text: result.uri.fsPath + (matchLink.match(/:\d+(:\d+)?$/)?.[0] || ''),
 					uri,
 					bufferRange: link.bufferRange,
 					type: link.type
@@ -194,7 +195,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 }
 
 interface IResourceMatch {
-	uri: URI | undefined;
+	uri: URI;
 	isDirectory?: boolean;
 }
 
@@ -209,7 +210,9 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 		if (!link.uri) {
 			throw new Error('Tried to open a url without a resolved URI');
 		}
-		this._openerService.open(link.uri || URI.parse(link.text), {
+		// It's important to use the raw string value here to avoid converting pre-encoded values
+		// from the URL like `%2B` -> `+`.
+		this._openerService.open(link.text, {
 			allowTunneling: this._isRemote,
 			allowContributedOpeners: true,
 		});

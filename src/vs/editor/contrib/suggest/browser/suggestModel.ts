@@ -15,7 +15,7 @@ import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/comm
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionContext, CompletionItemKind, CompletionItemProvider, CompletionTriggerKind, StandardTokenType } from 'vs/editor/common/languages';
+import { CompletionContext, CompletionItemKind, CompletionItemProvider, CompletionTriggerKind } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
@@ -25,7 +25,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CompletionModel } from './completionModel';
-import { CompletionDurations, CompletionItem, CompletionOptions, getSnippetSuggestSupport, getSuggestionComparator, provideSuggestionItems, SnippetSortOrder } from './suggest';
+import { CompletionDurations, CompletionItem, CompletionOptions, getSnippetSuggestSupport, getSuggestionComparator, provideSuggestionItems, QuickSuggestionsOptions, SnippetSortOrder } from './suggest';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
@@ -61,7 +61,7 @@ export class LineContext {
 		}
 		const model = editor.getModel();
 		const pos = editor.getPosition();
-		model.tokenizeIfCheap(pos.lineNumber);
+		model.tokenization.tokenizeIfCheap(pos.lineNumber);
 
 		const word = model.getWordAtPosition(pos);
 		if (!word) {
@@ -140,7 +140,6 @@ function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyServic
 export class SuggestModel implements IDisposable {
 
 	private readonly _toDispose = new DisposableStore();
-	private _quickSuggestDelay: number = 10;
 	private readonly _triggerCharacterListener = new DisposableStore();
 	private readonly _triggerQuickSuggest = new TimeoutTimer();
 	private _state: State = State.Idle;
@@ -182,7 +181,6 @@ export class SuggestModel implements IDisposable {
 		}));
 		this._toDispose.add(this._editor.onDidChangeConfiguration(() => {
 			this._updateTriggerCharacters();
-			this._updateQuickSuggest();
 		}));
 		this._toDispose.add(this._languageFeaturesService.completionProvider.onDidChange(() => {
 			this._updateTriggerCharacters();
@@ -213,7 +211,6 @@ export class SuggestModel implements IDisposable {
 		}));
 
 		this._updateTriggerCharacters();
-		this._updateQuickSuggest();
 	}
 
 	dispose(): void {
@@ -222,16 +219,6 @@ export class SuggestModel implements IDisposable {
 		this._toDispose.dispose();
 		this._completionDisposables.dispose();
 		this.cancel();
-	}
-
-	// --- handle configuration & precondition changes
-
-	private _updateQuickSuggest(): void {
-		this._quickSuggestDelay = this._editor.getOption(EditorOption.quickSuggestionsDelay);
-
-		if (isNaN(this._quickSuggestDelay) || (!this._quickSuggestDelay && this._quickSuggestDelay !== 0) || this._quickSuggestDelay < 0) {
-			this._quickSuggestDelay = 10;
-		}
 	}
 
 	private _updateTriggerCharacters(): void {
@@ -376,7 +363,7 @@ export class SuggestModel implements IDisposable {
 
 	private _doTriggerQuickSuggest(): void {
 
-		if (this._editor.getOption(EditorOption.quickSuggestions) === false) {
+		if (QuickSuggestionsOptions.isAllOff(this._editor.getOption(EditorOption.quickSuggestions))) {
 			// not enabled
 			return;
 		}
@@ -395,27 +382,23 @@ export class SuggestModel implements IDisposable {
 			if (!LineContext.shouldAutoTrigger(this._editor)) {
 				return;
 			}
-			if (!this._editor.hasModel()) {
+			if (!this._editor.hasModel() || !this._editor.hasWidgetFocus()) {
 				return;
 			}
 			const model = this._editor.getModel();
 			const pos = this._editor.getPosition();
 			// validate enabled now
-			const quickSuggestions = this._editor.getOption(EditorOption.quickSuggestions);
-			if (quickSuggestions === false) {
+			const config = this._editor.getOption(EditorOption.quickSuggestions);
+			if (QuickSuggestionsOptions.isAllOff(config)) {
 				return;
-			} else if (quickSuggestions === true) {
-				// all good
-			} else {
-				// Check the type of the token that triggered this
-				model.tokenizeIfCheap(pos.lineNumber);
-				const lineTokens = model.getLineTokens(pos.lineNumber);
-				const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
-				const inValidScope = quickSuggestions.other && tokenType === StandardTokenType.Other
-					|| quickSuggestions.comments && tokenType === StandardTokenType.Comment
-					|| quickSuggestions.strings && tokenType === StandardTokenType.String;
+			}
 
-				if (!inValidScope) {
+			if (!QuickSuggestionsOptions.isAllOn(config)) {
+				// Check the type of the token that triggered this
+				model.tokenization.tokenizeIfCheap(pos.lineNumber);
+				const lineTokens = model.tokenization.getLineTokens(pos.lineNumber);
+				const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
+				if (QuickSuggestionsOptions.valueFor(config, tokenType) !== 'on') {
 					return;
 				}
 			}
@@ -432,7 +415,7 @@ export class SuggestModel implements IDisposable {
 			// we made it till here -> trigger now
 			this.trigger({ auto: true, shy: false });
 
-		}, this._quickSuggestDelay);
+		}, this._editor.getOption(EditorOption.quickSuggestionsDelay));
 	}
 
 	private _refilterCompletionItems(): void {
@@ -544,6 +527,7 @@ export class SuggestModel implements IDisposable {
 				wordDistance,
 				this._editor.getOption(EditorOption.suggest),
 				this._editor.getOption(EditorOption.snippetSuggestions),
+				undefined,
 				clipboardText
 			);
 

@@ -161,11 +161,12 @@ export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 		return this.model.uri;
 	}
 
-	public get label(): string {
-		return nls.localize('edit', "Typing");
-	}
-
-	constructor(model: ITextModel, beforeCursorState: Selection[] | null) {
+	constructor(
+		public readonly label: string,
+		public readonly code: string,
+		model: ITextModel,
+		beforeCursorState: Selection[] | null
+	) {
 		this.model = model;
 		this._data = SingleModelEditStackData.create(model, beforeCursorState);
 	}
@@ -241,7 +242,6 @@ export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
 
 	public readonly type = UndoRedoElementType.Workspace;
-	public readonly label: string;
 	private _isOpen: boolean;
 
 	private readonly _editStackElementsArr: SingleModelEditStackElement[];
@@ -254,10 +254,10 @@ export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
 	}
 
 	constructor(
-		label: string,
+		public readonly label: string,
+		public readonly code: string,
 		editStackElements: SingleModelEditStackElement[]
 	) {
-		this.label = label;
 		this._isOpen = true;
 		this._editStackElementsArr = editStackElements.slice(0);
 		this._editStackElementsMap = new Map<string, SingleModelEditStackElement>();
@@ -413,7 +413,7 @@ export class EditStack {
 		if (isEditStackElement(lastElement) && lastElement.canAppend(this._model)) {
 			return lastElement;
 		}
-		const newElement = new SingleModelEditStackElement(this._model, beforeCursorState);
+		const newElement = new SingleModelEditStackElement(nls.localize('edit', "Typing"), 'undoredo.textBufferEdit', this._model, beforeCursorState);
 		this._undoRedoService.pushElement(newElement);
 		return newElement;
 	}

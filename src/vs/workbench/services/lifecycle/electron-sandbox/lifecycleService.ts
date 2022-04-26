@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
-import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ShutdownReason, ILifecycleService, IWillShutdownEventJoiner } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -18,7 +18,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 export class NativeLifecycleService extends AbstractLifecycleService {
 
 	private static readonly BEFORE_SHUTDOWN_WARNING_DELAY = 5000;
-	private static readonly WILL_SHUTDOWN_WARNING_DELAY = 5000;
+	private static readonly WILL_SHUTDOWN_WARNING_DELAY = 800;
 
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
@@ -155,17 +155,19 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 
 	protected async handleWillShutdown(reason: ShutdownReason): Promise<void> {
 		const joiners: Promise<void>[] = [];
-		const pendingJoiners = new Set<string>();
+		const pendingJoiners = new Set<IWillShutdownEventJoiner>();
 		const cts = new CancellationTokenSource();
 
 		this._onWillShutdown.fire({
 			reason,
-			join(promise, id) {
+			token: cts.token,
+			joiners: () => Array.from(pendingJoiners.values()),
+			join(promise, joiner) {
 				joiners.push(promise);
 
 				// Track promise completion
-				pendingJoiners.add(id);
-				promise.finally(() => pendingJoiners.delete(id));
+				pendingJoiners.add(joiner);
+				promise.finally(() => pendingJoiners.delete(joiner));
 			},
 			force: () => {
 				cts.dispose(true);
@@ -173,7 +175,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		});
 
 		const longRunningWillShutdownWarning = disposableTimeout(() => {
-			this.logService.warn(`[lifecycle] onWillShutdown is taking a long time, pending operations: ${Array.from(pendingJoiners).join(', ')}`);
+			this.logService.warn(`[lifecycle] onWillShutdown is taking a long time, pending operations: ${Array.from(pendingJoiners).map(joiner => joiner.id).join(', ')}`);
 		}, NativeLifecycleService.WILL_SHUTDOWN_WARNING_DELAY);
 
 		try {

@@ -10,7 +10,6 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { v4 as uuid } from 'uuid';
 import fetch, { Response } from 'node-fetch';
-import { Keychain } from './keychain';
 import Logger from './logger';
 import { toBase64UrlEncoding } from './utils';
 import { sha256 } from './env/node/sha256';
@@ -20,7 +19,7 @@ import path = require('path');
 
 const localize = nls.loadMessageBundle();
 
-const redirectUrl = 'https://vscode-redirect.azurewebsites.net/';
+const redirectUrl = 'https://vscode.dev/redirect';
 const loginEndpointUrl = 'https://login.microsoftonline.com/';
 const DEFAULT_CLIENT_ID = 'aebc6443-996d-45c2-90f0-388ff96faa56';
 const DEFAULT_TENANT = 'organizations';
@@ -39,18 +38,6 @@ interface IToken {
 	};
 	scope: string;
 	sessionId: string; // The account id + the scope
-}
-
-interface ITokenClaims {
-	tid: string;
-	email?: string;
-	unique_name?: string;
-	exp?: number;
-	preferred_username?: string;
-	oid?: string;
-	altsecid?: string;
-	ipd?: string;
-	scp: string;
 }
 
 interface IStoredSession {
@@ -87,14 +74,6 @@ interface IScopeData {
 	tenant: string;
 }
 
-function parseQuery(uri: vscode.Uri) {
-	return uri.query.split('&').reduce((prev: any, current) => {
-		const queryString = current.split('=');
-		prev[queryString[0]] = queryString[1];
-		return prev;
-	}, {});
-}
-
 export const onDidChangeSessions = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 
 export const REFRESH_NETWORK_FAILURE = 'Network failure';
@@ -115,7 +94,7 @@ export class AzureActiveDirectoryService {
 	private _uriHandler: UriEventHandler;
 
 	// Used to keep track of current requests when not using the local server approach.
-	private _pendingStates = new Map<string, string[]>();
+	private _pendingNonces = new Map<string, string[]>();
 	private _codeExchangePromises = new Map<string, Promise<vscode.AuthenticationSession>>();
 	private _codeVerfifiers = new Map<string, string>();
 
@@ -132,10 +111,6 @@ export class AzureActiveDirectoryService {
 		Logger.info('Reading sessions from secret storage...');
 		let sessions = await this._tokenStorage.getAll();
 		Logger.info(`Got ${sessions.length} stored sessions`);
-
-		if (!sessions.length) {
-			sessions = await this.migrate();
-		}
 
 		const refreshes = sessions.map(async session => {
 			Logger.trace(`Read the following stored session with scopes: ${session.scope}`);
@@ -166,7 +141,16 @@ export class AzureActiveDirectoryService {
 				} else {
 					vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
 					Logger.error(e);
-					await this.removeSession(session.id);
+					await this.removeSessionByIToken({
+						accessToken: undefined,
+						refreshToken: session.refreshToken,
+						account: {
+							label: session.account.label ?? session.account.displayName!,
+							id: session.account.id
+						},
+						scope: session.scope,
+						sessionId: session.id
+					});
 				}
 			}
 		});
@@ -310,7 +294,7 @@ export class AzureActiveDirectoryService {
 	private async createSessionWithLocalServer(scopeData: IScopeData) {
 		const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
 		const codeChallenge = toBase64UrlEncoding(await sha256(codeVerifier));
-		const qs = querystring.stringify({
+		const qs = new URLSearchParams({
 			response_type: 'code',
 			response_mode: 'query',
 			client_id: scopeData.clientId,
@@ -319,11 +303,10 @@ export class AzureActiveDirectoryService {
 			prompt: 'select_account',
 			code_challenge_method: 'S256',
 			code_challenge: codeChallenge,
-		});
+		}).toString();
 		const loginUrl = `${loginEndpointUrl}${scopeData.tenant}/oauth2/v2.0/authorize?${qs}`;
 		const server = new LoopbackAuthServer(path.join(__dirname, '../media'), loginUrl);
 		await server.start();
-		server.state = `${server.port},${encodeURIComponent(server.nonce)}`;
 
 		let codeToExchange;
 		try {
@@ -347,18 +330,29 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async createSessionWithoutLocalServer(scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
-		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.microsoft-authentication`));
+		let callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.microsoft-authentication`));
 		const nonce = randomBytes(16).toString('base64');
-		const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
-		const callbackEnvironment = AzureActiveDirectoryService.getCallbackEnvironment(callbackUri);
-		const state = `${callbackEnvironment},${port},${encodeURIComponent(nonce)},${encodeURIComponent(callbackUri.query)}`;
-		const signInUrl = `${loginEndpointUrl}${scopeData.tenant}/oauth2/v2.0/authorize`;
-		let uri = vscode.Uri.parse(signInUrl);
+		const callbackQuery = new URLSearchParams(callbackUri.query);
+		callbackQuery.set('nonce', encodeURIComponent(nonce));
+		callbackUri = callbackUri.with({
+			query: callbackQuery.toString()
+		});
+		const state = encodeURIComponent(callbackUri.toString(true));
 		const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
 		const codeChallenge = toBase64UrlEncoding(await sha256(codeVerifier));
-		uri = uri.with({
-			query: `response_type=code&client_id=${encodeURIComponent(scopeData.clientId)}&response_mode=query&redirect_uri=${redirectUrl}&state=${state}&scope=${scopeData.scopesToSend}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`
+		const signInUrl = `${loginEndpointUrl}${scopeData.tenant}/oauth2/v2.0/authorize`;
+		const oauthStartQuery = new URLSearchParams({
+			response_type: 'code',
+			client_id: encodeURIComponent(scopeData.clientId),
+			response_mode: 'query',
+			redirect_uri: redirectUrl,
+			state,
+			scope: scopeData.scopesToSend,
+			prompt: 'select_account',
+			code_challenge_method: 'S256',
+			code_challenge: codeChallenge,
 		});
+		let uri = vscode.Uri.parse(`${signInUrl}?${oauthStartQuery.toString()}`);
 		vscode.env.openExternal(uri);
 
 		const timeoutPromise = new Promise((_: (value: vscode.AuthenticationSession) => void, reject) => {
@@ -368,8 +362,8 @@ export class AzureActiveDirectoryService {
 			}, 1000 * 60 * 5);
 		});
 
-		const existingStates = this._pendingStates.get(scopeData.scopeStr) || [];
-		this._pendingStates.set(scopeData.scopeStr, [...existingStates, state]);
+		const existingNonces = this._pendingNonces.get(scopeData.scopeStr) || [];
+		this._pendingNonces.set(scopeData.scopeStr, [...existingNonces, nonce]);
 
 		// Register a single listener for the URI callback, in case the user starts the login process multiple times
 		// before completing it.
@@ -379,37 +373,26 @@ export class AzureActiveDirectoryService {
 			this._codeExchangePromises.set(scopeData.scopeStr, existingPromise);
 		}
 
-		this._codeVerfifiers.set(state, codeVerifier);
+		this._codeVerfifiers.set(nonce, codeVerifier);
 
 		return Promise.race([existingPromise, timeoutPromise])
 			.finally(() => {
-				this._pendingStates.delete(scopeData.scopeStr);
+				this._pendingNonces.delete(scopeData.scopeStr);
 				this._codeExchangePromises.delete(scopeData.scopeStr);
-				this._codeVerfifiers.delete(state);
+				this._codeVerfifiers.delete(nonce);
 			});
 	}
 
-	public async removeSession(sessionId: string, writeToDisk: boolean = true): Promise<vscode.AuthenticationSession | undefined> {
+	public removeSessionById(sessionId: string, writeToDisk: boolean = true): Promise<vscode.AuthenticationSession | undefined> {
 		Logger.info(`Logging out of session '${sessionId}'`);
 		const tokenIndex = this._tokens.findIndex(token => token.sessionId === sessionId);
 		if (tokenIndex === -1) {
 			Logger.info(`Session not found '${sessionId}'`);
-			return undefined;
+			return Promise.resolve(undefined);
 		}
 
-		const token = this._tokens[tokenIndex];
-		this._tokens.splice(tokenIndex, 1);
-		this.removeSessionTimeout(sessionId);
-
-		if (writeToDisk) {
-			await this._tokenStorage.delete(sessionId);
-		}
-
-		const session = this.convertToSessionSync(token);
-		Logger.info(`Sending change event for session that was removed with scopes: ${token.scope}`);
-		onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
-		Logger.info(`Logged out of session '${sessionId}' with scopes: ${token.scope}`);
-		return session;
+		const token = this._tokens.splice(tokenIndex, 1)[0];
+		return this.removeSessionByIToken(token, writeToDisk);
 	}
 
 	public async clearSessions() {
@@ -422,6 +405,25 @@ export class AzureActiveDirectoryService {
 		});
 
 		this._refreshTimeouts.clear();
+	}
+
+	private async removeSessionByIToken(token: IToken, writeToDisk: boolean = true): Promise<vscode.AuthenticationSession | undefined> {
+		this.removeSessionTimeout(token.sessionId);
+
+		if (writeToDisk) {
+			await this._tokenStorage.delete(token.sessionId);
+		}
+
+		const tokenIndex = this._tokens.findIndex(t => t.sessionId === token.sessionId);
+		if (tokenIndex !== -1) {
+			this._tokens.splice(tokenIndex, 1);
+		}
+
+		const session = this.convertToSessionSync(token);
+		Logger.info(`Sending change event for session that was removed with scopes: ${token.scope}`);
+		onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+		Logger.info(`Logged out of session '${token.sessionId}' with scopes: ${token.scope}`);
+		return session;
 	}
 
 	//#endregion
@@ -438,7 +440,7 @@ export class AzureActiveDirectoryService {
 			} catch (e) {
 				if (e.message !== REFRESH_NETWORK_FAILURE) {
 					vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
-					await this.removeSession(sessionId);
+					await this.removeSessionById(sessionId);
 				}
 			}
 		}, timeout));
@@ -630,15 +632,29 @@ export class AzureActiveDirectoryService {
 		return new Promise((resolve: (value: vscode.AuthenticationSession) => void, reject) => {
 			uriEventListener = this._uriHandler.event(async (uri: vscode.Uri) => {
 				try {
-					const query = parseQuery(uri);
-					const code = query.code;
-					const acceptedStates = this._pendingStates.get(scopeData.scopeStr) || [];
-					// Workaround double encoding issues of state in web
-					if (!acceptedStates.includes(query.state) && !acceptedStates.includes(decodeURIComponent(query.state))) {
-						throw new Error('State does not match.');
+					console.log(uri.query);
+					const query = querystring.parse(uri.query);
+					let { code, nonce } = query;
+					if (Array.isArray(code)) {
+						code = code[0];
+					}
+					if (!code) {
+						throw new Error('No code included in query');
+					}
+					if (Array.isArray(nonce)) {
+						nonce = nonce[0];
+					}
+					if (!nonce) {
+						throw new Error('No nonce included in query');
 					}
 
-					const verifier = this._codeVerfifiers.get(query.state) ?? this._codeVerfifiers.get(decodeURIComponent(query.state));
+					const acceptedStates = this._pendingNonces.get(scopeData.scopeStr) || [];
+					// Workaround double encoding issues of state in web
+					if (!acceptedStates.includes(nonce) && !acceptedStates.includes(decodeURIComponent(nonce))) {
+						throw new Error('Nonce does not match.');
+					}
+
+					const verifier = this._codeVerfifiers.get(nonce) ?? this._codeVerfifiers.get(decodeURIComponent(nonce));
 					if (!verifier) {
 						throw new Error('No available code verifier');
 					}
@@ -781,7 +797,7 @@ export class AzureActiveDirectoryService {
 					// Network failures will automatically retry on next poll.
 					if (e.message !== REFRESH_NETWORK_FAILURE) {
 						vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
-						await this.removeSession(session.id);
+						await this.removeSessionById(session.id);
 					}
 					return;
 				}
@@ -790,36 +806,10 @@ export class AzureActiveDirectoryService {
 
 		for (const { value } of e.removed) {
 			Logger.info(`Session removed in another window with scopes: ${value.scope}`);
-			const session = await this.removeSession(value.id, false);
+			const session = await this.removeSessionById(value.id, false);
 			if (session) {
 				removed.push(session);
 			}
-		}
-	}
-
-	private async migrate() {
-		Logger.info('Attempting to migrate stored sessions.');
-		const migrated = this._context.globalState.get<{ migrated: boolean }>('microsoft-better-storage-layout-migrated');
-		if (migrated?.migrated) {
-			return [];
-		}
-		await this._context.globalState.update('microsoft-better-storage-layout-migrated', { migrated: true });
-		const keychain = new Keychain(this._context);
-		const storedData = await keychain.getToken();
-		if (!storedData) {
-			Logger.info('No stored sessions found.');
-			return [];
-		}
-
-		try {
-			const sessions = JSON.parse(storedData) as IStoredSession[];
-			Logger.info(`Migrated ${sessions.length} stored sessions.`);
-			return sessions;
-		} catch (e) {
-			Logger.info('Failed to parse stored sessions. Migrating no sessions.');
-			return [];
-		} finally {
-			await keychain.deleteToken();
 		}
 	}
 

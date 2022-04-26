@@ -22,14 +22,12 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellOutput';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
-import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
-import { CodeCellExecutionIcon } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellExecutionIcon';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CollapsedCodeCellExecutionIcon } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellExecutionIcon';
 import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-
 
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: CellOutputContainer;
@@ -39,13 +37,12 @@ export class CodeCell extends Disposable {
 	private _isDisposed: boolean = false;
 	private readonly cellParts: CellPart[];
 
-	private _collapsedExecutionIcon: CodeCellExecutionIcon;
+	private _collapsedExecutionIcon: CollapsedCodeCellExecutionIcon;
 
 	constructor(
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
 		private readonly viewCell: CodeCellViewModel,
 		private readonly templateData: CodeCellRenderTemplate,
-		cellPartTemplates: CellPart[],
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IKeybindingService readonly keybindingService: IKeybindingService,
@@ -56,9 +53,9 @@ export class CodeCell extends Disposable {
 	) {
 		super();
 
-		const cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, this.viewCell.language));
-		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 2 });
-		this.cellParts = [...cellPartTemplates, cellEditorOptions, this._outputContainerRenderer];
+		const cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(viewCell.language), this.notebookEditor.notebookOptions, this.configurationService));
+		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
+		this.cellParts = [...templateData.cellParts, cellEditorOptions, this._outputContainerRenderer];
 
 		const editorHeight = this.calculateInitEditorHeight();
 		this.initializeEditor(editorHeight);
@@ -107,9 +104,9 @@ export class CodeCell extends Disposable {
 			}
 		}));
 
-		this.cellParts.forEach(cellPart => cellPart.renderCell(this.viewCell, this.templateData));
+		this.cellParts.forEach(cellPart => cellPart.renderCell(this.viewCell));
 		this._register(toDisposable(() => {
-			this.cellParts.forEach(cellPart => cellPart.unrenderCell(this.viewCell, this.templateData));
+			this.cellParts.forEach(cellPart => cellPart.unrenderCell(this.viewCell));
 		}));
 
 		this.updateEditorOptions();
@@ -133,7 +130,7 @@ export class CodeCell extends Disposable {
 		this._register(toDisposable(() => {
 			executionItemElement.parentElement?.removeChild(executionItemElement);
 		}));
-		this._collapsedExecutionIcon = this.instantiationService.createInstance(CodeCellExecutionIcon, this.notebookEditor, this.viewCell, executionItemElement);
+		this._collapsedExecutionIcon = this._register(this.instantiationService.createInstance(CollapsedCodeCellExecutionIcon, this.notebookEditor, this.viewCell, executionItemElement));
 		this.updateForCollapseState();
 
 		this._register(Event.runAndSubscribe(viewCell.onDidChangeOutputs, this.updateForOutputs.bind(this)));
@@ -272,28 +269,6 @@ export class CodeCell extends Disposable {
 				this.notebookEditor.revealLineInViewAsync(this.viewCell, lastSelection.positionLineNumber);
 			}
 		}));
-
-		// Focus Mode
-		const updateFocusModeForEditorEvent = () => {
-			this.viewCell.focusMode =
-				(this.templateData.editor.hasWidgetFocus() || (document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement)))
-					? CellFocusMode.Editor
-					: CellFocusMode.Container;
-		};
-
-		this._register(this.templateData.editor.onDidFocusEditorWidget(() => {
-			updateFocusModeForEditorEvent();
-		}));
-		this._register(this.templateData.editor.onDidBlurEditorWidget(() => {
-			// this is for a special case:
-			// users click the status bar empty space, which we will then focus the editor
-			// so we don't want to update the focus state too eagerly, it will be updated with onDidFocusEditorWidget
-			if (
-				this.notebookEditor.hasEditorFocus() &&
-				!(document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement))) {
-				updateFocusModeForEditorEvent();
-			}
-		}));
 	}
 
 	private registerDecorations() {
@@ -332,17 +307,6 @@ export class CodeCell extends Disposable {
 	}
 
 	private registerMouseListener() {
-		// Mouse click handlers
-		this._register(this.templateData.statusBar.onDidClick(e => {
-			if (e.type !== ClickTargetType.ContributedCommandItem) {
-				const target = this.templateData.editor.getTargetAtClientPoint(e.event.clientX, e.event.clientY - this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(this.viewCell.internalMetadata, this.viewCell.uri));
-				if (target?.position) {
-					this.templateData.editor.setPosition(target.position);
-					this.templateData.editor.focus();
-				}
-			}
-		}));
-
 		this._register(this.templateData.editor.onMouseDown(e => {
 			// prevent default on right mouse click, otherwise it will trigger unexpected focus changes
 			// the catch is, it means we don't allow customization of right button mouse down handlers other than the built in ones.
@@ -522,7 +486,6 @@ export class CodeCell extends Disposable {
 		this.viewCell.detachTextEditor();
 		this._removeInputCollapsePreview();
 		this._outputContainerRenderer.dispose();
-		this.templateData.focusIndicator.left.setHeight(0);
 		this._pendingLayout?.dispose();
 
 		super.dispose();

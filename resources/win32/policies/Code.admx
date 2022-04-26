@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitions revision="1.1" schemaVersion="1.0">
+  <policyNamespaces>
+    <target prefix="CodeOSS" namespace="Microsoft.Policies.CodeOSS" />
+  </policyNamespaces>
+  <resources minRequiredRevision="1.0" />
+  <supportedOn>
+    <definitions>
+      <definition name="SUPPORTED_1_67" displayName="$(string.SUPPORTED_1_67)" />
+    </definitions>
+  </supportedOn>
+  <categories>
+    <category displayName="$(string.Application)" name="Application" />
+    <category displayName="$(string.Update_group)" name="Update">
+      <parentCategory ref="Application" />
+    </category>
+  </categories>
+  <policies>
+    <policy name="UpdateMode" class="Both" displayName="$(string.UpdateMode)" explainText="$(string.UpdateMode_Explain)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.UpdateMode)">
+      <parentCategory ref="Update" />
+      <supportedOn ref="SUPPORTED_1_67" />
+      <elements>
+        <enum id="UpdateMode" valueName="UpdateMode">
+          <item displayName="$(string.UpdateMode_None)">
+            <value>
+              <string>none</string>
+            </value>
+          </item>
+          <item displayName="$(string.UpdateMode_Manual)">
+            <value>
+              <string>manual</string>
+            </value>
+          </item>
+          <item displayName="$(string.UpdateMode_Start)">
+            <value>
+              <string>start</string>
+            </value>
+          </item>
+          <item displayName="$(string.UpdateMode_Default)">
+            <value>
+              <string>default</string>
+            </value>
+          </item>
+        </enum>
+      </elements>
+    </policy>
+  </policies>
+</policyDefinitions>

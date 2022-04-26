@@ -12,6 +12,9 @@ import { mark, PerformanceMark } from 'vs/base/common/performance';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
 import { asArray } from 'vs/base/common/arrays';
+import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
+import { IObservableValue } from 'vs/base/common/observableValue';
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 
 let created = false;
 const workbenchPromise = new DeferredPromise<IWorkbench>();
@@ -108,7 +111,7 @@ export namespace env {
 	export async function getUriScheme(): Promise<string> {
 		const workbench = await workbenchPromise.p;
 
-		return workbench.env.uriScheme;
+		return workbench.env.getUriScheme();
 	}
 
 	/**
@@ -118,5 +121,23 @@ export namespace env {
 		const workbench = await workbenchPromise.p;
 
 		return workbench.env.openUri(target);
+	}
+
+	export const telemetryLevel: Promise<IObservableValue<TelemetryLevel>> =
+		workbenchPromise.p.then(workbench => workbench.env.telemetryLevel);
+}
+
+export namespace window {
+
+	/**
+	 * {@linkcode IWorkbench.window IWorkbench.window.withProgress}
+	 */
+	export async function withProgress<R>(
+		options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
+		task: (progress: IProgress<IProgressStep>) => Promise<R>
+	): Promise<R> {
+		const workbench = await workbenchPromise.p;
+
+		return workbench.window.withProgress(options, task);
 	}
 }

@@ -151,11 +151,23 @@ export class ExplorerService implements IExplorerService {
 		this.view = contextProvider;
 	}
 
-	getContext(respectMultiSelection: boolean): ExplorerItem[] {
+	getContext(respectMultiSelection: boolean, includeNestedChildren = false): ExplorerItem[] {
 		if (!this.view) {
 			return [];
 		}
-		return this.view.getContext(respectMultiSelection);
+
+		const items = new Set<ExplorerItem>(this.view.getContext(respectMultiSelection));
+		if (includeNestedChildren) {
+			items.forEach(item => {
+				if (item.nestedChildren) {
+					for (const child of item.nestedChildren) {
+						items.add(child);
+					}
+				}
+			});
+		}
+
+		return [...items];
 	}
 
 	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string; progressLabel: string; confirmBeforeUndo?: boolean; progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void> {
@@ -169,6 +181,7 @@ export class ExplorerService implements IExplorerService {
 			await this.bulkEditService.apply(edit, {
 				undoRedoSource: UNDO_REDO_SOURCE,
 				label: options.undoLabel,
+				code: 'undoredo.explorerOperation',
 				progress,
 				token: cancellationTokenSource.token,
 				confirmBeforeUndo: options.confirmBeforeUndo
@@ -221,7 +234,7 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	isCut(item: ExplorerItem): boolean {
-		return !!this.cutItems && this.cutItems.indexOf(item) >= 0;
+		return !!this.cutItems && this.cutItems.some(i => this.uriIdentityService.extUri.isEqual(i.resource, item.resource));
 	}
 
 	getEditable(): { stat: ExplorerItem; data: IEditableData } | undefined {
@@ -325,27 +338,30 @@ export class ExplorerService implements IExplorerService {
 			const newElement = e.target;
 			const oldParentResource = dirname(oldResource);
 			const newParentResource = dirname(newElement.resource);
+			const modelElements = this.model.findAll(oldResource);
+			const sameParentMove = modelElements.every(e => !e.nestedParent) && this.uriIdentityService.extUri.isEqual(oldParentResource, newParentResource);
 
 			// Handle Rename
-			if (this.uriIdentityService.extUri.isEqual(oldParentResource, newParentResource)) {
-				const modelElements = this.model.findAll(oldResource);
-				modelElements.forEach(async modelElement => {
+			if (sameParentMove) {
+				await Promise.all(modelElements.map(async modelElement => {
 					// Rename File (Model)
 					modelElement.rename(newElement);
 					await this.view?.refresh(false, modelElement.parent);
-				});
+				}));
 			}
 
 			// Handle Move
 			else {
 				const newParents = this.model.findAll(newParentResource);
-				const modelElements = this.model.findAll(oldResource);
-
 				if (newParents.length && modelElements.length) {
 					// Move in Model
 					await Promise.all(modelElements.map(async (modelElement, index) => {
 						const oldParent = modelElement.parent;
+						const oldNestedParent = modelElement.nestedParent;
 						modelElement.move(newParents[index]);
+						if (oldNestedParent) {
+							await this.view?.refresh(false, oldNestedParent);
+						}
 						await this.view?.refresh(false, oldParent);
 						await this.view?.refresh(false, newParents[index]);
 					}));
@@ -356,11 +372,17 @@ export class ExplorerService implements IExplorerService {
 		// Delete
 		else if (e.isOperation(FileOperation.DELETE)) {
 			const modelElements = this.model.findAll(e.resource);
-			await Promise.all(modelElements.map(async element => {
-				if (element.parent) {
-					const parent = element.parent;
+			await Promise.all(modelElements.map(async modelElement => {
+				if (modelElement.parent) {
 					// Remove Element from Parent (Model)
-					parent.removeChild(element);
+					const parent = modelElement.parent;
+					parent.removeChild(modelElement);
+
+					const oldNestedParent = modelElement.nestedParent;
+					if (oldNestedParent) {
+						oldNestedParent.removeChild(modelElement);
+						await this.view?.refresh(false, oldNestedParent);
+					}
 					// Refresh Parent (View)
 					await this.view?.refresh(false, parent);
 				}
@@ -371,7 +393,7 @@ export class ExplorerService implements IExplorerService {
 	private async onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): Promise<void> {
 		let shouldRefresh = false;
 
-		if (event?.affectedKeys.some(x => x.startsWith('explorer.experimental.fileNesting.'))) {
+		if (event?.affectedKeys.some(x => x.startsWith('explorer.fileNesting.'))) {
 			shouldRefresh = true;
 		}
 

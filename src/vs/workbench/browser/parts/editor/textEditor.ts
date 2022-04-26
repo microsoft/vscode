@@ -179,7 +179,7 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 	protected createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
 
 		// Use a getter for the instantiation service since some subclasses might use scoped instantiation services
-		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
+		return this.instantiationService.createInstance(CodeEditorWidget, parent, { enableDropIntoEditor: true, ...configuration }, {});
 	}
 
 	override async setInput(input: EditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {

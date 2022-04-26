@@ -83,9 +83,11 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 
 	public serializeNotebookToString(data: vscode.NotebookData): string {
 		const notebookContent = getNotebookMetadata(data);
+		// use the preferred language from document metadata or the first cell language as the notebook preferred cell language
+		const preferredCellLanguage = notebookContent.metadata?.language_info?.name ?? data.cells[0].languageId;
 
 		notebookContent.cells = data.cells
-			.map(cell => createJupyterCellFromNotebookCell(cell))
+			.map(cell => createJupyterCellFromNotebookCell(cell, preferredCellLanguage))
 			.map(pruneCell);
 
 		const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string' ?

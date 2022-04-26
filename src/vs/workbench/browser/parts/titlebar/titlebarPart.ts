@@ -12,7 +12,7 @@ import { getZoomFactor } from 'vs/base/browser/browser';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, toAction } from 'vs/base/common/actions';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
@@ -150,7 +150,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			}
 		}
 
-		if (this.titleBarStyle !== 'native' && this.windowControls && event.affectsConfiguration('workbench.experimental.layoutControl.enabled')) {
+		if (this.titleBarStyle !== 'native' && this.windowControls && event.affectsConfiguration('workbench.layoutControl.enabled')) {
 			this.windowControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
 		}
 	}
@@ -293,7 +293,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		// vscode-remtoe: use as is
 		// otherwise figure out if we have a virtual folder opened
 		let remoteName: string | undefined = undefined;
-		if (this.environmentService.remoteAuthority) {
+		if (this.environmentService.remoteAuthority && !isWeb) {
 			remoteName = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.remoteAuthority);
 		} else {
 			const virtualWorkspaceLocation = getVirtualWorkspaceLocation(workspace);
@@ -411,8 +411,15 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.layoutToolbar = new ToolBar(layoutDropdownContainer, this.contextMenuService, {
 				actionViewItemProvider: action => {
 					return createActionViewItem(this.instantiationService, action);
-				}
+				},
+				allowContextMenu: true
 			});
+
+			this._register(addDisposableListener(layoutDropdownContainer, EventType.CONTEXT_MENU, e => {
+				EventHelper.stop(e);
+
+				this.onLayoutControlContextMenu(e, layoutDropdownContainer);
+			}));
 
 
 			const menu = this._register(this.menuService.createMenu(MenuId.LayoutControlMenu, this.contextKeyService));
@@ -507,7 +514,6 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private onContextMenu(e: MouseEvent): void {
-
 		// Find target anchor
 		const event = new StandardMouseEvent(e);
 		const anchor = { x: event.posx, y: event.posy };
@@ -521,6 +527,28 @@ export class TitlebarPart extends Part implements ITitleService {
 			getAnchor: () => anchor,
 			getActions: () => actions,
 			onHide: () => dispose(actionsDisposable)
+		});
+	}
+
+	private onLayoutControlContextMenu(e: MouseEvent, el: HTMLElement): void {
+		// Find target anchor
+		const event = new StandardMouseEvent(e);
+		const anchor = { x: event.posx, y: event.posy };
+
+		const actions: IAction[] = [];
+		actions.push(toAction({
+			id: 'layoutControl.hide',
+			label: localize('layoutControl.hide', "Hide Layout Control"),
+			run: () => {
+				this.configurationService.updateValue('workbench.layoutControl.enabled', false);
+			}
+		}));
+
+		// Show it
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => actions,
+			domForShadowRoot: el
 		});
 	}
 
@@ -550,7 +578,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private get layoutControlEnabled(): boolean {
-		return this.configurationService.getValue<boolean>('workbench.experimental.layoutControl.enabled');
+		return this.configurationService.getValue<boolean>('workbench.layoutControl.enabled');
 	}
 
 	updateLayout(dimension: Dimension): void {

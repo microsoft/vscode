@@ -41,7 +41,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IOutputService, IOutputChannel } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService, IOutputChannel } from 'vs/workbench/services/output/common/output';
 
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -1700,7 +1700,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const taskFolder = task.getWorkspaceFolder();
 			const taskIdentifier = task.configurationProperties.identifier;
 			// Since we save before running tasks, the task may have changed as part of the save.
-			taskToRun = ((taskFolder && taskIdentifier) ? await this.getTask(taskFolder, taskIdentifier) : task) ?? task;
+			// However, if the TaskRunSource is not User, then we shouldn't try to fetch the task again
+			// since this can cause a new'd task to get overwritten with a provided task.
+			taskToRun = ((taskFolder && taskIdentifier && (runSource === TaskRunSource.User))
+				? await this.getTask(taskFolder, taskIdentifier) : task) ?? task;
 		}
 		await ProblemMatcherRegistry.onReady();
 		let executeResult = this.getTaskSystem().run(taskToRun, resolver);

@@ -430,11 +430,12 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 			// cap the amount of characters that we look at and use the following logic
 			// - for MD prefer headings (each header is an entry)
 			// - otherwise use the first none-empty line of the cell (MD or code)
-			let content = cell.getText().substring(0, 10_000);
+			let content = this._getCellFirstNonEmptyLine(cell);
 			let hasHeader = false;
 
 			if (isMarkdown) {
-				for (const token of marked.lexer(content, { gfm: true })) {
+				const fullContent = cell.getText().substring(0, 10_000);
+				for (const token of marked.lexer(fullContent, { gfm: true })) {
 					if (token.type === 'heading') {
 						hasHeader = true;
 						entries.push(new OutlineEntry(entries.length, token.depth, cell, renderMarkdownAsPlaintext({ value: token.text }).trim(), false, false));
@@ -556,6 +557,19 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 			this._activeEntry = newActive;
 			this._onDidChange.fire({ affectOnlyActiveElement: true });
 		}
+	}
+
+	private _getCellFirstNonEmptyLine(cell: ICellViewModel) {
+		const textBuffer = cell.textBuffer;
+		for (let i = 0; i < textBuffer.getLineCount(); i++) {
+			const firstNonWhitespace = textBuffer.getLineFirstNonWhitespaceColumn(i + 1);
+			const lineLength = textBuffer.getLineLength(i + 1);
+			if (firstNonWhitespace < lineLength) {
+				return textBuffer.getLineContent(i + 1);
+			}
+		}
+
+		return cell.getText().substring(0, 10_000);
 	}
 
 	get isEmpty(): boolean {

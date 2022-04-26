@@ -24,6 +24,14 @@ async function start() {
 		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port', 'compatibility'],
 		alias: { help: 'h', version: 'v' }
 	});
+	['host', 'port', 'accept-server-license-terms'].forEach(e => {
+		if (!parsedArgs[e]) {
+			const envValue = process.env[`VSCODE_SERVER_${e.toUpperCase().replace('-', '_')}`];
+			if (envValue) {
+				parsedArgs[e] = envValue;
+			}
+		}
+	});
 
 	const extensionLookupArgs = ['list-extensions', 'locate-extension'];
 	const extensionInstallArgs = ['install-extension', 'install-builtin-extension', 'uninstall-extension'];
@@ -271,6 +279,8 @@ async function findFreePort(host, start, end) {
 function loadCode() {
 	return new Promise((resolve, reject) => {
 		const path = require('path');
+
+		delete process.env['ELECTRON_RUN_AS_NODE']; // Keep bootstrap-amd.js from redefining 'fs'.
 
 		if (process.env['VSCODE_DEV']) {
 			// When running out of sources, we need to load node modules from remote/node_modules,

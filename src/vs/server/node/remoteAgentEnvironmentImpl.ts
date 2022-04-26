@@ -8,94 +8,57 @@ import * as platform from 'vs/base/common/platform';
 import * as performance from 'vs/base/common/performance';
 import { URI } from 'vs/base/common/uri';
 import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
-import { IRemoteAgentEnvironmentDTO, IGetEnvironmentDataArguments, IScanExtensionsArguments, IScanSingleExtensionArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
+import { IRemoteAgentEnvironmentDTO, IGetEnvironmentDataArguments, IScanExtensionsArguments, IScanSingleExtensionArguments, IGetExtensionHostExitInfoArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
 import * as nls from 'vs/nls';
-import { FileAccess, Schemas } from 'vs/base/common/network';
+import { Schemas } from 'vs/base/common/network';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
-import { ILog, Translations, ExtensionScanner, ExtensionScannerInput, IExtensionResolver, IExtensionReference, IExtensionScannerHost } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { transformOutgoingURIs } from 'vs/base/common/uriIpc';
 import { ILogService } from 'vs/platform/log/common/log';
-import { getNLSConfiguration, InternalNLSConfiguration } from 'vs/server/node/remoteLanguagePacks';
 import { ContextKeyExpr, ContextKeyDefinedExpr, ContextKeyNotExpr, ContextKeyEqualsExpr, ContextKeyNotEqualsExpr, ContextKeyRegexExpr, IContextKeyExprMapper, ContextKeyExpression, ContextKeyInExpr, ContextKeyGreaterExpr, ContextKeyGreaterEqualsExpr, ContextKeySmallerExpr, ContextKeySmallerEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { listProcesses } from 'vs/base/node/ps';
 import { getMachineInfo, collectWorkspaceStats } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { basename, isAbsolute, join, normalize } from 'vs/base/common/path';
+import { basename, isAbsolute, join, resolve } from 'vs/base/common/path';
 import { ProcessItem } from 'vs/base/common/processes';
-import { IBuiltInExtension } from 'vs/base/common/product';
 import { IExtensionManagementCLIService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { cwd } from 'vs/base/common/process';
-import * as pfs from 'vs/base/node/pfs';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
-
-let _SystemExtensionsRoot: string | null = null;
-function getSystemExtensionsRoot(): string {
-	if (!_SystemExtensionsRoot) {
-		_SystemExtensionsRoot = normalize(join(FileAccess.asFileUri('', require).fsPath, '..', 'extensions'));
-	}
-	return _SystemExtensionsRoot;
-}
-let _ExtraDevSystemExtensionsRoot: string | null = null;
-function getExtraDevSystemExtensionsRoot(): string {
-	if (!_ExtraDevSystemExtensionsRoot) {
-		_ExtraDevSystemExtensionsRoot = normalize(join(FileAccess.asFileUri('', require).fsPath, '..', '.build', 'builtInExtensions'));
-	}
-	return _ExtraDevSystemExtensionsRoot;
-}
+import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
+import { IExtensionsScannerService, toExtensionDescription } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 
 export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
 	private static _namePool = 1;
-	private readonly _logger: ILog;
-	private readonly _extensionScannerHost: IExtensionScannerHost;
 
 	private readonly whenExtensionsReady: Promise<void>;
 
 	constructor(
 		private readonly _connectionToken: ServerConnectionToken,
-		private readonly environmentService: IServerEnvironmentService,
+		private readonly _environmentService: IServerEnvironmentService,
 		extensionManagementCLIService: IExtensionManagementCLIService,
-		private readonly logService: ILogService,
-		private readonly productService: IProductService
+		private readonly _logService: ILogService,
+		private readonly _extensionHostStatusService: IExtensionHostStatusService,
+		private readonly _extensionsScannerService: IExtensionsScannerService,
 	) {
-		this._logger = new class implements ILog {
-			public error(source: string, message: string): void {
-				logService.error(source, message);
-			}
-			public warn(source: string, message: string): void {
-				logService.warn(source, message);
-			}
-			public info(source: string, message: string): void {
-				logService.info(source, message);
-			}
-		};
-		this._extensionScannerHost = {
-			log: this._logger,
-			readFile: (filename) => pfs.Promises.readFile(filename, 'utf8'),
-			existsFile: (filename) => pfs.SymlinkSupport.existsFile(filename),
-			readDirsInDir: (dirPath) => pfs.Promises.readDirsInDir(dirPath),
-		};
-
-		if (environmentService.args['install-builtin-extension']) {
-			const installOptions: InstallOptions = { isMachineScoped: !!environmentService.args['do-not-sync'], installPreReleaseVersion: !!environmentService.args['pre-release'] };
-			this.whenExtensionsReady = extensionManagementCLIService.installExtensions([], environmentService.args['install-builtin-extension'], installOptions, !!environmentService.args['force'])
+		if (_environmentService.args['install-builtin-extension']) {
+			const installOptions: InstallOptions = { isMachineScoped: !!_environmentService.args['do-not-sync'], installPreReleaseVersion: !!_environmentService.args['pre-release'] };
+			this.whenExtensionsReady = extensionManagementCLIService.installExtensions([], _environmentService.args['install-builtin-extension'], installOptions, !!_environmentService.args['force'])
 				.then(null, error => {
-					logService.error(error);
+					_logService.error(error);
 				});
 		} else {
 			this.whenExtensionsReady = Promise.resolve();
 		}
 
-		const extensionsToInstall = environmentService.args['install-extension'];
+		const extensionsToInstall = _environmentService.args['install-extension'];
 		if (extensionsToInstall) {
 			const idsOrVSIX = extensionsToInstall.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(cwd(), input)) : input);
 			this.whenExtensionsReady
-				.then(() => extensionManagementCLIService.installExtensions(idsOrVSIX, [], { isMachineScoped: !!environmentService.args['do-not-sync'], installPreReleaseVersion: !!environmentService.args['pre-release'] }, !!environmentService.args['force']))
+				.then(() => extensionManagementCLIService.installExtensions(idsOrVSIX, [], { isMachineScoped: !!_environmentService.args['do-not-sync'], installPreReleaseVersion: !!_environmentService.args['pre-release'] }, !!_environmentService.args['force']))
 				.then(null, error => {
-					logService.error(error);
+					_logService.error(error);
 				});
 		}
 	}
@@ -113,6 +76,11 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 				return environmentData;
 			}
 
+			case 'getExtensionHostExitInfo': {
+				const args = <IGetExtensionHostExitInfoArguments>arg;
+				return this._extensionHostStatusService.getExitInfo(args.reconnectionToken);
+			}
+
 			case 'whenExtensionsReady': {
 				await this.whenExtensionsReady;
 				return;
@@ -122,7 +90,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 				await this.whenExtensionsReady;
 				const args = <IScanExtensionsArguments>arg;
 				const language = args.language;
-				this.logService.trace(`Scanning extensions using UI language: ${language}`);
+				this._logService.trace(`Scanning extensions using UI language: ${language}`);
 				const uriTransformer = createURITransformer(args.remoteAuthority);
 
 				const extensionDevelopmentLocations = args.extensionDevelopmentPath && args.extensionDevelopmentPath.map(url => URI.revive(uriTransformer.transformIncoming(url)));
@@ -131,7 +99,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 				let extensions = await this._scanExtensions(language, extensionDevelopmentPath);
 				extensions = transformOutgoingURIs(extensions, uriTransformer);
 
-				this.logService.trace('Scanned Extensions', extensions);
+				this._logService.trace('Scanned Extensions', extensions);
 				RemoteAgentEnvironmentChannel._massageWhenConditions(extensions);
 
 				return extensions;
@@ -150,8 +118,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 					return null;
 				}
 
-				const translations = await this._getTranslations(language);
-				let extension = await this._scanSingleExtension(extensionPath, isBuiltin, language, translations);
+				let extension = await this._scanSingleExtension(extensionPath, isBuiltin, language);
 
 				if (!extension) {
 					return null;
@@ -318,43 +285,29 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		return {
 			pid: process.pid,
 			connectionToken: (this._connectionToken.type !== ServerConnectionTokenType.None ? this._connectionToken.value : ''),
-			appRoot: URI.file(this.environmentService.appRoot),
-			settingsPath: this.environmentService.machineSettingsResource,
-			logsPath: URI.file(this.environmentService.logsPath),
-			extensionsPath: URI.file(this.environmentService.extensionsPath!),
-			extensionHostLogsPath: URI.file(join(this.environmentService.logsPath, `exthost${RemoteAgentEnvironmentChannel._namePool++}`)),
-			globalStorageHome: this.environmentService.globalStorageHome,
-			workspaceStorageHome: this.environmentService.workspaceStorageHome,
-			userHome: this.environmentService.userHome,
+			appRoot: URI.file(this._environmentService.appRoot),
+			settingsPath: this._environmentService.machineSettingsResource,
+			logsPath: URI.file(this._environmentService.logsPath),
+			extensionsPath: URI.file(this._environmentService.extensionsPath!),
+			extensionHostLogsPath: URI.file(join(this._environmentService.logsPath, `exthost${RemoteAgentEnvironmentChannel._namePool++}`)),
+			globalStorageHome: this._environmentService.globalStorageHome,
+			workspaceStorageHome: this._environmentService.workspaceStorageHome,
+			localHistoryHome: this._environmentService.localHistoryHome,
+			userHome: this._environmentService.userHome,
 			os: platform.OS,
 			arch: process.arch,
 			marks: performance.getMarks(),
-			useHostProxy: !!this.environmentService.args['use-host-proxy']
+			useHostProxy: !!this._environmentService.args['use-host-proxy']
 		};
-	}
-
-	private async _getTranslations(language: string): Promise<Translations> {
-		const config = await getNLSConfiguration(language, this.environmentService.userDataPath);
-		if (InternalNLSConfiguration.is(config)) {
-			try {
-				const content = await pfs.Promises.readFile(config._translationsConfigFile, 'utf8');
-				return JSON.parse(content);
-			} catch (err) {
-				return Object.create(null);
-			}
-		} else {
-			return Object.create(null);
-		}
 	}
 
 	private async _scanExtensions(language: string, extensionDevelopmentPath?: string[]): Promise<IExtensionDescription[]> {
 		// Ensure that the language packs are available
-		const translations = await this._getTranslations(language);
 
 		const [builtinExtensions, installedExtensions, developedExtensions] = await Promise.all([
-			this._scanBuiltinExtensions(language, translations),
-			this._scanInstalledExtensions(language, translations),
-			this._scanDevelopedExtensions(language, translations, extensionDevelopmentPath)
+			this._scanBuiltinExtensions(language),
+			this._scanInstalledExtensions(language),
+			this._scanDevelopedExtensions(language, extensionDevelopmentPath)
 		]);
 
 		let result = new Map<string, IExtensionDescription>();
@@ -388,102 +341,30 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		return r;
 	}
 
-	private _scanDevelopedExtensions(language: string, translations: Translations, extensionDevelopmentPaths?: string[]): Promise<IExtensionDescription[]> {
-
+	private async _scanDevelopedExtensions(language: string, extensionDevelopmentPaths?: string[]): Promise<IExtensionDescription[]> {
 		if (extensionDevelopmentPaths) {
-
-			const extDescsP = extensionDevelopmentPaths.map(extDevPath => {
-				return ExtensionScanner.scanOneOrMultipleExtensions(
-					new ExtensionScannerInput(
-						this.productService.version,
-						this.productService.date,
-						this.productService.commit,
-						language,
-						true, // dev mode
-						extDevPath,
-						false, // isBuiltin
-						true, // isUnderDevelopment
-						translations // translations
-					),
-					this._extensionScannerHost
-				);
-			});
-
-			return Promise.all(extDescsP).then((extDescArrays: IExtensionDescription[][]) => {
-				let extDesc: IExtensionDescription[] = [];
-				for (let eds of extDescArrays) {
-					extDesc = extDesc.concat(eds);
-				}
-				return extDesc;
-			});
+			return (await Promise.all(extensionDevelopmentPaths.map(extensionDevelopmentPath => this._extensionsScannerService.scanOneOrMultipleExtensions(URI.file(resolve(extensionDevelopmentPath)), ExtensionType.User, { language }))))
+				.flat()
+				.map(e => toExtensionDescription(e, true));
 		}
-		return Promise.resolve([]);
+		return [];
 	}
 
-	private _scanBuiltinExtensions(language: string, translations: Translations): Promise<IExtensionDescription[]> {
-		const version = this.productService.version;
-		const commit = this.productService.commit;
-		const date = this.productService.date;
-		const devMode = !!process.env['VSCODE_DEV'];
-
-		const input = new ExtensionScannerInput(version, date, commit, language, devMode, getSystemExtensionsRoot(), true, false, translations);
-		const builtinExtensions = ExtensionScanner.scanExtensions(input, this._extensionScannerHost);
-		let finalBuiltinExtensions: Promise<IExtensionDescription[]> = builtinExtensions;
-
-		if (devMode) {
-
-			class ExtraBuiltInExtensionResolver implements IExtensionResolver {
-				constructor(private builtInExtensions: IBuiltInExtension[]) { }
-				resolveExtensions(): Promise<IExtensionReference[]> {
-					return Promise.resolve(this.builtInExtensions.map((ext) => {
-						return { name: ext.name, path: join(getExtraDevSystemExtensionsRoot(), ext.name) };
-					}));
-				}
-			}
-
-			const builtInExtensions = Promise.resolve(this.productService.builtInExtensions || []);
-
-			const input = new ExtensionScannerInput(version, date, commit, language, devMode, getExtraDevSystemExtensionsRoot(), true, false, {});
-			const extraBuiltinExtensions = builtInExtensions
-				.then((builtInExtensions) => new ExtraBuiltInExtensionResolver(builtInExtensions))
-				.then(resolver => ExtensionScanner.scanExtensions(input, this._extensionScannerHost, resolver));
-
-			finalBuiltinExtensions = ExtensionScanner.mergeBuiltinExtensions(builtinExtensions, extraBuiltinExtensions);
-		}
-
-		return finalBuiltinExtensions;
+	private async _scanBuiltinExtensions(language: string): Promise<IExtensionDescription[]> {
+		const scannedExtensions = await this._extensionsScannerService.scanSystemExtensions({ language, useCache: true });
+		return scannedExtensions.map(e => toExtensionDescription(e, false));
 	}
 
-	private _scanInstalledExtensions(language: string, translations: Translations): Promise<IExtensionDescription[]> {
-		const devMode = !!process.env['VSCODE_DEV'];
-		const input = new ExtensionScannerInput(
-			this.productService.version,
-			this.productService.date,
-			this.productService.commit,
-			language,
-			devMode,
-			this.environmentService.extensionsPath!,
-			false, // isBuiltin
-			false, // isUnderDevelopment
-			translations
-		);
-
-		return ExtensionScanner.scanExtensions(input, this._extensionScannerHost);
+	private async _scanInstalledExtensions(language: string): Promise<IExtensionDescription[]> {
+		const scannedExtensions = await this._extensionsScannerService.scanUserExtensions({ language, useCache: true });
+		return scannedExtensions.map(e => toExtensionDescription(e, false));
 	}
 
-	private _scanSingleExtension(extensionPath: string, isBuiltin: boolean, language: string, translations: Translations): Promise<IExtensionDescription | null> {
-		const devMode = !!process.env['VSCODE_DEV'];
-		const input = new ExtensionScannerInput(
-			this.productService.version,
-			this.productService.date,
-			this.productService.commit,
-			language,
-			devMode,
-			extensionPath,
-			isBuiltin,
-			false, // isUnderDevelopment
-			translations
-		);
-		return ExtensionScanner.scanSingleExtension(input, this._extensionScannerHost);
+	private async _scanSingleExtension(extensionPath: string, isBuiltin: boolean, language: string): Promise<IExtensionDescription | null> {
+		const extensionLocation = URI.file(resolve(extensionPath));
+		const type = isBuiltin ? ExtensionType.System : ExtensionType.User;
+		const scannedExtension = await this._extensionsScannerService.scanExistingExtension(extensionLocation, type, { language });
+		return scannedExtension ? toExtensionDescription(scannedExtension, false) : null;
 	}
+
 }

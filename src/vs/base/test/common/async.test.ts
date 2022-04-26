@@ -562,8 +562,8 @@ suite('Async', () => {
 		test('events', async function () {
 			let queue = new async.Queue();
 
-			let finished = false;
-			const onFinished = Event.toPromise(queue.onFinished).then(() => finished = true);
+			let drained = false;
+			const onDrained = Event.toPromise(queue.onDrained).then(() => drained = true);
 
 			let res: number[] = [];
 
@@ -576,14 +576,14 @@ suite('Async', () => {
 			queue.queue(f3);
 
 			q1.then(() => {
-				assert.ok(!finished);
+				assert.ok(!drained);
 				q2.then(() => {
-					assert.ok(!finished);
+					assert.ok(!drained);
 				});
 			});
 
-			await onFinished;
-			assert.ok(finished);
+			await onDrained;
+			assert.ok(drained);
 		});
 	});
 

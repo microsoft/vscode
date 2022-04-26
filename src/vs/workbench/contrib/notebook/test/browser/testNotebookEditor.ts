@@ -37,8 +37,7 @@ import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/work
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { CellFindMatchWithIndex, IActiveNotebookEditorDelegate, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
+import { ListViewInfoAccessor, NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
@@ -54,6 +53,7 @@ import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServic
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { ResourceMap } from 'vs/base/common/map';
 import { TestClipboardService } from 'vs/platform/clipboard/test/common/testClipboardService';
+import { IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -72,7 +72,7 @@ export class TestCell extends NotebookCellTextModel {
 export class NotebookEditorTestModel extends EditorModel implements INotebookEditorModel {
 	private _dirty = false;
 
-	protected readonly _onDidSave = this._register(new Emitter<void>());
+	protected readonly _onDidSave = this._register(new Emitter<IWorkingCopySaveEvent>());
 	readonly onDidSave = this._onDidSave.event;
 
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
@@ -93,7 +93,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		return this._notebook.uri;
 	}
 
-	get notebook() {
+	get notebook(): NotebookTextModel {
 		return this._notebook;
 	}
 
@@ -139,7 +139,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		if (this._notebook) {
 			this._dirty = false;
 			this._onDidChangeDirty.fire();
-			this._onDidSave.fire();
+			this._onDidSave.fire({});
 			// todo, flush all states
 			return true;
 		}

@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 function getCapabilityName(capability: TerminalCapability): string | undefined {
 	switch (capability) {

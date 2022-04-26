@@ -20,6 +20,9 @@ export interface WebviewFindDelegate {
 }
 
 export class WebviewFindWidget extends SimpleFindWidget {
+	protected async _getResultCount(dataChanged?: boolean): Promise<{ resultIndex: number; resultCount: number } | undefined> {
+		return undefined;
+	}
 
 	protected readonly _findWidgetFocused: IContextKey<boolean>;
 
@@ -28,7 +31,7 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(contextViewService, contextKeyService, undefined, false, _delegate.checkImeCompletionState);
+		super(contextViewService, contextKeyService, undefined, { showOptionButtons: false, checkImeCompletionState: _delegate.checkImeCompletionState });
 		this._findWidgetFocused = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 
 		this._register(_delegate.hasFindResult(hasResult => {
