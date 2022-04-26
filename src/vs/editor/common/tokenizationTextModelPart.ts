@@ -21,11 +21,13 @@ export interface ITokenizationTextModelPart {
 	setTokens(tokens: ContiguousMultilineTokens[]): void;
 
 	/**
+	 * Replaces all semantic tokens with the provided `tokens`.
 	 * @internal
 	 */
 	setSemanticTokens(tokens: SparseMultilineTokens[] | null, isComplete: boolean): void;
 
 	/**
+	 * Merges the provided semantic tokens into existing semantic tokens.
 	 * @internal
 	 */
 	setPartialSemanticTokens(range: Range, tokens: SparseMultilineTokens[] | null): void;
