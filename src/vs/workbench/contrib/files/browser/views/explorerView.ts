@@ -56,7 +56,6 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorOpenSource } from 'vs/platform/editor/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
 
@@ -188,7 +187,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExplorerService private readonly explorerService: IExplorerService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IFileService private readonly fileService: IFileService,
@@ -625,23 +623,9 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const toRefresh = item || this.tree.getInput();
-		if (this.configurationService.getValue<IFilesConfiguration>({ resource: item?.root.resource }).explorer.fileNesting.enabled) {
-			return (async () => {
-				try {
-					await this.tree.updateChildren(toRefresh, recursive, false, {
-						diffIdentityProvider: identityProvider
-					});
-				} catch (e) {
-					this.notificationService.error('Internal error in file explorer. This may be due to experimental file nesting.');
-					console.error('Unepxected error', e, 'in refreshing explorer. This may be due to experimental file nesting.');
-					return;
-				}
-			})();
-		} else {
-			return this.tree.updateChildren(toRefresh, recursive, false, {
-				diffIdentityProvider: identityProvider
-			});
-		}
+		return this.tree.updateChildren(toRefresh, recursive, false, {
+			diffIdentityProvider: identityProvider
+		});
 	}
 
 	override getOptimalWidth(): number {
