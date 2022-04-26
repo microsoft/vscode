@@ -75,6 +75,7 @@ export const explorerRootErrorEmitter = new Emitter<URI>();
 export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | ExplorerItem[], ExplorerItem> {
 
 	constructor(
+		private fileFilter: FilesFilter,
 		@IProgressService private readonly progressService: IProgressService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -85,7 +86,8 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 	) { }
 
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
-		return Array.isArray(element) || element.hasChildren;
+		// don't render nest parents as containing children when all the children are filtered out
+		return Array.isArray(element) || element.hasChildren((stat) => this.fileFilter.filter(stat, TreeVisibility.Visible));
 	}
 
 	getChildren(element: ExplorerItem | ExplorerItem[]): ExplorerItem[] | Promise<ExplorerItem[]> {
