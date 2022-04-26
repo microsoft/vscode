@@ -49,25 +49,22 @@ export function getPathLabel(resource: URI, userHomeProvider?: IUserHomeProvider
 
 			if (hasMultipleRoots) {
 				const rootName = baseResource.name ? baseResource.name : basename(baseResource.uri);
-				pathLabel = pathLabel ? (rootName + ' • ' + pathLabel) : rootName; // always show root basename if there are multiple
+				pathLabel = pathLabel ? `${rootName} • ${pathLabel}` : rootName; // always show root basename if there are multiple
 			}
 
 			return pathLabel;
 		}
 	}
 
-	// return if the resource is neither file:// nor untitled:// and no baseResource was provided
-	if (resource.scheme !== Schemas.file && resource.scheme !== Schemas.untitled) {
-		return resource.with({ query: null, fragment: null }).toString(true);
-	}
-
-	// convert c:\something => C:\something
-	if (hasDriveLetter(resource.fsPath)) {
-		return normalize(normalizeDriveLetter(resource.fsPath));
-	}
-
-	// normalize and tildify (macOS, Linux only)
+	// normalize
 	let res = normalize(resource.fsPath);
+
+	// Windows: normalize drive letter
+	if (hasDriveLetter(res)) {
+		res = normalizeDriveLetter(res);
+	}
+
+	// macOS/Linux: tildify
 	if (!isWindows && userHomeProvider?.userHome) {
 		res = tildify(res, userHomeProvider.userHome.fsPath);
 	}
