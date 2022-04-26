@@ -140,7 +140,6 @@ function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyServic
 export class SuggestModel implements IDisposable {
 
 	private readonly _toDispose = new DisposableStore();
-	private _quickSuggestDelay: number = 10;
 	private readonly _triggerCharacterListener = new DisposableStore();
 	private readonly _triggerQuickSuggest = new TimeoutTimer();
 	private _state: State = State.Idle;
@@ -182,7 +181,6 @@ export class SuggestModel implements IDisposable {
 		}));
 		this._toDispose.add(this._editor.onDidChangeConfiguration(() => {
 			this._updateTriggerCharacters();
-			this._updateQuickSuggest();
 		}));
 		this._toDispose.add(this._languageFeaturesService.completionProvider.onDidChange(() => {
 			this._updateTriggerCharacters();
@@ -213,7 +211,6 @@ export class SuggestModel implements IDisposable {
 		}));
 
 		this._updateTriggerCharacters();
-		this._updateQuickSuggest();
 	}
 
 	dispose(): void {
@@ -222,16 +219,6 @@ export class SuggestModel implements IDisposable {
 		this._toDispose.dispose();
 		this._completionDisposables.dispose();
 		this.cancel();
-	}
-
-	// --- handle configuration & precondition changes
-
-	private _updateQuickSuggest(): void {
-		this._quickSuggestDelay = this._editor.getOption(EditorOption.quickSuggestionsDelay);
-
-		if (isNaN(this._quickSuggestDelay) || (!this._quickSuggestDelay && this._quickSuggestDelay !== 0) || this._quickSuggestDelay < 0) {
-			this._quickSuggestDelay = 10;
-		}
 	}
 
 	private _updateTriggerCharacters(): void {
@@ -395,7 +382,7 @@ export class SuggestModel implements IDisposable {
 			if (!LineContext.shouldAutoTrigger(this._editor)) {
 				return;
 			}
-			if (!this._editor.hasModel()) {
+			if (!this._editor.hasModel() || !this._editor.hasWidgetFocus()) {
 				return;
 			}
 			const model = this._editor.getModel();
@@ -428,7 +415,7 @@ export class SuggestModel implements IDisposable {
 			// we made it till here -> trigger now
 			this.trigger({ auto: true, shy: false });
 
-		}, this._quickSuggestDelay);
+		}, this._editor.getOption(EditorOption.quickSuggestionsDelay));
 	}
 
 	private _refilterCompletionItems(): void {

@@ -992,7 +992,7 @@ export class CodeApplication extends Disposable {
 				],
 				defaultId: 0,
 				cancelId: 1,
-				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri.fsPath, this.environmentMainService), this.productService.nameShort),
+				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri, this.environmentMainService), this.productService.nameShort),
 				detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
 				noLink: true
 			});
@@ -1141,7 +1141,7 @@ export class CodeApplication extends Disposable {
 		// Initialize update service
 		const updateService = accessor.get(IUpdateService);
 		if (updateService instanceof Win32UpdateService || updateService instanceof LinuxUpdateService || updateService instanceof DarwinUpdateService) {
-			updateService.initialize();
+			await updateService.initialize();
 		}
 
 		// Start to fetch shell environment (if needed) after window has opened

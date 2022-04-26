@@ -19,13 +19,14 @@ import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHost, ExtensionHostKind, ActivationKind, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostKind, ActivationKind, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, ExtensionRunningLocation, ExtensionHostExtensions } from 'vs/workbench/services/extensions/common/extensions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Barrier, timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
+import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -39,7 +40,7 @@ export interface IExtensionHostManager {
 	dispose(): void;
 	ready(): Promise<void>;
 	representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean;
-	deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
+	deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void>;
 	containsExtension(extensionId: ExtensionIdentifier): boolean;
 	activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
 	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
@@ -50,7 +51,7 @@ export interface IExtensionHostManager {
 	 * Returns `null` if no resolver for `remoteAuthority` is found.
 	 */
 	getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI | null>;
-	start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
+	start(allExtensions: IExtensionDescription[], myExtensions: ExtensionIdentifier[]): Promise<void>;
 	extensionTestsExecute(): Promise<number>;
 	extensionTestsSendExit(exitCode: number): Promise<void>;
 	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
@@ -398,13 +399,13 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		return proxy.getCanonicalURI(remoteAuthority, uri);
 	}
 
-	public async start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
+	public async start(allExtensions: IExtensionDescription[], myExtensions: ExtensionIdentifier[]): Promise<void> {
 		const proxy = await this._proxy;
 		if (!proxy) {
 			return;
 		}
-		this._extensionHost.extensions.keepOnly(enabledExtensionIds);
-		return proxy.startExtensionHost(enabledExtensionIds);
+		const deltaExtensions = this._extensionHost.extensions.set(allExtensions, myExtensions);
+		return proxy.startExtensionHost(deltaExtensions);
 	}
 
 	public async extensionTestsExecute(): Promise<number> {
@@ -433,13 +434,13 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		return this._extensionHost.runningLocation.equals(runningLocation);
 	}
 
-	public async deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
+	public async deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
 		const proxy = await this._proxy;
 		if (!proxy) {
 			return;
 		}
-		this._extensionHost.extensions.deltaExtensions(toAdd, toRemove);
-		return proxy.deltaExtensions(toAdd, toRemove);
+		this._extensionHost.extensions.delta(extensionsDelta);
+		return proxy.deltaExtensions(extensionsDelta);
 	}
 
 	public containsExtension(extensionId: ExtensionIdentifier): boolean {
@@ -468,6 +469,7 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 	private readonly _extensionHost: IExtensionHost;
 	private _startCalled: Barrier;
 	private _actual: ExtensionHostManager | null;
+	private _lazyStartExtensions: ExtensionHostExtensions | null;
 
 	public get kind(): ExtensionHostKind {
 		return this._extensionHost.runningLocation.kind;
@@ -485,6 +487,7 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 		this.onDidExit = extensionHost.onExit;
 		this._startCalled = new Barrier();
 		this._actual = null;
+		this._lazyStartExtensions = null;
 	}
 
 	private _createActual(reason: string): ExtensionHostManager {
@@ -500,7 +503,7 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 			return this._actual;
 		}
 		const actual = this._createActual(reason);
-		await actual.start([]);
+		await actual.start([], []);
 		return actual;
 	}
 
@@ -513,13 +516,17 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 	public representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean {
 		return this._extensionHost.runningLocation.equals(runningLocation);
 	}
-	public async deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
+	public async deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
 		await this._startCalled.wait();
-		const extensionHostAlreadyStarted = Boolean(this._actual);
-		const shouldStartExtensionHost = (toAdd.length > 0);
-		if (extensionHostAlreadyStarted || shouldStartExtensionHost) {
-			const actual = await this._getOrCreateActualAndStart(`contains ${toAdd.length} new extension(s) (installed or enabled): ${toAdd.map(ext => ext.identifier.value)}`);
-			return actual.deltaExtensions(toAdd, toRemove);
+		if (this._actual) {
+			return this._actual.deltaExtensions(extensionsDelta);
+		}
+		this._lazyStartExtensions!.delta(extensionsDelta);
+		if (extensionsDelta.myToAdd.length > 0) {
+			const actual = this._createActual(`contains ${extensionsDelta.myToAdd.length} new extension(s) (installed or enabled): ${extensionsDelta.myToAdd.map(extId => extId.value)}`);
+			const { toAdd, myToAdd } = this._lazyStartExtensions!.toDelta();
+			actual.start(toAdd, myToAdd);
+			return;
 		}
 	}
 	public containsExtension(extensionId: ExtensionIdentifier): boolean {
@@ -582,15 +589,17 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 		}
 		throw new Error(`Cannot resolve canonical URI`);
 	}
-	public async start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
-		if (enabledExtensionIds.length > 0) {
+	public async start(allExtensions: IExtensionDescription[], myExtensions: ExtensionIdentifier[]): Promise<void> {
+		if (myExtensions.length > 0) {
 			// there are actual extensions, so let's launch the extension host
-			const actual = this._createActual(`contains ${enabledExtensionIds.length} extension(s): ${enabledExtensionIds.map(extId => extId.value)}.`);
-			const result = actual.start(enabledExtensionIds);
+			const actual = this._createActual(`contains ${myExtensions.length} extension(s): ${myExtensions.map(extId => extId.value)}.`);
+			const result = actual.start(allExtensions, myExtensions);
 			this._startCalled.open();
 			return result;
 		}
-		// there are no actual extensions
+		// there are no actual extensions running, store extensions in `this._lazyStartExtensions`
+		this._lazyStartExtensions = new ExtensionHostExtensions();
+		this._lazyStartExtensions.set(allExtensions, myExtensions);
 		this._startCalled.open();
 	}
 	public async extensionTestsExecute(): Promise<number> {

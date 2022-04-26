@@ -12,6 +12,7 @@ import * as process from 'vs/base/common/process';
 import { format } from 'vs/base/common/strings';
 import { isString } from 'vs/base/common/types';
 import * as pfs from 'vs/base/node/pfs';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 
 export function getWindowsBuildNumber(): number {
@@ -102,13 +103,14 @@ export interface IShellIntegrationConfigInjection {
  */
 export function getShellIntegrationInjection(
 	shellLaunchConfig: IShellLaunchConfig,
-	options: ITerminalProcessOptions['shellIntegration']
+	options: ITerminalProcessOptions['shellIntegration'],
+	logService: ILogService
 ): IShellIntegrationConfigInjection | undefined {
 	// Shell integration arg injection is disabled when:
 	// - The global setting is disabled
 	// - There is no executable (not sure what script to run)
 	// - The terminal is used by a feature like tasks or debugging
-	if (!options.enabled || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal) {
+	if (!options.enabled || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal || shellLaunchConfig.hideFromUser) {
 		return undefined;
 	}
 
@@ -135,6 +137,7 @@ export function getShellIntegrationInjection(
 			}
 			return { newArgs };
 		}
+		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
 		return undefined;
 	}
 
@@ -193,13 +196,21 @@ export function getShellIntegrationInjection(
 				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh'),
 				dest: path.join(zdotdir, '.zshrc')
 			});
+			filesToCopy.push({
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-profile.zsh'),
+				dest: path.join(zdotdir, '.zprofile')
+			});
+			filesToCopy.push({
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-env.zsh'),
+				dest: path.join(zdotdir, '.zshenv')
+			});
 			if (!options.showWelcome) {
 				envMixin['VSCODE_SHELL_HIDE_WELCOME'] = '1';
 			}
 			return { newArgs, envMixin, filesToCopy };
 		}
 	}
-
+	logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
 	return undefined;
 }
 

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources revision="1.0" schemaVersion="1.0">
+  <displayName />
+  <description />
+  <resources>
+    <stringTable>
+      <string id="SUPPORTED_1_67">Code - OSS 1.67 or later</string>
+      <string id="Application">Code - OSS</string>
+      <string id="Update_group">Update</string>
+      <string id="UpdateMode">Update Mode</string>
+      <string id="UpdateMode_Explain">Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service.</string>
+      <string id="UpdateMode_None">Disable updates.</string>
+      <string id="UpdateMode_Manual">Disable automatic background update checks. Updates will be available if you manually check for updates.</string>
+      <string id="UpdateMode_Start">Check for updates only on startup. Disable automatic background update checks.</string>
+      <string id="UpdateMode_Default">Enable automatic update checks. Code will check for updates automatically and periodically.</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="UpdateMode">
+        <dropdownList refId="UpdateMode" />
+      </presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LRUCachedComputed } from 'vs/base/common/cache';
+import { LRUCachedFunction } from 'vs/base/common/cache';
 import { CharCode } from 'vs/base/common/charCode';
 import { Lazy } from 'vs/base/common/lazy';
 import { Constants } from 'vs/base/common/uint';
@@ -1075,7 +1075,7 @@ export class AmbiguousCharacters {
 		);
 	});
 
-	private static readonly cache = new LRUCachedComputed<
+	private static readonly cache = new LRUCachedFunction<
 		string[],
 		AmbiguousCharacters
 	>((locales) => {

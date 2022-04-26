@@ -30,6 +30,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorOpenSource } from 'vs/platform/editor/common/editor';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
@@ -51,7 +52,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		@IPathService private readonly pathService: IPathService,
 		@ICommandService protected readonly commandService: ICommandService,
 		@IEditorService protected readonly editorService: IEditorService,
-		@ICodeEditorService protected readonly codeEditorService: ICodeEditorService
+		@ICodeEditorService protected readonly codeEditorService: ICodeEditorService,
+		@ILogService private readonly logService: ILogService
 	) { }
 
 	async defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
@@ -85,17 +87,18 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 		if (!candidate) {
 			return this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
-		} else {
-			return resources.dirname(candidate);
 		}
+
+		return resources.dirname(candidate);
 	}
 
 	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow(), filename?: string): Promise<URI> {
 		let defaultWorkspacePath: URI | undefined;
+
 		// Check for current workspace config file first...
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configuration = this.contextService.getWorkspace().configuration;
-			if (configuration && configuration.scheme === schemeFilter && isSavedWorkspace(configuration, this.environmentService)) {
+			if (configuration?.scheme === schemeFilter && isSavedWorkspace(configuration, this.environmentService)) {
 				defaultWorkspacePath = resources.dirname(configuration) || undefined;
 			}
 		}
@@ -113,11 +116,22 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	async showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
-		if (this.environmentService.isExtensionDevelopment && this.environmentService.extensionTestsLocationURI) {
-			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev testing mode because we cannot assume we run interactive
+		if (this.skipDialogs()) {
+			this.logService.trace('FileDialogService: refused to show save confirmation dialog in tests.');
+
+			// no veto when we are in extension dev testing mode because we cannot assume we run interactive
+			return ConfirmResult.DONT_SAVE;
 		}
 
 		return this.doShowSaveConfirm(fileNamesOrResources);
+	}
+
+	private skipDialogs(): boolean {
+		if (this.environmentService.isExtensionDevelopment && this.environmentService.extensionTestsLocationURI) {
+			return true; // integration tests
+		}
+
+		return !!this.environmentService.enableSmokeTestDriver; // smoke tests
 	}
 
 	private async doShowSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
@@ -195,8 +209,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected addFileToRecentlyOpened(uri: URI): void {
+
 		// add the picked file into the list of recently opened
 		// only if it is outside the currently opened workspace
+
 		if (!this.contextService.isInsideWorkspace(uri)) {
 			this.workspacesService.addRecentlyOpened([{ fileUri: uri, label: this.labelService.getUriLabel(uri) }]);
 		}

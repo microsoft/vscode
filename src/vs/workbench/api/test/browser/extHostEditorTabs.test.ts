@@ -229,10 +229,10 @@ suite('ExtHostEditorTabs', function () {
 		let all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 1);
 		const apiTab1 = all[0];
-		assert.ok(apiTab1.kind instanceof TextTabInput);
+		assert.ok(apiTab1.input instanceof TextTabInput);
 		assert.strictEqual(tabDto.input.kind, TabInputKind.TextInput);
 		const dtoResource = (tabDto.input as TextInputDto).uri;
-		assert.strictEqual(apiTab1.kind.uri.toString(), URI.revive(dtoResource).toString());
+		assert.strictEqual(apiTab1.input.uri.toString(), URI.revive(dtoResource).toString());
 		assert.strictEqual(apiTab1.isDirty, true);
 
 
@@ -250,8 +250,8 @@ suite('ExtHostEditorTabs', function () {
 		all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 1);
 		const apiTab2 = all[0];
-		assert.ok(apiTab1.kind instanceof TextTabInput);
-		assert.strictEqual(apiTab1.kind.uri.toString(), URI.revive(dtoResource).toString());
+		assert.ok(apiTab1.input instanceof TextTabInput);
+		assert.strictEqual(apiTab1.input.uri.toString(), URI.revive(dtoResource).toString());
 		assert.strictEqual(apiTab2.isDirty, false);
 
 		assert.strictEqual(apiTab1 === apiTab2, true);
@@ -297,10 +297,10 @@ suite('ExtHostEditorTabs', function () {
 		assert.strictEqual(all.length, 2);
 
 		const activeTab1 = extHostEditorTabs.tabGroups.activeTabGroup?.activeTab;
-		assert.ok(activeTab1?.kind instanceof TextTabInput);
+		assert.ok(activeTab1?.input instanceof TextTabInput);
 		assert.strictEqual(tabDtoAAA.input.kind, TabInputKind.TextInput);
 		const dtoAAAResource = (tabDtoAAA.input as TextInputDto).uri;
-		assert.strictEqual(activeTab1?.kind?.uri.toString(), URI.revive(dtoAAAResource)?.toString());
+		assert.strictEqual(activeTab1?.input?.uri.toString(), URI.revive(dtoAAAResource)?.toString());
 		assert.strictEqual(activeTab1?.isActive, true);
 
 		extHostEditorTabs.$acceptTabOperation({
@@ -311,10 +311,10 @@ suite('ExtHostEditorTabs', function () {
 		});
 
 		const activeTab2 = extHostEditorTabs.tabGroups.activeTabGroup?.activeTab;
-		assert.ok(activeTab2?.kind instanceof TextTabInput);
+		assert.ok(activeTab2?.input instanceof TextTabInput);
 		assert.strictEqual(tabDtoBBB.input.kind, TabInputKind.TextInput);
 		const dtoBBBResource = (tabDtoBBB.input as TextInputDto).uri;
-		assert.strictEqual(activeTab2?.kind?.uri.toString(), URI.revive(dtoBBBResource)?.toString());
+		assert.strictEqual(activeTab2?.input?.uri.toString(), URI.revive(dtoBBBResource)?.toString());
 		assert.strictEqual(activeTab2?.isActive, true);
 		assert.strictEqual(activeTab1?.isActive, false);
 	});

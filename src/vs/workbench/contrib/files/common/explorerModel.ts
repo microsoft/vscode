@@ -298,7 +298,7 @@ export class ExplorerItem {
 	}
 
 	fetchChildren(sortOrder: SortOrder): ExplorerItem[] | Promise<ExplorerItem[]> {
-		const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.experimental.fileNesting;
+		const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.fileNesting;
 
 		// fast path when the children can be resolved sync
 		if (nestingConfig.enabled && this.nestedChildren) {
@@ -369,7 +369,7 @@ export class ExplorerItem {
 	private _fileNester: ExplorerFileNestingTrie | undefined;
 	private get fileNester(): ExplorerFileNestingTrie {
 		if (!this.root._fileNester) {
-			const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.experimental.fileNesting;
+			const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.fileNesting;
 			const patterns = Object.entries(nestingConfig.patterns)
 				.filter(entry =>
 					typeof (entry[0]) === 'string' && typeof (entry[1]) === 'string' && entry[0] && entry[1])

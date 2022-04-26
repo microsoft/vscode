@@ -121,7 +121,8 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 
 			quote = (s: string) => {
 				s = s.replace(/\"/g, '""');
-				return (' "><!^&'.split('').some(char => s.includes(char)) || s.length === 0) ? `"${s}"` : s;
+				s = s.replace(/([><!^&|])/g, '^$1');
+				return (' "'.split('').some(char => s.includes(char)) || s.length === 0) ? `"${s}"` : s;
 			};
 
 			if (cwd) {
@@ -138,7 +139,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 					if (value === null) {
 						command += `set "${key}=" && `;
 					} else {
-						value = value.replace(/[\^\&\|\<\>]/g, s => `^${s}`);
+						value = value.replace(/[&^|<>]/g, s => `^${s}`);
 						command += `set "${key}=${value}" && `;
 					}
 				}
@@ -154,7 +155,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 		case ShellType.bash: {
 
 			quote = (s: string) => {
-				s = s.replace(/(["'\\\$!><#()\[\]*&^])/g, '\\$1');
+				s = s.replace(/(["'\\\$!><#()\[\]*&^|])/g, '\\$1');
 				return (' ;'.split('').some(char => s.includes(char)) || s.length === 0) ? `"${s}"` : s;
 			};
 

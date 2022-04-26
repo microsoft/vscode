@@ -352,7 +352,7 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private onActiveEditorChanged() {
-		if (!this.followActiveEditor) {
+		if (!this.followActiveEditor || !this.isExpanded()) {
 			return;
 		}
 

@@ -242,7 +242,7 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'file/newFile',
 		id: MenuId.NewFile,
-		description: localize('file.newEditor', "The 'New Editor...' quick pick, shown on welcome page and File menu."),
+		description: localize('file.newFile', "The 'New File...' quick pick, shown on welcome page and File menu."),
 		supportsSubmenus: false,
 	},
 	{

@@ -81,7 +81,7 @@ export class GhostTextWidget extends Disposable {
 		if (!this.editor.hasModel() || !ghostText || this.disposed) {
 			this.partsWidget.clear();
 			this.additionalLinesWidget.clear();
-			this.replacementDecoration.setDecorations([]);
+			this.replacementDecoration.clear();
 			return;
 		}
 
@@ -213,8 +213,14 @@ class DisposableDecorations {
 	public setDecorations(decorations: IModelDeltaDecoration[]): void {
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, decorations);
 	}
-	public dispose(): void {
+
+	public clear() {
 		this.editor.deltaDecorations(this.decorationIds, []);
+		this.decorationIds = [];
+	}
+
+	public dispose(): void {
+		this.clear();
 	}
 }
 

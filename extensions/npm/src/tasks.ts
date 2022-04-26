@@ -67,7 +67,7 @@ export class NpmTaskProvider implements TaskProvider {
 				return undefined;
 			}
 			if (kind.path) {
-				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/' + kind.path + 'package.json' });
+				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/' + kind.path + `${kind.path.endsWith('/') ? '' : '/'}` + 'package.json' });
 			} else {
 				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/package.json' });
 			}

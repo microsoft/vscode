@@ -1677,7 +1677,7 @@ export class TestPathService implements IPathService {
 
 	declare readonly _serviceBrand: undefined;
 
-	constructor(private readonly fallbackUserHome: URI = URI.from({ scheme: Schemas.vscodeRemote, path: '/' }), public defaultUriScheme = Schemas.vscodeRemote) { }
+	constructor(private readonly fallbackUserHome: URI = URI.from({ scheme: Schemas.file, path: '/' }), public defaultUriScheme = Schemas.file) { }
 
 	hasValidBasename(resource: URI, basename?: string): Promise<boolean>;
 	hasValidBasename(resource: URI, os: OperatingSystem, basename?: string): boolean;

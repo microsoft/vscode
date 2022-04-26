@@ -145,7 +145,26 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 			throw e;
 		}
 
+		const password = await keytar.getPassword(service, account);
+		if (!password) {
+			return false;
+		}
 		const didDelete = await keytar.deletePassword(service, account);
+		let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
+		if (content && hasNextChunk) {
+			// need to delete additional chunks
+			let index = 1;
+			while (hasNextChunk) {
+				const accountWithIndex = `${account}-${index}`;
+				const nextChunk = await keytar.getPassword(service, accountWithIndex);
+				await keytar.deletePassword(service, accountWithIndex);
+
+				const result: ChunkedPassword = JSON.parse(nextChunk!);
+				hasNextChunk = result.hasNextChunk;
+				index++;
+			}
+		}
+
 		if (didDelete) {
 			this._onDidChangePassword.fire({ service, account });
 		}

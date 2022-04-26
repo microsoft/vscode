@@ -1491,7 +1491,8 @@ export namespace LanguageSelector {
 				language: filter.language,
 				scheme: filter.scheme,
 				pattern: GlobPattern.from(filter.pattern),
-				exclusive: filter.exclusive
+				exclusive: filter.exclusive,
+				notebookType: filter.notebookType
 			};
 		}
 	}

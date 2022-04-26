@@ -12,13 +12,8 @@ builtin unset ZDOTDIR
 # as disable it by unsetting the variable.
 VSCODE_SHELL_INTEGRATION=1
 
-if [ -f ~/.zshenv ]; then
-	. ~/.zshenv
-fi
-if [[ -o "login" &&  -f ~/.zprofile ]]; then
-	. ~/.zprofile
-fi
-if [ -f ~/.zshrc ]; then
+
+if [[ $options[norcs] = off  && -f ~/.zshrc ]]; then
 	. ~/.zshrc
 fi
 
