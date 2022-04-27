@@ -46,6 +46,9 @@ suite('TokenizationSupport2Adapter', () => {
 		public defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
 			throw new Error('Not implemented');
 		}
+		public setForceHighContrast(forceHighContrast: boolean | null): void {
+			throw new Error('Not implemented');
+		}
 		public isHighContrastEnabled(): boolean {
 			throw new Error('Not implemented');
 		}

@@ -222,6 +222,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 	private readonly _environment: IEnvironmentService = Object.create(null);
 	private readonly _knownThemes: Map<string, StandaloneTheme>;
 	private _autoDetectHighContrast: boolean;
+	private _forceHighContrast: boolean | null;
 	private _codiconCSS: string;
 	private _themeCSS: string;
 	private _allCSS: string;
@@ -237,6 +238,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		super();
 
 		this._autoDetectHighContrast = true;
+		this._forceHighContrast = null;
 
 		this._knownThemes = new Map<string, StandaloneTheme>();
 		this._knownThemes.set(VS_THEME_NAME, newBuiltInTheme(VS_THEME_NAME));
@@ -340,7 +342,11 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 	}
 
 	public isHighContrastEnabled(): boolean {
-		return this._autoDetectHighContrast && window.matchMedia(`(forced-colors: active)`).matches;
+		if (this._forceHighContrast !== null) {
+			return this._forceHighContrast;
+		} else {
+			return this._autoDetectHighContrast && window.matchMedia(`(forced-colors: active)`).matches;
+		}
 	}
 
 	private _updateActualTheme(): void {
@@ -359,6 +365,11 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 
 	public setAutoDetectHighContrast(autoDetectHighContrast: boolean): void {
 		this._autoDetectHighContrast = autoDetectHighContrast;
+		this._updateActualTheme();
+	}
+
+	public setForceHighContrast(forceHighContrast: boolean | null): void {
+		this._forceHighContrast = forceHighContrast;
 		this._updateActualTheme();
 	}
 
