@@ -675,7 +675,7 @@ export class CommentController implements IEditorContribution {
 			// Check for selection at line number.
 			let range: Range = new Range(lineNumber, 1, lineNumber, 1);
 			const selection = this.editor.getSelection();
-			if (selection?.containsRange(range)) {
+			if (selection && (selection.startLineNumber <= lineNumber) && (lineNumber <= selection.endLineNumber)) {
 				range = selection;
 				this.editor.setSelection(new Range(selection.endLineNumber, 1, selection.endLineNumber, 1));
 			}
