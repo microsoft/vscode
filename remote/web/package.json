@@ -11,7 +11,7 @@
 		"vscode-oniguruma": "1.6.1",
 		"vscode-textmate": "7.0.1",
 		"xterm": "4.19.0-beta.25",
-		"xterm-addon-search": "0.9.0-beta.23",
+		"xterm-addon-search": "0.9.0-beta.25",
 		"xterm-addon-unicode11": "0.4.0-beta.3",
 		"xterm-addon-webgl": "0.12.0-beta.29"
 	}
