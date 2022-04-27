@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { firstOrDefault } from 'vs/base/common/arrays';
 import { hasDriveLetter, isRootOrDriveLetter, toSlashes } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
 import { posix, sep, win32 } from 'vs/base/common/path';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { basename, extUri, extUriIgnorePathCase, toLocalResource } from 'vs/base/common/resources';
+import { basename, extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
 import { rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 
@@ -36,10 +37,6 @@ export interface IPathLabelFormatting {
 }
 
 export interface IRelativePathProvider {
-
-	readonly defaultUriScheme: string;
-	readonly remoteAuthority: string | undefined;
-
 	getWorkspaceFolder(resource: URI): { uri: URI; name?: string } | null;
 	getWorkspace(): {
 		folders: { uri: URI; name?: string }[];
@@ -51,74 +48,94 @@ export interface IUserHomeProvider {
 }
 
 export function getPathLabel(resource: URI, formatting: IPathLabelFormatting): string {
-	const { os, tildify: userHomeProvider, relative: rootProvider } = formatting;
-	const pathLib = os === OperatingSystem.Windows ? win32 : posix;
-	const extUriLib = os === OperatingSystem.Linux ? extUri : extUriIgnorePathCase;
+	const { os, tildify: tildifier, relative: relatifier } = formatting;
 
-	let pathLabel: string | undefined = undefined;
-
-	// figure out relative path if we can by using root provider
-	// for that, we need to convert the path into a resource
-	// from the workspace folder in order to get at the relative
-	// path.
-	if (rootProvider) {
-		const candidateResourceFromWorkspace = toLocalResource(resource, rootProvider.remoteAuthority, rootProvider.defaultUriScheme);
-
-		const folder = rootProvider.getWorkspaceFolder(candidateResourceFromWorkspace);
-		if (folder) {
-			if (extUriLib.isEqual(folder.uri, candidateResourceFromWorkspace)) {
-				pathLabel = ''; // no label if paths are identical
-			} else {
-				pathLabel = extUriLib.relativePath(folder.uri, candidateResourceFromWorkspace) ?? '';
-			}
-
-			// normalize
-			if (pathLabel) {
-				pathLabel = pathLib.normalize(pathLabel);
-			}
-
-			if (rootProvider.getWorkspace().folders.length > 1) {
-				const rootName = folder.name ? folder.name : extUriLib.basename(folder.uri);
-				pathLabel = pathLabel ? `${rootName} • ${pathLabel}` : rootName; // always show root basename if there are multiple
-			}
+	// return early with a relative path if we can resolve one
+	if (relatifier) {
+		const relativePath = getRelativePathLabel(resource, relatifier, os);
+		if (typeof relativePath === 'string') {
+			return relativePath;
 		}
 	}
 
-	// return early if we can resolve a relative path label from the root
-	if (typeof pathLabel === 'string') {
-		return pathLabel;
-	}
-
-	// otherwise we start with the absolute path and apply some normalization
-	else {
-		pathLabel = resource.fsPath;
+	// otherwise try to resolve a absolute path label and
+	// apply target OS standard path separators if target
+	// OS differs from actual OS we are running in
+	let absolutePath = resource.fsPath;
+	if (os === OperatingSystem.Windows && !isWindows) {
+		absolutePath = absolutePath.replace(/\//g, '\\');
+	} else if (os !== OperatingSystem.Windows && isWindows) {
+		absolutePath = absolutePath.replace(/\\/g, '/');
 	}
 
 	// macOS/Linux: tildify with provided user home directory
-	if (os !== OperatingSystem.Windows && userHomeProvider?.userHome) {
+	if (os !== OperatingSystem.Windows && tildifier?.userHome) {
+		let userHome = tildifier.userHome.fsPath;
 
-		// Tildify only works on POSIX systems with slashes in paths
-		// Since we maybe on Windows with a remote POSIX path, make
-		// sure to convert back to slashes before calling tildify
-		let tildifyCandidate = pathLabel;
-		let userHome = userHomeProvider.userHome.fsPath;
+		// This is a bit of a hack, but in order to figure out if the
+		// resource is in the user home, we need to make sure to convert it
+		// to a user home resource. We cannot assume that the resource is
+		// already a user home resource.
+		let userHomeCandidate = tildifier.userHome.with({ path: resource.path }).fsPath;
+
+		// In addition, if we are on windows platform, we need to make
+		// sure to convert to POSIX path, because `tildify` only works
+		// with POSIX paths.
 		if (isWindows) {
-			tildifyCandidate = toSlashes(tildifyCandidate);
+			userHomeCandidate = toSlashes(userHomeCandidate);
 			userHome = toSlashes(userHome);
 		}
 
-		pathLabel = tildify(tildifyCandidate, userHome, os);
-	}
-
-	// apply target OS standard path separators
-	if (os === OperatingSystem.Windows) {
-		pathLabel = pathLabel.replace(/\//g, '\\');
-	} else {
-		pathLabel = pathLabel.replace(/\\/g, '/');
+		absolutePath = tildify(userHomeCandidate, userHome, os);
 	}
 
 	// normalize
-	return pathLib.normalize(normalizeDriveLetter(pathLabel, os === OperatingSystem.Windows));
+	const pathLib = os === OperatingSystem.Windows ? win32 : posix;
+	return pathLib.normalize(normalizeDriveLetter(absolutePath, os === OperatingSystem.Windows));
+}
+
+function getRelativePathLabel(resource: URI, relativePathProvider: IRelativePathProvider, os: OperatingSystem): string | undefined {
+	const pathLib = os === OperatingSystem.Windows ? win32 : posix;
+	const extUriLib = os === OperatingSystem.Linux ? extUri : extUriIgnorePathCase;
+
+	const workspace = relativePathProvider.getWorkspace();
+	const firstFolder = firstOrDefault(workspace.folders);
+	if (!firstFolder) {
+		return undefined;
+	}
+
+	// This is a bit of a hack, but in order to figure out the folder
+	// the resource belongs to, we need to make sure to convert it
+	// to a workspace resource. We cannot assume that the resource is
+	// already matching the workspace.
+	if (resource.scheme !== firstFolder.uri.scheme) {
+		resource = firstFolder.uri.with({ path: resource.path });
+	}
+
+	const folder = relativePathProvider.getWorkspaceFolder(resource);
+	if (!folder) {
+		return undefined;
+	}
+
+	let relativePathLabel: string | undefined = undefined;
+	if (extUriLib.isEqual(folder.uri, resource)) {
+		relativePathLabel = ''; // no label if paths are identical
+	} else {
+		relativePathLabel = extUriLib.relativePath(folder.uri, resource) ?? '';
+	}
+
+	// normalize
+	if (relativePathLabel) {
+		relativePathLabel = pathLib.normalize(relativePathLabel);
+	}
+
+	// always show root basename if there are multiple
+	if (workspace.folders.length > 1) {
+		const rootName = folder.name ? folder.name : extUriLib.basename(folder.uri);
+		relativePathLabel = relativePathLabel ? `${rootName} • ${relativePathLabel}` : rootName;
+	}
+
+	return relativePathLabel;
 }
 
 export function getBaseLabel(resource: URI | string): string;

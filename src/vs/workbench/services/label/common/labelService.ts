@@ -178,12 +178,7 @@ export class LabelService extends Disposable implements ILabelService {
 			return getPathLabel(resource, {
 				os: this.os,
 				tildify: this.userHome ? { userHome: this.userHome } : undefined,
-				relative: options.relative ? {
-					defaultUriScheme: this.pathService.defaultUriScheme,
-					remoteAuthority: this.environmentService.remoteAuthority,
-					getWorkspaceFolder: resource => this.contextService.getWorkspaceFolder(resource),
-					getWorkspace: () => this.contextService.getWorkspace()
-				} : undefined
+				relative: options.relative ? this.contextService : undefined
 			});
 		}
 
