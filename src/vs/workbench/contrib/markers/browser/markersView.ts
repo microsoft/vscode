@@ -30,7 +30,7 @@ import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilte
 import { IExpression } from 'vs/base/common/glob';
 import { deepClone } from 'vs/base/common/objects';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, MarkersTreeAccessibilityProvider, MarkersViewModel } from 'vs/workbench/contrib/markers/browser/markersTreeViewer';
+import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, MarkersWidgetAccessibilityProvider, MarkersViewModel } from 'vs/workbench/contrib/markers/browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -40,7 +40,7 @@ import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { MementoObject, Memento } from 'vs/workbench/common/memento';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -113,6 +113,8 @@ export class MarkersView extends ViewPane implements IMarkersView {
 
 	private widget!: IProblemsWidget;
 	private widgetContainer!: HTMLElement;
+	private widgetIdentityProvider: IIdentityProvider<MarkerElement | MarkerTableItem>;
+	private widgetAccessibilityProvider: MarkersWidgetAccessibilityProvider;
 	private filterActionBar: ActionBar | undefined;
 	private messageBoxContainer: HTMLElement | undefined;
 	private ariaLabelElement: HTMLElement | undefined;
@@ -166,6 +168,9 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		this.markersViewModel = this._register(instantiationService.createInstance(MarkersViewModel, this.panelState['multiline'], this.panelState['viewMode']));
 		this._register(this.onDidChangeVisibility(visible => this.onDidChangeMarkersViewVisibility(visible)));
 		this._register(this.markersViewModel.onDidChangeViewMode(_ => this.onDidChangeViewMode()));
+
+		this.widgetAccessibilityProvider = instantiationService.createInstance(MarkersWidgetAccessibilityProvider);
+		this.widgetIdentityProvider = { getId(element: MarkerElement | MarkerTableItem) { return element.id; } };
 
 		this.setCurrentActiveEditor();
 
@@ -412,13 +417,36 @@ export class MarkersView extends ViewPane implements IMarkersView {
 			this.openFileAtElement(options.element, !!options.editorOptions.preserveFocus, options.sideBySide, !!options.editorOptions.pinned);
 		}));
 
+		this._register(Event.any<any>(this.widget.onDidChangeSelection, this.widget.onDidChangeFocus)(() => {
+			const elements = [...this.widget.getSelection(), ...this.widget.getFocus()];
+			for (const element of elements) {
+				if (element instanceof Marker) {
+					const viewModel = this.markersViewModel.getViewModel(element);
+					if (viewModel) {
+						viewModel.showLightBulb();
+					}
+				}
+			}
+		}));
+
 		this._register(this.widget.onContextMenu(this.onContextMenu, this));
 		this._register(this.widget.onDidChangeSelection(this.onSelected, this));
 	}
 
 	private createTable(parent: HTMLElement): IProblemsWidget {
-		const tableContainer = dom.append(parent, dom.$('.markers-table-container'));
-		const table = this._register(this.instantiationService.createInstance(MarkersTable, tableContainer, this.markersViewModel, this.getResourceMarkers(), this.filter.options));
+		const table = this._register(this.instantiationService.createInstance(MarkersTable,
+			dom.append(parent, dom.$('.markers-table-container')),
+			this.markersViewModel,
+			this.getResourceMarkers(),
+			this.filter.options,
+			{
+				accessibilityProvider: this.widgetAccessibilityProvider,
+				horizontalScrolling: false,
+				identityProvider: this.widgetIdentityProvider,
+				multipleSelectionSupport: false,
+				selectionNavigation: true
+			},
+		));
 
 		return table;
 	}
@@ -434,24 +462,16 @@ export class MarkersView extends ViewPane implements IMarkersView {
 			this.instantiationService.createInstance(MarkerRenderer, this.markersViewModel),
 			this.instantiationService.createInstance(RelatedInformationRenderer)
 		];
-		const accessibilityProvider = this.instantiationService.createInstance(MarkersTreeAccessibilityProvider);
-
-		const identityProvider = {
-			getId(element: MarkerElement) {
-				return element.id;
-			}
-		};
 
 		const tree = this._register(this.instantiationService.createInstance(MarkersTree,
 			'MarkersView',
 			dom.append(parent, dom.$('.tree-container.show-file-icons')),
-			this.markersViewModel,
 			virtualDelegate,
 			renderers,
 			{
 				filter: this.filter,
-				accessibilityProvider,
-				identityProvider,
+				accessibilityProvider: this.widgetAccessibilityProvider,
+				identityProvider: this.widgetIdentityProvider,
 				dnd: this.instantiationService.createInstance(ResourceListDnDHandler, (element) => {
 					if (element instanceof ResourceMarkers) {
 						return element.resource;
@@ -862,7 +882,6 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 	constructor(
 		user: string,
 		private readonly container: HTMLElement,
-		private readonly markersViewModel: MarkersViewModel,
 		delegate: IListVirtualDelegate<MarkerElement>,
 		renderers: ITreeRenderer<MarkerElement, FilterData, any>[],
 		options: IWorkbenchObjectTreeOptions<MarkerElement, FilterData>,
@@ -871,36 +890,10 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		super(user, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService, accessibilityService);
 		this.visibilityContextKey = Constants.MarkersTreeVisibilityContextKey.bindTo(contextKeyService);
-
-		Event.any<any>(this.onDidChangeSelection, this.onDidChangeFocus)(() => {
-			const elements = [...this.getSelection(), ...this.getFocus()];
-			for (const element of elements) {
-				if (element instanceof Marker) {
-					const viewModel = this.markersViewModel.getViewModel(element);
-					if (viewModel) {
-						viewModel.showLightBulb();
-					}
-				}
-			}
-		});
-
-		this.onDidChangeCollapseState(({ node }) => {
-			const { element } = node;
-			if (element instanceof RelatedInformation && !node.collapsed) {
-				/* __GDPR__
-				"problems.expandRelatedInformation" : {
-					"source": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-					"code" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-				}
-				*/
-				telemetryService.publicLog('problems.expandRelatedInformation', { source: element.marker.source, code: element.marker.code });
-			}
-		});
 	}
 
 	collapseMarkers(): void {

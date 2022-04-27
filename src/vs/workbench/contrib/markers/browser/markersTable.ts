@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { ITableContextMenuEvent, ITableEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenEvent, WorkbenchTable } from 'vs/platform/list/browser/listService';
+import { IOpenEvent, IWorkbenchTableOptions, WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { Marker, MarkerTableItem, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -236,6 +236,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 		private readonly markersViewModel: MarkersViewModel,
 		private resourceMarkers: ResourceMarkers[],
 		private filterOptions: FilterOptions,
+		options: IWorkbenchTableOptions<MarkerTableItem>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 	) {
@@ -295,11 +296,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 				this.instantiationService.createInstance(MarkerFileColumnRenderer),
 				this.instantiationService.createInstance(MarkerOwnerColumnRenderer),
 			],
-			{
-				horizontalScrolling: false,
-				multipleSelectionSupport: false,
-				selectionNavigation: true
-			}
+			options
 		) as WorkbenchTable<MarkerTableItem>;
 
 		const list = this.table.domNode.querySelector('.monaco-list-rows')! as HTMLElement;
@@ -357,7 +354,8 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 	}
 
 	getFocus(): (MarkerTableItem | null)[] {
-		return [this.table.row(this.table.getFocus()[0])];
+		const focus = this.table.getFocus();
+		return focus.length > 0 ? [this.table.row(focus[0])] : [];
 	}
 
 	getHTMLElement(): HTMLElement {
@@ -463,6 +461,6 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 	}
 
 	updateMarker(marker: Marker): void {
-		console.log('setMarkerSelection');
+		console.log('updateMarker');
 	}
 }
