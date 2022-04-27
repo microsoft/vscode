@@ -25,7 +25,7 @@
 	}
 }
 
-.monaco-workbench.enable-motion .statusbar DIV#status\.languageStatus A>SPAN.codicon.wiggle {
+.monaco-workbench .statusbar DIV#status\.languageStatus A>SPAN.codicon.wiggle {
 	animation-duration: .8s;
 	animation-iteration-count: 1;
 	animation-name: wiggle;
@@ -45,7 +45,7 @@
 	}
 }
 
-.monaco-workbench.enable-motion .statusbar DIV#status\.languageStatus.flash {
+.monaco-workbench .statusbar DIV#status\.languageStatus.flash {
 	animation-duration: .8s;
 	animation-iteration-count: 1;
 	animation-name: flash;
