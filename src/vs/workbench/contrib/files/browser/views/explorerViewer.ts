@@ -75,6 +75,7 @@ export const explorerRootErrorEmitter = new Emitter<URI>();
 export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | ExplorerItem[], ExplorerItem> {
 
 	constructor(
+		private fileFilter: FilesFilter,
 		@IProgressService private readonly progressService: IProgressService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -85,7 +86,8 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 	) { }
 
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
-		return Array.isArray(element) || element.hasChildren;
+		// don't render nest parents as containing children when all the children are filtered out
+		return Array.isArray(element) || element.hasChildren((stat) => this.fileFilter.filter(stat, TreeVisibility.Visible));
 	}
 
 	getChildren(element: ExplorerItem | ExplorerItem[]): ExplorerItem[] | Promise<ExplorerItem[]> {
@@ -417,9 +419,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		};
 
 		elementDisposables.add(this.themeService.onDidFileIconThemeChange(() => setResourceData()));
-		elementDisposables.add(this.configurationService.onDidChangeConfiguration((e) =>
-			e.affectsConfiguration('explorer.fileNesting.hideIconsToMatchFolders') && setResourceData()));
-
 		setResourceData();
 
 		elementDisposables.add(templateData.label.onDidRender(() => {
@@ -1083,16 +1082,19 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private async handleExplorerDrop(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const elementsData = FileDragAndDrop.getStatsFromDragAndDropData(data);
-		const items = distinctParents(elementsData, s => s.resource);
+		const distinctItems = new Set(elementsData);
 
-		if (this.configurationService.getValue<IFilesConfiguration>().explorer.fileNesting.operateAsGroup) {
-			for (const item of items) {
+		if (this.configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting.operateAsGroup) {
+			for (const item of distinctItems) {
 				const nestedChildren = item.nestedChildren;
 				if (nestedChildren) {
-					items.push(...nestedChildren);
+					for (const child of nestedChildren) {
+						distinctItems.add(child);
+					}
 				}
 			}
 		}
+		const items = distinctParents([...distinctItems], s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
 		// Handle confirm setting

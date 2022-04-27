@@ -198,11 +198,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 
 		let injection: IShellIntegrationConfigInjection | undefined;
-		if (this._options.shellIntegration) {
-			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options.shellIntegration);
-			if (!injection) {
-				this._logService.warn(`Shell integration cannot be enabled for executable "${this.shellLaunchConfig.executable}" and args`, this.shellLaunchConfig.args);
-			} else {
+		if (this._options.shellIntegration.enabled) {
+			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options.shellIntegration, this._logService);
+			if (injection) {
 				if (injection.envMixin) {
 					for (const [key, value] of Object.entries(injection.envMixin)) {
 						this._ptyOptions.env ||= {};

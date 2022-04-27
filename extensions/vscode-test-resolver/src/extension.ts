@@ -24,7 +24,13 @@ let outputChannel: vscode.OutputChannel;
 
 export function activate(context: vscode.ExtensionContext) {
 
+	let connectionPaused = false;
+	let connectionPausedEvent = new vscode.EventEmitter<boolean>();
+
 	function doResolve(_authority: string, progress: vscode.Progress<{ message?: string; increment?: number }>): Promise<vscode.ResolvedAuthority> {
+		if (connectionPaused) {
+			throw vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable('Not available right now');
+		}
 		const connectionToken = String(crypto.randomInt(0xffffffffff));
 
 		// eslint-disable-next-line no-async-promise-executor
@@ -90,7 +96,10 @@ export function activate(context: vscode.ExtensionContext) {
 			if (logsDir) {
 				commandArgs.push('--logsPath', logsDir);
 			}
-
+			const logLevel = process.env['TESTRESOLVER_LOG_LEVEL'];
+			if (logLevel) {
+				commandArgs.push('--log', logLevel);
+			}
 			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
 			commandArgs.push('--server-data-dir', remoteDataDir);
 
@@ -148,8 +157,8 @@ export function activate(context: vscode.ExtensionContext) {
 					let remoteReady = true, localReady = true;
 					const remoteSocket = net.createConnection({ port: serverAddr.port });
 
-					let isDisconnected = connectionPaused;
-					connectionPausedEvent.event(_ => {
+					let isDisconnected = false;
+					const handleConnectionPause = () => {
 						let newIsDisconnected = connectionPaused;
 						if (isDisconnected !== newIsDisconnected) {
 							outputChannel.appendLine(`Connection state: ${newIsDisconnected ? 'open' : 'paused'}`);
@@ -172,7 +181,10 @@ export function activate(context: vscode.ExtensionContext) {
 								}
 							}
 						}
-					});
+					};
+
+					connectionPausedEvent.event(_ => handleConnectionPause());
+					handleConnectionPause();
 
 					proxySocket.on('data', (data) => {
 						remoteReady = remoteSocket.write(data);
@@ -247,9 +259,6 @@ export function activate(context: vscode.ExtensionContext) {
 			});
 		});
 	}
-
-	let connectionPaused = false;
-	let connectionPausedEvent = new vscode.EventEmitter<boolean>();
 
 	const authorityResolverDisposable = vscode.workspace.registerRemoteAuthorityResolver('test', {
 		async getCanonicalURI(uri: vscode.Uri): Promise<vscode.Uri> {

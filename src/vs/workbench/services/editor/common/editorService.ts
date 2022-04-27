@@ -88,8 +88,15 @@ export interface IOpenEditorsOptions {
 	readonly validateTrust?: boolean;
 }
 
-export interface IEditorsChangeEvent extends IGroupModelChangeEvent {
+export interface IEditorsChangeEvent {
+	/**
+	 * The group which had the editor change
+	 */
 	groupId: GroupIdentifier;
+	/*
+	 * The event fired from the model
+	 */
+	event: IGroupModelChangeEvent;
 }
 
 export interface IEditorService {

@@ -16,9 +16,11 @@ export interface NotificationMetrics {
 }
 
 export type NotificationMetricsClassification = {
-	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'bpasero'; comment: 'The identifier of the source of the notification.' };
-	silent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'bpasero'; comment: 'Whethe the notification is silent or not.' };
-	source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'bpasero'; comment: 'The source of the notification.' };
+	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the source of the notification.' };
+	silent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the notification is silent or not.' };
+	source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the notification.' };
+	owner: 'bpasero';
+	comment: 'Helps us gain insights to what notifications are being shown, how many, and if they are silent or not.';
 };
 
 export function notificationToMetrics(message: NotificationMessage, source: string | undefined, silent: boolean): NotificationMetrics {

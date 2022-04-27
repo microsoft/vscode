@@ -190,7 +190,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		const isFileIncluded = (path: string, basename: string, hasSibling: (query: string) => boolean) => {
 			path = path.slice(1);
 			if (folderExcludes(path, basename, hasSibling)) { return false; }
-			if (!pathIncludedInQuery(queryProps, URI.file(path), extUri)) { return false; }
+			if (!pathIncludedInQuery(queryProps, path, extUri)) { return false; }
 			return true;
 		};
 
@@ -325,13 +325,13 @@ function pathExcludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: string)
 	return false;
 }
 
-function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, path: URI, extUri: ExtUri): boolean {
-	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, path.fsPath)) {
+function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, path: string, extUri: ExtUri): boolean {
+	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, path)) {
 		return false;
 	}
 
 	if (queryProps.includePattern || queryProps.usingSearchPaths) {
-		if (queryProps.includePattern && glob.match(queryProps.includePattern, path.fsPath)) {
+		if (queryProps.includePattern && glob.match(queryProps.includePattern, path)) {
 			return true;
 		}
 
@@ -340,8 +340,9 @@ function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, path: URI, extU
 
 			return !!queryProps.folderQueries && queryProps.folderQueries.some(fq => {
 				const searchPath = fq.folder;
-				if (extUri.isEqualOrParent(path, searchPath)) {
-					const relPath = paths.relative(searchPath.path, path.path);
+				const uri = URI.file(path);
+				if (extUri.isEqualOrParent(uri, searchPath)) {
+					const relPath = paths.relative(searchPath.path, uri.path);
 					return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
 				} else {
 					return false;

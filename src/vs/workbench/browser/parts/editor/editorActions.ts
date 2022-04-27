@@ -19,7 +19,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { Codicon } from 'vs/base/common/codicons';
@@ -523,7 +523,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	override async run(context?: IEditorIdentifier): Promise<void> {
 		const { group, editor } = this.getTarget(context);
 		if (group && editor) {
-			return group.closeEditors({ direction: CloseDirection.LEFT, except: editor, excludeSticky: true });
+			await group.closeEditors({ direction: CloseDirection.LEFT, except: editor, excludeSticky: true });
 		}
 	}
 
@@ -1046,7 +1046,7 @@ export class ToggleGroupSizesAction extends Action {
 export class MaximizeGroupAction extends Action {
 
 	static readonly ID = 'workbench.action.maximizeEditor';
-	static readonly LABEL = localize('maximizeEditor', "Maximize Editor Group and Hide Side Bar");
+	static readonly LABEL = localize('maximizeEditor', "Maximize Editor Group and Hide Side Bars");
 
 	constructor(
 		id: string,
@@ -1060,8 +1060,9 @@ export class MaximizeGroupAction extends Action {
 
 	override async run(): Promise<void> {
 		if (this.editorService.activeEditor) {
-			this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
 			this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+			this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
 		}
 	}
 }
@@ -1482,12 +1483,25 @@ export class ClearRecentFilesAction extends Action {
 		id: string,
 		label: string,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
-		@IHistoryService private readonly historyService: IHistoryService
+		@IHistoryService private readonly historyService: IHistoryService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(id, label);
 	}
 
 	override async run(): Promise<void> {
+
+		// Ask for confirmation
+		const { confirmed } = await this.dialogService.confirm({
+			message: localize('confirmClearRecentsMessage', "Do you want to clear all recently opened files and workspaces?"),
+			detail: localize('confirmClearDetail', "This action is irreversible!"),
+			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
+			type: 'warning'
+		});
+
+		if (!confirmed) {
+			return;
+		}
 
 		// Clear global recently opened
 		this.workspacesService.clearRecentlyOpened();
@@ -1745,14 +1759,27 @@ export class ClearEditorHistoryAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
+		@IHistoryService private readonly historyService: IHistoryService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(id, label);
 	}
 
 	override async run(): Promise<void> {
 
-		// Editor history
+		// Ask for confirmation
+		const { confirmed } = await this.dialogService.confirm({
+			message: localize('confirmClearEditorHistoryMessage', "Do you want to clear the history of recently opened editors?"),
+			detail: localize('confirmClearDetail', "This action is irreversible!"),
+			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
+			type: 'warning'
+		});
+
+		if (!confirmed) {
+			return;
+		}
+
+		// Clear editor history
 		this.historyService.clear();
 	}
 }

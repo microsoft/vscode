@@ -21,12 +21,14 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/
 import { changeCellToKind, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, CELL_TITLE_OUTPUT_GROUP_ID, executeNotebookCondition, INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { CellEditState, CHANGE_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CHANGE_CELL_LANGUAGE, DETECT_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellEditType, CellKind, ICellEditOperation, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
@@ -208,7 +210,7 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 			return;
 		}
 
-		editor.textModel.applyEdits([{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined);
+		editor.textModel.applyEdits([{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined, true);
 
 		const runState = notebookExecutionStateService.getCellExecution(context.cell.uri)?.state;
 		if (runState !== NotebookCellExecutionState.Executing) {
@@ -220,7 +222,7 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 					executionOrder: null,
 					lastRunSuccess: null
 				}
-			}], true, undefined, () => undefined, undefined);
+			}], true, undefined, () => undefined, undefined, true);
 		}
 	}
 });
@@ -266,7 +268,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 		editor.textModel.applyEdits(
 			editor.textModel.cells.map((cell, index) => ({
 				editType: CellEditType.Output, index, outputs: []
-			})), true, undefined, () => undefined, undefined);
+			})), true, undefined, () => undefined, undefined, true);
 
 		const clearExecutionMetadataEdits = editor.textModel.cells.map((cell, index) => {
 			const runState = notebookExecutionStateService.getCellExecution(cell.uri)?.state;
@@ -285,7 +287,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 			}
 		}).filter(edit => !!edit) as ICellEditOperation[];
 		if (clearExecutionMetadataEdits.length) {
-			context.notebookEditor.textModel.applyEdits(clearExecutionMetadataEdits, true, undefined, () => undefined, undefined);
+			context.notebookEditor.textModel.applyEdits(clearExecutionMetadataEdits, true, undefined, () => undefined, undefined, true);
 		}
 	}
 });
@@ -437,23 +439,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 	}
 
 	private async setLanguage(context: IChangeCellContext, languageId: string) {
-		if (languageId === 'markdown' && context.cell?.language !== 'markdown') {
-			const idx = context.notebookEditor.getCellIndex(context.cell);
-			await changeCellToKind(CellKind.Markup, { cell: context.cell, notebookEditor: context.notebookEditor, ui: true }, 'markdown', Mimes.markdown);
-			const newCell = context.notebookEditor.cellAt(idx);
-
-			if (newCell) {
-				context.notebookEditor.focusNotebookCell(newCell, 'editor');
-			}
-		} else if (languageId !== 'markdown' && context.cell?.cellKind === CellKind.Markup) {
-			await changeCellToKind(CellKind.Code, { cell: context.cell, notebookEditor: context.notebookEditor, ui: true }, languageId);
-		} else {
-			const index = context.notebookEditor.textModel.cells.indexOf(context.cell.model);
-			context.notebookEditor.textModel.applyEdits(
-				[{ editType: CellEditType.CellLanguage, index, language: languageId }],
-				true, undefined, () => undefined, undefined
-			);
-		}
+		await setCellToLanguage(languageId, context);
 	}
 
 	/**
@@ -478,3 +464,50 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		return fakeResource;
 	}
 });
+
+registerAction2(class DetectCellLanguageAction extends NotebookCellAction {
+	constructor() {
+		super({
+			id: DETECT_CELL_LANGUAGE,
+			title: localize('detectLanguage', 'Accept Detected Language for Cell'),
+			f1: true,
+			precondition: ContextKeyExpr.and(NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
+			keybinding: { primary: KeyCode.KeyD | KeyMod.Alt | KeyMod.Shift, weight: KeybindingWeight.WorkbenchContrib }
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		const languageDetectionService = accessor.get(ILanguageDetectionService);
+		const notificationService = accessor.get(INotificationService);
+		const kernelService = accessor.get(INotebookKernelService);
+		const kernel = kernelService.getSelectedOrSuggestedKernel(context.notebookEditor.textModel);
+		const providerLanguages = [...kernel?.supportedLanguages ?? []];
+		providerLanguages.push('markdown');
+		const detection = await languageDetectionService.detectLanguage(context.cell.uri, providerLanguages);
+		if (detection) {
+			setCellToLanguage(detection, context);
+		} else {
+			notificationService.warn(localize('noDetection', "Unable to detect cell language"));
+		}
+	}
+});
+
+async function setCellToLanguage(languageId: string, context: IChangeCellContext) {
+	if (languageId === 'markdown' && context.cell?.language !== 'markdown') {
+		const idx = context.notebookEditor.getCellIndex(context.cell);
+		await changeCellToKind(CellKind.Markup, { cell: context.cell, notebookEditor: context.notebookEditor, ui: true }, 'markdown', Mimes.markdown);
+		const newCell = context.notebookEditor.cellAt(idx);
+
+		if (newCell) {
+			context.notebookEditor.focusNotebookCell(newCell, 'editor');
+		}
+	} else if (languageId !== 'markdown' && context.cell?.cellKind === CellKind.Markup) {
+		await changeCellToKind(CellKind.Code, { cell: context.cell, notebookEditor: context.notebookEditor, ui: true }, languageId);
+	} else {
+		const index = context.notebookEditor.textModel.cells.indexOf(context.cell.model);
+		context.notebookEditor.textModel.applyEdits(
+			[{ editType: CellEditType.CellLanguage, index, language: languageId }],
+			true, undefined, () => undefined, undefined, true
+		);
+	}
+}

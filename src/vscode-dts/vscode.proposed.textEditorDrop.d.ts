@@ -7,49 +7,41 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/142990
 
-	export interface TextEditorDropEvent {
-		/**
-		 * The {@link TextEditor} the resource was dropped onto.
-		 */
-		readonly editor: TextEditor;
-
-		/**
-		 * The position in the file where the drop occurred
-		 */
-		readonly position: Position;
-
-		/**
-		 *  The {@link DataTransfer data transfer} associated with this drop.
-		 */
-		readonly dataTransfer: DataTransfer;
-
-		/**
-		 * Allows to pause the event to delay apply the drop.
-		 *
-		 * *Note:* This function can only be called during event dispatch and not
-		 * in an asynchronous manner:
-		 *
-		 * ```ts
-		 * workspace.onWillDropOnTextEditor(event => {
-		 * 	// async, will *throw* an error
-		 * 	setTimeout(() => event.waitUntil(promise));
-		 *
-		 * 	// sync, OK
-		 * 	event.waitUntil(promise);
-		 * })
-		 * ```
-		 *
-		 * @param thenable A thenable that delays saving.
-		 */
-		waitUntil(thenable: Thenable<any>): void;
-
-		token: CancellationToken;
+	export class SnippetTextEdit {
+		snippet: SnippetString;
+		range: Range;
+		constructor(range: Range, snippet: SnippetString);
 	}
 
-	export namespace workspace {
+	/**
+	 * Provider which handles dropping of resources into a text editor.
+	 *
+	 * The user can drop into a text editor by holding down `shift` while dragging. Requires `workbench.experimental.editor.dropIntoEditor.enabled` to be on.
+	 */
+	export interface DocumentOnDropProvider {
 		/**
-		 * Event fired when the user drops a resource into a text editor.
+		 * Provide edits which inserts the content being dragged and dropped into the document.
+		 *
+		 * @param document The document in which the drop occurred.
+		 * @param position The position in the document where the drop occurred.
+		 * @param dataTransfer A {@link DataTransfer} object that holds data about what is being dragged and dropped.
+		 * @param token A cancellation token.
+		 *
+		 * @return A {@link SnippetTextEdit} or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
 		 */
-		export const onWillDropOnTextEditor: Event<TextEditorDropEvent>;
+		provideDocumentOnDropEdits(document: TextDocument, position: Position, dataTransfer: DataTransfer, token: CancellationToken): ProviderResult<SnippetTextEdit>;
+	}
+
+	export namespace languages {
+		/**
+		 * Registers a new {@link DocumentOnDropProvider}.
+		 *
+		 * @param selector A selector that defines the documents this provider applies to.
+		 * @param provider A drop provider.
+		 *
+		 * @return A {@link Disposable} that unregisters this provider when disposed of.
+		 */
+		export function registerDocumentOnDropProvider(selector: DocumentSelector, provider: DocumentOnDropProvider): Disposable;
 	}
 }

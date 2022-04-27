@@ -598,6 +598,17 @@ export class TextEdit {
 	}
 }
 
+export class SnippetTextEdit implements vscode.SnippetTextEdit {
+
+	range: vscode.Range;
+	snippet: vscode.SnippetString;
+
+	constructor(range: Range, snippet: SnippetString) {
+		this.range = range;
+		this.snippet = snippet;
+	}
+}
+
 export interface IFileOperationOptions {
 	overwrite?: boolean;
 	ignoreIfExists?: boolean;
@@ -1583,7 +1594,10 @@ export class CompletionList {
 
 @es5ClassCompat
 export class InlineSuggestion implements vscode.InlineCompletionItem {
-	insertText?: string;
+
+	insertText?: string | SnippetString;
+
+	filterText?: string;
 
 	/**
 	 * @deprecated Use `insertText` instead. Will be removed eventually.
@@ -1593,7 +1607,7 @@ export class InlineSuggestion implements vscode.InlineCompletionItem {
 	range?: Range;
 	command?: vscode.Command;
 
-	constructor(insertText: string, range?: Range, command?: vscode.Command) {
+	constructor(insertText: string | SnippetString, range?: Range, command?: vscode.Command) {
 		this.insertText = insertText;
 		this.range = range;
 		this.command = command;
@@ -1629,8 +1643,11 @@ export class InlineSuggestionNew implements vscode.InlineCompletionItemNew {
 export class InlineSuggestionsNew implements vscode.InlineCompletionListNew {
 	items: vscode.InlineCompletionItemNew[];
 
-	constructor(items: vscode.InlineCompletionItemNew[]) {
+	commands: vscode.Command[] | undefined;
+
+	constructor(items: vscode.InlineCompletionItemNew[], commands?: vscode.Command[]) {
 		this.items = items;
+		this.commands = commands;
 	}
 }
 
@@ -1826,7 +1843,7 @@ export class TerminalProfile implements vscode.TerminalProfile {
 		public options: vscode.TerminalOptions | vscode.ExtensionTerminalOptions
 	) {
 		if (typeof options !== 'object') {
-			illegalArgument('options');
+			throw illegalArgument('options');
 		}
 	}
 }
@@ -2380,15 +2397,15 @@ export class DataTransferItem {
 }
 
 @es5ClassCompat
-export class DataTransfer<T extends DataTransferItem = DataTransferItem> {
-	private readonly _items: Map<string, T> = new Map();
-	get(mimeType: string): T | undefined {
+export class DataTransfer {
+	private readonly _items: Map<string, DataTransferItem> = new Map();
+	get(mimeType: string): DataTransferItem | undefined {
 		return this._items.get(mimeType);
 	}
-	set(mimeType: string, value: T): void {
+	set(mimeType: string, value: DataTransferItem): void {
 		this._items.set(mimeType, value);
 	}
-	forEach(callbackfn: (value: T, key: string) => void): void {
+	forEach(callbackfn: (value: DataTransferItem, key: string) => void): void {
 		this._items.forEach(callbackfn);
 	}
 }
@@ -3022,6 +3039,12 @@ export enum QuickPickItemKind {
 	Default = 0,
 }
 
+export enum InputBoxValidationSeverity {
+	Info = 1,
+	Warning = 2,
+	Error = 3
+}
+
 export enum ExtensionKind {
 	UI = 1,
 	Workspace = 2
@@ -3610,11 +3633,19 @@ export class CustomEditorTabInput {
 	constructor(readonly uri: URI, readonly viewType: string) { }
 }
 
+export class WebviewEditorTabInput {
+	constructor(readonly viewType: string) { }
+}
+
 export class NotebookEditorTabInput {
 	constructor(readonly uri: URI, readonly notebookType: string) { }
 }
 
 export class NotebookDiffEditorTabInput {
 	constructor(readonly original: URI, readonly modified: URI, readonly notebookType: string) { }
+}
+
+export class TerminalEditorTabInput {
+	constructor() { }
 }
 //#endregion

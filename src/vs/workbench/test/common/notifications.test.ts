@@ -127,7 +127,7 @@ suite('Notifications', () => {
 		assert.strictEqual(called, 1);
 
 		// Error with Action
-		let item7 = NotificationViewItem.create({ severity: Severity.Error, message: createErrorWithActions('Hello Error', { actions: [new Action('id', 'label')] }) })!;
+		let item7 = NotificationViewItem.create({ severity: Severity.Error, message: createErrorWithActions('Hello Error', [new Action('id', 'label')]) })!;
 		assert.strictEqual(item7.actions!.primary!.length, 1);
 
 		// Filter

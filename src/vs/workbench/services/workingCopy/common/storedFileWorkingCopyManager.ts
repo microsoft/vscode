@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopyResolveOptions, IStoredFileWorkingCopySaveEvent as IBaseStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
@@ -112,17 +113,7 @@ export interface IStoredFileWorkingCopySaveEvent<M extends IStoredFileWorkingCop
 	readonly workingCopy: IStoredFileWorkingCopy<M>;
 }
 
-export interface IStoredFileWorkingCopyManagerResolveOptions {
-
-	/**
-	 * The contents to use for the stored file working copy if known. If not
-	 * provided, the contents will be retrieved from the underlying
-	 * resource or backup if present.
-	 *
-	 * If contents are provided, the stored file working copy will be marked
-	 * as dirty right from the beginning.
-	 */
-	readonly contents?: VSBufferReadableStream;
+export interface IStoredFileWorkingCopyManagerResolveOptions extends IStoredFileWorkingCopyResolveOptions {
 
 	/**
 	 * If the stored file working copy was already resolved before,
@@ -217,7 +208,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 
 		// Lifecycle
 		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(), 'veto.fileWorkingCopyManager'));
-		this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdown(), 'join.fileWorkingCopyManager'));
+		this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdown(), { id: 'join.fileWorkingCopyManager', label: localize('join.fileWorkingCopyManager', "Saving working copies") }));
 	}
 
 	private onBeforeShutdown(): boolean {
@@ -529,6 +520,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 				resource,
 				this.labelService.getUriBasenameLabel(resource),
 				this.modelFactory,
+				async options => { await this.resolve(resource, { ...options, reload: { async: false } }); },
 				this.fileService, this.logService, this.workingCopyFileService, this.filesConfigurationService,
 				this.workingCopyBackupService, this.workingCopyService, this.notificationService, this.workingCopyEditorService,
 				this.editorService, this.elevatedFileService

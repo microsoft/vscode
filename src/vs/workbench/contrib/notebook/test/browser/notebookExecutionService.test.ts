@@ -20,7 +20,7 @@ import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernel, INotebookKernelService, ISelectedNotebooksChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelService, IResolvedNotebookKernel, ISelectedNotebooksChangeEvent, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
@@ -68,7 +68,7 @@ suite('NotebookExecutionService', () => {
 			async (viewModel) => {
 				const executionService = instantiationService.createInstance(NotebookExecutionService);
 
-				const cell = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
+				const cell = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
 				await assertThrowsAsync(async () => await executionService.executeNotebookCell(cell));
 			});
 	});
@@ -80,7 +80,7 @@ suite('NotebookExecutionService', () => {
 
 				kernelService.registerKernel(new TestNotebookKernel({ languages: ['testlang'] }));
 				const executionService = instantiationService.createInstance(NotebookExecutionService);
-				const cell = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
+				const cell = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
 				await assertThrowsAsync(async () => await executionService.executeNotebookCell(cell));
 
 			});
@@ -96,7 +96,7 @@ suite('NotebookExecutionService', () => {
 				const executeSpy = sinon.spy();
 				kernel.executeNotebookCellsRequest = executeSpy;
 
-				const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
+				const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
 				await executionService.executeNotebookCells(viewModel.notebookDocument, [cell]);
 				assert.strictEqual(executeSpy.calledOnce, true);
 			});
@@ -166,7 +166,8 @@ suite('NotebookExecutionService', () => {
 	});
 });
 
-class TestNotebookKernel implements INotebookKernel {
+class TestNotebookKernel implements IResolvedNotebookKernel {
+	type: NotebookKernelType.Resolved = NotebookKernelType.Resolved;
 	id: string = 'test';
 	label: string = '';
 	viewType = '*';

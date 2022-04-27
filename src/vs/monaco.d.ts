@@ -973,7 +973,7 @@ declare namespace monaco.editor {
 	 * Create a new web worker that has model syncing capabilities built in.
 	 * Specify an AMD module to load that will `create` an object that will be proxied.
 	 */
-	export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T>;
+	export function createWebWorker<T extends object>(opts: IWebWorkerOptions): MonacoWebWorker<T>;
 
 	/**
 	 * Colorize the contents of `domNode` using attribute `data-lang`.
@@ -2096,7 +2096,15 @@ declare namespace monaco.editor {
 		/**
 		 * No preference.
 		*/
-		None = 2
+		None = 2,
+		/**
+		 * If the given position is on injected text, prefers the position left of it.
+		*/
+		LeftOfInjectedText = 3,
+		/**
+		 * If the given position is on injected text, prefers the position right of it.
+		*/
+		RightOfInjectedText = 4
 	}
 
 	/**
@@ -3715,6 +3723,10 @@ declare namespace monaco.editor {
 		 */
 		enabled?: boolean;
 		/**
+		 *
+		 */
+		toggle?: 'show' | 'hide' | null;
+		/**
 		 * Font size of inline hints.
 		 * Default to 90% of the editor font size.
 		 */
@@ -3724,6 +3736,12 @@ declare namespace monaco.editor {
 		 * Defaults to editor font family.
 		 */
 		fontFamily?: string;
+		/**
+		 * The display style to render inlay hints with.
+		 * Compact mode disables the borders and padding around the inlay hint.
+		 * Defaults to 'standard'.
+		 */
+		displayStyle: 'standard' | 'compact';
 	}
 
 	/**
@@ -4014,7 +4032,7 @@ declare namespace monaco.editor {
 		 * Enable highlighting of the active indent guide.
 		 * Defaults to true.
 		 */
-		highlightActiveIndentation?: boolean;
+		highlightActiveIndentation?: boolean | 'always';
 	}
 
 	/**
@@ -4500,6 +4518,12 @@ declare namespace monaco.editor {
 		 * Defaults to an internal DOM node.
 		 */
 		overflowWidgetsDomNode?: HTMLElement;
+		/**
+		 * Enables dropping into the editor.
+		 *
+		 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
+		 */
+		enableDropIntoEditor?: boolean;
 	}
 
 	/**
@@ -6288,6 +6312,12 @@ declare namespace monaco.languages {
 		 */
 		readonly filterText?: string;
 		/**
+		 * An optional array of additional text edits that are applied when
+		 * selecting this completion. Edits must not overlap with the main edit
+		 * nor with themselves.
+		 */
+		readonly additionalTextEdits?: editor.ISingleEditOperation[];
+		/**
 		 * The range to replace.
 		 * Must begin and end on the same line.
 		*/
@@ -6302,6 +6332,10 @@ declare namespace monaco.languages {
 
 	export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 		readonly items: readonly TItem[];
+		/**
+		 * A list of commands associated with the inline completions of this list.
+		 */
+		readonly commands?: Command[];
 	}
 
 	export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
@@ -6667,6 +6701,11 @@ declare namespace monaco.languages {
 		text: string;
 		eol?: editor.EndOfLineSequence;
 	};
+
+	export interface SnippetTextEdit {
+		range: IRange;
+		snippet: string;
+	}
 
 	/**
 	 * Interface used to format a model

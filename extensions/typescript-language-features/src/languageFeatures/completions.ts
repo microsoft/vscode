@@ -59,7 +59,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 	constructor(
 		public readonly position: vscode.Position,
 		public readonly document: vscode.TextDocument,
-		public readonly tsEntry: Proto.CompletionEntry,
+		// Intersection needed to avoid type error until TS 4.7.
+		public readonly tsEntry: Proto.CompletionEntry & { labelDetails?: { detail?: string; description?: string } },
 		private readonly completionContext: CompletionContext,
 		public readonly metadata: any | undefined,
 		client: ITypeScriptServiceClient,
@@ -84,6 +85,10 @@ class MyCompletionItem extends vscode.CompletionItem {
 		const { sourceDisplay, isSnippet } = tsEntry;
 		if (sourceDisplay) {
 			this.label = { label: tsEntry.name, description: Previewer.plainWithLinks(sourceDisplay, client) };
+		}
+
+		if (tsEntry.labelDetails) {
+			this.label = { label: tsEntry.name, ...tsEntry.labelDetails };
 		}
 
 		this.preselect = tsEntry.isRecommended;

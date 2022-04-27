@@ -324,14 +324,14 @@ enum State {
 }
 
 /**
- * When adding or removing views, distribute the delta space among
- * all other views.
+ * When adding or removing views, uniformly distribute the entire split view space among
+ * all views.
  */
 export type DistributeSizing = { type: 'distribute' };
 
 /**
- * When adding or removing views, split the delta space with another
- * specific view, indexed by the provided `index`.
+ * When adding a view, make space for it by reducing the size of another view,
+ * indexed by the provided `index`.
  */
 export type SplitSizing = { type: 'split'; index: number };
 

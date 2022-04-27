@@ -8,59 +8,26 @@ import * as json from 'vs/base/common/json';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ChordKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
 import { OS } from 'vs/base/common/platform';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { TestWorkingCopyBackupService, TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestLifecycleService, TestPathService, TestTextFileService, TestDecorationsService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEnvironmentService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWorkingCopyService, WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { WorkingCopyFileService, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { TestTextResourcePropertiesService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { joinPath } from 'vs/base/common/resources';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -74,56 +41,34 @@ const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 suite('KeybindingsEditing', () => {
 
 	const disposables = new DisposableStore();
-	let instantiationService: TestInstantiationService, fileService: IFileService, environmentService: IEnvironmentService;
+	let instantiationService: TestInstantiationService;
+	let fileService: IFileService;
+	let environmentService: IEnvironmentService;
 	let testObject: KeybindingsEditingService;
 
 	setup(async () => {
+
+		environmentService = TestEnvironmentService;
+
 		const logService = new NullLogService();
 		fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService()))));
 
 		const userFolder = joinPath(ROOT, 'User');
 		await fileService.createFolder(userFolder);
-		environmentService = TestEnvironmentService;
-
-		instantiationService = new TestInstantiationService();
 
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 
-		instantiationService.stub(IEnvironmentService, environmentService);
-		instantiationService.stub(IDecorationsService, TestDecorationsService);
-		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
-		instantiationService.stub(IPathService, new TestPathService());
-		instantiationService.stub(IConfigurationService, configService);
-		instantiationService.stub(IWorkspaceContextService, new TestContextService());
-		const lifecycleService = new TestLifecycleService();
-		instantiationService.stub(ILifecycleService, lifecycleService);
-		instantiationService.stub(IContextKeyService, <IContextKeyService>instantiationService.createInstance(MockContextKeyService));
-		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
-		instantiationService.stub(IEditorService, new TestEditorService());
-		instantiationService.stub(IWorkingCopyService, disposables.add(new WorkingCopyService()));
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(ILanguageService, LanguageService);
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(ILabelService, disposables.add(instantiationService.createInstance(LabelService)));
-		instantiationService.stub(IFilesConfigurationService, disposables.add(instantiationService.createInstance(FilesConfigurationService)));
-		instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(instantiationService.get(IConfigurationService)));
-		instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
-		instantiationService.stub(IThemeService, new TestThemeService());
-		instantiationService.stub(ILanguageConfigurationService, new TestLanguageConfigurationService());
-		instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelService)));
-		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
-		instantiationService.stub(IWorkingCopyFileService, disposables.add(instantiationService.createInstance(WorkingCopyFileService)));
-		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
-		instantiationService.stub(ITextModelService, disposables.add(instantiationService.createInstance(TextModelResolverService)));
-		instantiationService.stub(IWorkingCopyBackupService, new TestWorkingCopyBackupService());
+		instantiationService = workbenchInstantiationService({
+			fileService: () => fileService,
+			configurationService: () => configService,
+			environmentService: () => environmentService
+		}, disposables);
 
 		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditingService));
-
 	});
 
 	teardown(() => disposables.clear());
@@ -318,5 +263,4 @@ suite('KeybindingsEditing', () => {
 		const keybinding = parts.length > 0 ? new USLayoutResolvedKeybinding(new ChordKeybinding(parts), OS) : undefined;
 		return new ResolvedKeybindingItem(keybinding, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false);
 	}
-
 });

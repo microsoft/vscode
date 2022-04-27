@@ -182,6 +182,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	async setEnablement(extensions: IExtension[], newState: EnablementState): Promise<boolean[]> {
+		await this.extensionsManager.whenInitialized();
+
+		if (newState === EnablementState.EnabledGlobally || newState === EnablementState.EnabledWorkspace) {
+			extensions.push(...this.getExtensionsToEnableRecursively(extensions, this.extensionsManager.extensions, newState, { dependencies: true, pack: true }));
+		}
 
 		const workspace = newState === EnablementState.DisabledWorkspace || newState === EnablementState.EnabledWorkspace;
 		for (const extension of extensions) {
@@ -211,6 +216,33 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			this._onEnablementChanged.fire(changedExtensions);
 		}
 		return result;
+	}
+
+	private getExtensionsToEnableRecursively(extensions: IExtension[], allExtensions: ReadonlyArray<IExtension>, enablementState: EnablementState, options: { dependencies: boolean; pack: boolean }, checked: IExtension[] = []): IExtension[] {
+		const toCheck = extensions.filter(e => checked.indexOf(e) === -1);
+		if (toCheck.length) {
+			for (const extension of toCheck) {
+				checked.push(extension);
+			}
+			const extensionsToDisable = allExtensions.filter(i => {
+				if (checked.indexOf(i) !== -1) {
+					return false;
+				}
+				if (this.getEnablementState(i) === enablementState) {
+					return false;
+				}
+				return (options.dependencies || options.pack)
+					&& extensions.some(extension =>
+						(options.dependencies && extension.manifest.extensionDependencies?.some(id => areSameExtensions({ id }, i.identifier)))
+						|| (options.pack && extension.manifest.extensionPack?.some(id => areSameExtensions({ id }, i.identifier)))
+					);
+			});
+			if (extensionsToDisable.length) {
+				extensionsToDisable.push(...this.getExtensionsToEnableRecursively(extensionsToDisable, allExtensions, enablementState, options, checked));
+			}
+			return extensionsToDisable;
+		}
+		return [];
 	}
 
 	private _setUserEnablementState(extension: IExtension, newState: EnablementState): Promise<boolean> {

@@ -5,12 +5,14 @@
 
 import type * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext, MainThreadEditorTabsShape, TabInputKind } from 'vs/workbench/api/common/extHost.protocol';
+import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TabOperation } from 'vs/workbench/api/common/extHost.protocol';
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { CustomEditorTabInput, NotebookDiffEditorTabInput, NotebookEditorTabInput, TextDiffTabInput, TextTabInput, ViewColumn } from 'vs/workbench/api/common/extHostTypes';
+import { CustomEditorTabInput, NotebookDiffEditorTabInput, NotebookEditorTabInput, TerminalEditorTabInput, TextDiffTabInput, TextTabInput, WebviewEditorTabInput } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { assertIsDefined } from 'vs/base/common/types';
+import { diffSets } from 'vs/base/common/collections';
 
 export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
 	readonly _serviceBrand: undefined;
@@ -19,7 +21,7 @@ export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
 
 export const IExtHostEditorTabs = createDecorator<IExtHostEditorTabs>('IExtHostEditorTabs');
 
-type AnyTabInput = TextTabInput | TextDiffTabInput;
+type AnyTabInput = TextTabInput | TextDiffTabInput | CustomEditorTabInput | NotebookEditorTabInput | NotebookDiffEditorTabInput | WebviewEditorTabInput | TerminalEditorTabInput;
 
 class ExtHostEditorTab {
 	private _apiObject: vscode.Tab | undefined;
@@ -35,9 +37,9 @@ class ExtHostEditorTab {
 	}
 
 	get apiObject(): vscode.Tab {
-		// Don't want to lose reference to parent `this` in the getters
-		const that = this;
 		if (!this._apiObject) {
+			// Don't want to lose reference to parent `this` in the getters
+			const that = this;
 			const obj: vscode.Tab = {
 				get isActive() {
 					// We use a getter function here to always ensure at most 1 active tab per group and prevent iteration for being required
@@ -53,12 +55,12 @@ class ExtHostEditorTab {
 					return that._dto.isDirty;
 				},
 				get isPinned() {
-					return that._dto.isDirty;
+					return that._dto.isPinned;
 				},
 				get isPreview() {
 					return that._dto.isPreview;
 				},
-				get parentGroup() {
+				get group() {
 					return that._parentGroup.apiObject;
 				}
 			};
@@ -84,10 +86,14 @@ class ExtHostEditorTab {
 				return new TextDiffTabInput(URI.revive(this._dto.input.original), URI.revive(this._dto.input.modified));
 			case TabInputKind.CustomEditorInput:
 				return new CustomEditorTabInput(URI.revive(this._dto.input.uri), this._dto.input.viewType);
+			case TabInputKind.WebviewEditorInput:
+				return new WebviewEditorTabInput(this._dto.input.viewType);
 			case TabInputKind.NotebookInput:
 				return new NotebookEditorTabInput(URI.revive(this._dto.input.uri), this._dto.input.notebookType);
 			case TabInputKind.NotebookDiffInput:
 				return new NotebookDiffEditorTabInput(URI.revive(this._dto.input.original), URI.revive(this._dto.input.modified), this._dto.input.notebookType);
+			case TabInputKind.TerminalEditorInput:
+				return new TerminalEditorTabInput();
 			default:
 				return undefined;
 		}
@@ -115,9 +121,9 @@ class ExtHostEditorTabGroup {
 	}
 
 	get apiObject(): vscode.TabGroup {
-		// Don't want to lose reference to parent `this` in the getters
-		const that = this;
 		if (!this._apiObject) {
+			// Don't want to lose reference to parent `this` in the getters
+			const that = this;
 			const obj: vscode.TabGroup = {
 				get isActive() {
 					// We use a getter function here to always ensure at most 1 active group and prevent iteration for being required
@@ -150,15 +156,50 @@ class ExtHostEditorTabGroup {
 		this._dto = dto;
 	}
 
-	acceptTabDtoUpdate(dto: IEditorTabDto) {
-		const tab = this._tabs.find(extHostTab => extHostTab.tabId === dto.id);
+	acceptTabOperation(operation: TabOperation): ExtHostEditorTab {
+		// In the open case we add the tab to the group
+		if (operation.kind === TabModelOperationKind.TAB_OPEN) {
+			const tab = new ExtHostEditorTab(operation.tabDto, this, () => this.activeTabId());
+			// Insert tab at editor index
+			this._tabs.splice(operation.index, 0, tab);
+			if (operation.tabDto.isActive) {
+				this._activeTabId = tab.tabId;
+			}
+			return tab;
+		} else if (operation.kind === TabModelOperationKind.TAB_CLOSE) {
+			const tab = this._tabs.splice(operation.index, 1)[0];
+			if (!tab) {
+				throw new Error(`Tab close updated received for index ${operation.index} which does not exist`);
+			}
+			if (tab.tabId === this._activeTabId) {
+				this._activeTabId = '';
+			}
+			return tab;
+		} else if (operation.kind === TabModelOperationKind.TAB_MOVE) {
+			if (operation.oldIndex === undefined) {
+				throw new Error('Invalid old index on move IPC');
+			}
+			// Splice to remove at old index and insert at new index === moving the tab
+			const tab = this._tabs.splice(operation.oldIndex, 1)[0];
+			if (!tab) {
+				throw new Error(`Tab move updated received for index ${operation.oldIndex} which does not exist`);
+			}
+			this._tabs.splice(operation.index, 0, tab);
+			return tab;
+		}
+		const tab = this._tabs.find(extHostTab => extHostTab.tabId === operation.tabDto.id);
 		if (!tab) {
 			throw new Error('INVALID tab');
 		}
-		if (dto.isActive) {
-			this._activeTabId = dto.id;
+		if (operation.tabDto.isActive) {
+			this._activeTabId = operation.tabDto.id;
+		} else if (this._activeTabId === operation.tabDto.id && !operation.tabDto.isActive) {
+			// Events aren't guaranteed to be in order so if we receive a dto that matches the active tab id
+			// but isn't active we mark the active tab id as empty. This prevent onDidActiveTabChange frorm
+			// firing incorrectly
+			this._activeTabId = '';
 		}
-		tab.acceptDtoUpdate(dto);
+		tab.acceptDtoUpdate(operation.tabDto);
 		return tab;
 	}
 
@@ -172,11 +213,11 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 	readonly _serviceBrand: undefined;
 
 	private readonly _proxy: MainThreadEditorTabsShape;
-	private readonly _onDidChangeTab = new Emitter<vscode.Tab>();
-	private readonly _onDidChangeTabGroup = new Emitter<void>();
-	private readonly _onDidChangeActiveTabGroup = new Emitter<vscode.TabGroup | undefined>();
+	private readonly _onDidChangeTabs = new Emitter<vscode.TabChangeEvent>();
+	private readonly _onDidChangeTabGroups = new Emitter<vscode.TabGroupChangeEvent>();
 
-	private _activeGroupId: number | undefined;
+	// Have to use ! because this gets initialized via an RPC proxy
+	private _activeGroupId!: number;
 
 	private _extHostTabGroups: ExtHostEditorTabGroup[] = [];
 
@@ -191,45 +232,117 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			const that = this;
 			const obj: vscode.TabGroups = {
 				// never changes -> simple value
-				onDidChangeTabGroup: that._onDidChangeTabGroup.event,
-				onDidChangeActiveTabGroup: that._onDidChangeActiveTabGroup.event,
-				onDidChangeTab: that._onDidChangeTab.event,
+				onDidChangeTabGroups: that._onDidChangeTabGroups.event,
+				onDidChangeTabs: that._onDidChangeTabs.event,
 				// dynamic -> getters
-				get groups() {
+				get all() {
 					return Object.freeze(that._extHostTabGroups.map(group => group.apiObject));
 				},
 				get activeTabGroup() {
 					const activeTabGroupId = that._activeGroupId;
-					if (activeTabGroupId === undefined) {
-						return undefined;
-					}
-					return that._extHostTabGroups.find(candidate => candidate.groupId === activeTabGroupId)?.apiObject;
+					const activeTabGroup = assertIsDefined(that._extHostTabGroups.find(candidate => candidate.groupId === activeTabGroupId)?.apiObject);
+					return activeTabGroup;
 				},
-				close: async (tab: vscode.Tab | vscode.Tab[], preserveFocus?: boolean) => {
-					const tabs = Array.isArray(tab) ? tab : [tab];
-					const extHostTabIds: string[] = [];
-					for (const tab of tabs) {
-						const extHostTab = this._findExtHostTabFromApi(tab);
-						if (!extHostTab) {
-							throw new Error('Tab close: Invalid tab not found!');
-						}
-						extHostTabIds.push(extHostTab.tabId);
+				close: async (tabOrTabGroup: vscode.Tab | readonly vscode.Tab[] | vscode.TabGroup | readonly vscode.TabGroup[], preserveFocus?: boolean) => {
+					const tabsOrTabGroups = Array.isArray(tabOrTabGroup) ? tabOrTabGroup : [tabOrTabGroup];
+					if (!tabsOrTabGroups.length) {
+						return true;
 					}
-					this._proxy.$closeTab(extHostTabIds, preserveFocus);
-					return;
+					// Check which type was passed in and call the appropriate close
+					// Casting is needed as typescript doesn't seem to infer enough from this
+					if (isTabGroup(tabsOrTabGroups[0])) {
+						return this._closeGroups(tabsOrTabGroups as vscode.TabGroup[], preserveFocus);
+					} else {
+						return this._closeTabs(tabsOrTabGroups as vscode.Tab[], preserveFocus);
+					}
 				},
-				move: async (tab: vscode.Tab, viewColumn: ViewColumn, index: number, preservceFocus?: boolean) => {
-					const extHostTab = this._findExtHostTabFromApi(tab);
-					if (!extHostTab) {
-						throw new Error('Invalid tab');
-					}
-					this._proxy.$moveTab(extHostTab.tabId, index, typeConverters.ViewColumn.from(viewColumn), preservceFocus);
-					return;
-				}
+				// move: async (tab: vscode.Tab, viewColumn: ViewColumn, index: number, preservceFocus?: boolean) => {
+				// 	const extHostTab = this._findExtHostTabFromApi(tab);
+				// 	if (!extHostTab) {
+				// 		throw new Error('Invalid tab');
+				// 	}
+				// 	this._proxy.$moveTab(extHostTab.tabId, index, typeConverters.ViewColumn.from(viewColumn), preservceFocus);
+				// 	return;
+				// }
 			};
 			this._apiObject = Object.freeze(obj);
 		}
 		return this._apiObject;
+	}
+
+	$acceptEditorTabModel(tabGroups: IEditorTabGroupDto[]): void {
+
+		const groupIdsBefore = new Set(this._extHostTabGroups.map(group => group.groupId));
+		const groupIdsAfter = new Set(tabGroups.map(dto => dto.groupId));
+		const diff = diffSets(groupIdsBefore, groupIdsAfter);
+
+		const closed: vscode.TabGroup[] = this._extHostTabGroups.filter(group => diff.removed.includes(group.groupId)).map(group => group.apiObject);
+		const opened: vscode.TabGroup[] = [];
+		const changed: vscode.TabGroup[] = [];
+
+
+		this._extHostTabGroups = tabGroups.map(tabGroup => {
+			const group = new ExtHostEditorTabGroup(tabGroup, this._proxy, () => this._activeGroupId);
+			if (diff.added.includes(group.groupId)) {
+				opened.push(group.apiObject);
+			} else {
+				changed.push(group.apiObject);
+			}
+			return group;
+		});
+
+		// Set the active tab group id
+		const activeTabGroupId = assertIsDefined(tabGroups.find(group => group.isActive === true)?.groupId);
+		if (activeTabGroupId !== undefined && this._activeGroupId !== activeTabGroupId) {
+			this._activeGroupId = activeTabGroupId;
+		}
+		this._onDidChangeTabGroups.fire(Object.freeze({ opened, closed, changed }));
+	}
+
+	$acceptTabGroupUpdate(groupDto: IEditorTabGroupDto) {
+		const group = this._extHostTabGroups.find(group => group.groupId === groupDto.groupId);
+		if (!group) {
+			throw new Error('Update Group IPC call received before group creation.');
+		}
+		group.acceptGroupDtoUpdate(groupDto);
+		if (groupDto.isActive) {
+			this._activeGroupId = groupDto.groupId;
+		}
+		this._onDidChangeTabGroups.fire(Object.freeze({ changed: [group.apiObject], opened: [], closed: [] }));
+	}
+
+	$acceptTabOperation(operation: TabOperation) {
+		const group = this._extHostTabGroups.find(group => group.groupId === operation.groupId);
+		if (!group) {
+			throw new Error('Update Tabs IPC call received before group creation.');
+		}
+		const tab = group.acceptTabOperation(operation);
+
+		// Construct the tab change event based on the operation
+		switch (operation.kind) {
+			case TabModelOperationKind.TAB_OPEN:
+				this._onDidChangeTabs.fire(Object.freeze({
+					opened: [tab.apiObject],
+					closed: [],
+					changed: []
+				}));
+				return;
+			case TabModelOperationKind.TAB_CLOSE:
+				this._onDidChangeTabs.fire(Object.freeze({
+					opened: [],
+					closed: [tab.apiObject],
+					changed: []
+				}));
+				return;
+			case TabModelOperationKind.TAB_MOVE:
+			case TabModelOperationKind.TAB_UPDATE:
+				this._onDidChangeTabs.fire(Object.freeze({
+					opened: [],
+					closed: [],
+					changed: [tab.apiObject]
+				}));
+				return;
+		}
 	}
 
 	private _findExtHostTabFromApi(apiTab: vscode.Tab): ExtHostEditorTab | undefined {
@@ -243,109 +356,41 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 		return;
 	}
 
-	$acceptEditorTabModel(tabGroups: IEditorTabGroupDto[]): void {
-
-		this._extHostTabGroups = tabGroups.map(tabGroup => {
-			const group = new ExtHostEditorTabGroup(tabGroup, this._proxy, () => this._activeGroupId);
-			return group;
-		});
-
-		// Set the active tab group id
-		const activeTabGroupId = tabGroups.find(group => group.isActive === true)?.groupId;
-		if (this._activeGroupId !== activeTabGroupId) {
-			this._activeGroupId = activeTabGroupId;
-			this._onDidChangeActiveTabGroup.fire(this.tabGroups.activeTabGroup);
-		}
-		this._onDidChangeTabGroup.fire();
+	private _findExtHostTabGroupFromApi(apiTabGroup: vscode.TabGroup): ExtHostEditorTabGroup | undefined {
+		return this._extHostTabGroups.find(candidate => candidate.apiObject === apiTabGroup);
 	}
 
-	$acceptTabGroupUpdate(groupDto: IEditorTabGroupDto) {
-		const group = this._extHostTabGroups.find(group => group.groupId === groupDto.groupId);
-		if (!group) {
-			throw new Error('Update Group IPC call received before group creation.');
-		}
-		group.acceptGroupDtoUpdate(groupDto);
-		if (groupDto.isActive) {
-			const oldActiveGroupId = this._activeGroupId;
-			this._activeGroupId = groupDto.groupId;
-			if (oldActiveGroupId !== this._activeGroupId) {
-				this._onDidChangeActiveTabGroup.fire(group.apiObject);
+	private async _closeTabs(tabs: vscode.Tab[], preserveFocus?: boolean): Promise<boolean> {
+		const extHostTabIds: string[] = [];
+		for (const tab of tabs) {
+			const extHostTab = this._findExtHostTabFromApi(tab);
+			if (!extHostTab) {
+				throw new Error('Tab close: Invalid tab not found!');
 			}
+			extHostTabIds.push(extHostTab.tabId);
 		}
-		this._onDidChangeTabGroup.fire();
+		return this._proxy.$closeTab(extHostTabIds, preserveFocus);
 	}
 
-	$acceptTabUpdate(groupId: number, tabDto: IEditorTabDto) {
-		const group = this._extHostTabGroups.find(group => group.groupId === groupId);
-		if (!group) {
-			throw new Error('Update Tabs IPC call received before group creation.');
+	private async _closeGroups(groups: vscode.TabGroup[], preserverFoucs?: boolean): Promise<boolean> {
+		const extHostGroupIds: number[] = [];
+		for (const group of groups) {
+			const extHostGroup = this._findExtHostTabGroupFromApi(group);
+			if (!extHostGroup) {
+				throw new Error('Group close: Invalid group not found!');
+			}
+			extHostGroupIds.push(extHostGroup.groupId);
 		}
-		const tab = group.acceptTabDtoUpdate(tabDto);
-		this._onDidChangeTab.fire(tab.apiObject);
+		return this._proxy.$closeGroup(extHostGroupIds, preserverFoucs);
 	}
-
-	/**
-	 * Compares two groups determining if they're the same or different
-	 * @param group1 The first group to compare
-	 * @param group2 The second group to compare
-	 * @returns True if different, false otherwise
-	 */
-	// private groupDiff(group1: IEditorTabGroup | undefined, group2: IEditorTabGroup | undefined): boolean {
-	// 	if (group1 === group2) {
-	// 		return false;
-	// 	}
-	// 	// They would be reference equal if both undefined so one is undefined and one isn't hence different
-	// 	if (!group1 || !group2) {
-	// 		return true;
-	// 	}
-	// 	if (group1.isActive !== group2.isActive
-	// 		|| group1.viewColumn !== group2.viewColumn
-	// 		|| group1.tabs.length !== group2.tabs.length
-	// 	) {
-	// 		return true;
-	// 	}
-	// 	for (let i = 0; i < group1.tabs.length; i++) {
-	// 		if (this.tabDiff(group1.tabs[i], group2.tabs[i])) {
-	// 			return true;
-	// 		}
-	// 	}
-	// 	return false;
-	// }
-
-	/**
-	 * Compares two tabs determining if they're the same or different
-	 * @param tab1 The first tab to compare
-	 * @param tab2 The second tab to compare
-	 * @returns True if different, false otherwise
-	 */
-	// private tabDiff(tab1: IEditorTab | undefined, tab2: IEditorTab | undefined): boolean {
-	// 	if (tab1 === tab2) {
-	// 		return false;
-	// 	}
-	// 	// They would be reference equal if both undefined so one is undefined and one isn't therefore they're different
-	// 	if (!tab1 || !tab2) {
-	// 		return true;
-	// 	}
-	// 	if (tab1.label !== tab2.label
-	// 		|| tab1.viewColumn !== tab2.viewColumn
-	// 		|| tab1.resource?.toString() !== tab2.resource?.toString()
-	// 		|| tab1.viewType !== tab2.viewType
-	// 		|| tab1.isActive !== tab2.isActive
-	// 		|| tab1.isPinned !== tab2.isPinned
-	// 		|| tab1.isDirty !== tab2.isDirty
-	// 		|| tab1.additionalResourcesAndViewTypes.length !== tab2.additionalResourcesAndViewTypes.length
-	// 	) {
-	// 		return true;
-	// 	}
-	// 	for (let i = 0; i < tab1.additionalResourcesAndViewTypes.length; i++) {
-	// 		const tab1Resource = tab1.additionalResourcesAndViewTypes[i].resource;
-	// 		const tab2Resource = tab2.additionalResourcesAndViewTypes[i].resource;
-	// 		const tab1viewType = tab1.additionalResourcesAndViewTypes[i].viewType;
-	// 		const tab2viewType = tab2.additionalResourcesAndViewTypes[i].viewType;
-	// 		if (tab1Resource?.toString() !== tab2Resource?.toString() || tab1viewType !== tab2viewType) {
-	// 			return true;
-	// 		}
-	// 	}
-	// 	return false;
-	// }
 }
+
+//#region Utils
+function isTabGroup(obj: unknown): obj is vscode.TabGroup {
+	const tabGroup = obj as vscode.TabGroup;
+	if (tabGroup.tabs !== undefined) {
+		return true;
+	}
+	return false;
+}
+//#endregion

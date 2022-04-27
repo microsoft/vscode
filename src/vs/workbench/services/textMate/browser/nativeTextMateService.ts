@@ -120,7 +120,7 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 			}
 		}
 
-		this._model.setTokens(tokens);
+		this._model.tokenization.setTokens(tokens);
 	}
 }
 

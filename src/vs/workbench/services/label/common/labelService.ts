@@ -10,7 +10,7 @@ import * as paths from 'vs/base/common/path';
 import { Emitter } from 'vs/base/common/event';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService, IWorkspace, isWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, isUntitledWorkspace, isTemporaryWorkspace } from 'vs/platform/workspace/common/workspace';
 import { basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
@@ -21,6 +21,8 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { OS } from 'vs/base/common/platform';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -106,12 +108,29 @@ export class LabelService extends Disposable implements ILabelService {
 	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>({ leakWarningThreshold: 400 }));
 	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
 
+	private os = OS;
+	private userHome: URI | undefined = undefined;
+
 	constructor(
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
 	) {
 		super();
+
+		// Resolve OS & Paths with remote in mind
+		this.resolveEnvironment();
+	}
+
+	private async resolveEnvironment(): Promise<void> {
+
+		// OS
+		const env = await this.remoteAgentService.getEnvironment();
+		this.os = env?.os ?? OS;
+
+		// User home
+		this.userHome = await this.pathService.userHome();
 	}
 
 	findFormatting(resource: URI): ResourceLabelFormatting | undefined {
@@ -156,7 +175,11 @@ export class LabelService extends Disposable implements ILabelService {
 
 	private doGetUriLabel(resource: URI, formatting?: ResourceLabelFormatting, options: { relative?: boolean; noPrefix?: boolean; endWithSeparator?: boolean } = {}): string {
 		if (!formatting) {
-			return getPathLabel(resource.path, { userHome: this.pathService.resolvedUserHome }, options.relative ? this.contextService : undefined);
+			return getPathLabel(resource, {
+				os: this.os,
+				tildify: this.userHome ? { userHome: this.userHome } : undefined,
+				relative: options.relative ? this.contextService : undefined
+			});
 		}
 
 		let label: string | undefined;
@@ -319,9 +342,8 @@ export class LabelService extends Disposable implements ILabelService {
 		}
 
 		if (formatting.tildify && !forceNoTildify) {
-			const userHome = this.pathService.resolvedUserHome;
-			if (userHome) {
-				label = tildify(label, userHome.fsPath);
+			if (this.userHome) {
+				label = tildify(label, this.userHome.fsPath, this.os);
 			}
 		}
 		if (formatting.authorityPrefix && resource.authority) {

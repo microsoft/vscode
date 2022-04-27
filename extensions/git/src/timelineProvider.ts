@@ -169,6 +169,8 @@ export class GitTimelineProvider implements TimelineProvider {
 
 		const dateType = config.get<'committed' | 'authored'>('date');
 		const showAuthor = config.get<boolean>('showAuthor');
+		const showUncommitted = config.get<boolean>('showUncommitted');
+
 		const openComparison = localize('git.timeline.openComparison', "Open Comparison");
 
 		const items = commits.map<GitTimelineItem>((c, i) => {
@@ -221,26 +223,27 @@ export class GitTimelineProvider implements TimelineProvider {
 				items.splice(0, 0, item);
 			}
 
-			const working = repo.workingTreeGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
-			if (working) {
-				const date = new Date();
+			if (showUncommitted) {
+				const working = repo.workingTreeGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
+				if (working) {
+					const date = new Date();
 
-				const item = new GitTimelineItem('', index ? '~' : 'HEAD', localize('git.timeline.uncommitedChanges', 'Uncommitted Changes'), date.getTime(), 'working', 'git:file:working');
-				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
-				item.iconPath = new ThemeIcon('git-commit');
-				item.description = '';
-				item.setItemDetails(you, undefined, dateFormatter.format(date), Resource.getStatusText(working.type));
+					const item = new GitTimelineItem('', index ? '~' : 'HEAD', localize('git.timeline.uncommitedChanges', 'Uncommitted Changes'), date.getTime(), 'working', 'git:file:working');
+					item.iconPath = new ThemeIcon('circle-outline');
+					item.description = '';
+					item.setItemDetails(you, undefined, dateFormatter.format(date), Resource.getStatusText(working.type));
 
-				const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
-				if (cmd) {
-					item.command = {
-						title: openComparison,
-						command: cmd.command,
-						arguments: cmd.arguments,
-					};
+					const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
+					if (cmd) {
+						item.command = {
+							title: openComparison,
+							command: cmd.command,
+							arguments: cmd.arguments,
+						};
+					}
+
+					items.splice(0, 0, item);
 				}
-
-				items.splice(0, 0, item);
 			}
 		}
 
@@ -257,7 +260,7 @@ export class GitTimelineProvider implements TimelineProvider {
 	}
 
 	private onConfigurationChanged(e: ConfigurationChangeEvent) {
-		if (e.affectsConfiguration('git.timeline.date') || e.affectsConfiguration('git.timeline.showAuthor')) {
+		if (e.affectsConfiguration('git.timeline.date') || e.affectsConfiguration('git.timeline.showAuthor') || e.affectsConfiguration('git.timeline.showUncommitted')) {
 			this.fireChanged();
 		}
 	}

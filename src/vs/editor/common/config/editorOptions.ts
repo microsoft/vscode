@@ -2504,6 +2504,11 @@ export interface IEditorInlayHintsOptions {
 	enabled?: boolean;
 
 	/**
+	 *
+	 */
+	toggle?: 'show' | 'hide' | null;
+
+	/**
 	 * Font size of inline hints.
 	 * Default to 90% of the editor font size.
 	 */
@@ -2514,6 +2519,13 @@ export interface IEditorInlayHintsOptions {
 	 * Defaults to editor font family.
 	 */
 	fontFamily?: string;
+
+	/**
+	 * The display style to render inlay hints with.
+	 * Compact mode disables the borders and padding around the inlay hint.
+	 * Defaults to 'standard'.
+	 */
+	displayStyle: 'standard' | 'compact';
 }
 
 /**
@@ -2524,7 +2536,7 @@ export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions
 class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditorInlayHintsOptions, EditorInlayHintsOptions> {
 
 	constructor() {
-		const defaults: EditorInlayHintsOptions = { enabled: true, fontSize: 0, fontFamily: '' };
+		const defaults: EditorInlayHintsOptions = { enabled: true, toggle: null, fontSize: 0, fontFamily: '', displayStyle: 'compact' };
 		super(
 			EditorOption.inlayHints, 'inlayHints', defaults,
 			{
@@ -2533,16 +2545,36 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					default: defaults.enabled,
 					description: nls.localize('inlayHints.enable', "Enables the inlay hints in the editor.")
 				},
+				'editor.inlayHints.toggle': {
+					type: 'string',
+					enum: ['show', 'hide'],
+					markdownEnumDescriptions: [
+						nls.localize('toogle.show', "Inlay hints are hidden by default and only show when holding `Ctrl+Alt`"),
+						nls.localize('toogle.hide', "Inlay hints are showing by default and hide when holding `Ctrl+Alt`"),
+					],
+					default: defaults.toggle,
+					markdownDescription: nls.localize('inlayHints.toggle', "Control if inlay hints temporarily show or hide when `Ctrl+Alt` is pressed and held.")
+				},
 				'editor.inlayHints.fontSize': {
 					type: 'number',
 					default: defaults.fontSize,
-					markdownDescription: nls.localize('inlayHints.fontSize', "Controls font size of inlay hints in the editor. A default of 90% of `#editor.fontSize#` is used when the configured value is less than `5` or greater than the editor font size.")
+					markdownDescription: nls.localize('inlayHints.fontSize', "Controls font size of inlay hints in the editor. As default the `#editor.fontSize#` is used when the configured value is less than `5` or greater than the editor font size.")
 				},
 				'editor.inlayHints.fontFamily': {
 					type: 'string',
 					default: defaults.fontFamily,
 					markdownDescription: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
 				},
+				// 'editor.inlayHints.displayStyle': {
+				// 	type: 'string',
+				// 	enum: ['standard', 'compact'],
+				// 	enumDescriptions: [
+				// 		nls.localize('inlayHints.displayStyle.standard', "Renders inlay hints with the default style."),
+				// 		nls.localize('inlayHints.displayStyle.compact', "Renders inlay hints without any padding, and removes the rounded borders."),
+				// 	],
+				// 	default: defaults.displayStyle,
+				// 	description: nls.localize('inlayHints.displayStyle', "Controls the display style of inlay hints.")
+				// }
 			}
 		);
 	}
@@ -2554,8 +2586,10 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 		const input = _input as IEditorInlayHintsOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			toggle: stringSet<'show' | 'hide' | null>(input.toggle, this.defaultValue.toggle, ['show', 'hide']),
 			fontSize: EditorIntOption.clampedInt(input.fontSize, this.defaultValue.fontSize, 0, 100),
-			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily)
+			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
+			displayStyle: stringSet<'standard' | 'compact'>(input.displayStyle, this.defaultValue.displayStyle, ['standard', 'compact'])
 		};
 	}
 }
@@ -3659,7 +3693,7 @@ export interface IGuidesOptions {
 	 * Enable highlighting of the active indent guide.
 	 * Defaults to true.
 	 */
-	highlightActiveIndentation?: boolean;
+	highlightActiveIndentation?: boolean | 'always';
 }
 
 /**
@@ -3717,8 +3751,15 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, IGuidesOptions,
 					description: nls.localize('editor.guides.indentation', "Controls whether the editor should render indent guides.")
 				},
 				'editor.guides.highlightActiveIndentation': {
-					type: 'boolean',
+					type: ['boolean', 'string'],
+					enum: [true, 'always', false],
+					enumDescriptions: [
+						nls.localize('editor.guides.highlightActiveIndentation.true', "Highlights the active indent guide."),
+						nls.localize('editor.guides.highlightActiveIndentation.always', "Highlights the active indent guide even if bracket guides are highlighted."),
+						nls.localize('editor.guides.highlightActiveIndentation.false', "Do not highlight the active indent guide."),
+					],
 					default: defaults.highlightActiveIndentation,
+
 					description: nls.localize('editor.guides.highlightActiveIndentation', "Controls whether the editor should highlight the active indent guide.")
 				}
 			}
@@ -3736,7 +3777,7 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, IGuidesOptions,
 			highlightActiveBracketPair: boolean(input.highlightActiveBracketPair, this.defaultValue.highlightActiveBracketPair),
 
 			indentation: boolean(input.indentation, this.defaultValue.indentation),
-			highlightActiveIndentation: boolean(input.highlightActiveIndentation, this.defaultValue.highlightActiveIndentation),
+			highlightActiveIndentation: primitiveSet(input.highlightActiveIndentation, this.defaultValue.highlightActiveIndentation, [true, false, 'always']),
 		};
 	}
 }

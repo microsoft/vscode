@@ -87,7 +87,7 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 		if (notebookType) {
 			if (notebookType === candidateNotebookType) {
 				ret = 10;
-			} else if (notebookType === '*') {
+			} else if (notebookType === '*' && candidateNotebookType !== undefined) {
 				ret = Math.max(ret, 5);
 			} else {
 				return 0;

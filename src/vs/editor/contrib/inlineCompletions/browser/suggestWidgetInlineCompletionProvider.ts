@@ -220,7 +220,7 @@ function suggestItemInfoEquals(a: SuggestItemInfo | undefined, b: SuggestItemInf
 function suggestionToSuggestItemInfo(suggestController: SuggestController, position: Position, item: CompletionItem, toggleMode: boolean): SuggestItemInfo | undefined {
 	// additionalTextEdits might not be resolved here, this could be problematic.
 	if (Array.isArray(item.completion.additionalTextEdits) && item.completion.additionalTextEdits.length > 0) {
-		// cannot represent additional text edits
+		// cannot represent additional text edits. TODO: Now we can.
 		return {
 			completionItemKind: item.completion.kind,
 			isSnippetText: false,
@@ -230,6 +230,7 @@ function suggestionToSuggestItemInfo(suggestController: SuggestController, posit
 				insertText: '',
 				filterText: '',
 				snippetInfo: undefined,
+				additionalTextEdits: [],
 			},
 		};
 	}
@@ -263,6 +264,7 @@ function suggestionToSuggestItemInfo(suggestController: SuggestController, posit
 				position.delta(0, Math.max(info.overwriteAfter, 0))
 			),
 			snippetInfo: undefined,
+			additionalTextEdits: [],
 		}
 	};
 }

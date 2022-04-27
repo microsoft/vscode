@@ -3,25 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as vscode from 'vscode';
-import * as URI from 'vscode-uri';
 import { CommandManager } from './commandManager';
 import * as commands from './commands/index';
-import LinkProvider from './features/documentLinkProvider';
-import MDDocumentSymbolProvider from './features/documentSymbolProvider';
-import MarkdownFoldingProvider from './features/foldingProvider';
-import { PathCompletionProvider } from './features/pathCompletions';
-import { MarkdownContentProvider } from './features/previewContentProvider';
-import { MarkdownPreviewManager } from './features/previewManager';
-import MarkdownSmartSelect from './features/smartSelect';
-import MarkdownWorkspaceSymbolProvider from './features/workspaceSymbolProvider';
+import { MdLinkProvider } from './languageFeatures/documentLinkProvider';
+import { MdDocumentSymbolProvider } from './languageFeatures/documentSymbolProvider';
+import { registerDropIntoEditor } from './languageFeatures/dropIntoEditor';
+import { registerFindFileReferences } from './languageFeatures/fileReferences';
+import { MdFoldingProvider } from './languageFeatures/foldingProvider';
+import { MdPathCompletionProvider } from './languageFeatures/pathCompletions';
+import { MdReferencesProvider } from './languageFeatures/references';
+import { MdRenameProvider } from './languageFeatures/rename';
+import { MdSmartSelect } from './languageFeatures/smartSelect';
+import { MdWorkspaceSymbolProvider } from './languageFeatures/workspaceSymbolProvider';
 import { Logger } from './logger';
 import { MarkdownEngine } from './markdownEngine';
 import { getMarkdownExtensionContributions } from './markdownExtensions';
-import { ContentSecurityPolicyArbiter, ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
+import { MarkdownContentProvider } from './preview/previewContentProvider';
+import { MarkdownPreviewManager } from './preview/previewManager';
+import { ContentSecurityPolicyArbiter, ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './preview/security';
 import { githubSlugifier } from './slugify';
 import { loadDefaultTelemetryReporter, TelemetryReporter } from './telemetryReporter';
+import { VsCodeMdWorkspaceContents } from './workspaceContents';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -34,75 +37,49 @@ export function activate(context: vscode.ExtensionContext) {
 	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
 	const engine = new MarkdownEngine(contributions, githubSlugifier);
 	const logger = new Logger();
+	const commandManager = new CommandManager();
 
 	const contentProvider = new MarkdownContentProvider(engine, context, cspArbiter, contributions, logger);
-	const symbolProvider = new MDDocumentSymbolProvider(engine);
+	const symbolProvider = new MdDocumentSymbolProvider(engine);
 	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions, engine);
 	context.subscriptions.push(previewManager);
 
-	context.subscriptions.push(registerMarkdownLanguageFeatures(symbolProvider, engine));
-	context.subscriptions.push(registerMarkdownCommands(previewManager, telemetryReporter, cspArbiter, engine));
+	context.subscriptions.push(registerMarkdownLanguageFeatures(commandManager, symbolProvider, engine));
+	context.subscriptions.push(registerMarkdownCommands(commandManager, previewManager, telemetryReporter, cspArbiter, engine));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
 		logger.updateConfiguration();
 		previewManager.updateConfiguration();
 	}));
-
-	context.subscriptions.push(vscode.workspace.onWillDropOnTextEditor(e => {
-		e.waitUntil((async () => {
-			const resourceUrls = await e.dataTransfer.get('resourceurls')?.asString();
-			if (!resourceUrls) {
-				return;
-			}
-
-			const uris: vscode.Uri[] = [];
-			for (const resource of JSON.parse(resourceUrls)) {
-				try {
-					uris.push(vscode.Uri.parse(resource));
-				} catch {
-					// noop
-				}
-			}
-
-			if (!uris.length) {
-				return;
-			}
-
-			const snippet = new vscode.SnippetString();
-			uris.forEach((uri, i) => {
-				const rel = path.relative(URI.Utils.dirname(e.editor.document.uri).fsPath, uri.fsPath);
-
-				snippet.appendText('[');
-				snippet.appendTabstop();
-				snippet.appendText(`](${rel})`);
-
-				if (i <= uris.length - 1 && uris.length > 1) {
-					snippet.appendText(' ');
-				}
-			});
-
-			return e.editor.insertSnippet(snippet, e.position);
-		})());
-	}));
 }
 
 function registerMarkdownLanguageFeatures(
-	symbolProvider: MDDocumentSymbolProvider,
+	commandManager: CommandManager,
+	symbolProvider: MdDocumentSymbolProvider,
 	engine: MarkdownEngine
 ): vscode.Disposable {
 	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
 
+	const linkProvider = new MdLinkProvider(engine);
+	const workspaceContents = new VsCodeMdWorkspaceContents();
+
+	const referencesProvider = new MdReferencesProvider(linkProvider, workspaceContents, engine, githubSlugifier);
 	return vscode.Disposable.from(
 		vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
-		vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider(engine)),
-		vscode.languages.registerFoldingRangeProvider(selector, new MarkdownFoldingProvider(engine)),
-		vscode.languages.registerSelectionRangeProvider(selector, new MarkdownSmartSelect(engine)),
-		vscode.languages.registerWorkspaceSymbolProvider(new MarkdownWorkspaceSymbolProvider(symbolProvider)),
-		PathCompletionProvider.register(selector, engine),
+		vscode.languages.registerDocumentLinkProvider(selector, linkProvider),
+		vscode.languages.registerFoldingRangeProvider(selector, new MdFoldingProvider(engine)),
+		vscode.languages.registerSelectionRangeProvider(selector, new MdSmartSelect(engine)),
+		vscode.languages.registerWorkspaceSymbolProvider(new MdWorkspaceSymbolProvider(symbolProvider, workspaceContents)),
+		vscode.languages.registerReferenceProvider(selector, referencesProvider),
+		vscode.languages.registerRenameProvider(selector, new MdRenameProvider(referencesProvider, workspaceContents, githubSlugifier)),
+		MdPathCompletionProvider.register(selector, engine, linkProvider),
+		registerDropIntoEditor(selector),
+		registerFindFileReferences(commandManager, referencesProvider),
 	);
 }
 
 function registerMarkdownCommands(
+	commandManager: CommandManager,
 	previewManager: MarkdownPreviewManager,
 	telemetryReporter: TelemetryReporter,
 	cspArbiter: ContentSecurityPolicyArbiter,
@@ -110,7 +87,6 @@ function registerMarkdownCommands(
 ): vscode.Disposable {
 	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, previewManager);
 
-	const commandManager = new CommandManager();
 	commandManager.register(new commands.ShowPreviewCommand(previewManager, telemetryReporter));
 	commandManager.register(new commands.ShowPreviewToSideCommand(previewManager, telemetryReporter));
 	commandManager.register(new commands.ShowLockedPreviewToSideCommand(previewManager, telemetryReporter));

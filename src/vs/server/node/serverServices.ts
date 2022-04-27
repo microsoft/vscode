@@ -67,6 +67,9 @@ import { ServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serve
 import { REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteFileSystemProviderClient';
+import { ExtensionHostStatusService, IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
+import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
+import { ExtensionsScannerService } from 'vs/server/node/extensionsScannerService';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -107,6 +110,9 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const configurationService = new ConfigurationService(environmentService.machineSettingsResource, fileService);
 	services.set(IConfigurationService, configurationService);
 
+	const extensionHostStatusService = new ExtensionHostStatusService();
+	services.set(IExtensionHostStatusService, extensionHostStatusService);
+
 	// URI Identity
 	services.set(IUriIdentityService, new UriIdentityService(fileService));
 
@@ -127,7 +133,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 			piiPaths: getPiiPathsFromEnvironment(environmentService)
 		};
 		const initialTelemetryLevelArg = environmentService.args['telemetry-level'];
-		let injectedTelemetryLevel: TelemetryLevel | undefined = undefined;
+		let injectedTelemetryLevel: TelemetryLevel = TelemetryLevel.USAGE;
 		// Convert the passed in CLI argument into a telemetry level for the telemetry service
 		if (initialTelemetryLevelArg === 'all') {
 			injectedTelemetryLevel = TelemetryLevel.USAGE;
@@ -148,6 +154,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const downloadChannel = socketServer.getChannel('download', router);
 	services.set(IDownloadService, new DownloadServiceChannelClient(downloadChannel, () => getUriTransformer('renderer') /* TODO: @Sandy @Joao need dynamic context based router */));
 
+	services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
 	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
@@ -172,13 +179,14 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	instantiationService.invokeFunction(accessor => {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
-		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, extensionManagementCLIService, extensionManagementService, logService, productService);
+		const extensionsScannerService = accessor.get(IExtensionsScannerService);
+		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, extensionManagementCLIService, logService, extensionHostStatusService, extensionsScannerService);
 		socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
 		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), appInsightsAppender);
 		socketServer.registerChannel('telemetry', telemetryChannel);
 
-		socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(environmentService, logService, ptyService, productService));
+		socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(environmentService, logService, ptyService, productService, extensionManagementService));
 
 		const remoteFileSystemChannel = new RemoteAgentFileSystemProviderChannel(logService, environmentService);
 		socketServer.registerChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME, remoteFileSystemChannel);

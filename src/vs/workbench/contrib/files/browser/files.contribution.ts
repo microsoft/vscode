@@ -157,7 +157,7 @@ configurationRegistry.registerConfiguration({
 								'type': 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
 								'pattern': '\\w*\\$\\(basename\\)\\w*',
 								'default': '$(basename).ext',
-								'description': nls.localize('files.exclude.when', "Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.")
+								'markdownDescription': nls.localize('files.exclude.when', "Additional check on the siblings of a matching file. Use \\$(basename) as variable for the matching file name.")
 							}
 						}
 					}
@@ -293,6 +293,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
 			'default': false
+		},
+		'files.participants.timeout': {
+			type: 'number',
+			default: 60000,
+			markdownDescription: nls.localize('files.participants.timeout', "Timeout in milliseconds after which file participants for create, rename, and delete are cancelled. Use `0` to disable participants."),
 		}
 	}
 });
@@ -332,8 +337,14 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'explorer.openEditors.visible': {
 			'type': 'number',
-			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane. Setting this to 0 hides the Open Editors pane."),
+			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "The maximum number of editors shown in the Open Editors pane. Setting this to 0 hides the Open Editors pane."),
 			'default': 9,
+			'minimum': 0
+		},
+		'explorer.openEditors.minVisible': {
+			'type': 'number',
+			'description': nls.localize({ key: 'openEditorsVisibleMin', comment: ['Open is an adjective'] }, "The minimum number of editor slots shown in the Open Editors pane. If set to 0 the Open Editors pane will dynamically resize based on the number of editors."),
+			'default': 0,
 			'minimum': 0
 		},
 		'explorer.openEditors.sortOrder': {
@@ -406,7 +417,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before  files.'),
 				nls.localize('sortOrder.foldersNestsFiles', 'Files and folders are sorted by their names. Folders are displayed before files. Files with nested children are displayed before other files.')
 			],
-			'markdownDescription': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer. When `#explorer.experimental.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
+			'markdownDescription': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer. When `#explorer.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
 		},
 		'explorer.sortOrderLexicographicOptions': {
 			'type': 'string',
@@ -460,53 +471,43 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('copyRelativePathSeparator', "The path separation character used when copying relative file paths."),
 			'default': 'auto'
 		},
-		'explorer.experimental.fileNesting.enabled': {
-			deprecationMessage: nls.localize('deprecated', "Deprecated, use non-experimental setting names.")
-		},
-		'explorer.experimental.fileNesting.expand': {
-			deprecationMessage: nls.localize('deprecated', "Deprecated, use non-experimental setting names.")
-		},
-		'explorer.experimental.fileNesting.operateAsGroup': {
-			deprecationMessage: nls.localize('deprecated', "Deprecated, use non-experimental setting names.")
-		},
-		'explorer.experimental.fileNesting.patterns': {
-			deprecationMessage: nls.localize('deprecated', "Deprecated, use non-experimental setting names.")
-		},
 		'explorer.fileNesting.enabled': {
 			'type': 'boolean',
+			scope: ConfigurationScope.RESOURCE,
 			'markdownDescription': nls.localize('fileNestingEnabled', "Controls whether file nesting is enabled in the explorer. File nesting allows for related files in a directory to be visually grouped together under a single parent file."),
 			'default': false,
 		},
 		'explorer.fileNesting.expand': {
 			'type': 'boolean',
-			'markdownDescription': nls.localize('fileNestingExpand', "Controls whether file nests are automatically expanded."),
+			'markdownDescription': nls.localize('fileNestingExpand', "Controls whether file nests are automatically expanded. `#explorer.fileNesting.enabled#` must be set for this to take effect."),
 			'default': true,
-		},
-		'explorer.fileNesting.operateAsGroup': {
-			'type': 'boolean',
-			'markdownDescription': nls.localize('operateAsGroup', "Controls whether file nests are treated as a group for clipboard operations, file deletions, and during drag and drop."),
-			'default': false,
 		},
 		'explorer.fileNesting.patterns': {
 			'type': 'object',
-			'markdownDescription': nls.localize('fileNestingPatterns', "Controls nesting of files in the explorer. Each __Item__ represents a parent pattern and may contain a single `*` character that matches any string. Each __Value__ represents a comma separated list of the child patterns that should be shown nested under a given parent. Child patterns may contain several special tokens:\n- `$\u200b(capture)`: Matches the resolved value of the `*` from the parent pattern\n- `$\u200b(basename)`: Matches the parent file's basename, the `file` in `file.ts`\n- `$\u200b(extname)`: Matches the parent file's extension, the `ts` in `file.ts`\n- `$\u200b(dirname)`: Matches the parent file's directory name, the `src` in `src/file.ts`\n- `*`: Matches any string, may only be used once per child pattern"),
+			scope: ConfigurationScope.RESOURCE,
+			'markdownDescription': nls.localize('fileNestingPatterns', "Controls nesting of files in the explorer. Each __Item__ represents a parent pattern and may contain a single `*` character that matches any string. Each __Value__ represents a comma separated list of the child patterns that should be shown nested under a given parent. Child patterns may contain several special tokens:\n- `${capture}`: Matches the resolved value of the `*` from the parent pattern\n- `${basename}`: Matches the parent file's basename, the `file` in `file.ts`\n- `${extname}`: Matches the parent file's extension, the `ts` in `file.ts`\n- `${dirname}`: Matches the parent file's directory name, the `src` in `src/file.ts`\n- `*`:  Matches any string, may only be used once per child pattern"),
 			patternProperties: {
 				'^[^*]*\\*?[^*]*$': {
-					markdownDescription: nls.localize('fileNesting.description', "Each key pattern may contain several special sequences: \n- `$\u200b(capture)`: Matches the resolved value of the `*` from the parent pattern\n- `$\u200b(basename)`: Matches the parent file's basename, the `file` in `file.ts`\n- `$\u200b(extname)`: Matches the parent file's extension, the `ts` in `file.ts`\n- `$\u200b(dirname)`: Matches the parent file's directory name, the `src` in `src/file.ts`\n- `*`: Matches any string, may only be used once per child pattern"),
+					markdownDescription: nls.localize('fileNesting.description', "Each key pattern may contain a single `*` character which will match any string."),
 					type: 'string',
 					pattern: '^([^,*]*\\*?[^,*]*)(, ?[^,*]*\\*?[^,*]*)*$',
 				}
 			},
 			additionalProperties: false,
 			'default': {
-				'*.ts': '$(capture).js',
-				'*.js': '$(capture).js.map, $(capture).min.js, $(capture).d.ts',
-				'*.jsx': '$(capture).js',
-				'*.tsx': '$(capture).ts',
+				'*.ts': '${capture}.js',
+				'*.js': '${capture}.js.map, ${capture}.min.js, ${capture}.d.ts',
+				'*.jsx': '${capture}.js',
+				'*.tsx': '${capture}.ts',
 				'tsconfig.json': 'tsconfig.*.json',
 				'package.json': 'package-lock.json, yarn.lock',
 			}
-		}
+		},
+		'explorer.experimental.fileNesting.operateAsGroup': {
+			'type': 'boolean',
+			'markdownDescription': nls.localize('operateAsGroup', "Experimental. Controls whether file nests are treated as a group for clipboard operations, file deletions, and during drag and drop."),
+			'default': true,
+		},
 	}
 });
 

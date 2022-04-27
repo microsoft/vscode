@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { Limiter } from 'vs/base/common/async';
+import { URI } from 'vs/base/common/uri';
+import { IdleValue, Limiter } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
@@ -20,17 +21,32 @@ import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCo
 import { IWorkingCopyHistoryService, MAX_PARALLEL_HISTORY_IO_OPS } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { IWorkingCopySaveEvent, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { Schemas } from 'vs/base/common/network';
+import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { FileOperation, FileOperationEvent, IFileOperationEventWithMetadata, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 
 export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchContribution {
 
 	private static readonly SETTINGS = {
 		ENABLED: 'workbench.localHistory.enabled',
 		SIZE_LIMIT: 'workbench.localHistory.maxFileSize',
+		EXCLUDES: 'workbench.localHistory.exclude'
 	};
 
 	private static readonly UNDO_REDO_SAVE_SOURCE = SaveSourceRegistry.registerSource('undoRedo.source', localize('undoRedo.source', "Undo / Redo"));
 
 	private readonly limiter = this._register(new Limiter(MAX_PARALLEL_HISTORY_IO_OPS));
+
+	private readonly resourceExcludeMatcher = this._register(new IdleValue(() => {
+		const matcher = this._register(new ResourceGlobMatcher(
+			root => this.configurationService.getValue(WorkingCopyHistoryTracker.SETTINGS.EXCLUDES, { resource: root }),
+			event => event.affectsConfiguration(WorkingCopyHistoryTracker.SETTINGS.EXCLUDES),
+			this.contextService,
+			this.configurationService
+		));
+
+		return matcher;
+	}));
 
 	private readonly pendingAddHistoryEntryOperations = new ResourceMap<CancellationTokenSource>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 
@@ -43,7 +59,9 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IPathService private readonly pathService: IPathService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUndoRedoService private readonly undoRedoService: IUndoRedoService
+		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
@@ -52,28 +70,52 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 
 	private registerListeners() {
 
-		// Working Copy events
+		// File Events
+		this._register(this.fileService.onDidRunOperation(e => this.onDidRunFileOperation(e)));
+
+		// Working Copy Events
 		this._register(this.workingCopyService.onDidChangeContent(workingCopy => this.onDidChangeContent(workingCopy)));
 		this._register(this.workingCopyService.onDidSave(e => this.onDidSave(e)));
+	}
+
+	private async onDidRunFileOperation(e: FileOperationEvent): Promise<void> {
+		if (!this.shouldTrackHistoryFromFileOperationEvent(e)) {
+			return; // return early for working copies we are not interested in
+		}
+
+		const source = e.resource;
+		const target = e.target.resource;
+
+		// Move working copy history entries for this file move event
+		const resources = await this.workingCopyHistoryService.moveEntries(source, target);
+
+		// Make sure to track the content version of each entry that
+		// was moved in our map. This ensures that a subsequent save
+		// without a content change does not add a redundant entry
+		// (https://github.com/microsoft/vscode/issues/145881)
+		for (const resource of resources) {
+			const contentVersion = this.getContentVersion(resource);
+			this.historyEntryContentVersion.set(resource, contentVersion);
+		}
 	}
 
 	private onDidChangeContent(workingCopy: IWorkingCopy): void {
 
 		// Increment content version ID for resource
-		const contentVersionId = this.getContentVersion(workingCopy);
+		const contentVersionId = this.getContentVersion(workingCopy.resource);
 		this.workingCopyContentVersion.set(workingCopy.resource, contentVersionId + 1);
 	}
 
-	private getContentVersion(workingCopy: IWorkingCopy): number {
-		return this.workingCopyContentVersion.get(workingCopy.resource) || 0;
+	private getContentVersion(resource: URI): number {
+		return this.workingCopyContentVersion.get(resource) || 0;
 	}
 
 	private onDidSave(e: IWorkingCopySaveEvent): void {
-		if (!this.shouldTrackHistory(e)) {
+		if (!this.shouldTrackHistoryFromSaveEvent(e)) {
 			return; // return early for working copies we are not interested in
 		}
 
-		const contentVersion = this.getContentVersion(e.workingCopy);
+		const contentVersion = this.getContentVersion(e.workingCopy.resource);
 		if (this.historyEntryContentVersion.get(e.workingCopy.resource) === contentVersion) {
 			return; // return early when content version already has associated history entry
 		}
@@ -91,7 +133,7 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 				return;
 			}
 
-			const contentVersion = this.getContentVersion(e.workingCopy);
+			const contentVersion = this.getContentVersion(e.workingCopy.resource);
 
 			// Figure out source of save operation if not provided already
 			let source = e.source;
@@ -132,24 +174,40 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 		return undefined;
 	}
 
-	private shouldTrackHistory(e: IWorkingCopySaveEvent): e is IStoredFileWorkingCopySaveEvent<IStoredFileWorkingCopyModel> {
-		if (
-			e.workingCopy.resource.scheme !== this.pathService.defaultUriScheme && 	// track history for all workspace resources
-			e.workingCopy.resource.scheme !== Schemas.vscodeUserData				// track history for all settings
-		) {
-			return false; // do not support unknown resources
-		}
-
+	private shouldTrackHistoryFromSaveEvent(e: IWorkingCopySaveEvent): e is IStoredFileWorkingCopySaveEvent<IStoredFileWorkingCopyModel> {
 		if (!isStoredFileWorkingCopySaveEvent(e)) {
 			return false; // only support working copies that are backed by stored files
 		}
 
-		const configuredMaxFileSizeInBytes = 1024 * this.configurationService.getValue<number>(WorkingCopyHistoryTracker.SETTINGS.SIZE_LIMIT, { resource: e.workingCopy.resource });
-		if (e.stat.size > configuredMaxFileSizeInBytes) {
+		return this.shouldTrackHistory(e.workingCopy.resource, e.stat);
+	}
+
+	private shouldTrackHistoryFromFileOperationEvent(e: FileOperationEvent): e is IFileOperationEventWithMetadata {
+		if (!e.isOperation(FileOperation.MOVE)) {
+			return false; // only interested in move operations
+		}
+
+		return this.shouldTrackHistory(e.target.resource, e.target);
+	}
+
+	private shouldTrackHistory(resource: URI, stat: IFileStatWithMetadata): boolean {
+		if (
+			resource.scheme !== this.pathService.defaultUriScheme && 	// track history for all workspace resources
+			resource.scheme !== Schemas.vscodeUserData					// track history for all settings
+		) {
+			return false; // do not support unknown resources
+		}
+
+		const configuredMaxFileSizeInBytes = 1024 * this.configurationService.getValue<number>(WorkingCopyHistoryTracker.SETTINGS.SIZE_LIMIT, { resource });
+		if (stat.size > configuredMaxFileSizeInBytes) {
 			return false; // only track files that are not too large
 		}
 
-		// Finally check for setting
-		return this.configurationService.getValue<boolean>(WorkingCopyHistoryTracker.SETTINGS.ENABLED, { resource: e.workingCopy.resource }) !== false;
+		if (this.configurationService.getValue(WorkingCopyHistoryTracker.SETTINGS.ENABLED, { resource }) === false) {
+			return false; // do not track when history is disabled
+		}
+
+		// Finally check for exclude setting
+		return !this.resourceExcludeMatcher.value.matches(resource);
 	}
 }

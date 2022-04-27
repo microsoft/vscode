@@ -54,6 +54,11 @@
         "filenamePatterns": [
           "**/User/snippets/*.json"
         ]
+      }, {
+        "id": "json",
+        "extensions": [
+          ".code-profile"
+        ]
       }
     ],
     "jsonValidation": [

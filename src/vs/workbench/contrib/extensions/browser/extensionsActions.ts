@@ -2348,6 +2348,11 @@ export class ExtensionStatusAction extends ExtensionAction {
 			}
 		}
 
+		if (isEnabled && !isRunning && !this.extension.local.isValid) {
+			const errors = this.extension.local.validations.filter(([severity]) => severity === Severity.Error).map(([, message]) => message);
+			this.updateStatus({ icon: errorIcon, message: new MarkdownString(errors.join(' ').trim()) }, true);
+		}
+
 	}
 
 	private updateStatus(status: ExtensionStatus | undefined, updateClass: boolean): void {

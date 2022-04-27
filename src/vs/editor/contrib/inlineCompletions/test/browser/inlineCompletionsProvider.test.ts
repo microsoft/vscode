@@ -36,7 +36,7 @@ suite('Inline Completions', () => {
 			const result = {} as any;
 			for (const option of options) {
 				result[option] = inlineCompletionToGhostText(
-					{ insertText: suggestion, filterText: suggestion, snippetInfo: undefined, range },
+					{ insertText: suggestion, filterText: suggestion, snippetInfo: undefined, range, additionalTextEdits: [], },
 					tempModel,
 					option
 				)?.render(cleanedText, true);
@@ -526,26 +526,56 @@ suite('Inline Completions', () => {
 				context.keyboardType('hello');
 				await timeout(100);
 
-				context.cursorLeft(); // Cause the ghost text to update
-				context.cursorRight();
+				// Update ghost text
+				context.keyboardType('w');
+				context.leftDelete();
 
 				await timeout(2000);
 
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{
-						position: '(2,6)',
-						text: 'hello\nhello',
-						triggerKind: 0,
-					}
+					{ position: '(2,6)', triggerKind: 0, text: 'hello\nhello' },
 				]);
 
 				assert.deepStrictEqual(context.getAndClearViewStates(), [
 					'',
+					'hello\n',
 					'hello[world]\n',
 					'hello\n',
 					'hello\nhello[world]',
 				]);
 			});
+	});
+
+	test('Additional Text Edits', async function () {
+		const provider = new MockInlineCompletionsProvider();
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider },
+			async ({ editor, editorViewModel, model, context }) => {
+				model.setActive(true);
+
+				context.keyboardType('buzz\nbaz');
+				provider.setReturnValue({
+					insertText: 'bazz',
+					range: new Range(2, 1, 2, 4),
+					additionalTextEdits: [{
+						range: new Range(1, 1, 1, 5),
+						text: 'bla'
+					}],
+				});
+				model.trigger(InlineCompletionTriggerKind.Explicit);
+				await timeout(1000);
+
+				model.commitCurrentSuggestion();
+
+				assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: "(2,4)", triggerKind: 1, text: "buzz\nbaz" }]));
+
+				assert.deepStrictEqual(context.getAndClearViewStates(), [
+					'',
+					'buzz\nbaz[z]',
+					'bla\nbazz',
+				]);
+			}
+		);
 	});
 });
 

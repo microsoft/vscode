@@ -36,7 +36,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 		@IProductService private readonly productService: IProductService,
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
-		if (this.telemetryService.telemetryLevel === TelemetryLevel.USAGE) {
+		if (this.telemetryService.telemetryLevel.value === TelemetryLevel.USAGE) {
 			this.report();
 		}
 	}

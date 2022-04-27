@@ -37,11 +37,22 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 
 	public abstract getSecretStoragePrefix(): Promise<string>;
 	protected abstract withKeytar(): Promise<KeytarModule>;
+	/**
+	 * An optional method that subclasses can implement to assist in surfacing
+	 * Keytar load errors to the user in a friendly way.
+	 */
+	protected abstract surfaceKeytarLoadError?: (err: any) => void;
 
 	//#endregion
 
 	async getPassword(service: string, account: string): Promise<string | null> {
-		const keytar = await this.withKeytar();
+		let keytar: KeytarModule;
+		try {
+			keytar = await this.withKeytar();
+		} catch (e) {
+			// for get operations, we don't want to surface errors to the user
+			return null;
+		}
 
 		const password = await keytar.getPassword(service, account);
 		if (password) {
@@ -70,7 +81,14 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 	}
 
 	async setPassword(service: string, account: string, password: string): Promise<void> {
-		const keytar = await this.withKeytar();
+		let keytar: KeytarModule;
+		try {
+			keytar = await this.withKeytar();
+		} catch (e) {
+			this.surfaceKeytarLoadError?.(e);
+			throw e;
+		}
+
 		const MAX_SET_ATTEMPTS = 3;
 
 		// Sometimes Keytar has a problem talking to the keychain on the OS. To be more resilient, we retry a few times.
@@ -119,9 +137,34 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 	}
 
 	async deletePassword(service: string, account: string): Promise<boolean> {
-		const keytar = await this.withKeytar();
+		let keytar: KeytarModule;
+		try {
+			keytar = await this.withKeytar();
+		} catch (e) {
+			this.surfaceKeytarLoadError?.(e);
+			throw e;
+		}
 
+		const password = await keytar.getPassword(service, account);
+		if (!password) {
+			return false;
+		}
 		const didDelete = await keytar.deletePassword(service, account);
+		let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
+		if (content && hasNextChunk) {
+			// need to delete additional chunks
+			let index = 1;
+			while (hasNextChunk) {
+				const accountWithIndex = `${account}-${index}`;
+				const nextChunk = await keytar.getPassword(service, accountWithIndex);
+				await keytar.deletePassword(service, accountWithIndex);
+
+				const result: ChunkedPassword = JSON.parse(nextChunk!);
+				hasNextChunk = result.hasNextChunk;
+				index++;
+			}
+		}
+
 		if (didDelete) {
 			this._onDidChangePassword.fire({ service, account });
 		}
@@ -130,13 +173,25 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 	}
 
 	async findPassword(service: string): Promise<string | null> {
-		const keytar = await this.withKeytar();
+		let keytar: KeytarModule;
+		try {
+			keytar = await this.withKeytar();
+		} catch (e) {
+			// for get operations, we don't want to surface errors to the user
+			return null;
+		}
 
 		return keytar.findPassword(service);
 	}
 
 	async findCredentials(service: string): Promise<Array<{ account: string; password: string }>> {
-		const keytar = await this.withKeytar();
+		let keytar: KeytarModule;
+		try {
+			keytar = await this.withKeytar();
+		} catch (e) {
+			// for get operations, we don't want to surface errors to the user
+			return [];
+		}
 
 		return keytar.findCredentials(service);
 	}

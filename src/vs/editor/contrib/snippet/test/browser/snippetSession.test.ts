@@ -8,10 +8,12 @@ import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { SnippetSession } from 'vs/editor/contrib/snippet/browser/snippetSession';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -19,6 +21,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 
 suite('SnippetSession', function () {
 
+	let languageConfigurationService: ILanguageConfigurationService;
 	let editor: IActiveCodeEditor;
 	let model: TextModel;
 
@@ -32,9 +35,11 @@ suite('SnippetSession', function () {
 
 	setup(function () {
 		model = createTextModel('function foo() {\n    console.log(a);\n}');
+		languageConfigurationService = new TestLanguageConfigurationService();
 		const serviceCollection = new ServiceCollection(
 			[ILabelService, new class extends mock<ILabelService>() { }],
 			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
+			[ILanguageConfigurationService, languageConfigurationService]
 		);
 		editor = createTestCodeEditor(model, { serviceCollection }) as IActiveCodeEditor;
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
@@ -79,7 +84,7 @@ suite('SnippetSession', function () {
 	});
 
 	test('text edits & selection', function () {
-		const session = new SnippetSession(editor, 'foo${1:bar}foo$0');
+		const session = new SnippetSession(editor, 'foo${1:bar}foo$0', undefined, languageConfigurationService);
 		session.insert();
 		assert.strictEqual(editor.getModel()!.getValue(), 'foobarfoofunction foo() {\n    foobarfooconsole.log(a);\n}');
 
@@ -90,7 +95,7 @@ suite('SnippetSession', function () {
 
 	test('text edit with reversed selection', function () {
 
-		const session = new SnippetSession(editor, '${1:bar}$0');
+		const session = new SnippetSession(editor, '${1:bar}$0', undefined, languageConfigurationService);
 		editor.setSelections([new Selection(2, 5, 2, 5), new Selection(1, 1, 1, 1)]);
 
 		session.insert();
@@ -99,7 +104,7 @@ suite('SnippetSession', function () {
 	});
 
 	test('snippets, repeated tabstops', function () {
-		const session = new SnippetSession(editor, '${1:abc}foo${1:abc}$0');
+		const session = new SnippetSession(editor, '${1:abc}foo${1:abc}$0', undefined, languageConfigurationService);
 		session.insert();
 		assertSelections(editor,
 			new Selection(1, 1, 1, 4), new Selection(1, 7, 1, 10),
@@ -113,7 +118,7 @@ suite('SnippetSession', function () {
 	});
 
 	test('snippets, just text', function () {
-		const session = new SnippetSession(editor, 'foobar');
+		const session = new SnippetSession(editor, 'foobar', undefined, languageConfigurationService);
 		session.insert();
 		assert.strictEqual(model.getValue(), 'foobarfunction foo() {\n    foobarconsole.log(a);\n}');
 		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
@@ -121,7 +126,7 @@ suite('SnippetSession', function () {
 
 	test('snippets, selections and new text with newlines', () => {
 
-		const session = new SnippetSession(editor, 'foo\n\t${1:bar}\n$0');
+		const session = new SnippetSession(editor, 'foo\n\t${1:bar}\n$0', undefined, languageConfigurationService);
 		session.insert();
 
 		assert.strictEqual(editor.getModel()!.getValue(), 'foo\n    bar\nfunction foo() {\n    foo\n        bar\n    console.log(a);\n}');
@@ -135,14 +140,14 @@ suite('SnippetSession', function () {
 	test('snippets, newline NO whitespace adjust', () => {
 
 		editor.setSelection(new Selection(2, 5, 2, 5));
-		const session = new SnippetSession(editor, 'abc\n    foo\n        bar\n$0', { overwriteBefore: 0, overwriteAfter: 0, adjustWhitespace: false, clipboardText: undefined, overtypingCapturer: undefined });
+		const session = new SnippetSession(editor, 'abc\n    foo\n        bar\n$0', { overwriteBefore: 0, overwriteAfter: 0, adjustWhitespace: false, clipboardText: undefined, overtypingCapturer: undefined }, languageConfigurationService);
 		session.insert();
 		assert.strictEqual(editor.getModel()!.getValue(), 'function foo() {\n    abc\n    foo\n        bar\nconsole.log(a);\n}');
 	});
 
 	test('snippets, selections -> next/prev', () => {
 
-		const session = new SnippetSession(editor, 'f$1oo${2:bar}foo$0');
+		const session = new SnippetSession(editor, 'f$1oo${2:bar}foo$0', undefined, languageConfigurationService);
 		session.insert();
 
 		// @ $2
@@ -162,7 +167,7 @@ suite('SnippetSession', function () {
 	});
 
 	test('snippets, selections & typing', function () {
-		const session = new SnippetSession(editor, 'f${1:oo}_$2_$0');
+		const session = new SnippetSession(editor, 'f${1:oo}_$2_$0', undefined, languageConfigurationService);
 		session.insert();
 
 		editor.trigger('test', 'type', { text: 'X' });
@@ -187,7 +192,7 @@ suite('SnippetSession', function () {
 		model.setValue('foo_bar_foo');
 		editor.setSelections([new Selection(1, 1, 1, 4), new Selection(1, 9, 1, 12)]);
 
-		new SnippetSession(editor, 'x$0').insert();
+		new SnippetSession(editor, 'x$0', undefined, languageConfigurationService).insert();
 		assert.strictEqual(model.getValue(), 'x_bar_x');
 		assertSelections(editor, new Selection(1, 2, 1, 2), new Selection(1, 8, 1, 8));
 	});
@@ -196,7 +201,7 @@ suite('SnippetSession', function () {
 		model.setValue('foo_bar_foo');
 		editor.setSelections([new Selection(1, 1, 1, 4), new Selection(1, 9, 1, 12)]);
 
-		new SnippetSession(editor, 'LONGER$0').insert();
+		new SnippetSession(editor, 'LONGER$0', undefined, languageConfigurationService).insert();
 		assert.strictEqual(model.getValue(), 'LONGER_bar_LONGER');
 		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(1, 18, 1, 18));
 	});
@@ -204,7 +209,7 @@ suite('SnippetSession', function () {
 	test('snippets, don\'t grow final tabstop', function () {
 		model.setValue('foo_zzz_foo');
 		editor.setSelection(new Selection(1, 5, 1, 8));
-		const session = new SnippetSession(editor, '$1bar$0');
+		const session = new SnippetSession(editor, '$1bar$0', undefined, languageConfigurationService);
 		session.insert();
 
 		assertSelections(editor, new Selection(1, 5, 1, 5));
@@ -224,7 +229,7 @@ suite('SnippetSession', function () {
 
 	test('snippets, don\'t merge touching tabstops 1/2', function () {
 
-		const session = new SnippetSession(editor, '$1$2$3$0');
+		const session = new SnippetSession(editor, '$1$2$3$0', undefined, languageConfigurationService);
 		session.insert();
 		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
 
@@ -262,7 +267,7 @@ suite('SnippetSession', function () {
 	});
 	test('snippets, don\'t merge touching tabstops 2/2', function () {
 
-		const session = new SnippetSession(editor, '$1$2$3$0');
+		const session = new SnippetSession(editor, '$1$2$3$0', undefined, languageConfigurationService);
 		session.insert();
 		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
 
@@ -281,7 +286,7 @@ suite('SnippetSession', function () {
 	});
 
 	test('snippets, gracefully move over final tabstop', function () {
-		const session = new SnippetSession(editor, '${1}bar$0');
+		const session = new SnippetSession(editor, '${1}bar$0', undefined, languageConfigurationService);
 		session.insert();
 
 		assert.strictEqual(session.isAtLastPlaceholder, false);
@@ -297,7 +302,7 @@ suite('SnippetSession', function () {
 	});
 
 	test('snippets, overwriting nested placeholder', function () {
-		const session = new SnippetSession(editor, 'log(${1:"$2"});$0');
+		const session = new SnippetSession(editor, 'log(${1:"$2"});$0', undefined, languageConfigurationService);
 		session.insert();
 		assertSelections(editor, new Selection(1, 5, 1, 7), new Selection(2, 9, 2, 11));
 
@@ -314,7 +319,7 @@ suite('SnippetSession', function () {
 	});
 
 	test('snippets, selections and snippet ranges', function () {
-		const session = new SnippetSession(editor, '${1:foo}farboo${2:bar}$0');
+		const session = new SnippetSession(editor, '${1:foo}farboo${2:bar}$0', undefined, languageConfigurationService);
 		session.insert();
 		assert.strictEqual(model.getValue(), 'foofarboobarfunction foo() {\n    foofarboobarconsole.log(a);\n}');
 		assertSelections(editor, new Selection(1, 1, 1, 4), new Selection(2, 5, 2, 8));
@@ -350,12 +355,12 @@ suite('SnippetSession', function () {
 		model.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
 
-		const first = new SnippetSession(editor, 'foo${2:bar}foo$0');
+		const first = new SnippetSession(editor, 'foo${2:bar}foo$0', undefined, languageConfigurationService);
 		first.insert();
 		assert.strictEqual(model.getValue(), 'foobarfoo');
 		assertSelections(editor, new Selection(1, 4, 1, 7));
 
-		const second = new SnippetSession(editor, 'ba${1:zzzz}$0');
+		const second = new SnippetSession(editor, 'ba${1:zzzz}$0', undefined, languageConfigurationService);
 		second.insert();
 		assert.strictEqual(model.getValue(), 'foobazzzzfoo');
 		assertSelections(editor, new Selection(1, 6, 1, 10));
@@ -371,7 +376,7 @@ suite('SnippetSession', function () {
 
 	test('snippets, typing at final tabstop', function () {
 
-		const session = new SnippetSession(editor, 'farboo$0');
+		const session = new SnippetSession(editor, 'farboo$0', undefined, languageConfigurationService);
 		session.insert();
 		assert.strictEqual(session.isAtLastPlaceholder, true);
 		assert.strictEqual(session.isSelectionWithinPlaceholders(), false);
@@ -383,7 +388,7 @@ suite('SnippetSession', function () {
 	test('snippets, typing at beginning', function () {
 
 		editor.setSelection(new Selection(1, 2, 1, 2));
-		const session = new SnippetSession(editor, 'farboo$0');
+		const session = new SnippetSession(editor, 'farboo$0', undefined, languageConfigurationService);
 		session.insert();
 
 		editor.setSelection(new Selection(1, 2, 1, 2));
@@ -401,7 +406,7 @@ suite('SnippetSession', function () {
 	test('snippets, typing with nested placeholder', function () {
 
 		editor.setSelection(new Selection(1, 1, 1, 1));
-		const session = new SnippetSession(editor, 'This ${1:is ${2:nested}}.$0');
+		const session = new SnippetSession(editor, 'This ${1:is ${2:nested}}.$0', undefined, languageConfigurationService);
 		session.insert();
 		assertSelections(editor, new Selection(1, 6, 1, 15));
 
@@ -417,7 +422,7 @@ suite('SnippetSession', function () {
 	});
 
 	test('snippets, snippet with variables', function () {
-		const session = new SnippetSession(editor, '@line=$TM_LINE_NUMBER$0');
+		const session = new SnippetSession(editor, '@line=$TM_LINE_NUMBER$0', undefined, languageConfigurationService);
 		session.insert();
 
 		assert.strictEqual(model.getValue(), '@line=1function foo() {\n    @line=2console.log(a);\n}');
@@ -426,7 +431,7 @@ suite('SnippetSession', function () {
 
 	test('snippets, merge', function () {
 		editor.setSelection(new Selection(1, 1, 1, 1));
-		const session = new SnippetSession(editor, 'This ${1:is ${2:nested}}.$0');
+		const session = new SnippetSession(editor, 'This ${1:is ${2:nested}}.$0', undefined, languageConfigurationService);
 		session.insert();
 		session.next();
 		assertSelections(editor, new Selection(1, 9, 1, 15));
@@ -457,7 +462,7 @@ suite('SnippetSession', function () {
 	test('snippets, transform', function () {
 		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
-		const session = new SnippetSession(editor, '${1/foo/bar/}$0');
+		const session = new SnippetSession(editor, '${1/foo/bar/}$0', undefined, languageConfigurationService);
 		session.insert();
 		assertSelections(editor, new Selection(1, 1, 1, 1));
 
@@ -472,7 +477,7 @@ suite('SnippetSession', function () {
 	test('snippets, multi placeholder same index one transform', function () {
 		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
-		const session = new SnippetSession(editor, '$1 baz ${1/foo/bar/}$0');
+		const session = new SnippetSession(editor, '$1 baz ${1/foo/bar/}$0', undefined, languageConfigurationService);
 		session.insert();
 		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(1, 6, 1, 6));
 
@@ -487,7 +492,7 @@ suite('SnippetSession', function () {
 	test('snippets, transform example', function () {
 		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
-		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
+		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0', undefined, languageConfigurationService);
 		session.insert();
 
 		assertSelections(editor, new Selection(1, 1, 1, 5));
@@ -529,7 +534,7 @@ suite('SnippetSession', function () {
 		editor.getModel()!.updateOptions({ insertSpaces: false });
 		editor.setSelection(new Selection(2, 2, 2, 2));
 
-		const session = new SnippetSession(editor, snippet);
+		const session = new SnippetSession(editor, snippet, undefined, languageConfigurationService);
 		session.insert();
 
 		assertSelections(editor, new Selection(2, 19, 2, 19), new Selection(3, 11, 3, 11), new Selection(3, 28, 3, 28));
@@ -549,7 +554,7 @@ suite('SnippetSession', function () {
 	test('snippets, transform example hit if', function () {
 		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
-		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
+		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0', undefined, languageConfigurationService);
 		session.insert();
 
 		assertSelections(editor, new Selection(1, 1, 1, 5));
@@ -572,7 +577,7 @@ suite('SnippetSession', function () {
 	test('Snippet tab stop selection issue #96545, snippets, transform adjacent to previous placeholder', function () {
 		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
-		const session = new SnippetSession(editor, '${1:{}${2:fff}${1/{/}/}');
+		const session = new SnippetSession(editor, '${1:{}${2:fff}${1/{/}/}', undefined, languageConfigurationService);
 		session.insert();
 
 		assertSelections(editor, new Selection(1, 1, 1, 2), new Selection(1, 5, 1, 6));
@@ -590,7 +595,7 @@ suite('SnippetSession', function () {
 
 	test('Snippet tab stop selection issue #96545', function () {
 		editor.getModel().setValue('');
-		const session = new SnippetSession(editor, '${1:{}${2:fff}${1/[\\{]/}/}$0');
+		const session = new SnippetSession(editor, '${1:{}${2:fff}${1/[\\{]/}/}$0', undefined, languageConfigurationService);
 		session.insert();
 		assert.strictEqual(editor.getModel().getValue(), '{fff{');
 
@@ -602,7 +607,7 @@ suite('SnippetSession', function () {
 	test('Snippet placeholder index incorrect after using 2+ snippets in a row that each end with a placeholder, #30769', function () {
 		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
-		const session = new SnippetSession(editor, 'test ${1:replaceme}');
+		const session = new SnippetSession(editor, 'test ${1:replaceme}', undefined, languageConfigurationService);
 		session.insert();
 
 		editor.trigger('test', 'type', { text: '1' });
@@ -639,7 +644,7 @@ suite('SnippetSession', function () {
 		editor.getModel()!.updateOptions({ insertSpaces: false });
 		editor.setSelection(new Selection(2, 2, 3, 7));
 
-		new SnippetSession(editor, '<div>\n\t$TM_SELECTED_TEXT\n</div>$0').insert();
+		new SnippetSession(editor, '<div>\n\t$TM_SELECTED_TEXT\n</div>$0', undefined, languageConfigurationService).insert();
 
 		let expected = [
 			'start',
@@ -662,7 +667,7 @@ suite('SnippetSession', function () {
 		editor.getModel()!.updateOptions({ insertSpaces: false });
 		editor.setSelection(new Selection(2, 2, 3, 7));
 
-		new SnippetSession(editor, '<div>\n\t$TM_SELECTED_TEXT\n</div>$0').insert();
+		new SnippetSession(editor, '<div>\n\t$TM_SELECTED_TEXT\n</div>$0', undefined, languageConfigurationService).insert();
 
 		expected = [
 			'start',
@@ -687,7 +692,7 @@ suite('SnippetSession', function () {
 		assert.ok(actual.equalsSelection(new Selection(1, 9, 1, 12)));
 
 		editor.setSelections([new Selection(1, 9, 1, 12)]);
-		new SnippetSession(editor, 'far', { overwriteBefore: 3, overwriteAfter: 0, adjustWhitespace: true, clipboardText: undefined, overtypingCapturer: undefined }).insert();
+		new SnippetSession(editor, 'far', { overwriteBefore: 3, overwriteAfter: 0, adjustWhitespace: true, clipboardText: undefined, overtypingCapturer: undefined }, languageConfigurationService).insert();
 		assert.strictEqual(model.getValue(), 'console.far');
 	});
 
@@ -701,7 +706,7 @@ suite('SnippetSession', function () {
 			'\tvar ${1:a} = 12;',
 			'\tconsole.log(${1/(.*)/\n\t\t$1\n\t/})',
 			'}'
-		].join('\n'));
+		].join('\n'), undefined, languageConfigurationService);
 
 		session.insert();
 

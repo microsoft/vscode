@@ -10,7 +10,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { BaseCredentialsMainService, KeytarModule } from 'vs/platform/credentials/common/credentialsMainService';
 
-export class CredentialsDesktopMainService extends BaseCredentialsMainService {
+export class CredentialsNativeMainService extends BaseCredentialsMainService {
 
 	constructor(
 		@ILogService logService: ILogService,
@@ -36,14 +36,13 @@ export class CredentialsDesktopMainService extends BaseCredentialsMainService {
 			return this._keytarCache;
 		}
 
-		try {
-			this._keytarCache = await import('keytar');
-			// Try using keytar to see if it throws or not.
-			await this._keytarCache.findCredentials('test-keytar-loads');
-		} catch (e) {
-			this.windowsMainService.sendToFocused('vscode:showCredentialsError', e.message ?? e);
-			throw e;
-		}
+		this._keytarCache = await import('keytar');
+		// Try using keytar to see if it throws or not.
+		await this._keytarCache.findCredentials('test-keytar-loads');
 		return this._keytarCache;
 	}
+
+	protected override surfaceKeytarLoadError = (err: any) => {
+		this.windowsMainService.sendToFocused('vscode:showCredentialsError', err.message ?? err);
+	};
 }

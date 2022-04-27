@@ -14,8 +14,7 @@ import { ClientSecretCredential } from '@azure/identity';
 const azure = require('gulp-azure-storage');
 import * as packageJson from '../../package.json';
 
-const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
+const commit = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
 
 function generateVSCodeConfigurationTask(): Promise<string | undefined> {
 	return new Promise((resolve, reject) => {

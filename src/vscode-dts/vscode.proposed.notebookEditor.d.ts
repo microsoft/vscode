@@ -48,12 +48,12 @@ declare module 'vscode' {
 		 *
 		 * The primary selection (or focused range) is `selections[0]`. When the document has no cells, the primary selection is empty `{ start: 0, end: 0 }`;
 		 */
-		selections: NotebookRange[];
+		selections: readonly NotebookRange[];
 
 		/**
 		 * The current visible ranges in the editor (vertically).
 		 */
-		readonly visibleRanges: NotebookRange[];
+		readonly visibleRanges: readonly NotebookRange[];
 
 		/**
 		 * Scroll as indicated by `revealType` in order to reveal the given range.
@@ -69,64 +69,12 @@ declare module 'vscode' {
 		readonly viewColumn?: ViewColumn;
 	}
 
-	/** @deprecated */
-	export interface NotebookDocumentMetadataChangeEvent {
-		/**
-		 * The {@link NotebookDocument notebook document} for which the document metadata have changed.
-		 */
-		//todo@API rename to notebook?
-		readonly document: NotebookDocument;
-	}
-
-	/** @deprecated */
-	export interface NotebookCellsChangeData {
-		readonly start: number;
-		// todo@API end? Use NotebookCellRange instead?
-		readonly deletedCount: number;
-		// todo@API removedCells, deletedCells?
-		readonly deletedItems: NotebookCell[];
-		// todo@API addedCells, insertedCells, newCells?
-		readonly items: NotebookCell[];
-	}
-
-	/** @deprecated */
-	export interface NotebookCellsChangeEvent {
-		/**
-		 * The {@link NotebookDocument notebook document} for which the cells have changed.
-		 */
-		//todo@API rename to notebook?
-		readonly document: NotebookDocument;
-		readonly changes: ReadonlyArray<NotebookCellsChangeData>;
-	}
-
-	/** @deprecated */
-	export interface NotebookCellOutputsChangeEvent {
-		/**
-		 * The {@link NotebookDocument notebook document} for which the cell outputs have changed.
-		 */
-		//todo@API remove? use cell.notebook instead?
-		readonly document: NotebookDocument;
-		// NotebookCellOutputsChangeEvent.cells vs NotebookCellMetadataChangeEvent.cell
-		readonly cells: NotebookCell[];
-	}
-
-	/** @deprecated */
-	export interface NotebookCellMetadataChangeEvent {
-		/**
-		 * The {@link NotebookDocument notebook document} for which the cell metadata have changed.
-		 */
-		//todo@API remove? use cell.notebook instead?
-		readonly document: NotebookDocument;
-		// NotebookCellOutputsChangeEvent.cells vs NotebookCellMetadataChangeEvent.cell
-		readonly cell: NotebookCell;
-	}
-
 	export interface NotebookEditorSelectionChangeEvent {
 		/**
 		 * The {@link NotebookEditor notebook editor} for which the selections have changed.
 		 */
 		readonly notebookEditor: NotebookEditor;
-		readonly selections: ReadonlyArray<NotebookRange>;
+		readonly selections: readonly NotebookRange[];
 	}
 
 	export interface NotebookEditorVisibleRangesChangeEvent {
@@ -134,35 +82,19 @@ declare module 'vscode' {
 		 * The {@link NotebookEditor notebook editor} for which the visible ranges have changed.
 		 */
 		readonly notebookEditor: NotebookEditor;
-		readonly visibleRanges: ReadonlyArray<NotebookRange>;
+		readonly visibleRanges: readonly NotebookRange[];
 	}
-
 
 	export interface NotebookDocumentShowOptions {
-		viewColumn?: ViewColumn;
-		preserveFocus?: boolean;
-		preview?: boolean;
-		selections?: NotebookRange[];
-	}
-
-	export namespace notebooks {
-		/** @deprecated */
-		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
-		/** @deprecated */
-		export const onDidChangeNotebookDocumentMetadata: Event<NotebookDocumentMetadataChangeEvent>;
-		/** @deprecated */
-		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
-		// todo@API add onDidChangeNotebookCellOutputs
-		/** @deprecated */
-		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
-		// todo@API add onDidChangeNotebookCellMetadata
-		/** @deprecated */
-		export const onDidChangeCellMetadata: Event<NotebookCellMetadataChangeEvent>;
+		readonly viewColumn?: ViewColumn;
+		readonly preserveFocus?: boolean;
+		readonly preview?: boolean;
+		readonly selections?: readonly NotebookRange[];
 	}
 
 	export namespace window {
-		export const visibleNotebookEditors: NotebookEditor[];
-		export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
+		export const visibleNotebookEditors: readonly NotebookEditor[];
+		export const onDidChangeVisibleNotebookEditors: Event<readonly NotebookEditor[]>;
 		export const activeNotebookEditor: NotebookEditor | undefined;
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;

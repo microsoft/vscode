@@ -12,7 +12,7 @@ import { IURITransformer } from 'vs/base/common/uriIpc';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ReadableStreamEventPayload, listenStream } from 'vs/base/common/stream';
-import { IStat, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileDeleteOptions, FileOverwriteOptions, IFileChange, IWatchOptions, FileType, FileAtomicReadOptions } from 'vs/platform/files/common/files';
+import { IStat, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileDeleteOptions, IFileOverwriteOptions, IFileChange, IWatchOptions, FileType, IFileAtomicReadOptions } from 'vs/platform/files/common/files';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IRecursiveWatcherOptions } from 'vs/platform/files/common/watcher';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -90,14 +90,14 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 
 	//#region File Reading/Writing
 
-	private async readFile(uriTransformer: IURITransformer, _resource: UriComponents, opts?: FileAtomicReadOptions): Promise<VSBuffer> {
+	private async readFile(uriTransformer: IURITransformer, _resource: UriComponents, opts?: IFileAtomicReadOptions): Promise<VSBuffer> {
 		const resource = this.transformIncoming(uriTransformer, _resource, true);
 		const buffer = await this.provider.readFile(resource, opts);
 
 		return VSBuffer.wrap(buffer);
 	}
 
-	private onReadFileStream(uriTransformer: IURITransformer, _resource: URI, opts: FileReadStreamOptions): Event<ReadableStreamEventPayload<VSBuffer>> {
+	private onReadFileStream(uriTransformer: IURITransformer, _resource: URI, opts: IFileReadStreamOptions): Event<ReadableStreamEventPayload<VSBuffer>> {
 		const resource = this.transformIncoming(uriTransformer, _resource, true);
 		const cts = new CancellationTokenSource();
 
@@ -128,13 +128,13 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		return emitter.event;
 	}
 
-	private writeFile(uriTransformer: IURITransformer, _resource: UriComponents, content: VSBuffer, opts: FileWriteOptions): Promise<void> {
+	private writeFile(uriTransformer: IURITransformer, _resource: UriComponents, content: VSBuffer, opts: IFileWriteOptions): Promise<void> {
 		const resource = this.transformIncoming(uriTransformer, _resource);
 
 		return this.provider.writeFile(resource, content.buffer, opts);
 	}
 
-	private open(uriTransformer: IURITransformer, _resource: UriComponents, opts: FileOpenOptions): Promise<number> {
+	private open(uriTransformer: IURITransformer, _resource: UriComponents, opts: IFileOpenOptions): Promise<number> {
 		const resource = this.transformIncoming(uriTransformer, _resource, true);
 
 		return this.provider.open(resource, opts);
@@ -166,20 +166,20 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		return this.provider.mkdir(resource);
 	}
 
-	protected delete(uriTransformer: IURITransformer, _resource: UriComponents, opts: FileDeleteOptions): Promise<void> {
+	protected delete(uriTransformer: IURITransformer, _resource: UriComponents, opts: IFileDeleteOptions): Promise<void> {
 		const resource = this.transformIncoming(uriTransformer, _resource);
 
 		return this.provider.delete(resource, opts);
 	}
 
-	private rename(uriTransformer: IURITransformer, _source: UriComponents, _target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
+	private rename(uriTransformer: IURITransformer, _source: UriComponents, _target: UriComponents, opts: IFileOverwriteOptions): Promise<void> {
 		const source = this.transformIncoming(uriTransformer, _source);
 		const target = this.transformIncoming(uriTransformer, _target);
 
 		return this.provider.rename(source, target, opts);
 	}
 
-	private copy(uriTransformer: IURITransformer, _source: UriComponents, _target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
+	private copy(uriTransformer: IURITransformer, _source: UriComponents, _target: UriComponents, opts: IFileOverwriteOptions): Promise<void> {
 		const source = this.transformIncoming(uriTransformer, _source);
 		const target = this.transformIncoming(uriTransformer, _target);
 

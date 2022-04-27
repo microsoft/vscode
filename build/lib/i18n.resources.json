@@ -449,6 +449,14 @@
 		{
 			"name": "vs/workbench/services/host",
 			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/profiles",
+			"project": "vscode-profiles"
+		},
+		{
+			"name": "vs/workbench/services/profiles",
+			"project": "vscode-profiles"
 		}
 	]
 }

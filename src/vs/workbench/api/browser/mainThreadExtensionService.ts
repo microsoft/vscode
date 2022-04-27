@@ -26,6 +26,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { FileAccess } from 'vs/base/common/network';
+import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {
@@ -57,6 +58,9 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 	public dispose(): void {
 	}
 
+	$getExtension(extensionId: string) {
+		return this._extensionService.getExtension(extensionId);
+	}
 	$activateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
 		return this._internalExtensionService._activateById(extensionId, reason);
 	}
@@ -87,9 +91,9 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 			const extension = await this._extensionService.getExtension(extensionId.value);
 			if (extension) {
 				const local = await this._extensionsWorkbenchService.queryLocal();
-				const installedDependency = local.filter(i => areSameExtensions(i.identifier, { id: missingExtensionDependency.dependency }))[0];
-				if (installedDependency) {
-					await this._handleMissingInstalledDependency(extension, installedDependency.local!);
+				const installedDependency = local.find(i => areSameExtensions(i.identifier, { id: missingExtensionDependency.dependency }));
+				if (installedDependency?.local) {
+					await this._handleMissingInstalledDependency(extension, installedDependency.local);
 					return;
 				} else {
 					await this._handleMissingNotInstalledDependency(extension, missingExtensionDependency.dependency);
@@ -201,8 +205,8 @@ class ExtensionHostProxy implements IExtensionHostProxy {
 		const uriComponents = await this._actual.$getCanonicalURI(remoteAuthority, uri);
 		return (uriComponents ? URI.revive(uriComponents) : uriComponents);
 	}
-	startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
-		return this._actual.$startExtensionHost(enabledExtensionIds);
+	startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+		return this._actual.$startExtensionHost(extensionsDelta);
 	}
 	extensionTestsExecute(): Promise<number> {
 		return this._actual.$extensionTestsExecute();
@@ -222,8 +226,8 @@ class ExtensionHostProxy implements IExtensionHostProxy {
 	updateRemoteConnectionData(connectionData: IRemoteConnectionData): Promise<void> {
 		return this._actual.$updateRemoteConnectionData(connectionData);
 	}
-	deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
-		return this._actual.$deltaExtensions(toAdd, toRemove);
+	deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+		return this._actual.$deltaExtensions(extensionsDelta);
 	}
 	test_latency(n: number): Promise<number> {
 		return this._actual.$test_latency(n);
