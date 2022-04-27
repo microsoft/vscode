@@ -168,7 +168,7 @@ class CommentingRangeDecorator {
 		this._lastHover = hoverLine ?? -1;
 	}
 
-	public updateSelection(cursorLine: number, range: Range) {
+	public updateSelection(cursorLine: number, range: Range = new Range(0, 0, 0, 0)) {
 		this._lastSelection = range.isEmpty() ? undefined : range;
 		this._lastSelectionCursor = range.isEmpty() ? undefined : cursorLine;
 		// Some scenarios:
@@ -370,6 +370,7 @@ export class CommentController implements IEditorContribution {
 		this._editorDisposables.push(this.editor.onDidChangeCursorPosition(e => this.onEditorChangeCursorPosition(e.position)));
 		this._editorDisposables.push(this.editor.onDidFocusEditorWidget(() => this.onEditorChangeCursorPosition(this.editor.getPosition())));
 		this._editorDisposables.push(this.editor.onDidChangeCursorSelection(e => this.onEditorChangeCursorSelection(e)));
+		this._editorDisposables.push(this.editor.onDidBlurEditorWidget(() => this.onEditorChangeCursorSelection()));
 	}
 
 	private clearEditorListeners() {
@@ -381,10 +382,10 @@ export class CommentController implements IEditorContribution {
 		this._commentingRangeDecorator.updateHover(e.target.position?.lineNumber);
 	}
 
-	private onEditorChangeCursorSelection(e: ICursorSelectionChangedEvent): void {
+	private onEditorChangeCursorSelection(e?: ICursorSelectionChangedEvent): void {
 		const position = this.editor.getPosition()?.lineNumber;
 		if (position) {
-			this._commentingRangeDecorator.updateSelection(position, e.selection);
+			this._commentingRangeDecorator.updateSelection(position, e?.selection);
 		}
 	}
 
