@@ -61,11 +61,11 @@
 	cursor: pointer;
 }
 
-.monaco-workbench .simple-find-part .button.disabled {
-	opacity: 0.3;
+.monaco-workbench div.simple-find-part div.button.disabled {
+	opacity: 0.3 !important;
 	cursor: default;
 }
 
-div.simple-find-part-wrapper div.button:hover:not(.disabled) {
+div.simple-find-part-wrapper div.button {
 	border-radius: 5px;
 }
