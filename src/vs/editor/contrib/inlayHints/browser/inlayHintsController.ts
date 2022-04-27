@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createStyleSheet, isInShadowDOM, ModifierKeyEmitter } from 'vs/base/browser/dom';
+import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -91,6 +91,11 @@ type InlayHintDecorationRenderInfo = {
 	classNameRef: ClassNameReference;
 };
 
+const enum RenderMode {
+	Normal,
+	Invisible
+}
+
 // --- controller
 
 export class InlayHintsController implements IEditorContribution {
@@ -98,7 +103,6 @@ export class InlayHintsController implements IEditorContribution {
 	static readonly ID: string = 'editor.contrib.InlayHints';
 
 	private static readonly _MAX_DECORATORS = 1500;
-	private static readonly _renderModeCssVariable: any = '--inlay-hints-render-mode';
 
 	static get(editor: ICodeEditor): InlayHintsController | undefined {
 		return editor.getContribution<InlayHintsController>(InlayHintsController.ID) ?? undefined;
@@ -109,8 +113,8 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _debounceInfo: IFeatureDebounceInformation;
 	private readonly _decorationsMetadata = new Map<string, InlayHintDecorationRenderInfo>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
-	private readonly _styleElement: HTMLStyleElement;
 
+	private _activeRenderMode = RenderMode.Normal;
 	private _activeInlayHintPart?: ActiveInlayHintInfo;
 
 	constructor(
@@ -122,7 +126,6 @@ export class InlayHintsController implements IEditorContribution {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
-		this._styleElement = createStyleSheet(isInShadowDOM(this._editor.getContainerDomNode()) ? this._editor.getContainerDomNode() : undefined);
 		this._debounceInfo = _featureDebounce.for(_languageFeaturesService.inlayHintsProvider, 'InlayHint', { min: 25 });
 		this._disposables.add(_languageFeaturesService.inlayHintsProvider.onDidChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
@@ -140,7 +143,6 @@ export class InlayHintsController implements IEditorContribution {
 		this._sessionDisposables.dispose();
 		this._removeAllDecorations();
 		this._disposables.dispose();
-		this._styleElement.remove();
 	}
 
 	private _update(): void {
@@ -232,29 +234,33 @@ export class InlayHintsController implements IEditorContribution {
 			scheduler.schedule(delay);
 		}));
 
-		if (!options.toggle) {
-			this._editor.getContainerDomNode().style.setProperty(InlayHintsController._renderModeCssVariable, 'inherit');
-
-		} else {
-			type Modes = 'inherit' | 'none';
-			let defaultMode: Modes;
-			let altMode: Modes;
+		if (options.toggle) {
+			let defaultMode: RenderMode;
+			let altMode: RenderMode;
 			if (options.toggle === 'hide') {
-				defaultMode = 'inherit';
-				altMode = 'none';
+				defaultMode = RenderMode.Normal;
+				altMode = RenderMode.Invisible;
 			} else {
-				defaultMode = 'none';
-				altMode = 'inherit';
+				defaultMode = RenderMode.Invisible;
+				altMode = RenderMode.Normal;
 			}
-			this._editor.getContainerDomNode().style.setProperty(InlayHintsController._renderModeCssVariable, defaultMode);
-			let renderMode = defaultMode;
+			this._activeRenderMode = defaultMode;
 			this._sessionDisposables.add(ModifierKeyEmitter.getInstance().event(e => {
+				if (!this._editor.hasModel()) {
+					return;
+				}
 				const newRenderMode = e.altKey && e.ctrlKey ? altMode : defaultMode;
-				if (newRenderMode !== renderMode) {
-					this._editor.getContainerDomNode().style.setProperty(InlayHintsController._renderModeCssVariable, newRenderMode);
-					renderMode = newRenderMode;
+				if (newRenderMode !== this._activeRenderMode) {
+					this._activeRenderMode = newRenderMode;
+					const ranges = this._getHintsRanges();
+					const copies = this._copyInlayHintsWithCurrentAnchor(this._editor.getModel());
+					this._updateHintsDecorators(ranges, copies);
+					scheduler.schedule(0);
 				}
 			}));
+		} else {
+			// default
+			this._activeRenderMode = RenderMode.Normal;
 		}
 
 		// mouse gestures
@@ -384,6 +390,13 @@ export class InlayHintsController implements IEditorContribution {
 	}
 
 	private _cacheHintsForFastRestore(model: ITextModel): void {
+		const hints = this._copyInlayHintsWithCurrentAnchor(model);
+		this._inlayHintsCache.set(model, hints);
+	}
+
+	// return inlay hints but with an anchor that reflects "updates"
+	// that happens after receiving them, e.g adding new lines before a hint
+	private _copyInlayHintsWithCurrentAnchor(model: ITextModel): InlayHintItem[] {
 		const items = new Map<InlayHintItem, InlayHintItem>();
 		for (const [id, obj] of this._decorationsMetadata) {
 			if (items.has(obj.item)) {
@@ -391,16 +404,15 @@ export class InlayHintsController implements IEditorContribution {
 				// but they will all uses the same range
 				continue;
 			}
-			let value = obj.item;
 			const range = model.getDecorationRange(id);
 			if (range) {
 				// update range with whatever the editor has tweaked it to
 				const anchor = new InlayHintAnchor(range, obj.item.anchor.direction);
-				value = obj.item.with({ anchor });
+				const copy = obj.item.with({ anchor });
+				items.set(obj.item, copy);
 			}
-			items.set(obj.item, value);
 		}
-		this._inlayHintsCache.set(model, Array.from(items.values()));
+		return Array.from(items.values());
 	}
 
 	private _getHintsRanges(): Range[] {
@@ -442,7 +454,7 @@ export class InlayHintsController implements IEditorContribution {
 						showIfCollapsed: item.anchor.range.isEmpty(), // "original" range is empty
 						collapseOnReplaceEdit: !item.anchor.range.isEmpty(),
 						stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
-						[item.anchor.direction]: opts
+						[item.anchor.direction]: this._activeRenderMode === RenderMode.Normal ? opts : undefined
 					}
 				}
 			});
@@ -558,12 +570,6 @@ export class InlayHintsController implements IEditorContribution {
 			const data = newDecorationsData[i];
 			this._decorationsMetadata.set(newDecorationIds[i], data);
 		}
-
-		const allClassNames: string[] = [];
-		for (let data of this._decorationsMetadata.values()) {
-			allClassNames.push(`.${data.classNameRef.className}`);
-		}
-		this._styleElement.textContent = `${allClassNames.join(', ')} { display: var(${InlayHintsController._renderModeCssVariable}) !important; }`;
 	}
 
 	private _fillInColors(props: CssProperties, hint: languages.InlayHint): void {
