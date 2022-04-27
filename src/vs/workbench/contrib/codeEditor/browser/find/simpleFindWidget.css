@@ -15,6 +15,10 @@
 	padding: 0 10px 10px;
 }
 
+.simple-find-part .monaco-inputbox > .ibwrapper > input {
+	text-overflow: clip;
+}
+
 .monaco-workbench .simple-find-part {
 	visibility: hidden;		/* Use visibility to maintain flex layout while hidden otherwise interferes with transition */
 	z-index: 10;
