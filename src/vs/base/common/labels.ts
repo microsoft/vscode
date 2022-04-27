@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hasDriveLetter, isRootOrDriveLetter } from 'vs/base/common/extpath';
+import { hasDriveLetter, isRootOrDriveLetter, toSlashes } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
 import { posix, sep, win32 } from 'vs/base/common/path';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { basename, extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
+import { basename, extUri, extUriIgnorePathCase, toLocalResource } from 'vs/base/common/resources';
 import { rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 
@@ -32,10 +32,14 @@ export interface IPathLabelFormatting {
 	 * Whether to convert to a relative path if the path
 	 * is within any of the opened workspace folders.
 	 */
-	readonly relative?: IWorkspaceFolderProvider;
+	readonly relative?: IRelativePathProvider;
 }
 
-export interface IWorkspaceFolderProvider {
+export interface IRelativePathProvider {
+
+	readonly defaultUriScheme: string;
+	readonly remoteAuthority: string | undefined;
+
 	getWorkspaceFolder(resource: URI): { uri: URI; name?: string } | null;
 	getWorkspace(): {
 		folders: { uri: URI; name?: string }[];
@@ -54,13 +58,18 @@ export function getPathLabel(resource: URI, formatting: IPathLabelFormatting): s
 	let pathLabel: string | undefined = undefined;
 
 	// figure out relative path if we can by using root provider
+	// for that, we need to convert the path into a resource
+	// from the workspace folder in order to get at the relative
+	// path.
 	if (rootProvider) {
-		const folder = rootProvider.getWorkspaceFolder(resource);
+		const candidateResourceFromWorkspace = toLocalResource(resource, rootProvider.remoteAuthority, rootProvider.defaultUriScheme);
+
+		const folder = rootProvider.getWorkspaceFolder(candidateResourceFromWorkspace);
 		if (folder) {
-			if (extUriLib.isEqual(folder.uri, resource)) {
+			if (extUriLib.isEqual(folder.uri, candidateResourceFromWorkspace)) {
 				pathLabel = ''; // no label if paths are identical
 			} else {
-				pathLabel = extUriLib.relativePath(folder.uri, resource) ?? '';
+				pathLabel = extUriLib.relativePath(folder.uri, candidateResourceFromWorkspace) ?? '';
 			}
 
 			// normalize
@@ -87,7 +96,18 @@ export function getPathLabel(resource: URI, formatting: IPathLabelFormatting): s
 
 	// macOS/Linux: tildify with provided user home directory
 	if (os !== OperatingSystem.Windows && userHomeProvider?.userHome) {
-		pathLabel = tildify(pathLabel, userHomeProvider.userHome.fsPath, os);
+
+		// Tildify only works on POSIX systems with slashes in paths
+		// Since we maybe on Windows with a remote POSIX path, make
+		// sure to convert back to slashes before calling tildify
+		let tildifyCandidate = pathLabel;
+		let userHome = userHomeProvider.userHome.fsPath;
+		if (isWindows) {
+			tildifyCandidate = toSlashes(tildifyCandidate);
+			userHome = toSlashes(userHome);
+		}
+
+		pathLabel = tildify(tildifyCandidate, userHome, os);
 	}
 
 	// apply target OS standard path separators
