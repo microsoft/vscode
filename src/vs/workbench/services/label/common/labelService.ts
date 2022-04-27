@@ -23,6 +23,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { OS } from 'vs/base/common/platform';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { Schemas } from 'vs/base/common/network';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -179,13 +180,14 @@ export class LabelService extends Disposable implements ILabelService {
 			// Without a formatter we have to fallback to figuring out what the
 			// label could be that best matches the environment and workspace
 			// the user is in.
-			// As such, we convert the given resource to the default scheme and
-			// remote authority that is present in an attempt to e.g. resolve a
-			// proper relative path if that is needed.
+			// As such, if the resource is with unfamiliar scheme, we convert it
+			// to the default scheme and remote authority.
 
-			const defaultResource = toLocalResource(resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
+			if (resource.scheme !== this.pathService.defaultUriScheme && resource.scheme !== Schemas.untitled) {
+				resource = toLocalResource(resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
+			}
 
-			return getPathLabel(defaultResource, {
+			return getPathLabel(resource, {
 				os: this.os,
 				tildify: this.userHome ? { userHome: this.userHome } : undefined,
 				relative: options.relative ? this.contextService : undefined
