@@ -15,7 +15,7 @@ import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBo
 import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon, NLS_NO_RESULTS, NLS_MATCHES_LOCATION } from 'vs/editor/contrib/find/browser/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground, errorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground, errorForeground, toolbarHoverBackground, toolbarHoverOutline } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
@@ -344,5 +344,24 @@ registerThemingParticipant((theme, collector) => {
 	const error = theme.getColor(errorForeground);
 	if (error) {
 		collector.addRule(`.no-results.matchesCount { color: ${error}; }`);
+	}
+
+	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
+	if (toolbarHoverBackgroundColor) {
+		collector.addRule(`
+			div.simple-find-part-wrapper div.button:hover:not(.disabled) {
+				background-color: ${toolbarHoverBackgroundColor};
+			}
+		`);
+	}
+
+	const toolbarHoverOutlineColor = theme.getColor(toolbarHoverOutline);
+	if (toolbarHoverOutlineColor) {
+		collector.addRule(`
+			div.simple-find-part-wrapper div.button:hover:not(.disabled) {
+					outline: 1px dashed ${toolbarHoverOutlineColor};
+					outline-offset: -1px;
+				}
+			`);
 	}
 });

@@ -65,3 +65,7 @@
 	opacity: 0.3;
 	cursor: default;
 }
+
+div.simple-find-part-wrapper div.button:hover:not(.disabled) {
+	border-radius: 5px;
+}
