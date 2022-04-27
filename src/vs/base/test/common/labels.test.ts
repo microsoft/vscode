@@ -5,7 +5,8 @@
 
 import * as assert from 'assert';
 import * as labels from 'vs/base/common/labels';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 
 suite('Labels', () => {
 	(!isWindows ? test.skip : test)('shorten - windows', () => {
@@ -161,5 +162,79 @@ suite('Labels', () => {
 			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World'), 'Hello & World');
 			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue'), 'Do _not Save & Continue');
 		}
+	});
+
+	test('getPathLabel', () => {
+		const winFileUri = URI.file('c:/some/folder/file.txt');
+		const nixFileUri = URI.file('/some/folder/file.txt');
+		const uncFileUri = URI.file('c:/some/folder/file.txt').with({ authority: 'auth' });
+		const remoteFileUri = URI.file('/some/folder/file.txt').with({ scheme: 'vscode-test', authority: 'auth' });
+
+		// Basics
+
+		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Windows }), 'C:\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Macintosh }), 'c:/some/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Linux }), 'c:/some/folder/file.txt');
+
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Windows }), '\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Macintosh }), '/some/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Linux }), '/some/folder/file.txt');
+
+		assert.strictEqual(labels.getPathLabel(uncFileUri, { os: OperatingSystem.Windows }), '\\\\auth\\c:\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(uncFileUri, { os: OperatingSystem.Macintosh }), '/auth/c:/some/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(uncFileUri, { os: OperatingSystem.Linux }), '/auth/c:/some/folder/file.txt');
+
+		assert.strictEqual(labels.getPathLabel(remoteFileUri, { os: OperatingSystem.Windows }), '\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(remoteFileUri, { os: OperatingSystem.Macintosh }), '/some/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(remoteFileUri, { os: OperatingSystem.Linux }), '/some/folder/file.txt');
+
+		// Tildify
+
+		const nixUserHome = URI.file('/some');
+		const remoteUserHome = URI.file('/some').with({ scheme: 'vscode-test', authority: 'auth' });
+
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Windows, tildify: { userHome: nixUserHome } }), '\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Macintosh, tildify: { userHome: nixUserHome } }), '~/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Linux, tildify: { userHome: nixUserHome } }), '~/folder/file.txt');
+
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Windows, tildify: { userHome: remoteUserHome } }), '\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Macintosh, tildify: { userHome: remoteUserHome } }), '~/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Linux, tildify: { userHome: remoteUserHome } }), '~/folder/file.txt');
+
+		const nixUntitledUri = URI.file('/some/folder/file.txt').with({ scheme: 'untitled' });
+
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Windows, tildify: { userHome: nixUserHome } }), '\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Macintosh, tildify: { userHome: nixUserHome } }), '~/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Linux, tildify: { userHome: nixUserHome } }), '~/folder/file.txt');
+
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Windows, tildify: { userHome: remoteUserHome } }), '\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Macintosh, tildify: { userHome: remoteUserHome } }), '~/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Linux, tildify: { userHome: remoteUserHome } }), '~/folder/file.txt');
+
+		// Relative
+
+		const winFolder = URI.file('c:/some');
+		const winRelativePathProvider: labels.IRelativePathProvider = {
+			getWorkspace() { return { folders: [{ uri: winFolder }] }; },
+			getWorkspaceFolder(resource) { return { uri: winFolder }; }
+		};
+
+		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Windows, relative: winRelativePathProvider }), 'folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Macintosh, relative: winRelativePathProvider }), 'folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Linux, relative: winRelativePathProvider }), 'folder/file.txt');
+
+		const nixFolder = URI.file('/some');
+		const nixRelativePathProvider: labels.IRelativePathProvider = {
+			getWorkspace() { return { folders: [{ uri: nixFolder }] }; },
+			getWorkspaceFolder(resource) { return { uri: nixFolder }; }
+		};
+
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Windows, relative: nixRelativePathProvider }), 'folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Macintosh, relative: nixRelativePathProvider }), 'folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Linux, relative: nixRelativePathProvider }), 'folder/file.txt');
+
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Windows, relative: nixRelativePathProvider }), 'folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Macintosh, relative: nixRelativePathProvider }), 'folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Linux, relative: nixRelativePathProvider }), 'folder/file.txt');
 	});
 });
