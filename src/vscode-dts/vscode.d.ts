@@ -15452,7 +15452,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The tab represents a single text based resource
+	 * The tab represents a single text based resource.
 	 */
 	export class TabInputText {
 		/**
@@ -15500,9 +15500,9 @@ declare module 'vscode' {
 		 */
 		readonly viewType: string;
 		/**
-		 * Constructs a custom editor tab input
-		 * @param uri The uri of the tab
-		 * @param viewType The viewtype of the custom editor
+		 * Constructs a custom editor tab input.
+		 * @param uri The uri of the tab.
+		 * @param viewType The viewtype of the custom editor.
 		 */
 		constructor(uri: Uri, viewType: string);
 	}
@@ -15585,12 +15585,12 @@ declare module 'vscode' {
 	export interface Tab {
 
 		/**
-		 * The text displayed on the tab
+		 * The text displayed on the tab.
 		 */
 		readonly label: string;
 
 		/**
-		 * The group which the tab belongs to
+		 * The group which the tab belongs to.
 		 */
 		readonly group: TabGroup;
 
@@ -15602,17 +15602,17 @@ declare module 'vscode' {
 
 		/**
 		 * Whether or not the tab is currently active.
-		 * This is dictated by being the selected tab in the group
+		 * This is dictated by being the selected tab in the group.
 		 */
 		readonly isActive: boolean;
 
 		/**
-		 * Whether or not the dirty indicator is present on the tab
+		 * Whether or not the dirty indicator is present on the tab.
 		 */
 		readonly isDirty: boolean;
 
 		/**
-		 * Whether or not the tab is pinned (pin icon is present)
+		 * Whether or not the tab is pinned (pin icon is present).
 		 */
 		readonly isPinned: boolean;
 
@@ -15627,11 +15627,11 @@ declare module 'vscode' {
 	 */
 	export interface TabChangeEvent {
 		/**
-		 * The tabs that have been opened
+		 * The tabs that have been opened.
 		 */
 		readonly opened: readonly Tab[];
 		/**
-		 * The tabs that have been closed
+		 * The tabs that have been closed.
 		 */
 		readonly closed: readonly Tab[];
 		/**
@@ -15675,7 +15675,7 @@ declare module 'vscode' {
 		readonly isActive: boolean;
 
 		/**
-		 * The view column of the group
+		 * The view column of the group.
 		 */
 		readonly viewColumn: ViewColumn;
 
@@ -15699,12 +15699,12 @@ declare module 'vscode' {
 	 */
 	export interface TabGroups {
 		/**
-		 * All the groups within the group container
+		 * All the groups within the group container.
 		 */
 		readonly all: readonly TabGroup[];
 
 		/**
-		 * The currently active group
+		 * The currently active group.
 		 */
 		readonly activeTabGroup: TabGroup;
 
@@ -15725,16 +15725,16 @@ declare module 'vscode' {
 		 *
 		 * @param tab The tab to close.
 		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
-		 * @returns A promise that resolves to `true` when all tabs have been closed
+		 * @returns A promise that resolves to `true` when all tabs have been closed.
 		 */
 		close(tab: Tab | readonly Tab[], preserveFocus?: boolean): Thenable<boolean>;
 
 		/**
 		 * Closes the tab group. This makes the tab group object invalid and the tab group
-		 * should no longer be used for furhter actions.
+		 * should no longer be used for further actions.
 		 * @param tabGroup The tab group to close.
 		 * @param preserveFocus When `true` focus will remain in its current position.
-		 * @returns A promise that resolves to `true` when all tab groups have been closed
+		 * @returns A promise that resolves to `true` when all tab groups have been closed.
 		 */
 		close(tabGroup: TabGroup | readonly TabGroup[], preserveFocus?: boolean): Thenable<boolean>;
 	}
