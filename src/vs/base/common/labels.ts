@@ -9,7 +9,7 @@ import { Schemas } from 'vs/base/common/network';
 import { posix, sep, win32 } from 'vs/base/common/path';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { basename, extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
-import { rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
+import { ltrim, rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 
 export interface IPathLabelFormatting {
@@ -76,7 +76,12 @@ export function getPathLabel(resource: URI, formatting: IPathLabelFormatting): s
 		// resource is in the user home, we need to make sure to convert it
 		// to a user home resource. We cannot assume that the resource is
 		// already a user home resource.
-		let userHomeCandidate = tildifier.userHome.with({ path: resource.path }).fsPath;
+		let userHomeCandidate: string;
+		if (resource.scheme !== tildifier.userHome.scheme) {
+			userHomeCandidate = tildifier.userHome.with({ path: `/${ltrim(resource.path, '/')}` }).fsPath;
+		} else {
+			userHomeCandidate = resource.fsPath;
+		}
 
 		// In addition, if we are on windows platform, we need to make
 		// sure to convert to POSIX path, because `tildify` only works
@@ -109,7 +114,7 @@ function getRelativePathLabel(resource: URI, relativePathProvider: IRelativePath
 	// to a workspace resource. We cannot assume that the resource is
 	// already matching the workspace.
 	if (resource.scheme !== firstFolder.uri.scheme) {
-		resource = firstFolder.uri.with({ path: resource.path });
+		resource = firstFolder.uri.with({ path: `/${ltrim(resource.path, '/')}` });
 	}
 
 	const folder = relativePathProvider.getWorkspaceFolder(resource);
