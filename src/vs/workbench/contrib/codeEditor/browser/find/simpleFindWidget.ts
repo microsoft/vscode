@@ -15,14 +15,16 @@ import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBo
 import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon, NLS_NO_RESULTS, NLS_MATCHES_LOCATION } from 'vs/editor/contrib/find/browser/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground, errorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground, errorForeground, toolbarHoverBackground, toolbarHoverOutline } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import * as strings from 'vs/base/common/strings';
+import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
-const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
+const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find (\u21C5 for history)");
 const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
 const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
@@ -31,6 +33,10 @@ interface IFindOptions {
 	showOptionButtons?: boolean;
 	checkImeCompletionState?: boolean;
 	showResultCount?: boolean;
+	appendCaseSensitiveLabel?: string;
+	appendRegexLabel?: string;
+	appendWholeWordsLabel?: string;
+	type?: 'Terminal' | 'Webview';
 }
 
 export abstract class SimpleFindWidget extends Widget {
@@ -51,7 +57,8 @@ export abstract class SimpleFindWidget extends Widget {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		private readonly _state: FindReplaceState = new FindReplaceState(),
-		private readonly _options: IFindOptions
+		private readonly _options: IFindOptions,
+		private readonly _keybindingService?: IKeybindingService
 	) {
 		super();
 
@@ -70,7 +77,10 @@ export abstract class SimpleFindWidget extends Widget {
 					this.updateButtons(this._foundMatch);
 					return { content: e.message };
 				}
-			}
+			},
+			appendCaseSensitiveLabel: _options.appendCaseSensitiveLabel && _options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindCaseSensitive) : undefined,
+			appendRegexLabel: _options.appendRegexLabel && _options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindRegex) : undefined,
+			appendWholeWordsLabel: _options.appendWholeWordsLabel && _options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindWholeWord) : undefined
 		}, contextKeyService, _options.showOptionButtons));
 
 		// Find History with update delayer
@@ -210,6 +220,14 @@ export abstract class SimpleFindWidget extends Widget {
 		this._findInput.style(inputStyles);
 	}
 
+	private _getKeybinding(actionId: string): string {
+		let kb = this._keybindingService?.lookupKeybinding(actionId);
+		if (!kb) {
+			return '';
+		}
+		return ` (${kb.getLabel()})`;
+	}
+
 	override dispose() {
 		super.dispose();
 
@@ -344,5 +362,24 @@ registerThemingParticipant((theme, collector) => {
 	const error = theme.getColor(errorForeground);
 	if (error) {
 		collector.addRule(`.no-results.matchesCount { color: ${error}; }`);
+	}
+
+	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
+	if (toolbarHoverBackgroundColor) {
+		collector.addRule(`
+			div.simple-find-part-wrapper div.button:hover:not(.disabled) {
+				background-color: ${toolbarHoverBackgroundColor};
+			}
+		`);
+	}
+
+	const toolbarHoverOutlineColor = theme.getColor(toolbarHoverOutline);
+	if (toolbarHoverOutlineColor) {
+		collector.addRule(`
+			div.simple-find-part-wrapper div.button:hover:not(.disabled) {
+					outline: 1px dashed ${toolbarHoverOutlineColor};
+					outline-offset: -1px;
+				}
+			`);
 	}
 });
