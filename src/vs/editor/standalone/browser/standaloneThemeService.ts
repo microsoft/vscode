@@ -339,9 +339,13 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		this._updateActualTheme();
 	}
 
+	public isHighContrastEnabled(): boolean {
+		return this._autoDetectHighContrast && window.matchMedia(`(forced-colors: active)`).matches;
+	}
+
 	private _updateActualTheme(): void {
 		const theme = (
-			this._autoDetectHighContrast && window.matchMedia(`(forced-colors: active)`).matches
+			this.isHighContrastEnabled()
 				? this._knownThemes.get(HC_BLACK_THEME_NAME)!
 				: this._desiredTheme
 		);
