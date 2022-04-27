@@ -633,9 +633,7 @@ export class CommentController implements IEditorContribution {
 			this._commentThreadRangeDecorator.update(this.editor, commentInfo);
 		}));
 
-		this.beginCompute().then(() => {
-			return this.openCommentsView();
-		});
+		this.beginCompute();
 	}
 
 	private async openCommentsView() {
@@ -656,6 +654,7 @@ export class CommentController implements IEditorContribution {
 		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment);
 		zoneWidget.display(thread.range.endLineNumber);
 		this._commentWidgets.push(zoneWidget);
+		this.openCommentsView();
 	}
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {
