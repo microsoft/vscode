@@ -275,8 +275,15 @@ export class SettingsEditor2 extends EditorPane {
 			SettingsEditor2.SUGGESTIONS.push(`@${LANGUAGE_SETTING_TAG}`);
 		}
 
-		extensionManagementService.getInstalled(ExtensionType.System).then(extensions => {
-			this.installedExtensionIds = extensions.map(extension => extension.identifier.id);
+		Promise.all([extensionManagementService.getInstalled(ExtensionType.System), extensionManagementService.getInstalled(ExtensionType.User)]).then(extensions => {
+			const filteredExtensionIds = [];
+			for (const group of extensions) {
+				const filteredExtensions = group
+					.filter(ext => ext.manifest && ext.manifest.contributes && ext.manifest.contributes.configuration)
+					.map(ext => ext.identifier.id);
+				filteredExtensionIds.push(...filteredExtensions);
+			}
+			this.installedExtensionIds = filteredExtensionIds;
 		});
 	}
 
