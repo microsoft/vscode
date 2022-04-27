@@ -78,8 +78,23 @@ export function getPathLabel(resource: URI, formatting: IPathLabelFormatting): s
 		}
 	}
 
+	// we need to get at the file path of the resource but in a way
+	// that preserves platform separators. By default, `URI.fsPath`
+	// will convert separators without allowing to control this from
+	// the outside. But we cannot just use `URI.path` because that
+	// might miss a authority that can be present.
+	// As such our strategy is to:
+	// - use `fsPath` to preserve authority
+	// - convert separators based on OS accordingly
+	let path = resource.fsPath;
+	if (os === OperatingSystem.Windows) {
+		path = path.replace(/\//g, '\\');
+	} else {
+		path = path.replace(/\\/g, '/');
+	}
+
 	// normalize
-	let res = pathLib.normalize(resource.fsPath);
+	let res = pathLib.normalize(path);
 
 	// Windows: normalize drive letter
 	res = normalizeDriveLetter(res, os === OperatingSystem.Windows);

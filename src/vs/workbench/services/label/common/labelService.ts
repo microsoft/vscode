@@ -177,10 +177,11 @@ export class LabelService extends Disposable implements ILabelService {
 		if (!formatting) {
 
 			// Without a formatter we have to fallback to figuring out what the
-			// label could be given the environment. For that we convert the
-			// given resource to the default scheme and remote authority that
-			// is present in an attempt to e.g. resolve a proper relative path
-			// if that is needed.
+			// label could be that best matches the environment and workspace
+			// the user is in.
+			// As such, we convert the given resource to the default scheme and
+			// remote authority that is present in an attempt to e.g. resolve a
+			// proper relative path if that is needed.
 
 			const defaultResource = toLocalResource(resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
 
