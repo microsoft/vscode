@@ -164,6 +164,7 @@ export class Menubar {
 	}
 
 	private registerListeners(): void {
+
 		// Keep flag when app quits
 		this.lifecycleMainService.onWillShutdown(() => this.willShutdown = true);
 

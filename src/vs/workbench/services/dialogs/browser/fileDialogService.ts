@@ -237,15 +237,14 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		);
 
 		switch (res.choice) {
-
-			// Open Remote...
 			case 0:
 				this.commandService.executeCommand('workbench.action.remote.showMenu');
 				break;
-
-			// Open Files... (context === 'open')
 			case 1:
-				if (context === 'open') {
+				this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess');
+				break;
+			case 2:
+				{
 					const files = await triggerUpload();
 					if (files) {
 						const filesData = (await this.instantiationService.invokeFunction(accessor => extractFileListData(accessor, files))).filter(fileData => !fileData.isDirectory);
@@ -259,14 +258,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 							}));
 						}
 					}
-					break;
-				} else {
-					// Fallthrough for "Learn More"
 				}
-
-			// Learn More
-			case 2:
-				this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess');
 				break;
 		}
 
