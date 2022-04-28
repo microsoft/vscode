@@ -144,6 +144,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.onDidRegisterExtensions()));
 
+		// Cached View Containers Locations should be registered before Cached View Positions
+		// Because View Containers cache should be updated first because View Positions Cache depends on View Containers Cache if views are moved to generated view containers
 		Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry)
 			.registerKeys([{
 				key: ViewDescriptorService.CACHED_VIEW_CONTAINER_LOCATIONS,
@@ -524,9 +526,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		if (e.key === ViewDescriptorService.CACHED_VIEW_CONTAINER_LOCATIONS && e.scope === StorageScope.GLOBAL
 			&& this.cachedViewContainerLocationsValue !== this.getStoredCachedViewContainerLocationsValue() /* This checks if current window changed the value or not */) {
 			this.onDidCachedViewContainerLocationsStorageChange();
-
-			// Update cached view postions as well because they are tied to the view container locations
-			this.onDidCachedViewPositionsStorageChange();
 		}
 	}
 
