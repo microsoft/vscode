@@ -9,7 +9,7 @@ import { Schemas } from 'vs/base/common/network';
 import { posix, sep, win32 } from 'vs/base/common/path';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { basename, extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
-import { ltrim, rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
+import { rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 
 export interface IPathLabelFormatting {
@@ -37,10 +37,14 @@ export interface IPathLabelFormatting {
 }
 
 export interface IRelativePathProvider {
+
+	/**
+	 * Whether to not add a prefix when in multi-root workspace.
+	 */
+	readonly noPrefix?: boolean;
+
+	getWorkspace(): { folders: { uri: URI; name?: string }[] };
 	getWorkspaceFolder(resource: URI): { uri: URI; name?: string } | null;
-	getWorkspace(): {
-		folders: { uri: URI; name?: string }[];
-	};
 }
 
 export interface IUserHomeProvider {
@@ -77,8 +81,8 @@ export function getPathLabel(resource: URI, formatting: IPathLabelFormatting): s
 		// to a user home resource. We cannot assume that the resource is
 		// already a user home resource.
 		let userHomeCandidate: string;
-		if (resource.scheme !== tildifier.userHome.scheme) {
-			userHomeCandidate = tildifier.userHome.with({ path: `/${ltrim(resource.path, '/')}` }).fsPath;
+		if (resource.scheme !== tildifier.userHome.scheme && resource.path.startsWith(posix.sep)) {
+			userHomeCandidate = tildifier.userHome.with({ path: resource.path }).fsPath;
 		} else {
 			userHomeCandidate = resource.fsPath;
 		}
@@ -113,8 +117,8 @@ function getRelativePathLabel(resource: URI, relativePathProvider: IRelativePath
 	// the resource belongs to, we need to make sure to convert it
 	// to a workspace resource. We cannot assume that the resource is
 	// already matching the workspace.
-	if (resource.scheme !== firstFolder.uri.scheme) {
-		resource = firstFolder.uri.with({ path: `/${ltrim(resource.path, '/')}` });
+	if (resource.scheme !== firstFolder.uri.scheme && resource.path.startsWith(posix.sep)) {
+		resource = firstFolder.uri.with({ path: resource.path });
 	}
 
 	const folder = relativePathProvider.getWorkspaceFolder(resource);
@@ -135,8 +139,8 @@ function getRelativePathLabel(resource: URI, relativePathProvider: IRelativePath
 	}
 
 	// always show root basename if there are multiple
-	if (workspace.folders.length > 1) {
-		const rootName = folder.name ? folder.name : extUriLib.basename(folder.uri);
+	if (workspace.folders.length > 1 && !relativePathProvider.noPrefix) {
+		const rootName = folder.name ? folder.name : extUriLib.basenameOrAuthority(folder.uri);
 		relativePathLabel = relativePathLabel ? `${rootName} • ${relativePathLabel}` : rootName;
 	}
 

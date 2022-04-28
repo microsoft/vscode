@@ -679,7 +679,7 @@ class MockCommandService implements ICommandService {
 
 class MockLabelService implements ILabelService {
 	_serviceBrand: undefined;
-	getUriLabel(resource: uri, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined; endWithSeparator?: boolean | undefined }): string {
+	getUriLabel(resource: uri, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined }): string {
 		return normalize(resource.fsPath);
 	}
 	getUriBasenameLabel(resource: uri): string {

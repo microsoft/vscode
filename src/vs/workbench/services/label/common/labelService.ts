@@ -155,7 +155,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return bestResult ? bestResult.formatting : undefined;
 	}
 
-	getUriLabel(resource: URI, options: { relative?: boolean; noPrefix?: boolean; endWithSeparator?: boolean; separator?: '/' | '\\' } = {}): string {
+	getUriLabel(resource: URI, options: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\' } = {}): string {
 		let formatting = this.findFormatting(resource);
 		if (formatting && options.separator) {
 			// mixin separator if defined from the outside
@@ -173,12 +173,16 @@ export class LabelService extends Disposable implements ILabelService {
 		return label;
 	}
 
-	private doGetUriLabel(resource: URI, formatting?: ResourceLabelFormatting, options: { relative?: boolean; noPrefix?: boolean; endWithSeparator?: boolean } = {}): string {
+	private doGetUriLabel(resource: URI, formatting?: ResourceLabelFormatting, options: { relative?: boolean; noPrefix?: boolean } = {}): string {
 		if (!formatting) {
 			return getPathLabel(resource, {
 				os: this.os,
 				tildify: this.userHome ? { userHome: this.userHome } : undefined,
-				relative: options.relative ? this.contextService : undefined
+				relative: options.relative ? {
+					noPrefix: options.noPrefix,
+					getWorkspace: () => this.contextService.getWorkspace(),
+					getWorkspaceFolder: resource => this.contextService.getWorkspaceFolder(resource)
+				} : undefined
 			});
 		}
 
@@ -200,7 +204,7 @@ export class LabelService extends Disposable implements ILabelService {
 			const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
 			if (hasMultipleRoots && !options.noPrefix) {
 				const rootName = baseResource?.name ?? basenameOrAuthority(baseResource.uri);
-				relativeLabel = relativeLabel ? (rootName + ' • ' + relativeLabel) : rootName; // always show root basename if there are multiple
+				relativeLabel = relativeLabel ? `${rootName} • ${relativeLabel}` : rootName; // always show root basename if there are multiple
 			}
 
 			label = relativeLabel;
@@ -208,7 +212,7 @@ export class LabelService extends Disposable implements ILabelService {
 			label = this.formatUri(resource, formatting, options.noPrefix);
 		}
 
-		return options.endWithSeparator ? this.appendSeparatorIfMissing(label, formatting) : label;
+		return label;
 	}
 
 	getUriBasenameLabel(resource: URI): string {
@@ -287,16 +291,19 @@ export class LabelService extends Disposable implements ILabelService {
 
 	getSeparator(scheme: string, authority?: string): '/' | '\\' {
 		const formatter = this.findFormatting(URI.from({ scheme, authority }));
+
 		return formatter?.separator || '/';
 	}
 
 	getHostLabel(scheme: string, authority?: string): string {
 		const formatter = this.findFormatting(URI.from({ scheme, authority }));
+
 		return formatter?.workspaceSuffix || authority || '';
 	}
 
 	getHostTooltip(scheme: string, authority?: string): string | undefined {
 		const formatter = this.findFormatting(URI.from({ scheme, authority }));
+
 		return formatter?.workspaceTooltip;
 	}
 
@@ -346,6 +353,7 @@ export class LabelService extends Disposable implements ILabelService {
 				label = tildify(label, this.userHome.fsPath, this.os);
 			}
 		}
+
 		if (formatting.authorityPrefix && resource.authority) {
 			label = formatting.authorityPrefix + label;
 		}
@@ -353,17 +361,10 @@ export class LabelService extends Disposable implements ILabelService {
 		return label.replace(sepRegexp, formatting.separator);
 	}
 
-	private appendSeparatorIfMissing(label: string, formatting: ResourceLabelFormatting): string {
-		let appendedLabel = label;
-		if (!label.endsWith(formatting.separator)) {
-			appendedLabel += formatting.separator;
-		}
-		return appendedLabel;
-	}
-
 	private appendWorkspaceSuffix(label: string, uri: URI): string {
 		const formatting = this.findFormatting(uri);
 		const suffix = formatting && (typeof formatting.workspaceSuffix === 'string') ? formatting.workspaceSuffix : undefined;
+
 		return suffix ? `${label} [${suffix}]` : label;
 	}
 }
