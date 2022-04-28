@@ -21,8 +21,9 @@ export function isInCodespaces(): boolean {
 async function handlePushError(repository: Repository, remote: Remote, refspec: string, owner: string, repo: string): Promise<void> {
 	const yes = localize('create a fork', "Create Fork");
 	const no = localize('no', "No");
+	const askFork = localize('fork', "You don't have permissions to push to '{0}/{1}' on GitHub. Would you like to create a fork and push to it instead?", owner, repo);
 
-	const answer = await window.showInformationMessage(localize('fork', "You don't have permissions to push to '{0}/{1}' on GitHub. Would you like to create a fork and push to it instead?", owner, repo), yes, no);
+	const answer = await window.showInformationMessage(askFork, yes, no);
 	if (answer === no) {
 		return;
 	}
