@@ -502,12 +502,7 @@ configurationRegistry.registerConfiguration({
 				'tsconfig.json': 'tsconfig.*.json',
 				'package.json': 'package-lock.json, yarn.lock',
 			}
-		},
-		'explorer.experimental.fileNesting.operateAsGroup': {
-			'type': 'boolean',
-			'markdownDescription': nls.localize('operateAsGroup', "Experimental. Controls whether file nests are treated as a group for clipboard operations, file deletions, and during drag and drop."),
-			'default': true,
-		},
+		}
 	}
 });
 
