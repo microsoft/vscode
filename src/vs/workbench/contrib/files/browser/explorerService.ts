@@ -33,8 +33,7 @@ export class ExplorerService implements IExplorerService {
 
 	private readonly disposables = new DisposableStore();
 	private editable: { stat: ExplorerItem; data: IEditableData } | undefined;
-	private _sortOrder: SortOrder;
-	private _lexicographicOptions: LexicographicOptions;
+	private config: IFilesConfiguration['explorer'];
 	private cutItems: ExplorerItem[] | undefined;
 	private view: IExplorerView | undefined;
 	private model: ExplorerModel;
@@ -52,8 +51,7 @@ export class ExplorerService implements IExplorerService {
 		@IProgressService private readonly progressService: IProgressService,
 		@IHostService hostService: IHostService
 	) {
-		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
-		this._lexicographicOptions = this.configurationService.getValue('explorer.sortOrderLexicographicOptions');
+		this.config = this.configurationService.getValue('explorer');
 
 		this.model = new ExplorerModel(this.contextService, this.uriIdentityService, this.fileService, this.configurationService);
 		this.disposables.add(this.model);
@@ -65,7 +63,7 @@ export class ExplorerService implements IExplorerService {
 
 			// Filter to the ones we care
 			const types = [FileChangeType.DELETED];
-			if (this._sortOrder === SortOrder.Modified) {
+			if (this.config.sortOrder === SortOrder.Modified) {
 				types.push(FileChangeType.UPDATED);
 			}
 
@@ -142,8 +140,8 @@ export class ExplorerService implements IExplorerService {
 
 	get sortOrderConfiguration(): ISortOrderConfiguration {
 		return {
-			sortOrder: this._sortOrder,
-			lexicographicOptions: this._lexicographicOptions,
+			sortOrder: this.config.sortOrder,
+			lexicographicOptions: this.config.sortOrderLexicographicOptions,
 		};
 	}
 
@@ -261,7 +259,7 @@ export class ExplorerService implements IExplorerService {
 		}
 
 		// Stat needs to be resolved first and then revealed
-		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: this._sortOrder === SortOrder.Modified };
+		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: this.config.sortOrder === SortOrder.Modified };
 		const root = this.findClosestRoot(resource);
 		if (!root) {
 			return undefined;
@@ -302,6 +300,11 @@ export class ExplorerService implements IExplorerService {
 	// File events
 
 	private async onDidRunOperation(e: FileOperationEvent): Promise<void> {
+		// When nesting, changes to one file in a folder may impact the rendered structure
+		// of all the folder's immediate children, thus a recursive refresh is needed.
+		// Ideally the tree would be able to recusively refresh just one level but that does not yet exist.
+		const shouldDeepRefresh = this.config.fileNesting.enabled;
+
 		// Add
 		if (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.COPY)) {
 			const addedElement = e.target;
@@ -313,7 +316,7 @@ export class ExplorerService implements IExplorerService {
 				// Add the new file to its parent (Model)
 				await Promise.all(parents.map(async p => {
 					// We have to check if the parent is resolved #29177
-					const resolveMetadata = this._sortOrder === `modified`;
+					const resolveMetadata = this.config.sortOrder === `modified`;
 					if (!p.isDirectoryResolved) {
 						const stat = await this.fileService.resolve(p.resource, { resolveMetadata });
 						if (stat) {
@@ -327,7 +330,7 @@ export class ExplorerService implements IExplorerService {
 					p.removeChild(childElement);
 					p.addChild(childElement);
 					// Refresh the Parent (View)
-					await this.view?.refresh(false, p);
+					await this.view?.refresh(shouldDeepRefresh, p);
 				}));
 			}
 		}
@@ -346,7 +349,7 @@ export class ExplorerService implements IExplorerService {
 				await Promise.all(modelElements.map(async modelElement => {
 					// Rename File (Model)
 					modelElement.rename(newElement);
-					await this.view?.refresh(false, modelElement.parent);
+					await this.view?.refresh(shouldDeepRefresh, modelElement.parent);
 				}));
 			}
 
@@ -363,7 +366,7 @@ export class ExplorerService implements IExplorerService {
 							await this.view?.refresh(false, oldNestedParent);
 						}
 						await this.view?.refresh(false, oldParent);
-						await this.view?.refresh(false, newParents[index]);
+						await this.view?.refresh(shouldDeepRefresh, newParents[index]);
 					}));
 				}
 			}
@@ -384,7 +387,7 @@ export class ExplorerService implements IExplorerService {
 						await this.view?.refresh(false, oldNestedParent);
 					}
 					// Refresh Parent (View)
-					await this.view?.refresh(false, parent);
+					await this.view?.refresh(shouldDeepRefresh, parent);
 				}
 			}));
 		}
@@ -398,16 +401,16 @@ export class ExplorerService implements IExplorerService {
 		}
 
 		const configSortOrder = configuration?.explorer?.sortOrder || SortOrder.Default;
-		if (this._sortOrder !== configSortOrder) {
-			shouldRefresh = this._sortOrder !== undefined;
-			this._sortOrder = configSortOrder;
+		if (this.config.sortOrder !== configSortOrder) {
+			shouldRefresh = this.config.sortOrder !== undefined;
 		}
 
 		const configLexicographicOptions = configuration?.explorer?.sortOrderLexicographicOptions || LexicographicOptions.Default;
-		if (this._lexicographicOptions !== configLexicographicOptions) {
-			shouldRefresh = shouldRefresh || this._lexicographicOptions !== undefined;
-			this._lexicographicOptions = configLexicographicOptions;
+		if (this.config.sortOrderLexicographicOptions !== configLexicographicOptions) {
+			shouldRefresh = shouldRefresh || this.config.sortOrderLexicographicOptions !== undefined;
 		}
+
+		this.config = configuration.explorer;
 
 		if (shouldRefresh) {
 			await this.refresh();
