@@ -254,7 +254,7 @@
 		]
 	},
 	"view.workbench.scm.missing.guide.linux": {
-		"message": "Source control depends on Git being installed.\n[Download Git for Linux](https://git-scm.com/download/mac)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
+		"message": "Source control depends on Git being installed.\n[Download Git for Linux](https://git-scm.com/download/linux)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
 		"comment": [
 			"{Locked='](command:workbench.action.reloadWindow'}",
 			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
