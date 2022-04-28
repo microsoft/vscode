@@ -43,7 +43,7 @@ suite('github smoke test', function () {
 		const template1 = Uri.file("some-imaginary-template-1");
 		const templates = [template0, template1];
 
-		const pick = pickPullRequestTemplate(templates);
+		const pick = pickPullRequestTemplate(Uri.file("/"), templates);
 
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
@@ -55,7 +55,7 @@ suite('github smoke test', function () {
 	test('selecting first quick-pick item should return undefined', async () => {
 		const templates = [Uri.file("some-imaginary-file")];
 
-		const pick = pickPullRequestTemplate(templates);
+		const pick = pickPullRequestTemplate(Uri.file("/"), templates);
 
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
