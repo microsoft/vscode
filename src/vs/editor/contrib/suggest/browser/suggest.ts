@@ -403,12 +403,12 @@ CommandsRegistry.registerCommand('_executeCompletionItemProvider', async (access
 });
 
 interface SuggestController extends IEditorContribution {
-	triggerSuggest(onlyFrom?: Set<languages.CompletionItemProvider>): void;
+	triggerSuggest(onlyFrom?: Set<languages.CompletionItemProvider>, auto?: boolean, noFilter?: boolean): void;
 }
 
 export function showSimpleSuggestions(editor: ICodeEditor, provider: languages.CompletionItemProvider) {
 	editor.getContribution<SuggestController>('editor.contrib.suggestController')?.triggerSuggest(
-		new Set<languages.CompletionItemProvider>().add(provider)
+		new Set<languages.CompletionItemProvider>().add(provider), undefined, true
 	);
 }
 
