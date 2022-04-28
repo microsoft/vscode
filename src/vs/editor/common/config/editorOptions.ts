@@ -2540,7 +2540,7 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					default: defaults.enabled,
 					description: nls.localize('inlayHints.enable', "Enables the inlay hints in the editor."),
 					enum: ['on', 'onUnlessPressed', 'offUnlessPressed', 'off'],
-					enumDescriptions: [
+					markdownEnumDescriptions: [
 						nls.localize('editor.inlayHints.on', "Inlay hints are enabled"),
 						nls.localize('editor.inlayHints.onUnlessPressed', "Inlay hints are showing by default and hide when holding `Ctrl+Alt`"),
 						nls.localize('editor.inlayHints.offUnlessPressed', "Inlay hints are hidden by default and show when holding `Ctrl+Alt`"),
