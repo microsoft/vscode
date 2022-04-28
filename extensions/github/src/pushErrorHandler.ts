@@ -199,7 +199,8 @@ export async function pickPullRequestTemplate(templates: Uri[]): Promise<Uri | u
 		...templates.map(quickPickItemFromUri)
 	];
 	const quickPickOptions: QuickPickOptions = {
-		placeHolder: localize('select pr template', "Select the Pull Request template")
+		placeHolder: localize('select pr template', "Select the Pull Request template"),
+		ignoreFocusOut: true
 	};
 	const pickedTemplate = await window.showQuickPick(quickPickItems, quickPickOptions);
 	return pickedTemplate?.template;
