@@ -186,12 +186,13 @@ export class EditorPanes extends Disposable {
 			if (result.choice !== cancelId && errorActions) {
 				const errorAction = errorActions[result.choice];
 				if (errorAction) {
-					const result = errorAction.run();
-					if (result instanceof Promise) {
-						result.catch(error => this.dialogService.show(Severity.Error, toErrorMessage(error)));
-					}
+					try {
+						await errorAction.run();
 
-					errorHandled = true; // consider the error as handled!
+						errorHandled = true; // consider the error as handled
+					} catch (error) {
+						this.dialogService.show(Severity.Error, toErrorMessage(error));
+					}
 				}
 			}
 		}
