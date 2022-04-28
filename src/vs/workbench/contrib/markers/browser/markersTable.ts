@@ -445,7 +445,10 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 	}
 
 	setMarkerSelection(): void {
-		console.log('setMarkerSelection');
+		if (this.isVisible() && this.getSelection().length === 0 && this.getVisibleItemCount() > 0) {
+			this.table.setFocus([0]);
+			this.table.setSelection([0]);
+		}
 	}
 
 	toggleVisibility(hide: boolean): void {
