@@ -222,9 +222,6 @@ export class WebClientServer {
 	 * Handle HTTP requests for /
 	 */
 	private async _handleRoot(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
-		if (!req.headers.host) {
-			return serveError(req, res, 400, `Bad request.`);
-		}
 
 		const queryConnectionToken = parsedUrl.query[connectionTokenQueryName];
 		if (typeof queryConnectionToken === 'string') {
@@ -253,7 +250,14 @@ export class WebClientServer {
 			return res.end();
 		}
 
-		const remoteAuthority = req.headers.host;
+		let originalHost = req.headers['x-original-host'];
+		if (Array.isArray(originalHost)) {
+			originalHost = originalHost[0];
+		}
+		const remoteAuthority = originalHost || req.headers.host;
+		if (!remoteAuthority) {
+			return serveError(req, res, 400, `Bad request.`);
+		}
 
 		function escapeAttribute(value: string): string {
 			return value.replace(/"/g, '&quot;');
