@@ -111,7 +111,7 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 				if (templates.length > 0) {
 					templates.sort((a, b) => a.path.localeCompare(b.path));
 
-					const template = await pickPullRequestTemplate(templates);
+					const template = await pickPullRequestTemplate(repository.rootUri, templates);
 
 					if (template) {
 						body = new TextDecoder('utf-8').decode(await workspace.fs.readFile(template));
@@ -188,8 +188,8 @@ export async function findPullRequestTemplates(repositoryRootUri: Uri): Promise<
 	return results.flatMap(x => x.status === 'fulfilled' && x.value || []);
 }
 
-export async function pickPullRequestTemplate(templates: Uri[]): Promise<Uri | undefined> {
-	const quickPickItemFromUri = (x: Uri) => ({ label: x.path, template: x });
+export async function pickPullRequestTemplate(repositoryRootUri: Uri, templates: Uri[]): Promise<Uri | undefined> {
+	const quickPickItemFromUri = (x: Uri) => ({ label: path.relative(repositoryRootUri.path, x.path), template: x });
 	const quickPickItems = [
 		{
 			label: localize('no pr template', "No template"),
