@@ -209,12 +209,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				}
 				if (injection.filesToCopy) {
 					for (const f of injection.filesToCopy) {
-						try {
-							await fs.mkdir(path.dirname(f.dest), { recursive: true });
-							await fs.copyFile(f.source, f.dest);
-						} catch (e) {
-							this._logService.trace(`Could not copy file ${f}, with error ${e}`);
-						}
+						await fs.mkdir(path.dirname(f.dest), { recursive: true });
+						await fs.copyFile(f.source, f.dest);
 					}
 				}
 			}
