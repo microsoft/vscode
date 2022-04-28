@@ -45,7 +45,7 @@
 	}
 }
 
-.monaco-workbench .statusbar DIV#status\.languageStatus.flash {
+.monaco-workbench .statusbar DIV#status\.languageStatus.flash A {
 	animation-duration: .8s;
 	animation-iteration-count: 1;
 	animation-name: flash;
