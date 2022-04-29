@@ -8,8 +8,6 @@ import { promises as fs } from 'fs';
 import * as byline from 'byline';
 import { rgPath } from '@vscode/ripgrep';
 import * as Parser from 'tree-sitter';
-
-const { Query } = Parser;
 const { typescript } = require('tree-sitter-typescript');
 
 async function getFiles(root: string): Promise<string[]> {
@@ -23,50 +21,73 @@ async function getFiles(root: string): Promise<string[]> {
 	});
 }
 
+interface Policy {
+	readonly name: string;
+	readonly category?: {
+		readonly name: string;
+		readonly nlsKey?: string;
+	};
+}
+
+async function* getPolicies(parser: Parser, query: Parser.Query, path: string): AsyncGenerator<Policy> {
+	const contents = await fs.readFile(path, { encoding: 'utf8' });
+	const tree = parser.parse(contents);
+	const matches = query.matches(tree.rootNode);
+
+	for (const match of matches) {
+		const name = match.captures.filter(c => c.name === 'name')[0]?.node.text;
+		const category = match.captures.filter(c => c.name === 'category')[0]?.node.text;
+		const categoryNlsKey = match.captures.filter(c => c.name === 'categoryNlsKey')[0]?.node.text;
+
+		if (category) {
+			if (categoryNlsKey) {
+				yield { name, category: { name: category, nlsKey: categoryNlsKey } };
+			} else {
+				yield { name, category: { name: category } };
+			}
+		} else {
+			yield { name };
+		}
+	}
+}
+
 async function main() {
 	const parser = new Parser();
 	parser.setLanguage(typescript);
-
-	const query = new Query(typescript, `
+	const query = new Parser.Query(typescript, `
 		(
 			(call_expression
-				function: (member_expression object: (identifier) property: (property_identifier) @registerConfiguration)
+				function: (member_expression object: (identifier) property: (property_identifier) @registerConfigurationFn) (#eq? @registerConfigurationFn registerConfiguration)
 				arguments: (arguments	(object	(pair
-					key: [(property_identifier)(string)] @properties
+					key: [(property_identifier)(string)] @propertiesKey (#eq? @propertiesKey properties)
 					value: (object (pair
 						key: [(property_identifier)(string)]
 						value: (object (pair
-							key: [(property_identifier)(string)] @policy
+							key: [(property_identifier)(string)] @policyKey (#eq? @policyKey policy)
 							value: (object
-								(pair key: [(property_identifier)(string)] @name value: (string) @policyName)
-								(pair key: [(property_identifier)(string)] @category value: (call_expression function: (identifier) @localize arguments: (arguments (string) @policyCategoryNlsKey (string) @policyCategoryEnglish)))
+								(pair key: [(property_identifier)(string)] @nameKey value: (string (string_fragment) @name)) (#eq? @nameKey name)
+								(pair
+										key: [(property_identifier)(string)] @categoryKey
+										value: [
+											(string (string_fragment) @category)
+											(call_expression function: (identifier) @localizeFn arguments: (arguments (string (string_fragment) @categoryNlsKey) (string (string_fragment) @category)))
+										]
+								)?
+								(#eq? @categoryKey category)
+								(#eq? @localizeFn localize)
 							)
 						))
 					))
 				)))
 			)
-
-			(#eq? @registerConfiguration registerConfiguration)
-			(#eq? @properties properties)
-			(#eq? @policy policy)
-			(#eq? @name name)
-			(#eq? @category category)
-			(#eq? @localize localize)
 		)
 	`);
 
 	const files = await getFiles(process.cwd());
 
 	for (const file of files) {
-		const contents = await fs.readFile(file, { encoding: 'utf8' });
-		const tree = parser.parse(contents);
-		const matches = query.matches(tree.rootNode);
-
-		for (const match of matches) {
-			for (const capture of match.captures) {
-				console.log(capture.name, capture.node.text);
-			}
-			console.log('---');
+		for await (const policy of getPolicies(parser, query, file)) {
+			console.log(policy);
 		}
 	}
 }
