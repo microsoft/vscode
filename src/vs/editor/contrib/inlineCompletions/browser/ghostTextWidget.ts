@@ -214,9 +214,8 @@ class DisposableDecorations {
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, decorations);
 	}
 
-	public clear() {
-		this.editor.deltaDecorations(this.decorationIds, []);
-		this.decorationIds = [];
+	public clear(): void {
+		this.setDecorations([]);
 	}
 
 	public dispose(): void {
@@ -237,7 +236,6 @@ interface InsertedInlineText {
 
 class DecorationsWidget implements IDisposable {
 	private decorationIds: string[] = [];
-	private disposableStore: DisposableStore = new DisposableStore();
 
 	constructor(
 		private readonly editor: ICodeEditor
@@ -246,17 +244,13 @@ class DecorationsWidget implements IDisposable {
 
 	public dispose(): void {
 		this.clear();
-		this.disposableStore.dispose();
 	}
 
 	public clear(): void {
-		this.editor.deltaDecorations(this.decorationIds, []);
-		this.disposableStore.clear();
+		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
 	}
 
 	public setParts(lineNumber: number, parts: InsertedInlineText[], hiddenText?: HiddenText): void {
-		this.disposableStore.clear();
-
 		const textModel = this.editor.getModel();
 		if (!textModel) {
 			return;
