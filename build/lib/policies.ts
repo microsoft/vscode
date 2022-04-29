@@ -167,13 +167,11 @@ function getPolicies(node: Parser.SyntaxNode): Policy[] {
 		)
 	`);
 
-	return query.matches(node)
-		.map(m => {
-			const settingNode = m.captures.filter(c => c.name === 'setting')[0].node;
-			const policyNode = m.captures.filter(c => c.name === 'policy')[0].node;
-
-			return getPolicy(settingNode, policyNode);
-		});
+	return query.matches(node).map(m => {
+		const settingNode = m.captures.filter(c => c.name === 'setting')[0].node;
+		const policyNode = m.captures.filter(c => c.name === 'policy')[0].node;
+		return getPolicy(settingNode, policyNode);
+	});
 }
 
 // ---

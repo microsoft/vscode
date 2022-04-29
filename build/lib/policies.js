@@ -111,8 +111,7 @@ function getPolicies(node) {
 			)
 		)
 	`);
-    return query.matches(node)
-        .map(m => {
+    return query.matches(node).map(m => {
         const settingNode = m.captures.filter(c => c.name === 'setting')[0].node;
         const policyNode = m.captures.filter(c => c.name === 'policy')[0].node;
         return getPolicy(settingNode, policyNode);
