@@ -12,7 +12,7 @@ import { getZoomFactor } from 'vs/base/browser/browser';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction, toAction } from 'vs/base/common/actions';
+import { ActionRunner, IAction, toAction } from 'vs/base/common/actions';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -33,7 +33,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, IMenu, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -385,6 +385,12 @@ export class TitlebarPart extends Part implements ITitleService {
 						return new class extends ActionViewItem {
 							constructor() {
 								super(undefined, action);
+								this.actionRunner = this._store.add(new class extends ActionRunner {
+									override async run(action: IAction, context?: unknown): Promise<void> {
+										await timeout(0); // quick pick friendly? TODO@jrieken make sure this is needed
+										super.run(action, context);
+									}
+								});
 							}
 
 							override render(container: HTMLElement): void {
