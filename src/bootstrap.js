@@ -28,14 +28,12 @@
 	// increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
 	Error.stackTraceLimit = 100;
 
-	if (!process.env['VSCODE_HANDLES_SIGPIPE']) {
+	if (typeof process !== 'undefined' && !process.env['VSCODE_HANDLES_SIGPIPE']) {
 		// Workaround for Electron not installing a handler to ignore SIGPIPE
 		// (https://github.com/electron/electron/issues/13254)
-		if (typeof process !== 'undefined') {
-			process.on('SIGPIPE', () => {
-				console.error(new Error('Unexpected SIGPIPE'));
-			});
-		}
+		process.on('SIGPIPE', () => {
+			console.error(new Error('Unexpected SIGPIPE'));
+		});
 	}
 
 	//#endregion
