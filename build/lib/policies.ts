@@ -5,42 +5,43 @@
 
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
-import { relative } from 'path';
 import * as byline from 'byline';
 import { rgPath } from '@vscode/ripgrep';
 import * as Parser from 'tree-sitter';
 const { typescript } = require('tree-sitter-typescript');
 
-interface Category {
-	readonly name: string;
-	readonly nlsKey?: string;
+interface NlsString {
+	readonly value: string;
+	readonly nlsKey: string;
 }
 
-interface Policy {
+interface BasePolicy {
 	readonly name: string;
-	readonly category?: Category;
+	readonly description: string | NlsString;
+	readonly category?: string | NlsString;
 }
 
-function getName(node: Parser.SyntaxNode): string | undefined {
+// interface StringEnumPolicy extends BasePolicy {
+// 	readonly type: 'string';
+// 	readonly enum: string[];
+// }
+
+type Policy = BasePolicy;
+
+function getStringProperty(node: Parser.SyntaxNode, key: string): string | NlsString | undefined {
 	const query = new Parser.Query(
 		typescript,
-		`((pair key: [(property_identifier)(string)] @key value: (string (string_fragment) @name)) (#eq? @key name))`
+		`(
+			(pair
+				key: [(property_identifier)(string)] @key
+				value: [
+					(string (string_fragment) @value)
+					(call_expression function: (identifier) @localizeFn arguments: (arguments (string (string_fragment) @nlsKey) (string (string_fragment) @value)) (#eq? @localizeFn localize))
+				]
+			)
+			(#eq? @key ${key})
+		)`
 	);
-
-	const matches = query.matches(node);
-	return matches[0]?.captures.filter(c => c.name === 'name')[0]?.node.text;
-}
-
-function getCategory(node: Parser.SyntaxNode): Category | undefined {
-	const query = new Parser.Query(typescript, `
-		(pair
-			key: [(property_identifier)(string)] @categoryKey (#eq? @categoryKey category)
-			value: [
-				(string (string_fragment) @name)
-				(call_expression function: (identifier) @localizeFn arguments: (arguments (string (string_fragment) @nlsKey) (string (string_fragment) @name)))
-			]
-		)
-	`);
 
 	const matches = query.matches(node);
 	const match = matches[0];
@@ -49,34 +50,44 @@ function getCategory(node: Parser.SyntaxNode): Category | undefined {
 		return undefined;
 	}
 
-	const name = match.captures.filter(c => c.name === 'name')[0]?.node.text;
+	const value = match.captures.filter(c => c.name === 'value')[0]?.node.text;
 
-	if (!name) {
-		throw new Error(`Category missing required 'name' property.`);
+	if (!value) {
+		throw new Error(`Missing required 'value' property.`);
 	}
 
 	const nlsKey = match.captures.filter(c => c.name === 'nlsKey')[0]?.node.text;
 
 	if (nlsKey) {
-		return { name, nlsKey };
+		return { value, nlsKey };
 	} else {
-		return { name };
+		return value;
 	}
 }
 
-function getPolicy(node: Parser.SyntaxNode): Policy {
-	const name = getName(node);
+function getPolicy(settingNode: Parser.SyntaxNode, policyNode: Parser.SyntaxNode): Policy {
+	const name = getStringProperty(policyNode, 'name');
 
 	if (!name) {
 		throw new Error(`Missing required 'name' property.`);
 	}
 
-	const category = getCategory(node);
+	if (typeof name !== 'string') {
+		throw new Error(`Property 'name' should be a literal string.`);
+	}
+
+	const description = getStringProperty(settingNode, 'description');
+
+	if (!description) {
+		throw new Error(`Missing required 'description' property.`);
+	}
+
+	const category = getStringProperty(policyNode, 'category');
 
 	if (category) {
-		return { name, category };
+		return { name, description, category };
 	} else {
-		return { name };
+		return { name, description };
 	}
 }
 
@@ -91,21 +102,21 @@ function getPolicies(node: Parser.SyntaxNode): Policy[] {
 						key: [(property_identifier)(string)]
 						value: (object (pair
 							key: [(property_identifier)(string)] @policyKey (#eq? @policyKey policy)
-							value: (object) @result
+							value: (object) @policy
 						))
-					))
+					)) @setting
 				)))
 			)
 		)
 	`);
 
 	return query.matches(node)
-		.map(m => m.captures.filter(c => c.name === 'result')[0].node)
-		.map(getPolicy);
-}
+		.map(m => {
+			const settingNode = m.captures.filter(c => c.name === 'setting')[0].node;
+			const policyNode = m.captures.filter(c => c.name === 'policy')[0].node;
 
-function nodeAsString(node: Parser.SyntaxNode): string {
-	return `${node.startPosition.row + 1}:${node.startPosition.column + 1}`;
+			return getPolicy(settingNode, policyNode);
+		});
 }
 
 async function getFiles(root: string): Promise<string[]> {
@@ -124,24 +135,14 @@ async function main() {
 	parser.setLanguage(typescript);
 
 	const files = await getFiles(process.cwd());
-	let fail = false;
 
 	for (const file of files) {
 		const contents = await fs.readFile(file, { encoding: 'utf8' });
 		const tree = parser.parse(contents);
 
-		try {
-			for (const policy of getPolicies(tree.rootNode)) {
-				console.log(policy);
-			}
-		} catch (err) {
-			fail = true;
-			console.error(`[${relative(process.cwd(), file)}:${nodeAsString(node)}] ${err.message}`);
+		for (const policy of getPolicies(tree.rootNode)) {
+			console.log(policy);
 		}
-	}
-
-	if (fail) {
-		throw new Error('Failed parsing policies');
 	}
 }
 

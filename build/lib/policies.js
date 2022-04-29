@@ -6,54 +6,56 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const child_process_1 = require("child_process");
 const fs_1 = require("fs");
-const path_1 = require("path");
 const byline = require("byline");
 const ripgrep_1 = require("@vscode/ripgrep");
 const Parser = require("tree-sitter");
 const { typescript } = require('tree-sitter-typescript');
-function getName(node) {
-    const query = new Parser.Query(typescript, `((pair key: [(property_identifier)(string)] @key value: (string (string_fragment) @name)) (#eq? @key name))`);
-    const matches = query.matches(node);
-    return matches[0]?.captures.filter(c => c.name === 'name')[0]?.node.text;
-}
-function getCategory(node) {
-    const query = new Parser.Query(typescript, `
-		(pair
-			key: [(property_identifier)(string)] @categoryKey (#eq? @categoryKey category)
-			value: [
-				(string (string_fragment) @name)
-				(call_expression function: (identifier) @localizeFn arguments: (arguments (string (string_fragment) @nlsKey) (string (string_fragment) @name)))
-			]
-		)
-	`);
+function getStringProperty(node, key) {
+    const query = new Parser.Query(typescript, `(
+			(pair
+				key: [(property_identifier)(string)] @key
+				value: [
+					(string (string_fragment) @value)
+					(call_expression function: (identifier) @localizeFn arguments: (arguments (string (string_fragment) @nlsKey) (string (string_fragment) @value)) (#eq? @localizeFn localize))
+				]
+			)
+			(#eq? @key ${key})
+		)`);
     const matches = query.matches(node);
     const match = matches[0];
     if (!match) {
         return undefined;
     }
-    const name = match.captures.filter(c => c.name === 'name')[0]?.node.text;
-    if (!name) {
-        throw new Error(`Category missing required 'name' property.`);
+    const value = match.captures.filter(c => c.name === 'value')[0]?.node.text;
+    if (!value) {
+        throw new Error(`Missing required 'value' property.`);
     }
     const nlsKey = match.captures.filter(c => c.name === 'nlsKey')[0]?.node.text;
     if (nlsKey) {
-        return { name, nlsKey };
+        return { value, nlsKey };
     }
     else {
-        return { name };
+        return value;
     }
 }
-function getPolicy(node) {
-    const name = getName(node);
+function getPolicy(settingNode, policyNode) {
+    const name = getStringProperty(policyNode, 'name');
     if (!name) {
         throw new Error(`Missing required 'name' property.`);
     }
-    const category = getCategory(node);
+    if (typeof name !== 'string') {
+        throw new Error(`Property 'name' should be a literal string.`);
+    }
+    const description = getStringProperty(settingNode, 'description');
+    if (!description) {
+        throw new Error(`Missing required 'description' property.`);
+    }
+    const category = getStringProperty(policyNode, 'category');
     if (category) {
-        return { name, category };
+        return { name, description, category };
     }
     else {
-        return { name };
+        return { name, description };
     }
 }
 function getPolicies(node) {
@@ -67,19 +69,19 @@ function getPolicies(node) {
 						key: [(property_identifier)(string)]
 						value: (object (pair
 							key: [(property_identifier)(string)] @policyKey (#eq? @policyKey policy)
-							value: (object) @result
+							value: (object) @policy
 						))
-					))
+					)) @setting
 				)))
 			)
 		)
 	`);
     return query.matches(node)
-        .map(m => m.captures.filter(c => c.name === 'result')[0].node)
-        .map(getPolicy);
-}
-function nodeAsString(node) {
-    return `${node.startPosition.row + 1}:${node.startPosition.column + 1}`;
+        .map(m => {
+        const settingNode = m.captures.filter(c => c.name === 'setting')[0].node;
+        const policyNode = m.captures.filter(c => c.name === 'policy')[0].node;
+        return getPolicy(settingNode, policyNode);
+    });
 }
 async function getFiles(root) {
     return new Promise((c, e) => {
@@ -95,22 +97,12 @@ async function main() {
     const parser = new Parser();
     parser.setLanguage(typescript);
     const files = await getFiles(process.cwd());
-    let fail = false;
     for (const file of files) {
         const contents = await fs_1.promises.readFile(file, { encoding: 'utf8' });
         const tree = parser.parse(contents);
-        try {
-            for (const policy of getPolicies(tree.rootNode)) {
-                console.log(policy);
-            }
+        for (const policy of getPolicies(tree.rootNode)) {
+            console.log(policy);
         }
-        catch (err) {
-            fail = true;
-            console.error(`[${(0, path_1.relative)(process.cwd(), file)}:${nodeAsString(node)}] ${err.message}`);
-        }
-    }
-    if (fail) {
-        throw new Error('Failed parsing policies');
     }
 }
 if (require.main === module) {
