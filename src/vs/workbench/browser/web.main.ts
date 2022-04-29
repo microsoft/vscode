@@ -125,7 +125,7 @@ export class BrowserMain extends Disposable {
 			const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
 			const instantiationService = accessor.get(IInstantiationService);
 
-			const webEmbedderLogger = instantiationService.createInstance(DelayedLogChannel, 'webEmbedder', productService.embedderIdentifier || localize('embedder', "Embedder"), joinPath(dirname(environmentService.logFile), `webEmbedder.log`));
+			const embedderLogger = instantiationService.createInstance(DelayedLogChannel, 'webEmbedder', productService.embedderIdentifier || localize('vscode.dev', "vscode.dev"), joinPath(dirname(environmentService.logFile), `webEmbedder.log`));
 
 			return {
 				commands: {
@@ -146,8 +146,8 @@ export class BrowserMain extends Disposable {
 					}
 				},
 				window: {
-					log: (level, message) => {
-						webEmbedderLogger.log(level, message);
+					log: (id, level, message) => {
+						embedderLogger.log(id, level, message);
 					},
 					withProgress: (options, task) => progessService.withProgress(options, task)
 				},

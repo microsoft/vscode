@@ -133,8 +133,8 @@ export namespace window {
 	/**
 	 * {@linkcode IWorkbench.window IWorkbench.window.log}
 	 */
-	export function log(level: LogLevel, message: string) {
-		workbenchPromise.p.then(workbench => workbench.window.log(level, message));
+	export function log(id: string, level: LogLevel, message: string) {
+		workbenchPromise.p.then(workbench => workbench.window.log(id, level, message));
 	}
 
 	/**
