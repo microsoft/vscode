@@ -744,7 +744,7 @@ export class EditorGroupModel extends Disposable {
 		const event: IGroupEditorChangeEvent = {
 			kind: GroupModelChangeKind.EDITOR_STICKY,
 			editor,
-			editorIndex
+			editorIndex: this.sticky
 		};
 		this._onDidModelChange.fire(event);
 	}
