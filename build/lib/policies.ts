@@ -21,49 +21,84 @@ interface BasePolicy {
 	readonly category?: string | NlsString;
 }
 
-// interface StringEnumPolicy extends BasePolicy {
-// 	readonly type: 'string';
-// 	readonly enum: string[];
-// }
+interface StringEnumPolicy extends BasePolicy {
+	readonly type: 'string';
+	readonly enum: (string | NlsString)[];
+	readonly enumDescriptions: (string | NlsString)[];
+}
 
-type Policy = BasePolicy;
+type Policy = StringEnumPolicy;
 
-function getStringProperty(node: Parser.SyntaxNode, key: string): string | NlsString | undefined {
+// ---
+
+interface QType<T> {
+	Q: string;
+	value(matches: Parser.QueryMatch[]): T | undefined;
+}
+
+const StringQ: QType<string | NlsString> = {
+	Q: `[
+		(string (string_fragment) @value)
+		(call_expression function: (identifier) @localizeFn arguments: (arguments (string (string_fragment) @nlsKey) (string (string_fragment) @value)) (#eq? @localizeFn localize))
+	]`,
+
+	value(matches: Parser.QueryMatch[]): string | NlsString | undefined {
+		const match = matches[0];
+
+		if (!match) {
+			return undefined;
+		}
+
+		const value = match.captures.filter(c => c.name === 'value')[0]?.node.text;
+
+		if (!value) {
+			throw new Error(`Missing required 'value' property.`);
+		}
+
+		const nlsKey = match.captures.filter(c => c.name === 'nlsKey')[0]?.node.text;
+
+		if (nlsKey) {
+			return { value, nlsKey };
+		} else {
+			return value;
+		}
+	}
+};
+
+const StringArrayQ: QType<(string | NlsString)[]> = {
+	Q: `(array ${StringQ.Q})`,
+
+	value(matches: Parser.QueryMatch[]): (string | NlsString)[] | undefined {
+		return matches.map(match => {
+			return StringQ.value([match]) as string | NlsString;
+		});
+	}
+};
+
+function getProperty<T>(qtype: QType<T>, node: Parser.SyntaxNode, key: string): T | undefined {
 	const query = new Parser.Query(
 		typescript,
 		`(
 			(pair
 				key: [(property_identifier)(string)] @key
-				value: [
-					(string (string_fragment) @value)
-					(call_expression function: (identifier) @localizeFn arguments: (arguments (string (string_fragment) @nlsKey) (string (string_fragment) @value)) (#eq? @localizeFn localize))
-				]
+				value: ${qtype.Q}
 			)
 			(#eq? @key ${key})
 		)`
 	);
 
-	const matches = query.matches(node);
-	const match = matches[0];
-
-	if (!match) {
-		return undefined;
-	}
-
-	const value = match.captures.filter(c => c.name === 'value')[0]?.node.text;
-
-	if (!value) {
-		throw new Error(`Missing required 'value' property.`);
-	}
-
-	const nlsKey = match.captures.filter(c => c.name === 'nlsKey')[0]?.node.text;
-
-	if (nlsKey) {
-		return { value, nlsKey };
-	} else {
-		return value;
-	}
+	return qtype.value(query.matches(node));
 }
+
+function getStringProperty(node: Parser.SyntaxNode, key: string): string | NlsString | undefined {
+	return getProperty(StringQ, node, key);
+}
+
+function getStringArrayProperty(node: Parser.SyntaxNode, key: string): (string | NlsString)[] | undefined {
+	return getProperty(StringArrayQ, node, key);
+}
+
+// ---
 
 function getPolicy(settingNode: Parser.SyntaxNode, policyNode: Parser.SyntaxNode): Policy {
 	const name = getStringProperty(policyNode, 'name');
@@ -82,12 +117,34 @@ function getPolicy(settingNode: Parser.SyntaxNode, policyNode: Parser.SyntaxNode
 		throw new Error(`Missing required 'description' property.`);
 	}
 
+	const type = getStringProperty(settingNode, 'type');
+
+	if (!type) {
+		throw new Error(`Missing required 'type' property.`);
+	}
+
+	if (type !== 'string') {
+		throw new Error(`TODO`);
+	}
+
+	const _enum = getStringArrayProperty(settingNode, 'enum');
+
+	if (!_enum) {
+		throw new Error(`TODO`);
+	}
+
+	const enumDescriptions = getStringArrayProperty(settingNode, 'enumDescriptions');
+
+	if (!enumDescriptions) {
+		throw new Error(`TODO`);
+	}
+
 	const category = getStringProperty(policyNode, 'category');
 
 	if (category) {
-		return { name, description, category };
+		return { name, description, type, enum: _enum, enumDescriptions, category };
 	} else {
-		return { name, description };
+		return { name, description, type, enum: _enum, enumDescriptions };
 	}
 }
 
@@ -119,6 +176,8 @@ function getPolicies(node: Parser.SyntaxNode): Policy[] {
 		});
 }
 
+// ---
+
 async function getFiles(root: string): Promise<string[]> {
 	return new Promise((c, e) => {
 		const result: string[] = [];
@@ -129,6 +188,8 @@ async function getFiles(root: string): Promise<string[]> {
 		stream.on('end', () => c(result));
 	});
 }
+
+// ---
 
 async function main() {
 	const parser = new Parser();

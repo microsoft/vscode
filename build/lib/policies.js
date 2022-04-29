@@ -10,34 +10,54 @@ const byline = require("byline");
 const ripgrep_1 = require("@vscode/ripgrep");
 const Parser = require("tree-sitter");
 const { typescript } = require('tree-sitter-typescript');
-function getStringProperty(node, key) {
+const StringQ = {
+    Q: `[
+		(string (string_fragment) @value)
+		(call_expression function: (identifier) @localizeFn arguments: (arguments (string (string_fragment) @nlsKey) (string (string_fragment) @value)) (#eq? @localizeFn localize))
+	]`,
+    value(matches) {
+        const match = matches[0];
+        if (!match) {
+            return undefined;
+        }
+        const value = match.captures.filter(c => c.name === 'value')[0]?.node.text;
+        if (!value) {
+            throw new Error(`Missing required 'value' property.`);
+        }
+        const nlsKey = match.captures.filter(c => c.name === 'nlsKey')[0]?.node.text;
+        if (nlsKey) {
+            return { value, nlsKey };
+        }
+        else {
+            return value;
+        }
+    }
+};
+const StringArrayQ = {
+    Q: `(array ${StringQ.Q})`,
+    value(matches) {
+        return matches.map(match => {
+            return StringQ.value([match]);
+        });
+    }
+};
+function getProperty(qtype, node, key) {
     const query = new Parser.Query(typescript, `(
 			(pair
 				key: [(property_identifier)(string)] @key
-				value: [
-					(string (string_fragment) @value)
-					(call_expression function: (identifier) @localizeFn arguments: (arguments (string (string_fragment) @nlsKey) (string (string_fragment) @value)) (#eq? @localizeFn localize))
-				]
+				value: ${qtype.Q}
 			)
 			(#eq? @key ${key})
 		)`);
-    const matches = query.matches(node);
-    const match = matches[0];
-    if (!match) {
-        return undefined;
-    }
-    const value = match.captures.filter(c => c.name === 'value')[0]?.node.text;
-    if (!value) {
-        throw new Error(`Missing required 'value' property.`);
-    }
-    const nlsKey = match.captures.filter(c => c.name === 'nlsKey')[0]?.node.text;
-    if (nlsKey) {
-        return { value, nlsKey };
-    }
-    else {
-        return value;
-    }
+    return qtype.value(query.matches(node));
 }
+function getStringProperty(node, key) {
+    return getProperty(StringQ, node, key);
+}
+function getStringArrayProperty(node, key) {
+    return getProperty(StringArrayQ, node, key);
+}
+// ---
 function getPolicy(settingNode, policyNode) {
     const name = getStringProperty(policyNode, 'name');
     if (!name) {
@@ -50,12 +70,27 @@ function getPolicy(settingNode, policyNode) {
     if (!description) {
         throw new Error(`Missing required 'description' property.`);
     }
+    const type = getStringProperty(settingNode, 'type');
+    if (!type) {
+        throw new Error(`Missing required 'type' property.`);
+    }
+    if (type !== 'string') {
+        throw new Error(`TODO`);
+    }
+    const _enum = getStringArrayProperty(settingNode, 'enum');
+    if (!_enum) {
+        throw new Error(`TODO`);
+    }
+    const enumDescriptions = getStringArrayProperty(settingNode, 'enumDescriptions');
+    if (!enumDescriptions) {
+        throw new Error(`TODO`);
+    }
     const category = getStringProperty(policyNode, 'category');
     if (category) {
-        return { name, description, category };
+        return { name, description, type, enum: _enum, enumDescriptions, category };
     }
     else {
-        return { name, description };
+        return { name, description, type, enum: _enum, enumDescriptions };
     }
 }
 function getPolicies(node) {
@@ -83,6 +118,7 @@ function getPolicies(node) {
         return getPolicy(settingNode, policyNode);
     });
 }
+// ---
 async function getFiles(root) {
     return new Promise((c, e) => {
         const result = [];
@@ -93,6 +129,7 @@ async function getFiles(root) {
         stream.on('end', () => c(result));
     });
 }
+// ---
 async function main() {
     const parser = new Parser();
     parser.setLanguage(typescript);
