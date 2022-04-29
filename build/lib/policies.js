@@ -6,44 +6,57 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const child_process_1 = require("child_process");
 const fs_1 = require("fs");
+const path_1 = require("path");
 const byline = require("byline");
 const ripgrep_1 = require("@vscode/ripgrep");
 const Parser = require("tree-sitter");
 const { typescript } = require('tree-sitter-typescript');
-async function getFiles(root) {
-    return new Promise((c, e) => {
-        const result = [];
-        const rg = (0, child_process_1.spawn)(ripgrep_1.rgPath, ['-l', 'registerConfiguration\\(', '-g', 'src/**/*.ts', '-g', '!src/**/test/**', root]);
-        const stream = byline(rg.stdout.setEncoding('utf8'));
-        stream.on('data', path => result.push(path));
-        stream.on('error', err => e(err));
-        stream.on('end', () => c(result));
-    });
+function getName(node) {
+    const query = new Parser.Query(typescript, `((pair key: [(property_identifier)(string)] @key value: (string (string_fragment) @name)) (#eq? @key name))`);
+    const matches = query.matches(node);
+    return matches[0]?.captures.filter(c => c.name === 'name')[0]?.node.text;
 }
-async function* getPolicies(parser, query, path) {
-    const contents = await fs_1.promises.readFile(path, { encoding: 'utf8' });
-    const tree = parser.parse(contents);
-    const matches = query.matches(tree.rootNode);
-    for (const match of matches) {
-        const name = match.captures.filter(c => c.name === 'name')[0]?.node.text;
-        const category = match.captures.filter(c => c.name === 'category')[0]?.node.text;
-        const categoryNlsKey = match.captures.filter(c => c.name === 'categoryNlsKey')[0]?.node.text;
-        if (category) {
-            if (categoryNlsKey) {
-                yield { name, category: { name: category, nlsKey: categoryNlsKey } };
-            }
-            else {
-                yield { name, category: { name: category } };
-            }
-        }
-        else {
-            yield { name };
-        }
+function getCategory(node) {
+    const query = new Parser.Query(typescript, `
+		(pair
+			key: [(property_identifier)(string)] @categoryKey (#eq? @categoryKey category)
+			value: [
+				(string (string_fragment) @name)
+				(call_expression function: (identifier) @localizeFn arguments: (arguments (string (string_fragment) @nlsKey) (string (string_fragment) @name)))
+			]
+		)
+	`);
+    const matches = query.matches(node);
+    const match = matches[0];
+    if (!match) {
+        return undefined;
+    }
+    const name = match.captures.filter(c => c.name === 'name')[0]?.node.text;
+    if (!name) {
+        throw new Error(`Category missing required 'name' property.`);
+    }
+    const nlsKey = match.captures.filter(c => c.name === 'nlsKey')[0]?.node.text;
+    if (nlsKey) {
+        return { name, nlsKey };
+    }
+    else {
+        return { name };
     }
 }
-async function main() {
-    const parser = new Parser();
-    parser.setLanguage(typescript);
+function getPolicy(node) {
+    const name = getName(node);
+    if (!name) {
+        throw new Error(`Missing required 'name' property.`);
+    }
+    const category = getCategory(node);
+    if (category) {
+        return { name, category };
+    }
+    else {
+        return { name };
+    }
+}
+function getPolicies(node) {
     const query = new Parser.Query(typescript, `
 		(
 			(call_expression
@@ -54,29 +67,50 @@ async function main() {
 						key: [(property_identifier)(string)]
 						value: (object (pair
 							key: [(property_identifier)(string)] @policyKey (#eq? @policyKey policy)
-							value: (object
-								(pair key: [(property_identifier)(string)] @nameKey value: (string (string_fragment) @name)) (#eq? @nameKey name)
-								(pair
-										key: [(property_identifier)(string)] @categoryKey
-										value: [
-											(string (string_fragment) @category)
-											(call_expression function: (identifier) @localizeFn arguments: (arguments (string (string_fragment) @categoryNlsKey) (string (string_fragment) @category)))
-										]
-								)?
-								(#eq? @categoryKey category)
-								(#eq? @localizeFn localize)
-							)
+							value: (object) @result
 						))
 					))
 				)))
 			)
 		)
 	`);
+    return query.matches(node)
+        .map(m => m.captures.filter(c => c.name === 'result')[0].node)
+        .map(getPolicy);
+}
+function nodeAsString(node) {
+    return `${node.startPosition.row + 1}:${node.startPosition.column + 1}`;
+}
+async function getFiles(root) {
+    return new Promise((c, e) => {
+        const result = [];
+        const rg = (0, child_process_1.spawn)(ripgrep_1.rgPath, ['-l', 'registerConfiguration\\(', '-g', 'src/**/*.ts', '-g', '!src/**/test/**', root]);
+        const stream = byline(rg.stdout.setEncoding('utf8'));
+        stream.on('data', path => result.push(path));
+        stream.on('error', err => e(err));
+        stream.on('end', () => c(result));
+    });
+}
+async function main() {
+    const parser = new Parser();
+    parser.setLanguage(typescript);
     const files = await getFiles(process.cwd());
+    let fail = false;
     for (const file of files) {
-        for await (const policy of getPolicies(parser, query, file)) {
-            console.log(policy);
+        const contents = await fs_1.promises.readFile(file, { encoding: 'utf8' });
+        const tree = parser.parse(contents);
+        try {
+            for (const policy of getPolicies(tree.rootNode)) {
+                console.log(policy);
+            }
         }
+        catch (err) {
+            fail = true;
+            console.error(`[${(0, path_1.relative)(process.cwd(), file)}:${nodeAsString(node)}] ${err.message}`);
+        }
+    }
+    if (fail) {
+        throw new Error('Failed parsing policies');
     }
 }
 if (require.main === module) {
