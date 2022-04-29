@@ -15,7 +15,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction, toAction } from 'vs/base/common/actions';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { EditorResourceAccessor, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -35,7 +35,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, IMenu, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -45,6 +45,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -77,6 +78,8 @@ export class TitlebarPart extends Part implements ITitleService {
 	protected windowControls: HTMLElement | undefined;
 	private layoutToolbar: ToolBar | undefined;
 	protected lastLayoutDimensions: Dimension | undefined;
+
+	private readonly titleMenuDisposables = this._register(new DisposableStore());
 	private titleBarStyle: 'native' | 'custom';
 
 	private pendingTitle: string | undefined;
@@ -148,6 +151,10 @@ export class TitlebarPart extends Part implements ITitleService {
 					this.installMenubar();
 				}
 			}
+		}
+
+		if (event.affectsConfiguration('window.titleMenu')) {
+			this.updateTitleMenu();
 		}
 
 		if (this.titleBarStyle !== 'native' && this.windowControls && event.affectsConfiguration('workbench.layoutControl.enabled')) {
@@ -364,6 +371,54 @@ export class TitlebarPart extends Part implements ITitleService {
 		this._register(this.customMenubar.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
 	}
 
+	private updateTitleMenu(): void {
+		this.titleMenuDisposables.clear();
+		const enableTitleMenu = this.configurationService.getValue<boolean>('window.titleMenu');
+		this.rootContainer.classList.toggle('enable-title-menu', enableTitleMenu);
+		if (enableTitleMenu) {
+
+			const that = this;
+			const titleMenuContainer = append(this.rootContainer, $('div.title-menu'));
+			const titleToolbar = new ToolBar(titleMenuContainer, this.contextMenuService, {
+				actionViewItemProvider: (action) => {
+					if (action instanceof MenuItemAction && action.item.id === 'workbench.action.quickOpen') {
+						return new class extends ActionViewItem {
+							constructor() {
+								super(undefined, action);
+							}
+
+							override render(container: HTMLElement): void {
+								super.render(container);
+								if (this.label) {
+									container.classList.add('quickopen');
+									this.label.innerText = localize('quick-open', "Search: {0}", this.getWorkspaceName());
+									this.label.title = that.getWindowTitle();
+								}
+							}
+
+							private getWorkspaceName(): string {
+								const workspace = that.contextService.getWorkspace();
+								return that.labelService.getWorkspaceLabel(workspace);
+							}
+						};
+					}
+					return undefined;
+				}
+			});
+			const titleMenu = this.titleMenuDisposables.add(this.menuService.createMenu(MenuId.TitleMenu, this.contextKeyService));
+			const titleMenuDisposables = this.titleMenuDisposables.add(new DisposableStore());
+			const updateTitleMenu = () => {
+				titleMenuDisposables.clear();
+				const actions: IAction[] = [];
+				titleMenuDisposables.add(createAndFillInContextMenuActions(titleMenu, undefined, actions));
+				titleToolbar.setActions(actions);
+			};
+			this.titleMenuDisposables.add(titleMenu.onDidChange(updateTitleMenu));
+			this.titleMenuDisposables.add(toDisposable(() => titleMenuContainer.remove()));
+			updateTitleMenu();
+		}
+	}
+
 	override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 		this.rootContainer = append(parent, $('.titlebar-container'));
@@ -394,6 +449,9 @@ export class TitlebarPart extends Part implements ITitleService {
 			&& this.currentMenubarVisibility !== 'compact') {
 			this.installMenubar();
 		}
+
+		// Title Menu
+		this.updateTitleMenu();
 
 		// Title
 		this.title = append(this.rootContainer, $('div.window-title'));

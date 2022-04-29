@@ -33,6 +33,18 @@
 	-webkit-app-region: drag;
 }
 
+.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .quickopen .action-label {
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-dropdown-border);
+	display: inline-block;
+	text-align: center;
+	height: 14px;
+	width: 50vw;
+	max-width: calc(100vw - 200px);
+	margin: 2px 4px;
+	line-height: 14px;
+}
+
 .monaco-workbench .part.titlebar > .titlebar-container > .window-title {
 	flex: 0 1 auto;
 	font-size: 12px;
@@ -42,6 +54,10 @@
 	margin-left: auto;
 	margin-right: auto;
 	zoom: 1; /* prevent zooming */
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container.enable-title-menu > .window-title {
+	display: none;
 }
 
 /* Windows/Linux: Rules for custom title (icon, window controls)  */
