@@ -25,6 +25,10 @@ export class InMemoryWorkspaceMarkdownDocuments implements MdWorkspaceContents {
 		return this._documents.get(this.getKey(resource));
 	}
 
+	public async fileExists(resource: vscode.Uri): Promise<boolean> {
+		return this._documents.has(this.getKey(resource));
+	}
+
 	private readonly _onDidChangeMarkdownDocumentEmitter = new vscode.EventEmitter<SkinnyTextDocument>();
 	public onDidChangeMarkdownDocument = this._onDidChangeMarkdownDocumentEmitter.event;
 
