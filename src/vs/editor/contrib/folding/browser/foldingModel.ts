@@ -149,7 +149,9 @@ export class FoldingModel {
 				let decRange = this._textModel.getDecorationRange(this._editorDecorationIds[i]);
 				if (decRange
 					&& !isBlocked(decRange.startLineNumber, decRange.endLineNumber)
-					&& decRange.endLineNumber > decRange.startLineNumber) {
+					// if not same length user has modified it, skip and auto-expand
+					&& decRange.endLineNumber - decRange.startLineNumber
+					=== hiddenRange.endLineNumber - hiddenRange.startLineNumber) {
 					hiddenRanges.push({
 						startLineNumber: decRange.startLineNumber,
 						endLineNumber: decRange.endLineNumber,
