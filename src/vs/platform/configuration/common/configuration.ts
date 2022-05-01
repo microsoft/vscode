@@ -333,12 +333,9 @@ function recursiveResolve(environment: Environment, folderUri: URI | undefined, 
 		return value.map(s => recursiveResolve(environment, folderUri, s, commandValueMapping, resolvedVariables));
 	} else if (types.isObject(value)) {
 		let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
-		let replaced = Object.entries(value).map(([k, v]) => {
-			if (types.isString(v) && v.match(VARIABLE_REGEXP_ENV)) {
-				return [k, resolveString(environment, folderUri, v, commandValueMapping, resolvedVariables)];
-			} else {
-				return [k, v];
-			}
+		const replaced = Object.keys(value).map(key => {
+			const replaced = resolveString(environment, folderUri, key, commandValueMapping, resolvedVariables);
+			return [replaced, recursiveResolve(environment, folderUri, value[key], commandValueMapping, resolvedVariables)] as const;
 		});
 		// two step process to preserve object key order
 		for (const [key, value] of replaced) {
@@ -349,7 +346,7 @@ function recursiveResolve(environment: Environment, folderUri: URI | undefined, 
 	return value;
 }
 
-function resolveString(environment: Environment, folderUri: URI | undefined, value: string, commandValueMapping: IStringDictionary<string> | undefined, resolvedVariables?: Map<string, any>): any {
+function resolveString(environment: Environment, folderUri: URI | undefined, value: string, commandValueMapping: IStringDictionary<string> | undefined, resolvedVariables?: Map<string, string>): string {
 	// loop through all variables occurrences in 'value'
 	return replaceSync(value, VARIABLE_REGEXP, (match: string, variable: string) => {
 		// disallow attempted nesting, see #77289. This doesn't exclude variables that resolve to other variables.
@@ -372,7 +369,7 @@ function resolveString(environment: Environment, folderUri: URI | undefined, val
 	});
 }
 
-function evaluateSingleVariable(environment: Environment, match: string, variable: string, folderUri: URI | undefined, commandValueMapping: IStringDictionary<string> | undefined) {
+function evaluateSingleVariable(environment: Environment, match: string, variable: string, folderUri: URI | undefined, commandValueMapping: IStringDictionary<string> | undefined): string {
 
 	// try to separate variable arguments from variable name
 	let argument: string | undefined;
