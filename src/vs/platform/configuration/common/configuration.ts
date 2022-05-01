@@ -8,6 +8,15 @@ import * as types from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { localize } from 'vs/nls';
+
+type Environment = { env: IProcessEnvironment | undefined; userHome: string | undefined };
+
+const VARIABLE_LHS = '${';
+const VARIABLE_REGEXP = /\$\{(.*?)\}.*$/g;
+const VARIABLE_REGEXP_ENV = /\$\{env:(.*?)\}.*$/g;
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
@@ -208,7 +217,12 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 
 	if (typeof curr === 'object' && curr !== null) {
 		try {
-			curr[last] = value; // workaround https://github.com/microsoft/vscode/issues/13606
+			if (JSON.stringify(value).match(VARIABLE_REGEXP_ENV)) {
+				const result = resolveWithEnvironment({ ...process.env, userHome: undefined }, undefined, value);
+				curr[last] = result;
+			} else {
+				curr[last] = value; // workaround https://github.com/microsoft/vscode/issues/13606
+			}
 		} catch (e) {
 			conflictReporter(`Ignoring ${key} as ${segments.join('.')} is ${JSON.stringify(curr)}`);
 		}
@@ -257,7 +271,8 @@ export function getConfigurationValue<T>(config: any, settingPath: string, defau
 	}
 
 	const path = settingPath.split('.');
-	const result = accessSetting(config, path);
+	let result = accessSetting(config, path);
+	//result = resolveWithEnvironment({ ...process.env }, undefined, result);
 
 	return typeof result === 'undefined' ? defaultValue : result;
 }
@@ -293,4 +308,117 @@ export function getMigratedSettingValue<T>(configurationService: IConfigurationS
 
 export function getLanguageTagSettingPlainKey(settingKey: string) {
 	return settingKey.replace(/[\[\]]/g, '');
+}
+
+function prepareEnv(envVariables: IProcessEnvironment): IProcessEnvironment {
+	// windows env variables are case insensitive
+	if (isWindows) {
+		const ev: IProcessEnvironment = Object.create(null);
+		Object.keys(envVariables).forEach(key => {
+			ev[key.toLowerCase()] = envVariables[key];
+		});
+		return ev;
+	}
+	return envVariables;
+}
+
+function resolveWithEnvironment(environment: IProcessEnvironment, root: IWorkspaceFolder | undefined, value: string): any {
+	return recursiveResolve({ env: prepareEnv(environment), userHome: undefined }, root ? root.uri : undefined, value);
+}
+
+function recursiveResolve(environment: Environment, folderUri: URI | undefined, value: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, any>): any {
+	if (types.isString(value)) {
+		return resolveString(environment, folderUri, value, commandValueMapping, resolvedVariables);
+	} else if (types.isArray(value)) {
+		return value.map(s => recursiveResolve(environment, folderUri, s, commandValueMapping, resolvedVariables));
+	} else if (types.isObject(value)) {
+		let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
+		let replaced = Object.entries(value).map(([k, v]) => {
+			if (types.isString(v) && v.match(VARIABLE_REGEXP_ENV)) {
+				return [k, resolveString(environment, folderUri, v, commandValueMapping, resolvedVariables)];
+			} else {
+				return [k, v];
+			}
+		});
+		// two step process to preserve object key order
+		for (const [key, value] of replaced) {
+			result[key] = value;
+		}
+		return result;
+	}
+	return value;
+}
+
+function resolveString(environment: Environment, folderUri: URI | undefined, value: string, commandValueMapping: IStringDictionary<string> | undefined, resolvedVariables?: Map<string, any>): any {
+	// loop through all variables occurrences in 'value'
+	return replaceSync(value, VARIABLE_REGEXP, (match: string, variable: string) => {
+		// disallow attempted nesting, see #77289. This doesn't exclude variables that resolve to other variables.
+		if (variable.includes(VARIABLE_LHS)) {
+			return match;
+		}
+
+		let resolvedValue = evaluateSingleVariable(environment, match, variable, folderUri, commandValueMapping);
+
+		if (resolvedVariables) {
+			resolvedVariables.set(variable, resolvedValue);
+		}
+
+		if ((resolvedValue !== match) && types.isString(resolvedValue) && resolvedValue.match(VARIABLE_REGEXP)) {
+			resolvedValue = resolveString(environment, folderUri, resolvedValue, commandValueMapping, resolvedVariables);
+		}
+
+		resolvedValue = match.replace(`\$\{${variable}\}`, resolvedValue);
+		return resolvedValue;
+	});
+}
+
+function evaluateSingleVariable(environment: Environment, match: string, variable: string, folderUri: URI | undefined, commandValueMapping: IStringDictionary<string> | undefined) {
+
+	// try to separate variable arguments from variable name
+	let argument: string | undefined;
+	const parts = variable.split(':');
+	if (parts.length > 1) {
+		variable = parts[0];
+		argument = parts[1];
+	}
+
+	switch (variable) {
+
+		case 'env':
+			if (argument) {
+				if (environment.env) {
+					// Depending on the source of the environment, on Windows, the values may all be lowercase.
+					const env = environment.env[isWindows ? argument.toLowerCase() : argument];
+					if (types.isString(env)) {
+						return env;
+					}
+				}
+				// For `env` we should do the same as a normal shell does - evaluates undefined envs to an empty string #46436
+				return '';
+			}
+			throw new Error(localize('missingEnvVarName', "Variable {0} can not be resolved because no environment variable name is given.", match));
+
+		default: {
+			return '';
+		}
+	}
+}
+
+function replaceSync(str: string, search: RegExp, replacer: (match: string, ...args: any[]) => string): string {
+	let parts: (string)[] = [];
+
+	let last = 0;
+	for (const match of str.matchAll(search)) {
+		parts.push(str.slice(last, match.index));
+		if (match.index === undefined) {
+			throw new Error('match.index should be defined');
+		}
+
+		last = match.index + match[0].length;
+		parts.push(replacer(match[0], ...match.slice(1), match.index, str, match.groups));
+	}
+
+	parts.push(str.slice(last));
+
+	return parts.join('');
 }

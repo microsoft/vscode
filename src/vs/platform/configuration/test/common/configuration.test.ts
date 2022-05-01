@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { merge, removeFromValueTree } from 'vs/platform/configuration/common/configuration';
+import { merge, addToValueTree, removeFromValueTree } from 'vs/platform/configuration/common/configuration';
 import { mergeChanges } from 'vs/platform/configuration/common/configurationModels';
 
 suite('Configuration', () => {
+
+	const OLD_ENV = process.env;
+	process.env = { ...OLD_ENV };
 
 	test('simple merge', () => {
 		let base = { 'a': 1, 'b': 2 };
@@ -117,6 +120,25 @@ suite('Configuration', () => {
 		assert.deepStrictEqual(target, { 'a': { 'b': { 'd': 1 } } });
 	});
 
+	test('addToValueTree: add key with value ${env:...}', () => {
+		process.env['VALUE_FOR_B'] = '2';
+
+		let target = { 'a': 1 };
+		addToValueTree(target, 'b', '${env:VALUE_FOR_B}', e => { throw new Error(e); });
+		assert.deepStrictEqual(target, { 'a': 1, 'b': '2' });
+
+		process.env = OLD_ENV;
+	});
+
+	test('addToValueTree: add key with value string containing ${env:...}', () => {
+		process.env['VALUE_FOR_B'] = '2';
+
+		let target = { 'a': 'string1' };
+		addToValueTree(target, 'b', 'string${env:VALUE_FOR_B}', e => { throw new Error(e); });
+		assert.deepStrictEqual(target, { 'a': 'string1', 'b': 'string2' });
+
+		process.env = OLD_ENV;
+	});
 });
 
 suite('Configuration Changes: Merge', () => {
