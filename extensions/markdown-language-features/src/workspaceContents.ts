@@ -73,13 +73,26 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 	async getAllMarkdownDocuments(): Promise<SkinnyTextDocument[]> {
 		const maxConcurrent = 20;
 
-		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
-
+		const foundFiles = new Set<string>();
 		const limiter = new Limiter<SkinnyTextDocument | undefined>(maxConcurrent);
-		const results = await Promise.all(resources.map(resource => {
-			return limiter.queue(() => this.getMarkdownDocument(resource));
+
+		// Add files on disk
+		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
+		const onDiskResults = await Promise.all(resources.map(resource => {
+			return limiter.queue(async () => {
+				const doc = await this.getMarkdownDocument(resource);
+				if (doc) {
+					foundFiles.add(doc.uri.toString());
+				}
+				return doc;
+			});
 		}));
-		return coalesce(results);
+
+		// Add opened files (such as untitled files)
+		const openTextDocumentResults = await Promise.all(vscode.workspace.textDocuments
+			.filter(doc => !foundFiles.has(doc.uri.toString()) && isMarkdownFile(doc)));
+
+		return coalesce([...onDiskResults, ...openTextDocumentResults]);
 	}
 
 	public get onDidChangeMarkdownDocument() {
