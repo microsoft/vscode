@@ -271,8 +271,7 @@ export function getConfigurationValue<T>(config: any, settingPath: string, defau
 	}
 
 	const path = settingPath.split('.');
-	let result = accessSetting(config, path);
-	//result = resolveWithEnvironment({ ...process.env }, undefined, result);
+	const result = accessSetting(config, path);
 
 	return typeof result === 'undefined' ? defaultValue : result;
 }
