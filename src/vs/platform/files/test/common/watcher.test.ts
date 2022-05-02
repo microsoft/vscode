@@ -9,7 +9,7 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangesEvent, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { IDiskFileChange, coalesceEvents, toFileChanges } from 'vs/platform/files/common/watcher';
+import { IDiskFileChange, coalesceEvents, toFileChanges, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
 
 class TestFileWatcher {
 	private readonly _onDidFilesChange: Emitter<{ raw: IFileChange[]; event: FileChangesEvent }>;
@@ -47,6 +47,63 @@ enum Path {
 	WINDOWS,
 	UNC
 }
+
+suite('Watcher', () => {
+
+	(isWindows ? test.skip : test)('parseWatcherPatterns - posix', () => {
+		const path = '/users/data/src';
+		let parsedPattern = parseWatcherPatterns(path, ['*.js'])[0];
+
+		assert.strictEqual(parsedPattern('/users/data/src/foo.js'), true);
+		assert.strictEqual(parsedPattern('/users/data/src/foo.ts'), false);
+		assert.strictEqual(parsedPattern('/users/data/src/bar/foo.js'), false);
+
+		parsedPattern = parseWatcherPatterns(path, ['/users/data/src/*.js'])[0];
+
+		assert.strictEqual(parsedPattern('/users/data/src/foo.js'), true);
+		assert.strictEqual(parsedPattern('/users/data/src/foo.ts'), false);
+		assert.strictEqual(parsedPattern('/users/data/src/bar/foo.js'), false);
+
+		parsedPattern = parseWatcherPatterns(path, ['/users/data/src/bar/*.js'])[0];
+
+		assert.strictEqual(parsedPattern('/users/data/src/foo.js'), false);
+		assert.strictEqual(parsedPattern('/users/data/src/foo.ts'), false);
+		assert.strictEqual(parsedPattern('/users/data/src/bar/foo.js'), true);
+
+		parsedPattern = parseWatcherPatterns(path, ['**/*.js'])[0];
+
+		assert.strictEqual(parsedPattern('/users/data/src/foo.js'), true);
+		assert.strictEqual(parsedPattern('/users/data/src/foo.ts'), false);
+		assert.strictEqual(parsedPattern('/users/data/src/bar/foo.js'), true);
+	});
+
+	(!isWindows ? test.skip : test)('parseWatcherPatterns - windows', () => {
+		const path = 'c:\\users\\data\\src';
+		let parsedPattern = parseWatcherPatterns(path, ['*.js'])[0];
+
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.js'), true);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.ts'), false);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\bar/foo.js'), false);
+
+		parsedPattern = parseWatcherPatterns(path, ['c:\\users\\data\\src\\*.js'])[0];
+
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.js'), true);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.ts'), false);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\bar\\foo.js'), false);
+
+		parsedPattern = parseWatcherPatterns(path, ['c:\\users\\data\\src\\bar/*.js'])[0];
+
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.js'), false);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.ts'), false);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\bar\\foo.js'), true);
+
+		parsedPattern = parseWatcherPatterns(path, ['**/*.js'])[0];
+
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.js'), true);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.ts'), false);
+		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\bar\\foo.js'), true);
+	});
+});
 
 suite('Watcher Events Normalizer', () => {
 

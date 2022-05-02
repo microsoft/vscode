@@ -120,20 +120,20 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 					}
 				}
 
-				const res = await octokit.pulls.create({
+				const { data: pr } = await octokit.pulls.create({
 					owner,
 					repo,
 					title,
 					body,
 					head: `${ghRepository.owner.login}:${remoteName}`,
-					base: remoteName
+					base: ghRepository.default_branch
 				});
 
 				await repository.setConfig(`branch.${localName}.remote`, 'upstream');
 				await repository.setConfig(`branch.${localName}.merge`, `refs/heads/${remoteName}`);
 				await repository.setConfig(`branch.${localName}.github-pr-owner-number`, `${owner}#${repo}#${pr.number}`);
 
-				return res.data;
+				return pr;
 			});
 
 			const openPR = localize('openpr', "Open PR");

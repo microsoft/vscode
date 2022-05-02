@@ -350,7 +350,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			return extUriBiasedIgnorePathCase.ignorePathCasing(key);
 		});
 		// const tst = TernarySearchTree.forUris<IExtensionDescription>(key => true);
-		await Promise.all(this._myRegistry.getAllExtensionDescriptions().map(async (ext) => {
+		await Promise.all(extensions.map(async (ext) => {
 			if (this._getEntryPoint(ext)) {
 				const uri = await this._realPathExtensionUri(ext.extensionLocation);
 				tst.set(uri, ext);

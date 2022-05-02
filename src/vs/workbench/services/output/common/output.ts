@@ -8,6 +8,11 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationError, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
+import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 
 /**
  * Mime type used by the output editor.
@@ -220,3 +225,34 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 }
 
 Registry.add(Extensions.OutputChannels, new OutputChannelRegistry());
+
+export function registerLogChannel(id: string, label: string, file: URI, fileService: IFileService, logService: ILogService): CancelablePromise<void> {
+	return createCancelablePromise(async token => {
+		await whenProviderRegistered(file, fileService);
+		const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
+		try {
+			await whenFileExists(file, 1, fileService, logService, token);
+			outputChannelRegistry.registerChannel({ id, label, file, log: true });
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				logService.error('Error while registering log channel', file.toString(), getErrorMessage(error));
+			}
+		}
+	});
+}
+
+async function whenFileExists(file: URI, trial: number, fileService: IFileService, logService: ILogService, token: CancellationToken): Promise<void> {
+	const exists = await fileService.exists(file);
+	if (exists) {
+		return;
+	}
+	if (token.isCancellationRequested) {
+		throw new CancellationError();
+	}
+	if (trial > 10) {
+		throw new Error(`Timed out while waiting for file to be created`);
+	}
+	logService.debug(`[Registering Log Channel] File does not exist. Waiting for 1s to retry.`, file.toString());
+	await timeout(1000, token);
+	await whenFileExists(file, trial + 1, fileService, logService, token);
+}

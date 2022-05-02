@@ -107,7 +107,7 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 				localize('extSettingsSearch', "Extension ID..."),
 				localize('extSettingsSearchTooltip', "Add extension ID filter"),
 				`@${EXTENSION_SETTING_TAG}`,
-				false
+				true
 			),
 			this.createAction(
 				'featuresSettingsSearch',

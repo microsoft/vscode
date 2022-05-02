@@ -8,10 +8,15 @@ import { RemoteSourceProvider, RemoteSource } from './typings/git-base';
 import { getOctokit } from './auth';
 import { Octokit } from '@octokit/rest';
 
-function parse(url: string): { owner: string; repo: string } | undefined {
+function getRepositoryFromUrl(url: string): { owner: string; repo: string } | undefined {
 	const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\.git/i.exec(url)
 		|| /^git@github\.com:([^/]+)\/([^/]+)\.git/i.exec(url);
-	return (match && { owner: match[1], repo: match[2] }) ?? undefined;
+	return match ? { owner: match[1], repo: match[2] } : undefined;
+}
+
+function getRepositoryFromQuery(query: string): { owner: string; repo: string } | undefined {
+	const match = /^([^/]+)\/([^/]+)$/i.exec(query);
+	return match ? { owner: match[1], repo: match[2] } : undefined;
 }
 
 function asRemoteSource(raw: any): RemoteSource {
@@ -37,7 +42,7 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		const octokit = await getOctokit();
 
 		if (query) {
-			const repository = parse(query);
+			const repository = getRepositoryFromUrl(query);
 
 			if (repository) {
 				const raw = await octokit.repos.get(repository);
@@ -77,6 +82,12 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 			return [];
 		}
 
+		const repository = getRepositoryFromQuery(query);
+
+		if (repository) {
+			query = `user:${repository.owner}+${repository.repo}`;
+		}
+
 		query += ` fork:true`;
 
 		const raw = await octokit.search.repos({ q: query, sort: 'stars' });
@@ -84,7 +95,7 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 	}
 
 	async getBranches(url: string): Promise<string[]> {
-		const repository = parse(url);
+		const repository = getRepositoryFromUrl(url);
 
 		if (!repository) {
 			return [];

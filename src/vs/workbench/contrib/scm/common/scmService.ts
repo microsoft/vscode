@@ -175,10 +175,10 @@ class SCMInput implements ISCMInput {
 				const history = [...this.historyNavigator].map(s => s ?? '');
 
 				if (history.length === 0 || (history.length === 1 && history[0] === '')) {
-					return;
+					storageService.remove(key, StorageScope.GLOBAL);
+				} else {
+					storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.GLOBAL, StorageTarget.MACHINE);
 				}
-
-				storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.GLOBAL, StorageTarget.MACHINE);
 				this.didChangeHistory = false;
 			});
 		}

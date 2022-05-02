@@ -126,7 +126,7 @@ registerAction2(class extends Action2 {
 			title: localize('detectlang', 'Detect Language from Content'),
 			f1: true,
 			precondition: ContextKeyExpr.and(NOTEBOOK_EDITOR_EDITABLE.toNegated(), EditorContextKeys.editorTextFocus),
-			keybinding: { primary: KeyCode.KeyE | KeyMod.CtrlCmd, weight: KeybindingWeight.WorkbenchContrib }
+			keybinding: { primary: KeyCode.KeyD | KeyMod.Alt | KeyMod.Shift, weight: KeybindingWeight.WorkbenchContrib }
 		});
 	}
 

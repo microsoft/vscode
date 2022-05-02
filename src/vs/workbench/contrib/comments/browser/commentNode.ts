@@ -165,10 +165,11 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	private createHeader(commentDetailsContainer: HTMLElement): void {
 		const header = dom.append(commentDetailsContainer, dom.$(`div.comment-title.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
-		const author = dom.append(header, dom.$('strong.author'));
+		const infoContainer = dom.append(header, dom.$('comment-header-info'));
+		const author = dom.append(infoContainer, dom.$('strong.author'));
 		author.innerText = this.comment.userName;
-		this.createTimestamp(header);
-		this._isPendingLabel = dom.append(header, dom.$('span.isPending'));
+		this.createTimestamp(infoContainer);
+		this._isPendingLabel = dom.append(infoContainer, dom.$('span.isPending'));
 
 		if (this.comment.label) {
 			this._isPendingLabel.innerText = this.comment.label;

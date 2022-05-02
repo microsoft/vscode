@@ -12,6 +12,7 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class TerminalFindWidget extends SimpleFindWidget {
 	protected _findInputFocused: IContextKey<boolean>;
@@ -21,13 +22,14 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	constructor(
 		findState: FindReplaceState,
 		@IContextViewService _contextViewService: IContextViewService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
-		super(_contextViewService, _contextKeyService, findState, { showOptionButtons: true, showResultCount: true });
+		super(_contextViewService, _contextKeyService, findState, { showOptionButtons: true, showResultCount: true, type: 'Terminal' }, keybindingService);
 
 		this._register(findState.onFindReplaceStateChange(() => {
 			this.show();

@@ -6,8 +6,7 @@
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { BrowserCredentialsService } from 'vs/workbench/services/credentials/browser/credentialsService';
-import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
-import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEnvironmentService, TestRemoteAgentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('CredentialsService - web', () => {
