@@ -601,7 +601,7 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 			this.extensionsWorkbenchService.open(this.extension);
 			alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
 			if (this.extension.gallery) {
-				await this.server.extensionManagementService.installFromGallery(this.extension.gallery);
+				await this.server.extensionManagementService.installFromGallery(this.extension.gallery, { installPreReleaseVersion: this.extension.local?.preRelease });
 			} else {
 				const vsix = await this.extension.server!.extensionManagementService.zip(this.extension.local!);
 				await this.server.extensionManagementService.install(vsix);
