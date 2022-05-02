@@ -42,7 +42,7 @@ export interface MdWorkspaceContents {
 
 	getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined>;
 
-	fileExists(resource: vscode.Uri): Promise<boolean>;
+	pathExists(resource: vscode.Uri): Promise<boolean>;
 
 	readonly onDidChangeMarkdownDocument: vscode.Event<SkinnyTextDocument>;
 	readonly onDidCreateMarkdownDocument: vscode.Event<SkinnyTextDocument>;
@@ -159,13 +159,13 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 		}
 	}
 
-	public async fileExists(target: vscode.Uri): Promise<boolean> {
+	public async pathExists(target: vscode.Uri): Promise<boolean> {
 		let targetResourceStat: vscode.FileStat | undefined;
 		try {
 			targetResourceStat = await vscode.workspace.fs.stat(target);
 		} catch {
 			return false;
 		}
-		return targetResourceStat.type === vscode.FileType.File;
+		return targetResourceStat.type === vscode.FileType.File || targetResourceStat.type === vscode.FileType.Directory;
 	}
 }
