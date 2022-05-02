@@ -47,7 +47,7 @@
 }
 
 /* Draggable region */
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-drag-region {
+.monaco-workbench .part.titlebar>.titlebar-container>.titlebar-drag-region {
 	top: 0;
 	left: 0;
 	display: block;
@@ -57,7 +57,8 @@
 	-webkit-app-region: drag;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container>.title-menu .action-item.quickopen {
+/* Command Center */
+.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen {
 	color: var(--vscode-input-foreground);
 	border: 1px solid var(--vscode-dropdown-border);
 	height: 20px;
@@ -92,7 +93,7 @@
 }
 
 /* Window title text */
-.monaco-workbench .part.titlebar > .titlebar-container > .window-title {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title {
 	flex: 0 1 auto;
 	font-size: 12px;
 	overflow: hidden;
@@ -103,9 +104,9 @@
 }
 
 /* Windows/Linux: Rules for custom title (icon, window controls)  */
-.monaco-workbench.web .part.titlebar > .titlebar-container,
-.monaco-workbench.windows .part.titlebar > .titlebar-container,
-.monaco-workbench.linux .part.titlebar > .titlebar-container {
+.monaco-workbench.web .part.titlebar>.titlebar-container,
+.monaco-workbench.windows .part.titlebar>.titlebar-container,
+.monaco-workbench.linux .part.titlebar>.titlebar-container {
 	padding: 0;
 	height: 30px;
 	line-height: 30px;
@@ -113,13 +114,13 @@
 	overflow: visible;
 }
 
-.monaco-workbench.web .part.titlebar > .titlebar-container > .window-title,
-.monaco-workbench.windows .part.titlebar > .titlebar-container > .window-title,
-.monaco-workbench.linux .part.titlebar > .titlebar-container > .window-title {
+.monaco-workbench.web .part.titlebar>.titlebar-container>.window-title,
+.monaco-workbench.windows .part.titlebar>.titlebar-container>.window-title,
+.monaco-workbench.linux .part.titlebar>.titlebar-container>.window-title {
 	cursor: default;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container.enable-title-menu > .window-title {
+.monaco-workbench .part.titlebar>.titlebar-container.enable-title-menu>.window-title {
 	display: none;
 }
 
@@ -129,7 +130,7 @@
 }
 
 /* Menubar */
-.monaco-workbench .part.titlebar > .titlebar-container > .menubar {
+.monaco-workbench .part.titlebar>.titlebar-container>.menubar {
 	/* move menubar above drag region as negative z-index on drag region cause greyscale AA */
 	z-index: 2500;
 	min-width: 36px;
@@ -209,7 +210,7 @@
 	height: env(titlebar-area-width, 28px);
 }
 
-.monaco-workbench.web .part.titlebar > .window-controls-container,
+.monaco-workbench.web .part.titlebar>.window-controls-container,
 .monaco-workbench.fullscreen .part.titlebar>.window-controls-container {
 	display: none;
 	background-color: transparent;
