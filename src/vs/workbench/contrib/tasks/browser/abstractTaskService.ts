@@ -2842,14 +2842,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				});
 			}
 
-			// If there's multiple globs that match we want to show the quick picker for those tasks
-			// We will need to call splitPerGroupType putting globs in defaults and the remaining tasks in none.
-			// We don't need to carry on after here
-			if (taskGroupTasks.length > 1) {
+			const handleMultipleTasks = (areGlobTasks: boolean) => {
 				return this.getTasksForGroup(taskGroup).then((tasks) => {
 					if (tasks.length > 0) {
-						// Put globs in the defaults and everything else in none
-						let { none, defaults } = this.splitPerGroupType(tasks, true);
+						// If we're dealing with tasks that were chosen because of a glob match,
+						// then put globs in the defaults and everything else in none
+						let { none, defaults } = this.splitPerGroupType(tasks, areGlobTasks);
 						if (defaults.length === 1) {
 							runSingleTask(defaults[0], undefined, this);
 							return;
@@ -2858,9 +2856,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						}
 					}
 
-					// At this this point there's multiple tasks.
+					// At this this point there are multiple tasks.
 					chooseAndRunTask(tasks);
 				});
+			};
+
+			// If there's multiple globs that match we want to show the quick picker for those tasks
+			// We will need to call splitPerGroupType putting globs in defaults and the remaining tasks in none.
+			// We don't need to carry on after here
+			if (taskGroupTasks.length > 1) {
+				return handleMultipleTasks(true);
 			}
 
 			// If no globs are found or matched fallback to checking for default tasks of the task group
@@ -2884,20 +2889,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 
 			// Multiple default tasks returned, show the quickPicker
-			return this.getTasksForGroup(taskGroup).then((tasks) => {
-				if (tasks.length > 0) {
-					let { none, defaults } = this.splitPerGroupType(tasks);
-					if (defaults.length === 1) {
-						runSingleTask(defaults[0], undefined, this);
-						return;
-					} else if (defaults.length + none.length > 0) {
-						tasks = defaults.concat(none);
-					}
-				}
-
-				// At this this point there's multiple tasks.
-				chooseAndRunTask(tasks);
-			});
+			return handleMultipleTasks(false);
 		})();
 		this.progressService.withProgress(options, () => promise);
 	}
