@@ -413,6 +413,12 @@
           "default": true,
           "markdownDescription": "%configuration.markdown.editor.drop.enabled%",
           "scope": "resource"
+        },
+        "markdown.experimental.validate.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.markdown.experimental.validate.enabled.description%",
+          "scope": "resource"
         }
       }
     },
