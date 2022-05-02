@@ -54,10 +54,10 @@ export abstract class SimpleFindWidget extends Widget {
 	private _foundMatch: boolean = false;
 
 	constructor(
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		private readonly _state: FindReplaceState = new FindReplaceState(),
 		private readonly _options: IFindOptions,
+		private readonly _contextViewService: IContextViewService,
+		contextKeyService: IContextKeyService,
 		private readonly _keybindingService?: IKeybindingService
 	) {
 		super();
