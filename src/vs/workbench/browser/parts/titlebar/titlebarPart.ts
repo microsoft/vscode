@@ -46,7 +46,6 @@ import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtua
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import './titlebarMenu';
 
 export class TitlebarPart extends Part implements ITitleService {
 
