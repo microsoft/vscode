@@ -25,7 +25,7 @@ export function setup() {
 					await terminal.assertShellIntegrationActivated();
 				});
 			});
-			if (process.platform.startsWith('win')) {
+			if (process.platform === 'win32') {
 				describe.skip('Decorations', function () { });
 			} else {
 				describe('Decorations', function () {
