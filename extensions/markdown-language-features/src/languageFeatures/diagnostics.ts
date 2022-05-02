@@ -108,10 +108,10 @@ export class DiagnosticManager extends Disposable {
 	private async rebuild() {
 		this.collection.clear();
 
-		const openedTabDocs = this.getAllTabResources();
+		const allOpenedTabResources = this.getAllTabResources();
 		await Promise.all(
 			vscode.workspace.textDocuments
-				.filter(doc => openedTabDocs.has(doc.uri.toString()) && isMarkdownFile(doc))
+				.filter(doc => allOpenedTabResources.has(doc.uri.toString()) && isMarkdownFile(doc))
 				.map(doc => this.update(doc)));
 	}
 
@@ -211,7 +211,7 @@ export class DiagnosticComputer {
 				continue;
 			}
 
-			if (!hrefDoc && !await this.workspaceContents.fileExists(link.href.path)) {
+			if (!hrefDoc && !await this.workspaceContents.pathExists(link.href.path)) {
 				diagnostics.push(
 					new vscode.Diagnostic(link.source.hrefRange, localize('invalidPathLink', 'File does not exist at path: {0}', (link.href as InternalHref).path.toString(true))));
 			} else if (hrefDoc) {
