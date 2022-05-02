@@ -36,7 +36,7 @@
 	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/loader.js"></script>
 	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/webPackagePaths.js"></script>
 	<script>
-		let baseUrl = new URL('{{WORKBENCH_WEB_BASE_URL}}', window.location.origin).toString();
+		const baseUrl = new URL('{{WORKBENCH_WEB_BASE_URL}}', window.location.origin).toString();
 		Object.keys(self.webPackagePaths).map(function (key, index) {
 			self.webPackagePaths[key] = `${baseUrl}/node_modules/${key}/${self.webPackagePaths[key]}`;
 		});
