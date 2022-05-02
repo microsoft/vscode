@@ -87,6 +87,7 @@ export class DiagnosticManager extends Disposable {
 
 		this._register(vscode.workspace.onDidCloseTextDocument(doc => {
 			this.pendingDiagnostics.delete(doc.uri);
+			this.collection.delete(doc.uri);
 		}));
 
 		this.rebuild();
@@ -107,6 +108,14 @@ export class DiagnosticManager extends Disposable {
 	private async rebuild() {
 		this.collection.clear();
 
+		const openedTabDocs = this.getAllTabResources();
+		await Promise.all(
+			vscode.workspace.textDocuments
+				.filter(doc => openedTabDocs.has(doc.uri.toString()) && isMarkdownFile(doc))
+				.map(doc => this.update(doc)));
+	}
+
+	private getAllTabResources() {
 		const openedTabDocs = new Map<string, vscode.Uri>();
 		for (const group of vscode.window.tabGroups.all) {
 			for (const tab of group.tabs) {
@@ -115,11 +124,7 @@ export class DiagnosticManager extends Disposable {
 				}
 			}
 		}
-
-		await Promise.all(
-			vscode.workspace.textDocuments
-				.filter(doc => openedTabDocs.has(doc.uri.toString()) && isMarkdownFile(doc))
-				.map(doc => this.update(doc)));
+		return openedTabDocs;
 	}
 
 	private async update(doc: vscode.TextDocument): Promise<void> {
