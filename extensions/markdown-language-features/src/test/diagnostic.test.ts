@@ -15,11 +15,17 @@ import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
 import { assertRangeEqual, joinLines, noopToken, workspacePath } from './util';
 
 
-function getDiagnostics(doc: InMemoryDocument, workspaceContents: MdWorkspaceContents, configuration = new MemoryDiagnosticConfiguration()) {
+function getComputedDiagnostics(doc: InMemoryDocument, workspaceContents: MdWorkspaceContents) {
 	const engine = createNewMarkdownEngine();
 	const linkProvider = new MdLinkProvider(engine);
-	const manager = new DiagnosticManager(new DiagnosticComputer(engine, workspaceContents, linkProvider), configuration);
-	return manager.getDiagnostics(doc, noopToken);
+	const computer = new DiagnosticComputer(engine, workspaceContents, linkProvider);
+	return computer.getDiagnostics(doc, noopToken);
+}
+
+function createDiagnosticsManager(workspaceContents: MdWorkspaceContents, configuration = new MemoryDiagnosticConfiguration()) {
+	const engine = createNewMarkdownEngine();
+	const linkProvider = new MdLinkProvider(engine);
+	return new DiagnosticManager(new DiagnosticComputer(engine, workspaceContents, linkProvider), configuration);
 }
 
 class MemoryDiagnosticConfiguration implements DiagnosticConfiguration {
@@ -43,7 +49,7 @@ suite('markdown: Diagnostics', () => {
 			`text`,
 		));
 
-		const diagnostics = await getDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const diagnostics = await getComputedDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
 		assert.deepStrictEqual(diagnostics, []);
 	});
 
@@ -55,7 +61,7 @@ suite('markdown: Diagnostics', () => {
 			`[bad-ref]: /no/such/file.md`,
 		));
 
-		const diagnostics = await getDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const diagnostics = await getComputedDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
 		assert.deepStrictEqual(diagnostics.length, 2);
 		assertRangeEqual(new vscode.Range(0, 6, 0, 22), diagnostics[0].range);
 		assertRangeEqual(new vscode.Range(3, 11, 3, 27), diagnostics[1].range);
@@ -71,7 +77,7 @@ suite('markdown: Diagnostics', () => {
 			`[bad-ref]: #no-such-header`,
 		));
 
-		const diagnostics = await getDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const diagnostics = await getComputedDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
 		assert.deepStrictEqual(diagnostics.length, 2);
 		assertRangeEqual(new vscode.Range(2, 6, 2, 21), diagnostics[0].range);
 		assertRangeEqual(new vscode.Range(5, 11, 5, 26), diagnostics[1].range);
@@ -91,7 +97,7 @@ suite('markdown: Diagnostics', () => {
 			`# Other header`,
 		));
 
-		const diagnostics = await getDiagnostics(doc1, new InMemoryWorkspaceMarkdownDocuments([doc1, doc2]));
+		const diagnostics = await getComputedDiagnostics(doc1, new InMemoryWorkspaceMarkdownDocuments([doc1, doc2]));
 		assert.deepStrictEqual(diagnostics.length, 1);
 		assertRangeEqual(new vscode.Range(5, 6, 5, 35), diagnostics[0].range);
 	});
@@ -106,7 +112,7 @@ suite('markdown: Diagnostics', () => {
 			`[good](doc#my-header)`,
 		));
 
-		const diagnostics = await getDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const diagnostics = await getComputedDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
 		assert.deepStrictEqual(diagnostics.length, 0);
 	});
 
@@ -118,7 +124,7 @@ suite('markdown: Diagnostics', () => {
 			`[good]: http://example.com`,
 		));
 
-		const diagnostics = await getDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
+		const diagnostics = await getComputedDiagnostics(doc, new InMemoryWorkspaceMarkdownDocuments([doc]));
 		assert.deepStrictEqual(diagnostics.length, 1);
 		assertRangeEqual(new vscode.Range(1, 11, 1, 18), diagnostics[0].range);
 	});
@@ -129,7 +135,8 @@ suite('markdown: Diagnostics', () => {
 			`[text][no-such-ref]`,
 		));
 
-		const diagnostics = await getDiagnostics(doc1, new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration(false));
+		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration(false));
+		const diagnostics = await manager.getDiagnostics(doc1, noopToken);
 		assert.deepStrictEqual(diagnostics.length, 0);
 	});
 });
