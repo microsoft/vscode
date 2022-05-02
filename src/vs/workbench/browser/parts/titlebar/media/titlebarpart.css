@@ -39,8 +39,8 @@
 	display: inline-block;
 	text-align: center;
 	height: 14px;
-	width: 50vw;
-	max-width: calc(100vw - 200px);
+	width: 38vw;
+	max-width: 600px;
 	margin: 2px 4px;
 	line-height: 14px;
 }
