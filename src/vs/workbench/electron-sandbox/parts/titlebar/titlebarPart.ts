@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomFactor } from 'vs/base/browser/browser';
-import { $, addDisposableListener, append, Dimension, EventType, hide, prepend, runAtThisOrScheduleAtNextAnimationFrame, show } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, EventType, hide, prepend, show } from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -31,6 +31,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	private maxRestoreControl: HTMLElement | undefined;
 	private dragRegion: HTMLElement | undefined;
 	private resizer: HTMLElement | undefined;
+	private cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
 
 	private getMacTitlebarSize() {
 		const osVersion = this.environmentService.os.release;
@@ -133,28 +134,6 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 	}
 
-	protected override adjustTitleMarginToCenter(): void {
-		if (this.customMenubar && this.menubar) {
-			const leftMarker = (this.appIcon ? this.appIcon.clientWidth : 0) + this.menubar.clientWidth + 10;
-			const rightMarker = this.element.clientWidth - (this.windowControls ? this.windowControls.clientWidth : 0) - 10;
-
-			// Not enough space to center the titlebar within window,
-			// Center between menu and window controls
-			if (leftMarker > (this.element.clientWidth - this.title.clientWidth) / 2 ||
-				rightMarker < (this.element.clientWidth + this.title.clientWidth) / 2) {
-				this.title.style.position = '';
-				this.title.style.left = '';
-				this.title.style.transform = '';
-				return;
-			}
-		}
-
-		this.title.style.position = 'absolute';
-		this.title.style.left = '50%';
-		this.title.style.transform = 'translate(-50%, 0)';
-		this.title.style.maxWidth = `calc(100vw - ${2 * ((this.windowControls?.clientWidth || 70) + 10)}px)`;
-	}
-
 	protected override installMenubar(): void {
 		super.installMenubar();
 
@@ -188,7 +167,8 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
 		// Window Controls (Native Windows/Linux)
-		if (!isMacintosh && this.windowControls) {
+		const hasWindowControlsOverlay = typeof (navigator as any).windowControlsOverlay !== 'undefined';
+		if (!isMacintosh && getTitleBarStyle(this.configurationService) !== 'native' && !hasWindowControlsOverlay && this.windowControls) {
 			// Minimize
 			const minimizeIcon = append(this.windowControls, $('div.window-icon.window-minimize' + Codicon.chromeMinimize.cssSelector));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
@@ -222,25 +202,15 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		return ret;
 	}
 
-	override updateLayout(dimension: Dimension): void {
-		this.lastLayoutDimensions = dimension;
+	override updateStyles(): void {
+		super.updateStyles();
 
-		if (getTitleBarStyle(this.configurationService) === 'custom') {
-			if (isMacintosh || this.currentMenubarVisibility === 'hidden') {
-				this.rootContainer.style.height = `${100.0 * getZoomFactor()}%`;
-				this.rootContainer.style.width = `${100.0 * getZoomFactor()}%`;
-				this.rootContainer.style.transform = `scale(${1 / getZoomFactor()})`;
-			} else {
-				this.rootContainer.style.height = `100%`;
-				this.rootContainer.style.width = `100%`;
-				this.rootContainer.style.transform = '';
-			}
-
-			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
-
-			if (this.customMenubar) {
-				const menubarDimension = new Dimension(0, dimension.height);
-				this.customMenubar.layout(menubarDimension);
+		// WCO styles only supported on Windows currently
+		if (isWindows) {
+			if (!this.cachedWindowControlStyles ||
+				this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
+				this.cachedWindowControlStyles.fgColor !== this.element.style.color) {
+				this.nativeHostService.updateTitleBarOverlay(this.element.style.backgroundColor, this.element.style.color);
 			}
 		}
 	}
