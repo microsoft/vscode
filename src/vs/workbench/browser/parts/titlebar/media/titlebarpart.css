@@ -36,13 +36,14 @@
 .monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen {
 	color: var(--vscode-input-foreground);
 	border: 1px solid var(--vscode-dropdown-border);
-	height: 22px;
-	line-height: 22px;
+	height: 20px;
+	line-height: 20px;
 	width: 38vw;
 	max-width: 600px;
 	margin: 4px 4px;
 	flex-direction: row;
 	justify-content: center;
+	overflow: hidden;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen:HOVER,
