@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
+import { promises as fsp, createReadStream } from 'fs';
 import * as path from 'path';
 import * as http from 'http';
 import * as url from 'url';
-import * as util from 'util';
 import * as cookie from 'cookie';
 import * as crypto from 'crypto';
 import { isEqualOrParent } from 'vs/base/common/extpath';
@@ -27,6 +26,7 @@ import { URI } from 'vs/base/common/uri';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { isString } from 'vs/base/common/types';
+import { CharCode } from 'vs/base/common/charCode';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -44,32 +44,44 @@ export async function serveError(req: http.IncomingMessage, res: http.ServerResp
 	res.end(errorMessage);
 }
 
+export const enum CacheControl {
+	NO_CACHING, ETAG, NO_EXPIRY
+}
+
 /**
  * Serve a file at a given path or 404 if the file is missing.
  */
-export async function serveFile(logService: ILogService, req: http.IncomingMessage, res: http.ServerResponse, filePath: string, responseHeaders: Record<string, string> = Object.create(null)): Promise<void> {
+export async function serveFile(filePath: string, cacheControl: CacheControl, logService: ILogService, req: http.IncomingMessage, res: http.ServerResponse, responseHeaders: Record<string, string>): Promise<void> {
 	try {
-		const stat = await util.promisify(fs.stat)(filePath);
+		const stat = await fsp.stat(filePath); // throws an error if file doesn't exist
+		if (cacheControl === CacheControl.ETAG) {
 
-		// Check if file modified since
-		const etag = `W/"${[stat.ino, stat.size, stat.mtime.getTime()].join('-')}"`; // weak validator (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag)
-		if (req.headers['if-none-match'] === etag) {
-			res.writeHead(304);
-			return res.end();
+			// Check if file modified since
+			const etag = `W/"${[stat.ino, stat.size, stat.mtime.getTime()].join('-')}"`; // weak validator (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag)
+			if (req.headers['if-none-match'] === etag) {
+				res.writeHead(304);
+				return res.end();
+			}
+
+			responseHeaders['Etag'] = etag;
+		} else if (cacheControl === CacheControl.NO_EXPIRY) {
+			responseHeaders['Cache-Control'] = 'public, max-age=31536000';
+		} else if (cacheControl === CacheControl.NO_CACHING) {
+			responseHeaders['Cache-Control'] = 'no-store';
 		}
 
-		// Headers
 		responseHeaders['Content-Type'] = textMimeType[extname(filePath)] || getMediaMime(filePath) || 'text/plain';
-		responseHeaders['Etag'] = etag;
 
 		res.writeHead(200, responseHeaders);
 
 		// Data
-		fs.createReadStream(filePath).pipe(res);
+		createReadStream(filePath).pipe(res);
 	} catch (error) {
 		if (error.code !== 'ENOENT') {
 			logService.error(error);
 			console.error(error.toString());
+		} else {
+			console.error(`File not found: ${filePath}`);
 		}
 
 		res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -78,14 +90,14 @@ export async function serveFile(logService: ILogService, req: http.IncomingMessa
 }
 
 const APP_ROOT = dirname(FileAccess.asFileUri('', require).fsPath);
-const CHARCODE_SLASH = '/'.charCodeAt(0);
+const CHARCODE_SLASH = CharCode.Slash;
 
 export class WebClientServer {
 
 	private readonly _webExtensionResourceUrlTemplate: URI | undefined;
 
-	private readonly _staticRoute;
-	private readonly _callbackRoute;
+	private readonly _staticRoute: string;
+	private readonly _callbackRoute: string;
 
 	constructor(
 		private readonly _connectionToken: ServerConnectionToken,
@@ -132,7 +144,6 @@ export class WebClientServer {
 			return serveError(req, res, 500, 'Internal Server Error.');
 		}
 	}
-
 	/**
 	 * Handle HTTP requests for /static/*
 	 */
@@ -148,7 +159,7 @@ export class WebClientServer {
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		return serveFile(this._logService, req, res, filePath, headers);
+		return serveFile(filePath, this._environmentService.isBuilt ? CacheControl.NO_EXPIRY : CacheControl.NO_CACHING, this._logService, req, res, headers);
 	}
 
 	private _getResourceURLTemplateAuthority(uri: URI): string | undefined {
@@ -312,13 +323,11 @@ export class WebClientServer {
 			WORKBENCH_AUTH_SESSION: authSessionInfo ? asJSON(authSessionInfo) : '',
 			WORKBENCH_WEB_BASE_URL: this._staticRoute,
 		};
-		//if (!this._environmentService.isBuilt) {
-		//values.WORKBENCH_BUILTIN_EXTENSIONS = //get built in extensions
-		//}
+
 
 		let data;
 		try {
-			const workbenchTemplate = (await util.promisify(fs.readFile)(filePath)).toString();
+			const workbenchTemplate = (await fsp.readFile(filePath)).toString();
 			data = workbenchTemplate.replace(/\{\{([^}]+)\}\}/g, (_, key) => values[key] ?? 'undefined');
 		} catch (e) {
 			res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -385,7 +394,7 @@ export class WebClientServer {
 	 */
 	private async _handleCallback(res: http.ServerResponse): Promise<void> {
 		const filePath = FileAccess.asFileUri('vs/code/browser/workbench/callback.html', require).fsPath;
-		const data = (await util.promisify(fs.readFile)(filePath)).toString();
+		const data = (await fsp.readFile(filePath)).toString();
 		const cspDirectives = [
 			'default-src \'self\';',
 			'img-src \'self\' https: data: blob:;',
