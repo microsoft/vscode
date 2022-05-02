@@ -25,9 +25,8 @@ export function setup() {
 					await terminal.assertShellIntegrationActivated();
 				});
 			});
-			if (process.platform === 'win32') {
-				describe.skip('Decorations', function () { });
-			} else {
+
+			process.platform === 'win32' ? describe.skip('Decorations', function () { }) :
 				describe('Decorations', function () {
 					describe('Should show default icons', function () {
 						it('Placeholder', async () => {
@@ -62,7 +61,6 @@ export function setup() {
 						});
 					});
 				});
-			}
 		});
 	});
 }
