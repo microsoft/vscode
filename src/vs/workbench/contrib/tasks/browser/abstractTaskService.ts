@@ -2861,6 +2861,21 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				});
 			};
 
+			const resolveTaskAndRun = (taskGroupTask: Task | ConfiguringTask) => {
+				if (ConfiguringTask.is(taskGroupTask)) {
+					this.tryResolveTask(taskGroupTask).then(resolvedTask => {
+						runSingleTask(resolvedTask, undefined, this);
+					});
+				} else {
+					runSingleTask(taskGroupTask, undefined, this);
+				}
+			};
+
+			// A single default glob task was returned, just run it directly
+			if (taskGroupTasks.length === 1) {
+				return resolveTaskAndRun(taskGroupTasks[0]);
+			}
+
 			// If there's multiple globs that match we want to show the quick picker for those tasks
 			// We will need to call splitPerGroupType putting globs in defaults and the remaining tasks in none.
 			// We don't need to carry on after here
@@ -2873,19 +2888,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				taskGroupTasks = await this._findWorkspaceTasksInGroup(taskGroup, false);
 			}
 
-
 			// A single default task was returned, just run it directly
 			if (taskGroupTasks.length === 1) {
-				const taskGroupTask = taskGroupTasks[0];
-				if (ConfiguringTask.is(taskGroupTask)) {
-					this.tryResolveTask(taskGroupTask).then(resolvedTask => {
-						runSingleTask(resolvedTask, undefined, this);
-					});
-				} else {
-					runSingleTask(taskGroupTask, undefined, this);
-				}
-
-				return;
+				return resolveTaskAndRun(taskGroupTasks[0]);
 			}
 
 			// Multiple default tasks returned, show the quickPicker
