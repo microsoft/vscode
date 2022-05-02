@@ -87,14 +87,6 @@ export function getPathLabel(resource: URI, formatting: IPathLabelFormatting): s
 			userHomeCandidate = resource.fsPath;
 		}
 
-		// In addition, if we are on windows platform, we need to make
-		// sure to convert to POSIX path, because `tildify` only works
-		// with POSIX paths.
-		if (isWindows) {
-			userHomeCandidate = toSlashes(userHomeCandidate);
-			userHome = toSlashes(userHome);
-		}
-
 		absolutePath = tildify(userHomeCandidate, userHome, os);
 	}
 
@@ -179,19 +171,27 @@ export function normalizeDriveLetter(path: string, isWindowsOS: boolean = isWind
 let normalizedUserHomeCached: { original: string; normalized: string } = Object.create(null);
 export function tildify(path: string, userHome: string, os = OS): string {
 	if (os === OperatingSystem.Windows || !path || !userHome) {
-		return path; // unsupported
+		return path; // unsupported on Windows
 	}
 
-	// Keep a normalized user home path as cache to prevent accumulated string creation
 	let normalizedUserHome = normalizedUserHomeCached.original === userHome ? normalizedUserHomeCached.normalized : undefined;
 	if (!normalizedUserHome) {
-		normalizedUserHome = `${rtrim(userHome, posix.sep)}${posix.sep}`;
+		normalizedUserHome = userHome;
+		if (isWindows) {
+			normalizedUserHome = toSlashes(normalizedUserHome); // make sure that the path is POSIX normalized on Windows
+		}
+		normalizedUserHome = `${rtrim(normalizedUserHome, posix.sep)}${posix.sep}`;
 		normalizedUserHomeCached = { original: userHome, normalized: normalizedUserHome };
 	}
 
+	let normalizedPath = path;
+	if (isWindows) {
+		normalizedPath = toSlashes(normalizedPath); // make sure that the path is POSIX normalized on Windows
+	}
+
 	// Linux: case sensitive, macOS: case insensitive
-	if (os === OperatingSystem.Linux ? path.startsWith(normalizedUserHome) : startsWithIgnoreCase(path, normalizedUserHome)) {
-		path = `~/${path.substr(normalizedUserHome.length)}`;
+	if (os === OperatingSystem.Linux ? normalizedPath.startsWith(normalizedUserHome) : startsWithIgnoreCase(normalizedPath, normalizedUserHome)) {
+		return `~/${normalizedPath.substr(normalizedUserHome.length)}`;
 	}
 
 	return path;
