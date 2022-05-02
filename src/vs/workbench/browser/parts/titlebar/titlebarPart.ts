@@ -46,6 +46,7 @@ import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtua
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -108,6 +109,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IProductService private readonly productService: IProductService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -375,54 +377,58 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.titleMenuDisposables.clear();
 		const enableTitleMenu = this.configurationService.getValue<boolean>('window.experimental.titleMenu');
 		this.rootContainer.classList.toggle('enable-title-menu', enableTitleMenu);
-		if (enableTitleMenu) {
-
-			const that = this;
-			const titleMenuContainer = append(this.rootContainer, $('div.title-menu'));
-			const titleToolbar = new ToolBar(titleMenuContainer, this.contextMenuService, {
-				actionViewItemProvider: (action) => {
-					if (action instanceof MenuItemAction && action.item.id === 'workbench.action.quickOpen') {
-						return new class extends ActionViewItem {
-							constructor() {
-								super(undefined, action);
-								this.actionRunner = this._store.add(new class extends ActionRunner {
-									override async run(action: IAction, context?: unknown): Promise<void> {
-										await timeout(0); // quick pick friendly? TODO@jrieken make sure this is needed
-										super.run(action, context);
-									}
-								});
-							}
-
-							override render(container: HTMLElement): void {
-								super.render(container);
-								if (this.label) {
-									container.classList.add('quickopen');
-									this.label.innerText = localize('quick-open', "Search: {0}", this.getWorkspaceName());
-									this.label.title = that.getWindowTitle();
-								}
-							}
-
-							private getWorkspaceName(): string {
-								const workspace = that.contextService.getWorkspace();
-								return that.labelService.getWorkspaceLabel(workspace);
-							}
-						};
-					}
-					return undefined;
-				}
-			});
-			const titleMenu = this.titleMenuDisposables.add(this.menuService.createMenu(MenuId.TitleMenu, this.contextKeyService));
-			const titleMenuDisposables = this.titleMenuDisposables.add(new DisposableStore());
-			const updateTitleMenu = () => {
-				titleMenuDisposables.clear();
-				const actions: IAction[] = [];
-				titleMenuDisposables.add(createAndFillInContextMenuActions(titleMenu, undefined, actions));
-				titleToolbar.setActions(actions);
-			};
-			this.titleMenuDisposables.add(titleMenu.onDidChange(updateTitleMenu));
-			this.titleMenuDisposables.add(toDisposable(() => titleMenuContainer.remove()));
-			updateTitleMenu();
+		if (!enableTitleMenu) {
+			return;
 		}
+
+
+		const that = this;
+		const titleMenuContainer = append(this.rootContainer, $('div.title-menu'));
+		const titleToolbar = new ToolBar(titleMenuContainer, this.contextMenuService, {
+			actionViewItemProvider: (action) => {
+				if (action instanceof MenuItemAction && action.item.id === 'workbench.action.quickOpen') {
+					return new class extends ActionViewItem {
+						constructor() {
+							super(undefined, action);
+							this.actionRunner = this._store.add(new class extends ActionRunner {
+								override async run(action: IAction, context?: unknown): Promise<void> {
+									await timeout(0); // quick pick friendly? TODO@jrieken make sure this is needed
+									super.run(action, context);
+								}
+							});
+						}
+
+						override render(container: HTMLElement): void {
+							super.render(container);
+							if (!this.label) {
+								return;
+							}
+							container.classList.add('quickopen');
+							this.label.title = that.getWindowTitle();
+							const keybinding = that.keybindingService.lookupKeybinding((<MenuItemAction>action).item.id)?.getLabel();
+							if (keybinding) {
+								this.label.innerText = localize('labelAndkeys', "{0} ({1})", action.label, keybinding);
+							} else {
+								this.label.innerText = action.label;
+							}
+						}
+					};
+				}
+				return undefined;
+			}
+		});
+		const titleMenu = this.titleMenuDisposables.add(this.menuService.createMenu(MenuId.TitleMenu, this.contextKeyService));
+		const titleMenuDisposables = this.titleMenuDisposables.add(new DisposableStore());
+		const updateTitleMenu = () => {
+			titleMenuDisposables.clear();
+			const actions: IAction[] = [];
+			titleMenuDisposables.add(createAndFillInContextMenuActions(titleMenu, undefined, actions));
+			titleToolbar.setActions(actions);
+		};
+		this.titleMenuDisposables.add(titleMenu.onDidChange(updateTitleMenu));
+		this.titleMenuDisposables.add(this.keybindingService.onDidUpdateKeybindings(updateTitleMenu));
+		this.titleMenuDisposables.add(toDisposable(() => titleMenuContainer.remove()));
+		updateTitleMenu();
 	}
 
 	override createContentArea(parent: HTMLElement): HTMLElement {

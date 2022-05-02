@@ -25,6 +25,7 @@ import { getTitleBarStyle } from 'vs/platform/window/common/window';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class TitlebarPart extends BrowserTitleBarPart {
 	private maxRestoreControl: HTMLElement | undefined;
@@ -60,9 +61,10 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
 		@IProductService productService: IProductService,
-		@INativeHostService private readonly nativeHostService: INativeHostService
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(contextMenuService, configurationService, editorService, environmentService, contextService, instantiationService, themeService, labelService, storageService, layoutService, menuService, contextKeyService, hostService, productService);
+		super(contextMenuService, configurationService, editorService, environmentService, contextService, instantiationService, themeService, labelService, storageService, layoutService, menuService, contextKeyService, hostService, productService, keybindingService);
 
 		this.environmentService = environmentService;
 	}
