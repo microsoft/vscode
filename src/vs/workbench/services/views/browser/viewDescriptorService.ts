@@ -318,7 +318,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		return this.viewContainersRegistry.getDefaultViewContainer(location);
 	}
 
-	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number): void {
+	private doMoveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number, skipDiskWrite?: boolean): void {
 		const from = this.getViewContainerLocation(viewContainer);
 		const to = location;
 		if (from !== to) {
@@ -333,9 +333,17 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			const views = this.getViewsByContainer(viewContainer);
 			this._onDidChangeLocation.fire({ views, from, to });
 
-			this.saveViewContainerLocationsToCache();
+			// Need to skip when syncing multiple container movements - vscode#148363
+			if (!skipDiskWrite) {
+				this.saveViewContainerLocationsToCache();
+			}
 		}
 	}
+
+	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number): void {
+		this.doMoveViewContainerToLocation(viewContainer, location, requestedIndex);
+	}
+
 
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void {
 		let container = this.registerGeneratedViewContainer(location);
@@ -608,7 +616,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		// Execute View Container Movement
 		for (const [container, location] of viewContainersToMove) {
-			this.moveViewContainerToLocation(container, location);
+			this.doMoveViewContainerToLocation(container, location, undefined, true);
 		}
 
 		this.cachedViewContainerInfo = this.getCachedViewContainerLocations();
