@@ -57,9 +57,7 @@ export class DiagnosticManager extends Disposable {
 	private readonly diagnosticDelayer: Delayer<void>;
 
 	constructor(
-		private readonly engine: MarkdownEngine,
-		private readonly workspaceContents: MdWorkspaceContents,
-		private readonly linkProvider: MdLinkProvider,
+		private readonly computer: DiagnosticComputer,
 		private readonly configuration: DiagnosticConfiguration,
 	) {
 		super();
@@ -121,24 +119,45 @@ export class DiagnosticManager extends Disposable {
 		if (!this.configuration.validateEnabled(doc.uri)) {
 			return [];
 		}
+		return this.computer.getDiagnostics(doc, token);
+	}
+}
 
+export class DiagnosticComputer {
+
+	constructor(
+		private readonly engine: MarkdownEngine,
+		private readonly workspaceContents: MdWorkspaceContents,
+		private readonly linkProvider: MdLinkProvider,
+	) { }
+
+	public async getDiagnostics(doc: SkinnyTextDocument, token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
 		const links = await this.linkProvider.getAllLinks(doc, token);
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
 		return (await Promise.all([
-			this.getInvalidFileLinks(doc, links),
+			this.getInvalidFileLinks(doc, links, token),
 			Array.from(this.getInvalidReferenceLinks(links)),
-			this.getInvalidHeaderLinks(doc, links),
+			this.getInvalidHeaderLinks(doc, links, token),
 		])).flat();
 	}
 
-	private async getInvalidHeaderLinks(doc: SkinnyTextDocument, links: readonly MdLink[]): Promise<vscode.Diagnostic[]> {
+	private async getInvalidHeaderLinks(doc: SkinnyTextDocument, links: readonly MdLink[], token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
 		const toc = await TableOfContents.create(this.engine, doc);
+		if (token.isCancellationRequested) {
+			return [];
+		}
 
 		const diagnostics: vscode.Diagnostic[] = [];
 		for (const link of links) {
-			if (link.href.kind === 'internal' && link.href.path.toString() === doc.uri.toString() && link.href.fragment) {
-				if (!toc.lookup(link.href.fragment)) {
-					diagnostics.push(new vscode.Diagnostic(link.source.hrefRange, localize('invalidHeaderLink', 'No header found: \'{0}\'', link.href.fragment)));
-				}
+			if (link.href.kind === 'internal'
+				&& link.href.path.toString() === doc.uri.toString()
+				&& link.href.fragment
+				&& !toc.lookup(link.href.fragment)
+			) {
+				diagnostics.push(new vscode.Diagnostic(link.source.hrefRange, localize('invalidHeaderLink', 'No header found: \'{0}\'', link.href.fragment)));
 			}
 		}
 
@@ -148,41 +167,48 @@ export class DiagnosticManager extends Disposable {
 	private *getInvalidReferenceLinks(links: readonly MdLink[]): Iterable<vscode.Diagnostic> {
 		const definitionSet = new LinkDefinitionSet(links);
 		for (const link of links) {
-			if (link.href.kind === 'reference') {
-				if (!definitionSet.lookup(link.href.ref)) {
-					yield new vscode.Diagnostic(link.source.hrefRange, localize('invalidReferenceLink', 'No link reference found: \'{0}\'', link.href.ref));
-				}
+			if (link.href.kind === 'reference' && !definitionSet.lookup(link.href.ref)) {
+				yield new vscode.Diagnostic(link.source.hrefRange, localize('invalidReferenceLink', 'No link reference found: \'{0}\'', link.href.ref));
 			}
 		}
 	}
 
-	private async getInvalidFileLinks(doc: SkinnyTextDocument, links: readonly MdLink[]): Promise<vscode.Diagnostic[]> {
+	private async getInvalidFileLinks(doc: SkinnyTextDocument, links: readonly MdLink[], token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
 		const tocs = new Map<string, TableOfContents>();
+
+		// TODO: cache links so we don't recompute duplicate hrefs
+		// TODO: parallelize
 
 		const diagnostics: vscode.Diagnostic[] = [];
 		for (const link of links) {
-			if (link.href.kind === 'internal') {
-				const hrefDoc = await tryFindMdDocumentForLink(link.href, this.workspaceContents);
-				if (hrefDoc && hrefDoc.uri.toString() === doc.uri.toString()) {
-					continue;
-				}
+			if (token.isCancellationRequested) {
+				return [];
+			}
 
-				if (!hrefDoc && !await this.workspaceContents.fileExists(link.href.path)) {
-					diagnostics.push(
-						new vscode.Diagnostic(link.source.hrefRange, localize('invalidPathLink', 'File does not exist at path: {0}', (link.href as InternalHref).path.toString(true))));
-				} else if (hrefDoc) {
-					if (link.href.fragment) {
-						// validate fragment looks valid
-						let hrefDocToc = tocs.get(link.href.path.toString());
-						if (!hrefDocToc) {
-							hrefDocToc = await TableOfContents.create(this.engine, hrefDoc);
-							tocs.set(link.href.path.toString(), hrefDocToc);
-						}
+			if (link.href.kind !== 'internal') {
+				continue;
+			}
 
-						if (!hrefDocToc.lookup(link.href.fragment)) {
-							diagnostics.push(
-								new vscode.Diagnostic(link.source.hrefRange, localize('invalidLinkToHeaderInOtherFile', 'Header does not exist in file: {0}', (link.href as InternalHref).path.fragment)));
-						}
+			const hrefDoc = await tryFindMdDocumentForLink(link.href, this.workspaceContents);
+			if (hrefDoc && hrefDoc.uri.toString() === doc.uri.toString()) {
+				continue;
+			}
+
+			if (!hrefDoc && !await this.workspaceContents.fileExists(link.href.path)) {
+				diagnostics.push(
+					new vscode.Diagnostic(link.source.hrefRange, localize('invalidPathLink', 'File does not exist at path: {0}', (link.href as InternalHref).path.toString(true))));
+			} else if (hrefDoc) {
+				if (link.href.fragment) {
+					// validate fragment looks valid
+					let hrefDocToc = tocs.get(link.href.path.toString());
+					if (!hrefDocToc) {
+						hrefDocToc = await TableOfContents.create(this.engine, hrefDoc);
+						tocs.set(link.href.path.toString(), hrefDocToc);
+					}
+
+					if (!hrefDocToc.lookup(link.href.fragment)) {
+						diagnostics.push(
+							new vscode.Diagnostic(link.source.hrefRange, localize('invalidLinkToHeaderInOtherFile', 'Header does not exist in file: {0}', (link.href as InternalHref).path.fragment)));
 					}
 				}
 			}
@@ -198,6 +224,6 @@ export function register(
 	linkProvider: MdLinkProvider,
 ): vscode.Disposable {
 	const configuration = new VSCodeDiagnosticConfiguration();
-	const manager = new DiagnosticManager(engine, workspaceContents, linkProvider, configuration);
+	const manager = new DiagnosticManager(new DiagnosticComputer(engine, workspaceContents, linkProvider), configuration);
 	return vscode.Disposable.from(configuration, manager);
 }

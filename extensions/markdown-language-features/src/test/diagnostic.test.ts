@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import 'mocha';
-import { DiagnosticConfiguration, DiagnosticManager } from '../languageFeatures/diagnostics';
+import { DiagnosticComputer, DiagnosticConfiguration, DiagnosticManager } from '../languageFeatures/diagnostics';
 import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
@@ -18,7 +18,7 @@ import { assertRangeEqual, joinLines, noopToken, workspacePath } from './util';
 function getDiagnostics(doc: InMemoryDocument, workspaceContents: MdWorkspaceContents, configuration = new MemoryDiagnosticConfiguration()) {
 	const engine = createNewMarkdownEngine();
 	const linkProvider = new MdLinkProvider(engine);
-	const manager = new DiagnosticManager(engine, workspaceContents, linkProvider, configuration);
+	const manager = new DiagnosticManager(new DiagnosticComputer(engine, workspaceContents, linkProvider), configuration);
 	return manager.getDiagnostics(doc, noopToken);
 }
 
