@@ -396,7 +396,7 @@ export class TitlebarPart extends Part implements ITitleService {
 					}
 					return that.instantiationService.createInstance(QuickInputDropDown, action, {
 						keybindingProvider: action => that.keybindingService.lookupKeybinding(action.id),
-						keybindingWithLabelForDefault: true
+						renderKeybindingWithDefaultActionLabel: true
 					});
 				}
 				return undefined;

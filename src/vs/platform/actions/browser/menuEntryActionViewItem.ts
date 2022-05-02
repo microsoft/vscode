@@ -314,12 +314,12 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 	}
 }
 
-export interface IDropdownWithDefaultActionViewItem extends IDropdownMenuActionViewItemOptions {
-	keybindingWithLabelForDefault?: boolean;
+export interface IDropdownWithDefaultActionViewItemOptions extends IDropdownMenuActionViewItemOptions {
+	renderKeybindingWithDefaultActionLabel?: boolean;
 }
 
 export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
-	private readonly _options: IDropdownWithDefaultActionViewItem | undefined;
+	private readonly _options: IDropdownWithDefaultActionViewItemOptions | undefined;
 	private _defaultAction: ActionViewItem;
 	private _dropdown: DropdownMenuActionViewItem;
 	private _container: HTMLElement | null = null;
@@ -331,7 +331,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 	constructor(
 		submenuAction: SubmenuItemAction,
-		options: IDropdownWithDefaultActionViewItem | undefined,
+		options: IDropdownWithDefaultActionViewItemOptions | undefined,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextMenuService protected _contextMenuService: IContextMenuService,
@@ -387,7 +387,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 	private _getDefaultActionKeybindingLabel(defaultAction: IAction) {
 		let defaultActionKeybinding: string | undefined;
-		if (this._options?.keybindingWithLabelForDefault) {
+		if (this._options?.renderKeybindingWithDefaultActionLabel) {
 			const kb = this._keybindingService.lookupKeybinding(defaultAction.id);
 			if (kb) {
 				defaultActionKeybinding = `(${kb.getLabel()})`;
