@@ -36,10 +36,15 @@ export class CredentialsNativeMainService extends BaseCredentialsMainService {
 			return this._keytarCache;
 		}
 
-		this._keytarCache = await import('keytar');
-		// Try using keytar to see if it throws or not.
-		await this._keytarCache.findCredentials('test-keytar-loads');
-		return this._keytarCache;
+		try {
+			this._keytarCache = await import('keytar');
+			// Try using keytar to see if it throws or not.
+			await this._keytarCache.findCredentials('test-keytar-loads');
+			return this._keytarCache;
+		} catch (e) {
+			this._keytarCache = undefined;
+			throw e;
+		}
 	}
 
 	protected override surfaceKeytarLoadError = (err: any) => {
