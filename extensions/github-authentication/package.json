@@ -12,6 +12,7 @@
   "categories": [
     "Other"
   ],
+  "api": "none",
   "extensionKind": [
     "ui",
     "workspace"

@@ -29,7 +29,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
-		super(_contextViewService, _contextKeyService, findState, { showOptionButtons: true, showResultCount: true, type: 'Terminal' }, keybindingService);
+		super(findState, { showOptionButtons: true, showResultCount: true, type: 'Terminal' }, _contextViewService, _contextKeyService, keybindingService);
 
 		this._register(findState.onFindReplaceStateChange(() => {
 			this.show();

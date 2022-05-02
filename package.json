@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.67.0",
-  "distro": "c115ce7732cb0a70a22d6bb99230b094bd85cefa",
+  "distro": "c78aa0a8c4272bc4aeb870f9315b30fb381d1b17",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -107,7 +107,7 @@
     "@types/http-proxy-agent": "^2.0.1",
     "@types/keytar": "^4.4.0",
     "@types/minimist": "^1.2.1",
-    "@types/mocha": "^8.2.0",
+    "@types/mocha": "^9.1.1",
     "@types/node": "16.x",
     "@types/sinon": "^10.0.2",
     "@types/sinon-test": "^2.4.2",
@@ -200,7 +200,7 @@
     "style-loader": "^1.0.0",
     "ts-loader": "^9.2.7",
     "tsec": "0.1.4",
-    "typescript": "^4.7.0-dev.20220419",
+    "typescript": "^4.7.0-dev.20220502",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",

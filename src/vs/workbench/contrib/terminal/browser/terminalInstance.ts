@@ -1154,7 +1154,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				const textAsHtml = await xterm.getSelectionAsHtml(command);
 				function listener(e: any) {
 					if (!e.clipboardData.types.includes('text/plain')) {
-						e.clipboardData.setData('text/plain', command?.getOutput());
+						e.clipboardData.setData('text/plain', command?.getOutput() ?? '');
 					}
 					e.clipboardData.setData('text/html', textAsHtml);
 					e.preventDefault();

@@ -25,42 +25,40 @@ export function setup() {
 					await terminal.assertShellIntegrationActivated();
 				});
 			});
-			if (!process.platform.startsWith('win')) {
-				describe('Decorations', function () {
-					describe('Should show default icons', function () {
-						it('Placeholder', async () => {
-							await terminal.createTerminal();
-							await terminal.assertShellIntegrationActivated();
-							await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
-						});
-						it('Success', async () => {
-							await terminal.createTerminal();
-							await terminal.assertShellIntegrationActivated();
-							await terminal.runCommandInTerminal(`ls`);
-							await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
-						});
-						it('Error', async () => {
-							await terminal.createTerminal();
-							await terminal.assertShellIntegrationActivated();
-							await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
-							await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 1 });
-						});
+			(process.platform === 'win32' ? describe.skip : describe)('Decorations', function () {
+				describe('Should show default icons', function () {
+					it('Placeholder', async () => {
+						await terminal.createTerminal();
+						await terminal.assertShellIntegrationActivated();
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
 					});
-					describe('Custom configuration', function () {
-						it('Should update and show custom icons', async () => {
-							await terminal.createTerminal();
-							await terminal.assertShellIntegrationActivated();
-							await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
-							await terminal.runCommandInTerminal(`ls`);
-							await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
-							await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIcon', '"zap"');
-							await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconSuccess', '"zap"');
-							await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconError', '"zap"');
-							await terminal.assertCommandDecorations(undefined, { updatedIcon: "zap", count: 3 });
-						});
+					it('Success', async () => {
+						await terminal.createTerminal();
+						await terminal.assertShellIntegrationActivated();
+						await terminal.runCommandInTerminal(`ls`);
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
+					});
+					it('Error', async () => {
+						await terminal.createTerminal();
+						await terminal.assertShellIntegrationActivated();
+						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 1 });
 					});
 				});
-			}
+				describe('Custom configuration', function () {
+					it('Should update and show custom icons', async () => {
+						await terminal.createTerminal();
+						await terminal.assertShellIntegrationActivated();
+						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
+						await terminal.runCommandInTerminal(`ls`);
+						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
+						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIcon', '"zap"');
+						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconSuccess', '"zap"');
+						await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.decorationIconError', '"zap"');
+						await terminal.assertCommandDecorations(undefined, { updatedIcon: "zap", count: 3 });
+					});
+				});
+			});
 		});
 	});
 }

@@ -11,7 +11,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IPath, normalize } from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { isObject } from 'vs/base/common/types';
-import { URI as uri } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorType } from 'vs/editor/common/editorCommon';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -45,7 +45,7 @@ class TestEditorServiceWithActiveEditor extends TestEditorService {
 	override get activeEditor(): any {
 		return {
 			get resource(): any {
-				return uri.parse('file:///VSCode/workspaceLocation/file');
+				return URI.parse('file:///VSCode/workspaceLocation/file');
 			}
 		};
 	}
@@ -81,7 +81,7 @@ suite('Configuration Resolver Service', () => {
 		labelService = new MockLabelService();
 		pathService = new MockPathService();
 		extensionService = new TestExtensionService();
-		containingWorkspace = testWorkspace(uri.parse('file:///VSCode/workspaceLocation'));
+		containingWorkspace = testWorkspace(URI.parse('file:///VSCode/workspaceLocation'));
 		workspace = containingWorkspace.folders[0];
 		configurationResolverService = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), editorService, new MockInputsConfigurationService(), mockCommandService, new TestContextService(containingWorkspace), quickInputService, labelService, pathService, extensionService);
 	});
@@ -192,9 +192,9 @@ suite('Configuration Resolver Service', () => {
 
 	test('supports extensionDir', async () => {
 		const getExtension = stub(extensionService, 'getExtension');
-		getExtension.withArgs('publisher.extId').returns(Promise.resolve({ extensionLocation: uri.file('/some/path') } as IExtensionDescription));
+		getExtension.withArgs('publisher.extId').returns(Promise.resolve({ extensionLocation: URI.file('/some/path') } as IExtensionDescription));
 
-		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${extensionInstallFolder:publisher.extId}'), uri.file('/some/path').fsPath);
+		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${extensionInstallFolder:publisher.extId}'), URI.file('/some/path').fsPath);
 	});
 
 	// test('substitute keys and values in object', () => {
@@ -679,13 +679,13 @@ class MockCommandService implements ICommandService {
 
 class MockLabelService implements ILabelService {
 	_serviceBrand: undefined;
-	getUriLabel(resource: uri, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined }): string {
+	getUriLabel(resource: URI, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined }): string {
 		return normalize(resource.fsPath);
 	}
-	getUriBasenameLabel(resource: uri): string {
+	getUriBasenameLabel(resource: URI): string {
 		throw new Error('Method not implemented.');
 	}
-	getWorkspaceLabel(workspace: uri | IWorkspaceIdentifier | IWorkspace, options?: { verbose: boolean }): string {
+	getWorkspaceLabel(workspace: URI | IWorkspaceIdentifier | IWorkspace, options?: { verbose: boolean }): string {
 		throw new Error('Method not implemented.');
 	}
 	getHostLabel(scheme: string, authority?: string): string {
@@ -709,18 +709,21 @@ class MockPathService implements IPathService {
 		throw new Error('Property not implemented');
 	}
 	defaultUriScheme: string = Schemas.file;
-	fileURI(path: string): Promise<uri> {
+	fileURI(path: string): Promise<URI> {
 		throw new Error('Method not implemented.');
 	}
-	async userHome(options?: { preferLocal: boolean }): Promise<uri> {
-		return uri.file('c:\\users\\username');
+	userHome(options?: { preferLocal: boolean }): Promise<URI>;
+	userHome(options: { preferLocal: true }): URI;
+	userHome(options?: { preferLocal: boolean }): Promise<URI> | URI {
+		const uri = URI.file('c:\\users\\username');
+		return options?.preferLocal ? uri : Promise.resolve(uri);
 	}
-	hasValidBasename(resource: uri, basename?: string): Promise<boolean>;
-	hasValidBasename(resource: uri, os: platform.OperatingSystem, basename?: string): boolean;
-	hasValidBasename(resource: uri, arg2?: string | platform.OperatingSystem, name?: string): boolean | Promise<boolean> {
+	hasValidBasename(resource: URI, basename?: string): Promise<boolean>;
+	hasValidBasename(resource: URI, os: platform.OperatingSystem, basename?: string): boolean;
+	hasValidBasename(resource: URI, arg2?: string | platform.OperatingSystem, name?: string): boolean | Promise<boolean> {
 		throw new Error('Method not implemented.');
 	}
-	resolvedUserHome: uri | undefined;
+	resolvedUserHome: URI | undefined;
 }
 
 class MockInputsConfigurationService extends TestConfigurationService {
