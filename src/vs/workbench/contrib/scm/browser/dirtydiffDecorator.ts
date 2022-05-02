@@ -610,7 +610,8 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 				}
 
 				.monaco-editor .margin-view-overlays .dirty-diff-glyph:hover::before {
-					width: 9px;
+					height: 100%;
+					width: 6px;
 					left: -6px;
 				}
 
