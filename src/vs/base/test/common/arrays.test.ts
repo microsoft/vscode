@@ -140,7 +140,24 @@ suite('Arrays', () => {
 		assert.strictEqual(arrays.binarySearch(array, 0, compare), ~0);
 		assert.strictEqual(arrays.binarySearch(array, 6, compare), ~3);
 		assert.strictEqual(arrays.binarySearch(array, 70, compare), ~10);
+	});
 
+	test('binarySearchAlgorithm', () => {
+		function compareTo(key: number) {
+			return (index: number) => {
+				return array[index] - key;
+			};
+		}
+		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
+
+		assert.strictEqual(arrays.binarySearchAlgorithm(10, compareTo(1)), 0);
+		assert.strictEqual(arrays.binarySearchAlgorithm(10, compareTo(5)), 2);
+
+		// insertion point
+		assert.strictEqual(arrays.binarySearchAlgorithm(10, compareTo(0)), ~0);
+		assert.strictEqual(arrays.binarySearchAlgorithm(10, compareTo(6)), ~3);
+		assert.strictEqual(arrays.binarySearchAlgorithm(10, compareTo(70)), ~10);
+		assert.strictEqual(arrays.binarySearchAlgorithm(2, compareTo(5)), ~2);
 	});
 
 	test('distinct', () => {
