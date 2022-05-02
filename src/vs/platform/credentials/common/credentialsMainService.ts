@@ -108,7 +108,6 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 			}
 
 			// throw last error
-			this.surfaceKeytarLoadError?.(error);
 			throw error;
 		};
 
