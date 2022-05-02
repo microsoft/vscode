@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/4f330febaf180ed7faf3aa228d38611d8b5adbf5",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/8f2c528619535333a2ff12e321fb6f6efcba38e4",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -1312,7 +1312,7 @@
 			"name": "meta.scope.item.latex"
 		},
 		{
-			"begin": "((\\\\)(?:[aA]uto|foot|full|no|short|[tT]ext|[pP]aren|[sS]mart)?[cC]ite(?:al)?(?:p|s|t|author|year(?:par)?|title)?[ANP]*\\*?)((?:(?:\\([^\\)]*\\)){0,2}(?:\\[[^\\]]*\\]){0,2}\\{[\\w:.]*\\})*)(?:(\\[)[^\\]]*(\\]))?(?:(\\[)[^\\]]*(\\]))?(\\{)",
+			"begin": "((\\\\)(?:[aA]uto|foot|full|no|short|[tT]ext|[pP]aren|[sS]mart)?[cC]ite(?:al)?(?:p|s|t|author|year(?:par)?|title)?[ANP]*\\*?)((?:(?:\\([^\\)]*\\)){0,2}(?:\\[[^\\]]*\\]){0,2}\\{[\\w:.]*\\})*)(?:([<\\[])[^\\]<>]*([>\\]]))?(?:(\\[)[^\\]]*(\\]))?(\\{)",
 			"captures": {
 				"1": {
 					"name": "keyword.control.cite.latex"
