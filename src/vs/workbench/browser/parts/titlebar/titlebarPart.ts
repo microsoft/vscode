@@ -35,7 +35,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { createActionViewItem, createAndFillInContextMenuActions, DropdownWithDefaultActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, IMenu, MenuId, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, IMenu, MenuId, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -91,6 +91,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 
 	private readonly titleUpdater = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
+	private readonly onDidUpdateTitle = new Emitter<void>();
 
 	private contextMenu: IMenu;
 
@@ -210,6 +211,8 @@ export class TitlebarPart extends Part implements ITitleService {
 				this.updateLayout(this.lastLayoutDimensions);
 			}
 		}
+
+		this.onDidUpdateTitle.fire();
 	}
 
 	private getWindowTitle(): string {
@@ -392,6 +395,8 @@ export class TitlebarPart extends Part implements ITitleService {
 						override render(container: HTMLElement): void {
 							super.render(container);
 							container.classList.add('quickopen');
+							container.title = that.getWindowTitle();
+							this._store.add(that.onDidUpdateTitle.event(() => container.title = that.getWindowTitle()));
 						}
 					}
 					return that.instantiationService.createInstance(QuickInputDropDown, action, {
@@ -691,4 +696,10 @@ registerThemingParticipant((theme, collector) => {
 			}
 		`);
 	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.TitleMenu, {
+	submenu: MenuId.TitleMenuQuickPick,
+	title: localize('title', "Select Mode"),
+	order: Number.MAX_SAFE_INTEGER
 });

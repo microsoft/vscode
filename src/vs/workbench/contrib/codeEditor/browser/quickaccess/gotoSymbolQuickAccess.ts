@@ -276,7 +276,8 @@ registerAction2(class GotoSymbolAction extends Action2 {
 				order: 1
 			}, {
 				id: MenuId.TitleMenuQuickPick,
-				group: '2/localQuickPick'
+				group: '3/editorNav',
+				order: 1
 			}]
 		});
 	}
