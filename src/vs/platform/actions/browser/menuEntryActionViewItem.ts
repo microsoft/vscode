@@ -123,6 +123,7 @@ function fillInActions(
 
 export interface IMenuEntryActionViewItemOptions {
 	draggable?: boolean;
+	keybinding?: string;
 }
 
 export class MenuEntryActionViewItem extends ActionViewItem {
@@ -138,7 +139,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextKeyService protected _contextKeyService: IContextKeyService
 	) {
-		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon, draggable: options?.draggable });
+		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon, draggable: options?.draggable, keybinding: options?.keybinding });
 		this._altKey = ModifierKeyEmitter.getInstance();
 	}
 
@@ -313,7 +314,12 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 	}
 }
 
-class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
+export interface IDropdownWithDefaultActionViewItemOptions extends IDropdownMenuActionViewItemOptions {
+	renderKeybindingWithDefaultActionLabel?: boolean;
+}
+
+export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
+	private readonly _options: IDropdownWithDefaultActionViewItemOptions | undefined;
 	private _defaultAction: ActionViewItem;
 	private _dropdown: DropdownMenuActionViewItem;
 	private _container: HTMLElement | null = null;
@@ -325,7 +331,7 @@ class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 	constructor(
 		submenuAction: SubmenuItemAction,
-		options: IDropdownMenuActionViewItemOptions | undefined,
+		options: IDropdownWithDefaultActionViewItemOptions | undefined,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextMenuService protected _contextMenuService: IContextMenuService,
@@ -334,7 +340,7 @@ class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		@IStorageService protected _storageService: IStorageService
 	) {
 		super(null, submenuAction);
-
+		this._options = options;
 		this._storageKey = `${submenuAction.item.submenu._debugName}_lastActionId`;
 
 		// determine default action
@@ -347,7 +353,7 @@ class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 			defaultAction = submenuAction.actions[0];
 		}
 
-		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, <MenuItemAction>defaultAction, undefined);
+		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, <MenuItemAction>defaultAction, { keybinding: this._getDefaultActionKeybindingLabel(defaultAction) });
 
 		const dropdownOptions = Object.assign({}, options ?? Object.create(null), {
 			menuAsChild: options?.menuAsChild ?? true,
@@ -367,7 +373,7 @@ class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		this._storageService.store(this._storageKey, lastAction.id, StorageScope.WORKSPACE, StorageTarget.USER);
 
 		this._defaultAction.dispose();
-		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, lastAction, undefined);
+		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, lastAction, { keybinding: this._getDefaultActionKeybindingLabel(lastAction) });
 		this._defaultAction.actionRunner = new class extends ActionRunner {
 			override async runAction(action: IAction, context?: unknown): Promise<void> {
 				await action.run(undefined);
@@ -377,6 +383,17 @@ class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		if (this._container) {
 			this._defaultAction.render(prepend(this._container, $('.action-container')));
 		}
+	}
+
+	private _getDefaultActionKeybindingLabel(defaultAction: IAction) {
+		let defaultActionKeybinding: string | undefined;
+		if (this._options?.renderKeybindingWithDefaultActionLabel) {
+			const kb = this._keybindingService.lookupKeybinding(defaultAction.id);
+			if (kb) {
+				defaultActionKeybinding = `(${kb.getLabel()})`;
+			}
+		}
+		return defaultActionKeybinding;
 	}
 
 	override setActionContext(newContext: unknown): void {

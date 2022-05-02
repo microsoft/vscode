@@ -201,6 +201,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		const originalComment = node.element;
 
 		templateData.threadMetadata.commentPreview.innerText = '';
+		templateData.threadMetadata.commentPreview.style.height = '22px';
 		if (typeof originalComment.comment.body === 'string') {
 			templateData.threadMetadata.commentPreview.innerText = originalComment.comment.body;
 		} else {

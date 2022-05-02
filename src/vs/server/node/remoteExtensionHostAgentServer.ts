@@ -11,7 +11,7 @@ import { performance } from 'perf_hooks';
 import * as url from 'url';
 import { LoaderStats } from 'vs/base/common/amd';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { connectionTokenQueryName, FileAccess, Schemas } from 'vs/base/common/network';
@@ -671,6 +671,13 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 				return;
 			}
 			logService.error(err);
+		});
+		process.on('SIGPIPE', () => {
+			// See https://github.com/microsoft/vscode-remote-release/issues/6543
+			// We would normally install a SIGPIPE listener in bootstrap.js
+			// But in certain situations, the console itself can be in a broken pipe state
+			// so logging SIGPIPE to the console will cause an infinite async loop
+			onUnexpectedError(new Error(`Unexpected SIGPIPE`));
 		});
 	});
 
