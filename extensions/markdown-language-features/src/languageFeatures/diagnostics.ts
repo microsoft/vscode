@@ -8,6 +8,7 @@ import * as nls from 'vscode-nls';
 import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContents } from '../tableOfContents';
 import { noopToken } from '../test/util';
+import { Delayer } from '../util/async';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
@@ -52,6 +53,9 @@ export class DiagnosticManager extends Disposable {
 
 	private readonly collection: vscode.DiagnosticCollection;
 
+	private readonly pendingDiagnostics = new Set<vscode.Uri>();
+	private readonly diagnosticDelayer: Delayer<void>;
+
 	constructor(
 		private readonly engine: MarkdownEngine,
 		private readonly workspaceContents: MdWorkspaceContents,
@@ -60,6 +64,8 @@ export class DiagnosticManager extends Disposable {
 	) {
 		super();
 
+		this.diagnosticDelayer = new Delayer(300);
+
 		this.collection = this._register(vscode.languages.createDiagnosticCollection('markdown'));
 
 		this._register(this.configuration.onDidChange(() => {
@@ -67,10 +73,25 @@ export class DiagnosticManager extends Disposable {
 		}));
 
 		this._register(vscode.workspace.onDidChangeTextDocument(e => {
-			this.update(e.document);
+			if (isMarkdownFile(e.document)) {
+				this.pendingDiagnostics.add(e.document.uri);
+				this.diagnosticDelayer.trigger(() => this.recomputePendingDiagnostics());
+			}
 		}));
 
 		this.rebuild();
+	}
+
+	private recomputePendingDiagnostics(): void {
+		const pending = [...this.pendingDiagnostics];
+		this.pendingDiagnostics.clear();
+
+		for (const resource of pending) {
+			const doc = vscode.workspace.textDocuments.find(doc => doc.uri.fsPath === resource.fsPath);
+			if (doc) {
+				this.update(doc);
+			}
+		}
 	}
 
 	private async rebuild() {
