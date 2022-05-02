@@ -101,7 +101,7 @@ export abstract class BaseCredentialsMainService extends Disposable implements I
 					return;
 				} catch (e) {
 					error = e;
-					this.logService.warn('Error attempting to set a password: ', e);
+					this.logService.warn('Error attempting to set a password: ', e?.message ?? e);
 					attempts++;
 					await new Promise(resolve => setTimeout(resolve, 200));
 				}
