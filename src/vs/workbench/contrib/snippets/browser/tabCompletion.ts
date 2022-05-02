@@ -147,7 +147,7 @@ export class TabCompletionController implements IEditorContribution {
 				}
 			};
 			const registration = this._languageFeaturesService.completionProvider.register(
-				{ language: model.getLanguageId(), pattern: model.uri.path, scheme: model.uri.scheme },
+				{ language: model.getLanguageId(), pattern: model.uri.fsPath, scheme: model.uri.scheme },
 				this._completionProvider
 			);
 		}
