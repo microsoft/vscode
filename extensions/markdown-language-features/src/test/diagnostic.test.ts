@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import 'mocha';
-import { DiagnosticComputer, DiagnosticConfiguration, DiagnosticManager } from '../languageFeatures/diagnostics';
+import { DiagnosticComputer, DiagnosticConfiguration, DiagnosticLevel, DiagnosticManager, DiagnosticOptions } from '../languageFeatures/diagnostics';
 import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
@@ -19,7 +19,12 @@ function getComputedDiagnostics(doc: InMemoryDocument, workspaceContents: MdWork
 	const engine = createNewMarkdownEngine();
 	const linkProvider = new MdLinkProvider(engine);
 	const computer = new DiagnosticComputer(engine, workspaceContents, linkProvider);
-	return computer.getDiagnostics(doc, noopToken);
+	return computer.getDiagnostics(doc, {
+		enabled: true,
+		validateFilePaths: DiagnosticLevel.warning,
+		validateOwnHeaders: DiagnosticLevel.warning,
+		validateReferences: DiagnosticLevel.warning,
+	}, noopToken);
 }
 
 function createDiagnosticsManager(workspaceContents: MdWorkspaceContents, configuration = new MemoryDiagnosticConfiguration()) {
@@ -37,8 +42,21 @@ class MemoryDiagnosticConfiguration implements DiagnosticConfiguration {
 		private readonly enabled: boolean = true,
 	) { }
 
-	validateEnabled(_resource: vscode.Uri): boolean {
-		return this.enabled;
+	getOptions(_resource: vscode.Uri): DiagnosticOptions {
+		if (!this.enabled) {
+			return {
+				enabled: false,
+				validateFilePaths: DiagnosticLevel.ignore,
+				validateOwnHeaders: DiagnosticLevel.ignore,
+				validateReferences: DiagnosticLevel.ignore,
+			};
+		}
+		return {
+			enabled: true,
+			validateFilePaths: DiagnosticLevel.warning,
+			validateOwnHeaders: DiagnosticLevel.warning,
+			validateReferences: DiagnosticLevel.warning,
+		};
 	}
 }
 

@@ -23,10 +23,28 @@ export interface DiagnosticConfiguration {
 	 */
 	readonly onDidChange: vscode.Event<void>;
 
-	/**
-	 * Is validation enabled for {@linkcode resource}?
-	 */
-	validateEnabled(resource: vscode.Uri): boolean;
+	getOptions(resource: vscode.Uri): DiagnosticOptions;
+}
+
+export enum DiagnosticLevel {
+	ignore = 'ignore',
+	warning = 'warning',
+	error = 'error',
+}
+
+export interface DiagnosticOptions {
+	readonly enabled: boolean;
+	readonly validateReferences: DiagnosticLevel;
+	readonly validateOwnHeaders: DiagnosticLevel;
+	readonly validateFilePaths: DiagnosticLevel;
+}
+
+function toSeverity(level: DiagnosticLevel): vscode.DiagnosticSeverity | undefined {
+	switch (level) {
+		case DiagnosticLevel.error: return vscode.DiagnosticSeverity.Error;
+		case DiagnosticLevel.warning: return vscode.DiagnosticSeverity.Warning;
+		case DiagnosticLevel.ignore: return undefined;
+	}
 }
 
 class VSCodeDiagnosticConfiguration extends Disposable implements DiagnosticConfiguration {
@@ -44,8 +62,14 @@ class VSCodeDiagnosticConfiguration extends Disposable implements DiagnosticConf
 		}));
 	}
 
-	public validateEnabled(resource: vscode.Uri): boolean {
-		return vscode.workspace.getConfiguration('markdown', resource).get<boolean>('experimental.validate.enabled', false);
+	public getOptions(resource: vscode.Uri): DiagnosticOptions {
+		const config = vscode.workspace.getConfiguration('markdown', resource);
+		return {
+			enabled: config.get<boolean>('experimental.validate.enabled', false),
+			validateReferences: config.get<DiagnosticLevel>('experimental.validate.referenceLinks', DiagnosticLevel.ignore),
+			validateOwnHeaders: config.get<DiagnosticLevel>('experimental.validate.headerLinks', DiagnosticLevel.ignore),
+			validateFilePaths: config.get<DiagnosticLevel>('experimental.validate.fileLinks', DiagnosticLevel.ignore),
+		};
 	}
 }
 
@@ -133,10 +157,11 @@ export class DiagnosticManager extends Disposable {
 	}
 
 	public async getDiagnostics(doc: SkinnyTextDocument, token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
-		if (!this.configuration.validateEnabled(doc.uri)) {
+		const config = this.configuration.getOptions(doc.uri);
+		if (!config.enabled) {
 			return [];
 		}
-		return this.computer.getDiagnostics(doc, token);
+		return this.computer.getDiagnostics(doc, config, token);
 	}
 }
 
@@ -148,20 +173,25 @@ export class DiagnosticComputer {
 		private readonly linkProvider: MdLinkProvider,
 	) { }
 
-	public async getDiagnostics(doc: SkinnyTextDocument, token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
+	public async getDiagnostics(doc: SkinnyTextDocument, options: DiagnosticOptions, token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
 		const links = await this.linkProvider.getAllLinks(doc, token);
 		if (token.isCancellationRequested) {
 			return [];
 		}
 
 		return (await Promise.all([
-			this.getInvalidFileLinks(doc, links, token),
-			Array.from(this.getInvalidReferenceLinks(links)),
-			this.getInvalidHeaderLinks(doc, links, token),
+			this.validateFileLinks(doc, options, links, token),
+			Array.from(this.validateReferenceLinks(options, links)),
+			this.validateOwnHeaderLinks(doc, options, links, token),
 		])).flat();
 	}
 
-	private async getInvalidHeaderLinks(doc: SkinnyTextDocument, links: readonly MdLink[], token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
+	private async validateOwnHeaderLinks(doc: SkinnyTextDocument, options: DiagnosticOptions, links: readonly MdLink[], token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
+		const severity = toSeverity(options.validateOwnHeaders);
+		if (typeof severity === 'undefined') {
+			return [];
+		}
+
 		const toc = await TableOfContents.create(this.engine, doc);
 		if (token.isCancellationRequested) {
 			return [];
@@ -174,23 +204,39 @@ export class DiagnosticComputer {
 				&& link.href.fragment
 				&& !toc.lookup(link.href.fragment)
 			) {
-				diagnostics.push(new vscode.Diagnostic(link.source.hrefRange, localize('invalidHeaderLink', 'No header found: \'{0}\'', link.href.fragment)));
+				diagnostics.push(new vscode.Diagnostic(
+					link.source.hrefRange,
+					localize('invalidHeaderLink', 'No header found: \'{0}\'', link.href.fragment),
+					severity));
 			}
 		}
 
 		return diagnostics;
 	}
 
-	private *getInvalidReferenceLinks(links: readonly MdLink[]): Iterable<vscode.Diagnostic> {
+	private *validateReferenceLinks(options: DiagnosticOptions, links: readonly MdLink[]): Iterable<vscode.Diagnostic> {
+		const severity = toSeverity(options.validateReferences);
+		if (typeof severity === 'undefined') {
+			return [];
+		}
+
 		const definitionSet = new LinkDefinitionSet(links);
 		for (const link of links) {
 			if (link.href.kind === 'reference' && !definitionSet.lookup(link.href.ref)) {
-				yield new vscode.Diagnostic(link.source.hrefRange, localize('invalidReferenceLink', 'No link reference found: \'{0}\'', link.href.ref));
+				yield new vscode.Diagnostic(
+					link.source.hrefRange,
+					localize('invalidReferenceLink', 'No link reference found: \'{0}\'', link.href.ref),
+					severity);
 			}
 		}
 	}
 
-	private async getInvalidFileLinks(doc: SkinnyTextDocument, links: readonly MdLink[], token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
+	private async validateFileLinks(doc: SkinnyTextDocument, options: DiagnosticOptions, links: readonly MdLink[], token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
+		const severity = toSeverity(options.validateFilePaths);
+		if (typeof severity === 'undefined') {
+			return [];
+		}
+
 		const tocs = new Map<string, TableOfContents>();
 
 		// TODO: cache links so we don't recompute duplicate hrefs
@@ -213,7 +259,10 @@ export class DiagnosticComputer {
 
 			if (!hrefDoc && !await this.workspaceContents.pathExists(link.href.path)) {
 				diagnostics.push(
-					new vscode.Diagnostic(link.source.hrefRange, localize('invalidPathLink', 'File does not exist at path: {0}', (link.href as InternalHref).path.toString(true))));
+					new vscode.Diagnostic(
+						link.source.hrefRange,
+						localize('invalidPathLink', 'File does not exist at path: {0}', (link.href as InternalHref).path.toString(true)),
+						severity));
 			} else if (hrefDoc) {
 				if (link.href.fragment) {
 					// validate fragment looks valid
@@ -225,7 +274,10 @@ export class DiagnosticComputer {
 
 					if (!hrefDocToc.lookup(link.href.fragment)) {
 						diagnostics.push(
-							new vscode.Diagnostic(link.source.hrefRange, localize('invalidLinkToHeaderInOtherFile', 'Header does not exist in file: {0}', (link.href as InternalHref).path.fragment)));
+							new vscode.Diagnostic(
+								link.source.hrefRange,
+								localize('invalidLinkToHeaderInOtherFile', 'Header does not exist in file: {0}', (link.href as InternalHref).path.fragment),
+								severity));
 					}
 				}
 			}
