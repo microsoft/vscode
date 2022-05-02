@@ -506,7 +506,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 	}
 
 	private static getCommitCharacters(context: CompletionContext, entry: Proto.CompletionEntry): string[] | undefined {
-		if (entry.kind === PConst.Kind.warning) { // Ambient JS word based suggestion
+		if (entry.kind === PConst.Kind.warning || entry.kind === PConst.Kind.string) { // Ambient JS word based suggestion, strings
 			return undefined;
 		}
 
