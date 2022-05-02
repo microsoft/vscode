@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import * as paths from 'vs/base/common/path';
+import { posix, win32 } from 'vs/base/common/path';
 import { Emitter } from 'vs/base/common/event';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -21,7 +21,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { OS } from 'vs/base/common/platform';
+import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
@@ -86,11 +86,12 @@ class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 		resourceLabelFormattersExtPoint.setHandler((extensions, delta) => {
 			delta.added.forEach(added => added.value.forEach(formatter => {
 				if (!isProposedApiEnabled(added.description, 'contribLabelFormatterWorkspaceTooltip') && formatter.formatting.workspaceTooltip) {
-					// workspaceTooltip is only proposed
-					formatter.formatting.workspaceTooltip = undefined;
+					formatter.formatting.workspaceTooltip = undefined; // workspaceTooltip is only proposed
 				}
+
 				this.formattersDisposables.set(formatter, labelService.registerFormatter(formatter));
 			}));
+
 			delta.removed.forEach(removed => removed.value.forEach(formatter => {
 				this.formattersDisposables.get(formatter)!.dispose();
 			}));
@@ -218,14 +219,17 @@ export class LabelService extends Disposable implements ILabelService {
 	getUriBasenameLabel(resource: URI): string {
 		const formatting = this.findFormatting(resource);
 		const label = this.doGetUriLabel(resource, formatting);
-		if (formatting) {
-			switch (formatting.separator) {
-				case paths.win32.sep: return paths.win32.basename(label);
-				case paths.posix.sep: return paths.posix.basename(label);
-			}
+
+		let pathLib: typeof win32 | typeof posix;
+		if (formatting?.separator === win32.sep) {
+			pathLib = win32;
+		} else if (formatting?.separator === posix.sep) {
+			pathLib = posix;
+		} else {
+			pathLib = (this.os === OperatingSystem.Windows) ? win32 : posix;
 		}
 
-		return paths.basename(label);
+		return pathLib.basename(label);
 	}
 
 	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose: boolean }): string {
@@ -286,6 +290,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose: boolean }): string {
 		const label = options?.verbose ? this.getUriLabel(folderUri) : basename(folderUri) || '/';
+
 		return this.appendWorkspaceSuffix(label, folderUri);
 	}
 
