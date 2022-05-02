@@ -58,7 +58,7 @@ export abstract class SimpleFindWidget extends Widget {
 		readonly options: IFindOptions,
 		contextViewService: IContextViewService,
 		contextKeyService: IContextKeyService,
-		private readonly _keybindingService?: IKeybindingService
+		private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 
