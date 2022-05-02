@@ -32,6 +32,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { parentOriginHash } from 'vs/workbench/browser/webview';
 
 export interface IWebWorkerExtensionHostInitData {
+	readonly autoStart: boolean;
 	readonly allExtensions: IExtensionDescription[];
 	readonly myExtensions: ExtensionIdentifier[];
 }
@@ -295,7 +296,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			logLevel: this._logService.getLevel(),
 			logsLocation: this._extensionHostLogsLocation,
 			logFile: this._extensionHostLogFile,
-			autoStart: true,
+			autoStart: initData.autoStart,
 			remote: {
 				authority: this._environmentService.remoteAuthority,
 				connectionData: null,

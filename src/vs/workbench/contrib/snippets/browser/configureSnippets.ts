@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { extname } from 'vs/base/common/path';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
@@ -19,8 +18,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { joinPath, basename } from 'vs/base/common/resources';
-
-const id = 'workbench.action.openSnippets';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 namespace ISnippetPick {
 	export function is(thing: object | undefined): thing is ISnippetPick {
@@ -201,82 +199,80 @@ async function createLanguageSnippetFile(pick: ISnippetPick, fileService: IFileS
 	await textFileService.write(pick.filepath, contents);
 }
 
-CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
+registerAction2(class ConfigureSnippets extends Action2 {
 
-	const snippetService = accessor.get(ISnippetsService);
-	const quickInputService = accessor.get(IQuickInputService);
-	const opener = accessor.get(IOpenerService);
-	const languageService = accessor.get(ILanguageService);
-	const envService = accessor.get(IEnvironmentService);
-	const workspaceService = accessor.get(IWorkspaceContextService);
-	const fileService = accessor.get(IFileService);
-	const textFileService = accessor.get(ITextFileService);
-
-	const picks = await computePicks(snippetService, envService, languageService);
-	const existing: QuickPickInput[] = picks.existing;
-
-	type SnippetPick = IQuickPickItem & { uri: URI } & { scope: string };
-	const globalSnippetPicks: SnippetPick[] = [{
-		scope: nls.localize('new.global_scope', 'global'),
-		label: nls.localize('new.global', "New Global Snippets file..."),
-		uri: envService.snippetsHome
-	}];
-
-	const workspaceSnippetPicks: SnippetPick[] = [];
-	for (const folder of workspaceService.getWorkspace().folders) {
-		workspaceSnippetPicks.push({
-			scope: nls.localize('new.workspace_scope', "{0} workspace", folder.name),
-			label: nls.localize('new.folder', "New Snippets file for '{0}'...", folder.name),
-			uri: folder.toResource('.vscode')
+	constructor() {
+		super({
+			id: 'workbench.action.openSnippets',
+			title: {
+				value: nls.localize('openSnippet.label', "Configure User Snippets"),
+				original: 'Configure User Snippets'
+			},
+			shortTitle: {
+				value: nls.localize('userSnippets', "User Snippets"),
+				mnemonicTitle: nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets"),
+				original: 'User Snippets'
+			},
+			menu: [
+				{ id: MenuId.CommandPalette },
+				{ id: MenuId.MenubarPreferencesMenu, group: '3_snippets', order: 1 },
+				{ id: MenuId.GlobalActivity, group: '3_snippets', order: 1 },
+			]
 		});
 	}
 
-	if (existing.length > 0) {
-		existing.unshift({ type: 'separator', label: nls.localize('group.global', "Existing Snippets") });
-		existing.push({ type: 'separator', label: nls.localize('new.global.sep', "New Snippets") });
-	} else {
-		existing.push({ type: 'separator', label: nls.localize('new.global.sep', "New Snippets") });
-	}
+	async run(accessor: ServicesAccessor, ...args: any[]): Promise<any> {
 
-	const pick = await quickInputService.pick(([] as QuickPickInput[]).concat(existing, globalSnippetPicks, workspaceSnippetPicks, picks.future), {
-		placeHolder: nls.localize('openSnippet.pickLanguage', "Select Snippets File or Create Snippets"),
-		matchOnDescription: true
-	});
+		const snippetService = accessor.get(ISnippetsService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const opener = accessor.get(IOpenerService);
+		const languageService = accessor.get(ILanguageService);
+		const envService = accessor.get(IEnvironmentService);
+		const workspaceService = accessor.get(IWorkspaceContextService);
+		const fileService = accessor.get(IFileService);
+		const textFileService = accessor.get(ITextFileService);
 
-	if (globalSnippetPicks.indexOf(pick as SnippetPick) >= 0) {
-		return createSnippetFile((pick as SnippetPick).scope, (pick as SnippetPick).uri, quickInputService, fileService, textFileService, opener);
-	} else if (workspaceSnippetPicks.indexOf(pick as SnippetPick) >= 0) {
-		return createSnippetFile((pick as SnippetPick).scope, (pick as SnippetPick).uri, quickInputService, fileService, textFileService, opener);
-	} else if (ISnippetPick.is(pick)) {
-		if (pick.hint) {
-			await createLanguageSnippetFile(pick, fileService, textFileService);
+		const picks = await computePicks(snippetService, envService, languageService);
+		const existing: QuickPickInput[] = picks.existing;
+
+		type SnippetPick = IQuickPickItem & { uri: URI } & { scope: string };
+		const globalSnippetPicks: SnippetPick[] = [{
+			scope: nls.localize('new.global_scope', 'global'),
+			label: nls.localize('new.global', "New Global Snippets file..."),
+			uri: envService.snippetsHome
+		}];
+
+		const workspaceSnippetPicks: SnippetPick[] = [];
+		for (const folder of workspaceService.getWorkspace().folders) {
+			workspaceSnippetPicks.push({
+				scope: nls.localize('new.workspace_scope', "{0} workspace", folder.name),
+				label: nls.localize('new.folder', "New Snippets file for '{0}'...", folder.name),
+				uri: folder.toResource('.vscode')
+			});
 		}
-		return opener.open(pick.filepath);
+
+		if (existing.length > 0) {
+			existing.unshift({ type: 'separator', label: nls.localize('group.global', "Existing Snippets") });
+			existing.push({ type: 'separator', label: nls.localize('new.global.sep', "New Snippets") });
+		} else {
+			existing.push({ type: 'separator', label: nls.localize('new.global.sep', "New Snippets") });
+		}
+
+		const pick = await quickInputService.pick(([] as QuickPickInput[]).concat(existing, globalSnippetPicks, workspaceSnippetPicks, picks.future), {
+			placeHolder: nls.localize('openSnippet.pickLanguage', "Select Snippets File or Create Snippets"),
+			matchOnDescription: true
+		});
+
+		if (globalSnippetPicks.indexOf(pick as SnippetPick) >= 0) {
+			return createSnippetFile((pick as SnippetPick).scope, (pick as SnippetPick).uri, quickInputService, fileService, textFileService, opener);
+		} else if (workspaceSnippetPicks.indexOf(pick as SnippetPick) >= 0) {
+			return createSnippetFile((pick as SnippetPick).scope, (pick as SnippetPick).uri, quickInputService, fileService, textFileService, opener);
+		} else if (ISnippetPick.is(pick)) {
+			if (pick.hint) {
+				await createLanguageSnippetFile(pick, fileService, textFileService);
+			}
+			return opener.open(pick.filepath);
+		}
+
 	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id,
-		title: { value: nls.localize('openSnippet.label', "Configure User Snippets"), original: 'Configure User Snippets' },
-		category: { value: nls.localize('preferences', "Preferences"), original: 'Preferences' }
-	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-	group: '3_snippets',
-	command: {
-		id,
-		title: nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets")
-	},
-	order: 1
-});
-
-MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-	group: '3_snippets',
-	command: {
-		id,
-		title: nls.localize('userSnippets', "User Snippets")
-	},
-	order: 1
 });

@@ -438,7 +438,7 @@ export class SuggestModel implements IDisposable {
 		});
 	}
 
-	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: Set<CompletionItemProvider>, existing?: { items: CompletionItem[]; clipboardText: string | undefined }): void {
+	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: Set<CompletionItemProvider>, existing?: { items: CompletionItem[]; clipboardText: string | undefined }, noFilter?: boolean): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -483,13 +483,14 @@ export class SuggestModel implements IDisposable {
 		}
 
 		const { itemKind: itemKindFilter, showDeprecated } = SuggestModel._createSuggestFilter(this._editor);
+		const completionOptions = new CompletionOptions(snippetSortOrder, !noFilter ? itemKindFilter : new Set(), onlyFrom, showDeprecated);
 		const wordDistance = WordDistance.create(this._editorWorkerService, this._editor);
 
 		const completions = provideSuggestionItems(
 			this._languageFeaturesService.completionProvider,
 			model,
 			this._editor.getPosition(),
-			new CompletionOptions(snippetSortOrder, itemKindFilter, onlyFrom, showDeprecated),
+			completionOptions,
 			suggestCtx,
 			this._requestToken.token
 		);

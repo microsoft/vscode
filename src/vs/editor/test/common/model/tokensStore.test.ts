@@ -7,12 +7,17 @@ import * as assert from 'assert';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
 import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { MetadataConsts, TokenMetadata, FontStyle, ColorId } from 'vs/editor/common/languages';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILanguageConfigurationService, LanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 suite('TokensStore', () => {
 
@@ -213,6 +218,23 @@ suite('TokensStore', () => {
 		]);
 
 		model.dispose();
+	});
+
+	test('issue #147944: Language id "vs.editor.nullLanguage" is not configured nor known', () => {
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables, new ServiceCollection([
+			ILanguageConfigurationService, new SyncDescriptor(LanguageConfigurationService)
+		]));
+		const model = instantiateTextModel(instantiationService, '--[[\n\n]]');
+		model.tokenization.setSemanticTokens([
+			SparseMultilineTokens.create(1, new Uint32Array([
+				0, 2, 4, 0b100000000000010000,
+				1, 0, 0, 0b100000000000010000,
+				2, 0, 2, 0b100000000000010000,
+			]))
+		], true);
+		assert.strictEqual(model.getWordAtPosition(new Position(2, 1)), null);
+		disposables.dispose();
 	});
 
 	test('partial tokens 1', () => {

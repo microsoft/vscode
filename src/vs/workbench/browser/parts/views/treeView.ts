@@ -1483,20 +1483,15 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		return element.label ? element.label.label : (element.resourceUri ? this.labelService.getUriLabel(URI.revive(element.resourceUri)) : undefined);
 	}
 
-	private convertKnownMimes(type: string, value?: string | FileSystemHandle): { type: string; value?: string } {
+	private convertKnownMimes(type: string, kind?: string, value?: string | FileSystemHandle): { type: string; value?: string } {
 		let convertedValue = undefined;
 		let convertedType = type;
-		switch (type) {
-			case DataTransfers.RESOURCES.toLowerCase(): {
-				convertedValue = value ? convertResourceUrlsToUriList(value as string) : undefined;
-				convertedType = Mimes.uriList;
-				break;
-			}
-			case 'Files': {
-				convertedType = Mimes.uriList;
-				convertedValue = value ? (value as FileSystemHandle).name : undefined;
-				break;
-			}
+		if (type === DataTransfers.RESOURCES.toLowerCase()) {
+			convertedValue = value ? convertResourceUrlsToUriList(value as string) : undefined;
+			convertedType = Mimes.uriList;
+		} else if ((type === 'Files') || (kind === 'file')) {
+			convertedType = Mimes.uriList;
+			convertedValue = value ? (value as FileSystemHandle).name : undefined;
 		}
 		return { type: convertedType, value: convertedValue };
 	}
@@ -1540,7 +1535,8 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 			}
 			for (const dataItem of originalEvent.dataTransfer.items) {
 				const type = dataItem.type;
-				const convertedType = this.convertKnownMimes(type).type;
+				const kind = dataItem.kind;
+				const convertedType = this.convertKnownMimes(type, kind).type;
 				if ((INTERNAL_MIME_TYPES.indexOf(convertedType) < 0)
 					&& (convertedType === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(convertedType) >= 0)) {
 					if (dataItem.kind === 'string') {
@@ -1549,7 +1545,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 								treeSourceInfo = JSON.parse(dataValue);
 							}
 							if (dataValue) {
-								const converted = this.convertKnownMimes(type, dataValue);
+								const converted = this.convertKnownMimes(type, kind, dataValue);
 								treeDataTransfer.set(converted.type, {
 									asString: () => Promise.resolve(converted.value!),
 									value: undefined
@@ -1563,10 +1559,8 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 							uris.push(URI.file(dataValue.path));
 						}
 						decrementStringCount();
-					} else {
-						decrementStringCount();
 					}
-				} else {
+				} else if (dataItem.kind === 'string' || dataItem.kind === 'file') {
 					decrementStringCount();
 				}
 			}

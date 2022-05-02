@@ -228,21 +228,28 @@ export class TextAreaHandler extends ViewPart {
 					// We know for a fact that a screen reader is not attached
 					// On OSX, we write the character before the cursor to allow for "long-press" composition
 					// Also on OSX, we write the word before the cursor to allow for the Accessibility Keyboard to give good hints
-					if (platform.isMacintosh) {
-						const selection = this._selections[0];
-						if (selection.isEmpty()) {
-							const position = selection.getStartPosition();
+					const selection = this._selections[0];
+					if (platform.isMacintosh && selection.isEmpty()) {
+						const position = selection.getStartPosition();
 
-							let textBefore = this._getWordBeforePosition(position);
-							if (textBefore.length === 0) {
-								textBefore = this._getCharacterBeforePosition(position);
-							}
+						let textBefore = this._getWordBeforePosition(position);
+						if (textBefore.length === 0) {
+							textBefore = this._getCharacterBeforePosition(position);
+						}
 
-							if (textBefore.length > 0) {
-								return new TextAreaState(textBefore, textBefore.length, textBefore.length, position, position);
-							}
+						if (textBefore.length > 0) {
+							return new TextAreaState(textBefore, textBefore.length, textBefore.length, position, position);
 						}
 					}
+
+					// on Safari, document.execCommand('cut') and document.execCommand('copy') will just not work
+					// if the textarea has no content selected. So if there is an editor selection, ensure something
+					// is selected in the textarea.
+					if (browser.isSafari && !selection.isEmpty()) {
+						const placeholderText = 'vscode-placeholder';
+						return new TextAreaState(placeholderText, 0, placeholderText.length, null, null);
+					}
+
 					return TextAreaState.EMPTY;
 				}
 

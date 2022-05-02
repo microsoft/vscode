@@ -851,6 +851,19 @@ export class CodeApplication extends Disposable {
 					return true;
 				}
 
+				let shouldOpenInNewWindow = false;
+
+				// We should handle the URI in a new window if the URL contains `windowId=_blank`
+				const params = new URLSearchParams(uri.query);
+				if (params.get('windowId') === '_blank') {
+					params.delete('windowId');
+					uri = uri.with({ query: params.toString() });
+					shouldOpenInNewWindow = true;
+				}
+
+				// or if no window is open (macOS only)
+				shouldOpenInNewWindow ||= isMacintosh && windowsMainService.getWindowCount() === 0;
+
 				// Check for URIs to open in window
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
 				logService.trace('app#handleURL: windowOpenableFromProtocolLink = ', windowOpenableFromProtocolLink);
@@ -859,6 +872,7 @@ export class CodeApplication extends Disposable {
 						context: OpenContext.API,
 						cli: { ...environmentService.args },
 						urisToOpen: [windowOpenableFromProtocolLink],
+						forceNewWindow: shouldOpenInNewWindow,
 						gotoLineMode: true
 						// remoteAuthority: will be determined based on windowOpenableFromProtocolLink
 					});
@@ -866,20 +880,6 @@ export class CodeApplication extends Disposable {
 					window.focus(); // this should help ensuring that the right window gets focus when multiple are opened
 
 					return true;
-				}
-
-				// We should handle the URI in a new window if no window is open (macOS only)
-				let shouldOpenInNewWindow = isMacintosh && windowsMainService.getWindowCount() === 0;
-
-				// or if the URL contains `windowId=_blank`
-				if (!shouldOpenInNewWindow) {
-					const params = new URLSearchParams(uri.query);
-
-					if (params.get('windowId') === '_blank') {
-						params.delete('windowId');
-						uri = uri.with({ query: params.toString() });
-						shouldOpenInNewWindow = true;
-					}
 				}
 
 				if (shouldOpenInNewWindow) {
