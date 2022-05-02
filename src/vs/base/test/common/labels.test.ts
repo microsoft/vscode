@@ -15,6 +15,8 @@ suite('Labels', () => {
 		assert.deepStrictEqual(labels.shorten(['a']), ['a']);
 		assert.deepStrictEqual(labels.shorten(['a', 'b']), ['a', 'b']);
 		assert.deepStrictEqual(labels.shorten(['a', 'b', 'c']), ['a', 'b', 'c']);
+		assert.deepStrictEqual(labels.shorten(['\\\\x\\a', '\\\\x\\a']), ['\\\\x\\a', '\\\\x\\a']);
+		assert.deepStrictEqual(labels.shorten(['C:\\a', 'C:\\b']), ['C:\\a', 'C:\\b']);
 
 		// completely different paths
 		assert.deepStrictEqual(labels.shorten(['a\\b', 'c\\d', 'e\\f']), ['…\\b', '…\\d', '…\\f']);
@@ -65,6 +67,8 @@ suite('Labels', () => {
 		// nothing to shorten
 		assert.deepStrictEqual(labels.shorten(['a']), ['a']);
 		assert.deepStrictEqual(labels.shorten(['a', 'b']), ['a', 'b']);
+		assert.deepStrictEqual(labels.shorten(['/a', '/b']), ['/a', '/b']);
+		assert.deepStrictEqual(labels.shorten(['~/a/b/c', '~/a/b/c']), ['~/a/b/c', '~/a/b/c']);
 		assert.deepStrictEqual(labels.shorten(['a', 'b', 'c']), ['a', 'b', 'c']);
 
 		// completely different paths

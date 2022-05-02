@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.67.0",
-  "distro": "0fb39ba9686ef5916f5ee99c2e573f167b4effc6",
+  "distro": "c115ce7732cb0a70a22d6bb99230b094bd85cefa",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -107,7 +107,7 @@
     "@types/http-proxy-agent": "^2.0.1",
     "@types/keytar": "^4.4.0",
     "@types/minimist": "^1.2.1",
-    "@types/mocha": "^8.2.0",
+    "@types/mocha": "^9.1.1",
     "@types/node": "16.x",
     "@types/sinon": "^10.0.2",
     "@types/sinon-test": "^2.4.2",

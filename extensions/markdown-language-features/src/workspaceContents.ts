@@ -42,6 +42,8 @@ export interface MdWorkspaceContents {
 
 	getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined>;
 
+	fileExists(resource: vscode.Uri): Promise<boolean>;
+
 	readonly onDidChangeMarkdownDocument: vscode.Event<SkinnyTextDocument>;
 	readonly onDidCreateMarkdownDocument: vscode.Event<SkinnyTextDocument>;
 	readonly onDidDeleteMarkdownDocument: vscode.Event<vscode.Uri>;
@@ -71,13 +73,26 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 	async getAllMarkdownDocuments(): Promise<SkinnyTextDocument[]> {
 		const maxConcurrent = 20;
 
-		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
-
+		const foundFiles = new Set<string>();
 		const limiter = new Limiter<SkinnyTextDocument | undefined>(maxConcurrent);
-		const results = await Promise.all(resources.map(resource => {
-			return limiter.queue(() => this.getMarkdownDocument(resource));
+
+		// Add files on disk
+		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
+		const onDiskResults = await Promise.all(resources.map(resource => {
+			return limiter.queue(async () => {
+				const doc = await this.getMarkdownDocument(resource);
+				if (doc) {
+					foundFiles.add(doc.uri.toString());
+				}
+				return doc;
+			});
 		}));
-		return coalesce(results);
+
+		// Add opened files (such as untitled files)
+		const openTextDocumentResults = await Promise.all(vscode.workspace.textDocuments
+			.filter(doc => !foundFiles.has(doc.uri.toString()) && isMarkdownFile(doc)));
+
+		return coalesce([...onDiskResults, ...openTextDocumentResults]);
 	}
 
 	public get onDidChangeMarkdownDocument() {
@@ -142,5 +157,15 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 		} catch {
 			return undefined;
 		}
+	}
+
+	public async fileExists(target: vscode.Uri): Promise<boolean> {
+		let targetResourceStat: vscode.FileStat | undefined;
+		try {
+			targetResourceStat = await vscode.workspace.fs.stat(target);
+		} catch {
+			return false;
+		}
+		return targetResourceStat.type === vscode.FileType.File;
 	}
 }

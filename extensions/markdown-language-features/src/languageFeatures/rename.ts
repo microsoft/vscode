@@ -169,8 +169,10 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 		}
 
 		// First rename the file
-		fileRenames.push({ from: targetUri, to: resolvedNewFilePath });
-		edit.renameFile(targetUri, resolvedNewFilePath);
+		if (await this.workspaceContents.fileExists(targetUri)) {
+			fileRenames.push({ from: targetUri, to: resolvedNewFilePath });
+			edit.renameFile(targetUri, resolvedNewFilePath);
+		}
 
 		// Then update all refs to it
 		for (const ref of allRefsInfo.references) {
@@ -181,9 +183,14 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 					const root = resolveDocumentLink('/', ref.link.source.resource);
 					newPath = '/' + path.relative(root.toString(true), rawNewFilePath.toString(true));
 				} else {
-					newPath = path.relative(URI.Utils.dirname(ref.link.source.resource).toString(true), rawNewFilePath.toString(true));
-					if (newName.startsWith('./') && !newPath.startsWith('../') || newName.startsWith('.\\') && !newPath.startsWith('..\\')) {
-						newPath = './' + newPath;
+					const rootDir = URI.Utils.dirname(ref.link.source.resource);
+					if (rootDir.scheme === rawNewFilePath.scheme && rootDir.scheme !== 'untitled') {
+						newPath = path.relative(rootDir.toString(true), rawNewFilePath.toString(true));
+						if (newName.startsWith('./') && !newPath.startsWith('../') || newName.startsWith('.\\') && !newPath.startsWith('..\\')) {
+							newPath = './' + newPath;
+						}
+					} else {
+						newPath = newName;
 					}
 				}
 				edit.replace(ref.link.source.resource, this.getFilePathRange(ref), encodeURI(newPath.replace(/\\/g, '/')));
@@ -262,3 +269,4 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 		return this.cachedRefs;
 	}
 }
+

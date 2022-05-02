@@ -458,19 +458,19 @@ suite('markdown: rename', () => {
 			doc1,
 			doc2
 		]));
-		assertEditsEqual(edit!, {
-			originalUri: workspacePath('images', 'more', 'image.png'),
-			newUri: workspacePath('img', 'test', 'new.png'),
-		}, {
-			uri: uri1, edits: [
-				new vscode.TextEdit(new vscode.Range(0, 7, 0, 29), '/img/test/new.png'),
-				new vscode.TextEdit(new vscode.Range(2, 7, 2, 29), '/img/test/new.png'),
-			]
-		}, {
-			uri: uri2, edits: [
-				new vscode.TextEdit(new vscode.Range(0, 7, 0, 29), '/img/test/new.png'),
-			]
-		});
+		assertEditsEqual(edit!,
+			// Should not have file edits since the files don't exist here
+			{
+				uri: uri1, edits: [
+					new vscode.TextEdit(new vscode.Range(0, 7, 0, 29), '/img/test/new.png'),
+					new vscode.TextEdit(new vscode.Range(2, 7, 2, 29), '/img/test/new.png'),
+				]
+			},
+			{
+				uri: uri2, edits: [
+					new vscode.TextEdit(new vscode.Range(0, 7, 0, 29), '/img/test/new.png'),
+				]
+			});
 	});
 
 	test('Path rename should use .md extension on extension-less link', async () => {
@@ -550,24 +550,27 @@ suite('markdown: rename', () => {
 	test('Path rename should resolve on links without prefix', async () => {
 		const uri1 = workspacePath('sub', 'doc.md');
 		const doc1 = new InMemoryDocument(uri1, joinLines(
-			`![text](images/cat.gif)`,
+			`![text](sub2/doc3.md)`,
 		));
 
 		const uri2 = workspacePath('doc2.md');
 		const doc2 = new InMemoryDocument(uri2, joinLines(
-			`![text](sub/images/cat.gif)`,
+			`![text](sub/sub2/doc3.md)`,
 		));
 
-		const edit = await getRenameEdits(doc1, new vscode.Position(0, 10), 'img/cat.gif', new InMemoryWorkspaceMarkdownDocuments([
-			doc1, doc2,
+		const uri3 = workspacePath('sub', 'sub2', 'doc3.md');
+		const doc3 = new InMemoryDocument(uri3, joinLines());
+
+		const edit = await getRenameEdits(doc1, new vscode.Position(0, 10), 'sub2/cat.md', new InMemoryWorkspaceMarkdownDocuments([
+			doc1, doc2, doc3
 		]));
 		assertEditsEqual(edit!, {
-			originalUri: workspacePath('sub', 'images', 'cat.gif'),
-			newUri: workspacePath('sub', 'img', 'cat.gif'),
+			originalUri: workspacePath('sub', 'sub2', 'doc3.md'),
+			newUri: workspacePath('sub', 'sub2', 'cat.md'),
 		}, {
-			uri: uri1, edits: [new vscode.TextEdit(new vscode.Range(0, 8, 0, 22), 'img/cat.gif')]
+			uri: uri1, edits: [new vscode.TextEdit(new vscode.Range(0, 8, 0, 20), 'sub2/cat.md')]
 		}, {
-			uri: uri2, edits: [new vscode.TextEdit(new vscode.Range(0, 8, 0, 26), 'sub/img/cat.gif')]
+			uri: uri2, edits: [new vscode.TextEdit(new vscode.Range(0, 8, 0, 24), 'sub/sub2/cat.md')]
 		});
 	});
 
