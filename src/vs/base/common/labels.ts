@@ -239,15 +239,15 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 	// for every path
 	let match = false;
 	for (let pathIndex = 0; pathIndex < paths.length; pathIndex++) {
-		let path = paths[pathIndex];
+		let originalPath = paths[pathIndex];
 
-		if (path === '') {
+		if (originalPath === '') {
 			shortenedPaths[pathIndex] = `.${pathSeparator}`;
 			continue;
 		}
 
-		if (!path) {
-			shortenedPaths[pathIndex] = path;
+		if (!originalPath) {
+			shortenedPaths[pathIndex] = originalPath;
 			continue;
 		}
 
@@ -255,19 +255,20 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 
 		// trim for now and concatenate unc path (e.g. \\network) or root path (/etc, ~/etc) later
 		let prefix = '';
-		if (path.indexOf(unc) === 0) {
-			prefix = path.substr(0, path.indexOf(unc) + unc.length);
-			path = path.substr(path.indexOf(unc) + unc.length);
-		} else if (path.indexOf(pathSeparator) === 0) {
-			prefix = path.substr(0, path.indexOf(pathSeparator) + pathSeparator.length);
-			path = path.substr(path.indexOf(pathSeparator) + pathSeparator.length);
-		} else if (path.indexOf(home) === 0) {
-			prefix = path.substr(0, path.indexOf(home) + home.length);
-			path = path.substr(path.indexOf(home) + home.length);
+		let trimmedPath = originalPath;
+		if (trimmedPath.indexOf(unc) === 0) {
+			prefix = trimmedPath.substr(0, trimmedPath.indexOf(unc) + unc.length);
+			trimmedPath = trimmedPath.substr(trimmedPath.indexOf(unc) + unc.length);
+		} else if (trimmedPath.indexOf(pathSeparator) === 0) {
+			prefix = trimmedPath.substr(0, trimmedPath.indexOf(pathSeparator) + pathSeparator.length);
+			trimmedPath = trimmedPath.substr(trimmedPath.indexOf(pathSeparator) + pathSeparator.length);
+		} else if (trimmedPath.indexOf(home) === 0) {
+			prefix = trimmedPath.substr(0, trimmedPath.indexOf(home) + home.length);
+			trimmedPath = trimmedPath.substr(trimmedPath.indexOf(home) + home.length);
 		}
 
 		// pick the first shortest subpath found
-		const segments: string[] = path.split(pathSeparator);
+		const segments: string[] = trimmedPath.split(pathSeparator);
 		for (let subpathLength = 1; match && subpathLength <= segments.length; subpathLength++) {
 			for (let start = segments.length - subpathLength; match && start >= 0; start--) {
 				match = false;
@@ -327,7 +328,7 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 		}
 
 		if (match) {
-			shortenedPaths[pathIndex] = path; // use full path if no unique subpaths found
+			shortenedPaths[pathIndex] = originalPath; // use original path if no unique subpaths found
 		}
 	}
 
