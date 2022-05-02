@@ -25,7 +25,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 import { URI } from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
-import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame, prepend } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame, prepend, clearNode } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template } from 'vs/base/common/labels';
@@ -69,6 +69,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	declare readonly _serviceBrand: undefined;
 
 	protected rootContainer!: HTMLElement;
+	protected readonly titleMenuElement: HTMLElement = $('div.title-menu');
 	protected title!: HTMLElement;
 
 	protected customMenubar: CustomMenubarControl | undefined;
@@ -367,7 +368,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
 
-		this.menubar = this.rootContainer.insertBefore($('div.menubar'), this.title);
+		this.menubar = this.rootContainer.insertBefore($('div.menubar'), this.titleMenuElement);
 		this.menubar.setAttribute('role', 'menubar');
 
 		this.customMenubar.create(this.menubar);
@@ -385,8 +386,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 
 		const that = this;
-		const titleMenuContainer = append(this.rootContainer, $('div.title-menu'));
-		const titleToolbar = new ToolBar(titleMenuContainer, this.contextMenuService, {
+		const titleToolbar = new ToolBar(this.titleMenuElement, this.contextMenuService, {
 			actionViewItemProvider: (action) => {
 
 				if (action instanceof SubmenuItemAction && action.item.submenu === MenuId.TitleMenuQuickPick) {
@@ -416,13 +416,14 @@ export class TitlebarPart extends Part implements ITitleService {
 		};
 		this.titleMenuDisposables.add(titleMenu.onDidChange(updateTitleMenu));
 		this.titleMenuDisposables.add(this.keybindingService.onDidUpdateKeybindings(updateTitleMenu));
-		this.titleMenuDisposables.add(toDisposable(() => titleMenuContainer.remove()));
+		this.titleMenuDisposables.add(toDisposable(() => clearNode(this.titleMenuElement)));
 		updateTitleMenu();
 	}
 
 	override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 		this.rootContainer = append(parent, $('.titlebar-container'));
+		append(this.rootContainer, this.titleMenuElement);
 
 		// App Icon (Native Windows/Linux and Web)
 		if (!isMacintosh || isWeb) {
