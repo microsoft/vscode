@@ -9,9 +9,7 @@ import { MdReferencesProvider } from './references';
 
 export class MdDefinitionProvider extends Disposable implements vscode.DefinitionProvider {
 
-	constructor(
-		private readonly referencesProvider: MdReferencesProvider,
-	) {
+	constructor(private readonly referencesProvider: MdReferencesProvider) {
 		super();
 	}
 
