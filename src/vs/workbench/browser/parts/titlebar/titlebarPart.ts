@@ -522,6 +522,10 @@ export class TitlebarPart extends Part implements ITitleService {
 				return;
 			}
 
+			if (e.target && isAncestor(e.target as HTMLElement, this.titleMenuElement)) {
+				return;
+			}
+
 			const active = document.activeElement;
 			setTimeout(() => {
 				if (active instanceof HTMLElement) {
