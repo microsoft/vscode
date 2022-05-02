@@ -55,7 +55,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 	constructor(
 		readonly state: FindReplaceState = new FindReplaceState(),
-		readonly options: IFindOptions,
+		options: IFindOptions,
 		contextViewService: IContextViewService,
 		contextKeyService: IContextKeyService,
 		private readonly _keybindingService: IKeybindingService
