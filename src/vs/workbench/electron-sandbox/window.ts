@@ -44,8 +44,7 @@ import { assertIsDefined, isArray } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { posix, dirname } from 'vs/base/common/path';
-import { getBaseLabel } from 'vs/base/common/labels';
+import { posix } from 'vs/base/common/path';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/tunnel/common/tunnel';
 import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -64,6 +63,8 @@ import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { dirname } from 'vs/base/common/resources';
 
 export class NativeWindow extends Disposable {
 
@@ -115,7 +116,8 @@ export class NativeWindow extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
@@ -595,17 +597,17 @@ export class NativeWindow extends Disposable {
 				pathOffset++; // for segments which are not the file name we want to open the folder
 			}
 
-			const path = segments.slice(0, pathOffset).join(posix.sep);
+			const path = URI.file(segments.slice(0, pathOffset).join(posix.sep));
 
 			let label: string;
 			if (!isFile) {
-				label = getBaseLabel(dirname(path));
+				label = this.labelService.getUriBasenameLabel(dirname(path));
 			} else {
-				label = getBaseLabel(path);
+				label = this.labelService.getUriBasenameLabel(path);
 			}
 
 			const commandId = `workbench.action.revealPathInFinder${i}`;
-			this.customTitleContextMenuDisposable.add(CommandsRegistry.registerCommand(commandId, () => this.nativeHostService.showItemInFolder(path)));
+			this.customTitleContextMenuDisposable.add(CommandsRegistry.registerCommand(commandId, () => this.nativeHostService.showItemInFolder(path.fsPath)));
 			this.customTitleContextMenuDisposable.add(MenuRegistry.appendMenuItem(MenuId.TitleBarContext, { command: { id: commandId, title: label || posix.sep }, order: -i }));
 		}
 	}
