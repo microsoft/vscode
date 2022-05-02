@@ -58,7 +58,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	get minimumHeight(): number { return 30 / (this.currentMenubarVisibility === 'hidden' ? getZoomFactor() : 1); }
+	get minimumHeight(): number { return 30 / (this.currentMenubarVisibility === 'hidden' || getZoomFactor() < 1 ? getZoomFactor() : 1); }
 	get maximumHeight(): number { return this.minimumHeight; }
 
 	//#endregion
@@ -69,6 +69,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	declare readonly _serviceBrand: undefined;
 
 	protected rootContainer!: HTMLElement;
+	protected windowControls: HTMLElement | undefined;
 	protected readonly titleMenuElement: HTMLElement = $('div.title-menu');
 	protected title!: HTMLElement;
 
@@ -76,7 +77,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	protected appIcon: HTMLElement | undefined;
 	private appIconBadge: HTMLElement | undefined;
 	protected menubar?: HTMLElement;
-	protected windowControls: HTMLElement | undefined;
+	protected layoutControls: HTMLElement | undefined;
 	private layoutToolbar: ToolBar | undefined;
 	protected lastLayoutDimensions: Dimension | undefined;
 
@@ -156,12 +157,12 @@ export class TitlebarPart extends Part implements ITitleService {
 			}
 		}
 
-		if (event.affectsConfiguration('window.experimental.titleMenu')) {
-			this.updateTitleMenu();
+		if (this.titleBarStyle !== 'native' && this.layoutControls && event.affectsConfiguration('workbench.layoutControl.enabled')) {
+			this.layoutControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
 		}
 
-		if (this.titleBarStyle !== 'native' && this.windowControls && event.affectsConfiguration('workbench.layoutControl.enabled')) {
-			this.windowControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
+		if (event.affectsConfiguration('window.experimental.titleMenu')) {
+			this.updateTitleMenu();
 		}
 	}
 
@@ -206,10 +207,8 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.pendingTitle = title;
 		}
 
-		if ((isWeb || isWindows || isLinux) && this.title) {
-			if (this.lastLayoutDimensions) {
-				this.updateLayout(this.lastLayoutDimensions);
-			}
+		if (this.lastLayoutDimensions) {
+			this.updateLayout(this.lastLayoutDimensions);
 		}
 
 		this.onDidUpdateTitle.fire();
@@ -464,21 +463,20 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		if (this.titleBarStyle !== 'native') {
-			this.windowControls = append(this.rootContainer, $('div.window-controls-container'));
-			this.windowControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
+			this.layoutControls = append(this.rootContainer, $('div.layout-controls-container'));
+			this.layoutControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
 
-			const layoutDropdownContainer = append(this.windowControls, $('div.layout-dropdown-container'));
-			this.layoutToolbar = new ToolBar(layoutDropdownContainer, this.contextMenuService, {
+			this.layoutToolbar = new ToolBar(this.layoutControls, this.contextMenuService, {
 				actionViewItemProvider: action => {
 					return createActionViewItem(this.instantiationService, action);
 				},
 				allowContextMenu: true
 			});
 
-			this._register(addDisposableListener(layoutDropdownContainer, EventType.CONTEXT_MENU, e => {
+			this._register(addDisposableListener(this.layoutControls, EventType.CONTEXT_MENU, e => {
 				EventHelper.stop(e);
 
-				this.onLayoutControlContextMenu(e, layoutDropdownContainer);
+				this.onLayoutControlContextMenu(e, this.layoutControls!);
 			}));
 
 
@@ -499,6 +497,8 @@ export class TitlebarPart extends Part implements ITitleService {
 			menu.onDidChange(updateLayoutMenu);
 			updateLayoutMenu();
 		}
+
+		this.windowControls = append(this.element, $('div.window-controls-container'));
 
 		// Context menu on title
 		[EventType.CONTEXT_MENU, EventType.MOUSE_DOWN].forEach(event => {
@@ -617,19 +617,18 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	protected adjustTitleMarginToCenter(): void {
-		if (this.customMenubar && this.menubar) {
-			const leftMarker = (this.appIcon ? this.appIcon.clientWidth : 0) + this.menubar.clientWidth + 10;
-			const rightMarker = this.element.clientWidth - 10;
+		const base = isMacintosh ? (this.windowControls?.clientWidth ?? 0) : 0;
+		const leftMarker = base + (this.appIcon?.clientWidth ?? 0) + (this.menubar?.clientWidth ?? 0) + 10;
+		const rightMarker = base + this.rootContainer.clientWidth - (this.layoutControls?.clientWidth ?? 0) - 10;
 
-			// Not enough space to center the titlebar within window,
-			// Center between menu and window controls
-			if (leftMarker > (this.element.clientWidth - this.title.clientWidth) / 2 ||
-				rightMarker < (this.element.clientWidth + this.title.clientWidth) / 2) {
-				this.title.style.position = '';
-				this.title.style.left = '';
-				this.title.style.transform = '';
-				return;
-			}
+		// Not enough space to center the titlebar within window,
+		// Center between left and right controls
+		if (leftMarker > (this.rootContainer.clientWidth + (this.windowControls?.clientWidth ?? 0) - this.title.clientWidth) / 2 ||
+			rightMarker < (this.rootContainer.clientWidth + (this.windowControls?.clientWidth ?? 0) + this.title.clientWidth) / 2) {
+			this.title.style.position = '';
+			this.title.style.left = '';
+			this.title.style.transform = '';
+			return;
 		}
 
 		this.title.style.position = 'absolute';
@@ -649,16 +648,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.lastLayoutDimensions = dimension;
 
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
-			// Only prevent zooming behavior on macOS or when the menubar is not visible
-			if ((!isWeb && isMacintosh) || this.currentMenubarVisibility === 'hidden') {
-				this.rootContainer.style.height = `${100.0 * getZoomFactor()}%`;
-				this.rootContainer.style.width = `${100.0 * getZoomFactor()}%`;
-				this.rootContainer.style.transform = `scale(${1 / getZoomFactor()})`;
-			} else {
-				this.rootContainer.style.height = '100%';
-				this.rootContainer.style.width = '100%';
-				this.rootContainer.style.transform = '';
-			}
+			// Prevent zooming behavior if any of the following conditions are met:
+			// 1. Native macOS
+			// 2. Menubar is hidden
+			// 3. Shrinking below the window control size (zoom < 1)
+			const zoomFactor = getZoomFactor();
+			this.element.style.setProperty('--zoom-factor', zoomFactor.toString());
+			this.rootContainer.classList.toggle('counter-zoom', zoomFactor < 1 || (!isWeb && isMacintosh) || this.currentMenubarVisibility === 'hidden');
 
 			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
 
