@@ -70,11 +70,23 @@ export class DiagnosticManager extends Disposable {
 			this.rebuild();
 		}));
 
-		this._register(vscode.workspace.onDidChangeTextDocument(e => {
-			if (isMarkdownFile(e.document)) {
-				this.pendingDiagnostics.add(e.document.uri);
+		const onDocUpdated = (doc: vscode.TextDocument) => {
+			if (isMarkdownFile(doc)) {
+				this.pendingDiagnostics.add(doc.uri);
 				this.diagnosticDelayer.trigger(() => this.recomputePendingDiagnostics());
 			}
+		};
+
+		this._register(vscode.workspace.onDidOpenTextDocument(doc => {
+			onDocUpdated(doc);
+		}));
+
+		this._register(vscode.workspace.onDidChangeTextDocument(e => {
+			onDocUpdated(e.document);
+		}));
+
+		this._register(vscode.workspace.onDidCloseTextDocument(doc => {
+			this.pendingDiagnostics.delete(doc.uri);
 		}));
 
 		this.rebuild();
