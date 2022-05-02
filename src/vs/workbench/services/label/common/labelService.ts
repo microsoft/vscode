@@ -81,7 +81,8 @@ function hasDriveLetterIgnorePlatform(path: string): boolean {
 }
 
 class ResourceLabelFormattersHandler implements IWorkbenchContribution {
-	private formattersDisposables = new Map<ResourceLabelFormatter, IDisposable>();
+
+	private readonly formattersDisposables = new Map<ResourceLabelFormatter, IDisposable>();
 
 	constructor(@ILabelService labelService: ILabelService) {
 		resourceLabelFormattersExtPoint.setHandler((extensions, delta) => {
@@ -145,21 +146,30 @@ export class LabelService extends Disposable implements ILabelService {
 	findFormatting(resource: URI): ResourceLabelFormatting | undefined {
 		let bestResult: ResourceLabelFormatter | undefined;
 
-		this.formatters.forEach(formatter => {
+		for (const formatter of this.formatters) {
 			if (formatter.scheme === resource.scheme) {
 				if (!formatter.authority && (!bestResult || formatter.priority)) {
 					bestResult = formatter;
-					return;
-				}
-				if (!formatter.authority) {
-					return;
+					continue;
 				}
 
-				if (match(formatter.authority.toLowerCase(), resource.authority.toLowerCase()) && (!bestResult || !bestResult.authority || formatter.authority.length > bestResult.authority.length || ((formatter.authority.length === bestResult.authority.length) && formatter.priority))) {
+				if (!formatter.authority) {
+					continue;
+				}
+
+				if (
+					match(formatter.authority.toLowerCase(), resource.authority.toLowerCase()) &&
+					(
+						!bestResult ||
+						!bestResult.authority ||
+						formatter.authority.length > bestResult.authority.length ||
+						((formatter.authority.length === bestResult.authority.length) && formatter.priority)
+					)
+				) {
 					bestResult = formatter;
 				}
 			}
-		});
+		}
 
 		return bestResult ? bestResult.formatting : undefined;
 	}
@@ -195,33 +205,37 @@ export class LabelService extends Disposable implements ILabelService {
 			});
 		}
 
-		let label: string | undefined;
-		const baseResource = this.contextService?.getWorkspaceFolder(resource);
+		// Relative label
+		if (options.relative) {
+			const folder = this.contextService?.getWorkspaceFolder(resource);
+			if (folder) {
+				const folderLabel = this.formatUri(folder.uri, formatting, options.noPrefix);
 
-		if (options.relative && baseResource) {
-			const baseResourceLabel = this.formatUri(baseResource.uri, formatting, options.noPrefix);
-			let relativeLabel = this.formatUri(resource, formatting, options.noPrefix);
+				let relativeLabel = this.formatUri(resource, formatting, options.noPrefix);
+				let overlap = 0;
+				while (relativeLabel[overlap] && relativeLabel[overlap] === folderLabel[overlap]) {
+					overlap++;
+				}
 
-			let overlap = 0;
-			while (relativeLabel[overlap] && relativeLabel[overlap] === baseResourceLabel[overlap]) { overlap++; }
-			if (!relativeLabel[overlap] || relativeLabel[overlap] === formatting.separator) {
-				relativeLabel = relativeLabel.substring(1 + overlap);
-			} else if (overlap === baseResourceLabel.length && baseResource.uri.path === '/') {
-				relativeLabel = relativeLabel.substring(overlap);
+				if (!relativeLabel[overlap] || relativeLabel[overlap] === formatting.separator) {
+					relativeLabel = relativeLabel.substring(1 + overlap);
+				} else if (overlap === folderLabel.length && folder.uri.path === posix.sep) {
+					relativeLabel = relativeLabel.substring(overlap);
+				}
+
+				// always show root basename if there are multiple folders
+				const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
+				if (hasMultipleRoots && !options.noPrefix) {
+					const rootName = folder?.name ?? basenameOrAuthority(folder.uri);
+					relativeLabel = relativeLabel ? `${rootName} • ${relativeLabel}` : rootName;
+				}
+
+				return relativeLabel;
 			}
-
-			const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
-			if (hasMultipleRoots && !options.noPrefix) {
-				const rootName = baseResource?.name ?? basenameOrAuthority(baseResource.uri);
-				relativeLabel = relativeLabel ? `${rootName} • ${relativeLabel}` : rootName; // always show root basename if there are multiple
-			}
-
-			label = relativeLabel;
-		} else {
-			label = this.formatUri(resource, formatting, options.noPrefix);
 		}
 
-		return label;
+		// Absolute label
+		return this.formatUri(resource, formatting, options.noPrefix);
 	}
 
 	getUriBasenameLabel(resource: URI): string {
@@ -297,7 +311,7 @@ export class LabelService extends Disposable implements ILabelService {
 	}
 
 	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose: boolean }): string {
-		const label = options?.verbose ? this.getUriLabel(folderUri) : basename(folderUri) || '/';
+		const label = options?.verbose ? this.getUriLabel(folderUri) : basename(folderUri) || posix.sep;
 
 		return this.appendWorkspaceSuffix(label, folderUri);
 	}
@@ -305,7 +319,7 @@ export class LabelService extends Disposable implements ILabelService {
 	getSeparator(scheme: string, authority?: string): '/' | '\\' {
 		const formatter = this.findFormatting(URI.from({ scheme, authority }));
 
-		return formatter?.separator || '/';
+		return formatter?.separator || posix.sep;
 	}
 
 	getHostLabel(scheme: string, authority?: string): string {
@@ -347,10 +361,10 @@ export class LabelService extends Disposable implements ILabelService {
 						if (query && query[0] === '{' && query[query.length - 1] === '}') {
 							try {
 								return JSON.parse(query)[qsValue] || '';
-							}
-							catch { }
+							} catch { }
 						}
 					}
+
 					return '';
 				}
 			}

@@ -130,7 +130,7 @@ function getRelativePathLabel(resource: URI, relativePathProvider: IRelativePath
 		relativePathLabel = pathLib.normalize(relativePathLabel);
 	}
 
-	// always show root basename if there are multiple
+	// always show root basename if there are multiple folders
 	if (workspace.folders.length > 1 && !relativePathProvider.noPrefix) {
 		const rootName = folder.name ? folder.name : extUriLib.basenameOrAuthority(folder.uri);
 		relativePathLabel = relativePathLabel ? `${rootName} • ${relativePathLabel}` : rootName;
