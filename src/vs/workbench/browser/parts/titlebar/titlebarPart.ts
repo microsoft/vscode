@@ -153,7 +153,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			}
 		}
 
-		if (event.affectsConfiguration('window.titleMenu')) {
+		if (event.affectsConfiguration('window.experimental.titleMenu')) {
 			this.updateTitleMenu();
 		}
 
@@ -373,7 +373,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private updateTitleMenu(): void {
 		this.titleMenuDisposables.clear();
-		const enableTitleMenu = this.configurationService.getValue<boolean>('window.titleMenu');
+		const enableTitleMenu = this.configurationService.getValue<boolean>('window.experimental.titleMenu');
 		this.rootContainer.classList.toggle('enable-title-menu', enableTitleMenu);
 		if (enableTitleMenu) {
 
