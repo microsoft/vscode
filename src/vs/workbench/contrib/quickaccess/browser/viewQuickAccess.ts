@@ -15,7 +15,7 @@ import { matchesFuzzy } from 'vs/base/common/filters';
 import { fuzzyContains } from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Action2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -217,7 +217,11 @@ export class OpenViewPickerAction extends Action2 {
 			id: OpenViewPickerAction.ID,
 			title: { value: localize('openView', "Open View"), original: 'Open View' },
 			category: CATEGORIES.View,
-			f1: true
+			f1: true,
+			menu: {
+				id: MenuId.TitleMenuQuickPick,
+				group: '1/globalQuickPick'
+			}
 		});
 	}
 

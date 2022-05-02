@@ -141,7 +141,8 @@ registerAction2(class QuickAccessAction extends Action2 {
 			},
 			f1: true,
 			menu: {
-				id: MenuId.TitleMenu
+				id: MenuId.TitleMenuQuickPick,
+				group: '1/globalQuickPick'
 			}
 		});
 	}

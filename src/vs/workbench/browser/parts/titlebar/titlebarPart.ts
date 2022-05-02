@@ -12,7 +12,7 @@ import { getZoomFactor } from 'vs/base/browser/browser';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ActionRunner, IAction, toAction } from 'vs/base/common/actions';
+import { IAction, toAction } from 'vs/base/common/actions';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -33,9 +33,9 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { RunOnceScheduler, timeout } from 'vs/base/common/async';
-import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, IMenu, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { createActionViewItem, createAndFillInContextMenuActions, DropdownWithDefaultActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, IMenu, MenuId, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -45,8 +45,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import './titlebarMenu';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -386,33 +386,18 @@ export class TitlebarPart extends Part implements ITitleService {
 		const titleMenuContainer = append(this.rootContainer, $('div.title-menu'));
 		const titleToolbar = new ToolBar(titleMenuContainer, this.contextMenuService, {
 			actionViewItemProvider: (action) => {
-				if (action instanceof MenuItemAction && action.item.id === 'workbench.action.quickOpen') {
-					return new class extends ActionViewItem {
-						constructor() {
-							super(undefined, action);
-							this.actionRunner = this._store.add(new class extends ActionRunner {
-								override async run(action: IAction, context?: unknown): Promise<void> {
-									await timeout(0); // quick pick friendly? TODO@jrieken make sure this is needed
-									super.run(action, context);
-								}
-							});
-						}
 
+				if (action instanceof SubmenuItemAction && action.item.submenu === MenuId.TitleMenuQuickPick) {
+					class QuickInputDropDown extends DropdownWithDefaultActionViewItem {
 						override render(container: HTMLElement): void {
 							super.render(container);
-							if (!this.label) {
-								return;
-							}
 							container.classList.add('quickopen');
-							this.label.title = that.getWindowTitle();
-							const keybinding = that.keybindingService.lookupKeybinding((<MenuItemAction>action).item.id)?.getLabel();
-							if (keybinding) {
-								this.label.innerText = localize('labelAndkeys', "{0} ({1})", action.label, keybinding);
-							} else {
-								this.label.innerText = action.label;
-							}
 						}
-					};
+					}
+					return that.instantiationService.createInstance(QuickInputDropDown, action, {
+						keybindingProvider: action => that.keybindingService.lookupKeybinding(action.id),
+						keybindingWithLabelForDefault: true
+					});
 				}
 				return undefined;
 			}

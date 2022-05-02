@@ -33,16 +33,37 @@
 	-webkit-app-region: drag;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .quickopen .action-label {
+.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen {
 	color: var(--vscode-input-foreground);
 	border: 1px solid var(--vscode-dropdown-border);
-	display: inline-block;
-	text-align: center;
-	height: 14px;
+	height: 22px;
+	line-height: 22px;
 	width: 38vw;
 	max-width: 600px;
-	margin: 2px 4px;
-	line-height: 14px;
+	margin: 4px 4px;
+	flex-direction: row;
+	justify-content: center;
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen:HOVER,
+.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen .action-container .action-label:HOVER {
+	background-color: var(--vscode-dropdown-border);
+	line-height: 18px;
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen .action-container {
+	flex: 1 0 auto;
+	display: flex;
+	justify-content: center;
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen .action-container .keybinding {
+	font-size: 11px;
+	padding: 3px;
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen .dropdown-action-container {
+	margin-left: auto;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .window-title {
