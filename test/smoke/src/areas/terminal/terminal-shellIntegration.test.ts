@@ -25,7 +25,9 @@ export function setup() {
 					await terminal.assertShellIntegrationActivated();
 				});
 			});
-			if (!process.platform.startsWith('win')) {
+			if (process.platform.startsWith('win')) {
+				describe.skip('Decorations', function () { });
+			} else {
 				describe('Decorations', function () {
 					describe('Should show default icons', function () {
 						it('Placeholder', async () => {
