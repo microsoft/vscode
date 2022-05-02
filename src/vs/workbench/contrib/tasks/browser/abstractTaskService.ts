@@ -2768,8 +2768,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			// At this point (assuming taskGlobsInList is true) there are tasks with matching globs, so only put those in defaults
 			if (taskGlobsInList && typeof (task.configurationProperties.group as TaskGroup).isDefault === 'string') {
 				defaults.push(task);
-			}
-			else if (!taskGlobsInList && (task.configurationProperties.group as TaskGroup).isDefault === true) {
+			} else if (!taskGlobsInList && (task.configurationProperties.group as TaskGroup).isDefault === true) {
 				defaults.push(task);
 			} else {
 				none.push(task);
@@ -2804,7 +2803,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				});
 			}
 
-			const runMultipleTasks = (tasks: Task[]) => {
+			const chooseAndRunTask = (tasks: Task[]) => {
 				this.showIgnoredFoldersMessage().then(() => {
 					this.showQuickPick(tasks,
 						strings.select,
@@ -2849,7 +2848,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (taskGroupTasks.length > 1) {
 				return this.getTasksForGroup(taskGroup).then((tasks) => {
 					if (tasks.length > 0) {
-						// Put globs in the defaults and eveyrthing else in none
+						// Put globs in the defaults and everything else in none
 						let { none, defaults } = this.splitPerGroupType(tasks, true);
 						if (defaults.length === 1) {
 							runSingleTask(defaults[0], undefined, this);
@@ -2860,7 +2859,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					}
 
 					// At this this point there's multiple tasks.
-					runMultipleTasks(tasks);
+					chooseAndRunTask(tasks);
 				});
 			}
 
@@ -2897,7 +2896,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 
 				// At this this point there's multiple tasks.
-				runMultipleTasks(tasks);
+				chooseAndRunTask(tasks);
 			});
 		})();
 		this.progressService.withProgress(options, () => promise);
