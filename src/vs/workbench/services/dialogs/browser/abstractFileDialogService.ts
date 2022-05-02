@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { IWindowOpenable, isWorkspaceToOpen, isFileToOpen } from 'vs/platform/window/common/window';
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, FileFilter, IFileDialogService, IDialogService, ConfirmResult, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import { isSavedWorkspace, IWorkspaceContextService, WorkbenchState, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
+import { isSavedWorkspace, isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
@@ -65,7 +65,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		if (!candidate) {
 			candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
 		} else {
-			candidate = candidate && resources.dirname(candidate);
+			candidate = resources.dirname(candidate);
 		}
 
 		if (!candidate) {
@@ -92,24 +92,20 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		return resources.dirname(candidate);
 	}
 
-	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow(), filename?: string): Promise<URI> {
+	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
 		let defaultWorkspacePath: URI | undefined;
 
 		// Check for current workspace config file first...
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configuration = this.contextService.getWorkspace().configuration;
-			if (configuration?.scheme === schemeFilter && isSavedWorkspace(configuration, this.environmentService)) {
-				defaultWorkspacePath = resources.dirname(configuration) || undefined;
+			if (configuration?.scheme === schemeFilter && isSavedWorkspace(configuration, this.environmentService) && !isTemporaryWorkspace(configuration)) {
+				defaultWorkspacePath = resources.dirname(configuration);
 			}
 		}
 
 		// ...then fallback to default file path
 		if (!defaultWorkspacePath) {
 			defaultWorkspacePath = await this.defaultFilePath(schemeFilter);
-		}
-
-		if (defaultWorkspacePath && filename) {
-			defaultWorkspacePath = resources.joinPath(defaultWorkspacePath, filename);
 		}
 
 		return defaultWorkspacePath;

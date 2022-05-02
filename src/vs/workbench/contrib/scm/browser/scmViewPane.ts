@@ -1642,19 +1642,19 @@ abstract class SetSortKeyAction extends ViewAction<SCMViewPane>  {
 
 class SetSortByNameAction extends SetSortKeyAction {
 	constructor() {
-		super(ViewModelSortKey.Name, localize('sortByName', "Sort by Name"));
+		super(ViewModelSortKey.Name, localize('sortChangesByName', "Sort Changes by Name"));
 	}
 }
 
 class SetSortByPathAction extends SetSortKeyAction {
 	constructor() {
-		super(ViewModelSortKey.Path, localize('sortByPath', "Sort by Path"));
+		super(ViewModelSortKey.Path, localize('sortChangesByPath', "Sort Changes by Path"));
 	}
 }
 
 class SetSortByStatusAction extends SetSortKeyAction {
 	constructor() {
-		super(ViewModelSortKey.Status, localize('sortByStatus', "Sort by Status"));
+		super(ViewModelSortKey.Status, localize('sortChangesByStatus', "Sort Changes by Status"));
 	}
 }
 
