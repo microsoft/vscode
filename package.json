@@ -107,7 +107,7 @@
     "@types/http-proxy-agent": "^2.0.1",
     "@types/keytar": "^4.4.0",
     "@types/minimist": "^1.2.1",
-    "@types/mocha": "^8.2.0",
+    "@types/mocha": "^9.1.1",
     "@types/node": "16.x",
     "@types/sinon": "^10.0.2",
     "@types/sinon-test": "^2.4.2",
