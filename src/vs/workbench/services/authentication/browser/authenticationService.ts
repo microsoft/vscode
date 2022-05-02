@@ -200,7 +200,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		this._placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 			command: {
 				id: 'noAuthenticationProviders',
-				title: nls.localize('loading', "Loading..."),
+				title: nls.localize('authentication.Placeholder', "No accounts requested yet..."),
 				precondition: ContextKeyExpr.false()
 			},
 		});

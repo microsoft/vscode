@@ -1824,6 +1824,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				const focusRange = this.viewModel.getFocus();
 				const element = this.viewModel.cellAt(focusRange.start);
 
+				// The notebook editor doesn't have focus yet
+				if (!this.hasEditorFocus()) {
+					this.focusContainer();
+				}
+
 				if (element && element.focusMode === CellFocusMode.Editor) {
 					element.updateEditState(CellEditState.Editing, 'editorWidget.focus');
 					element.focusMode = CellFocusMode.Editor;

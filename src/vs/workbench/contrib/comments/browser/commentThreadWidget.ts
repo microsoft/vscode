@@ -196,7 +196,10 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._onDidResize.fire(dimension);
 	}
 
-
+	override dispose() {
+		super.dispose();
+		this.updateCurrentThread(false, false);
+	}
 
 	private _bindCommentThreadListeners() {
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeCanReply(() => {
