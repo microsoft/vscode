@@ -1108,6 +1108,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._refreshSelectionContextKey();
 		}));
 
+		this._register(dom.addDisposableListener(xterm.raw.textarea, 'focusout', () => {
+			this._terminalFocusContextKey.reset();
+			this._onDidBlur.fire(this);
+			this._refreshSelectionContextKey();
+		}));
+
 		this._initDragAndDrop(container);
 
 		this._widgetManager.attachToElement(screenElement);
