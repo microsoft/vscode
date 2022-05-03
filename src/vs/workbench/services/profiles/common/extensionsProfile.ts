@@ -75,7 +75,7 @@ export class ExtensionsProfile implements IResourceProfile {
 
 	private async getLocalExtensions(): Promise<IProfileExtension[]> {
 		const result: IProfileExtension[] = [];
-		const installedExtensions = await this.extensionManagementService.getInstalled(undefined, true);
+		const installedExtensions = await this.extensionManagementService.getInstalled(undefined);
 		for (const extension of installedExtensions) {
 			const { identifier, preRelease } = extension;
 			const enablementState = this.extensionEnablementService.getEnablementState(extension);
