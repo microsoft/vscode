@@ -8,6 +8,7 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
 import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
 import { IQuickPick, IQuickPickItem } from 'vs/base/parts/quickinput/common/quickInput';
+import { flakySuite } from 'vs/base/test/common/testUtils';
 
 // Simple promisify of setTimeout
 function wait(delayMS: number) {
@@ -16,7 +17,7 @@ function wait(delayMS: number) {
 	});
 }
 
-suite('QuickInput', () => {
+flakySuite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	let fixture: HTMLElement, controller: QuickInputController, quickpick: IQuickPick<IQuickPickItem>;
 
 	function getScrollTop(): number {

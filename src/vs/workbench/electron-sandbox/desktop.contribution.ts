@@ -84,21 +84,21 @@ import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 
 	// Actions: macOS Native Tabs
 	if (isMacintosh) {
-		[
+		for (const command of [
 			{ handler: NewWindowTabHandler, id: 'workbench.action.newWindowTab', title: { value: localize('newTab', "New Window Tab"), original: 'New Window Tab' } },
 			{ handler: ShowPreviousWindowTabHandler, id: 'workbench.action.showPreviousWindowTab', title: { value: localize('showPreviousTab', "Show Previous Window Tab"), original: 'Show Previous Window Tab' } },
 			{ handler: ShowNextWindowTabHandler, id: 'workbench.action.showNextWindowTab', title: { value: localize('showNextWindowTab', "Show Next Window Tab"), original: 'Show Next Window Tab' } },
 			{ handler: MoveWindowTabToNewWindowHandler, id: 'workbench.action.moveWindowTabToNewWindow', title: { value: localize('moveWindowTabToNewWindow', "Move Window Tab to New Window"), original: 'Move Window Tab to New Window' } },
 			{ handler: MergeWindowTabsHandlerHandler, id: 'workbench.action.mergeAllWindowTabs', title: { value: localize('mergeAllWindowTabs', "Merge All Windows"), original: 'Merge All Windows' } },
 			{ handler: ToggleWindowTabsBarHandler, id: 'workbench.action.toggleWindowTabsBar', title: { value: localize('toggleWindowTabsBar', "Toggle Window Tabs Bar"), original: 'Toggle Window Tabs Bar' } }
-		].forEach(command => {
+		]) {
 			CommandsRegistry.registerCommand(command.id, command.handler);
 
 			MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 				command,
 				when: ContextKeyExpr.equals('config.window.nativeTabs', true)
 			});
-		});
+		}
 	}
 
 	// Actions: Developer

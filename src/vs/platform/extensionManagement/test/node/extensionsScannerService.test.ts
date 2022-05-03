@@ -90,21 +90,22 @@ suite('NativeExtensionsScanerService Test', () => {
 	});
 
 	test('scan user extension', async () => {
-		const manifest: Partial<IExtensionManifest> = anExtensionManifest({ 'name': 'name', 'publisher': 'pub' });
+		const manifest: Partial<IScannedExtensionManifest> = anExtensionManifest({ 'name': 'name', 'publisher': 'pub', __metadata: { id: 'uuid' } });
 		const extensionLocation = await aUserExtension(manifest);
 		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
 
 		const actual = await testObject.scanUserExtensions({});
 
 		assert.deepStrictEqual(actual.length, 1);
-		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name' });
+		assert.deepStrictEqual(actual[0].identifier, { id: 'pub.name', uuid: 'uuid' });
 		assert.deepStrictEqual(actual[0].location.toString(), extensionLocation.toString());
 		assert.deepStrictEqual(actual[0].isBuiltin, false);
 		assert.deepStrictEqual(actual[0].type, ExtensionType.User);
 		assert.deepStrictEqual(actual[0].isValid, true);
 		assert.deepStrictEqual(actual[0].validations, []);
-		assert.deepStrictEqual(actual[0].metadata, undefined);
+		assert.deepStrictEqual(actual[0].metadata, { id: 'uuid' });
 		assert.deepStrictEqual(actual[0].targetPlatform, TargetPlatform.UNDEFINED);
+		delete manifest.__metadata;
 		assert.deepStrictEqual(actual[0].manifest, manifest);
 	});
 
@@ -324,7 +325,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		return extensionLocation;
 	}
 
-	function anExtensionManifest(manifest: Partial<IExtensionManifest>): Partial<IExtensionManifest> {
+	function anExtensionManifest(manifest: Partial<IScannedExtensionManifest>): Partial<IExtensionManifest> {
 		return { engines: { vscode: '^1.66.0' }, version: '1.0.0', main: 'main.js', activationEvents: ['*'], ...manifest };
 	}
 });

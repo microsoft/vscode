@@ -9,6 +9,9 @@ import { QuickAccess } from './quickaccess';
 
 export enum Selector {
 	TerminalView = `#terminal`,
+	CommandDecorationPlaceholder = `.terminal-command-decoration.codicon-circle-outline`,
+	CommandDecorationSuccess = `.terminal-command-decoration.codicon-primitive-dot`,
+	CommandDecorationError = `.terminal-command-decoration.codicon-error-small`,
 	Xterm = `#terminal .terminal-wrapper`,
 	XtermEditor = `.editor-instance .terminal-wrapper`,
 	TabsEntry = '.terminal-tabs-entry',
@@ -61,6 +64,12 @@ interface TerminalLabel {
 	color?: string;
 }
 type TerminalGroup = TerminalLabel[];
+
+interface ICommandDecorationCounts {
+	placeholder: number;
+	success: number;
+	error: number;
+}
 
 export class Terminal {
 
@@ -146,6 +155,10 @@ export class Terminal {
 		}
 	}
 
+	async assertShellIntegrationActivated(): Promise<void> {
+		await this.waitForTerminalText(buffer => buffer.some(e => e.includes('Shell integration activated')));
+	}
+
 	async getTerminalGroups(): Promise<TerminalGroup[]> {
 		const tabCount = (await this.code.waitForElements(Selector.Tabs, true)).length;
 		const groups: TerminalGroup[] = [];
@@ -202,6 +215,17 @@ export class Terminal {
 
 	async assertTerminalViewHidden(): Promise<void> {
 		await this.code.waitForElement(Selector.TerminalView, result => result === undefined);
+	}
+
+	async assertCommandDecorations(expectedCounts?: ICommandDecorationCounts, customConfig?: { updatedIcon: string; count: number }): Promise<void> {
+		if (expectedCounts) {
+			await this.code.waitForElements(Selector.CommandDecorationPlaceholder, true, decorations => decorations && decorations.length === expectedCounts.placeholder);
+			await this.code.waitForElements(Selector.CommandDecorationSuccess, true, decorations => decorations && decorations.length === expectedCounts.success);
+			await this.code.waitForElements(Selector.CommandDecorationError, true, decorations => decorations && decorations.length === expectedCounts.error);
+		}
+		if (customConfig) {
+			await this.code.waitForElements(`.terminal-command-decoration.codicon-${customConfig.updatedIcon}`, true, decorations => decorations && decorations.length === customConfig.count);
+		}
 	}
 
 	async clickPlusButton(): Promise<void> {

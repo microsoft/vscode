@@ -20,7 +20,7 @@ import { FileAccess, connectionTokenCookieName, connectionTokenQueryName, Schema
 import { generateUuid } from 'vs/base/common/uuid';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
-import { asText, IRequestService } from 'vs/platform/request/common/request';
+import { asTextOrError, IRequestService } from 'vs/platform/request/common/request';
 import { IHeaders } from 'vs/base/parts/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
@@ -197,7 +197,7 @@ export class WebClientServer {
 		if (status !== 200) {
 			let text: string | null = null;
 			try {
-				text = await asText(context);
+				text = await asTextOrError(context);
 			} catch (error) {/* Ignore */ }
 			return serveError(req, res, status, text || `Request failed with status ${status}`);
 		}
@@ -222,9 +222,6 @@ export class WebClientServer {
 	 * Handle HTTP requests for /
 	 */
 	private async _handleRoot(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
-		if (!req.headers.host) {
-			return serveError(req, res, 400, `Bad request.`);
-		}
 
 		const queryConnectionToken = parsedUrl.query[connectionTokenQueryName];
 		if (typeof queryConnectionToken === 'string') {
@@ -253,7 +250,14 @@ export class WebClientServer {
 			return res.end();
 		}
 
-		const remoteAuthority = req.headers.host;
+		let originalHost = req.headers['x-original-host'];
+		if (Array.isArray(originalHost)) {
+			originalHost = originalHost[0];
+		}
+		const remoteAuthority = originalHost || req.headers.host;
+		if (!remoteAuthority) {
+			return serveError(req, res, 400, `Bad request.`);
+		}
 
 		function escapeAttribute(value: string): string {
 			return value.replace(/"/g, '&quot;');

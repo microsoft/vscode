@@ -615,7 +615,7 @@ export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.bac
 	dark: '#007ACC',
 	light: '#007ACC',
 	hcDark: '#000000',
-	hcLight: '#007ACC'
+	hcLight: '#0F4A85'
 }, localize('activityBarBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.foreground', {

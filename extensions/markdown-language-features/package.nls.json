@@ -28,6 +28,6 @@
 	"configuration.markdown.links.openLocation.currentGroup": "Open links in the active editor group.",
 	"configuration.markdown.links.openLocation.beside": "Open links beside the active editor.",
 	"configuration.markdown.suggest.paths.enabled.description": "Enable/disable path suggestions for markdown links",
-	"configuration.markdown.editor.drop.enabled": "Enable/disable dropping into the markdown editor to insert shift. Requires enabling `#workbench.editor.dropIntoEditor.enabled#`.",
+	"configuration.markdown.editor.drop.enabled": "Enable/disable dropping into the markdown editor to insert shift. Requires enabling `#workbenck.experimental.editor.dropIntoEditor.enabled#`.",
 	"workspaceTrust": "Required for loading styles configured in the workspace."
 }

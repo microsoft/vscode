@@ -8,7 +8,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -20,7 +20,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -32,7 +32,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -44,7 +44,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -56,7 +56,7 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"hc_light": "keyword.control: #AF00DB"
+			"hc_light": "keyword.control: #B5200D"
 		}
 	},
 	{
@@ -68,7 +68,7 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"hc_light": "keyword.control: #AF00DB"
+			"hc_light": "keyword.control: #B5200D"
 		}
 	},
 	{
@@ -80,7 +80,7 @@
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
 			"hc_black": "meta.preprocessor: #569CD6",
-			"hc_light": "meta.preprocessor: #0000FF"
+			"hc_light": "meta.preprocessor: #0F4A85"
 		}
 	},
 	{
@@ -92,7 +92,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -104,7 +104,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -116,7 +116,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -128,7 +128,7 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"hc_light": "keyword.control: #AF00DB"
+			"hc_light": "keyword.control: #B5200D"
 		}
 	},
 	{
@@ -140,7 +140,7 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"hc_light": "keyword.control: #AF00DB"
+			"hc_light": "keyword.control: #B5200D"
 		}
 	},
 	{
@@ -152,7 +152,7 @@
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
 			"hc_black": "meta.preprocessor: #569CD6",
-			"hc_light": "meta.preprocessor: #0000FF"
+			"hc_light": "meta.preprocessor: #0F4A85"
 		}
 	},
 	{
@@ -164,7 +164,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -176,7 +176,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -188,7 +188,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -200,7 +200,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -212,7 +212,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -224,7 +224,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -236,7 +236,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -248,7 +248,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -260,7 +260,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -272,7 +272,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -296,7 +296,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.type: #4EC9B0",
-			"hc_light": "entity.name.type: #267F99"
+			"hc_light": "entity.name.type: #185E73"
 		}
 	},
 	{
@@ -332,7 +332,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -368,7 +368,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"hc_light": "entity.name.function: #795E26"
+			"hc_light": "entity.name.function: #5E2CBC"
 		}
 	},
 	{
@@ -380,7 +380,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"hc_light": "entity.name.function: #795E26"
+			"hc_light": "entity.name.function: #5E2CBC"
 		}
 	},
 	{
@@ -404,7 +404,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.class: #4EC9B0",
-			"hc_light": "support.class: #267F99"
+			"hc_light": "support.class: #185E73"
 		}
 	},
 	{
@@ -512,7 +512,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -536,7 +536,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"hc_light": "entity.name.function: #795E26"
+			"hc_light": "entity.name.function: #5E2CBC"
 		}
 	},
 	{
@@ -548,7 +548,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"hc_light": "entity.name.function: #795E26"
+			"hc_light": "entity.name.function: #5E2CBC"
 		}
 	},
 	{
@@ -572,7 +572,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -632,7 +632,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.class: #4EC9B0",
-			"hc_light": "support.class: #267F99"
+			"hc_light": "support.class: #185E73"
 		}
 	},
 	{
@@ -692,7 +692,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.function: #DCDCAA",
-			"hc_light": "support.function: #795E26"
+			"hc_light": "support.function: #5E2CBC"
 		}
 	},
 	{
@@ -788,7 +788,7 @@
 			"dark_vs": "constant.language: #569CD6",
 			"light_vs": "constant.language: #0000FF",
 			"hc_black": "constant.language: #569CD6",
-			"hc_light": "constant.language: #0000FF"
+			"hc_light": "constant.language: #0F4A85"
 		}
 	},
 	{
@@ -824,7 +824,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -872,7 +872,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.class: #4EC9B0",
-			"hc_light": "support.class: #267F99"
+			"hc_light": "support.class: #185E73"
 		}
 	},
 	{
@@ -944,7 +944,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.class: #4EC9B0",
-			"hc_light": "support.class: #267F99"
+			"hc_light": "support.class: #185E73"
 		}
 	},
 	{
@@ -1052,7 +1052,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.class: #4EC9B0",
-			"hc_light": "support.class: #267F99"
+			"hc_light": "support.class: #185E73"
 		}
 	},
 	{
@@ -1100,7 +1100,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -1112,7 +1112,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -1124,7 +1124,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -1160,7 +1160,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -1172,7 +1172,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -1184,7 +1184,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -1220,7 +1220,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -1232,7 +1232,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -1244,7 +1244,7 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string: #A31515"
+			"hc_light": "string: #0F4A85"
 		}
 	},
 	{
@@ -1280,7 +1280,7 @@
 			"dark_vs": "constant.language: #569CD6",
 			"light_vs": "constant.language: #0000FF",
 			"hc_black": "constant.language: #569CD6",
-			"hc_light": "constant.language: #0000FF"
+			"hc_light": "constant.language: #0F4A85"
 		}
 	},
 	{
@@ -1388,7 +1388,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.type: #4EC9B0",
-			"hc_light": "support.type: #267F99"
+			"hc_light": "support.type: #185E73"
 		}
 	},
 	{
@@ -1460,7 +1460,7 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"hc_light": "keyword.control: #AF00DB"
+			"hc_light": "keyword.control: #B5200D"
 		}
 	},
 	{
@@ -1784,7 +1784,7 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"hc_light": "keyword.control: #AF00DB"
+			"hc_light": "keyword.control: #B5200D"
 		}
 	},
 	{
@@ -1808,7 +1808,7 @@
 			"dark_vs": "constant.language: #569CD6",
 			"light_vs": "constant.language: #0000FF",
 			"hc_black": "constant.language: #569CD6",
-			"hc_light": "constant.language: #0000FF"
+			"hc_light": "constant.language: #0F4A85"
 		}
 	},
 	{
@@ -1844,7 +1844,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -1892,7 +1892,7 @@
 			"dark_vs": "keyword.other.unit: #B5CEA8",
 			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8",
-			"hc_light": "keyword.other.unit: #098658"
+			"hc_light": "keyword.other.unit: #096D48"
 		}
 	},
 	{
@@ -1904,7 +1904,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -1940,7 +1940,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -1988,7 +1988,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -2000,7 +2000,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -2012,7 +2012,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -2072,7 +2072,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -2084,7 +2084,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -2096,7 +2096,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -2108,7 +2108,7 @@
 			"dark_vs": "keyword.other.unit: #B5CEA8",
 			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8",
-			"hc_light": "keyword.other.unit: #098658"
+			"hc_light": "keyword.other.unit: #096D48"
 		}
 	},
 	{
@@ -2120,7 +2120,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -2180,7 +2180,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -2192,7 +2192,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -2204,7 +2204,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -2216,7 +2216,7 @@
 			"dark_vs": "keyword.other.unit: #B5CEA8",
 			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8",
-			"hc_light": "keyword.other.unit: #098658"
+			"hc_light": "keyword.other.unit: #096D48"
 		}
 	},
 	{
@@ -2228,7 +2228,7 @@
 			"dark_vs": "keyword.operator.minus.exponent: #B5CEA8",
 			"light_vs": "keyword.operator.minus.exponent: #098658",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator.minus.exponent: #098658"
+			"hc_light": "keyword.operator.minus.exponent: #096D48"
 		}
 	},
 	{
@@ -2240,7 +2240,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -2300,7 +2300,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -2336,7 +2336,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"hc_light": "entity.name.function: #795E26"
+			"hc_light": "entity.name.function: #5E2CBC"
 		}
 	},
 	{
@@ -2348,7 +2348,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"hc_light": "entity.name.function: #795E26"
+			"hc_light": "entity.name.function: #5E2CBC"
 		}
 	},
 	{
@@ -2372,7 +2372,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -2468,7 +2468,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"hc_light": "entity.name.function: #795E26"
+			"hc_light": "entity.name.function: #5E2CBC"
 		}
 	},
 	{
@@ -2480,7 +2480,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"hc_light": "entity.name.function: #795E26"
+			"hc_light": "entity.name.function: #5E2CBC"
 		}
 	},
 	{
@@ -2504,7 +2504,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -2612,7 +2612,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -2624,7 +2624,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -2756,7 +2756,7 @@
 			"dark_vs": "variable.language: #569CD6",
 			"light_vs": "variable.language: #0000FF",
 			"hc_black": "variable: #9CDCFE",
-			"hc_light": "variable.language: #0000FF"
+			"hc_light": "variable.language: #0F4A85"
 		}
 	},
 	{
@@ -2780,7 +2780,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -2792,7 +2792,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -2816,7 +2816,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.function: #DCDCAA",
-			"hc_light": "support.function: #795E26"
+			"hc_light": "support.function: #5E2CBC"
 		}
 	},
 	{
@@ -2876,7 +2876,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.class: #4EC9B0",
-			"hc_light": "support.class: #267F99"
+			"hc_light": "support.class: #185E73"
 		}
 	},
 	{
@@ -2960,7 +2960,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.class: #4EC9B0",
-			"hc_light": "support.class: #267F99"
+			"hc_light": "support.class: #185E73"
 		}
 	},
 	{
@@ -3272,7 +3272,7 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"hc_light": "keyword.control: #AF00DB"
+			"hc_light": "keyword.control: #B5200D"
 		}
 	},
 	{
@@ -3320,7 +3320,7 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"hc_light": "keyword.control: #AF00DB"
+			"hc_light": "keyword.control: #B5200D"
 		}
 	},
 	{
@@ -3344,7 +3344,7 @@
 			"dark_vs": "constant.language: #569CD6",
 			"light_vs": "constant.language: #0000FF",
 			"hc_black": "constant.language: #569CD6",
-			"hc_light": "constant.language: #0000FF"
+			"hc_light": "constant.language: #0F4A85"
 		}
 	},
 	{
@@ -3380,7 +3380,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -3392,7 +3392,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	}
 ]

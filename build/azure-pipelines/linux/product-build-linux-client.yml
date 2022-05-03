@@ -21,7 +21,7 @@ steps:
       artifact: reh_node_modules-$(VSCODE_ARCH)
       path: $(Build.ArtifactStagingDirectory)
     displayName: Download server build dependencies
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'armhf'))
 
   - script: |
       set -e
@@ -148,7 +148,7 @@ steps:
       rm -rf remote/node_modules
       tar -xzf $(Build.ArtifactStagingDirectory)/reh_node_modules-$(VSCODE_ARCH).tar.gz --directory $(Build.SourcesDirectory)/remote
     displayName: Extract server node_modules output
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'armhf'))
 
   - script: |
       set -e
@@ -323,7 +323,7 @@ steps:
       targetPath: .build/logs
     displayName: "Publish Log Files"
     continueOnError: true
-    condition: and(succeededOrFailed(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    condition: and(failed(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results

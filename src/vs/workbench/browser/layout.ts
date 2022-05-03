@@ -617,16 +617,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			return {
 				filesToOpenOrCreate: defaultLayout.editors.map<IPath>(file => {
+					const legacyOverride = file.openWith;
+					const legacySelection = file.selection && file.selection.start && isNumber(file.selection.start.line) ? {
+						startLineNumber: file.selection.start.line,
+						startColumn: isNumber(file.selection.start.column) ? file.selection.start.column : 1,
+						endLineNumber: isNumber(file.selection.end.line) ? file.selection.end.line : undefined,
+						endColumn: isNumber(file.selection.end.line) ? (isNumber(file.selection.end.column) ? file.selection.end.column : 1) : undefined,
+					} : undefined;
+
 					return {
 						fileUri: URI.revive(file.uri),
-						selection: file.selection && file.selection.start && isNumber(file.selection.start.line) ? {
-							startLineNumber: file.selection.start.line,
-							startColumn: isNumber(file.selection.start.column) ? file.selection.start.column : 1,
-							endLineNumber: isNumber(file.selection.end.line) ? file.selection.end.line : undefined,
-							endColumn: isNumber(file.selection.end.line) ? (isNumber(file.selection.end.column) ? file.selection.end.column : 1) : undefined,
-						} : undefined,
 						openOnlyIfExists: file.openOnlyIfExists,
-						editorOverrideId: file.openWith
+						options: {
+							selection: legacySelection,
+							override: legacyOverride,
+							...file.options // keep at the end to override legacy selection/override that may be `undefined`
+						}
 					};
 				})
 			};
