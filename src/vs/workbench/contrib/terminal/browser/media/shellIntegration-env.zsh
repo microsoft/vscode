@@ -7,8 +7,8 @@ if [[ -f ~/.zshenv ]]; then
 	. ~/.zshenv
 fi
 if [[ "$ZDOTDIR" != "$ORIGINAL_ZDOTDIR" ]]; then
-	USER_ZDOTDIR="$ZDOTDIR"
-	ZDOTDIR="$ORIGINAL_ZDOTDIR"
+	USER_ZDOTDIR=$ZDOTDIR
+	ZDOTDIR=$ORIGINAL_ZDOTDIR
 else
-	USER_ZDOTDIR="$HOME"
+	USER_ZDOTDIR=$HOME
 fi
