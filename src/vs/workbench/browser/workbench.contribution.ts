@@ -120,7 +120,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				properties: {
 					untitledEditors: {
 						type: 'boolean',
-						description: localize('workbench.editor.showLanguageDetectionHints.editors', "Show in untitled editors"),
+						description: localize('workbench.editor.showLanguageDetectionHints.editors', "Show in untitled text editors"),
 					},
 					notebookEditors: {
 						type: 'boolean',
