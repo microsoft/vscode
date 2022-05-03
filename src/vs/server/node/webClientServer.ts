@@ -99,6 +99,7 @@ export class WebClientServer {
 	private readonly _callbackRoute: string;
 
 	constructor(
+		readonly routePrefix: string,
 		private readonly _connectionToken: ServerConnectionToken,
 		@IServerEnvironmentService private readonly _environmentService: IServerEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
@@ -106,9 +107,8 @@ export class WebClientServer {
 		@IProductService private readonly _productService: IProductService,
 	) {
 		this._webExtensionResourceUrlTemplate = this._productService.extensionsGallery?.resourceUrlTemplate ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate) : undefined;
-		const qualityAndCommit = `${_productService.quality ?? 'oss'}-${_productService.commit ?? 'dev'}`;
-		this._staticRoute = `/${qualityAndCommit}/static`;
-		this._callbackRoute = `/${qualityAndCommit}/callback`;
+		this._staticRoute = `${routePrefix}/static`;
+		this._callbackRoute = `${routePrefix}/callback`;
 	}
 
 	/**

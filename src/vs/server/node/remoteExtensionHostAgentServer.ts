@@ -11,6 +11,7 @@ import { performance } from 'perf_hooks';
 import * as url from 'url';
 import { LoaderStats } from 'vs/base/common/amd';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -61,6 +62,8 @@ export class RemoteExtensionHostAgentServer extends Disposable implements IServe
 	private readonly _webClientServer: WebClientServer | null;
 	private readonly _webEndpointOriginChecker = WebEndpointOriginChecker.create(this._productService);
 
+	private readonly _routePrefix: string;
+
 	private shutdownTimer: NodeJS.Timer | undefined;
 
 	constructor(
@@ -75,12 +78,14 @@ export class RemoteExtensionHostAgentServer extends Disposable implements IServe
 	) {
 		super();
 
+		this._routePrefix = `/${_productService.quality ?? 'oss'}-${_productService.commit ?? 'dev'}`;
+
 		this._extHostConnections = Object.create(null);
 		this._managementConnections = Object.create(null);
 		this._allReconnectionTokens = new Set<string>();
 		this._webClientServer = (
 			hasWebClient
-				? this._instantiationService.createInstance(WebClientServer, this._connectionToken)
+				? this._instantiationService.createInstance(WebClientServer, this._routePrefix, this._connectionToken)
 				: null
 		);
 		this._logService.info(`Extension host agent started.`);
@@ -97,10 +102,14 @@ export class RemoteExtensionHostAgentServer extends Disposable implements IServe
 		}
 
 		const parsedUrl = url.parse(req.url, true);
-		const pathname = parsedUrl.pathname;
+		let pathname = parsedUrl.pathname;
 
 		if (!pathname) {
 			return serveError(req, res, 400, `Bad request.`);
+		}
+
+		if (pathname.startsWith(this._routePrefix) && pathname.charCodeAt(this._routePrefix.length) === CharCode.Slash) {
+			pathname = pathname.substring(this._routePrefix.length);
 		}
 
 		// Version
