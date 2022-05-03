@@ -6,9 +6,9 @@ ORIGINAL_ZDOTDIR=$ZDOTDIR
 if [[ -f ~/.zshenv ]]; then
 	. ~/.zshenv
 fi
-USER_ZDOTDIR="$ZDOTDIR"
-ZDOTDIR="$ORIGINAL_ZDOTDIR"
-if [ -z "${USER_ZDOTDIR}" ]; then
-	USER_ZDOTDIR="~"
+if [[ "$ZDOTDIR" != "$ORIGINAL_ZDOTDIR" ]]; then
+	USER_ZDOTDIR="$ZDOTDIR"
+	ZDOTDIR="$ORIGINAL_ZDOTDIR"
+else
+	USER_ZDOTDIR="$HOME"
 fi
-echo "User ZDOTDIR $USER_ZDOTDIR"
