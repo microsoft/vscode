@@ -1523,7 +1523,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 					if (uris.length) {
 						treeDataTransfer.set(Mimes.uriList, {
 							asString: () => Promise.resolve(uris.map(uri => uri.toString()).join('\n')),
-							asFile: async () => undefined,
+							asFile: () => undefined,
 							value: undefined
 						});
 					}
@@ -1549,7 +1549,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 								const converted = this.convertKnownMimes(type, kind, dataValue);
 								treeDataTransfer.set(converted.type, {
 									asString: () => Promise.resolve(converted.value!),
-									asFile: async () => undefined,
+									asFile: () => undefined,
 									value: undefined
 								});
 							}

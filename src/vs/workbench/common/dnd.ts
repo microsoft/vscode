@@ -13,7 +13,7 @@ export interface IDataTransferFile {
 
 export interface IDataTransferItem {
 	asString(): Thenable<string>;
-	asFile(): Thenable<IDataTransferFile | undefined>;
+	asFile(): IDataTransferFile | undefined;
 	value: any;
 }
 

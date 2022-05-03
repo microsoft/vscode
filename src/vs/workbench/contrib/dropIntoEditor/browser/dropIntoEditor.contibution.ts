@@ -53,7 +53,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 				textEditorDataTransfer.set(type, {
 					kind: 'string',
 					asString: () => asStringValue,
-					asFile: () => Promise.resolve(undefined),
+					asFile: () => undefined,
 					value: undefined
 				});
 			} else if (item.kind === 'file') {
@@ -62,7 +62,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 					textEditorDataTransfer.set(type, {
 						kind: 'file',
 						asString: () => Promise.resolve(''),
-						asFile: async () => {
+						asFile: () => {
 							const uri = file.path ? URI.parse(file.path) : undefined;
 							return {
 								name: file.name,
@@ -88,7 +88,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 				textEditorDataTransfer.set(Mimes.uriList.toLowerCase(), {
 					kind: 'string',
 					asString: () => Promise.resolve(str),
-					asFile: () => Promise.resolve(undefined),
+					asFile: () => undefined,
 					value: undefined
 				});
 			}

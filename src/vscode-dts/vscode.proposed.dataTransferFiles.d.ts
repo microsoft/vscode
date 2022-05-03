@@ -27,6 +27,6 @@ declare module 'vscode' {
 	}
 
 	export interface DataTransferItem {
-		asFile(): Thenable<DataTransferFile | undefined>;
+		asFile(): DataTransferFile | undefined;
 	}
 }

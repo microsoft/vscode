@@ -2393,7 +2393,7 @@ export class DataTransferItem {
 		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
 	}
 
-	async asFile(): Promise<undefined> {
+	asFile(): undefined {
 		return undefined;
 	}
 

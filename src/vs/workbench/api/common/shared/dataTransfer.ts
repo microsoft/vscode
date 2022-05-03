@@ -29,7 +29,7 @@ export namespace DataTransferConverter {
 		value.types.forEach((type, index) => {
 			newDataTransfer.set(type, {
 				asString: async () => value.items[index].asString,
-				asFile: async () => {
+				asFile: () => {
 					const file = value.items[index].asFile;
 					if (!file) {
 						return undefined;
@@ -55,7 +55,7 @@ export namespace DataTransferConverter {
 		for (const entry of entries) {
 			newDTO.types.push(entry[0]);
 			const stringValue = await entry[1].asString();
-			const fileValue = await entry[1].asFile();
+			const fileValue = entry[1].asFile();
 			newDTO.items.push({
 				asString: stringValue,
 				asFile: fileValue ? { ...fileValue, data: VSBuffer.wrap(await fileValue.data()) } : undefined,
