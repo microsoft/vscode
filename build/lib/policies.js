@@ -266,7 +266,7 @@ function renderADML(appName, versions, categories, policies, translations) {
 	<resources>
 		<stringTable>
 			<string id="Application">${appName}</string>
-			${versions.map(v => `<string id="Supported_${v.replace(/\./g, '_')}">${appName} ${v} or later</string>`)}
+			${versions.map(v => `<string id="Supported_${v.replace(/\./g, '_')}">${appName} &gt;= ${v}</string>`)}
 			${categories.map(c => `<string id="Category_${c.name.nlsKey}">${c.name.value}</string>`)}
 			${policies.map(p => p.renderADMLStrings(translations)).flat().join(`\n			`)}
 		</stringTable>
