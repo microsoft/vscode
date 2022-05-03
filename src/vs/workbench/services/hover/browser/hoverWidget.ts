@@ -38,6 +38,7 @@ const enum Constants {
 
 export class HoverWidget extends Widget {
 	private readonly _messageListeners = new DisposableStore();
+	private readonly _lockMouseTracker: CompositeMouseTracker;
 
 	private readonly _hover: BaseHoverWidget;
 	private readonly _hoverPointer: HTMLElement | undefined;
@@ -53,6 +54,7 @@ export class HoverWidget extends Widget {
 	private _isLocked: boolean = false;
 
 	get isDisposed(): boolean { return this._isDisposed; }
+	get isMouseIn(): boolean { return this._lockMouseTracker.isMouseIn; }
 	get domNode(): HTMLElement { return this._hover.containerDomNode; }
 
 	private readonly _onDispose = this._register(new Emitter<void>());
@@ -207,12 +209,14 @@ export class HoverWidget extends Widget {
 		// released to unlock the element.
 		if (hideOnHover) {
 			const mouseTracker2Targets = [...this._target.targetElements, this._hoverContainer];
-			const mouseTracker2 = this._register(new CompositeMouseTracker(mouseTracker2Targets));
-			this._register(mouseTracker2.onMouseOut(() => {
+			this._lockMouseTracker = this._register(new CompositeMouseTracker(mouseTracker2Targets));
+			this._register(this._lockMouseTracker.onMouseOut(() => {
 				if (!this._isLocked) {
 					this.dispose();
 				}
 			}));
+		} else {
+			this._lockMouseTracker = mouseTracker;
 		}
 	}
 
@@ -496,6 +500,8 @@ class CompositeMouseTracker extends Widget {
 
 	private readonly _onMouseOut = this._register(new Emitter<void>());
 	get onMouseOut(): Event<void> { return this._onMouseOut.event; }
+
+	get isMouseIn(): boolean { return this._isMouseIn; }
 
 	constructor(
 		private _elements: HTMLElement[]

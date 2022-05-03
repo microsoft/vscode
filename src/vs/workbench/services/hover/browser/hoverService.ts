@@ -104,6 +104,10 @@ export class HoverService implements IHoverService {
 	private _keyUp(e: KeyboardEvent, hover: HoverWidget) {
 		if (e.key === 'Alt') {
 			hover.isLocked = false;
+			// Hide if alt is released while the mouse os not over hover/target
+			if (!hover.isMouseIn) {
+				this.hideHover();
+			}
 		}
 	}
 }
