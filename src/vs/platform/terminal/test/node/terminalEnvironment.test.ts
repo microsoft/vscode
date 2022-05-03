@@ -93,7 +93,8 @@ suite('platform - terminalEnvironment', () => {
 					const expectedSources = [
 						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-rc.zsh/,
 						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-profile.zsh/,
-						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-env.zsh/
+						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-env.zsh/,
+						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-login.zsh/
 					];
 					function assertIsEnabled(result: IShellIntegrationConfigInjection) {
 						strictEqual(Object.keys(result.envMixin!).length, 1);
