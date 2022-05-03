@@ -101,18 +101,18 @@ function getPolicy(moduleName, settingNode, policyNode, categories) {
         throw new Error(`Missing required 'type' property.`);
     }
     if (type !== 'string') {
-        throw new Error(`TODO`);
+        throw new Error(`Can't create policy from setting type '${type}' (needs implementing)`);
     }
     const _enum = getStringArrayProperty(settingNode, 'enum');
     if (!_enum) {
-        throw new Error(`TODO`);
+        throw new Error(`Missing required 'enum' property.`);
     }
     if (!isStringArray(_enum)) {
-        throw new Error(`TODO`);
+        throw new Error(`Property 'enum' should not be localized.`);
     }
     const enumDescriptions = getStringArrayProperty(settingNode, 'enumDescriptions');
     if (!enumDescriptions) {
-        throw new Error(`TODO`);
+        throw new Error(`Missing required 'enumDescriptions' property.`);
     }
     if (!isNlsStringArray(enumDescriptions)) {
         throw new Error(`Property 'enumDescriptions' should be localized.`);
