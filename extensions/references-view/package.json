@@ -3,8 +3,9 @@
   "displayName": "Reference Search View",
   "icon": "media/icon.png",
   "description": "Reference Search results as separate, stable view in the sidebar",
-  "version": "0.0.90",
-  "publisher": "ms-vscode",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.67.0"
   },
