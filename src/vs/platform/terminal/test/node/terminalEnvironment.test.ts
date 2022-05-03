@@ -89,7 +89,7 @@ suite('platform - terminalEnvironment', () => {
 			suite('zsh', () => {
 				suite('should override args', () => {
 					const expectedDir = /.+\/vscode-zsh/;
-					const expectedDests = [/.+\/vscode-zsh\/.zshrc/, /.+\/vscode-zsh\/.zprofile/, /.+\/vscode-zsh\/.zshenv/];
+					const expectedDests = [/.+\/vscode-zsh\/.zshrc/, /.+\/vscode-zsh\/.zprofile/, /.+\/vscode-zsh\/.zshenv/, /.+\/vscode-zsh\/.zlogin/];
 					const expectedSources = [
 						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-rc.zsh/,
 						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-profile.zsh/,
