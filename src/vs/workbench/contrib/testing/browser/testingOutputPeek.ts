@@ -1175,7 +1175,7 @@ class TestMessageElement implements ITreeElement {
 
 		this.id = this.uri.toString();
 
-		const asPlaintext = type === TestMessageType.Info
+		const asPlaintext = type === TestMessageType.Output
 			? removeAnsiEscapeCodes(message)
 			: renderStringAsPlaintext(message);
 		const lines = count(asPlaintext.trimRight(), '\n');

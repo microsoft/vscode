@@ -65,7 +65,7 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 				const message = test.tasks[parsed.taskIndex].messages[parsed.messageIndex];
 				if (message) {
 					if (typeof message.message === 'string') {
-						text = message.type === TestMessageType.Info ? removeAnsiEscapeCodes(message.message) : message.message;
+						text = message.type === TestMessageType.Output ? removeAnsiEscapeCodes(message.message) : message.message;
 					} else {
 						text = message.message.value;
 						language = this.languageService.createById('markdown');
