@@ -25,6 +25,11 @@ export interface ILanguageDetectionService {
 	detectLanguage(resource: URI, supportedLangs?: string[]): Promise<string | undefined>;
 }
 
+export type LanguageDetectionHintConfig = {
+	untitledEditors: boolean;
+	notebookEditors: boolean;
+};
+
 //#region Telemetry events
 
 export const AutomaticLanguageDetectionLikelyWrongId = 'automaticlanguagedetection.likelywrong';
