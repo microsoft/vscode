@@ -158,7 +158,7 @@ export class WebClientServer {
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		return serveFile(filePath, this._environmentService.isBuilt ? CacheControl.NO_EXPIRY : CacheControl.NO_CACHING, this._logService, req, res, headers);
+		return serveFile(filePath, this._environmentService.isBuilt ? CacheControl.NO_EXPIRY : CacheControl.ETAG, this._logService, req, res, headers);
 	}
 
 	private _getResourceURLTemplateAuthority(uri: URI): string | undefined {
