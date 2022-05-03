@@ -99,13 +99,15 @@ suite('platform - terminalEnvironment', () => {
 					function assertIsEnabled(result: IShellIntegrationConfigInjection) {
 						strictEqual(Object.keys(result.envMixin!).length, 1);
 						ok(result.envMixin!['ZDOTDIR']?.match(expectedDir));
-						strictEqual(result.filesToCopy?.length, 3);
+						strictEqual(result.filesToCopy?.length, 4);
 						ok(result.filesToCopy[0].dest.match(expectedDests[0]));
 						ok(result.filesToCopy[1].dest.match(expectedDests[1]));
 						ok(result.filesToCopy[2].dest.match(expectedDests[2]));
+						ok(result.filesToCopy[3].dest.match(expectedDests[3]));
 						ok(result.filesToCopy[0].source.match(expectedSources[0]));
 						ok(result.filesToCopy[1].source.match(expectedSources[1]));
 						ok(result.filesToCopy[2].source.match(expectedSources[2]));
+						ok(result.filesToCopy[3].source.match(expectedSources[3]));
 					}
 					test('when undefined, []', () => {
 						const result1 = getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, logService);
