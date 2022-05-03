@@ -90,7 +90,6 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 }
 
 const APP_ROOT = dirname(FileAccess.asFileUri('', require).fsPath);
-const CHARCODE_SLASH = CharCode.Slash;
 
 export class WebClientServer {
 
@@ -121,7 +120,7 @@ export class WebClientServer {
 		try {
 			const pathname = parsedUrl.pathname!;
 
-			if (pathname.startsWith(this._staticRoute) && pathname.charCodeAt(this._staticRoute.length) === CHARCODE_SLASH) {
+			if (pathname.startsWith(this._staticRoute) && pathname.charCodeAt(this._staticRoute.length) === CharCode.Slash) {
 				return this._handleStatic(req, res, parsedUrl);
 			}
 			if (pathname === '/') {
