@@ -306,7 +306,9 @@ function pushADMLStrings(arr: string[], policy: Policy, values: (string | NlsStr
 }
 
 function renderADMLStrings(policy: Policy): string[] {
-	const result: string[] = [];
+	const result: string[] = [
+		`<string id="${policy.name}">${policy.name}</string>`
+	];
 
 	pushADMLString(result, policy, policy.description);
 

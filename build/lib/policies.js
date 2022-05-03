@@ -220,7 +220,9 @@ function pushADMLStrings(arr, policy, values) {
     }
 }
 function renderADMLStrings(policy) {
-    const result = [];
+    const result = [
+        `<string id="${policy.name}">${policy.name}</string>`
+    ];
     pushADMLString(result, policy, policy.description);
     switch (policy.policyType) {
         case PolicyType.StringEnum:
