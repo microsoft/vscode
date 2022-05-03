@@ -5,7 +5,7 @@
 
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
-import { EOL } from 'os';
+import * as path from 'path';
 import * as byline from 'byline';
 import { rgPath } from '@vscode/ripgrep';
 import * as Parser from 'tree-sitter';
@@ -24,23 +24,31 @@ function isStringArray(value: (string | NlsString)[]): value is string[] {
 	return !value.some(s => isNlsString(s));
 }
 
+function isNlsStringArray(value: (string | NlsString)[]): value is NlsString[] {
+	return value.every(s => isNlsString(s));
+}
+
+interface Category {
+	readonly name: NlsString;
+}
+
 enum PolicyType {
 	StringEnum
 }
 
 interface BasePolicy {
-	readonly policyType: PolicyType;
 	readonly name: string;
+	readonly policyType: PolicyType;
+	readonly category: Category;
 	readonly minimumVersion: string;
-	readonly description: string | NlsString;
-	readonly category?: string | NlsString;
+	readonly description: NlsString;
 }
 
 interface StringEnumPolicy extends BasePolicy {
 	readonly policyType: PolicyType.StringEnum;
 	readonly type: 'string';
 	readonly enum: string[];
-	readonly enumDescriptions: (string | NlsString)[];
+	readonly enumDescriptions: NlsString[];
 }
 
 type Policy = StringEnumPolicy;
@@ -116,7 +124,7 @@ function getStringArrayProperty(node: Parser.SyntaxNode, key: string): (string |
 
 // ---
 
-function getPolicy(settingNode: Parser.SyntaxNode, policyNode: Parser.SyntaxNode): Policy {
+function getPolicy(settingNode: Parser.SyntaxNode, policyNode: Parser.SyntaxNode, categories: Map<string, Category>): Policy {
 	const name = getStringProperty(policyNode, 'name');
 
 	if (!name) {
@@ -141,6 +149,10 @@ function getPolicy(settingNode: Parser.SyntaxNode, policyNode: Parser.SyntaxNode
 
 	if (!description) {
 		throw new Error(`Missing required 'description' property.`);
+	}
+
+	if (!isNlsString(description)) {
+		throw new Error(`Property 'description' should be localized.`);
 	}
 
 	const type = getStringProperty(settingNode, 'type');
@@ -169,13 +181,27 @@ function getPolicy(settingNode: Parser.SyntaxNode, policyNode: Parser.SyntaxNode
 		throw new Error(`TODO`);
 	}
 
-	const category = getStringProperty(policyNode, 'category');
-
-	if (category) {
-		return { policyType: PolicyType.StringEnum, name, minimumVersion, description, type, enum: _enum, enumDescriptions, category };
-	} else {
-		return { policyType: PolicyType.StringEnum, name, minimumVersion, description, type, enum: _enum, enumDescriptions };
+	if (!isNlsStringArray(enumDescriptions)) {
+		throw new Error(`Property 'enumDescriptions' should be localized.`);
 	}
+
+	const categoryName = getStringProperty(policyNode, 'category');
+
+	if (!categoryName) {
+		throw new Error(`Missing required 'category' property.`);
+	} else if (!isNlsString(categoryName)) {
+		throw new Error(`Property 'category' should be localized.`);
+	}
+
+	const categoryKey = `${categoryName.nlsKey}:${categoryName.value}`;
+	let category = categories.get(categoryKey);
+
+	if (!category) {
+		category = { name: categoryName };
+		categories.set(categoryKey, category);
+	}
+
+	return { policyType: PolicyType.StringEnum, name, minimumVersion, description, type, enum: _enum, enumDescriptions, category };
 }
 
 function getPolicies(node: Parser.SyntaxNode): Policy[] {
@@ -197,10 +223,12 @@ function getPolicies(node: Parser.SyntaxNode): Policy[] {
 		)
 	`);
 
+	const categories = new Map<string, Category>();
+
 	return query.matches(node).map(m => {
 		const settingNode = m.captures.filter(c => c.name === 'setting')[0].node;
 		const policyNode = m.captures.filter(c => c.name === 'policy')[0].node;
-		return getPolicy(settingNode, policyNode);
+		return getPolicy(settingNode, policyNode, categories);
 	});
 }
 
@@ -219,55 +247,47 @@ async function getFiles(root: string): Promise<string[]> {
 
 // ---
 
-// const admxTemplate = `<?xml version="1.0" encoding="utf-8"?>
-// <policyDefinitions revision="1.1" schemaVersion="1.0">
-//   <policyNamespaces>
-//     <target prefix="CodeOSS" namespace="Microsoft.Policies.CodeOSS" />
-//   </policyNamespaces>
-//   <resources minRequiredRevision="1.0" />
-//   <supportedOn>
-//     <definitions>
-//       <definition name="SUPPORTED_1_67" displayName="$(string.SUPPORTED_1_67)" />
-//     </definitions>
-//   </supportedOn>
-//   <categories>
-//     <category displayName="$(string.Application)" name="Application" />
-//     <category displayName="$(string.Update_group)" name="Update">
-//       <parentCategory ref="Application" />
-//     </category>
-//   </categories>
-//   <policies>
-//     <policy name="UpdateMode" class="Both" displayName="$(string.UpdateMode)" explainText="$(string.UpdateMode_Explain)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.UpdateMode)">
-//       <parentCategory ref="Update" />
-//       <supportedOn ref="SUPPORTED_1_67" />
-//       <elements>
-//         <enum id="UpdateMode" valueName="UpdateMode">
-//           <item displayName="$(string.UpdateMode_None)">
-//             <value>
-//               <string>none</string>
-//             </value>
-//           </item>
-//           <item displayName="$(string.UpdateMode_Manual)">
-//             <value>
-//               <string>manual</string>
-//             </value>
-//           </item>
-//           <item displayName="$(string.UpdateMode_Start)">
-//             <value>
-//               <string>start</string>
-//             </value>
-//           </item>
-//           <item displayName="$(string.UpdateMode_Default)">
-//             <value>
-//               <string>default</string>
-//             </value>
-//           </item>
-//         </enum>
-//       </elements>
-//     </policy>
-//   </policies>
-// </policyDefinitions>
-// `;
+function renderADMXPolicy(regKey: string, policy: Policy) {
+	switch (policy.policyType) {
+		case PolicyType.StringEnum:
+			return `<policy name="${policy.name}" class="Both" displayName="$(string.${policy.name})" explainText="$(string.${policy.name}_${policy.description.nlsKey})" key="Software\\Policies\\Microsoft\\${regKey}" presentation="$(presentation.${policy.name})">
+			<parentCategory ref="${policy.category.name.nlsKey}" />
+			<supportedOn ref="SUPPORTED_${policy.minimumVersion.replace('.', '_')}" />
+			<elements>
+				<enum id="${policy.name}" valueName="${policy.name}">
+					${policy.enum.map((value, index) => `<item displayName="$(string.${policy.name}_${policy.enumDescriptions[index].nlsKey})"><value><string>${value}</string></value></item>`).join(`\n					`)}
+				</enum>
+			</elements>
+		</policy>`;
+		default:
+			throw new Error(`Unexpected policy type: ${policy.type}`);
+	}
+}
+
+function renderADMX(regKey: string, versions: string[], categories: Category[], policies: Policy[]) {
+	versions = versions.map(v => v.replace('.', '_'));
+
+	return `<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitions revision="1.1" schemaVersion="1.0">
+	<policyNamespaces>
+		<target prefix="${regKey}" namespace="Microsoft.Policies.${regKey}" />
+	</policyNamespaces>
+	<resources minRequiredRevision="1.0" />
+	<supportedOn>
+		<definitions>
+			${versions.map(v => `<definition name="Supported_${v}" displayName="$(string.Supported_${v})" />`).join(`\n			`)}
+		</definitions>
+	</supportedOn>
+	<categories>
+		<category displayName="$(string.Application)" name="Application" />
+		${categories.map(c => `<category displayName="$(string.Category_${c.name.nlsKey})" name="${c.name.nlsKey}"><parentCategory ref="Application" /></category>`).join(`\n		`)}
+	</categories>
+	<policies>
+		${policies.map(p => renderADMXPolicy(regKey, p)).join(`\n		`)}
+	</policies>
+</policyDefinitions>
+`;
+}
 
 function renderADMLString(policy: Policy, nlsString: NlsString): string {
 	return `<string id="${policy.name}_${nlsString.nlsKey}">${nlsString.value}</string>`;
@@ -288,7 +308,6 @@ function pushADMLStrings(arr: string[], policy: Policy, values: (string | NlsStr
 function renderADMLStrings(policy: Policy): string[] {
 	const result: string[] = [];
 
-	pushADMLString(result, policy, policy.category);
 	pushADMLString(result, policy, policy.description);
 
 	switch (policy.policyType) {
@@ -311,31 +330,39 @@ function renderADMLPresentation(policy: Policy): string {
 	}
 }
 
-async function renderADML(policies: Policy[]) {
-	const versions = [...new Set(policies.map(p => p.minimumVersion)).values()].sort();
-	const app = JSON.parse(await fs.readFile('product.json', 'utf-8')).nameLong;
-
+function renderADML(appName: string, versions: string[], categories: Category[], policies: Policy[]) {
 	return `<?xml version="1.0" encoding="utf-8"?>
 <policyDefinitionResources revision="1.0" schemaVersion="1.0">
 	<displayName />
 	<description />
 	<resources>
 		<stringTable>
-			<string id="Application">${app}</string>
-			${versions.map(v => `<string id="Supported_${v.replace('.', '_')}">${app} ${v} or later</string>`)}
-			${policies.map(p => renderADMLStrings(p)).flat().join(`${EOL}			`)}
-			</stringTable>
-			<presentationTable>
-			${policies.map(p => renderADMLPresentation(p)).join(`${EOL}			`)}
+			<string id="Application">${appName}</string>
+			${versions.map(v => `<string id="Supported_${v.replace('.', '_')}">${appName} ${v} or later</string>`)}
+			${categories.map(c => `<string id="Category_${c.name.nlsKey}">${c.name.value}</string>`)}
+			${policies.map(p => renderADMLStrings(p)).flat().join(`\n			`)}
+		</stringTable>
+		<presentationTable>
+			${policies.map(p => renderADMLPresentation(p)).join(`\n			`)}
 		</presentationTable>
 	</resources>
 </policyDefinitionResources>
 `;
 }
 
-// function renderGP(policies: Policy[]): { admx: string; adml: string } {
+async function renderGP(policies: Policy[]) {
+	const product = JSON.parse(await fs.readFile('product.json', 'utf-8'));
+	const appName = product.nameLong;
+	const regKey = product.win32RegValueName;
 
-// }
+	const versions = [...new Set(policies.map(p => p.minimumVersion)).values()].sort();
+	const categories = [...new Set(policies.map(p => p.category))];
+
+	return {
+		admx: renderADMX(regKey, versions, categories, policies),
+		adml: renderADML(appName, versions, categories, policies),
+	};
+}
 
 // ---
 
@@ -349,14 +376,16 @@ async function main() {
 	for (const file of files) {
 		const contents = await fs.readFile(file, { encoding: 'utf8' });
 		const tree = parser.parse(contents);
-
-		// for (const policy of getPolicies(tree.rootNode)) {
-		// 	console.log(policy);
-		// }
 		policies.push(...getPolicies(tree.rootNode));
 	}
 
-	console.log(await renderADML(policies));
+	const { admx, adml } = await renderGP(policies);
+
+	const root = '.build/policies/win32';
+	await fs.mkdir(root, { recursive: true });
+
+	await fs.writeFile(path.join(root, 'Code.admx'), admx.replace(/\r?\n/g, '\n'));
+	await fs.writeFile(path.join(root, 'Code.adml'), adml.replace(/\r?\n/g, '\n'));
 }
 
 if (require.main === module) {

@@ -130,7 +130,7 @@ export const enum ConfigurationScope {
 export interface PolicyConfiguration {
 	readonly name: string;
 	readonly minimumVersion: `1.${number}`;
-	readonly category?: string;
+	readonly category: string;
 }
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
