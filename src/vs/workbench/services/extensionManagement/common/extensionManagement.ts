@@ -142,7 +142,7 @@ export interface IScannedExtension extends IExtension {
 	readonly metadata?: Metadata;
 }
 
-export type ScanOptions = { readonly bailOut?: boolean; readonly skipInvalidExtensions?: boolean };
+export type ScanOptions = { readonly skipInvalidExtensions?: boolean };
 
 export const IWebExtensionsScannerService = createDecorator<IWebExtensionsScannerService>('IWebExtensionsScannerService');
 export interface IWebExtensionsScannerService {

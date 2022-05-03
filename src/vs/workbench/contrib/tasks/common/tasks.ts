@@ -393,7 +393,7 @@ export namespace TaskGroup {
 
 export interface TaskGroup {
 	_id: string;
-	isDefault?: boolean;
+	isDefault?: boolean | string;
 }
 
 export const enum TaskScope {

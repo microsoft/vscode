@@ -16,6 +16,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as Types from 'vs/base/common/types';
 import { TerminateResponseCode } from 'vs/base/common/processes';
 import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
+import * as glob from 'vs/base/common/glob';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import { LRUCache, Touch } from 'vs/base/common/map';
@@ -69,7 +70,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { toFormattedString } from 'vs/base/common/jsonFormatter';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { SaveReason } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SaveReason } from 'vs/workbench/common/editor';
 import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -2753,11 +2754,21 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	private splitPerGroupType(tasks: Task[]): { none: Task[]; defaults: Task[] } {
+	/**
+	 *
+	 * @param tasks - The tasks which need filtering from defaults and non-defaults
+	 * @param defaultType - If there are globs want globs in the default list, otherwise only tasks with true
+	 * @param taskGlobsInList - This tells splitPerGroupType to filter out globbed tasks (into default), otherwise fall back to boolean
+	 * @returns
+	 */
+	private splitPerGroupType(tasks: Task[], taskGlobsInList: boolean = false): { none: Task[]; defaults: Task[] } {
 		let none: Task[] = [];
 		let defaults: Task[] = [];
 		for (let task of tasks) {
-			if ((task.configurationProperties.group as TaskGroup).isDefault) {
+			// At this point (assuming taskGlobsInList is true) there are tasks with matching globs, so only put those in defaults
+			if (taskGlobsInList && typeof (task.configurationProperties.group as TaskGroup).isDefault === 'string') {
+				defaults.push(task);
+			} else if (!taskGlobsInList && (task.configurationProperties.group as TaskGroup).isDefault === true) {
 				defaults.push(task);
 			} else {
 				none.push(task);
@@ -2766,54 +2777,38 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return { none, defaults };
 	}
 
-	private runBuildCommand(): void {
+	private runTaskGroupCommand(taskGroup: TaskGroup, strings: {
+		fetching: string;
+		select: string;
+		notFoundConfigure: string;
+	}, configure: () => void, legacyCommand: () => void): void {
 		if (!this.canRunCommand()) {
 			return;
 		}
 		if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
-			this.build();
+			legacyCommand();
 			return;
 		}
 		let options: IProgressOptions = {
 			location: ProgressLocation.Window,
-			title: nls.localize('TaskService.fetchingBuildTasks', 'Fetching build tasks...')
+			title: strings.fetching
 		};
 		let promise = (async () => {
-			const buildTasks = await this._findWorkspaceTasksInGroup(TaskGroup.Build, false);
 
-			async function runSingleBuildTask(task: Task | undefined, problemMatcherOptions: ProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
+			let taskGroupTasks: (Task | ConfiguringTask)[] = [];
+
+			async function runSingleTask(task: Task | undefined, problemMatcherOptions: ProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
 				that.run(task, problemMatcherOptions, TaskRunSource.User).then(undefined, reason => {
 					// eat the error, it has already been surfaced to the user and we don't care about it here
 				});
 			}
 
-			if (buildTasks.length === 1) {
-				const buildTask = buildTasks[0];
-				if (ConfiguringTask.is(buildTask)) {
-					return this.tryResolveTask(buildTask).then(resolvedTask => {
-						runSingleBuildTask(resolvedTask, undefined, this);
-					});
-				} else {
-					runSingleBuildTask(buildTask, undefined, this);
-					return;
-				}
-			}
-
-			return this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
-				if (tasks.length > 0) {
-					let { none, defaults } = this.splitPerGroupType(tasks);
-					if (defaults.length === 1) {
-						runSingleBuildTask(defaults[0], undefined, this);
-						return;
-					} else if (defaults.length + none.length > 0) {
-						tasks = defaults.concat(none);
-					}
-				}
+			const chooseAndRunTask = (tasks: Task[]) => {
 				this.showIgnoredFoldersMessage().then(() => {
 					this.showQuickPick(tasks,
-						nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
+						strings.select,
 						{
-							label: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Build Task...'),
+							label: strings.notFoundConfigure,
 							task: null
 						},
 						true).then((entry) => {
@@ -2822,64 +2817,102 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								return;
 							}
 							if (task === null) {
-								this.runConfigureDefaultBuildTask();
+								configure();
 								return;
 							}
-							runSingleBuildTask(task, { attachProblemMatcher: true }, this);
+							runSingleTask(task, { attachProblemMatcher: true }, this);
 						});
 				});
-			});
+			};
+
+			// First check for globs before checking for the default tasks of the task group
+			const absoluteURI = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
+			if (absoluteURI) {
+				const workspaceFolder = this.contextService.getWorkspaceFolder(absoluteURI);
+				// fallback to absolute path of the file if it is not in a workspace or relative path cannot be found
+				const relativePath = workspaceFolder?.uri ? (resources.relativePath(workspaceFolder.uri, absoluteURI) ?? absoluteURI.path) : absoluteURI.path;
+
+				taskGroupTasks = await this._findWorkspaceTasks((task) => {
+					const taskGroup = task.configurationProperties.group;
+					if (taskGroup && typeof taskGroup !== 'string' && typeof taskGroup.isDefault === 'string') {
+						return (taskGroup._id === taskGroup._id && glob.match(taskGroup.isDefault, relativePath));
+					}
+
+					return false;
+				});
+			}
+
+			const handleMultipleTasks = (areGlobTasks: boolean) => {
+				return this.getTasksForGroup(taskGroup).then((tasks) => {
+					if (tasks.length > 0) {
+						// If we're dealing with tasks that were chosen because of a glob match,
+						// then put globs in the defaults and everything else in none
+						let { none, defaults } = this.splitPerGroupType(tasks, areGlobTasks);
+						if (defaults.length === 1) {
+							runSingleTask(defaults[0], undefined, this);
+							return;
+						} else if (defaults.length + none.length > 0) {
+							tasks = defaults.concat(none);
+						}
+					}
+
+					// At this this point there are multiple tasks.
+					chooseAndRunTask(tasks);
+				});
+			};
+
+			const resolveTaskAndRun = (taskGroupTask: Task | ConfiguringTask) => {
+				if (ConfiguringTask.is(taskGroupTask)) {
+					this.tryResolveTask(taskGroupTask).then(resolvedTask => {
+						runSingleTask(resolvedTask, undefined, this);
+					});
+				} else {
+					runSingleTask(taskGroupTask, undefined, this);
+				}
+			};
+
+			// A single default glob task was returned, just run it directly
+			if (taskGroupTasks.length === 1) {
+				return resolveTaskAndRun(taskGroupTasks[0]);
+			}
+
+			// If there's multiple globs that match we want to show the quick picker for those tasks
+			// We will need to call splitPerGroupType putting globs in defaults and the remaining tasks in none.
+			// We don't need to carry on after here
+			if (taskGroupTasks.length > 1) {
+				return handleMultipleTasks(true);
+			}
+
+			// If no globs are found or matched fallback to checking for default tasks of the task group
+			if (!taskGroupTasks.length) {
+				taskGroupTasks = await this._findWorkspaceTasksInGroup(taskGroup, false);
+			}
+
+			// A single default task was returned, just run it directly
+			if (taskGroupTasks.length === 1) {
+				return resolveTaskAndRun(taskGroupTasks[0]);
+			}
+
+			// Multiple default tasks returned, show the quickPicker
+			return handleMultipleTasks(false);
 		})();
 		this.progressService.withProgress(options, () => promise);
 	}
 
+	private runBuildCommand(): void {
+		return this.runTaskGroupCommand(TaskGroup.Build, {
+			fetching: nls.localize('TaskService.fetchingBuildTasks', 'Fetching build tasks...'),
+			select: nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
+			notFoundConfigure: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Build Task...')
+		}, this.runConfigureDefaultBuildTask, this.build);
+	}
+
 	private runTestCommand(): void {
-		if (!this.canRunCommand()) {
-			return;
-		}
-		if (this.schemaVersion === JsonSchemaVersion.V0_1_0) {
-			this.runTest();
-			return;
-		}
-		let options: IProgressOptions = {
-			location: ProgressLocation.Window,
-			title: nls.localize('TaskService.fetchingTestTasks', 'Fetching test tasks...')
-		};
-		let promise = this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
-			if (tasks.length > 0) {
-				let { none, defaults } = this.splitPerGroupType(tasks);
-				if (defaults.length === 1) {
-					this.run(defaults[0], undefined, TaskRunSource.User).then(undefined, reason => {
-						// eat the error, it has already been surfaced to the user and we don't care about it here
-					});
-					return;
-				} else if (defaults.length + none.length > 0) {
-					tasks = defaults.concat(none);
-				}
-			}
-			this.showIgnoredFoldersMessage().then(() => {
-				this.showQuickPick(tasks,
-					nls.localize('TaskService.pickTestTask', 'Select the test task to run'),
-					{
-						label: nls.localize('TaskService.noTestTaskTerminal', 'No test task to run found. Configure Tasks...'),
-						task: null
-					}, true
-				).then((entry) => {
-					let task: Task | undefined | null = entry ? entry.task : undefined;
-					if (task === undefined) {
-						return;
-					}
-					if (task === null) {
-						this.runConfigureTasks();
-						return;
-					}
-					this.run(task, undefined, TaskRunSource.User).then(undefined, reason => {
-						// eat the error, it has already been surfaced to the user and we don't care about it here
-					});
-				});
-			});
-		});
-		this.progressService.withProgress(options, () => promise);
+		return this.runTaskGroupCommand(TaskGroup.Test, {
+			fetching: nls.localize('TaskService.fetchingTestTasks', 'Fetching test tasks...'),
+			select: nls.localize('TaskService.pickTestTask', 'Select the test task to run'),
+			notFoundConfigure: nls.localize('TaskService.noTestTaskTerminal', 'No test task to run found. Configure Tasks...')
+		}, this.runConfigureDefaultTestTask, this.runTest);
 	}
 
 	private runTerminateCommand(arg?: any): void {

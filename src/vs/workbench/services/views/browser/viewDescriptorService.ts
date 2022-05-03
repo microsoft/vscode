@@ -439,11 +439,13 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		}
 
 		type ViewDescriptorServiceMoveViewsClassification = {
-			viewCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			fromContainer: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			toContainer: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			fromLocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			toLocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			owner: 'sbatten';
+			comment: 'Logged when views are moved from one view container to another';
+			viewCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of views moved' };
+			fromContainer: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The starting view container of the moved views' };
+			toContainer: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The destination view container of the moved views' };
+			fromLocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location of the starting view container. e.g. Primary Side Bar' };
+			toLocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location of the destination view container. e.g. Panel' };
 		};
 
 		this.telemetryService.publicLog2<ViewDescriptorServiceMoveViewsEvent, ViewDescriptorServiceMoveViewsClassification>('viewDescriptorService.moveViews', { viewCount, fromContainer, toContainer, fromLocation, toLocation });

@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { CommandManager } from './commandManager';
 import * as commands from './commands/index';
+import { register as registerDiagnostics } from './languageFeatures/diagnostics';
 import { MdDefinitionProvider } from './languageFeatures/definitionProvider';
 import { MdLinkProvider } from './languageFeatures/documentLinkProvider';
 import { MdDocumentSymbolProvider } from './languageFeatures/documentSymbolProvider';
@@ -75,6 +76,7 @@ function registerMarkdownLanguageFeatures(
 		vscode.languages.registerRenameProvider(selector, new MdRenameProvider(referencesProvider, workspaceContents, githubSlugifier)),
 		vscode.languages.registerDefinitionProvider(selector, new MdDefinitionProvider(referencesProvider)),
 		MdPathCompletionProvider.register(selector, engine, linkProvider),
+		registerDiagnostics(engine, workspaceContents, linkProvider),
 		registerDropIntoEditor(selector),
 		registerFindFileReferences(commandManager, referencesProvider),
 	);
