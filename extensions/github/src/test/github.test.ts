@@ -18,15 +18,15 @@ suite('github smoke test', function () {
 
 	test('should find all templates', async function () {
 		const expectedValuesSorted = [
-			'/PULL_REQUEST_TEMPLATE/a.md',
-			'/PULL_REQUEST_TEMPLATE/b.md',
-			'/docs/PULL_REQUEST_TEMPLATE.md',
-			'/docs/PULL_REQUEST_TEMPLATE/a.md',
-			'/docs/PULL_REQUEST_TEMPLATE/b.md',
-			'/.github/PULL_REQUEST_TEMPLATE.md',
-			'/.github/PULL_REQUEST_TEMPLATE/a.md',
-			'/.github/PULL_REQUEST_TEMPLATE/b.md',
-			'/PULL_REQUEST_TEMPLATE.md'
+			'PULL_REQUEST_TEMPLATE/a.md',
+			'PULL_REQUEST_TEMPLATE/b.md',
+			'docs/PULL_REQUEST_TEMPLATE.md',
+			'docs/PULL_REQUEST_TEMPLATE/a.md',
+			'docs/PULL_REQUEST_TEMPLATE/b.md',
+			'.github/PULL_REQUEST_TEMPLATE.md',
+			'.github/PULL_REQUEST_TEMPLATE/a.md',
+			'.github/PULL_REQUEST_TEMPLATE/b.md',
+			'PULL_REQUEST_TEMPLATE.md'
 		];
 		expectedValuesSorted.sort();
 
