@@ -11,6 +11,7 @@ import { rgPath } from '@vscode/ripgrep';
 import * as Parser from 'tree-sitter';
 import fetch from 'node-fetch';
 const { typescript } = require('tree-sitter-typescript');
+const product = require('../../product.json');
 
 type NlsString = { value: string; nlsKey: string };
 
@@ -370,7 +371,6 @@ type GP = {
 };
 
 async function renderGP(policies: Policy[], translations: Translations): Promise<GP> {
-	const product = JSON.parse(await fs.readFile('product.json', 'utf-8'));
 	const appName = product.nameLong;
 	const regKey = product.win32RegValueName;
 
@@ -446,12 +446,12 @@ async function main() {
 	await fs.rm(root, { recursive: true, force: true });
 	await fs.mkdir(root, { recursive: true });
 
-	await fs.writeFile(path.join(root, 'Code.admx'), admx.replace(/\r?\n/g, '\n'));
+	await fs.writeFile(path.join(root, `${product.win32RegValueName}.admx`), admx.replace(/\r?\n/g, '\n'));
 
 	for (const { languageId, contents } of adml) {
 		const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
 		await fs.mkdir(languagePath, { recursive: true });
-		await fs.writeFile(path.join(languagePath, 'Code.adml'), contents.replace(/\r?\n/g, '\n'));
+		await fs.writeFile(path.join(languagePath, `${product.win32RegValueName}.adml`), contents.replace(/\r?\n/g, '\n'));
 	}
 }
 

@@ -12,6 +12,7 @@ const ripgrep_1 = require("@vscode/ripgrep");
 const Parser = require("tree-sitter");
 const node_fetch_1 = require("node-fetch");
 const { typescript } = require('tree-sitter-typescript');
+const product = require('../../product.json');
 function isNlsString(value) {
     return value ? typeof value !== 'string' : false;
 }
@@ -272,7 +273,6 @@ function renderADML(appName, versions, categories, policies, translations) {
 `;
 }
 async function renderGP(policies, translations) {
-    const product = JSON.parse(await fs_1.promises.readFile('product.json', 'utf-8'));
     const appName = product.nameLong;
     const regKey = product.win32RegValueName;
     const versions = [...new Set(policies.map(p => p.minimumVersion)).values()].sort();
@@ -331,11 +331,11 @@ async function main() {
     const root = '.build/policies/win32';
     await fs_1.promises.rm(root, { recursive: true, force: true });
     await fs_1.promises.mkdir(root, { recursive: true });
-    await fs_1.promises.writeFile(path.join(root, 'Code.admx'), admx.replace(/\r?\n/g, '\n'));
+    await fs_1.promises.writeFile(path.join(root, `${product.win32RegValueName}.admx`), admx.replace(/\r?\n/g, '\n'));
     for (const { languageId, contents } of adml) {
         const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId]);
         await fs_1.promises.mkdir(languagePath, { recursive: true });
-        await fs_1.promises.writeFile(path.join(languagePath, 'Code.adml'), contents.replace(/\r?\n/g, '\n'));
+        await fs_1.promises.writeFile(path.join(languagePath, `${product.win32RegValueName}.adml`), contents.replace(/\r?\n/g, '\n'));
     }
 }
 if (require.main === module) {
