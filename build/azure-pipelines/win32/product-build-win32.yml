@@ -291,6 +291,13 @@ steps:
       searchFolder: "$(Build.ArtifactStagingDirectory)/test-results"
     condition: and(succeededOrFailed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { node build\lib\policies }
+    displayName: Generate Group Policy
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
   - task: UseDotNet@2
     inputs:
       version: 3.x
