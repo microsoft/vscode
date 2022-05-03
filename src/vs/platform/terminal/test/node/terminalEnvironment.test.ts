@@ -91,7 +91,7 @@ suite('platform - terminalEnvironment', () => {
 					const expectedDir = /.+\/vscode-zsh/;
 					const expectedDests = [/.+\/vscode-zsh\/.zshrc/, /.+\/vscode-zsh\/.zprofile/, /.+\/vscode-zsh\/.zshenv/];
 					const expectedSources = [
-						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration.zsh/,
+						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-rc.zsh/,
 						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-profile.zsh/,
 						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-env.zsh/
 					];

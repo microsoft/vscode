@@ -220,7 +220,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (this.shellLaunchConfig.env?.['_ZDOTDIR'] === '1') {
 			const zdotdir = path.join(tmpdir(), 'vscode-zsh');
 			await fs.mkdir(zdotdir, { recursive: true });
-			const source = path.join(path.dirname(FileAccess.asFileUri('', require).fsPath), 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh');
+			const source = path.join(path.dirname(FileAccess.asFileUri('', require).fsPath), 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh');
 			await fs.copyFile(source, path.join(zdotdir, '.zshrc'));
 			this._ptyOptions.env = this._ptyOptions.env || {};
 			this._ptyOptions.env['ZDOTDIR'] = zdotdir;

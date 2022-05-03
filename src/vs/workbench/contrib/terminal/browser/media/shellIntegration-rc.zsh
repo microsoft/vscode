@@ -4,10 +4,6 @@
 # ---------------------------------------------------------------------------------------------
 builtin autoload -Uz add-zsh-hook
 
-# Now that the init script is running, unset ZDOTDIR to ensure ~/.zlogout runs as expected as well
-# as prevent problems that may occur if the user's init scripts depend on ZDOTDIR not being set.
-builtin unset ZDOTDIR
-
 # This variable allows the shell to both detect that VS Code's shell integration is enabled as well
 # as disable it by unsetting the variable.
 VSCODE_SHELL_INTEGRATION=1
