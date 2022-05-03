@@ -53,19 +53,10 @@ export class HoverService implements IHoverService {
 		}
 		const focusedElement = <HTMLElement | null>document.activeElement;
 		if (focusedElement) {
-			hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_DOWN, e => {
-				if (e.key === 'Alt') {
-					hover.isLocked = true;
-					return;
-				}
-				this.hideHover();
-			}));
-			hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_UP, e => {
-				if (e.key === 'Alt') {
-					hover.isLocked = false;
-					return;
-				}
-			}));
+			hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_DOWN, e => this._keyDown(e, hover)));
+			hoverDisposables.add(addDisposableListener(document, EventType.KEY_DOWN, e => this._keyDown(e, hover)));
+			hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_UP, e => this._keyUp(e, hover)));
+			hoverDisposables.add(addDisposableListener(document, EventType.KEY_UP, e => this._keyUp(e, hover)));
 		}
 		if (options.hideOnKeyDown) {
 			const focusedElement = document.activeElement;
@@ -99,6 +90,20 @@ export class HoverService implements IHoverService {
 		const entry = entries[entries.length - 1];
 		if (!entry.isIntersecting) {
 			hover.dispose();
+		}
+	}
+
+	private _keyDown(e: KeyboardEvent, hover: HoverWidget) {
+		if (e.key === 'Alt') {
+			hover.isLocked = true;
+			return;
+		}
+		this.hideHover();
+	}
+
+	private _keyUp(e: KeyboardEvent, hover: HoverWidget) {
+		if (e.key === 'Alt') {
+			hover.isLocked = false;
 		}
 	}
 }
