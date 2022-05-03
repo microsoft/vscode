@@ -318,7 +318,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		return this.viewContainersRegistry.getDefaultViewContainer(location);
 	}
 
-	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number): void {
+	private doMoveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number, skipDiskWrite?: boolean): void {
 		const from = this.getViewContainerLocation(viewContainer);
 		const to = location;
 		if (from !== to) {
@@ -333,9 +333,17 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			const views = this.getViewsByContainer(viewContainer);
 			this._onDidChangeLocation.fire({ views, from, to });
 
-			this.saveViewContainerLocationsToCache();
+			// Need to skip when syncing multiple container movements - vscode#148363
+			if (!skipDiskWrite) {
+				this.saveViewContainerLocationsToCache();
+			}
 		}
 	}
+
+	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number): void {
+		this.doMoveViewContainerToLocation(viewContainer, location, requestedIndex);
+	}
+
 
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void {
 		let container = this.registerGeneratedViewContainer(location);
@@ -431,11 +439,13 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		}
 
 		type ViewDescriptorServiceMoveViewsClassification = {
-			viewCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			fromContainer: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			toContainer: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			fromLocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			toLocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			owner: 'sbatten';
+			comment: 'Logged when views are moved from one view container to another';
+			viewCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of views moved' };
+			fromContainer: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The starting view container of the moved views' };
+			toContainer: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The destination view container of the moved views' };
+			fromLocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location of the starting view container. e.g. Primary Side Bar' };
+			toLocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location of the destination view container. e.g. Panel' };
 		};
 
 		this.telemetryService.publicLog2<ViewDescriptorServiceMoveViewsEvent, ViewDescriptorServiceMoveViewsClassification>('viewDescriptorService.moveViews', { viewCount, fromContainer, toContainer, fromLocation, toLocation });
@@ -608,7 +618,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		// Execute View Container Movement
 		for (const [container, location] of viewContainersToMove) {
-			this.moveViewContainerToLocation(container, location);
+			this.doMoveViewContainerToLocation(container, location, undefined, true);
 		}
 
 		this.cachedViewContainerInfo = this.getCachedViewContainerLocations();

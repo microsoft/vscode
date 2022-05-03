@@ -345,11 +345,7 @@ export class Workspace implements IWorkspace {
 			return null;
 		}
 
-		return this._foldersMap.findSubstr(resource.with({
-			scheme: resource.scheme,
-			authority: resource.authority,
-			path: resource.path
-		})) || null;
+		return this._foldersMap.findSubstr(resource) || null;
 	}
 
 	private updateFoldersMap(): void {

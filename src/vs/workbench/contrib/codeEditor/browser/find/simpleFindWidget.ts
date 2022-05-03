@@ -54,15 +54,15 @@ export abstract class SimpleFindWidget extends Widget {
 	private _foundMatch: boolean = false;
 
 	constructor(
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		private readonly _state: FindReplaceState = new FindReplaceState(),
-		private readonly _options: IFindOptions,
-		private readonly _keybindingService?: IKeybindingService
+		state: FindReplaceState = new FindReplaceState(),
+		options: IFindOptions,
+		contextViewService: IContextViewService,
+		contextKeyService: IContextKeyService,
+		private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 
-		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewService, {
+		this._findInput = this._register(new ContextScopedFindInput(null, contextViewService, {
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
 			validation: (value: string): InputBoxMessage | null => {
@@ -78,18 +78,18 @@ export abstract class SimpleFindWidget extends Widget {
 					return { content: e.message };
 				}
 			},
-			appendCaseSensitiveLabel: _options.appendCaseSensitiveLabel && _options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindCaseSensitive) : undefined,
-			appendRegexLabel: _options.appendRegexLabel && _options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindRegex) : undefined,
-			appendWholeWordsLabel: _options.appendWholeWordsLabel && _options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindWholeWord) : undefined
-		}, contextKeyService, _options.showOptionButtons));
+			appendCaseSensitiveLabel: options.appendCaseSensitiveLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindCaseSensitive) : undefined,
+			appendRegexLabel: options.appendRegexLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindRegex) : undefined,
+			appendWholeWordsLabel: options.appendWholeWordsLabel && options.type === 'Terminal' ? this._getKeybinding(TerminalCommandId.ToggleFindWholeWord) : undefined
+		}, contextKeyService, options.showOptionButtons));
 
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);
 
 		this._register(this._findInput.onInput(async (e) => {
-			if (!_options.checkImeCompletionState || !this._findInput.isImeSessionInProgress) {
+			if (!options.checkImeCompletionState || !this._findInput.isImeSessionInProgress) {
 				this._foundMatch = this._onInputChanged();
-				if (this._options.showResultCount) {
+				if (options.showResultCount) {
 					await this.updateResultCount();
 				}
 				this.updateButtons(this._foundMatch);
@@ -98,22 +98,22 @@ export abstract class SimpleFindWidget extends Widget {
 			}
 		}));
 
-		this._findInput.setRegex(!!this._state.isRegex);
-		this._findInput.setCaseSensitive(!!this._state.matchCase);
-		this._findInput.setWholeWords(!!this._state.wholeWord);
+		this._findInput.setRegex(!!state.isRegex);
+		this._findInput.setCaseSensitive(!!state.matchCase);
+		this._findInput.setWholeWords(!!state.wholeWord);
 
 		this._register(this._findInput.onDidOptionChange(() => {
-			this._state.change({
+			state.change({
 				isRegex: this._findInput.getRegex(),
 				wholeWord: this._findInput.getWholeWords(),
 				matchCase: this._findInput.getCaseSensitive()
 			}, true);
 		}));
 
-		this._register(this._state.onFindReplaceStateChange(() => {
-			this._findInput.setRegex(this._state.isRegex);
-			this._findInput.setWholeWords(this._state.wholeWord);
-			this._findInput.setCaseSensitive(this._state.matchCase);
+		this._register(state.onFindReplaceStateChange(() => {
+			this._findInput.setRegex(state.isRegex);
+			this._findInput.setWholeWords(state.wholeWord);
+			this._findInput.setCaseSensitive(state.matchCase);
 			this.findFirst();
 		}));
 
@@ -173,7 +173,7 @@ export abstract class SimpleFindWidget extends Widget {
 			event.stopPropagation();
 		}));
 
-		if (_options?.showResultCount) {
+		if (options?.showResultCount) {
 			this._domNode.classList.add('result-count');
 			this._register(this._findInput.onDidChange(() => {
 				this.updateResultCount();

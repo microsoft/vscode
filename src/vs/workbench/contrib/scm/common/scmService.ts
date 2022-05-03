@@ -242,6 +242,7 @@ class SCMRepository implements ISCMRepository {
 	readonly input: ISCMInput = new SCMInput(this, this.storageService);
 
 	constructor(
+		public readonly id: string,
 		public readonly provider: ISCMProvider,
 		private disposable: IDisposable,
 		@IStorageService private storageService: IStorageService
@@ -266,9 +267,9 @@ export class SCMService implements ISCMService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private _providerIds = new Set<string>();
-	private _repositories: ISCMRepository[] = [];
-	get repositories(): ISCMRepository[] { return [...this._repositories]; }
+	private _repositories = new Map<string, ISCMRepository>();
+	get repositories(): Iterable<ISCMRepository> { return this._repositories.values(); }
+	get repositoryCount(): number { return this._repositories.size; }
 
 	private providerCount: IContextKey<number>;
 
@@ -289,31 +290,25 @@ export class SCMService implements ISCMService {
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
 		this.logService.trace('SCMService#registerSCMProvider');
 
-		if (this._providerIds.has(provider.id)) {
+		if (this._repositories.has(provider.id)) {
 			throw new Error(`SCM Provider ${provider.id} already exists.`);
 		}
 
-		this._providerIds.add(provider.id);
-
 		const disposable = toDisposable(() => {
-			const index = this._repositories.indexOf(repository);
-
-			if (index < 0) {
-				return;
-			}
-
-			this._providerIds.delete(provider.id);
-			this._repositories.splice(index, 1);
+			this._repositories.delete(provider.id);
 			this._onDidRemoveProvider.fire(repository);
-
-			this.providerCount.set(this._repositories.length);
+			this.providerCount.set(this._repositories.size);
 		});
 
-		const repository = new SCMRepository(provider, disposable, this.storageService);
-		this._repositories.push(repository);
+		const repository = new SCMRepository(provider.id, provider, disposable, this.storageService);
+		this._repositories.set(provider.id, repository);
 		this._onDidAddProvider.fire(repository);
 
-		this.providerCount.set(this._repositories.length);
+		this.providerCount.set(this._repositories.size);
 		return repository;
+	}
+
+	getRepository(id: string): ISCMRepository | undefined {
+		return this._repositories.get(id);
 	}
 }

@@ -68,7 +68,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 	private _updateActionFromKernelInfo(info: INotebookKernelMatchResult): void {
 		this._kernelDisposable.clear();
 		this._action.enabled = true;
-		const selectedOrSuggested = info.selected ?? ((info.all.length === 1 && info.suggestions.length === 1 && info.suggestions[0].type === NotebookKernelType.Resolved) ? info.suggestions[0] : undefined);
+		const selectedOrSuggested = info.selected ?? ((info.suggestions.length === 1 && info.suggestions[0].type === NotebookKernelType.Resolved) ? info.suggestions[0] : undefined);
 		if (selectedOrSuggested) {
 			// selected or suggested kernel
 			this._action.label = selectedOrSuggested.label;

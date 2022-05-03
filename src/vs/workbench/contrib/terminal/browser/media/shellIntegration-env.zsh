@@ -3,6 +3,6 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
-if [[ $options[norcs] = off && -o "login" &&  -f ~/.zshenv ]]; then
+if [[ -f ~/.zshenv ]]; then
 	. ~/.zshenv
 fi

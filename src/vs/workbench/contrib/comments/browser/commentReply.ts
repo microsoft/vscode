@@ -275,7 +275,6 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	private hideReplyArea() {
-		this.commentEditor.setValue('');
 		this.commentEditor.getDomNode()!.style.outline = '';
 		this._pendingComment = '';
 		this.form.classList.remove('expand');
