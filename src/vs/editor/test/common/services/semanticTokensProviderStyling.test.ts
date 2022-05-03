@@ -5,21 +5,23 @@
 
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MultilineTokens2, SparseEncodedTokens } from 'vs/editor/common/model/tokensStore';
-import { MetadataConsts } from 'vs/editor/common/modes';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
+import { MetadataConsts } from 'vs/editor/common/languages';
 import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
-import { createModelServices } from 'vs/editor/test/common/editorTestUtils';
+import { createModelServices } from 'vs/editor/test/common/testTextModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IThemeService, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 suite('ModelService', () => {
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
+	let languageService: ILanguageService;
 
 	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = createModelServices(disposables);
+		languageService = instantiationService.get(ILanguageService);
 	});
 
 	teardown(() => {
@@ -28,7 +30,7 @@ suite('ModelService', () => {
 
 	test('issue #134973: invalid semantic tokens should be handled better', () => {
 		const languageId = 'java';
-		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		disposables.add(languageService.registerLanguage({ id: languageId }));
 		const legend = {
 			tokenTypes: ['st0', 'st1', 'st2', 'st3', 'st4', 'st5', 'st6', 'st7', 'st8', 'st9', 'st10'],
 			tokenModifiers: []
@@ -64,7 +66,7 @@ suite('ModelService', () => {
 			])
 		};
 		const result = toMultilineTokens2(badTokens, styling, languageId);
-		const expected = new MultilineTokens2(1, new SparseEncodedTokens(new Uint32Array([
+		const expected = SparseMultilineTokens.create(1, new Uint32Array([
 			0, 13, 29, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (1 << MetadataConsts.FOREGROUND_OFFSET)),
 			1, 2, 8, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (2 << MetadataConsts.FOREGROUND_OFFSET)),
 			1, 9, 15, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (3 << MetadataConsts.FOREGROUND_OFFSET)),
@@ -74,7 +76,7 @@ suite('ModelService', () => {
 			2, 12, 20, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (7 << MetadataConsts.FOREGROUND_OFFSET)),
 			2, 31, 36, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (8 << MetadataConsts.FOREGROUND_OFFSET)),
 			2, 36, 41, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (9 << MetadataConsts.FOREGROUND_OFFSET)),
-		])));
+		]));
 		assert.deepStrictEqual(result.toString(), expected.toString());
 	});
 });

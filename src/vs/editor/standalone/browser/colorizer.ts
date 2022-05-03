@@ -3,16 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TimeoutTimer } from 'vs/base/common/async';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
+import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ITextModel } from 'vs/editor/common/model';
-import { ColorId, FontStyle, ILanguageIdCodec, ITokenizationSupport, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ColorId, FontStyle, ILanguageIdCodec, ITokenizationSupport, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { ViewLineRenderingData } from 'vs/editor/common/viewModel';
+import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
 
 const ttPolicy = window.trustedTypes?.createPolicy('standaloneColorizer', { createHTML: value => value });
@@ -30,26 +28,26 @@ export class Colorizer {
 
 	public static colorizeElement(themeService: IStandaloneThemeService, languageService: ILanguageService, domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
 		options = options || {};
-		let theme = options.theme || 'vs';
+		const theme = options.theme || 'vs';
 		const mimeType = options.mimeType || domNode.getAttribute('lang') || domNode.getAttribute('data-lang');
 		if (!mimeType) {
 			console.error('Mode not detected');
 			return Promise.resolve();
 		}
-		const languageId = languageService.getLanguageIdForMimeType(mimeType) || mimeType;
+		const languageId = languageService.getLanguageIdByMimeType(mimeType) || mimeType;
 
 		themeService.setTheme(theme);
 
-		let text = domNode.firstChild ? domNode.firstChild.nodeValue : '';
+		const text = domNode.firstChild ? domNode.firstChild.nodeValue : '';
 		domNode.className += ' ' + theme;
-		let render = (str: string) => {
+		const render = (str: string) => {
 			const trustedhtml = ttPolicy?.createHTML(str) ?? str;
 			domNode.innerHTML = trustedhtml as string;
 		};
 		return this.colorize(languageService, text || '', languageId, options).then(render, (err) => console.error(err));
 	}
 
-	public static colorize(languageService: ILanguageService, text: string, languageId: string, options: IColorizerOptions | null | undefined): Promise<string> {
+	public static async colorize(languageService: ILanguageService, text: string, languageId: string, options: IColorizerOptions | null | undefined): Promise<string> {
 		const languageIdCodec = languageService.languageIdCodec;
 		let tabSize = 4;
 		if (options && typeof options.tabSize === 'number') {
@@ -59,65 +57,23 @@ export class Colorizer {
 		if (strings.startsWithUTF8BOM(text)) {
 			text = text.substr(1);
 		}
-		let lines = strings.splitLines(text);
+		const lines = strings.splitLines(text);
 		if (!languageService.isRegisteredLanguageId(languageId)) {
-			return Promise.resolve(_fakeColorize(lines, tabSize, languageIdCodec));
+			return _fakeColorize(lines, tabSize, languageIdCodec);
 		}
 
-		// Send out the event to create the mode
-		languageService.triggerMode(languageId);
-
-		const tokenizationSupport = TokenizationRegistry.get(languageId);
+		const tokenizationSupport = await TokenizationRegistry.getOrCreate(languageId);
 		if (tokenizationSupport) {
 			return _colorize(lines, tabSize, tokenizationSupport, languageIdCodec);
 		}
 
-		const tokenizationSupportPromise = TokenizationRegistry.getPromise(languageId);
-		if (tokenizationSupportPromise) {
-			// A tokenizer will be registered soon
-			return new Promise<string>((resolve, reject) => {
-				tokenizationSupportPromise.then(tokenizationSupport => {
-					_colorize(lines, tabSize, tokenizationSupport, languageIdCodec).then(resolve, reject);
-				}, reject);
-			});
-		}
-
-		return new Promise<string>((resolve, reject) => {
-			let listener: IDisposable | null = null;
-			let timeout: TimeoutTimer | null = null;
-
-			const execute = () => {
-				if (listener) {
-					listener.dispose();
-					listener = null;
-				}
-				if (timeout) {
-					timeout.dispose();
-					timeout = null;
-				}
-				const tokenizationSupport = TokenizationRegistry.get(languageId!);
-				if (tokenizationSupport) {
-					_colorize(lines, tabSize, tokenizationSupport, languageIdCodec).then(resolve, reject);
-					return;
-				}
-				resolve(_fakeColorize(lines, tabSize, languageIdCodec));
-			};
-
-			// wait 500ms for mode to load, then give up
-			timeout = new TimeoutTimer();
-			timeout.cancelAndSet(execute, 500);
-			listener = TokenizationRegistry.onDidChange((e) => {
-				if (e.changedLanguages.indexOf(languageId!) >= 0) {
-					execute();
-				}
-			});
-		});
+		return _fakeColorize(lines, tabSize, languageIdCodec);
 	}
 
 	public static colorizeLine(line: string, mightContainNonBasicASCII: boolean, mightContainRTL: boolean, tokens: IViewLineTokens, tabSize: number = 4): string {
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(line, mightContainNonBasicASCII);
 		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, mightContainRTL);
-		let renderResult = renderViewLine(new RenderLineInput(
+		const renderResult = renderViewLine(new RenderLineInput(
 			false,
 			true,
 			line,
@@ -142,10 +98,10 @@ export class Colorizer {
 	}
 
 	public static colorizeModelLine(model: ITextModel, lineNumber: number, tabSize: number = 4): string {
-		let content = model.getLineContent(lineNumber);
-		model.forceTokenization(lineNumber);
-		let tokens = model.getLineTokens(lineNumber);
-		let inflatedTokens = tokens.inflate();
+		const content = model.getLineContent(lineNumber);
+		model.tokenization.forceTokenization(lineNumber);
+		const tokens = model.tokenization.getLineTokens(lineNumber);
+		const inflatedTokens = tokens.inflate();
 		return this.colorizeLine(content, model.mightContainNonBasicASCII(), model.mightContainRTL(), inflatedTokens, tabSize);
 	}
 }
@@ -181,14 +137,14 @@ function _fakeColorize(lines: string[], tabSize: number, languageIdCodec: ILangu
 	tokens[1] = defaultMetadata;
 
 	for (let i = 0, length = lines.length; i < length; i++) {
-		let line = lines[i];
+		const line = lines[i];
 
 		tokens[0] = line.length;
 		const lineTokens = new LineTokens(tokens, line, languageIdCodec);
 
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(line, /* check for basic ASCII */true);
 		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, /* check for RTL */true);
-		let renderResult = renderViewLine(new RenderLineInput(
+		const renderResult = renderViewLine(new RenderLineInput(
 			false,
 			true,
 			line,
@@ -222,13 +178,13 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 	let state = tokenizationSupport.getInitialState();
 
 	for (let i = 0, length = lines.length; i < length; i++) {
-		let line = lines[i];
-		let tokenizeResult = tokenizationSupport.tokenize2(line, true, state, 0);
+		const line = lines[i];
+		const tokenizeResult = tokenizationSupport.tokenizeEncoded(line, true, state);
 		LineTokens.convertToEndOffset(tokenizeResult.tokens, line.length);
-		let lineTokens = new LineTokens(tokenizeResult.tokens, line, languageIdCodec);
+		const lineTokens = new LineTokens(tokenizeResult.tokens, line, languageIdCodec);
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(line, /* check for basic ASCII */true);
 		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, /* check for RTL */true);
-		let renderResult = renderViewLine(new RenderLineInput(
+		const renderResult = renderViewLine(new RenderLineInput(
 			false,
 			true,
 			line,

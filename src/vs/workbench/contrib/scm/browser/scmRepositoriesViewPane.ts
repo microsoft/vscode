@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $ } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
-import { ISCMRepository, ISCMService, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -23,6 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 import { collectContextMenuActions, getActionViewItemProvider } from 'vs/workbench/contrib/scm/browser/util';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { Iterable } from 'vs/base/common/iterator';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -41,7 +42,6 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
-		@ISCMService protected scmService: ISCMService,
 		@ISCMViewService protected scmViewService: ISCMViewService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -85,14 +85,8 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		this._register(this.list.onDidChangeSelection(this.onListSelectionChange, this));
 		this._register(this.list.onContextMenu(this.onListContextMenu, this));
 
+		this._register(this.scmViewService.onDidChangeRepositories(this.onDidChangeRepositories, this));
 		this._register(this.scmViewService.onDidChangeVisibleRepositories(this.updateListSelection, this));
-
-		this._register(this.scmService.onDidAddRepository(this.onDidAddRepository, this));
-		this._register(this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this));
-
-		for (const repository of this.scmService.repositories) {
-			this.onDidAddRepository(repository);
-		}
 
 		if (this.orientation === Orientation.VERTICAL) {
 			this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -102,21 +96,12 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			}));
 		}
 
+		this.onDidChangeRepositories();
 		this.updateListSelection();
 	}
 
-	private onDidAddRepository(repository: ISCMRepository): void {
-		this.list.splice(this.list.length, 0, [repository]);
-		this.updateBodySize();
-	}
-
-	private onDidRemoveRepository(repository: ISCMRepository): void {
-		const index = this.list.indexOf(repository);
-
-		if (index > -1) {
-			this.list.splice(index, 1);
-		}
-
+	private onDidChangeRepositories(): void {
+		this.list.splice(0, this.list.length, this.scmViewService.repositories);
 		this.updateBodySize();
 	}
 
@@ -171,23 +156,29 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	}
 
 	private updateListSelection(): void {
-		const set = new Set();
+		const oldSelection = this.list.getSelection();
+		const oldSet = new Set(Iterable.map(oldSelection, i => this.list.element(i)));
+		const set = new Set(this.scmViewService.visibleRepositories);
+		const added = new Set(Iterable.filter(set, r => !oldSet.has(r)));
+		const removed = new Set(Iterable.filter(oldSet, r => !set.has(r)));
 
-		for (const repository of this.scmViewService.visibleRepositories) {
-			set.add(repository);
+		if (added.size === 0 && removed.size === 0) {
+			return;
 		}
 
-		const selection: number[] = [];
+		const selection = oldSelection
+			.filter(i => !removed.has(this.list.element(i)));
 
 		for (let i = 0; i < this.list.length; i++) {
-			if (set.has(this.list.element(i))) {
+			if (added.has(this.list.element(i))) {
 				selection.push(i);
 			}
 		}
 
 		this.list.setSelection(selection);
 
-		if (selection.length > 0) {
+		if (selection.length > 0 && selection.indexOf(this.list.getFocus()[0]) === -1) {
+			this.list.setAnchor(selection[0]);
 			this.list.setFocus([selection[0]]);
 		}
 	}

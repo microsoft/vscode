@@ -44,7 +44,7 @@ export async function readFromStdin(targetPath: string, verbose: boolean): Promi
 
 	let encoding = await resolveTerminalEncoding(verbose);
 
-	const iconv = await import('iconv-lite-umd');
+	const iconv = await import('@vscode/iconv-lite-umd');
 	if (!iconv.encodingExists(encoding)) {
 		console.log(`Unsupported terminal encoding: ${encoding}, falling back to UTF-8.`);
 		encoding = 'utf8';

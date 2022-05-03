@@ -16,8 +16,7 @@ export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWor
 export const VS_LIGHT_THEME = 'vs';
 export const VS_DARK_THEME = 'vs-dark';
 export const VS_HC_THEME = 'hc-black';
-
-export const HC_THEME_ID = 'Default High Contrast';
+export const VS_HC_LIGHT_THEME = 'hc-light';
 
 export const THEME_SCOPE_OPEN_PAREN = '[';
 export const THEME_SCOPE_CLOSE_PAREN = ']';
@@ -35,7 +34,8 @@ export enum ThemeSettings {
 
 	PREFERRED_DARK_THEME = 'workbench.preferredDarkColorTheme',
 	PREFERRED_LIGHT_THEME = 'workbench.preferredLightColorTheme',
-	PREFERRED_HC_THEME = 'workbench.preferredHighContrastColorTheme',
+	PREFERRED_HC_DARK_THEME = 'workbench.preferredHighContrastColorTheme', /* id kept for compatibility reasons */
+	PREFERRED_HC_LIGHT_THEME = 'workbench.preferredHighContrastLightColorTheme',
 	DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme',
 	DETECT_HC = 'window.autoDetectHighContrast'
 }
@@ -214,6 +214,6 @@ export interface IThemeExtensionPoint {
 	label?: string;
 	description?: string;
 	path: string;
-	uiTheme?: typeof VS_LIGHT_THEME | typeof VS_DARK_THEME | typeof VS_HC_THEME;
+	uiTheme?: typeof VS_LIGHT_THEME | typeof VS_DARK_THEME | typeof VS_HC_THEME | typeof VS_HC_LIGHT_THEME;
 	_watch: boolean; // unsupported options to watch location
 }

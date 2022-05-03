@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { IQuickPickSeparator, IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IViewDescriptorService, IViewsService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
@@ -115,6 +115,23 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 
 		const addPaneComposites = (location: ViewContainerLocation, containerLabel: string) => {
 			const paneComposites = this.paneCompositeService.getPaneComposites(location);
+			const visiblePaneCompositeIds = this.paneCompositeService.getVisiblePaneCompositeIds(location);
+
+			paneComposites.sort((a, b) => {
+				let aIndex = visiblePaneCompositeIds.findIndex(id => a.id === id);
+				let bIndex = visiblePaneCompositeIds.findIndex(id => b.id === id);
+
+				if (aIndex < 0) {
+					aIndex = paneComposites.indexOf(a) + visiblePaneCompositeIds.length;
+				}
+
+				if (bIndex < 0) {
+					bIndex = paneComposites.indexOf(b) + visiblePaneCompositeIds.length;
+				}
+
+				return aIndex - bIndex;
+			});
+
 			for (const paneComposite of paneComposites) {
 				if (this.includeViewContainer(paneComposite)) {
 					const viewContainer = this.viewDescriptorService.getViewContainerById(paneComposite.id);
@@ -132,6 +149,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		// Viewlets / Panels
 		addPaneComposites(ViewContainerLocation.Sidebar, localize('views', "Side Bar"));
 		addPaneComposites(ViewContainerLocation.Panel, localize('panels', "Panel"));
+		addPaneComposites(ViewContainerLocation.AuxiliaryBar, localize('secondary side bar', "Secondary Side Bar"));
 
 		const addPaneCompositeViews = (location: ViewContainerLocation) => {
 			const paneComposites = this.paneCompositeService.getPaneComposites(location);
@@ -146,6 +164,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		// Side Bar / Panel Views
 		addPaneCompositeViews(ViewContainerLocation.Sidebar);
 		addPaneCompositeViews(ViewContainerLocation.Panel);
+		addPaneCompositeViews(ViewContainerLocation.AuxiliaryBar);
 
 		// Terminals
 		this.terminalGroupService.groups.forEach((group, groupIndex) => {

@@ -32,7 +32,7 @@ import { ConfigurationKey, IExtensionsWorkbenchService } from 'vs/workbench/cont
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService, Severity, IPromptChoice, IPromptOptions } from 'vs/platform/notification/common/notification';
 import { NativeURLService } from 'vs/platform/url/common/urlService';
@@ -267,7 +267,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
 		instantiationService.stub(IExtensionGalleryService, 'isEnabled', true);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage<IGalleryExtension>(...mockExtensionGallery));
-		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', []);
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', mockExtensionGallery);
 
 		prompted = false;
 

@@ -20,10 +20,10 @@ const rcedit = require('rcedit');
 const mkdirp = require('mkdirp');
 
 const repoPath = path.dirname(__dirname);
-const buildPath = arch => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
-const zipDir = arch => path.join(repoPath, '.build', `win32-${arch}`, 'archive');
-const zipPath = arch => path.join(zipDir(arch), `VSCode-win32-${arch}.zip`);
-const setupDir = (arch, target) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
+const buildPath = (/** @type {string} */ arch) => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
+const zipDir = (/** @type {string} */ arch) => path.join(repoPath, '.build', `win32-${arch}`, 'archive');
+const zipPath = (/** @type {string} */ arch) => path.join(zipDir(arch), `VSCode-win32-${arch}.zip`);
+const setupDir = (/** @type {string} */ arch, /** @type {string} */ target) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
 const issPath = path.join(__dirname, 'win32', 'code.iss');
 const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup'))), 'bin', 'ISCC.exe');
 const signWin32Path = path.join(repoPath, 'build', 'azure-pipelines', 'common', 'sign-win32');
@@ -63,6 +63,10 @@ function packageInnoSetup(iss, options, cb) {
 		});
 }
 
+/**
+ * @param {string} arch
+ * @param {string} target
+ */
 function buildWin32Setup(arch, target) {
 	if (target !== 'system' && target !== 'user') {
 		throw new Error('Invalid setup target');
@@ -112,6 +116,10 @@ function buildWin32Setup(arch, target) {
 	};
 }
 
+/**
+ * @param {string} arch
+ * @param {string} target
+ */
 function defineWin32SetupTasks(arch, target) {
 	const cleanTask = util.rimraf(setupDir(arch, target));
 	gulp.task(task.define(`vscode-win32-${arch}-${target}-setup`, task.series(cleanTask, buildWin32Setup(arch, target))));
@@ -124,6 +132,9 @@ defineWin32SetupTasks('ia32', 'user');
 defineWin32SetupTasks('x64', 'user');
 defineWin32SetupTasks('arm64', 'user');
 
+/**
+ * @param {string} arch
+ */
 function archiveWin32Setup(arch) {
 	return cb => {
 		const args = ['a', '-tzip', zipPath(arch), '-x!CodeSignSummary*.md', '.', '-r'];
@@ -138,6 +149,9 @@ gulp.task(task.define('vscode-win32-ia32-archive', task.series(util.rimraf(zipDi
 gulp.task(task.define('vscode-win32-x64-archive', task.series(util.rimraf(zipDir('x64')), archiveWin32Setup('x64'))));
 gulp.task(task.define('vscode-win32-arm64-archive', task.series(util.rimraf(zipDir('arm64')), archiveWin32Setup('arm64'))));
 
+/**
+ * @param {string} arch
+ */
 function copyInnoUpdater(arch) {
 	return () => {
 		return gulp.src('build/win32/{inno_updater.exe,vcruntime140.dll}', { base: 'build/win32' })
@@ -145,6 +159,9 @@ function copyInnoUpdater(arch) {
 	};
 }
 
+/**
+ * @param {string} executablePath
+ */
 function updateIcon(executablePath) {
 	return cb => {
 		const icon = path.join(repoPath, 'resources', 'win32', 'code.ico');

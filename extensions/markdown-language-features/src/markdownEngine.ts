@@ -6,12 +6,12 @@
 import MarkdownIt = require('markdown-it');
 import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
-import { MarkdownContributionProvider as MarkdownContributionProvider } from './markdownExtensions';
+import { MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
-import { SkinnyTextDocument } from './tableOfContentsProvider';
-import { hash } from './util/hash';
-import { isOfScheme, Schemes } from './util/links';
+import { stringHash } from './util/hash';
 import { WebviewResourceProvider } from './util/resources';
+import { isOfScheme, Schemes } from './util/schemes';
+import { SkinnyTextDocument } from './workspaceContents';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
@@ -25,6 +25,7 @@ const pluginSourceMap: MarkdownIt.PluginSimple = (md): void => {
 			if (token.map && token.type !== 'inline') {
 				token.attrSet('data-line', String(token.map[0]));
 				token.attrJoin('class', 'code-line');
+				token.attrJoin('dir', 'auto');
 			}
 		}
 	});
@@ -178,8 +179,8 @@ export class MarkdownEngine {
 
 		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
 	}
-	
-	public resetSlugCount(): void {
+
+	private resetSlugCount(): void {
 		this._slugCount = new Map<string, number>();
 	}
 
@@ -236,7 +237,7 @@ export class MarkdownEngine {
 			const src = token.attrGet('src');
 			if (src) {
 				env.containingImages?.push({ src });
-				const imgHash = hash(src);
+				const imgHash = stringHash(src);
 				token.attrSet('id', `image-hash-${imgHash}`);
 
 				if (!token.attrGet('data-src')) {
@@ -383,14 +384,18 @@ export class MarkdownEngine {
 }
 
 async function getMarkdownOptions(md: () => MarkdownIt): Promise<MarkdownIt.Options> {
-	const hljs = await import('highlight.js');
+	const hljs = (await import('highlight.js')).default;
 	return {
 		html: true,
 		highlight: (str: string, lang?: string) => {
 			lang = normalizeHighlightLang(lang);
 			if (lang && hljs.getLanguage(lang)) {
 				try {
-					return `<div>${hljs.highlight(lang, str, true).value}</div>`;
+					const highlighted = hljs.highlight(str, {
+						language: lang,
+						ignoreIllegals: true,
+					}).value;
+					return `<div>${highlighted}</div>`;
 				}
 				catch (error) { }
 			}

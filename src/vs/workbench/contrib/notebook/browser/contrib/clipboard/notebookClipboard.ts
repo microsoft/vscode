@@ -9,8 +9,9 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { cellRangeToViewCells, expandCellRangesWithHiddenCells, getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
+import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { cellRangeToViewCells, expandCellRangesWithHiddenCells, getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { cloneNotebookCellTextModel, NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellEditType, ICellEditOperation, ISelectionState, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -26,7 +27,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { rendererLogChannelId } from 'vs/workbench/contrib/logs/common/logConstants';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -130,7 +131,7 @@ export function runPasteCells(editor: INotebookEditor, activeCell: ICellViewMode
 			kind: SelectionStateType.Index,
 			focus: { start: newFocusIndex, end: newFocusIndex + 1 },
 			selections: [{ start: newFocusIndex, end: newFocusIndex + pasteCells.items.length }]
-		}), undefined);
+		}), undefined, true);
 	} else {
 		if (editor.getLength() !== 0) {
 			return false;
@@ -147,7 +148,7 @@ export function runPasteCells(editor: INotebookEditor, activeCell: ICellViewMode
 			kind: SelectionStateType.Index,
 			focus: { start: 0, end: 1 },
 			selections: [{ start: 1, end: pasteCells.items.length + 1 }]
-		}), undefined);
+		}), undefined, true);
 	}
 
 	return true;

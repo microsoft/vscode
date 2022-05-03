@@ -5,7 +5,7 @@
 
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import * as nls from 'vs/nls';
-import { IDebuggerContribution, ICompound } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebuggerContribution, ICompound, IBreakpointContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { inputsSchema } from 'vs/workbench/services/configurationResolver/common/configurationResolverSchema';
@@ -68,7 +68,7 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 					type: 'object'
 				},
 				when: {
-					description: nls.localize('vscode.extension.contributes.debuggers.when', "Condition which must be true to enable this type of debugger. Consider using 'shellExecutionSupported', 'virtualWorkspace', 'resourceScheme' or an extension defined context key as appropriate for this."),
+					description: nls.localize('vscode.extension.contributes.debuggers.when', "Condition which must be true to enable this type of debugger. Consider using 'shellExecutionSupported', 'virtualWorkspace', 'resourceScheme' or an extension-defined context key as appropriate for this."),
 					type: 'string',
 					default: ''
 				},
@@ -107,12 +107,8 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 	}
 });
 
-export interface IRawBreakpointContribution {
-	language: string;
-}
-
 // breakpoints extension point #9037
-export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawBreakpointContribution[]>({
+export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IBreakpointContribution[]>({
 	extensionPoint: 'breakpoints',
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.breakpoints', 'Contributes breakpoints.'),
@@ -127,6 +123,11 @@ export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registe
 					description: nls.localize('vscode.extension.contributes.breakpoints.language', "Allow breakpoints for this language."),
 					type: 'string'
 				},
+				when: {
+					description: nls.localize('vscode.extension.contributes.breakpoints.when', "Condition which must be true to enable breakpoints in this language. Consider matching this to the debugger when clause as appropriate."),
+					type: 'string',
+					default: ''
+				}
 			}
 		}
 	}

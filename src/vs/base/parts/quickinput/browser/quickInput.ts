@@ -59,7 +59,7 @@ export interface IQuickInputStyles {
 	button: IButtonStyles;
 	progressBar: IProgressBarStyles;
 	keybindingLabel: IKeybindingLabelStyles;
-	list: IListStyles & { pickerGroupBorder?: Color; pickerGroupForeground?: Color; };
+	list: IListStyles & { pickerGroupBorder?: Color; pickerGroupForeground?: Color };
 }
 
 export interface IQuickInputWidgetStyles {
@@ -1477,6 +1477,7 @@ export class QuickInputController extends Disposable {
 			input.matchOnLabel = (options.matchOnLabel === undefined) || options.matchOnLabel; // default to true
 			input.autoFocusOnList = (options.autoFocusOnList === undefined) || options.autoFocusOnList; // default to true
 			input.quickNavigate = options.quickNavigate;
+			input.hideInput = !!options.hideInput;
 			input.contextKey = options.contextKey;
 			input.busy = true;
 			Promise.all([picks, options.activeItem])
@@ -1704,7 +1705,12 @@ export class QuickInputController extends Disposable {
 
 	focus() {
 		if (this.isDisplayed()) {
-			this.getUI().inputBox.setFocus();
+			const ui = this.getUI();
+			if (ui.inputBox.enabled) {
+				ui.inputBox.setFocus();
+			} else {
+				ui.list.domFocus();
+			}
 		}
 	}
 

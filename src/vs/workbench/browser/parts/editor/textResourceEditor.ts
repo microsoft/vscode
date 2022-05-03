@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, getCodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorOpenContext, isTextEditorViewState } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { AbstractTextResourceEditorInput, TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -15,16 +15,16 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ScrollType, IEditor, ICodeEditorViewState } from 'vs/editor/common/editorCommon';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { EditorOption, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ModelConstants } from 'vs/editor/common/model';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -77,15 +77,21 @@ export class AbstractTextResourceEditor extends BaseTextEditor<ICodeEditorViewSt
 		const textEditorModel = resolvedModel.textEditorModel;
 		textEditor.setModel(textEditorModel);
 
-		// Apply options to editor if any
-		let optionsGotApplied = false;
-		if (options) {
-			optionsGotApplied = applyTextEditorOptions(options, textEditor, ScrollType.Immediate);
+		// Restore view state (unless provided by options)
+		if (!isTextEditorViewState(options?.viewState)) {
+			const editorViewState = this.loadEditorViewState(input, context);
+			if (editorViewState) {
+				if (options?.selection) {
+					editorViewState.cursorState = []; // prevent duplicate selections via options
+				}
+
+				textEditor.restoreViewState(editorViewState);
+			}
 		}
 
-		// Otherwise restore View State unless disabled via settings
-		if (!optionsGotApplied) {
-			this.restoreTextResourceEditorViewState(input, context, textEditor);
+		// Apply options to editor if any
+		if (options) {
+			applyTextEditorOptions(options, textEditor, ScrollType.Immediate);
 		}
 
 		// Since the resolved model provides information about being readonly
@@ -94,13 +100,6 @@ export class AbstractTextResourceEditor extends BaseTextEditor<ICodeEditorViewSt
 		// a resolved model might have more specific information about being
 		// readonly or not that the input did not have.
 		textEditor.updateOptions({ readOnly: resolvedModel.isReadonly() });
-	}
-
-	private restoreTextResourceEditorViewState(editor: AbstractTextResourceEditorInput, context: IEditorOpenContext, control: IEditor) {
-		const viewState = this.loadEditorViewState(editor, context);
-		if (viewState) {
-			control.restoreViewState(viewState);
-		}
 	}
 
 	/**
@@ -154,7 +153,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		const control = super.createEditorControl(parent, configuration);
 
 		// Install a listener for paste to update this editors
-		// language mode if the paste includes a specific mode
+		// language if the paste includes a specific language
 		const codeEditor = getCodeEditor(control);
 		if (codeEditor) {
 			this._register(codeEditor.onDidPaste(e => this.onDidEditorPaste(e, codeEditor)));
@@ -164,12 +163,12 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 	}
 
 	private onDidEditorPaste(e: IPasteEvent, codeEditor: ICodeEditor): void {
-		if (this.input instanceof UntitledTextEditorInput && this.input.model.hasModeSetExplicitly) {
-			return; // do not override mode if it was set explicitly
+		if (this.input instanceof UntitledTextEditorInput && this.input.model.hasLanguageSetExplicitly) {
+			return; // do not override language if it was set explicitly
 		}
 
 		if (e.range.startLineNumber !== 1 || e.range.startColumn !== 1) {
-			return; // only when pasting into first line, first column (= empty document)
+			return; // document had existing content before the pasted text, don't override.
 		}
 
 		if (codeEditor.getOption(EditorOption.readOnly)) {
@@ -181,29 +180,42 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 			return; // require a live model
 		}
 
+		const pasteIsWholeContents = textModel.getLineCount() === e.range.endLineNumber && textModel.getLineMaxColumn(e.range.endLineNumber) === e.range.endColumn;
+		if (!pasteIsWholeContents) {
+			return; // document had existing content after the pasted text, don't override.
+		}
+
 		const currentLanguageId = textModel.getLanguageId();
-		if (currentLanguageId !== PLAINTEXT_MODE_ID) {
+		if (currentLanguageId !== PLAINTEXT_LANGUAGE_ID) {
 			return; // require current languageId to be unspecific
 		}
 
-		let candidateLanguageId: string | undefined = undefined;
+		let candidateLanguage: { id: string; source: 'event' | 'guess' } | undefined = undefined;
 
 		// A languageId is provided via the paste event so text was copied using
 		// VSCode. As such we trust this languageId and use it if specific
 		if (e.languageId) {
-			candidateLanguageId = e.languageId;
+			candidateLanguage = { id: e.languageId, source: 'event' };
 		}
 
 		// A languageId was not provided, so the data comes from outside VSCode
 		// We can still try to guess a good languageId from the first line if
 		// the paste changed the first line
 		else {
-			candidateLanguageId = withNullAsUndefined(this.languageService.getLanguageIdByFilepathOrFirstLine(textModel.uri, textModel.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT)));
+			const guess = withNullAsUndefined(this.languageService.guessLanguageIdByFilepathOrFirstLine(textModel.uri, textModel.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT)));
+			if (guess) {
+				candidateLanguage = { id: guess, source: 'guess' };
+			}
 		}
 
 		// Finally apply languageId to model if specified
-		if (candidateLanguageId !== PLAINTEXT_MODE_ID) {
-			this.modelService.setMode(textModel, this.languageService.createById(candidateLanguageId));
+		if (candidateLanguage && candidateLanguage.id !== PLAINTEXT_LANGUAGE_ID) {
+			if (this.input instanceof UntitledTextEditorInput && candidateLanguage.source === 'event') {
+				// High confidence, set language id at TextEditorModel level to block future auto-detection
+				this.input.model.setLanguageId(candidateLanguage.id);
+			} else {
+				this.modelService.setMode(textModel, this.languageService.createById(candidateLanguage.id));
+			}
 		}
 	}
 }

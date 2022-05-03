@@ -37,9 +37,23 @@ export interface IconContribution {
 	readonly defaults: IconDefaults;
 }
 
+export namespace IconContribution {
+	export function getDefinition(contribution: IconContribution, registry: IIconRegistry): IconDefinition | undefined {
+		let definition = contribution.defaults;
+		while (ThemeIcon.isThemeIcon(definition)) {
+			const c = iconRegistry.getIcon(definition.id);
+			if (!c) {
+				return undefined;
+			}
+			definition = c.defaults;
+		}
+		return definition;
+	}
+}
+
 export interface IconFontContribution {
 	readonly id: string;
-	getDefinition(): IconFontDefinition | undefined;
+	readonly definition: IconFontDefinition;
 }
 
 export interface IconFontDefinition {
@@ -49,7 +63,7 @@ export interface IconFontDefinition {
 }
 
 export interface IconFontSource {
-	readonly location: URI,
+	readonly location: URI;
 	readonly format: string;
 }
 
@@ -119,8 +133,8 @@ class IconRegistry implements IIconRegistry {
 			icons: {
 				type: 'object',
 				properties: {
-					fontId: { type: 'string', description: localize('iconDefintion.fontId', 'The id of the font to use. If not set, the font that is defined first is used.') },
-					fontCharacter: { type: 'string', description: localize('iconDefintion.fontCharacter', 'The font character associated with the icon definition.') }
+					fontId: { type: 'string', description: localize('iconDefinition.fontId', 'The id of the font to use. If not set, the font that is defined first is used.') },
+					fontCharacter: { type: 'string', description: localize('iconDefinition.fontCharacter', 'The font character associated with the icon definition.') }
 				},
 				additionalProperties: false,
 				defaultSnippets: [{ body: { fontCharacter: '\\\\e030' } }]
@@ -129,7 +143,7 @@ class IconRegistry implements IIconRegistry {
 		type: 'object',
 		properties: {}
 	};
-	private iconReferenceSchema: IJSONSchema & { enum: string[], enumDescriptions: string[] } = { type: 'string', pattern: `^${CSSIcon.iconNameExpression}$`, enum: [], enumDescriptions: [] };
+	private iconReferenceSchema: IJSONSchema & { enum: string[]; enumDescriptions: string[] } = { type: 'string', pattern: `^${CSSIcon.iconNameExpression}$`, enum: [], enumDescriptions: [] };
 
 	private iconFontsById: { [key: string]: IconFontDefinition };
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/extensionsWidgets';
+import * as semver from 'vs/base/common/semver/semver';
 import { Disposable, toDisposable, DisposableStore, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
 import { append, $ } from 'vs/base/browser/dom';
@@ -158,7 +159,7 @@ export class RatingsWidget extends ExtensionWidget {
 	}
 }
 
-export class PreReleaseIndicatorWidget extends ExtensionWidget {
+export class RunningPreReleaseVersionIndicatorWidget extends ExtensionWidget {
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -171,15 +172,9 @@ export class PreReleaseIndicatorWidget extends ExtensionWidget {
 	render(): void {
 		this.container.innerText = '';
 
-		if (!this.extension) {
-			return;
-		}
-
-		if (!this.extension.local?.isPreReleaseVersion && !this.extension.gallery?.properties.isPreReleaseVersion) {
-			return;
-		}
-
-		if (this.extension.state !== ExtensionState.Installed) {
+		if (!this.extension
+			|| this.extension.state !== ExtensionState.Installed
+			|| !this.extension.local?.isPreReleaseVersion) {
 			return;
 		}
 
@@ -486,10 +481,13 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
-		markdown.appendMarkdown(`**${this.extension.displayName}**&nbsp;_v${this.extension.version}_`);
-		if (this.extension.local?.isPreReleaseVersion || this.extension.gallery?.properties.isPreReleaseVersion) {
+		markdown.appendMarkdown(`**${this.extension.displayName}**`);
+		if (semver.valid(this.extension.version)) {
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${this.extension.version}_**&nbsp;</span>`);
+		}
+		if (this.extension.state === ExtensionState.Installed ? this.extension.local?.isPreReleaseVersion : this.extension.gallery?.properties.isPreReleaseVersion) {
 			const extensionPreReleaseIcon = this.themeService.getColorTheme().getColor(extensionPreReleaseIconColor);
-			markdown.appendMarkdown(`&nbsp;<span style="color:#ffffff;background-color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">&nbsp;${localize('pre-release-label', "Pre-Release")}&nbsp;</span>`);
+			markdown.appendMarkdown(`**&nbsp;**&nbsp;<span style="color:#ffffff;background-color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">&nbsp;$(${preReleaseIcon.id})&nbsp;${localize('pre-release-label', "Pre-Release")}&nbsp;</span>`);
 		}
 		markdown.appendText(`\n`);
 
@@ -598,9 +596,9 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 }
 
 // Rating icon
-export const extensionRatingIconColor = registerColor('extensionIcon.starForeground', { light: '#DF6100', dark: '#FF8E00', hc: '#FF8E00' }, localize('extensionIconStarForeground', "The icon color for extension ratings."), true);
-export const extensionVerifiedPublisherIconColor = registerColor('extensionIcon.verifiedForeground', { dark: textLinkForeground, light: textLinkForeground, hc: textLinkForeground }, localize('extensionIconVerifiedForeground', "The icon color for extension verified publisher."), true);
-export const extensionPreReleaseIconColor = registerColor('extensionIcon.preReleaseForeground', { dark: '#1d9271', light: '#1d9271', hc: '#1d9271' }, localize('extensionPreReleaseForeground', "The icon color for pre-release extension."), true);
+export const extensionRatingIconColor = registerColor('extensionIcon.starForeground', { light: '#DF6100', dark: '#FF8E00', hcDark: '#FF8E00', hcLight: textLinkForeground }, localize('extensionIconStarForeground', "The icon color for extension ratings."), true);
+export const extensionVerifiedPublisherIconColor = registerColor('extensionIcon.verifiedForeground', { dark: textLinkForeground, light: textLinkForeground, hcDark: textLinkForeground, hcLight: textLinkForeground }, localize('extensionIconVerifiedForeground', "The icon color for extension verified publisher."), true);
+export const extensionPreReleaseIconColor = registerColor('extensionIcon.preReleaseForeground', { dark: '#1d9271', light: '#1d9271', hcDark: '#1d9271', hcLight: textLinkForeground }, localize('extensionPreReleaseForeground', "The icon color for pre-release extension."), true);
 
 registerThemingParticipant((theme, collector) => {
 	const extensionRatingIcon = theme.getColor(extensionRatingIconColor);

@@ -37,8 +37,8 @@ class NotebookTextModelLikeId {
 	static obj(s: string): INotebookTextModelLike {
 		const idx = s.indexOf('/');
 		return {
-			viewType: s.substr(0, idx),
-			uri: URI.parse(s.substr(idx + 1))
+			viewType: s.substring(0, idx),
+			uri: URI.parse(s.substring(idx + 1))
 		};
 	}
 }
@@ -167,7 +167,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult {
 
 		// all applicable kernels
-		const kernels: { kernel: INotebookKernel, instanceAffinity: number, typeAffinity: number, score: number }[] = [];
+		const kernels: { kernel: INotebookKernel; instanceAffinity: number; typeAffinity: number; score: number }[] = [];
 		for (const info of this._kernels.values()) {
 			const score = NotebookKernelService._score(info.kernel, notebook);
 			if (score) {
@@ -194,6 +194,20 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		return { all, selected, suggestions };
 	}
 
+	getSelectedOrSuggestedKernel(notebook: INotebookTextModel): INotebookKernel | undefined {
+		const info = this.getMatchingKernel(notebook);
+		if (info.selected) {
+			return info.selected;
+		}
+
+		const preferred = info.all.filter(kernel => this._kernels.get(kernel.id)?.notebookPriorities.get(notebook.uri) === 2 /* vscode.NotebookControllerPriority.Preferred */);
+		if (preferred.length === 1) {
+			return preferred[0];
+		}
+
+		return info.all.length === 1 ? info.all[0] : undefined;
+	}
+
 	// default kernel for notebookType
 	selectKernelForNotebookType(kernel: INotebookKernel, typeId: string): void {
 		const existing = this._typeBindings.get(typeId);
@@ -216,6 +230,15 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 				this._notebookBindings.delete(key);
 			}
 			this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel, newKernel: kernel.id });
+			this._persistMementos();
+		}
+	}
+
+	preselectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void {
+		const key = NotebookTextModelLikeId.str(notebook);
+		const oldKernel = this._notebookBindings.get(key);
+		if (oldKernel !== kernel?.id) {
+			this._notebookBindings.set(key, kernel.id);
 			this._persistMementos();
 		}
 	}

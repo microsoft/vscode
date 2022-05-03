@@ -320,7 +320,7 @@ function getSanitizedEnvironment(process: NodeJS.Process) {
 /**
  * tries to turn OS errors into more meaningful error messages
  */
-function improveError(err: Error & { errno?: string, path?: string }): Error {
+function improveError(err: Error & { errno?: string; path?: string }): Error {
 	if ('errno' in err && err['errno'] === 'ENOENT' && 'path' in err && typeof err['path'] === 'string') {
 		return new Error(nls.localize('ext.term.app.not.found', "can't find terminal application '{0}'", err['path']));
 	}

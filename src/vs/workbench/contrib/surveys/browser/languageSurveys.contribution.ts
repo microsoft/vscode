@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { language } from 'vs/base/common/platform';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -55,7 +55,7 @@ class LanguageSurvey extends Disposable {
 			// Process model-save event every 250ms to reduce load
 			const onModelsSavedWorker = this._register(new RunOnceWorker<ITextFileEditorModel>(models => {
 				models.forEach(m => {
-					if (m.getMode() === data.languageId && date !== storageService.get(EDITED_LANGUAGE_DATE_KEY, StorageScope.GLOBAL)) {
+					if (m.getLanguageId() === data.languageId && date !== storageService.get(EDITED_LANGUAGE_DATE_KEY, StorageScope.GLOBAL)) {
 						const editedCount = storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) + 1;
 						storageService.store(EDITED_LANGUAGE_COUNT_KEY, editedCount, StorageScope.GLOBAL, StorageTarget.USER);
 						storageService.store(EDITED_LANGUAGE_DATE_KEY, date, StorageScope.GLOBAL, StorageTarget.USER);

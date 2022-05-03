@@ -8,9 +8,9 @@ import * as strings from 'vs/base/common/strings';
 import { WrappingIndent, IComputedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
+import { LineInjectedText } from 'vs/editor/common/textModelEvents';
 import { InjectedTextOptions } from 'vs/editor/common/model';
-import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
 
 export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 	public static create(options: IComputedEditorOptions): MonospaceLineBreaksComputerFactory {
@@ -38,7 +38,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 			},
 			finalize: () => {
 				const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth;
-				let result: (ModelLineProjectionData | null)[] = [];
+				const result: (ModelLineProjectionData | null)[] = [];
 				for (let i = 0, len = requests.length; i < len; i++) {
 					const injectedText = injectedTexts[i];
 					const previousLineBreakData = previousBreakingData[i];
@@ -117,9 +117,9 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakColumn, columnsForFullWidthChar, wrappingIndent);
 	const wrappedLineBreakColumn = firstLineBreakColumn - wrappedTextIndentLength;
 
-	let breakingOffsets: number[] = arrPool1;
-	let breakingOffsetsVisibleColumn: number[] = arrPool2;
-	let breakingOffsetsCount: number = 0;
+	const breakingOffsets: number[] = arrPool1;
+	const breakingOffsetsVisibleColumn: number[] = arrPool2;
+	let breakingOffsetsCount = 0;
 	let lastBreakingOffset = 0;
 	let lastBreakingOffsetVisibleColumn = 0;
 
@@ -388,8 +388,8 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakColumn, columnsForFullWidthChar, wrappingIndent);
 	const wrappedLineBreakColumn = firstLineBreakColumn - wrappedTextIndentLength;
 
-	let breakingOffsets: number[] = [];
-	let breakingOffsetsVisibleColumn: number[] = [];
+	const breakingOffsets: number[] = [];
+	const breakingOffsetsVisibleColumn: number[] = [];
 	let breakingOffsetsCount: number = 0;
 	let breakOffset = 0;
 	let breakOffsetVisibleColumn = 0;

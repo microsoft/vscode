@@ -18,12 +18,6 @@ import 'vs/workbench/workbench.sandbox.main';
 //#endregion
 
 
-//#region --- workbench actions
-
-
-//#endregion
-
-
 //#region --- workbench (desktop main)
 
 import 'vs/workbench/electron-sandbox/desktop.main';
@@ -40,11 +34,5 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 class SimpleExtensionService extends NullExtensionService { }
 
 registerSingleton(IExtensionService, SimpleExtensionService);
-
-
-//#endregion
-
-
-//#region --- workbench contributions
 
 //#endregion

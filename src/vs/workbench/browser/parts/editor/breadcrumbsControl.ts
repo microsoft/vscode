@@ -14,8 +14,7 @@ import { extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
 import { localize } from 'vs/nls';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -34,9 +33,8 @@ import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker, BreadcrumbsPicker } fr
 import { IEditorPartOptions, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/browser';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
@@ -197,7 +195,6 @@ export class BreadcrumbsControl {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IFileService private readonly _fileService: IFileService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -314,8 +311,8 @@ export class BreadcrumbsControl {
 		const configListener = this._cfShowIcons.onDidChange(updateBreadcrumbs);
 		updateBreadcrumbs();
 		this._breadcrumbsDisposables.clear();
-		this._breadcrumbsDisposables.add(model);
 		this._breadcrumbsDisposables.add(listener);
+		this._breadcrumbsDisposables.add(model);
 		this._breadcrumbsDisposables.add(configListener);
 		this._breadcrumbsDisposables.add(toDisposable(() => this._widget.setItems([])));
 
@@ -361,10 +358,6 @@ export class BreadcrumbsControl {
 		const { element } = event.item as FileItem | OutlineItem;
 		this._editorGroup.focus();
 
-		type BreadcrumbSelect = { type: string };
-		type BreadcrumbSelectClassification = { type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }; };
-		this._telemetryService.publicLog2<BreadcrumbSelect, BreadcrumbSelectClassification>('breadcrumbs/select', { type: event.item instanceof OutlineItem ? 'symbol' : 'file' });
-
 		const group = this._getEditorGroup(event.payload);
 		if (group !== undefined) {
 			// reveal the item
@@ -386,7 +379,7 @@ export class BreadcrumbsControl {
 		let picker: BreadcrumbsPicker;
 		let pickerAnchor: { x: number; y: number };
 
-		interface IHideData { didPick?: boolean, source?: BreadcrumbsControl }
+		interface IHideData { didPick?: boolean; source?: BreadcrumbsControl }
 
 		this._contextViewService.showContextView({
 			render: (parent: HTMLElement) => {
@@ -397,7 +390,7 @@ export class BreadcrumbsControl {
 				}
 
 				let selectListener = picker.onWillPickElement(() => this._contextViewService.hideContextView({ source: this, didPick: true }));
-				let zoomListener = onDidChangeZoomLevel(() => this._contextViewService.hideContextView({ source: this }));
+				let zoomListener = PixelRatio.onDidChange(() => this._contextViewService.hideContextView({ source: this }));
 
 				let focusTracker = dom.trackFocus(parent);
 				let blurListener = focusTracker.onDidBlur(() => {
@@ -500,26 +493,32 @@ export class BreadcrumbsControl {
 //#region commands
 
 // toggle command
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: 'breadcrumbs.toggle',
-		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
-		category: CATEGORIES.View
+registerAction2(class ToggleBreadcrumb extends Action2 {
+
+	constructor() {
+		super({
+			id: 'breadcrumbs.toggle',
+			title: {
+				value: localize('cmd.toggle', "Toggle Breadcrumbs"),
+				mnemonicTitle: localize('miShowBreadcrumbs', "Show &&Breadcrumbs"),
+				original: 'Toggle Breadcrumbs',
+			},
+			category: CATEGORIES.View,
+			toggled: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
+			menu: [
+				{ id: MenuId.CommandPalette },
+				{ id: MenuId.MenubarViewMenu, group: '5_editor', order: 3 },
+				{ id: MenuId.NotebookToolbar, group: 'notebookLayout', order: 2 }
+			]
+		});
 	}
-});
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '5_editor',
-	order: 3,
-	command: {
-		id: 'breadcrumbs.toggle',
-		title: localize('miShowBreadcrumbs', "Show &&Breadcrumbs"),
-		toggled: ContextKeyExpr.equals('config.breadcrumbs.enabled', true)
+
+	run(accessor: ServicesAccessor): void {
+		let config = accessor.get(IConfigurationService);
+		let value = BreadcrumbsConfig.IsEnabled.bindTo(config).getValue();
+		BreadcrumbsConfig.IsEnabled.bindTo(config).updateValue(!value);
 	}
-});
-CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
-	let config = accessor.get(IConfigurationService);
-	let value = BreadcrumbsConfig.IsEnabled.bindTo(config).getValue();
-	BreadcrumbsConfig.IsEnabled.bindTo(config).updateValue(!value);
+
 });
 
 // focus/focus-and-select
@@ -536,20 +535,27 @@ function focusAndSelectHandler(accessor: ServicesAccessor, select: boolean): voi
 		}
 	}
 }
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: 'breadcrumbs.focusAndSelect',
-		title: { value: localize('cmd.focus', "Focus Breadcrumbs"), original: 'Focus Breadcrumbs' },
-		precondition: BreadcrumbsControl.CK_BreadcrumbsVisible
+registerAction2(class FocusAndSelectBreadcrumbs extends Action2 {
+	constructor() {
+		super({
+			id: 'breadcrumbs.focusAndSelect',
+			title: {
+				value: localize('cmd.focus', "Focus Breadcrumbs"),
+				original: 'Focus Breadcrumbs'
+			},
+			precondition: BreadcrumbsControl.CK_BreadcrumbsVisible,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period,
+				when: BreadcrumbsControl.CK_BreadcrumbsPossible,
+			}
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		focusAndSelectHandler(accessor, true);
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.focusAndSelect',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period,
-	when: BreadcrumbsControl.CK_BreadcrumbsPossible,
-	handler: accessor => focusAndSelectHandler(accessor, true)
-});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focus',
 	weight: KeybindingWeight.WorkbenchContrib,

@@ -18,10 +18,6 @@ var _cssPluginGlobal = this;
 var CSSBuildLoaderPlugin;
 (function (CSSBuildLoaderPlugin) {
     var global = (_cssPluginGlobal || {});
-    /**
-     * Known issue:
-     * - In IE there is no way to know if the CSS file loaded successfully or not.
-     */
     var BrowserCSSLoader = /** @class */ (function () {
         function BrowserCSSLoader() {
             this._pendingLoads = 0;
@@ -328,6 +324,7 @@ var CSSBuildLoaderPlugin;
                             // .svg => url encode as explained at https://codepen.io/tigt/post/optimizing-svgs-in-data-uris
                             var newText = fileContents.toString()
                                 .replace(/"/g, '\'')
+                                .replace(/%/g, '%25')
                                 .replace(/</g, '%3C')
                                 .replace(/>/g, '%3E')
                                 .replace(/&/g, '%26')

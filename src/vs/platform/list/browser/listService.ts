@@ -661,8 +661,8 @@ abstract class ResourceNavigator<T> extends Disposable {
 		super();
 
 		this._register(Event.filter(this.widget.onDidChangeSelection, e => e.browserEvent instanceof KeyboardEvent)(e => this.onSelectionFromKeyboard(e)));
-		this._register(this.widget.onPointer((e: { browserEvent: MouseEvent, element: T | undefined }) => this.onPointer(e.element, e.browserEvent)));
-		this._register(this.widget.onMouseDblClick((e: { browserEvent: MouseEvent, element: T | undefined }) => this.onMouseDblClick(e.element, e.browserEvent)));
+		this._register(this.widget.onPointer((e: { browserEvent: MouseEvent; element: T | undefined }) => this.onPointer(e.element, e.browserEvent)));
+		this._register(this.widget.onMouseDblClick((e: { browserEvent: MouseEvent; element: T | undefined }) => this.onMouseDblClick(e.element, e.browserEvent)));
 
 		if (typeof options?.openOnSingleClick !== 'boolean' && options?.configurationService) {
 			this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
@@ -800,6 +800,10 @@ function createKeyboardNavigationEventFilter(container: HTMLElement, keybindingS
 	let inChord = false;
 
 	return event => {
+		if (event.toKeybinding().isModifierKey()) {
+			return false;
+		}
+
 		if (inChord) {
 			inChord = false;
 			return false;
@@ -1047,7 +1051,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 	configurationService: IConfigurationService,
 	keybindingService: IKeybindingService,
 	accessibilityService: IAccessibilityService,
-): { options: TOptions, getAutomaticKeyboardNavigation: () => boolean | undefined, disposable: IDisposable } {
+): { options: TOptions; getAutomaticKeyboardNavigation: () => boolean | undefined; disposable: IDisposable } {
 	const getAutomaticKeyboardNavigation = () => {
 		// give priority to the context key value to disable this completely
 		let automaticKeyboardNavigation = Boolean(contextKeyService.getContextKeyValue(WorkbenchListAutomaticKeyboardNavigationKey));
@@ -1275,7 +1279,7 @@ configurationRegistry.registerConfiguration({
 		[multiSelectModifierSettingKey]: {
 			type: 'string',
 			enum: ['ctrlCmd', 'alt'],
-			enumDescriptions: [
+			markdownEnumDescriptions: [
 				localize('multiSelectModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on macOS."),
 				localize('multiSelectModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on macOS.")
 			],
@@ -1305,7 +1309,7 @@ configurationRegistry.registerConfiguration({
 		[treeIndentKey]: {
 			type: 'number',
 			default: 8,
-			minimum: 0,
+			minimum: 4,
 			maximum: 40,
 			description: localize('tree indent setting', "Controls tree indentation in pixels.")
 		},
@@ -1323,7 +1327,7 @@ configurationRegistry.registerConfiguration({
 		[mouseWheelScrollSensitivityKey]: {
 			type: 'number',
 			default: 1,
-			description: localize('Mouse Wheel Scroll Sensitivity', "A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.")
+			markdownDescription: localize('Mouse Wheel Scroll Sensitivity', "A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.")
 		},
 		[fastScrollSensitivityKey]: {
 			type: 'number',

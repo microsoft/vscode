@@ -8,7 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
-import { WorkspaceEditMetadata } from 'vs/editor/common/modes';
+import { WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -37,8 +37,8 @@ export class BulkCellEdits {
 		@INotebookEditorModelResolverService private readonly _notebookModelService: INotebookEditorModelResolverService,
 	) { }
 
-	async apply(): Promise<void> {
-
+	async apply(): Promise<readonly URI[]> {
+		const resources: URI[] = [];
 		const editsByNotebook = groupBy(this._edits, (a, b) => compare(a.resource.toString(), b.resource.toString()));
 
 		for (let group of editsByNotebook) {
@@ -56,10 +56,14 @@ export class BulkCellEdits {
 
 			// apply edits
 			const edits = group.map(entry => entry.cellEdit);
-			ref.object.notebook.applyEdits(edits, true, undefined, () => undefined, this._undoRedoGroup);
+			ref.object.notebook.applyEdits(edits, true, undefined, () => undefined, this._undoRedoGroup, true);
 			ref.dispose();
 
 			this._progress.report(undefined);
+
+			resources.push(first.resource);
 		}
+
+		return resources;
 	}
 }

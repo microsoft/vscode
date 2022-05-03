@@ -82,7 +82,7 @@ export class TestFS implements vscode.FileSystemProvider {
 		throw vscode.FileSystemError.FileNotFound();
 	}
 
-	writeFile(uri: vscode.Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): void {
+	writeFile(uri: vscode.Uri, content: Uint8Array, options: { create: boolean; overwrite: boolean }): void {
 		let basename = path.posix.basename(uri.path);
 		let parent = this._lookupParentDirectory(uri);
 		let entry = parent.entries.get(basename);
@@ -222,7 +222,7 @@ export class TestFS implements vscode.FileSystemProvider {
 
 	readonly onDidChangeFile: vscode.Event<vscode.FileChangeEvent[]> = this._emitter.event;
 
-	watch(_resource: vscode.Uri): vscode.Disposable {
+	watch(_resource: vscode.Uri, _options: { recursive: boolean; excludes: string[] }): vscode.Disposable {
 		// ignore, fires for all changes...
 		return new vscode.Disposable(() => { });
 	}

@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import * as cp from 'child_process';
-import * as playwright from 'playwright';
+import * as playwright from '@playwright/test';
 import * as url from 'url';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
@@ -61,16 +61,16 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	const host = endpoint.host;
 	const protocol = 'vscode-remote';
 
-	const testWorkspaceUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.workspacePath)).path, protocol, host, slashes: true });
+	const testWorkspacePath = URI.file(path.resolve(optimist.argv.workspacePath)).path;
 	const testExtensionUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionDevelopmentPath)).path, protocol, host, slashes: true });
 	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
 
-	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","69df0500a8963fc469161c038a14a39384d5a303"],["skipWelcome","true"]]`;
+	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","181b43c0e2949e36ecb623d8cc6de29d4fa2bae8"],["skipWelcome","true"]]`;
 
-	if (path.extname(testWorkspaceUri) === '.code-workspace') {
-		await page.goto(`${endpoint.href}&workspace=${testWorkspaceUri}&payload=${payloadParam}`);
+	if (path.extname(testWorkspacePath) === '.code-workspace') {
+		await page.goto(`${endpoint.href}&workspace=${testWorkspacePath}&payload=${payloadParam}`);
 	} else {
-		await page.goto(`${endpoint.href}&folder=${testWorkspaceUri}&payload=${payloadParam}`);
+		await page.goto(`${endpoint.href}&folder=${testWorkspacePath}&payload=${payloadParam}`);
 	}
 
 	await page.exposeFunction('codeAutomationLog', (type: string, args: any[]) => {
@@ -108,7 +108,7 @@ function consoleLogFn(msg: playwright.ConsoleMessage) {
 	return console.log;
 }
 
-async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.UrlWithStringQuery, server: cp.ChildProcess }> {
+async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.UrlWithStringQuery; server: cp.ChildProcess }> {
 
 	// Ensure a tmp user-data-dir is used for the tests
 	const tmpDir = tmp.dirSync({ prefix: 't' });
@@ -118,7 +118,6 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	const userDataDir = path.join(testDataPath, 'd');
 
 	const env = {
-		VSCODE_AGENT_FOLDER: userDataDir,
 		VSCODE_BROWSER: browserType,
 		...process.env
 	};
@@ -126,27 +125,27 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	const root = path.join(__dirname, '..', '..', '..', '..');
 	const logsPath = path.join(root, '.build', 'logs', 'integration-tests-browser');
 
-	const serverArgs = ['--browser', 'none', '--driver', 'web', '--enable-proposed-api', '--disable-telemetry'];
+	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust'];
 
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
-		serverLocation = path.join(process.env.VSCODE_REMOTE_SERVER_PATH, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
-		serverArgs.push(`--logsPath=${logsPath}`);
+		const { serverApplicationName } = require(path.join(process.env.VSCODE_REMOTE_SERVER_PATH, 'product.json'));
+		serverLocation = path.join(process.env.VSCODE_REMOTE_SERVER_PATH, 'bin', `${serverApplicationName}${process.platform === 'win32' ? '.cmd' : ''}`);
 
 		if (optimist.argv.debug) {
 			console.log(`Starting built server from '${serverLocation}'`);
-			console.log(`Storing log files into '${logsPath}'`);
 		}
 	} else {
-		serverLocation = path.join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
-		serverArgs.push('--logsPath', logsPath);
+		serverLocation = path.join(root, `scripts/code-server.${process.platform === 'win32' ? 'bat' : 'sh'}`);
 		process.env.VSCODE_DEV = '1';
 
 		if (optimist.argv.debug) {
 			console.log(`Starting server out of sources from '${serverLocation}'`);
-			console.log(`Storing log files into '${logsPath}'`);
 		}
 	}
+
+	console.log(`Storing log files into '${logsPath}'`);
+	serverArgs.push('--logsPath', logsPath);
 
 	const stdio: cp.StdioOptions = optimist.argv.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
 

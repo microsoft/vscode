@@ -7,7 +7,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as nls from 'vs/nls';
 import { CustomEditorPriority, CustomEditorSelector } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchLanguageService';
+import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
 
 namespace Fields {
 	export const viewType = 'viewType';

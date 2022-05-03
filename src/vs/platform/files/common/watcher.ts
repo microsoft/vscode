@@ -4,12 +4,77 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { GLOBSTAR, IRelativePattern, parse, ParsedPattern } from 'vs/base/common/glob';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { isAbsolute } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
-export interface IRecursiveWatcher {
+interface IWatchRequest {
+
+	/**
+	 * The path to watch.
+	 */
+	path: string;
+
+	/**
+	 * Whether to watch recursively or not.
+	 */
+	recursive: boolean;
+
+	/**
+	 * A set of glob patterns or paths to exclude from watching.
+	 *
+	 * Paths or basic glob patterns that are relative will be
+	 * resolved to an absolute path using the currently opened
+	 * workspace. Complex glob patterns must match on absolute
+	 * paths via leading or trailing `**`.
+	 */
+	excludes: string[];
+
+	/**
+	 * An optional set of glob patterns or paths to include for
+	 * watching. If not provided, all paths are considered for
+	 * events.
+	 *
+	 * Paths or basic glob patterns that are relative will be
+	 * resolved to an absolute path using the currently opened
+	 * workspace. Complex glob patterns must match on absolute
+	 * paths via leading or trailing `**`.
+	 */
+	includes?: Array<string | IRelativePattern>;
+}
+
+export interface INonRecursiveWatchRequest extends IWatchRequest {
+
+	/**
+	 * The watcher will be non-recursive.
+	 */
+	recursive: false;
+}
+
+export interface IRecursiveWatchRequest extends IWatchRequest {
+
+	/**
+	 * The watcher will be recursive.
+	 */
+	recursive: true;
+
+	/**
+	 * @deprecated this only exists for WSL1 support and should never
+	 * be used in any other case.
+	 */
+	pollingInterval?: number;
+}
+
+export function isRecursiveWatchRequest(request: IWatchRequest): request is IRecursiveWatchRequest {
+	return request.recursive === true;
+}
+
+export type IUniversalWatchRequest = IRecursiveWatchRequest | INonRecursiveWatchRequest;
+
+interface IWatcher {
 
 	/**
 	 * A normalized file change event from the raw events
@@ -48,11 +113,44 @@ export interface IRecursiveWatcher {
 	stop(): Promise<void>;
 }
 
-export abstract class AbstractRecursiveWatcherClient extends Disposable {
+export interface IRecursiveWatcher extends IWatcher {
+	watch(requests: IRecursiveWatchRequest[]): Promise<void>;
+}
+
+export interface IRecursiveWatcherOptions {
+
+	/**
+	 * If `true`, will enable polling for all watchers, otherwise
+	 * will enable it for paths included in the string array.
+	 *
+	 * @deprecated this only exists for WSL1 support and should never
+	 * be used in any other case.
+	 */
+	usePolling: boolean | string[];
+
+	/**
+	 * If polling is enabled (via `usePolling`), defines the duration
+	 * in which the watcher will poll for changes.
+	 *
+	 * @deprecated this only exists for WSL1 support and should never
+	 * be used in any other case.
+	 */
+	pollingInterval?: number;
+}
+
+export interface INonRecursiveWatcher extends IWatcher {
+	watch(requests: INonRecursiveWatchRequest[]): Promise<void>;
+}
+
+export interface IUniversalWatcher extends IWatcher {
+	watch(requests: IUniversalWatchRequest[]): Promise<void>;
+}
+
+export abstract class AbstractWatcherClient extends Disposable {
 
 	private static readonly MAX_RESTARTS = 5;
 
-	private watcher: IRecursiveWatcher | undefined;
+	private watcher: IWatcher | undefined;
 	private readonly watcherDisposables = this._register(new MutableDisposable());
 
 	private requests: IWatchRequest[] | undefined = undefined;
@@ -62,12 +160,16 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 	constructor(
 		private readonly onFileChanges: (changes: IDiskFileChange[]) => void,
 		private readonly onLogMessage: (msg: ILogMessage) => void,
-		private verboseLogging: boolean
+		private verboseLogging: boolean,
+		private options: {
+			type: string;
+			restartOnError: boolean;
+		}
 	) {
 		super();
 	}
 
-	protected abstract createWatcher(disposables: DisposableStore): IRecursiveWatcher;
+	protected abstract createWatcher(disposables: DisposableStore): IWatcher;
 
 	protected init(): void {
 
@@ -80,33 +182,37 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 		this.watcher.setVerboseLogging(this.verboseLogging);
 
 		// Wire in event handlers
-		disposables.add(this.watcher.onDidChangeFile(e => this.onFileChanges(e)));
-		disposables.add(this.watcher.onDidLogMessage(e => this.onLogMessage(e)));
-		disposables.add(this.watcher.onDidError(e => this.onError(e)));
+		disposables.add(this.watcher.onDidChangeFile(changes => this.onFileChanges(changes)));
+		disposables.add(this.watcher.onDidLogMessage(msg => this.onLogMessage(msg)));
+		disposables.add(this.watcher.onDidError(error => this.onError(error)));
 	}
 
 	protected onError(error: string): void {
 
-		// Restart up to N times
-		if (this.restartCounter < AbstractRecursiveWatcherClient.MAX_RESTARTS && this.requests) {
-			this.error(`restarting watcher after error: ${error}`);
-			this.restart(this.requests);
+		// Restart on error (up to N times, if enabled)
+		if (this.options.restartOnError) {
+			if (this.restartCounter < AbstractWatcherClient.MAX_RESTARTS && this.requests) {
+				this.error(`restarting watcher after error: ${error}`);
+				this.restart(this.requests);
+			} else {
+				this.error(`gave up attempting to restart watcher after error: ${error}`);
+			}
 		}
 
-		// Otherwise log that we have given up to restart
+		// Do not attempt to restart if not enabled
 		else {
-			this.error(`gave up attempting to restart watcher after error: ${error}`);
+			this.error(error);
 		}
 	}
 
-	private restart(requests: IWatchRequest[]): void {
+	private restart(requests: IUniversalWatchRequest[]): void {
 		this.restartCounter++;
 
 		this.init();
 		this.watch(requests);
 	}
 
-	async watch(requests: IWatchRequest[]): Promise<void> {
+	async watch(requests: IUniversalWatchRequest[]): Promise<void> {
 		this.requests = requests;
 
 		await this.watcher?.watch(requests);
@@ -119,7 +225,7 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 	}
 
 	private error(message: string) {
-		this.onLogMessage({ type: 'error', message: `[File Watcher (parcel)] ${message}` });
+		this.onLogMessage({ type: 'error', message: `[File Watcher (${this.options.type})] ${message}` });
 	}
 
 	override dispose(): void {
@@ -131,23 +237,30 @@ export abstract class AbstractRecursiveWatcherClient extends Disposable {
 	}
 }
 
-export interface IWatchRequest {
+export abstract class AbstractNonRecursiveWatcherClient extends AbstractWatcherClient {
 
-	/**
-	 * The path to watch.
-	 */
-	path: string;
+	constructor(
+		onFileChanges: (changes: IDiskFileChange[]) => void,
+		onLogMessage: (msg: ILogMessage) => void,
+		verboseLogging: boolean
+	) {
+		super(onFileChanges, onLogMessage, verboseLogging, { type: 'node.js', restartOnError: false });
+	}
 
-	/**
-	 * A set of glob patterns or paths to exclude from watching.
-	 */
-	excludes: string[];
+	protected abstract override createWatcher(disposables: DisposableStore): INonRecursiveWatcher;
+}
 
-	/**
-	 * @deprecated this only exists for WSL1 support and should never
-	 * be used in any other case.
-	 */
-	pollingInterval?: number;
+export abstract class AbstractUniversalWatcherClient extends AbstractWatcherClient {
+
+	constructor(
+		onFileChanges: (changes: IDiskFileChange[]) => void,
+		onLogMessage: (msg: ILogMessage) => void,
+		verboseLogging: boolean
+	) {
+		super(onFileChanges, onLogMessage, verboseLogging, { type: 'universal', restartOnError: true });
+	}
+
+	protected abstract override createWatcher(disposables: DisposableStore): IUniversalWatcher;
 }
 
 export interface IDiskFileChange {
@@ -178,6 +291,26 @@ export function coalesceEvents(changes: IDiskFileChange[]): IDiskFileChange[] {
 	return coalescer.coalesce();
 }
 
+export function parseWatcherPatterns(path: string, patterns: Array<string | IRelativePattern>): ParsedPattern[] {
+	const parsedPatterns: ParsedPattern[] = [];
+
+	for (const pattern of patterns) {
+		let normalizedPattern = pattern;
+
+		// Patterns are always matched on the full absolute path
+		// of the event. As such, if the pattern is not absolute
+		// and does not start with a leading `**`, we have to
+		// convert it to a relative pattern with the given `base`
+		if (typeof normalizedPattern === 'string' && !normalizedPattern.startsWith(GLOBSTAR) && !isAbsolute(normalizedPattern)) {
+			normalizedPattern = { base: path, pattern: normalizedPattern };
+		}
+
+		parsedPatterns.push(parse(normalizedPattern));
+	}
+
+	return parsedPatterns;
+}
+
 class EventCoalescer {
 
 	private readonly coalesced = new Set<IDiskFileChange>();
@@ -201,13 +334,9 @@ class EventCoalescer {
 			const currentChangeType = existingEvent.type;
 			const newChangeType = event.type;
 
-			// macOS/Windows: track renames to different case but
-			// same name by changing current event to DELETED
-			// this encodes some underlying knowledge about the
-			// file watcher being used by assuming we first get
-			// an event for the CREATE and then an event that we
-			// consider as DELETE if same name / different case.
-			if (existingEvent.path !== event.path && event.type === FileChangeType.DELETED) {
+			// macOS/Windows: track renames to different case
+			// by keeping both CREATE and DELETE events
+			if (existingEvent.path !== event.path && (event.type === FileChangeType.DELETED || event.type === FileChangeType.ADDED)) {
 				keepEvent = true;
 			}
 

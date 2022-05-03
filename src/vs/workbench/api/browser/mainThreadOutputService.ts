@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputService, IOutputChannel, OUTPUT_VIEW_ID, OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
-import { Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
-import { MainThreadOutputServiceShape, MainContext, IExtHostContext, ExtHostOutputServiceShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { Extensions, IOutputChannelRegistry, IOutputService, IOutputChannel, OUTPUT_VIEW_ID, OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
+import { MainThreadOutputServiceShape, MainContext, ExtHostOutputServiceShape, ExtHostContext } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
@@ -42,12 +41,12 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		setVisibleChannel();
 	}
 
-	public async $register(label: string, log: boolean, file: UriComponents, extensionId: string): Promise<string> {
+	public async $register(label: string, log: boolean, file: UriComponents, languageId: string, extensionId: string): Promise<string> {
 		const idCounter = (MainThreadOutputService._extensionIdPool.get(extensionId) || 0) + 1;
 		MainThreadOutputService._extensionIdPool.set(extensionId, idCounter);
 		const id = `extension-output-${extensionId}-#${idCounter}`;
 
-		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: URI.revive(file), log });
+		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: URI.revive(file), log, languageId });
 		this._register(toDisposable(() => this.$dispose(id)));
 		return id;
 	}

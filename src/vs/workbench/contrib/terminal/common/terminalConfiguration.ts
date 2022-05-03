@@ -12,20 +12,20 @@ import { Registry } from 'vs/platform/registry/common/platform';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
-	'`\${cwdFolder}`: ' + localize('cwdFolder', "the terminal's current working directory, displayed for multi-root workspaces or in a single root workspace when the value differs from the initial working directory. This will not be displayed for Windows."),
+	'`\${cwdFolder}`: ' + localize('cwdFolder', "the terminal's current working directory, displayed for multi-root workspaces or in a single root workspace when the value differs from the initial working directory. On Windows, this will only be displayed when shell integration is enabled."),
 	'`\${workspaceFolder}`: ' + localize('workspaceFolder', "the workspace in which the terminal was launched"),
 	'`\${local}`: ' + localize('local', "indicates a local terminal in a remote workspace"),
 	'`\${process}`: ' + localize('process', "the name of the terminal process"),
 	'`\${separator}`: ' + localize('separator', "a conditional separator (\" - \") that only shows when surrounded by variables with values or static text."),
-	'`\${sequence}`: ' + localize('sequence', "the name provided to xterm.js by the process"),
+	'`\${sequence}`: ' + localize('sequence', "the name provided to the terminal by the process"),
 	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task"),
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
-let terminalTitleDescription = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
-terminalTitleDescription += terminalDescriptors;
+let terminalTitle = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
+terminalTitle += terminalDescriptors;
 
-let terminalDescriptionDescription = localize('terminalDescription', "Controls the terminal description, which appears to the right of the title. Variables are substituted based on the context:");
-terminalDescriptionDescription += terminalDescriptors;
+let terminalDescription = localize('terminalDescription', "Controls the terminal description, which appears to the right of the title. Variables are substituted based on the context:");
+terminalDescription += terminalDescriptors;
 
 const terminalConfiguration: IConfigurationNode = {
 	id: 'terminal',
@@ -103,6 +103,21 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'view',
 			description: localize('terminal.integrated.defaultLocation', "Controls where newly created terminals will appear.")
 		},
+		[TerminalSettingId.ShellIntegrationDecorationIconSuccess]: {
+			type: 'string',
+			default: 'primitive-dot',
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconSuccess', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.decorationsEnabled#`")
+		},
+		[TerminalSettingId.ShellIntegrationDecorationIconError]: {
+			type: 'string',
+			default: 'error-small',
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconError', "Controls the icon that will be used for each command in terminals with shell integration enabled that do have an associated exit code. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.decorationsEnabled#`.")
+		},
+		[TerminalSettingId.ShellIntegrationDecorationIcon]: {
+			type: 'string',
+			default: 'circle-outline',
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIcon', "Controls the icon that will be used for skipped/empty commands. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.decorationsEnabled#`")
+		},
 		[TerminalSettingId.TabsFocusMode]: {
 			type: 'string',
 			enum: ['singleClick', 'doubleClick'],
@@ -132,6 +147,11 @@ const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.copyOnSelection', "Controls whether text selected in the terminal will be copied to the clipboard."),
 			type: 'boolean',
 			default: false
+		},
+		[TerminalSettingId.EnableMultiLinePasteWarning]: {
+			markdownDescription: localize('terminal.integrated.enableMultiLinePasteWarning', "Show a warning dialog when pasting multiple lines into the terminal. The dialog does not show when:\n\n- Bracketed paste mode is enabled (the shell supports multi-line paste natively)\n- The paste is handled by the shell's readline (in the case of pwsh)"),
+			type: 'boolean',
+			default: true
 		},
 		[TerminalSettingId.DrawBoldTextInBrightColors]: {
 			description: localize('terminal.integrated.drawBoldTextInBrightColors', "Controls whether bold text in the terminal will always use the \"bright\" ANSI color variant."),
@@ -166,9 +186,9 @@ const terminalConfiguration: IConfigurationNode = {
 			default: DEFAULT_LINE_HEIGHT
 		},
 		[TerminalSettingId.MinimumContrastRatio]: {
-			markdownDescription: localize('terminal.integrated.minimumContrastRatio', "When set the foreground color of each cell will change to try meet the contrast ratio specified. Example values:\n\n- 1: The default, do nothing.\n- 4.5: [WCAG AA compliance (minimum)](https://www.w3.org/TR/UNDERSTANDING-WCAG20/visual-audio-contrast-contrast.html).\n- 7: [WCAG AAA compliance (enhanced)](https://www.w3.org/TR/UNDERSTANDING-WCAG20/visual-audio-contrast7.html).\n- 21: White on black or black on white."),
+			markdownDescription: localize('terminal.integrated.minimumContrastRatio', "When set, the foreground color of each cell will change to try meet the contrast ratio specified. Note that this will not apply to `powerline` characters per #146406. Example values:\n\n- 1: Do nothing and use the standard theme colors.\n- 4.5: [WCAG AA compliance (minimum)](https://www.w3.org/TR/UNDERSTANDING-WCAG20/visual-audio-contrast-contrast.html) (default).\n- 7: [WCAG AAA compliance (enhanced)](https://www.w3.org/TR/UNDERSTANDING-WCAG20/visual-audio-contrast7.html).\n- 21: White on black or black on white."),
 			type: 'number',
-			default: 1
+			default: 4.5
 		},
 		[TerminalSettingId.FastScrollSensitivity]: {
 			markdownDescription: localize('terminal.integrated.fastScrollSensitivity', "Scrolling speed multiplier when pressing `Alt`."),
@@ -269,26 +289,27 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.TerminalTitleSeparator]: {
 			'type': 'string',
 			'default': ' - ',
-			'markdownDescription': localize("terminal.integrated.tabs.separator", "Separator used by `terminal.integrated.title` and `terminal.integrated.description`.")
+			'markdownDescription': localize("terminal.integrated.tabs.separator", "Separator used by {0} and {0}.", `\`${TerminalSettingId.TerminalTitle}\``, `\`${TerminalSettingId.TerminalDescription}\``)
 		},
 		[TerminalSettingId.TerminalTitle]: {
 			'type': 'string',
 			'default': '${process}',
-			'markdownDescription': terminalTitleDescription
+			'markdownDescription': terminalTitle
 		},
 		[TerminalSettingId.TerminalDescription]: {
 			'type': 'string',
 			'default': '${task}${separator}${local}${separator}${cwdFolder}',
-			'markdownDescription': terminalDescriptionDescription
+			'markdownDescription': terminalDescription
 		},
 		[TerminalSettingId.RightClickBehavior]: {
 			type: 'string',
-			enum: ['default', 'copyPaste', 'paste', 'selectWord'],
+			enum: ['default', 'copyPaste', 'paste', 'selectWord', 'nothing'],
 			enumDescriptions: [
 				localize('terminal.integrated.rightClickBehavior.default', "Show the context menu."),
 				localize('terminal.integrated.rightClickBehavior.copyPaste', "Copy when there is a selection, otherwise paste."),
 				localize('terminal.integrated.rightClickBehavior.paste', "Paste on right click."),
-				localize('terminal.integrated.rightClickBehavior.selectWord', "Select the word under the cursor and show the context menu.")
+				localize('terminal.integrated.rightClickBehavior.selectWord', "Select the word under the cursor and show the context menu."),
+				localize('terminal.integrated.rightClickBehavior.nothing', "Do nothing and pass event to terminal.")
 			],
 			default: isMacintosh ? 'selectWord' : isWindows ? 'copyPaste' : 'default',
 			description: localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click.")
@@ -436,11 +457,6 @@ const terminalConfiguration: IConfigurationNode = {
 			default: '11',
 			description: localize('terminal.integrated.unicodeVersion', "Controls what version of unicode to use when evaluating the width of characters in the terminal. If you experience emoji or other wide characters not taking up the right amount of space or backspace either deleting too much or too little then you may want to try tweaking this setting.")
 		},
-		[TerminalSettingId.ExperimentalLinkProvider]: {
-			description: localize('terminal.integrated.experimentalLinkProvider', "An experimental setting that aims to improve link detection in the terminal by improving when links are detected and by enabling shared link detection with the editor. Currently this only supports web links."),
-			type: 'boolean',
-			default: true
-		},
 		[TerminalSettingId.LocalEchoLatencyThreshold]: {
 			description: localize('terminal.integrated.localEchoLatencyThreshold', "Length of network delay, in milliseconds, where local edits will be echoed on the terminal without waiting for server acknowledgement. If '0', local echo will always be on, and if '-1' it will be disabled."),
 			type: 'integer',
@@ -505,16 +521,41 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.AutoReplies]: {
-			description: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses. Note that the message includes escape sequences so the reply might not happen with styled text. Each reply can only happen once every second."),
+			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses.\n\nRemarks:\n\n- Use {0} to automatically respond to the terminate batch job prompt on Windows.\n- The message includes escape sequences so the reply might not happen with styled text.\n- Each reply can only happen once every second.\n- Use {1} in the reply to mean the enter key.\n- To unset a default key, set the value to null.\n- Restart VS Code if new don't apply.", '`"Terminate batch job (Y/N)": "\\r"`', '`"\\r"`'),
 			type: 'object',
 			additionalProperties: {
-				type: 'string',
-				description: localize('terminal.integrated.autoReplies.reply', "The reply to send to the process.")
+				oneOf: [{
+					type: 'string',
+					description: localize('terminal.integrated.autoReplies.reply', "The reply to send to the process.")
+				},
+				{ type: 'null' }]
 			},
-			default: {
-				'Terminate batch job (Y/N)': 'Y\r'
-			}
-		}
+			default: {}
+		},
+		[TerminalSettingId.ShellIntegrationEnabled]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Enable the experimental shell integration feature which will turn on certain features like enhanced command tracking and current working directory detection. Shell integration works by injecting a script that is run when the shell is initialized which lets the terminal gain additional insights into what is happening within the terminal, the script injection may not work if you have custom arguments defined in the terminal profile.\n\nSupported shells:\n\n- Linux/macOS: bash, pwsh, zsh\n - Windows: pwsh\n\nThis setting applies only when terminals are created, you will need to restart terminals for the setting to take effect."),
+			type: 'boolean',
+			default: false
+		},
+		[TerminalSettingId.ShellIntegrationDecorationsEnabled]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationsEnabled', "When shell integration is enabled, adds a decoration for each command."),
+			type: 'boolean',
+			default: true
+		},
+		[TerminalSettingId.ShellIntegrationShowWelcome]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shellIntegration.showWelcome', "Whether to show the shell integration activated welcome message in the terminal when the feature is enabled."),
+			type: 'boolean',
+			default: true
+		},
+		[TerminalSettingId.ShellIntegrationCommandHistory]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shellIntegration.history', "Controls the number of recently used commands to keep in the terminal command history. Set to 0 to disable terminal command history."),
+			type: 'number',
+			default: 100
+		},
 	}
 };
 

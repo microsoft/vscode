@@ -10,7 +10,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IFileEditorInput, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { SortOrder, LexicographicOptions, FILE_EDITOR_INPUT_ID, BINARY_TEXT_FILE_MODE } from 'vs/workbench/contrib/files/common/files';
+import { SortOrder, LexicographicOptions, FILE_EDITOR_INPUT_ID, BINARY_TEXT_FILE_MODE, UndoConfirmLevel, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
@@ -27,13 +27,14 @@ import { ExplorerService, UNDO_REDO_SOURCE } from 'vs/workbench/contrib/files/br
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
 import { Schemas } from 'vs/base/common/network';
 import { WorkspaceWatcher } from 'vs/workbench/contrib/files/browser/workspaceWatcher';
-import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
+import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
 import { DirtyFilesIndicator } from 'vs/workbench/contrib/files/common/dirtyFilesIndicator';
 import { UndoCommand, RedoCommand } from 'vs/editor/browser/editorExtensions';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { FileEditorInputSerializer, FileEditorWorkingCopyEditorHandler } from 'vs/workbench/contrib/files/browser/editors/fileEditorHandler';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class FileUriLabelContribution implements IWorkbenchContribution {
 
@@ -71,8 +72,8 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerFile
 
 	typeId: FILE_EDITOR_INPUT_ID,
 
-	createFileEditor: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, preferredContents, instantiationService): IFileEditorInput => {
-		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, preferredContents);
+	createFileEditor: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredLanguageId, preferredContents, instantiationService): IFileEditorInput => {
+		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredLanguageId, preferredContents);
 	},
 
 	isFileEditor: (obj): obj is IFileEditorInput => {
@@ -137,7 +138,7 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		[FILES_EXCLUDE_CONFIG]: {
 			'type': 'object',
-			'markdownDescription': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the file Explorer decides which files and folders to show or hide based on this setting. Refer to the `#search.exclude#` setting to define search specific excludes. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
+			'markdownDescription': nls.localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files and folders. For example, the file explorer decides which files and folders to show or hide based on this setting. Refer to the `#search.exclude#` setting to define search-specific excludes."),
 			'default': {
 				...{ '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true, '**/Thumbs.db': true },
 				...(isWeb ? { '**/*.crswap': true /* filter out swap files used for local file access */ } : undefined)
@@ -156,7 +157,7 @@ configurationRegistry.registerConfiguration({
 								'type': 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
 								'pattern': '\\w*\\$\\(basename\\)\\w*',
 								'default': '$(basename).ext',
-								'description': nls.localize('files.exclude.when', "Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.")
+								'markdownDescription': nls.localize('files.exclude.when', "Additional check on the siblings of a matching file. Use \\$(basename) as variable for the matching file name.")
 							}
 						}
 					}
@@ -234,7 +235,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onWindowChange' }, "An editor with changes is automatically saved when the window loses focus.")
 			],
 			'default': isWeb ? AutoSaveConfiguration.AFTER_DELAY : AutoSaveConfiguration.OFF,
-			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSave' }, "Controls auto save of editors that have unsaved changes. Read more about autosave [here](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save).", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
+			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSave' }, "Controls [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) of editors that have unsaved changes.", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
 		},
 		'files.autoSaveDelay': {
 			'type': 'number',
@@ -245,7 +246,7 @@ configurationRegistry.registerConfiguration({
 		'files.watcherExclude': {
 			'type': 'object',
 			'default': { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true, '**/.hg/store/**': true },
-			'markdownDescription': nls.localize('watcherExclude', "Configure paths or glob patterns to exclude from file watching. Paths that are relative (for example `build/output`) will be resolved to an absolute path using the currently opened workspace. Glob patterns must match on absolute paths (i.e. prefix with `**/` or the full path and suffix with `/**` to match files within a path) to match properly (for example `**/build/output/**` or `/Users/name/workspaces/project/build/output/**`). When you experience the file watcher process consuming a lot of CPU, make sure to exclude large folders that are of less interest (such as build output folders)."),
+			'markdownDescription': nls.localize('watcherExclude', "Configure paths or glob patterns to exclude from file watching. Paths or basic glob patterns that are relative (for example `build/output` or `*.js`) will be resolved to an absolute path using the currently opened workspace. Complex glob patterns must match on absolute paths (i.e. prefix with `**/` or the full path and suffix with `/**` to match files within a path) to match properly (for example `**/build/output/**` or `/Users/name/workspaces/project/build/output/**`). When you experience the file watcher process consuming a lot of CPU, make sure to exclude large folders that are of less interest (such as build output folders)."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.watcherInclude': {
@@ -260,11 +261,12 @@ configurationRegistry.registerConfiguration({
 		'files.hotExit': hotExitConfiguration,
 		'files.defaultLanguage': {
 			'type': 'string',
-			'markdownDescription': nls.localize('defaultLanguage', "The default language mode that is assigned to new files. If configured to `${activeEditorLanguage}`, will use the language mode of the currently active text editor if any.")
+			'markdownDescription': nls.localize('defaultLanguage', "The default language identifier that is assigned to new files. If configured to `${activeEditorLanguage}`, will use the language identifier of the currently active text editor if any.")
 		},
 		'files.maxMemoryForLargeFilesMB': {
 			'type': 'number',
 			'default': 4096,
+			'minimum': 0,
 			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line."),
 			included: isNative
 		},
@@ -291,6 +293,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
 			'default': false
+		},
+		'files.participants.timeout': {
+			type: 'number',
+			default: 60000,
+			markdownDescription: nls.localize('files.participants.timeout', "Timeout in milliseconds after which file participants for create, rename, and delete are cancelled. Use `0` to disable participants."),
 		}
 	}
 });
@@ -330,16 +337,24 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'explorer.openEditors.visible': {
 			'type': 'number',
-			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane. Setting this to 0 hides the Open Editors pane."),
-			'default': 9
+			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "The maximum number of editors shown in the Open Editors pane. Setting this to 0 hides the Open Editors pane."),
+			'default': 9,
+			'minimum': 0
+		},
+		'explorer.openEditors.minVisible': {
+			'type': 'number',
+			'description': nls.localize({ key: 'openEditorsVisibleMin', comment: ['Open is an adjective'] }, "The minimum number of editor slots shown in the Open Editors pane. If set to 0 the Open Editors pane will dynamically resize based on the number of editors."),
+			'default': 0,
+			'minimum': 0
 		},
 		'explorer.openEditors.sortOrder': {
 			'type': 'string',
-			'enum': ['editorOrder', 'alphabetical'],
+			'enum': ['editorOrder', 'alphabetical', 'fullPath'],
 			'description': nls.localize({ key: 'openEditorsSortOrder', comment: ['Open is an adjective'] }, "Controls the sorting order of editors in the Open Editors pane."),
 			'enumDescriptions': [
 				nls.localize('sortOrder.editorOrder', 'Editors are ordered in the same order editor tabs are shown.'),
-				nls.localize('sortOrder.alphabetical', 'Editors are ordered in alphabetical order inside each editor group.')
+				nls.localize('sortOrder.alphabetical', 'Editors are ordered alphabetically by tab name inside each editor group.'),
+				nls.localize('sortOrder.fullPath', 'Editors are ordered alphabetically by full path inside each editor group.')
 			],
 			'default': 'editorOrder'
 		},
@@ -369,6 +384,22 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('confirmDelete', "Controls whether the explorer should ask for confirmation when deleting a file via the trash."),
 			'default': true
 		},
+		'explorer.enableUndo': {
+			'type': 'boolean',
+			'description': nls.localize('enableUndo', "Controls whether the explorer should support undoing file and folder operations."),
+			'default': true
+		},
+		'explorer.confirmUndo': {
+			'type': 'string',
+			'enum': [UndoConfirmLevel.Verbose, UndoConfirmLevel.Default, UndoConfirmLevel.Light],
+			'description': nls.localize('confirmUndo', "Controls whether the explorer should ask for confirmation when undoing."),
+			'default': UndoConfirmLevel.Default,
+			'enumDescriptions': [
+				nls.localize('enableUndo.verbose', 'Explorer will prompt before all undo operations.'),
+				nls.localize('enableUndo.default', 'Explorer will prompt before destructive undo operations.'),
+				nls.localize('enableUndo.light', 'Explorer will not prompt before undo operations when focused.'),
+			],
+		},
 		'explorer.expandSingleFolderWorkspaces': {
 			'type': 'boolean',
 			'description': nls.localize('expandSingleFolderWorkspaces', "Controls whether the explorer should expand multi-root workspaces containing only one folder during initilization"),
@@ -376,16 +407,17 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.sortOrder': {
 			'type': 'string',
-			'enum': [SortOrder.Default, SortOrder.Mixed, SortOrder.FilesFirst, SortOrder.Type, SortOrder.Modified],
+			'enum': [SortOrder.Default, SortOrder.Mixed, SortOrder.FilesFirst, SortOrder.Type, SortOrder.Modified, SortOrder.FoldersNestsFiles],
 			'default': SortOrder.Default,
 			'enumDescriptions': [
 				nls.localize('sortOrder.default', 'Files and folders are sorted by their names. Folders are displayed before files.'),
 				nls.localize('sortOrder.mixed', 'Files and folders are sorted by their names. Files are interwoven with folders.'),
 				nls.localize('sortOrder.filesFirst', 'Files and folders are sorted by their names. Files are displayed before folders.'),
 				nls.localize('sortOrder.type', 'Files and folders are grouped by extension type then sorted by their names. Folders are displayed before files.'),
-				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before files.')
+				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before  files.'),
+				nls.localize('sortOrder.foldersNestsFiles', 'Files and folders are sorted by their names. Folders are displayed before files. Files with nested children are displayed before other files.')
 			],
-			'description': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer.")
+			'markdownDescription': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer. When `#explorer.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
 		},
 		'explorer.sortOrderLexicographicOptions': {
 			'type': 'string',
@@ -438,6 +470,38 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': nls.localize('copyRelativePathSeparator', "The path separation character used when copying relative file paths."),
 			'default': 'auto'
+		},
+		'explorer.fileNesting.enabled': {
+			'type': 'boolean',
+			scope: ConfigurationScope.RESOURCE,
+			'markdownDescription': nls.localize('fileNestingEnabled', "Controls whether file nesting is enabled in the explorer. File nesting allows for related files in a directory to be visually grouped together under a single parent file."),
+			'default': false,
+		},
+		'explorer.fileNesting.expand': {
+			'type': 'boolean',
+			'markdownDescription': nls.localize('fileNestingExpand', "Controls whether file nests are automatically expanded. `#explorer.fileNesting.enabled#` must be set for this to take effect."),
+			'default': true,
+		},
+		'explorer.fileNesting.patterns': {
+			'type': 'object',
+			scope: ConfigurationScope.RESOURCE,
+			'markdownDescription': nls.localize('fileNestingPatterns', "Controls nesting of files in the explorer. Each __Item__ represents a parent pattern and may contain a single `*` character that matches any string. Each __Value__ represents a comma separated list of the child patterns that should be shown nested under a given parent. Child patterns may contain several special tokens:\n- `${capture}`: Matches the resolved value of the `*` from the parent pattern\n- `${basename}`: Matches the parent file's basename, the `file` in `file.ts`\n- `${extname}`: Matches the parent file's extension, the `ts` in `file.ts`\n- `${dirname}`: Matches the parent file's directory name, the `src` in `src/file.ts`\n- `*`:  Matches any string, may only be used once per child pattern"),
+			patternProperties: {
+				'^[^*]*\\*?[^*]*$': {
+					markdownDescription: nls.localize('fileNesting.description', "Each key pattern may contain a single `*` character which will match any string."),
+					type: 'string',
+					pattern: '^([^,*]*\\*?[^,*]*)(, ?[^,*]*\\*?[^,*]*)*$',
+				}
+			},
+			additionalProperties: false,
+			'default': {
+				'*.ts': '${capture}.js',
+				'*.js': '${capture}.js.map, ${capture}.min.js, ${capture}.d.ts',
+				'*.jsx': '${capture}.js',
+				'*.tsx': '${capture}.ts',
+				'tsconfig.json': 'tsconfig.*.json',
+				'package.json': 'package-lock.json, yarn.lock',
+			}
 		}
 	}
 });
@@ -445,7 +509,10 @@ configurationRegistry.registerConfiguration({
 UndoCommand.addImplementation(110, 'explorer', (accessor: ServicesAccessor) => {
 	const undoRedoService = accessor.get(IUndoRedoService);
 	const explorerService = accessor.get(IExplorerService);
-	if (explorerService.hasViewFocus() && undoRedoService.canUndo(UNDO_REDO_SOURCE)) {
+	const configurationService = accessor.get(IConfigurationService);
+
+	const explorerCanUndo = configurationService.getValue<IFilesConfiguration>().explorer.enableUndo;
+	if (explorerService.hasViewFocus() && undoRedoService.canUndo(UNDO_REDO_SOURCE) && explorerCanUndo) {
 		undoRedoService.undo(UNDO_REDO_SOURCE);
 		return true;
 	}
@@ -456,7 +523,10 @@ UndoCommand.addImplementation(110, 'explorer', (accessor: ServicesAccessor) => {
 RedoCommand.addImplementation(110, 'explorer', (accessor: ServicesAccessor) => {
 	const undoRedoService = accessor.get(IUndoRedoService);
 	const explorerService = accessor.get(IExplorerService);
-	if (explorerService.hasViewFocus() && undoRedoService.canRedo(UNDO_REDO_SOURCE)) {
+	const configurationService = accessor.get(IConfigurationService);
+
+	const explorerCanUndo = configurationService.getValue<IFilesConfiguration>().explorer.enableUndo;
+	if (explorerService.hasViewFocus() && undoRedoService.canRedo(UNDO_REDO_SOURCE) && explorerCanUndo) {
 		undoRedoService.redo(UNDO_REDO_SOURCE);
 		return true;
 	}

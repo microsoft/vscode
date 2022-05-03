@@ -388,7 +388,7 @@ function mapOptions<T, TFilterData>(compressedNodeUnwrapper: CompressedNodeUnwra
 	return {
 		...options,
 		identityProvider: options.identityProvider && {
-			getId(node: ICompressedTreeNode<T>): { toString(): string; } {
+			getId(node: ICompressedTreeNode<T>): { toString(): string } {
 				return options.identityProvider!.getId(compressedNodeUnwrapper(node));
 			}
 		},

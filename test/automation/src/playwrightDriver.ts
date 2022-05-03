@@ -3,105 +3,130 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as playwright from 'playwright';
-import { ChildProcess, spawn } from 'child_process';
+import * as playwright from '@playwright/test';
 import { join } from 'path';
-import { mkdir } from 'fs';
-import { promisify } from 'util';
-import { IDriver, IDisposable, IWindowDriver } from './driver';
-import { URI } from 'vscode-uri';
-import * as kill from 'tree-kill';
+import { IWindowDriver } from './driver';
 import { PageFunction } from 'playwright-core/types/structs';
-import { Logger, measureAndLog } from './logger';
-import type { LaunchOptions } from './code';
+import { measureAndLog } from './logger';
+import { LaunchOptions } from './code';
+import { teardown } from './processes';
+import { ChildProcess } from 'child_process';
 
-const width = 1200;
-const height = 800;
+export class PlaywrightDriver {
 
-const root = join(__dirname, '..', '..', '..');
-const logsPath = join(root, '.build', 'logs', 'smoke-tests-browser');
+	private static traceCounter = 1;
+	private static screenShotCounter = 1;
 
-const vscodeToPlaywrightKey: { [key: string]: string } = {
-	cmd: 'Meta',
-	ctrl: 'Control',
-	shift: 'Shift',
-	enter: 'Enter',
-	escape: 'Escape',
-	right: 'ArrowRight',
-	up: 'ArrowUp',
-	down: 'ArrowDown',
-	left: 'ArrowLeft',
-	home: 'Home',
-	esc: 'Escape'
-};
-
-let traceCounter = 1;
-
-class PlaywrightDriver implements IDriver {
-
-	_serviceBrand: undefined;
+	private static readonly vscodeToPlaywrightKey: { [key: string]: string } = {
+		cmd: 'Meta',
+		ctrl: 'Control',
+		shift: 'Shift',
+		enter: 'Enter',
+		escape: 'Escape',
+		right: 'ArrowRight',
+		up: 'ArrowUp',
+		down: 'ArrowDown',
+		left: 'ArrowLeft',
+		home: 'Home',
+		esc: 'Escape'
+	};
 
 	constructor(
-		private readonly server: ChildProcess,
-		private readonly browser: playwright.Browser,
+		private readonly application: playwright.Browser | playwright.ElectronApplication,
 		private readonly context: playwright.BrowserContext,
 		private readonly page: playwright.Page,
-		private readonly logger: Logger
+		private readonly serverProcess: ChildProcess | undefined,
+		private readonly options: LaunchOptions
 	) {
 	}
 
-	async getWindowIds() {
-		return [1];
-	}
+	async startTracing(name: string): Promise<void> {
+		if (!this.options.tracing) {
+			return; // tracing disabled
+		}
 
-	async capturePage() {
-		return '';
-	}
-
-	async startTracing(windowId: number, name: string): Promise<void> {
 		try {
-			await measureAndLog(this.context.tracing.startChunk({ title: name }), `startTracing for ${name}`, this.logger);
+			await measureAndLog(this.context.tracing.startChunk({ title: name }), `startTracing for ${name}`, this.options.logger);
 		} catch (error) {
 			// Ignore
 		}
 	}
 
-	async stopTracing(windowId: number, name: string, persist: boolean): Promise<void> {
+	async stopTracing(name: string, persist: boolean): Promise<void> {
+		if (!this.options.tracing) {
+			return; // tracing disabled
+		}
+
 		try {
 			let persistPath: string | undefined = undefined;
 			if (persist) {
-				persistPath = join(logsPath, `playwright-trace-${traceCounter++}-${name.replace(/\s+/g, '-')}.zip`);
+				persistPath = join(this.options.logsPath, `playwright-trace-${PlaywrightDriver.traceCounter++}-${name.replace(/\s+/g, '-')}.zip`);
 			}
 
-			await measureAndLog(this.context.tracing.stopChunk({ path: persistPath }), `stopTracing for ${name}`, this.logger);
+			await measureAndLog(this.context.tracing.stopChunk({ path: persistPath }), `stopTracing for ${name}`, this.options.logger);
+
+			// To ensure we have a screenshot at the end where
+			// it failed, also trigger one explicitly. Tracing
+			// does not guarantee to give us a screenshot unless
+			// some driver action ran before.
+			if (persist) {
+				await this.takeScreenshot(name);
+			}
 		} catch (error) {
 			// Ignore
 		}
 	}
 
-	async reloadWindow(windowId: number) {
-		throw new Error('Unsupported');
+	private async takeScreenshot(name: string): Promise<void> {
+		try {
+			const persistPath = join(this.options.logsPath, `playwright-screenshot-${PlaywrightDriver.screenShotCounter++}-${name.replace(/\s+/g, '-')}.png`);
+
+			await measureAndLog(this.page.screenshot({ path: persistPath, type: 'png' }), 'takeScreenshot', this.options.logger);
+		} catch (error) {
+			// Ignore
+		}
+	}
+
+	async reload() {
+		await this.page.reload();
 	}
 
 	async exitApplication() {
+
+		// Stop tracing
 		try {
-			await measureAndLog(this.context.tracing.stop(), 'stop tracing', this.logger);
+			if (this.options.tracing) {
+				await measureAndLog(this.context.tracing.stop(), 'stop tracing', this.options.logger);
+			}
 		} catch (error) {
 			// Ignore
 		}
 
-		try {
-			await measureAndLog(this.browser.close(), 'Browser.close()', this.logger);
-		} catch (error) {
-			// Ignore
+		// Web: exit via `close` method
+		if (this.options.web) {
+			try {
+				await measureAndLog(this.application.close(), 'playwright.close()', this.options.logger);
+			} catch (error) {
+				this.options.logger.log(`Error closing appliction (${error})`);
+			}
 		}
 
-		await measureAndLog(teardown(this.server, this.logger), 'teardown server', this.logger);
+		// Desktop: exit via `driver.exitApplication`
+		else {
+			try {
+				await measureAndLog(this.evaluateWithDriver(([driver]) => driver.exitApplication()), 'driver.exitApplication()', this.options.logger);
+			} catch (error) {
+				this.options.logger.log(`Error exiting appliction (${error})`);
+			}
+		}
 
-		return false;
+		// Server: via `teardown`
+		if (this.serverProcess) {
+			await measureAndLog(teardown(this.serverProcess, this.options.logger), 'teardown server process', this.options.logger);
+		}
 	}
 
-	async dispatchKeybinding(windowId: number, keybinding: string) {
+	async dispatchKeybinding(keybinding: string) {
 		const chords = keybinding.split(' ');
 		for (let i = 0; i < chords.length; i++) {
 			const chord = chords[i];
@@ -117,8 +142,8 @@ class PlaywrightDriver implements IDriver {
 			const keys = chord.split('+');
 			const keysDown: string[] = [];
 			for (let i = 0; i < keys.length; i++) {
-				if (keys[i] in vscodeToPlaywrightKey) {
-					keys[i] = vscodeToPlaywrightKey[keys[i]];
+				if (keys[i] in PlaywrightDriver.vscodeToPlaywrightKey) {
+					keys[i] = PlaywrightDriver.vscodeToPlaywrightKey[keys[i]];
 				}
 				await this.page.keyboard.down(keys[i]);
 				keysDown.push(keys[i]);
@@ -131,195 +156,60 @@ class PlaywrightDriver implements IDriver {
 		await this.timeout(100);
 	}
 
-	async click(windowId: number, selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
-		const { x, y } = await this.getElementXY(windowId, selector, xoffset, yoffset);
+	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
+		const { x, y } = await this.getElementXY(selector, xoffset, yoffset);
 		await this.page.mouse.click(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
 	}
 
-	async doubleClick(windowId: number, selector: string) {
-		throw new Error('Unsupported');
+	async setValue(selector: string, text: string) {
+		return this.page.evaluate(([driver, selector, text]) => driver.setValue(selector, text), [await this.getDriverHandle(), selector, text] as const);
 	}
 
-	async setValue(windowId: number, selector: string, text: string) {
-		return this.page.evaluate(([driver, selector, text]) => driver.setValue(selector, text), [await this._getDriverHandle(), selector, text] as const);
+	async getTitle() {
+		return this.evaluateWithDriver(([driver]) => driver.getTitle());
 	}
 
-	async getTitle(windowId: number) {
-		return this._evaluateWithDriver(([driver]) => driver.getTitle());
+	async isActiveElement(selector: string) {
+		return this.page.evaluate(([driver, selector]) => driver.isActiveElement(selector), [await this.getDriverHandle(), selector] as const);
 	}
 
-	async isActiveElement(windowId: number, selector: string) {
-		return this.page.evaluate(([driver, selector]) => driver.isActiveElement(selector), [await this._getDriverHandle(), selector] as const);
+	async getElements(selector: string, recursive: boolean = false) {
+		return this.page.evaluate(([driver, selector, recursive]) => driver.getElements(selector, recursive), [await this.getDriverHandle(), selector, recursive] as const);
 	}
 
-	async getElements(windowId: number, selector: string, recursive: boolean = false) {
-		return this.page.evaluate(([driver, selector, recursive]) => driver.getElements(selector, recursive), [await this._getDriverHandle(), selector, recursive] as const);
+	async getElementXY(selector: string, xoffset?: number, yoffset?: number) {
+		return this.page.evaluate(([driver, selector, xoffset, yoffset]) => driver.getElementXY(selector, xoffset, yoffset), [await this.getDriverHandle(), selector, xoffset, yoffset] as const);
 	}
 
-	async getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number) {
-		return this.page.evaluate(([driver, selector, xoffset, yoffset]) => driver.getElementXY(selector, xoffset, yoffset), [await this._getDriverHandle(), selector, xoffset, yoffset] as const);
+	async typeInEditor(selector: string, text: string) {
+		return this.page.evaluate(([driver, selector, text]) => driver.typeInEditor(selector, text), [await this.getDriverHandle(), selector, text] as const);
 	}
 
-	async typeInEditor(windowId: number, selector: string, text: string) {
-		return this.page.evaluate(([driver, selector, text]) => driver.typeInEditor(selector, text), [await this._getDriverHandle(), selector, text] as const);
+	async getTerminalBuffer(selector: string) {
+		return this.page.evaluate(([driver, selector]) => driver.getTerminalBuffer(selector), [await this.getDriverHandle(), selector] as const);
 	}
 
-	async getTerminalBuffer(windowId: number, selector: string) {
-		return this.page.evaluate(([driver, selector]) => driver.getTerminalBuffer(selector), [await this._getDriverHandle(), selector] as const);
+	async writeInTerminal(selector: string, text: string) {
+		return this.page.evaluate(([driver, selector, text]) => driver.writeInTerminal(selector, text), [await this.getDriverHandle(), selector, text] as const);
 	}
 
-	async writeInTerminal(windowId: number, selector: string, text: string) {
-		return this.page.evaluate(([driver, selector, text]) => driver.writeInTerminal(selector, text), [await this._getDriverHandle(), selector, text] as const);
+	async getLocaleInfo() {
+		return this.evaluateWithDriver(([driver]) => driver.getLocaleInfo());
 	}
 
-	async getLocaleInfo(windowId: number) {
-		return this._evaluateWithDriver(([driver]) => driver.getLocaleInfo());
+	async getLocalizedStrings() {
+		return this.evaluateWithDriver(([driver]) => driver.getLocalizedStrings());
 	}
 
-	async getLocalizedStrings(windowId: number) {
-		return this._evaluateWithDriver(([driver]) => driver.getLocalizedStrings());
-	}
-
-	private async _evaluateWithDriver<T>(pageFunction: PageFunction<playwright.JSHandle<IWindowDriver>[], T>) {
-		return this.page.evaluate(pageFunction, [await this._getDriverHandle()]);
+	private async evaluateWithDriver<T>(pageFunction: PageFunction<playwright.JSHandle<IWindowDriver>[], T>) {
+		return this.page.evaluate(pageFunction, [await this.getDriverHandle()]);
 	}
 
 	private timeout(ms: number): Promise<void> {
 		return new Promise<void>(resolve => setTimeout(resolve, ms));
 	}
 
-	// TODO: Cache
-	private async _getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
+	private async getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
 		return this.page.evaluateHandle('window.driver');
 	}
-}
-
-let port = 9000;
-
-export async function launch(options: LaunchOptions): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver, kill: () => Promise<void> }> {
-
-	// Launch server
-	const { serverProcess, endpoint } = await launchServer(options);
-
-	// Launch browser
-	const { browser, context, page } = await launchBrowser(options, endpoint);
-
-	return {
-		serverProcess,
-		client: {
-			dispose: () => { /* there is no client to dispose for browser, teardown is triggered via exitApplication call */ }
-		},
-		driver: new PlaywrightDriver(serverProcess, browser, context, page, options.logger),
-		kill: () => teardown(serverProcess, options.logger)
-	};
-}
-
-async function launchServer(options: LaunchOptions) {
-	const { userDataDir, codePath, extensionsPath, logger } = options;
-	const codeServerPath = codePath ?? process.env.VSCODE_REMOTE_SERVER_PATH;
-	const agentFolder = userDataDir;
-	await measureAndLog(promisify(mkdir)(agentFolder), `mkdir(${agentFolder})`, logger);
-	const env = {
-		VSCODE_AGENT_FOLDER: agentFolder,
-		VSCODE_REMOTE_SERVER_PATH: codeServerPath,
-		...process.env
-	};
-
-	const args = ['--disable-telemetry', '--port', `${port++}`, '--browser', 'none', '--driver', 'web', '--extensions-dir', extensionsPath];
-
-	let serverLocation: string | undefined;
-	if (codeServerPath) {
-		serverLocation = join(codeServerPath, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
-		args.push(`--logsPath=${logsPath}`);
-
-		logger.log(`Starting built server from '${serverLocation}'`);
-		logger.log(`Storing log files into '${logsPath}'`);
-	} else {
-		serverLocation = join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
-		args.push('--logsPath', logsPath);
-
-		logger.log(`Starting server out of sources from '${serverLocation}'`);
-		logger.log(`Storing log files into '${logsPath}'`);
-	}
-
-	const serverProcess = spawn(
-		serverLocation,
-		args,
-		{ env }
-	);
-
-	logger.log(`Started server for browser smoke tests (pid: ${serverProcess.pid})`);
-	serverProcess.once('exit', (code, signal) => logger.log(`Server for browser smoke tests terminated (pid: ${serverProcess.pid}, code: ${code}, signal: ${signal})`));
-
-	serverProcess.stderr?.on('data', error => logger.log(`Server stderr: ${error}`));
-	serverProcess.stdout?.on('data', data => logger.log(`Server stdout: ${data}`));
-
-	return {
-		serverProcess,
-		endpoint: await measureAndLog(waitForEndpoint(serverProcess), 'waitForEndpoint(serverProcess)', logger)
-	};
-}
-
-async function launchBrowser(options: LaunchOptions, endpoint: string) {
-	const { logger, workspacePath } = options;
-	const browser = await measureAndLog(playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false }), 'playwright#launch', logger);
-	const context = await measureAndLog(browser.newContext(), 'browser.newContext', logger);
-
-	try {
-		await measureAndLog(context.tracing.start({ screenshots: true, snapshots: true, sources: true }), 'context.tracing.start()', logger);
-	} catch (error) {
-		logger.log(`Failed to start playwright tracing: ${error}`); // do not fail the build when this fails
-	}
-
-	const page = await measureAndLog(context.newPage(), 'context.newPage()', logger);
-	await measureAndLog(page.setViewportSize({ width, height }), 'page.setViewportSize', logger);
-
-	page.on('pageerror', async (error) => logger.log(`Playwright ERROR: page error: ${error}`));
-	page.on('crash', page => logger.log('Playwright ERROR: page crash'));
-	page.on('response', async (response) => {
-		if (response.status() >= 400) {
-			logger.log(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
-		}
-	});
-
-	const payloadParam = `[["enableProposedApi",""],["webviewExternalEndpointCommit","69df0500a8963fc469161c038a14a39384d5a303"],["skipWelcome","true"]]`;
-	await measureAndLog(page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
-
-	return { browser, context, page };
-}
-
-async function teardown(server: ChildProcess, logger: Logger): Promise<void> {
-	const serverPid = server.pid;
-	if (typeof serverPid !== 'number') {
-		return;
-	}
-
-	let retries = 0;
-	while (retries < 3) {
-		retries++;
-
-		try {
-			return await promisify(kill)(serverPid);
-		} catch (error) {
-			try {
-				process.kill(serverPid, 0); // throws an exception if the process doesn't exist anymore
-				logger.log(`Error tearing down server (pid: ${serverPid}, attempt: ${retries}): ${error}`);
-			} catch (error) {
-				return; // Expected when process is gone
-			}
-		}
-	}
-
-	logger.log(`Gave up tearing down server after ${retries} attempts...`);
-}
-
-function waitForEndpoint(server: ChildProcess): Promise<string> {
-	return new Promise<string>(resolve => {
-		server.stdout?.on('data', (d: Buffer) => {
-			const matches = d.toString('ascii').match(/Web UI available at (.+)/);
-			if (matches !== null) {
-				resolve(matches[1]);
-			}
-		});
-	});
 }

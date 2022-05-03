@@ -20,7 +20,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
+import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
@@ -56,6 +56,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { EditorOpenSource } from 'vs/platform/editor/common/editor';
+import { ResourceMap } from 'vs/base/common/map';
 
 interface IExplorerViewColors extends IColorMapping {
 	listDropBackground?: ColorValue | undefined;
@@ -321,6 +323,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		return this.filter.filter(item, TreeVisibility.Visible);
 	}
 
+	isItemCollapsed(item: ExplorerItem): boolean {
+		return this.tree.isCollapsed(item);
+	}
+
 	async setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void> {
 		if (isEditing) {
 			this.horizontalScrolling = this.tree.options.horizontalScrolling;
@@ -380,8 +386,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compactFolders');
 
+		const getFileNestingSettings = (item?: ExplorerItem) => this.configurationService.getValue<IFilesConfiguration>({ resource: item?.root.resource }).explorer.fileNesting;
+
 		this.tree = <WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
-			this.instantiationService.createInstance(ExplorerDataSource), {
+			this.instantiationService.createInstance(ExplorerDataSource, this.filter), {
 			compressionEnabled: isCompressionEnabled(),
 			accessibilityProvider: this.renderer,
 			identityProvider,
@@ -404,8 +412,27 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			multipleSelectionSupport: true,
 			filter: this.filter,
 			sorter: this.instantiationService.createInstance(FileSorter),
-			dnd: this.instantiationService.createInstance(FileDragAndDrop),
+			dnd: this.instantiationService.createInstance(FileDragAndDrop, (item) => this.isItemCollapsed(item)),
+			collapseByDefault: (e) => {
+				if (e instanceof ExplorerItem) {
+					if (e.hasNests && getFileNestingSettings(e).expand) {
+						return false;
+					}
+				}
+				return true;
+			},
 			autoExpandSingleChildren: true,
+			expandOnlyOnTwistieClick: (e: unknown) => {
+				if (e instanceof ExplorerItem) {
+					if (e.hasNests) {
+						return true;
+					}
+					else if (this.configurationService.getValue<'singleClick' | 'doubleClick'>('workbench.tree.expandMode') === 'doubleClick') {
+						return true;
+					}
+				}
+				return false;
+			},
 			additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT,
 			overrideStyles: {
 				listBackground: SIDE_BAR_BACKGROUND
@@ -442,7 +469,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 				try {
 					this.delegate.willOpenElement(e.browserEvent);
-					await this.editorService.openEditor({ resource: element.resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+					await this.editorService.openEditor({ resource: element.resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned, source: EditorOpenSource.USER } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 				} finally {
 					this.delegate.didOpenElement();
 				}
@@ -653,12 +680,17 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				if (!previousInput && input.length === 1 && this.configurationService.getValue<IFilesConfiguration>().explorer.expandSingleFolderWorkspaces) {
 					await this.tree.expand(input[0]).catch(() => { });
 				}
-				if (Array.isArray(previousInput) && previousInput.length < input.length) {
+				if (Array.isArray(previousInput)) {
+					const previousRoots = new ResourceMap<true>();
+					previousInput.forEach(previousRoot => previousRoots.set(previousRoot.resource, true));
+
 					// Roots added to the explorer -> expand them.
-					await Promise.all(input.slice(previousInput.length).map(async item => {
-						try {
-							await this.tree.expand(item);
-						} catch (e) { }
+					await Promise.all(input.map(async item => {
+						if (!previousRoots.has(item.resource)) {
+							try {
+								await this.tree.expand(item);
+							} catch (e) { }
+						}
 					}));
 				}
 			}

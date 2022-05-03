@@ -9,7 +9,7 @@ import { SelectTypeScriptVersionCommand } from '../commands/selectTypeScriptVers
 import { TypeScriptVersion } from '../tsServer/versionProvider';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Disposable } from '../utils/dispose';
-import { jsTsLanguageModes } from '../utils/languageModeIds';
+import { jsTsLanguageModes } from '../utils/languageIds';
 
 const localize = nls.loadMessageBundle();
 

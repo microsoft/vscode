@@ -112,7 +112,7 @@ export interface IUserData {
 	content: string | null;
 }
 
-export type IAuthenticationProvider = { id: string, scopes: string[] };
+export type IAuthenticationProvider = { id: string; scopes: string[] };
 
 export interface IUserDataSyncStore {
 	readonly url: URI;
@@ -135,17 +135,18 @@ export const enum SyncResource {
 	Settings = 'settings',
 	Keybindings = 'keybindings',
 	Snippets = 'snippets',
+	Tasks = 'tasks',
 	Extensions = 'extensions',
-	GlobalState = 'globalState'
+	GlobalState = 'globalState',
 }
-export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Extensions, SyncResource.GlobalState];
+export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Tasks, SyncResource.Extensions, SyncResource.GlobalState];
 
 export function getLastSyncResourceUri(syncResource: SyncResource, environmentService: IEnvironmentService, extUri: IExtUri): URI {
 	return extUri.joinPath(environmentService.userDataSyncHome, syncResource, `lastSync${syncResource}.json`);
 }
 
 export interface IUserDataManifest {
-	readonly latest?: Record<ServerResource, string>
+	readonly latest?: Record<ServerResource, string>;
 	readonly session: string;
 	readonly ref: string;
 }
@@ -404,7 +405,7 @@ export interface IUserDataSynchroniser {
 	resolveContent(resource: URI): Promise<string | null>;
 	getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
 	getLocalSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
-	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]>;
+	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
 	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
 }
 
@@ -490,7 +491,7 @@ export interface IUserDataSyncService {
 
 	getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
 	getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
-	getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]>;
+	getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
 	getMachineId(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
 }
 

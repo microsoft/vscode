@@ -8,9 +8,9 @@ import type * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 
 export function snippetForFunctionCall(
-	item: { insertText?: string | vscode.SnippetString; label: string; },
+	item: { insertText?: string | vscode.SnippetString; label: string },
 	displayParts: ReadonlyArray<Proto.SymbolDisplayPart>
-): { snippet: vscode.SnippetString, parameterCount: number } {
+): { snippet: vscode.SnippetString; parameterCount: number } {
 	if (item.insertText && typeof item.insertText !== 'string') {
 		return { snippet: item.insertText, parameterCount: 0 };
 	}

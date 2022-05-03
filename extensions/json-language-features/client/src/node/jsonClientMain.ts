@@ -11,7 +11,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { xhr, XHRResponse, getErrorStatusDescription, Headers } from 'request-light';
 
-import TelemetryReporter from 'vscode-extension-telemetry';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import { JSONSchemaCache } from './schemaCache';
 
 let telemetry: TelemetryReporter | undefined;

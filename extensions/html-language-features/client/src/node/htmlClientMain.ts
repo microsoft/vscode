@@ -9,7 +9,7 @@ import { startClient, LanguageClientConstructor } from '../htmlClient';
 import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
 import { TextDecoder } from 'util';
 import * as fs from 'fs';
-import TelemetryReporter from 'vscode-extension-telemetry';
+import TelemetryReporter from '@vscode/extension-telemetry';
 
 
 let telemetry: TelemetryReporter | undefined;

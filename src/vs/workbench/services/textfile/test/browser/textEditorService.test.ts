@@ -14,7 +14,6 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { toResource } from 'vs/base/test/common/utils';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -22,6 +21,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 suite('TextEditorService', () => {
 
@@ -50,11 +50,12 @@ suite('TextEditorService', () => {
 
 	test('createTextEditor - basics', async function () {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const languageService = instantiationService.get(ILanguageService);
 		const service = instantiationService.createInstance(TextEditorService);
 
-		const mode = 'create-input-test';
-		ModesRegistry.registerLanguage({
-			id: mode,
+		const languageId = 'create-input-test';
+		const registration = languageService.registerLanguage({
+			id: languageId,
 		});
 
 		// Untyped Input (file)
@@ -84,13 +85,13 @@ suite('TextEditorService', () => {
 		contentInput = <FileEditorInput>input;
 		assert.strictEqual(contentInput.getPreferredEncoding(), 'utf16le');
 
-		// Untyped Input (file, mode)
-		input = service.createTextEditor({ resource: toResource.call(this, '/index.html'), mode });
+		// Untyped Input (file, language)
+		input = service.createTextEditor({ resource: toResource.call(this, '/index.html'), languageId: languageId });
 		assert(input instanceof FileEditorInput);
 		contentInput = <FileEditorInput>input;
-		assert.strictEqual(contentInput.getPreferredMode(), mode);
+		assert.strictEqual(contentInput.getPreferredLanguageId(), languageId);
 		let fileModel = (await contentInput.resolve() as ITextFileEditorModel);
-		assert.strictEqual(fileModel.textEditorModel?.getLanguageId(), mode);
+		assert.strictEqual(fileModel.textEditorModel?.getLanguageId(), languageId);
 
 		// Untyped Input (file, contents)
 		input = service.createTextEditor({ resource: toResource.call(this, '/index.html'), contents: 'My contents' });
@@ -100,11 +101,11 @@ suite('TextEditorService', () => {
 		assert.strictEqual(fileModel.textEditorModel?.getValue(), 'My contents');
 		assert.strictEqual(fileModel.isDirty(), true);
 
-		// Untyped Input (file, different mode)
-		input = service.createTextEditor({ resource: toResource.call(this, '/index.html'), mode: 'text' });
+		// Untyped Input (file, different language)
+		input = service.createTextEditor({ resource: toResource.call(this, '/index.html'), languageId: 'text' });
 		assert(input instanceof FileEditorInput);
 		contentInput = <FileEditorInput>input;
-		assert.strictEqual(contentInput.getPreferredMode(), 'text');
+		assert.strictEqual(contentInput.getPreferredLanguageId(), 'text');
 
 		// Untyped Input (untitled)
 		input = service.createTextEditor({ resource: undefined, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
@@ -119,10 +120,10 @@ suite('TextEditorService', () => {
 		assert.strictEqual(model.textEditorModel?.getValue(), 'Hello Untitled');
 
 		// Untyped Input (untitled withtoUntyped2
-		input = service.createTextEditor({ resource: undefined, mode, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
+		input = service.createTextEditor({ resource: undefined, languageId: languageId, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
 		assert(input instanceof UntitledTextEditorInput);
 		model = await input.resolve() as UntitledTextEditorModel;
-		assert.strictEqual(model.getMode(), mode);
+		assert.strictEqual(model.getLanguageId(), languageId);
 
 		// Untyped Input (untitled with file path)
 		input = service.createTextEditor({ resource: URI.file('/some/path.txt'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
@@ -182,6 +183,8 @@ suite('TextEditorService', () => {
 		const untypedSideBySideInput = input.toUntyped() as IResourceSideBySideEditorInput;
 		assert.strictEqual(untypedSideBySideInput.primary.resource?.toString(), sideBySideResourceInput.primary.resource.toString());
 		assert.strictEqual(untypedSideBySideInput.secondary.resource?.toString(), sideBySideResourceInput.secondary.resource.toString());
+
+		registration.dispose();
 	});
 
 	test('createTextEditor- caching', function () {

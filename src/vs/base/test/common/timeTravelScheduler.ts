@@ -223,7 +223,7 @@ export class AsyncSchedulerProcessor extends Disposable {
 }
 
 
-export async function runWithFakedTimers<T>(options: { useFakeTimers?: boolean, useSetImmediate?: boolean, maxTaskCount?: number }, fn: () => Promise<T>): Promise<T> {
+export async function runWithFakedTimers<T>(options: { useFakeTimers?: boolean; useSetImmediate?: boolean; maxTaskCount?: number }, fn: () => Promise<T>): Promise<T> {
 	const useFakeTimers = options.useFakeTimers === undefined ? true : options.useFakeTimers;
 	if (!useFakeTimers) {
 		return fn();

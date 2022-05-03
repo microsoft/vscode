@@ -22,7 +22,7 @@ import { indexOfPath } from 'vs/base/common/extpath';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.

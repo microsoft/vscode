@@ -45,7 +45,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 
 		// Entries: configs
 		let lastGroup: string | undefined;
-		for (let config of configManager.getAllConfigurations()) {
+		for (const config of configManager.getAllConfigurations()) {
 			const highlights = matchesFuzzy(filter, config.name, true);
 			if (highlights) {
 

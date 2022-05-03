@@ -77,7 +77,7 @@ export interface LanguageMode {
 	getFoldingRanges?: (document: TextDocument) => Promise<FoldingRange[]>;
 	onDocumentRemoved(document: TextDocument): void;
 	getSemanticTokens?(document: TextDocument): Promise<SemanticTokenData[]>;
-	getSemanticTokenLegend?(): { types: string[], modifiers: string[] };
+	getSemanticTokenLegend?(): { types: string[]; modifiers: string[] };
 	dispose(): void;
 }
 
@@ -97,7 +97,7 @@ export interface LanguageModeRange extends Range {
 	attributeValue?: boolean;
 }
 
-export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace, clientCapabilities: ClientCapabilities, requestService: FileSystemProvider): LanguageModes {
+export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean }, workspace: Workspace, clientCapabilities: ClientCapabilities, requestService: FileSystemProvider): LanguageModes {
 	const htmlLanguageService = getHTMLLanguageService({ clientCapabilities, fileSystemProvider: requestService });
 	const cssLanguageService = getCSSLanguageService({ clientCapabilities, fileSystemProvider: requestService });
 

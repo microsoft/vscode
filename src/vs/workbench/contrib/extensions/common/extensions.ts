@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions, InstallVSIXOptions, IExtensionInfo, IExtensionQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { EnablementState, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -46,7 +46,7 @@ export interface IExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly publisher: string;
 	readonly publisherDisplayName: string;
-	readonly publisherDomain?: { link: string, verified: boolean };
+	readonly publisherDomain?: { link: string; verified: boolean };
 	readonly version: string;
 	readonly latestVersion: string;
 	readonly hasPreReleaseVersion: boolean;
@@ -61,6 +61,7 @@ export interface IExtension {
 	readonly rating?: number;
 	readonly ratingCount?: number;
 	readonly outdated: boolean;
+	readonly outdatedTargetPlatform: boolean;
 	readonly enablementState: EnablementState;
 	readonly tags: readonly string[];
 	readonly categories: readonly string[];
@@ -77,7 +78,7 @@ export interface IExtension {
 	readonly local?: ILocalExtension;
 	gallery?: IGalleryExtension;
 	readonly isMalicious: boolean;
-	readonly isUnsupported: boolean | { preReleaseExtension: { id: string, displayName: string } };
+	readonly isUnsupported: boolean | { preReleaseExtension: { id: string; displayName: string } };
 }
 
 export const SERVICE_ID = 'extensionsWorkbenchService';
@@ -94,8 +95,10 @@ export interface IExtensionsWorkbenchService {
 	queryLocal(server?: IExtensionManagementServer): Promise<IExtension[]>;
 	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
+	getExtensions(extensionInfos: IExtensionInfo[], token: CancellationToken): Promise<IExtension[]>;
+	getExtensions(extensionInfos: IExtensionInfo[], options: IExtensionQueryOptions, token: CancellationToken): Promise<IExtension[]>;
 	canInstall(extension: IExtension): Promise<boolean>;
-	install(vsix: URI): Promise<IExtension>;
+	install(vsix: URI, installOptions?: InstallVSIXOptions): Promise<IExtension>;
 	install(extension: IExtension, installOptions?: InstallOptions): Promise<IExtension>;
 	uninstall(extension: IExtension): Promise<void>;
 	installVersion(extension: IExtension, version: string, installOptions?: InstallOptions): Promise<IExtension>;

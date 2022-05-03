@@ -5,15 +5,13 @@
 
 import * as vscode from 'vscode';
 import { AzureActiveDirectoryService, onDidChangeSessions } from './AADHelper';
-import TelemetryReporter from 'vscode-extension-telemetry';
+import TelemetryReporter from '@vscode/extension-telemetry';
 
 export async function activate(context: vscode.ExtensionContext) {
-	const { name, version, aiKey } = context.extension.packageJSON as { name: string, version: string, aiKey: string };
+	const { name, version, aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
 
 	const loginService = new AzureActiveDirectoryService(context);
-	context.subscriptions.push(loginService);
-
 	await loginService.initialize();
 
 	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('microsoft', 'Microsoft', {
@@ -31,7 +29,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					scopes: JSON.stringify(scopes.map(s => s.replace(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/i, '{guid}'))),
 				});
 
-				const session = await loginService.createSession(scopes.sort().join(' '));
+				const session = await loginService.createSession(scopes.sort());
 				onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
 				return session;
 			} catch (e) {
@@ -50,7 +48,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				*/
 				telemetryReporter.sendTelemetryEvent('logout');
 
-				const session = await loginService.removeSession(id);
+				const session = await loginService.removeSessionById(id);
 				if (session) {
 					onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
 				}

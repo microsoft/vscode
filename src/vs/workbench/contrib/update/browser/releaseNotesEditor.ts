@@ -12,16 +12,16 @@ import { OS } from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as nls from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { asText, IRequestService } from 'vs/platform/request/common/request';
+import { asTextOrError, IRequestService } from 'vs/platform/request/common/request';
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
@@ -163,7 +163,7 @@ export class ReleaseNotesManager {
 		const fetchReleaseNotes = async () => {
 			let text;
 			try {
-				text = await asText(await this._requestService.request({ url }, CancellationToken.None));
+				text = await asTextOrError(await this._requestService.request({ url }, CancellationToken.None));
 			} catch {
 				throw new Error('Failed to fetch release notes');
 			}

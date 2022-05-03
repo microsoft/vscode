@@ -9,7 +9,7 @@ import { URL } from 'url';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { parseTree, findNodeAtLocation, Node as JsonNode } from 'jsonc-parser';
+import { parseTree, findNodeAtLocation, Node as JsonNode, getNodeValue } from 'jsonc-parser';
 import * as MarkdownItType from 'markdown-it';
 
 import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env } from 'vscode';
@@ -17,6 +17,7 @@ import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range,
 const product = JSON.parse(fs.readFileSync(path.join(env.appRoot, 'product.json'), { encoding: 'utf-8' }));
 const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders || []).map((s: string) => s.toLowerCase());
 const allowedBadgeProvidersRegex: RegExp[] = (product.extensionAllowedBadgeProvidersRegex || []).map((r: string) => new RegExp(r));
+const extensionEnabledApiProposals: Record<string, string[]> = product.extensionEnabledApiProposals ?? {};
 
 function isTrustedSVGSource(uri: Uri): boolean {
 	return allowedBadgeProviders.includes(uri.authority.toLowerCase()) || allowedBadgeProvidersRegex.some(r => r.test(uri.toString()));
@@ -29,6 +30,7 @@ const dataUrlsNotValid = localize('dataUrlsNotValid', "Data URLs are not a valid
 const relativeUrlRequiresHttpsRepository = localize('relativeUrlRequiresHttpsRepository', "Relative image URLs require a repository with HTTPS protocol to be specified in the package.json.");
 const relativeIconUrlRequiresHttpsRepository = localize('relativeIconUrlRequiresHttpsRepository', "An icon requires a repository with HTTPS protocol to be specified in this package.json.");
 const relativeBadgeUrlRequiresHttpsRepository = localize('relativeBadgeUrlRequiresHttpsRepository', "Relative badge URLs require a repository with HTTPS protocol to be specified in this package.json.");
+const apiProposalNotListed = localize('apiProposalNotListed', "This proposal cannot be used because for this extension the product defines a fixed set of API proposals. You can test your extension but before publishing you MUST reach out to the VS Code team.");
 
 enum Context {
 	ICON,
@@ -75,7 +77,7 @@ export class ExtensionLinter {
 
 	private queue(document: TextDocument) {
 		const p = document.uri.path;
-		if (document.languageId === 'json' && endsWith(p, '/package.json')) {
+		if (document.languageId === 'json' && p.endsWith('/package.json')) {
 			this.packageJsonQ.add(document);
 			this.startTimer();
 		}
@@ -84,7 +86,7 @@ export class ExtensionLinter {
 
 	private queueReadme(document: TextDocument) {
 		const p = document.uri.path;
-		if (document.languageId === 'markdown' && (endsWith(p.toLowerCase(), '/readme.md') || endsWith(p.toLowerCase(), '/changelog.md'))) {
+		if (document.languageId === 'markdown' && (p.toLowerCase().endsWith('/readme.md') || p.toLowerCase().endsWith('/changelog.md'))) {
 			this.readmeQ.add(document);
 			this.startTimer();
 		}
@@ -128,6 +130,23 @@ export class ExtensionLinter {
 					badges.children.map(child => findNodeAtLocation(child, ['url']))
 						.filter(url => url && url.type === 'string')
 						.map(url => this.addDiagnostics(diagnostics, document, url!.offset + 1, url!.offset + url!.length - 1, url!.value, Context.BADGE, info));
+				}
+
+				const publisher = findNodeAtLocation(tree, ['publisher']);
+				const name = findNodeAtLocation(tree, ['name']);
+				const enabledApiProposals = findNodeAtLocation(tree, ['enabledApiProposals']);
+				if (publisher?.type === 'string' && name?.type === 'string' && enabledApiProposals?.type === 'array') {
+					const extensionId = `${getNodeValue(publisher)}.${getNodeValue(name)}`;
+					const effectiveProposalNames = extensionEnabledApiProposals[extensionId];
+					if (Array.isArray(effectiveProposalNames) && enabledApiProposals.children) {
+						for (const child of enabledApiProposals.children) {
+							if (child.type === 'string' && !effectiveProposalNames.includes(getNodeValue(child))) {
+								const start = document.positionAt(child.offset);
+								const end = document.positionAt(child.offset + child.length);
+								diagnostics.push(new Diagnostic(new Range(start, end), apiProposalNotListed, DiagnosticSeverity.Error));
+							}
+						}
+					}
 				}
 
 			}
@@ -329,7 +348,7 @@ export class ExtensionLinter {
 			diagnostics.push(new Diagnostic(range, message, DiagnosticSeverity.Warning));
 		}
 
-		if (endsWith(uri.path.toLowerCase(), '.svg') && !isTrustedSVGSource(uri)) {
+		if (uri.path.toLowerCase().endsWith('.svg') && !isTrustedSVGSource(uri)) {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
 			diagnostics.push(new Diagnostic(range, svgsNotValid, DiagnosticSeverity.Warning));
 		}
@@ -343,17 +362,6 @@ export class ExtensionLinter {
 	public dispose() {
 		this.disposables.forEach(d => d.dispose());
 		this.disposables = [];
-	}
-}
-
-function endsWith(haystack: string, needle: string): boolean {
-	let diff = haystack.length - needle.length;
-	if (diff > 0) {
-		return haystack.indexOf(needle, diff) === diff;
-	} else if (diff === 0) {
-		return haystack === needle;
-	} else {
-		return false;
 	}
 }
 

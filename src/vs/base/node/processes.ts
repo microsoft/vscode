@@ -50,7 +50,7 @@ function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<Termi
 			if (cwd) {
 				options.cwd = cwd;
 			}
-			const killProcess = cp.execFile('taskkill', ['/T', '/F', '/PID', process.pid.toString()], options);
+			const killProcess = cp.execFile('taskkill', ['/T', '/F', '/PID', process.pid!.toString()], options);
 			return new Promise(resolve => {
 				killProcess.once('error', (err) => {
 					resolve({ success: false, error: err });
@@ -70,7 +70,7 @@ function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<Termi
 		try {
 			const cmd = FileAccess.asFileUri('vs/base/node/terminateProcess.sh', require).fsPath;
 			return new Promise(resolve => {
-				cp.execFile(cmd, [process.pid.toString()], { encoding: 'utf8', shell: true } as cp.ExecFileOptions, (err, stdout, stderr) => {
+				cp.execFile(cmd, [process.pid!.toString()], { encoding: 'utf8', shell: true } as cp.ExecFileOptions, (err, stdout, stderr) => {
 					if (err) {
 						resolve({ success: false, error: err });
 					} else {
@@ -85,35 +85,6 @@ function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<Termi
 		process.kill('SIGKILL');
 	}
 	return Promise.resolve({ success: true });
-}
-
-/**
- * Remove dangerous environment variables that have caused crashes
- * in forked processes (i.e. in ELECTRON_RUN_AS_NODE processes)
- *
- * @param env The env object to change
- */
-export function removeDangerousEnvVariables(env: NodeJS.ProcessEnv | undefined): void {
-	if (!env) {
-		return;
-	}
-
-	// Unset `DEBUG`, as an invalid value might lead to process crashes
-	// See https://github.com/microsoft/vscode/issues/130072
-	delete env['DEBUG'];
-
-	if (Platform.isMacintosh) {
-		// Unset `DYLD_LIBRARY_PATH`, as it leads to process crashes
-		// See https://github.com/microsoft/vscode/issues/104525
-		// See https://github.com/microsoft/vscode/issues/105848
-		delete env['DYLD_LIBRARY_PATH'];
-	}
-
-	if (Platform.isLinux) {
-		// Unset `LD_PRELOAD`, as it might lead to process crashes
-		// See https://github.com/microsoft/vscode/issues/134177
-		delete env['LD_PRELOAD'];
-	}
 }
 
 export function getWindowsShell(env = process.env as Platform.IProcessEnvironment): string {
@@ -322,7 +293,7 @@ export abstract class AbstractProcess<TProgressData> {
 
 	public get pid(): Promise<number> {
 		if (this.childProcessPromise) {
-			return this.childProcessPromise.then(childProcess => childProcess.pid, err => -1);
+			return this.childProcessPromise.then(childProcess => childProcess.pid!, err => -1);
 		} else {
 			return new Promise<number>((resolve) => {
 				this.pidResolve = resolve;

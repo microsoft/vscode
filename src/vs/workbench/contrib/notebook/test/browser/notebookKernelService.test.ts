@@ -8,14 +8,14 @@ import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelService, IResolvedNotebookKernel, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { mock } from 'vs/base/test/common/mock';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 suite('NotebookKernelService', () => {
 
@@ -159,7 +159,8 @@ suite('NotebookKernelService', () => {
 	});
 });
 
-class TestNotebookKernel implements INotebookKernel {
+class TestNotebookKernel implements IResolvedNotebookKernel {
+	type: NotebookKernelType.Resolved = NotebookKernelType.Resolved;
 	id: string = Math.random() + 'kernel';
 	label: string = 'test-label';
 	viewType = '*';
@@ -178,8 +179,8 @@ class TestNotebookKernel implements INotebookKernel {
 		throw new Error('Method not implemented.');
 	}
 
-	constructor(opts?: { languages?: string[], label?: string, viewType?: string }) {
-		this.supportedLanguages = opts?.languages ?? [PLAINTEXT_MODE_ID];
+	constructor(opts?: { languages?: string[]; label?: string; viewType?: string }) {
+		this.supportedLanguages = opts?.languages ?? [PLAINTEXT_LANGUAGE_ID];
 		this.label = opts?.label ?? this.label;
 		this.viewType = opts?.viewType ?? this.viewType;
 	}

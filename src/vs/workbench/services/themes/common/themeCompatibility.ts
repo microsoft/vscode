@@ -7,7 +7,7 @@ import { ITextMateThemingRule, IColorMap } from 'vs/workbench/services/themes/co
 import { Color } from 'vs/base/common/color';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 
-import * as editorColorRegistry from 'vs/editor/common/view/editorColorRegistry';
+import * as editorColorRegistry from 'vs/editor/common/core/editorColorRegistry';
 
 const settingToColorIdMapping: { [settingId: string]: string[] } = {};
 function addSettingMapping(settingId: string, colorId: string) {
@@ -18,7 +18,7 @@ function addSettingMapping(settingId: string, colorId: string) {
 	colorIds.push(colorId);
 }
 
-export function convertSettings(oldSettings: ITextMateThemingRule[], result: { textMateRules: ITextMateThemingRule[], colors: IColorMap }): void {
+export function convertSettings(oldSettings: ITextMateThemingRule[], result: { textMateRules: ITextMateThemingRule[]; colors: IColorMap }): void {
 	for (let rule of oldSettings) {
 		result.textMateRules.push(rule);
 		if (!rule.scope) {

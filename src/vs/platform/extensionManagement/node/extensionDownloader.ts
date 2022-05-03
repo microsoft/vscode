@@ -13,12 +13,10 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Promises as FSPromises } from 'vs/base/node/pfs';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionGalleryService, IGalleryExtension, InstallOperation, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifierWithVersion, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionKey, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-
-const ExtensionIdVersionRegex = /^([^.]+\..+)-(\d+\.\d+\.\d+)$/;
 
 export class ExtensionsDownloader extends Disposable {
 
@@ -97,9 +95,9 @@ export class ExtensionsDownloader extends Disposable {
 			const folderStat = await this.fileService.resolve(this.extensionsDownloadDir, { resolveMetadata: true });
 			if (folderStat.children) {
 				const toDelete: URI[] = [];
-				const all: [ExtensionIdentifierWithVersion, IFileStatWithMetadata][] = [];
+				const all: [ExtensionKey, IFileStatWithMetadata][] = [];
 				for (const stat of folderStat.children) {
-					const extension = this.parse(stat.name);
+					const extension = ExtensionKey.parse(stat.name);
 					if (extension) {
 						all.push([extension, stat]);
 					}
@@ -124,11 +122,7 @@ export class ExtensionsDownloader extends Disposable {
 	}
 
 	private getName(extension: IGalleryExtension): string {
-		return this.cache ? `${new ExtensionIdentifierWithVersion(extension.identifier, extension.version).key().toLowerCase()}${extension.properties.targetPlatform !== TargetPlatform.UNDEFINED ? `-${extension.properties.targetPlatform}` : ''}` : generateUuid();
+		return this.cache ? ExtensionKey.create(extension).toString().toLowerCase() : generateUuid();
 	}
 
-	private parse(name: string): ExtensionIdentifierWithVersion | null {
-		const matches = ExtensionIdVersionRegex.exec(name);
-		return matches && matches[1] && matches[2] ? new ExtensionIdentifierWithVersion({ id: matches[1] }, matches[2]) : null;
-	}
 }

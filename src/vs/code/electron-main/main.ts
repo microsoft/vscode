@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/platform/update/common/update.config.contribution';
+
 import { app, dialog } from 'electron';
 import { unlinkSync } from 'fs';
+import { URI } from 'vs/base/common/uri';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { Promises } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -15,7 +18,7 @@ import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { basename, join, resolve } from 'vs/base/common/path';
 import { mark } from 'vs/base/common/performance';
-import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
 import { rtrim, trim } from 'vs/base/common/strings';
 import { Promises as FSPromises } from 'vs/base/node/pfs';
@@ -26,6 +29,7 @@ import { CodeApplication } from 'vs/code/electron-main/app';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
+import { IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { EnvironmentMainService, IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -48,8 +52,8 @@ import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { ProtocolMainService } from 'vs/platform/protocol/electron-main/protocolMainService';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { TunnelService } from 'vs/platform/remote/node/tunnelService';
+import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
+import { TunnelService } from 'vs/platform/tunnel/node/tunnelService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestMainService } from 'vs/platform/request/electron-main/requestMainService';
 import { ISignService } from 'vs/platform/sign/common/sign';
@@ -58,7 +62,6 @@ import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import 'vs/platform/update/common/update.config.contribution';
 
 /**
  * The main VS Code entry point.
@@ -219,6 +222,7 @@ class CodeMain {
 				environmentMainService.logsPath,
 				environmentMainService.globalStorageHome.fsPath,
 				environmentMainService.workspaceStorageHome.fsPath,
+				environmentMainService.localHistoryHome.fsPath,
 				environmentMainService.backupHome
 			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
 
@@ -310,14 +314,15 @@ class CodeMain {
 				}, 10000);
 			}
 
-			const launchService = ProxyChannel.toService<ILaunchMainService>(client.getChannel('launch'), { disableMarshalling: true });
+			const otherInstanceLaunchMainService = ProxyChannel.toService<ILaunchMainService>(client.getChannel('launch'), { disableMarshalling: true });
+			const otherInstanceDiagnosticsMainService = ProxyChannel.toService<IDiagnosticsMainService>(client.getChannel('diagnostics'), { disableMarshalling: true });
 
 			// Process Info
 			if (environmentMainService.args.status) {
 				return instantiationService.invokeFunction(async () => {
 					const diagnosticsService = new DiagnosticsService(NullTelemetryService, productService);
-					const mainProcessInfo = await launchService.getMainProcessInfo();
-					const remoteDiagnostics = await launchService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
+					const mainProcessInfo = await otherInstanceLaunchMainService.getMainProcessInfo();
+					const remoteDiagnostics = await otherInstanceDiagnosticsMainService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
 					const diagnostics = await diagnosticsService.getDiagnostics(mainProcessInfo, remoteDiagnostics);
 					console.log(diagnostics);
 
@@ -327,12 +332,12 @@ class CodeMain {
 
 			// Windows: allow to set foreground
 			if (isWindows) {
-				await this.windowsAllowSetForegroundWindow(launchService, logService);
+				await this.windowsAllowSetForegroundWindow(otherInstanceLaunchMainService, logService);
 			}
 
 			// Send environment over...
 			logService.trace('Sending env to running instance...');
-			await launchService.start(environmentMainService.args, process.env as IProcessEnvironment);
+			await otherInstanceLaunchMainService.start(environmentMainService.args, process.env as IProcessEnvironment);
 
 			// Cleanup
 			client.dispose();
@@ -361,7 +366,7 @@ class CodeMain {
 
 	private handleStartupDataDirError(environmentMainService: IEnvironmentMainService, title: string, error: NodeJS.ErrnoException): void {
 		if (error.code === 'EACCES' || error.code === 'EPERM') {
-			const directories = coalesce([environmentMainService.userDataPath, environmentMainService.extensionsPath, XDG_RUNTIME_DIR]).map(folder => getPathLabel(folder, environmentMainService));
+			const directories = coalesce([environmentMainService.userDataPath, environmentMainService.extensionsPath, XDG_RUNTIME_DIR]).map(folder => getPathLabel(URI.file(folder), { os: OS, tildify: environmentMainService }));
 
 			this.showStartupWarningDialog(
 				localize('startupDataDirError', "Unable to write program user data."),

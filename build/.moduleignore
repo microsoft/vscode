@@ -21,6 +21,11 @@ fsevents/test/**
 @vscode/sqlite3/src/**
 !@vscode/sqlite3/build/Release/*.node
 
+@vscode/windows-registry/binding.gyp
+@vscode/windows-registry/src/**
+@vscode/windows-registry/build/**
+!@vscode/windows-registry/build/Release/*.node
+
 windows-mutex/binding.gyp
 windows-mutex/build/**
 windows-mutex/src/**
@@ -71,6 +76,7 @@ keytar/node_modules/**
 node-pty/binding.gyp
 node-pty/build/**
 node-pty/src/**
+node-pty/lib/*.test.js
 node-pty/tools/**
 node-pty/deps/**
 node-pty/scripts/**
@@ -106,6 +112,11 @@ vscode-windows-ca-certs/**/*
 !vscode-windows-ca-certs/**/*.node
 
 node-addon-api/**/*
+prebuild-install/**/*
+
+@microsoft/applicationinsights*/**
+@microsoft/dynamicproto-js/**
+!@microsoft/applicationinsights-web/dist/applicationinsights-web.min.js
 
 # other node modules
 
@@ -120,6 +131,9 @@ node-addon-api/**/*
 **/README.md
 **/readme.md
 **/readme.markdown
+**/CODE_OF_CONDUCT.md
+**/SUPPORT.md
+**/CONTRIBUTING.md
 
 **/*.ts
 !typescript/**/*.d.ts

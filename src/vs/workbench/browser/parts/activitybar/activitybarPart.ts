@@ -23,13 +23,14 @@ import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget 
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction, ICompositeActivity, IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
-import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation, getEnabledViewContainerContextKey } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
+import { getEnabledViewContainerContextKey } from 'vs/workbench/common/contextkeys';
 import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined, isString } from 'vs/base/common/types';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { isNative } from 'vs/base/common/platform';
 import { Before2D } from 'vs/workbench/browser/dnd';
 import { Codicon } from 'vs/base/common/codicons';
@@ -41,6 +42,8 @@ import { StringSHA1 } from 'vs/base/common/hash';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { GestureEvent } from 'vs/base/browser/touch';
 import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/profiles/common/profileStorageRegistry';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -48,7 +51,7 @@ interface IPlaceholderViewContainer {
 	readonly iconUrl?: UriComponents;
 	readonly themeIcon?: ThemeIcon;
 	readonly isBuiltin?: boolean;
-	readonly views?: { when?: string; }[];
+	readonly views?: { when?: string }[];
 }
 
 interface IPinnedViewContainer {
@@ -66,7 +69,7 @@ interface ICachedViewContainer {
 	readonly order?: number;
 	visible: boolean;
 	isBuiltin?: boolean;
-	views?: { when?: string; }[];
+	views?: { when?: string }[];
 }
 
 export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart {
@@ -107,7 +110,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 
 	private readonly accountsActivity: ICompositeActivity[] = [];
 
-	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction; }>();
+	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction }>();
 	private readonly viewContainerDisposables = new Map<string, IDisposable>();
 
 	private readonly keyboardNavigationDisposables = this._register(new DisposableStore());
@@ -139,6 +142,15 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		this.onDidRegisterViewContainers(this.getViewContainers());
 
 		this.registerListeners();
+
+		Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry)
+			.registerKeys([{
+				key: ActivitybarPart.PINNED_VIEW_CONTAINERS,
+				description: localize('pinned view containers', "Activity bar entries visibility customizations")
+			}, {
+				key: AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY,
+				description: localize('accounts visibility key', "Accounts entry visibility customization in the activity bar.")
+			}]);
 	}
 
 	private createCompositeBar() {
@@ -258,7 +270,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		}));
 	}
 
-	private onDidChangeViewContainers(added: readonly { container: ViewContainer, location: ViewContainerLocation; }[], removed: readonly { container: ViewContainer, location: ViewContainerLocation; }[]) {
+	private onDidChangeViewContainers(added: readonly { container: ViewContainer; location: ViewContainerLocation }[], removed: readonly { container: ViewContainer; location: ViewContainerLocation }[]) {
 		removed.filter(({ location }) => location === ViewContainerLocation.Sidebar).forEach(({ container }) => this.onDidDeregisterViewContainer(container));
 		this.onDidRegisterViewContainers(added.filter(({ location }) => location === ViewContainerLocation.Sidebar).map(({ container }) => container));
 	}
@@ -563,7 +575,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		this.updateGlobalActivity(ACCOUNTS_ACTIVITY_ID);
 	}
 
-	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction; } {
+	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction; pinnedAction: ToggleCompositePinnedAction } {
 		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
 			const viewContainer = this.getViewContainer(compositeId);
@@ -849,7 +861,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			const viewContainer = this.getViewContainer(compositeItem.id);
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				const views: { when: string | undefined; }[] = [];
+				const views: { when: string | undefined }[] = [];
 				for (const { when } of viewContainerModel.allViewDescriptors) {
 					views.push({ when: when ? when.serialize() : undefined });
 				}

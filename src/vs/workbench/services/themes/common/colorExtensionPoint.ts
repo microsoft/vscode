@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 interface IColorExtensionPoint {
 	id: string;
 	description: string;
-	defaults: { light: string, dark: string, highContrast: string };
+	defaults: { light: string; dark: string; highContrast: string; highContrastLight?: string };
 }
 
 const colorRegistry: IColorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
@@ -58,15 +58,24 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IColorEx
 							]
 						},
 						highContrast: {
-							description: nls.localize('contributes.defaults.highContrast', 'The default color for high contrast themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default.'),
+							description: nls.localize('contributes.defaults.highContrast', 'The default color for high contrast dark themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default. If not provided, the `dark` color is used as default for high contrast dark themes.'),
+							type: 'string',
+							anyOf: [
+								colorReferenceSchema,
+								{ type: 'string', format: 'color-hex' }
+							]
+						},
+						highContrastLight: {
+							description: nls.localize('contributes.defaults.highContrastLight', 'The default color for high contrast light themes. Either a color value in hex (#RRGGBB[AA]) or the identifier of a themable color which provides the default. If not provided, the `light` color is used as default for high contrast light themes.'),
 							type: 'string',
 							anyOf: [
 								colorReferenceSchema,
 								{ type: 'string', format: 'color-hex' }
 							]
 						}
-					}
-				},
+					},
+					required: ['light', 'dark']
+				}
 			}
 		}
 	}
@@ -110,14 +119,24 @@ export class ColorExtensionPoint {
 						return;
 					}
 					let defaults = colorContribution.defaults;
-					if (!defaults || typeof defaults !== 'object' || typeof defaults.light !== 'string' || typeof defaults.dark !== 'string' || typeof defaults.highContrast !== 'string') {
-						collector.error(nls.localize('invalid.defaults', "'configuration.colors.defaults' must be defined and must contain 'light', 'dark' and 'highContrast'"));
+					if (!defaults || typeof defaults !== 'object' || typeof defaults.light !== 'string' || typeof defaults.dark !== 'string') {
+						collector.error(nls.localize('invalid.defaults', "'configuration.colors.defaults' must be defined and must contain 'light' and 'dark'"));
 						return;
 					}
+					if (defaults.highContrast && typeof defaults.highContrast !== 'string') {
+						collector.error(nls.localize('invalid.defaults.highContrast', "If defined, 'configuration.colors.defaults.highContrast' must be a string."));
+						return;
+					}
+					if (defaults.highContrastLight && typeof defaults.highContrastLight !== 'string') {
+						collector.error(nls.localize('invalid.defaults.highContrastLight', "If defined, 'configuration.colors.defaults.highContrastLight' must be a string."));
+						return;
+					}
+
 					colorRegistry.registerColor(colorContribution.id, {
 						light: parseColorValue(defaults.light, 'configuration.colors.defaults.light'),
 						dark: parseColorValue(defaults.dark, 'configuration.colors.defaults.dark'),
-						hc: parseColorValue(defaults.highContrast, 'configuration.colors.defaults.highContrast')
+						hcDark: parseColorValue(defaults.highContrast ?? defaults.dark, 'configuration.colors.defaults.highContrast'),
+						hcLight: parseColorValue(defaults.highContrastLight ?? defaults.light, 'configuration.colors.defaults.highContrastLight'),
 					}, colorContribution.description);
 				}
 			}

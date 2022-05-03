@@ -222,7 +222,7 @@ function _loadProductIconThemeDocument(fileService: IExtensionResourceLoaderServ
 				const fontDefinition = sanitizedFonts.get(fontId);
 				if (fontDefinition) {
 
-					const font = { id: `pi-${fontId}`, getDefinition: () => fontDefinition };
+					const font = { id: `pi-${fontId}`, definition: fontDefinition };
 					iconDefinitions.set(iconId, { fontCharacter: definition.fontCharacter, font });
 				} else {
 					warnings.push(nls.localize('error.icon.font', 'Skipping icon definition \'{0}\'. Unknown font.', iconId));

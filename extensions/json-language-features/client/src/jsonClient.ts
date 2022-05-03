@@ -59,7 +59,8 @@ namespace ResultLimitReachedNotification {
 interface Settings {
 	json?: {
 		schemas?: JSONSchemaSettings[];
-		format?: { enable: boolean; };
+		format?: { enable?: boolean };
+		validate?: { enable?: boolean };
 		resultLimit?: number;
 	};
 	http?: {
@@ -68,7 +69,7 @@ interface Settings {
 	};
 }
 
-interface JSONSchemaSettings {
+export interface JSONSchemaSettings {
 	fileMatch?: string[];
 	url?: string;
 	schema?: any;
@@ -76,6 +77,7 @@ interface JSONSchemaSettings {
 
 namespace SettingIds {
 	export const enableFormatter = 'json.format.enable';
+	export const enableValidation = 'json.validate.enable';
 	export const enableSchemaDownload = 'json.schemaDownload.enable';
 	export const maxItemsComputed = 'json.maxItemsComputed';
 }
@@ -96,7 +98,7 @@ export type LanguageClientConstructor = (name: string, description: string, clie
 
 export interface Runtime {
 	schemaRequests: SchemaRequestService;
-	telemetry?: TelemetryReporter
+	telemetry?: TelemetryReporter;
 }
 
 export interface SchemaRequestService {
@@ -124,13 +126,13 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 
 	let isClientReady = false;
 
-	commands.registerCommand('json.clearCache', async () => {
+	toDispose.push(commands.registerCommand('json.clearCache', async () => {
 		if (isClientReady && runtime.schemaRequests.clearCache) {
 			const cachedSchemas = await runtime.schemaRequests.clearCache();
 			await client.sendNotification(SchemaContentChangeNotification.type, cachedSchemas);
 		}
 		window.showInformationMessage(localize('json.clearCache.completed', "JSON schema cache cleared."));
-	});
+	}));
 
 	// Options to control the language client
 	const clientOptions: LanguageClientOptions = {
@@ -306,9 +308,9 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociations(context));
 
-		extensions.onDidChange(_ => {
+		toDispose.push(extensions.onDidChange(_ => {
 			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociations(context));
-		});
+		}));
 
 		// manually register / deregister format provider based on the `json.format.enable` setting avoiding issues with late registration. See #71652.
 		updateFormatterRegistration();
@@ -327,7 +329,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 		client.onNotification(ResultLimitReachedNotification.type, async message => {
 			const shouldPrompt = context.globalState.get<boolean>(StorageIds.maxItemsExceededInformation) !== false;
 			if (shouldPrompt) {
-				const ok = localize('ok', "Ok");
+				const ok = localize('ok', "OK");
 				const openSettings = localize('goToSetting', 'Open Settings');
 				const neverAgain = localize('yes never again', "Don't Show Again");
 				const pick = await window.showInformationMessage(`${message}\n${localize('configureLimit', 'Use setting \'{0}\' to configure the limit.', SettingIds.maxItemsComputed)}`, ok, openSettings, neverAgain);
@@ -425,6 +427,7 @@ function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[]
 }
 
 function getSettings(): Settings {
+	const configuration = workspace.getConfiguration();
 	const httpSettings = workspace.getConfiguration('http');
 
 	const resultLimit: number = Math.trunc(Math.max(0, Number(workspace.getConfiguration().get(SettingIds.maxItemsComputed)))) || 5000;
@@ -435,6 +438,8 @@ function getSettings(): Settings {
 			proxyStrictSSL: httpSettings.get('proxyStrictSSL')
 		},
 		json: {
+			validate: { enable: configuration.get(SettingIds.enableValidation) },
+			format: { enable: configuration.get(SettingIds.enableFormatter) },
 			schemas: [],
 			resultLimit
 		}

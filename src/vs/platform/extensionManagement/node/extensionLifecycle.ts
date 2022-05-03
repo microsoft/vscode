@@ -37,7 +37,7 @@ export class ExtensionsLifecycle extends Disposable {
 		return Promises.rm(this.getExtensionStoragePath(extension)).then(undefined, e => this.logService.error('Error while removing extension storage path', e));
 	}
 
-	private parseScript(extension: ILocalExtension, type: string): { script: string, args: string[] } | null {
+	private parseScript(extension: ILocalExtension, type: string): { script: string; args: string[] } | null {
 		const scriptKey = `vscode:${type}`;
 		if (extension.location.scheme === Schemas.file && extension.manifest && extension.manifest['scripts'] && typeof extension.manifest['scripts'][scriptKey] === 'string') {
 			const script = (<string>extension.manifest['scripts'][scriptKey]).split(' ');
@@ -97,7 +97,7 @@ export class ExtensionsLifecycle extends Disposable {
 		const extensionUninstallProcess = fork(uninstallHook, [`--type=extension-post-${lifecycleType}`, ...args], opts);
 
 		// Catch all output coming from the process
-		type Output = { data: string, format: string[] };
+		type Output = { data: string; format: string[] };
 		extensionUninstallProcess.stdout!.setEncoding('utf8');
 		extensionUninstallProcess.stderr!.setEncoding('utf8');
 

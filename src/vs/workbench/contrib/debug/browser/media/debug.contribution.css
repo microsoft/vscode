@@ -88,6 +88,10 @@
 	margin-left: 6px;
 }
 
+.monaco-workbench .monaco-list-row .expression .lazy-button {
+	margin-left: 3px;
+}
+
 /* Links */
 
 .monaco-workbench .monaco-list-row .expression .value a.link:hover {
@@ -116,8 +120,17 @@
 	font-style: italic;
 }
 
+.monaco-workbench .monaco-list-row .expression .lazy-button {
+	display: none;
+	border-radius: 5px;
+	padding: 3px;
+}
+
+.monaco-workbench .monaco-list-row .expression.lazy .lazy-button {
+	display: inline;
+}
+
 .monaco-workbench .debug-inline-value {
 	background-color: var(--vscode-editor-inlineValuesBackground);
-	margin: 10px;
 	color: var(--vscode-editor-inlineValuesForeground);
 }

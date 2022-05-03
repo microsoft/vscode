@@ -59,7 +59,7 @@ export interface ITreeShakingOptions {
 	 */
 	importIgnorePattern: RegExp;
 
-	redirects: { [module: string]: string; };
+	redirects: { [module: string]: string };
 }
 
 export interface ITreeShakingResult {
@@ -140,7 +140,7 @@ function createTypeScriptLanguageService(ts: typeof import('typescript'), option
 function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeShakingOptions): IFileMap {
 	const FILES: IFileMap = {};
 
-	const in_queue: { [module: string]: boolean; } = Object.create(null);
+	const in_queue: { [module: string]: boolean } = Object.create(null);
 	const queue: string[] = [];
 
 	const enqueue = (moduleId: string) => {
@@ -225,8 +225,8 @@ function processLibFiles(ts: typeof import('typescript'), options: ITreeShakingO
 	return result;
 }
 
-interface ILibMap { [libName: string]: string; }
-interface IFileMap { [fileName: string]: string; }
+interface ILibMap { [libName: string]: string }
+interface IFileMap { [fileName: string]: string }
 
 /**
  * A TypeScript language service host
@@ -284,6 +284,12 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 	isDefaultLibFileName(fileName: string): boolean {
 		return fileName === this.getDefaultLibFileName(this._compilerOptions);
 	}
+	readFile(path: string, _encoding?: string): string | undefined {
+		return this._files[path] || this._libs[path];
+	}
+	fileExists(path: string): boolean {
+		return path in this._files || path in this._libs;
+	}
 }
 //#endregion
 
@@ -339,7 +345,7 @@ function isVariableStatementWithSideEffects(ts: typeof import('typescript'), nod
 		}
 		if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
 			// TODO: assuming `createDecorator` and `refineServiceDecorator` calls are side-effect free
-			const isSideEffectFree = /(createDecorator|refineServiceDecorator)/.test(node.getText());
+			const isSideEffectFree = /(createDecorator|refineServiceDecorator)/.test(node.expression.getText());
 			if (!isSideEffectFree) {
 				hasSideEffects = true;
 			}

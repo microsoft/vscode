@@ -12,7 +12,7 @@ declare module 'vscode' {
 		 * Test coverage provider for this result. An extension can defer setting
 		 * this until after a run is complete and coverage is available.
 		 */
-		coverageProvider?: TestCoverageProvider
+		coverageProvider?: TestCoverageProvider;
 		// ...
 	}
 

@@ -25,7 +25,6 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
-import * as nls from 'vs/nls';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
@@ -277,7 +276,7 @@ export class Menu extends ActionBar {
 				this.styleSheet = Menu.globalStyleSheet;
 			}
 		}
-		this.styleSheet.textContent = getMenuWidgetCSS(style);
+		this.styleSheet.textContent = getMenuWidgetCSS(style, isInShadowDOM(container));
 	}
 
 	style(style: IMenuStyles): void {
@@ -620,22 +619,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 	}
 
 	override updateTooltip(): void {
-		let title: string | null = null;
-
-		if (this.getAction().tooltip) {
-			title = this.getAction().tooltip;
-
-		} else if (!this.options.label && this.getAction().label && this.options.icon) {
-			title = this.getAction().label;
-
-			if (this.options.keybinding) {
-				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding'] }, "{0} ({1})", title, this.options.keybinding);
-			}
-		}
-
-		if (title && this.item) {
-			this.item.title = title;
-		}
+		// menus should function like native menus and they do not have tooltips
 	}
 
 	override updateClass(): void {
@@ -818,8 +802,10 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}));
 
 		this._register(this.parentData.parent.onScroll(() => {
-			this.parentData.parent.focus(false);
-			this.cleanupExistingSubmenu(false);
+			if (this.parentData.submenu === this.mysubmenu) {
+				this.parentData.parent.focus(false);
+				this.cleanupExistingSubmenu(true);
+			}
 		}));
 	}
 
@@ -859,7 +845,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}
 	}
 
-	private calculateSubmenuMenuLayout(windowDimensions: Dimension, submenu: Dimension, entry: IDomNodePagePosition, expandDirection: Direction): { top: number, left: number } {
+	private calculateSubmenuMenuLayout(windowDimensions: Dimension, submenu: Dimension, entry: IDomNodePagePosition, expandDirection: Direction): { top: number; left: number } {
 		const ret = { top: 0, left: 0 };
 
 		// Start with horizontal
@@ -1022,7 +1008,7 @@ export function cleanMnemonic(label: string): string {
 	return label.replace(regex, mnemonicInText ? '$2$3' : '').trim();
 }
 
-function getMenuWidgetCSS(style: IMenuStyles): string {
+function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): string {
 	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
@@ -1086,7 +1072,7 @@ ${formatRule(Codicon.menuSubmenu)}
 
 .monaco-menu .monaco-action-bar .action-item.disabled .action-label,
 .monaco-menu .monaco-action-bar .action-item.disabled .action-label:hover {
-	opacity: 0.4;
+	color: var(--vscode-disabledForeground);
 }
 
 /* Vertical actions */
@@ -1258,11 +1244,13 @@ ${formatRule(Codicon.menuSubmenu)}
 
 
 /* High Contrast Theming */
-:host-context(.hc-black) .context-view.monaco-menu-container {
+:host-context(.hc-black) .context-view.monaco-menu-container,
+:host-context(.hc-light) .context-view.monaco-menu-container {
 	box-shadow: none;
 }
 
-:host-context(.hc-black) .monaco-menu .monaco-action-bar.vertical .action-item.focused {
+:host-context(.hc-black) .monaco-menu .monaco-action-bar.vertical .action-item.focused,
+:host-context(.hc-light) .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 	background: none;
 }
 
@@ -1311,101 +1299,106 @@ ${formatRule(Codicon.menuSubmenu)}
 
 .monaco-menu .action-item {
 	cursor: default;
-}
+}`;
 
-/* Arrows */
-.monaco-scrollable-element > .scrollbar > .scra {
-	cursor: pointer;
-	font-size: 11px !important;
-}
-
-.monaco-scrollable-element > .visible {
-	opacity: 1;
-
-	/* Background rule added for IE9 - to allow clicks on dom node */
-	background:rgba(0,0,0,0);
-
-	transition: opacity 100ms linear;
-}
-.monaco-scrollable-element > .invisible {
-	opacity: 0;
-	pointer-events: none;
-}
-.monaco-scrollable-element > .invisible.fade {
-	transition: opacity 800ms linear;
-}
-
-/* Scrollable Content Inset Shadow */
-.monaco-scrollable-element > .shadow {
-	position: absolute;
-	display: none;
-}
-.monaco-scrollable-element > .shadow.top {
-	display: block;
-	top: 0;
-	left: 3px;
-	height: 3px;
-	width: 100%;
-}
-.monaco-scrollable-element > .shadow.left {
-	display: block;
-	top: 3px;
-	left: 0;
-	height: 100%;
-	width: 3px;
-}
-.monaco-scrollable-element > .shadow.top-left-corner {
-	display: block;
-	top: 0;
-	left: 0;
-	height: 3px;
-	width: 3px;
-}
-`;
-
-	// Scrollbars
-	const scrollbarShadowColor = style.scrollbarShadow;
-	if (scrollbarShadowColor) {
+	if (isForShadowDom) {
+		// Only define scrollbar styles when used inside shadow dom,
+		// otherwise leave their styling to the global workbench styling.
 		result += `
+			/* Arrows */
+			.monaco-scrollable-element > .scrollbar > .scra {
+				cursor: pointer;
+				font-size: 11px !important;
+			}
+
+			.monaco-scrollable-element > .visible {
+				opacity: 1;
+
+				/* Background rule added for IE9 - to allow clicks on dom node */
+				background:rgba(0,0,0,0);
+
+				transition: opacity 100ms linear;
+			}
+			.monaco-scrollable-element > .invisible {
+				opacity: 0;
+				pointer-events: none;
+			}
+			.monaco-scrollable-element > .invisible.fade {
+				transition: opacity 800ms linear;
+			}
+
+			/* Scrollable Content Inset Shadow */
+			.monaco-scrollable-element > .shadow {
+				position: absolute;
+				display: none;
+			}
 			.monaco-scrollable-element > .shadow.top {
-				box-shadow: ${scrollbarShadowColor} 0 6px 6px -6px inset;
+				display: block;
+				top: 0;
+				left: 3px;
+				height: 3px;
+				width: 100%;
 			}
-
 			.monaco-scrollable-element > .shadow.left {
-				box-shadow: ${scrollbarShadowColor} 6px 0 6px -6px inset;
+				display: block;
+				top: 3px;
+				left: 0;
+				height: 100%;
+				width: 3px;
 			}
-
-			.monaco-scrollable-element > .shadow.top.left {
-				box-shadow: ${scrollbarShadowColor} 6px 6px 6px -6px inset;
-			}
-		`;
-	}
-
-	const scrollbarSliderBackgroundColor = style.scrollbarSliderBackground;
-	if (scrollbarSliderBackgroundColor) {
-		result += `
-			.monaco-scrollable-element > .scrollbar > .slider {
-				background: ${scrollbarSliderBackgroundColor};
+			.monaco-scrollable-element > .shadow.top-left-corner {
+				display: block;
+				top: 0;
+				left: 0;
+				height: 3px;
+				width: 3px;
 			}
 		`;
-	}
 
-	const scrollbarSliderHoverBackgroundColor = style.scrollbarSliderHoverBackground;
-	if (scrollbarSliderHoverBackgroundColor) {
-		result += `
-			.monaco-scrollable-element > .scrollbar > .slider:hover {
-				background: ${scrollbarSliderHoverBackgroundColor};
-			}
-		`;
-	}
+		// Scrollbars
+		const scrollbarShadowColor = style.scrollbarShadow;
+		if (scrollbarShadowColor) {
+			result += `
+				.monaco-scrollable-element > .shadow.top {
+					box-shadow: ${scrollbarShadowColor} 0 6px 6px -6px inset;
+				}
 
-	const scrollbarSliderActiveBackgroundColor = style.scrollbarSliderActiveBackground;
-	if (scrollbarSliderActiveBackgroundColor) {
-		result += `
-			.monaco-scrollable-element > .scrollbar > .slider.active {
-				background: ${scrollbarSliderActiveBackgroundColor};
-			}
-		`;
+				.monaco-scrollable-element > .shadow.left {
+					box-shadow: ${scrollbarShadowColor} 6px 0 6px -6px inset;
+				}
+
+				.monaco-scrollable-element > .shadow.top.left {
+					box-shadow: ${scrollbarShadowColor} 6px 6px 6px -6px inset;
+				}
+			`;
+		}
+
+		const scrollbarSliderBackgroundColor = style.scrollbarSliderBackground;
+		if (scrollbarSliderBackgroundColor) {
+			result += `
+				.monaco-scrollable-element > .scrollbar > .slider {
+					background: ${scrollbarSliderBackgroundColor};
+				}
+			`;
+		}
+
+		const scrollbarSliderHoverBackgroundColor = style.scrollbarSliderHoverBackground;
+		if (scrollbarSliderHoverBackgroundColor) {
+			result += `
+				.monaco-scrollable-element > .scrollbar > .slider:hover {
+					background: ${scrollbarSliderHoverBackgroundColor};
+				}
+			`;
+		}
+
+		const scrollbarSliderActiveBackgroundColor = style.scrollbarSliderActiveBackground;
+		if (scrollbarSliderActiveBackgroundColor) {
+			result += `
+				.monaco-scrollable-element > .scrollbar > .slider.active {
+					background: ${scrollbarSliderActiveBackgroundColor};
+				}
+			`;
+		}
 	}
 
 	return result;

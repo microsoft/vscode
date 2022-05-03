@@ -6,12 +6,12 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { IModelDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { IViewModelLines } from 'vs/editor/common/viewModel/viewModelLines';
-import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel';
 import { filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
-import { StandardTokenType } from 'vs/editor/common/modes';
+import { StandardTokenType } from 'vs/editor/common/languages';
 
 export interface IDecorationsViewportData {
 	/**
@@ -28,16 +28,16 @@ export class ViewModelDecorations implements IDisposable {
 
 	private readonly editorId: number;
 	private readonly model: ITextModel;
-	private readonly configuration: editorCommon.IConfiguration;
+	private readonly configuration: IEditorConfiguration;
 	private readonly _linesCollection: IViewModelLines;
 	private readonly _coordinatesConverter: ICoordinatesConverter;
 
-	private _decorationsCache: { [decorationId: string]: ViewModelDecoration; };
+	private _decorationsCache: { [decorationId: string]: ViewModelDecoration };
 
 	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
 
-	constructor(editorId: number, model: ITextModel, configuration: editorCommon.IConfiguration, linesCollection: IViewModelLines, coordinatesConverter: ICoordinatesConverter) {
+	constructor(editorId: number, model: ITextModel, configuration: IEditorConfiguration, linesCollection: IViewModelLines, coordinatesConverter: ICoordinatesConverter) {
 		this.editorId = editorId;
 		this.model = model;
 		this.configuration = configuration;
@@ -112,36 +112,37 @@ export class ViewModelDecorations implements IDisposable {
 		const startLineNumber = viewportRange.startLineNumber;
 		const endLineNumber = viewportRange.endLineNumber;
 
-		let decorationsInViewport: ViewModelDecoration[] = [], decorationsInViewportLen = 0;
-		let inlineDecorations: InlineDecoration[][] = [];
+		const decorationsInViewport: ViewModelDecoration[] = [];
+		let decorationsInViewportLen = 0;
+		const inlineDecorations: InlineDecoration[][] = [];
 		for (let j = startLineNumber; j <= endLineNumber; j++) {
 			inlineDecorations[j - startLineNumber] = [];
 		}
 
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
-			let modelDecoration = modelDecorations[i];
-			let decorationOptions = modelDecoration.options;
+			const modelDecoration = modelDecorations[i];
+			const decorationOptions = modelDecoration.options;
 
 			if (!isModelDecorationVisible(this.model, modelDecoration)) {
 				continue;
 			}
 
-			let viewModelDecoration = this._getOrCreateViewModelDecoration(modelDecoration);
-			let viewRange = viewModelDecoration.range;
+			const viewModelDecoration = this._getOrCreateViewModelDecoration(modelDecoration);
+			const viewRange = viewModelDecoration.range;
 
 			decorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;
 
 			if (decorationOptions.inlineClassName) {
-				let inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);
-				let intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);
-				let intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
+				const inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);
+				const intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);
+				const intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
 				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {
 					inlineDecorations[j - startLineNumber].push(inlineDecoration);
 				}
 			}
 			if (decorationOptions.beforeContentClassName) {
 				if (startLineNumber <= viewRange.startLineNumber && viewRange.startLineNumber <= endLineNumber) {
-					let inlineDecoration = new InlineDecoration(
+					const inlineDecoration = new InlineDecoration(
 						new Range(viewRange.startLineNumber, viewRange.startColumn, viewRange.startLineNumber, viewRange.startColumn),
 						decorationOptions.beforeContentClassName,
 						InlineDecorationType.Before
@@ -151,7 +152,7 @@ export class ViewModelDecorations implements IDisposable {
 			}
 			if (decorationOptions.afterContentClassName) {
 				if (startLineNumber <= viewRange.endLineNumber && viewRange.endLineNumber <= endLineNumber) {
-					let inlineDecoration = new InlineDecoration(
+					const inlineDecoration = new InlineDecoration(
 						new Range(viewRange.endLineNumber, viewRange.endColumn, viewRange.endLineNumber, viewRange.endColumn),
 						decorationOptions.afterContentClassName,
 						InlineDecorationType.After
@@ -203,7 +204,7 @@ export function isModelDecorationInString(model: ITextModel, decoration: IModelD
  */
 function testTokensInRange(model: ITextModel, range: Range, callback: (tokenType: StandardTokenType) => boolean): boolean {
 	for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
-		const lineTokens = model.getLineTokens(lineNumber);
+		const lineTokens = model.tokenization.getLineTokens(lineNumber);
 		const isFirstLine = lineNumber === range.startLineNumber;
 		const isEndLine = lineNumber === range.endLineNumber;
 

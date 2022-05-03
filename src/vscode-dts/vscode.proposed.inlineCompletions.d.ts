@@ -10,7 +10,10 @@ declare module 'vscode' {
 	export namespace languages {
 		/**
 		 * Registers an inline completion provider.
+		 *
+		 *  @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
+		// TODO@API what are the rules when multiple providers apply
 		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider): Disposable;
 	}
 
@@ -45,9 +48,13 @@ declare module 'vscode' {
 		readonly selectedCompletionInfo: SelectedCompletionInfo | undefined;
 	}
 
+	// TODO@API remove kind, snippet properties
+	// TODO@API find a better name, xyzFilter, xyzConstraint
 	export interface SelectedCompletionInfo {
 		range: Range;
 		text: string;
+
+
 		completionKind: CompletionItemKind;
 		isSnippetText: boolean;
 	}
@@ -55,6 +62,9 @@ declare module 'vscode' {
 	/**
 	 * How an {@link InlineCompletionItemProvider inline completion provider} was triggered.
 	 */
+	// TODO@API align with CodeActionTriggerKind
+	// (1) rename Explicit to Invoke
+	// (2) swap order of Invoke and Automatic
 	export enum InlineCompletionTriggerKind {
 		/**
 		 * Completion was triggered automatically while editing.
@@ -69,19 +79,42 @@ declare module 'vscode' {
 		Explicit = 1,
 	}
 
+	/**
+	 * @deprecated Return an array of Inline Completion items directly. Will be removed eventually.
+	*/
+	// TODO@API We could keep this and allow for `vscode.Command` instances that explain
+	// the result. That would replace the existing proposed menu-identifier and be more LSP friendly
+	// TODO@API maybe use MarkdownString
 	export class InlineCompletionList<T extends InlineCompletionItem = InlineCompletionItem> {
 		items: T[];
 
+		// command: Command; "Show More..."
+
+		// description: MarkdownString
+
+		/**
+		 * @deprecated Return an array of Inline Completion items directly. Will be removed eventually.
+		*/
 		constructor(items: T[]);
 	}
 
 	export class InlineCompletionItem {
 		/**
-		 * The text to replace the range with.
+		 * The text to replace the range with. Must be set.
+		 * Is used both for the preview and the accept operation.
 		 *
-		 * The text the range refers to should be a prefix of this value and must be a subword (`AB` and `BEF` are subwords of `ABCDEF`, but `Ab` is not).
+		 * The text the range refers to must be a subword of this value (`AB` and `BEF` are subwords of `ABCDEF`, but `Ab` is not).
+		 * Additionally, if possible, it should be a prefix of this value for a better user-experience.
+		 *
+		 * However, any indentation of the text to replace does not matter for the subword constraint.
+		 * Thus, `  B` can be replaced with ` ABC`, effectively removing a whitespace and inserting `A` and `C`.
 		*/
-		text: string;
+		insertText?: string | SnippetString;
+
+		/**
+		 * @deprecated Use `insertText` instead. Will be removed eventually.
+		*/
+		text?: string;
 
 		/**
 		 * The range to replace.
@@ -89,7 +122,8 @@ declare module 'vscode' {
 		 *
 		 * Prefer replacements over insertions to avoid cache invalidation:
 		 * Instead of reporting a completion that inserts an extension at the end of a word,
-		 * the whole word should be replaced with the extended word.
+		 * the whole word (or even the whole line) should be replaced with the extended word (or extended line) to improve the UX.
+		 * That way, when the user presses backspace, the cache can be reused and there is no flickering.
 		*/
 		range?: Range;
 
@@ -98,14 +132,25 @@ declare module 'vscode' {
 		 */
 		command?: Command;
 
-		constructor(text: string, range?: Range, command?: Command);
+		constructor(insertText: string, range?: Range, command?: Command);
 	}
 
+
+	// TODO@API move "never" API into new proposal
+
+	export interface InlineCompletionItem {
+		/**
+		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
+		 * Defaults to `false`.
+		*/
+		completeBracketPairs?: boolean;
+	}
 
 	/**
 	 * Be aware that this API will not ever be finalized.
 	 */
 	export namespace window {
+		// TODO@API move into provider (just like internal API). Only read property if proposal is enabled!
 		export function getInlineCompletionItemController<T extends InlineCompletionItem>(provider: InlineCompletionItemProvider<T>): InlineCompletionController<T>;
 	}
 

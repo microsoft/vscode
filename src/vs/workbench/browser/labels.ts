@@ -6,10 +6,10 @@
 import { URI } from 'vs/base/common/uri';
 import { dirname, isEqual, basenameOrAuthority } from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IDecoration, IDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/common/decorations';
 import { Schemas } from 'vs/base/common/network';
@@ -24,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 
 export interface IResourceLabelProps {
-	resource?: URI | { primary?: URI, secondary?: URI };
+	resource?: URI | { primary?: URI; secondary?: URI };
 	name?: string | string[];
 	description?: string;
 }
@@ -51,7 +51,7 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	/**
 	 * File decorations to use for the label.
 	 */
-	readonly fileDecorations?: { colors: boolean, badges: boolean };
+	readonly fileDecorations?: { colors: boolean; badges: boolean };
 
 	/**
 	 * Will take the provided label as is and e.g. not override it for untitled files.
@@ -133,15 +133,15 @@ export class ResourceLabels extends Disposable {
 		}));
 
 		// notify when extensions are registered with potentially new languages
-		this._register(this.languageService.onLanguagesMaybeChanged(() => this.widgets.forEach(widget => widget.notifyExtensionsRegistered())));
+		this._register(this.languageService.onDidChange(() => this.widgets.forEach(widget => widget.notifyExtensionsRegistered())));
 
-		// notify when model mode changes
-		this._register(this.modelService.onModelModeChanged(e => {
+		// notify when model language changes
+		this._register(this.modelService.onModelLanguageChanged(e => {
 			if (!e.model.uri) {
 				return; // we need the resource to compare
 			}
 
-			this.widgets.forEach(widget => widget.notifyModelModeChanged(e.model));
+			this.widgets.forEach(widget => widget.notifyModelLanguageChanged(e.model));
 		}));
 
 		// notify when model is added
@@ -272,14 +272,15 @@ class ResourceLabelWidget extends IconLabel {
 	private readonly _onDidRender = this._register(new Emitter<void>());
 	readonly onDidRender = this._onDidRender.event;
 
-	private label?: IResourceLabelProps;
+	private label: IResourceLabelProps | undefined = undefined;
 	private decoration = this._register(new MutableDisposable<IDecoration>());
-	private options?: IResourceLabelOptions;
-	private computedIconClasses?: string[];
-	private lastKnownDetectedModeId?: string;
-	private computedPathLabel?: string;
+	private options: IResourceLabelOptions | undefined = undefined;
 
-	private needsRedraw?: Redraw;
+	private computedIconClasses: string[] | undefined = undefined;
+	private computedLanguageId: string | undefined = undefined;
+	private computedPathLabel: string | undefined = undefined;
+
+	private needsRedraw: Redraw | undefined = undefined;
 	private isHidden: boolean = false;
 
 	constructor(
@@ -310,7 +311,7 @@ class ResourceLabelWidget extends IconLabel {
 		}
 	}
 
-	notifyModelModeChanged(model: ITextModel): void {
+	notifyModelLanguageChanged(model: ITextModel): void {
 		this.handleModelEvent(model);
 	}
 
@@ -325,8 +326,8 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (isEqual(model.uri, resource)) {
-			if (this.lastKnownDetectedModeId !== model.getLanguageId()) {
-				this.lastKnownDetectedModeId = model.getLanguageId();
+			if (this.computedLanguageId !== model.getLanguageId()) {
+				this.computedLanguageId = model.getLanguageId();
 				this.render({ updateIcon: true, updateDecoration: false }); // update if the language id of the model has changed from our last known state
 			}
 		}
@@ -444,8 +445,12 @@ class ResourceLabelWidget extends IconLabel {
 		this.label = label;
 		this.options = options;
 
+		if (hasResourceChanged) {
+			this.computedLanguageId = undefined; // reset computed language since resource changed
+		}
+
 		if (hasPathLabelChanged) {
-			this.computedPathLabel = undefined; // reset path label due to resource change
+			this.computedPathLabel = undefined; // reset path label due to resource/path-label change
 		}
 
 		this.render({
@@ -485,14 +490,14 @@ class ResourceLabelWidget extends IconLabel {
 	clear(): void {
 		this.label = undefined;
 		this.options = undefined;
-		this.lastKnownDetectedModeId = undefined;
+		this.computedLanguageId = undefined;
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
 
 		this.setLabel('');
 	}
 
-	private render(options: { updateIcon: boolean, updateDecoration: boolean }): boolean {
+	private render(options: { updateIcon: boolean; updateDecoration: boolean }): boolean {
 		if (this.isHidden) {
 			if (this.needsRedraw !== Redraw.Full) {
 				this.needsRedraw = (options.updateIcon || options.updateDecoration) ? Redraw.Full : Redraw.Basic;
@@ -525,12 +530,23 @@ class ResourceLabelWidget extends IconLabel {
 
 		if (this.options?.title !== undefined) {
 			iconLabelOptions.title = this.options.title;
-		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
+		}
+
+		if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */
+			&& (
+				(!this.options?.title)
+				|| ((typeof this.options.title !== 'string') && !this.options.title.markdownNotSupportedFallback)
+			)) {
+
 			if (!this.computedPathLabel) {
 				this.computedPathLabel = this.labelService.getUriLabel(resource);
 			}
 
-			iconLabelOptions.title = this.computedPathLabel;
+			if (!iconLabelOptions.title || (typeof iconLabelOptions.title === 'string')) {
+				iconLabelOptions.title = this.computedPathLabel;
+			} else if (!iconLabelOptions.title.markdownNotSupportedFallback) {
+				iconLabelOptions.title.markdownNotSupportedFallback = this.computedPathLabel;
+			}
 		}
 
 		if (this.options && !this.options.hideIcon) {
@@ -583,7 +599,7 @@ class ResourceLabelWidget extends IconLabel {
 
 		this.label = undefined;
 		this.options = undefined;
-		this.lastKnownDetectedModeId = undefined;
+		this.computedLanguageId = undefined;
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
 	}

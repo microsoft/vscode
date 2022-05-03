@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, dispose, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -31,6 +31,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Dimension, append, $, hide, show } from 'vs/base/browser/dom';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export interface ICompositeTitleLabel {
 
@@ -53,7 +54,7 @@ interface CompositeItem {
 
 export abstract class CompositePart<T extends Composite> extends Part {
 
-	protected readonly onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite, focus: boolean }>());
+	protected readonly onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite; focus: boolean }>());
 	protected readonly onDidCompositeClose = this._register(new Emitter<IComposite>());
 
 	protected toolBar: ToolBar | undefined;
@@ -258,7 +259,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.telemetryActionsListener.value = toolBar.actionRunner.onDidRun(e => {
 
 			// Check for Error
-			if (e.error && !isPromiseCanceledError(e.error)) {
+			if (e.error && !isCancellationError(e.error)) {
 				this.notificationService.error(e.error);
 			}
 
@@ -436,7 +437,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			return this.activeComposite.getActionViewItem(action);
 		}
 
-		return undefined;
+		return createActionViewItem(this.instantiationService, action);
 	}
 
 	protected actionsContextProvider(): unknown {

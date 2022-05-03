@@ -28,15 +28,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter } from 'vs/base/common/event';
-import { IFileService } from 'vs/platform/files/common/files';
 
 interface RegisteredEditor {
-	globPattern: string | glob.IRelativePattern,
-	editorInfo: RegisteredEditorInfo,
-	options?: RegisteredEditorOptions,
-	createEditorInput: EditorInputFactoryFunction,
-	createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined,
-	createDiffEditorInput?: DiffEditorInputFactoryFunction
+	globPattern: string | glob.IRelativePattern;
+	editorInfo: RegisteredEditorInfo;
+	options?: RegisteredEditorOptions;
+	createEditorInput: EditorInputFactoryFunction;
+	createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined;
+	createDiffEditorInput?: DiffEditorInputFactoryFunction;
 }
 
 type RegisteredEditors = Array<RegisteredEditor>;
@@ -66,8 +65,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILogService private readonly logService: ILogService,
-		@IFileService private readonly fileService: IFileService
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		// Read in the cache on statup
@@ -149,17 +147,16 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			await this.extensionService.whenInstalledExtensionsRegistered();
 		}
 
+		// Undefined resource -> untilted. Other malformed URI's are unresolvable
 		if (resource === undefined) {
 			resource = URI.from({ scheme: Schemas.untitled });
+		} else if (resource.scheme === undefined || resource === null) {
+			return ResolvedStatus.NONE;
 		}
 
 		if (untypedEditor.options?.override === EditorResolution.DISABLED) {
 			throw new Error(`Calling resolve editor when resolution is explicitly disabled!`);
 		}
-
-		// We ask the file service to activate a provider for the scheme in case
-		// anyone depends on that provider being available
-		await this.fileService.activateProvider(resource.scheme);
 
 		if (untypedEditor.options?.override === EditorResolution.PICK) {
 			const picked = await this.doPickEditor(untypedEditor);
@@ -219,7 +216,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		if (input) {
 			this.sendEditorResolutionTelemetry(input.editor);
 			if (input.editor.editorId !== selectedEditor.editorInfo.id) {
-				console.warn(`Editor ID Mismatch: ${input.editor.editorId} !== ${selectedEditor.editorInfo.id}. This will cause bugs. Please ensure editorInput.editorId matches the registered id`);
+				this.logService.warn(`Editor ID Mismatch: ${input.editor.editorId} !== ${selectedEditor.editorInfo.id}. This will cause bugs. Please ensure editorInput.editorId matches the registered id`);
 			}
 			return { ...input, group };
 		}
@@ -296,7 +293,16 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	private getAllUserAssociations(): EditorAssociations {
-		const rawAssociations = this.configurationService.getValue<{ [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || {};
+		const inspectedEditorAssociations = this.configurationService.inspect<{ [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || {};
+		const workspaceAssociations = inspectedEditorAssociations.workspaceValue ?? {};
+		const userAssociations = inspectedEditorAssociations.userValue ?? {};
+		const rawAssociations: { [fileNamePattern: string]: string } = { ...workspaceAssociations };
+		// We want to apply the user associations on top of the workspace associations but ignore duplicate keys.
+		for (const [key, value] of Object.entries(userAssociations)) {
+			if (rawAssociations[key] === undefined) {
+				rawAssociations[key] = value;
+			}
+		}
 		let associations = [];
 		for (const [key, value] of Object.entries(rawAssociations)) {
 			const association: EditorAssociation = {
@@ -370,7 +376,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	 * Given a resource and an editorId selects the best possible editor
 	 * @returns The editor and whether there was another default which conflicted with it
 	 */
-	private getEditor(resource: URI, editorId: string | EditorResolution.EXCLUSIVE_ONLY | undefined): { editor: RegisteredEditor | undefined, conflictingDefault: boolean } {
+	private getEditor(resource: URI, editorId: string | EditorResolution.EXCLUSIVE_ONLY | undefined): { editor: RegisteredEditor | undefined; conflictingDefault: boolean } {
 
 		const findMatchingEditor = (editors: RegisteredEditors, viewType: string) => {
 			return editors.find((editor) => {
@@ -519,8 +525,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	private findExistingEditorsForResource(
 		resource: URI,
 		editorId: string,
-	): Array<{ editor: EditorInput, group: IEditorGroup }> {
-		const out: Array<{ editor: EditorInput, group: IEditorGroup }> = [];
+	): Array<{ editor: EditorInput; group: IEditorGroup }> {
+		const out: Array<{ editor: EditorInput; group: IEditorGroup }> = [];
 		const orderedGroups = distinct([
 			...this.editorGroupService.groups,
 		]);
@@ -740,10 +746,12 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	private sendEditorResolutionTelemetry(chosenInput: EditorInput): void {
 		type editorResolutionClassification = {
-			viewType: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+			viewType: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The id of the editor opened. Used to gain an undertsanding of what editors are most popular' };
+			owner: 'lramos15';
+			comment: 'An event that fires when an editor type is picked';
 		};
 		type editorResolutionEvent = {
-			viewType: string
+			viewType: string;
 		};
 		if (chosenInput.editorId) {
 			this.telemetryService.publicLog2<editorResolutionEvent, editorResolutionClassification>('override.viewType', { viewType: chosenInput.editorId });

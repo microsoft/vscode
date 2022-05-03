@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { ICellViewModel, CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
-import { NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellExecutionStateChangedEvent, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export class CellProgressBar extends CellPart {
 	private readonly _progressBar: ProgressBar;
@@ -14,7 +16,8 @@ export class CellProgressBar extends CellPart {
 
 	constructor(
 		editorContainer: HTMLElement,
-		collapsedInputContainer: HTMLElement) {
+		collapsedInputContainer: HTMLElement,
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService) {
 		super();
 
 		this._progressBar = this._register(new ProgressBar(editorContainer));
@@ -24,41 +27,39 @@ export class CellProgressBar extends CellPart {
 		this._collapsedProgressBar.hide();
 	}
 
-	renderCell(element: ICellViewModel): void {
-		this.updateForInternalMetadata(element, element.internalMetadata);
+	override didRenderCell(element: ICellViewModel): void {
+		this._updateForExecutionState(element);
 	}
 
-	prepareLayout(): void {
-		// nothing to read
+	override updateForExecutionState(element: ICellViewModel, e: ICellExecutionStateChangedEvent): void {
+		this._updateForExecutionState(element, e);
 	}
 
-	updateInternalLayoutNow(element: ICellViewModel): void {
-		// nothing to update
-	}
-
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
+	override updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
 		if (e.metadataChanged || e.internalMetadataChanged) {
-			this.updateForInternalMetadata(element, element.internalMetadata);
+			this._updateForExecutionState(element);
 		}
 
 		if (e.inputCollapsedChanged) {
+			const exeState = this._notebookExecutionStateService.getCellExecution(element.uri);
 			if (element.isInputCollapsed) {
 				this._progressBar.hide();
-				if (element.internalMetadata.runState === NotebookCellExecutionState.Executing) {
-					showProgressBar(this._collapsedProgressBar);
+				if (exeState?.state === NotebookCellExecutionState.Executing) {
+					this._updateForExecutionState(element);
 				}
 			} else {
 				this._collapsedProgressBar.hide();
-				if (element.internalMetadata.runState === NotebookCellExecutionState.Executing) {
-					showProgressBar(this._progressBar);
+				if (exeState?.state === NotebookCellExecutionState.Executing) {
+					this._updateForExecutionState(element);
 				}
 			}
 		}
 	}
 
-	updateForInternalMetadata(element: ICellViewModel, internalMetadata: NotebookCellInternalMetadata): void {
+	private _updateForExecutionState(element: ICellViewModel, e?: ICellExecutionStateChangedEvent): void {
+		const exeState = e?.changed ?? this._notebookExecutionStateService.getCellExecution(element.uri);
 		const progressBar = element.isInputCollapsed ? this._collapsedProgressBar : this._progressBar;
-		if (internalMetadata.runState === NotebookCellExecutionState.Executing && !internalMetadata.isPaused) {
+		if (exeState?.state === NotebookCellExecutionState.Executing && (!exeState.didPause || element.isInputCollapsed)) {
 			showProgressBar(progressBar);
 		} else {
 			progressBar.hide();

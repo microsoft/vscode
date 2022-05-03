@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -19,7 +19,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { ITerminalEditorService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
@@ -35,8 +35,6 @@ import { ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService'
 const findWidgetSelector = '.simple-find-part-wrapper';
 
 export class TerminalEditor extends EditorPane {
-
-	public static readonly ID = 'terminalEditor';
 
 	private _editorInstanceElement: HTMLElement | undefined;
 	private _overflowGuardElement: HTMLElement | undefined;
@@ -72,11 +70,12 @@ export class TerminalEditor extends EditorPane {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService
 	) {
-		super(TerminalEditor.ID, telemetryService, themeService, storageService);
+		super(terminalEditorId, telemetryService, themeService, storageService);
 		this._findState = new FindReplaceState();
 		this._findWidget = instantiationService.createInstance(TerminalFindWidget, this._findState);
 		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, _contextKeyService));
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalEditorInstanceContext, _contextKeyService));
+		this._register(this._terminalService.onDidRequestHideFindWidget(() => this.hideFindWidget()));
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
@@ -93,6 +92,7 @@ export class TerminalEditor extends EditorPane {
 			// panel and the editors, this is needed so that the active instance gets set
 			// when focus changes between them.
 			this._register(this._editorInput.terminalInstance.onDidFocus(() => this._setActiveInstance()));
+			this._register(this._editorInput.terminalInstance.onDidChangeFindResults(() => this._findWidget.updateResultCount()));
 			this._editorInput.setCopyLaunchConfig(this._editorInput.terminalInstance.shellLaunchConfig);
 		}
 	}
@@ -140,7 +140,13 @@ export class TerminalEditor extends EditorPane {
 				}
 			} else if (event.which === 3) {
 				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
-				if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
+				if (rightClickBehavior === 'nothing') {
+					if (!event.shiftKey) {
+						this._cancelContextMenu = true;
+					}
+					return;
+				}
+				else if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
 					const terminal = this._terminalEditorService.activeInstance;
 					if (!terminal) {
 						return;
@@ -177,14 +183,21 @@ export class TerminalEditor extends EditorPane {
 		}));
 		this._register(dom.addDisposableListener(this._editorInstanceElement, 'contextmenu', (event: MouseEvent) => {
 			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
-			if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
-				if (!this._cancelContextMenu) {
-					openContextMenu(event, this._editorInstanceElement!, this._instanceMenu, this._contextMenuService);
-				}
+			if (rightClickBehavior === 'nothing' && !event.shiftKey) {
 				event.preventDefault();
 				event.stopImmediatePropagation();
 				this._cancelContextMenu = false;
+				return;
 			}
+			else
+				if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
+					if (!this._cancelContextMenu) {
+						openContextMenu(event, this._editorInstanceElement!, this._instanceMenu, this._contextMenuService);
+					}
+					event.preventDefault();
+					event.stopImmediatePropagation();
+					this._cancelContextMenu = false;
+				}
 		}));
 	}
 

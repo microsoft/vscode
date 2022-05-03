@@ -35,7 +35,7 @@ suite('Workspace Trust', () => {
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 
-		environmentService = { configuration: {} } as IWorkbenchEnvironmentService;
+		environmentService = {} as IWorkbenchEnvironmentService;
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 
 		instantiationService.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
@@ -111,7 +111,7 @@ suite('Workspace Trust', () => {
 			const trustInfo: IWorkspaceTrustInfo = { uriTrustInfo: [{ uri: URI.parse('file:///Folder'), trusted: true }] };
 			storageService.store(WORKSPACE_TRUST_STORAGE_KEY, JSON.stringify(trustInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
 
-			environmentService.configuration.filesToOpenOrCreate = [{ fileUri: URI.parse('file:///Folder/file.txt') }];
+			(environmentService as any).filesToOpenOrCreate = [{ fileUri: URI.parse('file:///Folder/file.txt') }];
 			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
 
 			workspaceService.setWorkspace(new Workspace('empty-workspace'));
@@ -123,7 +123,7 @@ suite('Workspace Trust', () => {
 		test('empty workspace - trusted, open untrusted file', async () => {
 			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
 
-			environmentService.configuration.filesToOpenOrCreate = [{ fileUri: URI.parse('file:///Folder/foo.txt') }];
+			(environmentService as any).filesToOpenOrCreate = [{ fileUri: URI.parse('file:///Folder/foo.txt') }];
 			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
 
 			workspaceService.setWorkspace(new Workspace('empty-workspace'));

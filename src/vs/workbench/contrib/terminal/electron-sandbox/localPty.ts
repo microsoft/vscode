@@ -6,8 +6,8 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, ProcessCapability, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
-import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
+import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
+import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 import { URI } from 'vs/base/common/uri';
 
 /**
@@ -26,8 +26,6 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		resolvedShellLaunchConfig: {},
 		overrideDimensions: undefined
 	};
-	private _capabilities: ProcessCapability[] = [];
-	get capabilities(): ProcessCapability[] { return this._capabilities; }
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent | string>());
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessReplay = this._register(new Emitter<IPtyHostProcessReplayEvent>());
@@ -38,6 +36,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	readonly onProcessExit = this._onProcessExit.event;
+	private readonly _onRestoreCommands = this._register(new Emitter<ISerializedCommandDetectionCapability>());
+	readonly onRestoreCommands = this._onRestoreCommands.event;
 
 	constructor(
 		readonly id: number,
@@ -107,7 +107,6 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		this._onProcessExit.fire(e);
 	}
 	handleReady(e: IProcessReadyEvent) {
-		this._capabilities = e.capabilities;
 		this._onProcessReady.fire(e);
 	}
 	handleDidChangeProperty({ type, value }: IProcessProperty<any>) {
@@ -140,6 +139,10 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 			}
 		} finally {
 			this._inReplay = false;
+		}
+
+		if (e.commands) {
+			this._onRestoreCommands.fire(e.commands);
 		}
 
 		// remove size override

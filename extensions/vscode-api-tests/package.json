@@ -6,21 +6,20 @@
   "license": "MIT",
   "enabledApiProposals": [
     "authSession",
+    "badges",
     "contribViewsRemote",
     "customEditorMove",
     "diffCommand",
     "documentFiltersExclusive",
     "editorInsets",
     "extensionRuntime",
+    "extensionsAny",
     "externalUriOpener",
     "fileSearchProvider",
     "findTextInFiles",
     "fsChunks",
-    "inlayHints",
     "inlineCompletions",
-    "languageStatus",
     "notebookCellExecutionState",
-    "notebookConcatTextDocument",
     "notebookContentProvider",
     "notebookControllerKind",
     "notebookDebugOptions",
@@ -37,11 +36,9 @@
     "scmActionButton",
     "scmSelectedProvider",
     "scmValidation",
-    "tabs",
     "taskPresentationGroup",
     "terminalDataWriteEvent",
     "terminalDimensions",
-    "terminalLocation",
     "terminalNameChangeEvent",
     "testCoverage",
     "testObserver",
@@ -49,9 +46,9 @@
     "textSearchProvider",
     "timeline",
     "tokenInformation",
-    "treeViewDragAndDrop",
     "treeViewReveal",
-    "workspaceTrust"
+    "workspaceTrust",
+    "telemetry"
   ],
   "private": true,
   "activationEvents": [],
@@ -201,8 +198,8 @@
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-api-tests ./tsconfig.json"
   },
   "devDependencies": {
-    "@types/mocha": "^8.2.0",
-    "@types/node": "14.x"
+    "@types/mocha": "^9.1.1",
+    "@types/node": "16.x"
   },
   "repository": {
     "type": "git",

@@ -22,7 +22,7 @@ interface ISerializedFileEditorInput {
 	name?: string;
 	description?: string;
 	encoding?: string;
-	modeId?: string;
+	modeId?: string; // should be `languageId` but is kept for backwards compatibility
 }
 
 export class FileEditorInputSerializer implements IEditorSerializer {
@@ -41,7 +41,7 @@ export class FileEditorInputSerializer implements IEditorSerializer {
 			name: fileEditorInput.getPreferredName(),
 			description: fileEditorInput.getPreferredDescription(),
 			encoding: fileEditorInput.getEncoding(),
-			modeId: fileEditorInput.getPreferredMode() // only using the preferred user associated mode here if available to not store redundant data
+			modeId: fileEditorInput.getPreferredLanguageId() // only using the preferred user associated language here if available to not store redundant data
 		};
 
 		return JSON.stringify(serializedFileEditorInput);
@@ -55,9 +55,9 @@ export class FileEditorInputSerializer implements IEditorSerializer {
 			const name = serializedFileEditorInput.name;
 			const description = serializedFileEditorInput.description;
 			const encoding = serializedFileEditorInput.encoding;
-			const mode = serializedFileEditorInput.modeId;
+			const languageId = serializedFileEditorInput.modeId;
 
-			const fileEditorInput = accessor.get(ITextEditorService).createTextEditor({ resource, label: name, description, encoding, mode, forceFile: true }) as FileEditorInput;
+			const fileEditorInput = accessor.get(ITextEditorService).createTextEditor({ resource, label: name, description, encoding, languageId, forceFile: true }) as FileEditorInput;
 			if (preferredResource) {
 				fileEditorInput.setPreferredResource(preferredResource);
 			}

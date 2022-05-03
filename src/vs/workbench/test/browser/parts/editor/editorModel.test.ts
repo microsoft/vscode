@@ -6,39 +6,42 @@
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
-import { LanguageService } from 'vs/editor/common/services/languageServiceImpl';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { LanguageService } from 'vs/editor/common/services/languageService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { ModelService } from 'vs/editor/common/services/modelService';
 import { ITextBufferFactory } from 'vs/editor/common/model';
 import { URI } from 'vs/base/common/uri';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestStorageService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { Mimes } from 'vs/base/common/mime';
 import { LanguageDetectionService } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { TestAccessibilityService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEditorService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 suite('EditorModel', () => {
 
 	class MyEditorModel extends EditorModel { }
 	class MyTextEditorModel extends BaseTextEditorModel {
-		override createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredMode?: string) {
-			return super.createTextEditorModel(value, resource, preferredMode);
+		override createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredLanguageId?: string) {
+			return super.createTextEditorModel(value, resource, preferredLanguageId);
 		}
 
 		override isReadonly(): boolean {
@@ -56,10 +59,12 @@ suite('EditorModel', () => {
 		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(INotificationService, notificationService);
 		instantiationService.stub(IUndoRedoService, undoRedoService);
+		instantiationService.stub(IEditorService, new TestEditorService());
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(ILanguageConfigurationService, new TestLanguageConfigurationService());
+		instantiationService.stub(IStorageService, new TestStorageService());
 
-		return instantiationService.createInstance(ModelServiceImpl);
+		return instantiationService.createInstance(ModelService);
 	}
 
 	let instantiationService: TestInstantiationService;

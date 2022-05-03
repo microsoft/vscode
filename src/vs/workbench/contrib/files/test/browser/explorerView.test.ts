@@ -14,12 +14,14 @@ import { CompressedNavigationController } from 'vs/workbench/contrib/files/brows
 import * as dom from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { provideDecorations } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 const $ = dom.$;
 
 const fileService = new TestFileService();
+const configService = new TestConfigurationService();
 
 function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number, isSymLink = false, isUnknown = false): ExplorerItem {
-	return new ExplorerItem(toResource.call(this, path), fileService, undefined, isFolder, isSymLink, false, name, mtime, isUnknown);
+	return new ExplorerItem(toResource.call(this, path), fileService, configService, undefined, isFolder, isSymLink, false, name, mtime, isUnknown);
 }
 
 suite('Files - ExplorerView', () => {

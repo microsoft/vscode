@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Command } from 'vs/editor/common/modes';
+import { Command } from 'vs/editor/common/languages';
 import { ISequence } from 'vs/base/common/sequence';
 import { IAction } from 'vs/base/common/actions';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -65,7 +65,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChangeCommitTemplate: Event<string>;
 	readonly onDidChangeStatusBarCommands?: Event<Command[]>;
 	readonly acceptInputCommand?: Command;
-	readonly actionButton?: Command;
+	readonly actionButton?: ISCMActionButtonDescriptor;
 	readonly statusBarCommands?: Command[];
 	readonly onDidChange: Event<void>;
 
@@ -97,10 +97,15 @@ export interface ISCMInputChangeEvent {
 	readonly reason?: SCMInputChangeReason;
 }
 
+export interface ISCMActionButtonDescriptor {
+	command: Command;
+	description?: string;
+}
+
 export interface ISCMActionButton {
 	readonly type: 'actionButton';
 	readonly repository: ISCMRepository;
-	readonly button?: Command;
+	readonly button?: ISCMActionButtonDescriptor;
 }
 
 export interface ISCMInput {
@@ -130,6 +135,7 @@ export interface ISCMInput {
 }
 
 export interface ISCMRepository extends IDisposable {
+	readonly id: string;
 	readonly provider: ISCMProvider;
 	readonly input: ISCMInput;
 }
@@ -139,9 +145,11 @@ export interface ISCMService {
 	readonly _serviceBrand: undefined;
 	readonly onDidAddRepository: Event<ISCMRepository>;
 	readonly onDidRemoveRepository: Event<ISCMRepository>;
-	readonly repositories: ISCMRepository[];
+	readonly repositories: Iterable<ISCMRepository>;
+	readonly repositoryCount: number;
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
+	getRepository(id: string): ISCMRepository | undefined;
 }
 
 export interface ISCMTitleMenu {
@@ -163,6 +171,12 @@ export interface ISCMMenus {
 	getRepositoryMenus(provider: ISCMProvider): ISCMRepositoryMenus;
 }
 
+export const enum ISCMRepositorySortKey {
+	DiscoveryTime = 'discoveryTime',
+	Name = 'name',
+	Path = 'path'
+}
+
 export const ISCMViewService = createDecorator<ISCMViewService>('scmView');
 
 export interface ISCMViewVisibleRepositoryChangeEvent {
@@ -175,11 +189,16 @@ export interface ISCMViewService {
 
 	readonly menus: ISCMMenus;
 
+	repositories: ISCMRepository[];
+	readonly onDidChangeRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
+
 	visibleRepositories: ISCMRepository[];
 	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
 
 	isVisible(repository: ISCMRepository): boolean;
 	toggleVisibility(repository: ISCMRepository, visible?: boolean): void;
+
+	toggleSortKey(sortKey: ISCMRepositorySortKey): void;
 
 	readonly focusedRepository: ISCMRepository | undefined;
 	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;

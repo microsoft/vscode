@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-
 export interface ErrorListenerCallback {
 	(error: any): void;
 }
@@ -78,7 +76,7 @@ export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) =>
 
 export function onUnexpectedError(e: any): undefined {
 	// ignore errors from cancelled promises
-	if (!isPromiseCanceledError(e)) {
+	if (!isCancellationError(e)) {
 		errorHandler.onUnexpectedError(e);
 	}
 	return undefined;
@@ -86,7 +84,7 @@ export function onUnexpectedError(e: any): undefined {
 
 export function onUnexpectedExternalError(e: any): undefined {
 	// ignore errors from cancelled promises
-	if (!isPromiseCanceledError(e)) {
+	if (!isCancellationError(e)) {
 		errorHandler.onUnexpectedExternalError(e);
 	}
 	return undefined;
@@ -140,7 +138,10 @@ const canceledName = 'Canceled';
 /**
  * Checks if the given error is a promise in canceled state
  */
-export function isPromiseCanceledError(error: any): boolean {
+export function isCancellationError(error: any): boolean {
+	if (error instanceof CancellationError) {
+		return true;
+	}
 	return error instanceof Error && error.name === canceledName && error.message === canceledName;
 }
 
@@ -154,7 +155,7 @@ export class CancellationError extends Error {
 }
 
 /**
- * Returns an error that signals cancellation.
+ * @deprecated use {@link CancellationError `new CancellationError()`} instead
  */
 export function canceled(): Error {
 	const error = new Error(canceledName);
@@ -228,26 +229,43 @@ export class ExpectedError extends Error {
 	readonly isExpected = true;
 }
 
-export interface IErrorOptions {
-	actions?: readonly IAction[];
-}
+/**
+ * Error that when thrown won't be logged in telemetry as an unhandled error.
+ */
+export class ErrorNoTelemetry extends Error {
 
-export interface IErrorWithActions {
-	actions?: readonly IAction[];
-}
+	public static fromError(err: any): ErrorNoTelemetry {
+		if (err && err instanceof ErrorNoTelemetry) {
+			return err;
+		}
 
-export function isErrorWithActions(obj: unknown): obj is IErrorWithActions {
-	const candidate = obj as IErrorWithActions | undefined;
+		if (err && err instanceof Error) {
+			const result = new ErrorNoTelemetry();
+			result.name = err.name;
+			result.message = err.message;
+			result.stack = err.stack;
+			return result;
+		}
 
-	return candidate instanceof Error && Array.isArray(candidate.actions);
-}
-
-export function createErrorWithActions(message: string, options: IErrorOptions = Object.create(null)): Error & IErrorWithActions {
-	const result = new Error(message);
-
-	if (options.actions) {
-		(result as IErrorWithActions).actions = options.actions;
+		return new ErrorNoTelemetry(err);
 	}
 
-	return result;
+	readonly logTelemetry = false;
+}
+
+/**
+ * This error indicates a bug.
+ * Do not throw this for invalid user input.
+ * Only catch this error to recover gracefully from bugs.
+ */
+export class BugIndicatingError extends Error {
+	constructor(message: string) {
+		super(message);
+		Object.setPrototypeOf(this, BugIndicatingError.prototype);
+
+		// Because we know for sure only buggy code throws this,
+		// we definitely want to break here and fix the bug.
+		// eslint-disable-next-line no-debugger
+		debugger;
+	}
 }

@@ -75,12 +75,12 @@ export interface TelemetryReporter {
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => CommonLanguageClient;
 
 export interface Runtime {
-	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string; } };
+	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string } };
 	fileFs?: FileSystemProvider;
 	telemetry?: TelemetryReporter;
 	readonly timer: {
 		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
-	}
+	};
 }
 
 export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {
@@ -103,6 +103,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			embeddedLanguages,
 			handledSchemas: ['file'],
 			provideFormatter: false, // tell the server to not provide formatting capability and ignore the `html.format.enable` setting.
+			customCapabilities: { rangeFormatting: { editLimit: 10000 } }
 		},
 		middleware: {
 			// testing the replace / insert mode
@@ -229,7 +230,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 
 	const regionCompletionRegExpr = /^(\s*)(<(!(-(-\s*(#\w*)?)?)?)?)?$/;
 	const htmlSnippetCompletionRegExpr = /^(\s*)(<(h(t(m(l)?)?)?)?)?$/;
-	languages.registerCompletionItemProvider(documentSelector, {
+	toDispose.push(languages.registerCompletionItemProvider(documentSelector, {
 		provideCompletionItems(doc, pos) {
 			const results: CompletionItem[] = [];
 			let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
@@ -278,7 +279,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			}
 			return results;
 		}
-	});
+	}));
 
 	const promptForLinkedEditingKey = 'html.promptForLinkedEditing';
 	if (extensions.getExtension('formulahendry.auto-rename-tag') !== undefined && (context.globalState.get(promptForLinkedEditingKey) !== false)) {

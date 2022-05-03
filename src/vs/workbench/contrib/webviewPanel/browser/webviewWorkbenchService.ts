@@ -6,7 +6,7 @@
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -44,15 +44,15 @@ export interface IWebviewWorkbenchService {
 	): WebviewInput;
 
 	reviveWebview(options: {
-		id: string,
-		viewType: string,
-		title: string,
-		iconPath: WebviewIcons | undefined,
-		state: any,
-		webviewOptions: WebviewOptions,
-		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
-		group: number | undefined
+		id: string;
+		viewType: string;
+		title: string;
+		iconPath: WebviewIcons | undefined;
+		state: any;
+		webviewOptions: WebviewOptions;
+		contentOptions: WebviewContentOptions;
+		extension: WebviewExtensionDescription | undefined;
+		group: number | undefined;
 	}): WebviewInput;
 
 	revealWebview(
@@ -122,7 +122,7 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 			try {
 				await this.#resolvePromise;
 			} catch (e) {
-				if (!isPromiseCanceledError(e)) {
+				if (!isCancellationError(e)) {
 					throw e;
 				}
 			}
@@ -142,7 +142,7 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 
 
 class RevivalPool {
-	private _awaitingRevival: Array<{ input: WebviewInput, resolve: () => void }> = [];
+	private _awaitingRevival: Array<{ input: WebviewInput; resolve: () => void }> = [];
 
 	public add(input: WebviewInput, resolve: () => void) {
 		this._awaitingRevival.push({ input, resolve });
@@ -244,9 +244,6 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		preserveFocus: boolean
 	): void {
 		const topLevelEditor = this.findTopLevelEditorForWebview(webview);
-		if (this._editorService.activeEditor === topLevelEditor) {
-			return;
-		}
 
 		this._editorService.openEditor(topLevelEditor, {
 			preserveFocus,
@@ -271,15 +268,15 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 	}
 
 	public reviveWebview(options: {
-		id: string,
-		viewType: string,
-		title: string,
-		iconPath: WebviewIcons | undefined,
-		state: any,
-		webviewOptions: WebviewOptions,
-		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
-		group: number | undefined,
+		id: string;
+		viewType: string;
+		title: string;
+		iconPath: WebviewIcons | undefined;
+		state: any;
+		webviewOptions: WebviewOptions;
+		contentOptions: WebviewContentOptions;
+		extension: WebviewExtensionDescription | undefined;
+		group: number | undefined;
 	}): WebviewInput {
 		const webview = this._webviewService.createWebviewOverlay(options.id, options.webviewOptions, options.contentOptions, options.extension);
 		webview.state = options.state;

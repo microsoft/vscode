@@ -4,29 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { stub } from 'sinon';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { IPath, normalize } from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { isObject } from 'vs/base/common/types';
-import { URI as uri } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorType } from 'vs/editor/common/editorCommon';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { IWorkspace, IWorkspaceFolder, Workspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, IWorkspaceFolder, IWorkspaceIdentifier, Workspace } from 'vs/platform/workspace/common/workspace';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
+import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/baseConfigurationResolverService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { TestEditorService, TestProductService, TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestEditorService, TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestContextService, TestExtensionService, TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestNativeWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 
 const mockLineNumber = 10;
 class TestEditorServiceWithActiveEditor extends TestEditorService {
@@ -43,7 +45,7 @@ class TestEditorServiceWithActiveEditor extends TestEditorService {
 	override get activeEditor(): any {
 		return {
 			get resource(): any {
-				return uri.parse('file:///VSCode/workspaceLocation/file');
+				return URI.parse('file:///VSCode/workspaceLocation/file');
 			}
 		};
 	}
@@ -69,6 +71,7 @@ suite('Configuration Resolver Service', () => {
 	let quickInputService: TestQuickInputService;
 	let labelService: MockLabelService;
 	let pathService: MockPathService;
+	let extensionService: IExtensionService;
 
 	setup(() => {
 		mockCommandService = new MockCommandService();
@@ -77,9 +80,10 @@ suite('Configuration Resolver Service', () => {
 		environmentService = new MockWorkbenchEnvironmentService(envVariables);
 		labelService = new MockLabelService();
 		pathService = new MockPathService();
-		containingWorkspace = testWorkspace(uri.parse('file:///VSCode/workspaceLocation'));
+		extensionService = new TestExtensionService();
+		containingWorkspace = testWorkspace(URI.parse('file:///VSCode/workspaceLocation'));
 		workspace = containingWorkspace.folders[0];
-		configurationResolverService = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), editorService, new MockInputsConfigurationService(), mockCommandService, new TestContextService(containingWorkspace), quickInputService, labelService, pathService);
+		configurationResolverService = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), editorService, new MockInputsConfigurationService(), mockCommandService, new TestContextService(containingWorkspace), quickInputService, labelService, pathService, extensionService);
 	});
 
 	teardown(() => {
@@ -186,6 +190,13 @@ suite('Configuration Resolver Service', () => {
 		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${env:key1} ${env:key1${env:key2}}'), 'Value for key1 ${env:key1${env:key2}}');
 	});
 
+	test('supports extensionDir', async () => {
+		const getExtension = stub(extensionService, 'getExtension');
+		getExtension.withArgs('publisher.extId').returns(Promise.resolve({ extensionLocation: URI.file('/some/path') } as IExtensionDescription));
+
+		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${extensionInstallFolder:publisher.extId}'), URI.file('/some/path').fsPath);
+	});
+
 	// test('substitute keys and values in object', () => {
 	// 	const myObject = {
 	// 		'${workspaceRootFolderName}': '${lineNumber}',
@@ -218,7 +229,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService);
+		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
 		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} xyz'), 'abc foo xyz');
 	});
 
@@ -229,7 +240,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService);
+		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
 		assert.strictEqual(await service.resolveAsync(undefined, 'abc ${config:editor.fontFamily} xyz'), 'abc foo xyz');
 	});
 
@@ -246,7 +257,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService);
+		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
 		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} xyz'), 'abc foo bar xyz');
 	});
 
@@ -263,7 +274,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService);
+		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
 		if (platform.isWindows) {
 			assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo \\VSCode\\workspaceLocation Value for key1 xyz');
 		} else {
@@ -284,7 +295,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService);
+		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
 		if (platform.isWindows) {
 			assert.strictEqual(await service.resolveAsync(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), 'foo bar \\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for key1 - Value for key2');
 		} else {
@@ -318,7 +329,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService);
+		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
 		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${config:editor.lineNumbers} ${config:editor.insertSpaces} xyz'), 'abc foo 123 false xyz');
 	});
 
@@ -328,7 +339,7 @@ suite('Configuration Resolver Service', () => {
 			editor: {}
 		});
 
-		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService);
+		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
 		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${unknownVariable} xyz'), 'abc ${unknownVariable} xyz');
 		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${env:unknownVariable} xyz'), 'abc  xyz');
 	});
@@ -341,7 +352,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService);
+		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService);
 
 		assert.rejects(async () => await service.resolveAsync(workspace, 'abc ${env} xyz'));
 		assert.rejects(async () => await service.resolveAsync(workspace, 'abc ${env:} xyz'));
@@ -632,6 +643,16 @@ suite('Configuration Resolver Service', () => {
 			});
 		});
 	});
+
+	test('resolveWithEnvironment', async () => {
+		const env = {
+			'VAR_1': 'VAL_1',
+			'VAR_2': 'VAL_2'
+		};
+		const configuration = 'echo ${env:VAR_1}${env:VAR_2}';
+		const resolvedResult = await configurationResolverService!.resolveWithEnvironment({ ...env }, undefined, configuration);
+		assert.deepStrictEqual(resolvedResult, 'echo VAL_1VAL_2');
+	});
 });
 
 
@@ -658,13 +679,13 @@ class MockCommandService implements ICommandService {
 
 class MockLabelService implements ILabelService {
 	_serviceBrand: undefined;
-	getUriLabel(resource: uri, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined; endWithSeparator?: boolean | undefined; }): string {
+	getUriLabel(resource: URI, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined }): string {
 		return normalize(resource.fsPath);
 	}
-	getUriBasenameLabel(resource: uri): string {
+	getUriBasenameLabel(resource: URI): string {
 		throw new Error('Method not implemented.');
 	}
-	getWorkspaceLabel(workspace: uri | IWorkspaceIdentifier | IWorkspace, options?: { verbose: boolean; }): string {
+	getWorkspaceLabel(workspace: URI | IWorkspaceIdentifier | IWorkspace, options?: { verbose: boolean }): string {
 		throw new Error('Method not implemented.');
 	}
 	getHostLabel(scheme: string, authority?: string): string {
@@ -688,13 +709,21 @@ class MockPathService implements IPathService {
 		throw new Error('Property not implemented');
 	}
 	defaultUriScheme: string = Schemas.file;
-	fileURI(path: string): Promise<uri> {
+	fileURI(path: string): Promise<URI> {
 		throw new Error('Method not implemented.');
 	}
-	userHome(options?: { preferLocal: boolean; }): Promise<uri> {
+	userHome(options?: { preferLocal: boolean }): Promise<URI>;
+	userHome(options: { preferLocal: true }): URI;
+	userHome(options?: { preferLocal: boolean }): Promise<URI> | URI {
+		const uri = URI.file('c:\\users\\username');
+		return options?.preferLocal ? uri : Promise.resolve(uri);
+	}
+	hasValidBasename(resource: URI, basename?: string): Promise<boolean>;
+	hasValidBasename(resource: URI, os: platform.OperatingSystem, basename?: string): boolean;
+	hasValidBasename(resource: URI, arg2?: string | platform.OperatingSystem, name?: string): boolean | Promise<boolean> {
 		throw new Error('Method not implemented.');
 	}
-	resolvedUserHome: uri | undefined;
+	resolvedUserHome: URI | undefined;
 }
 
 class MockInputsConfigurationService extends TestConfigurationService {
@@ -741,6 +770,6 @@ class MockInputsConfigurationService extends TestConfigurationService {
 class MockWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(public userEnv: platform.IProcessEnvironment) {
-		super({ ...TestWorkbenchConfiguration, userEnv }, TestProductService);
+		super({ ...TestNativeWindowConfiguration, userEnv }, TestProductService);
 	}
 }

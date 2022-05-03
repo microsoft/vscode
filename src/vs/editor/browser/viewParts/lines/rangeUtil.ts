@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Constants } from 'vs/base/common/uint';
-import { FloatHorizontalRange } from 'vs/editor/common/view/renderingContext';
+import { FloatHorizontalRange } from 'vs/editor/browser/view/renderingContext';
 
 export class RangeUtil {
 
@@ -51,7 +51,8 @@ export class RangeUtil {
 
 		ranges.sort(FloatHorizontalRange.compare);
 
-		let result: FloatHorizontalRange[] = [], resultLen = 0;
+		const result: FloatHorizontalRange[] = [];
+		let resultLen = 0;
 		let prev = ranges[0];
 
 		for (let i = 1, len = ranges.length; i < len; i++) {

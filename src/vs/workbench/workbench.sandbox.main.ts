@@ -20,6 +20,7 @@ import 'vs/workbench/workbench.common.main';
 //#region --- workbench (desktop main)
 
 import 'vs/workbench/electron-sandbox/desktop.main';
+import 'vs/workbench/electron-sandbox/desktop.contribution';
 
 //#endregion
 
@@ -36,7 +37,7 @@ import 'vs/workbench/electron-sandbox/parts/dialogs/dialog.contribution';
 import 'vs/workbench/services/textfile/electron-sandbox/nativeTextFileService';
 import 'vs/workbench/services/dialogs/electron-sandbox/fileDialogService';
 import 'vs/workbench/services/workspaces/electron-sandbox/workspacesService';
-import 'vs/workbench/services/textMate/electron-sandbox/textMateService';
+import 'vs/workbench/services/textMate/browser/nativeTextMateService';
 import 'vs/workbench/services/menubar/electron-sandbox/menubarService';
 import 'vs/workbench/services/issue/electron-sandbox/issueService';
 import 'vs/workbench/services/update/electron-sandbox/updateService';
@@ -60,6 +61,7 @@ import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
 import 'vs/workbench/services/localizations/electron-sandbox/localizationsService';
 import 'vs/workbench/services/telemetry/electron-sandbox/telemetryService';
 import 'vs/workbench/services/extensions/electron-sandbox/extensionHostStarter';
+import 'vs/platform/extensionManagement/electron-sandbox/extensionsScannerService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementServerService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionTipsService';
 import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncMachinesService';
@@ -71,21 +73,21 @@ import 'vs/workbench/services/timer/electron-sandbox/timerService';
 import 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import 'vs/workbench/services/integrity/electron-sandbox/integrityService';
 import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupService';
+import 'vs/workbench/services/checksum/electron-sandbox/checksumService';
 import 'vs/platform/remote/electron-sandbox/sharedProcessTunnelService';
-import 'vs/workbench/services/remote/electron-sandbox/tunnelServiceImpl';
+import 'vs/workbench/services/tunnel/electron-sandbox/tunnelService';
 import 'vs/platform/diagnostics/electron-sandbox/diagnosticsService';
-import 'vs/platform/checksum/electron-sandbox/checksumService';
+import 'vs/platform/profiling/electron-sandbox/profilingService';
 import 'vs/platform/telemetry/electron-sandbox/customEndpointTelemetryService';
 import 'vs/workbench/services/files/electron-sandbox/elevatedFileService';
 import 'vs/workbench/services/search/electron-sandbox/searchService';
+import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistoryService';
+import 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
-import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncEnablementService } from 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
 
 registerSingleton(IUserDataInitializationService, UserDataInitializationService);
-registerSingleton(IUserDataSyncEnablementService, UserDataSyncEnablementService);
 
 //#endregion
 
@@ -97,9 +99,6 @@ import 'vs/workbench/contrib/logs/electron-sandbox/logs.contribution';
 
 // Localizations
 import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
-
-// Desktop
-import 'vs/workbench/electron-sandbox/desktop.contribution';
 
 // Explorer
 import 'vs/workbench/contrib/files/electron-sandbox/files.contribution';
@@ -153,5 +152,8 @@ import 'vs/workbench/contrib/webview/electron-sandbox/webview.contribution';
 
 // Splash
 import 'vs/workbench/contrib/splash/electron-sandbox/splash.contribution';
+
+// Local History
+import 'vs/workbench/contrib/localHistory/electron-sandbox/localHistory.contribution';
 
 //#endregion

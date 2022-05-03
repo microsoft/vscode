@@ -32,14 +32,15 @@ else if (typeof require?.__$__nodeRequire === 'function') {
 	const rootPath = dirname(FileAccess.asFileUri('', require));
 
 	product = require.__$__nodeRequire(joinPath(rootPath, 'product.json').fsPath);
-	const pkg = require.__$__nodeRequire(joinPath(rootPath, 'package.json').fsPath) as { version: string; };
+	const pkg = require.__$__nodeRequire(joinPath(rootPath, 'package.json').fsPath) as { version: string };
 
 	// Running out of sources
 	if (env['VSCODE_DEV']) {
 		Object.assign(product, {
 			nameShort: `${product.nameShort} Dev`,
 			nameLong: `${product.nameLong} Dev`,
-			dataFolderName: `${product.dataFolderName}-dev`
+			dataFolderName: `${product.dataFolderName}-dev`,
+			serverDataFolderName: product.serverDataFolderName ? `${product.serverDataFolderName}-dev` : undefined
 		});
 	}
 
@@ -57,7 +58,7 @@ else {
 	// Running out of sources
 	if (Object.keys(product).length === 0) {
 		Object.assign(product, {
-			version: '1.64.0-dev',
+			version: '1.67.0-dev',
 			nameShort: 'Code - OSS Dev',
 			nameLong: 'Code - OSS Dev',
 			applicationName: 'code-oss',
@@ -65,13 +66,7 @@ else {
 			urlProtocol: 'code-oss',
 			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
 			licenseName: 'MIT',
-			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
-			extensionAllowedProposedApi: [
-				'ms-vscode.vscode-js-profile-flame',
-				'ms-vscode.vscode-js-profile-table',
-				'GitHub.remotehub',
-				'GitHub.remotehub-insiders'
-			],
+			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt'
 		});
 	}
 }

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel, commands } from 'vscode';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise, logTimestamp } from './util';
@@ -17,6 +18,7 @@ import { Askpass } from './askpass';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
+import { Log, LogLevel } from './log';
 
 const localize = nls.loadMessageBundle();
 
@@ -103,11 +105,12 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 	private _onDidRemoveRemoteSourcePublisher = new EventEmitter<RemoteSourcePublisher>();
 	readonly onDidRemoveRemoteSourcePublisher = this._onDidRemoveRemoteSourcePublisher.event;
 
+	private showRepoOnHomeDriveRootWarning = true;
 	private pushErrorHandlers = new Set<PushErrorHandler>();
 
 	private disposables: Disposable[] = [];
 
-	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private outputChannel: OutputChannel) {
+	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private outputChannel: OutputChannel, private telemetryReporter: TelemetryReporter) {
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
 		workspace.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
@@ -133,12 +136,18 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 	}
 
 	/**
-	 * Scans the first level of each workspace folder, looking
-	 * for git repositories.
+	 * Scans each workspace folder, looking for git repositories. By
+	 * default it scans one level deep but that can be changed using
+	 * the git.repositoryScanMaxDepth setting.
 	 */
 	private async scanWorkspaceFolders(): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+
+		// Log repository scan settings
+		if (Log.logLevel <= LogLevel.Trace) {
+			this.outputChannel.appendLine(`${logTimestamp()} Trace: autoRepositoryDetection="${autoRepositoryDetection}"`);
+		}
 
 		if (autoRepositoryDetection !== true && autoRepositoryDetection !== 'subFolders') {
 			return;
@@ -146,9 +155,14 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 
 		await Promise.all((workspace.workspaceFolders || []).map(async folder => {
 			const root = folder.uri.fsPath;
-			const children = (await fs.promises.readdir(root, { withFileTypes: true })).filter(dirent => dirent.isDirectory()).map(dirent => dirent.name);
-			const subfolders = new Set(children.filter(child => child !== '.git').map(child => path.join(root, child)));
 
+			// Workspace folder children
+			const repositoryScanMaxDepth = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<number>('repositoryScanMaxDepth', 1);
+			const repositoryScanIgnoredFolders = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<string[]>('repositoryScanIgnoredFolders', []);
+
+			const subfolders = new Set(await this.traverseWorkspaceFolder(root, repositoryScanMaxDepth, repositoryScanIgnoredFolders));
+
+			// Repository scan folders
 			const scanPaths = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<string[]>('scanRepositories') || [];
 			for (const scanPath of scanPaths) {
 				if (scanPath === '.git') {
@@ -165,6 +179,31 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 
 			await Promise.all([...subfolders].map(f => this.openRepository(f)));
 		}));
+	}
+
+	private async traverseWorkspaceFolder(workspaceFolder: string, maxDepth: number, repositoryScanIgnoredFolders: string[]): Promise<string[]> {
+		const result: string[] = [];
+		const foldersToTravers = [{ path: workspaceFolder, depth: 0 }];
+
+		while (foldersToTravers.length > 0) {
+			const currentFolder = foldersToTravers.shift()!;
+
+			if (currentFolder.depth < maxDepth || maxDepth === -1) {
+				const children = await fs.promises.readdir(currentFolder.path, { withFileTypes: true });
+				const childrenFolders = children
+					.filter(dirent =>
+						dirent.isDirectory() && dirent.name !== '.git' &&
+						!repositoryScanIgnoredFolders.find(f => pathEquals(dirent.name, f)))
+					.map(dirent => path.join(currentFolder.path, dirent.name));
+
+				result.push(...childrenFolders);
+				foldersToTravers.push(...childrenFolders.map(folder => {
+					return { path: folder, depth: currentFolder.depth + 1 };
+				}));
+			}
+		}
+
+		return result;
 	}
 
 	private onPossibleGitRepositoryChange(uri: Uri): void {
@@ -271,7 +310,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			// Check if the folder is a bare repo: if it has a file named HEAD && `rev-parse --show -cdup` is empty
 			try {
 				fs.accessSync(path.join(repoPath, 'HEAD'), fs.constants.F_OK);
-				const result = await this.git.exec(repoPath, ['-C', repoPath, 'rev-parse', '--show-cdup'], { log: false });
+				const result = await this.git.exec(repoPath, ['-C', repoPath, 'rev-parse', '--show-cdup']);
 				if (result.stderr.trim() === '' && result.stdout.trim() === '') {
 					return;
 				}
@@ -296,14 +335,32 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 				return;
 			}
 
+			// On Window, opening a git repository from the root of the HOMEDRIVE poses a security risk.
+			// We will only a open git repository from the root of the HOMEDRIVE if the user explicitly
+			// opens the HOMEDRIVE as a folder. Only show the warning once during repository discovery.
+			if (process.platform === 'win32' && process.env.HOMEDRIVE && pathEquals(`${process.env.HOMEDRIVE}\\`, repositoryRoot)) {
+				const isRepoInWorkspaceFolders = (workspace.workspaceFolders ?? []).find(f => pathEquals(f.uri.fsPath, repositoryRoot))!!;
+
+				if (!isRepoInWorkspaceFolders) {
+					if (this.showRepoOnHomeDriveRootWarning) {
+						window.showWarningMessage(localize('repoOnHomeDriveRootWarning', "Unable to automatically open the git repository at '{0}'. To open that git repository, open it directly as a folder in VS Code.", repositoryRoot));
+						this.showRepoOnHomeDriveRootWarning = false;
+					}
+
+					return;
+				}
+			}
+
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this.globalState, this.outputChannel);
+			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this.globalState, this.outputChannel, this.telemetryReporter);
 
 			this.open(repository);
 			repository.status(); // do not await this, we want SCM to know about the repo asap
 		} catch (ex) {
 			// noop
-			this.outputChannel.appendLine(`${logTimestamp()} Opening repository for path='${repoPath}' failed; ex=${ex}`);
+			if (Log.logLevel <= LogLevel.Trace) {
+				this.outputChannel.appendLine(`${logTimestamp()} Trace: Opening repository for path='${repoPath}' failed; ex=${ex}`);
+			}
 		}
 	}
 

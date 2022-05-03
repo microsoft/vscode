@@ -13,15 +13,16 @@ export interface ILanguageDetectionService {
 
 	/**
 	 * @param languageId The languageId to check if language detection is currently enabled.
-	 * @returns whether or not language detection is on for this language mode.
+	 * @returns whether or not language detection is on for this language.
 	 */
-	isEnabledForMode(languageId: string): boolean;
+	isEnabledForLanguage(languageId: string): boolean;
 
 	/**
 	 * @param resource The resource to detect the language for.
-	 * @returns the language mode for the given resource or undefined if the model is not confident enough.
+	 * @param supportedLangs Optional. When populated, the model will only return languages from the provided list
+	 * @returns the language id for the given resource or undefined if the model is not confident enough.
 	 */
-	detectLanguage(resource: URI): Promise<string | undefined>;
+	detectLanguage(resource: URI, supportedLangs?: string[]): Promise<string | undefined>;
 }
 
 //#region Telemetry events
@@ -31,11 +32,15 @@ export const AutomaticLanguageDetectionLikelyWrongId = 'automaticlanguagedetecti
 export interface IAutomaticLanguageDetectionLikelyWrongData {
 	currentLanguageId: string;
 	nextLanguageId: string;
+	lineCount: number;
+	modelPreference: string;
 }
 
 export type AutomaticLanguageDetectionLikelyWrongClassification = {
-	currentLanguageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' },
-	nextLanguageId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }
+	currentLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	nextLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	modelPreference: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 export const LanguageDetectionStatsId = 'automaticlanguagedetection.stats';
@@ -47,9 +52,9 @@ export interface ILanguageDetectionStats {
 }
 
 export type LanguageDetectionStatsClassification = {
-	languages: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	confidences: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	timeSpent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 //#endregion

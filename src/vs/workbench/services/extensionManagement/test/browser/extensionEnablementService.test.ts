@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
@@ -73,7 +73,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			storageService,
 			new GlobalExtensionEnablementService(storageService, extensionManagementService),
 			instantiationService.get(IWorkspaceContextService) || new TestContextService(),
-			instantiationService.get(IWorkbenchEnvironmentService) || instantiationService.stub(IWorkbenchEnvironmentService, { configuration: Object.create(null) } as IWorkbenchEnvironmentService),
+			instantiationService.get(IWorkbenchEnvironmentService) || instantiationService.stub(IWorkbenchEnvironmentService, {} as IWorkbenchEnvironmentService),
 			workbenchExtensionManagementService,
 			instantiationService.get(IConfigurationService),
 			extensionManagementServerService,
@@ -386,6 +386,31 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
 	});
 
+	test('test enable an extension also enables dependencies', async () => {
+		installed.push(...[aLocalExtension2('pub.a', { extensionDependencies: ['pub.b'] }), aLocalExtension('pub.b')]);
+		const target = installed[0];
+		const dep = installed[1];
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+		await testObject.setEnablement([dep, target], EnablementState.DisabledGlobally);
+		await testObject.setEnablement([target], EnablementState.EnabledGlobally);
+		assert.ok(testObject.isEnabled(target));
+		assert.ok(testObject.isEnabled(dep));
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
+		assert.strictEqual(testObject.getEnablementState(dep), EnablementState.EnabledGlobally);
+	});
+
+	test('test enable an extension also enables packed extensions', async () => {
+		installed.push(...[aLocalExtension2('pub.a', { extensionPack: ['pub.b'] }), aLocalExtension('pub.b')]);
+		const target = installed[0];
+		const dep = installed[1];
+		await testObject.setEnablement([dep, target], EnablementState.DisabledGlobally);
+		await testObject.setEnablement([target], EnablementState.EnabledGlobally);
+		assert.ok(testObject.isEnabled(target));
+		assert.ok(testObject.isEnabled(dep));
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
+		assert.strictEqual(testObject.getEnablementState(dep), EnablementState.EnabledGlobally);
+	});
+
 	test('test remove an extension from disablement list when uninstalled', async () => {
 		const extension = aLocalExtension('pub.a');
 		installed.push(extension);
@@ -513,7 +538,7 @@ suite('ExtensionEnablementService Test', () => {
 		const extension = aLocalExtension('pub.a');
 		installed.push(extension);
 
-		testObject.setEnablement([extension], EnablementState.EnabledWorkspace);
+		await testObject.setEnablement([extension], EnablementState.EnabledWorkspace);
 		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 
@@ -525,7 +550,7 @@ suite('ExtensionEnablementService Test', () => {
 		const extension = aLocalExtension('pub.a');
 		installed.push(extension);
 
-		testObject.setEnablement([extension], EnablementState.DisabledGlobally);
+		await testObject.setEnablement([extension], EnablementState.DisabledGlobally);
 		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 
@@ -537,7 +562,7 @@ suite('ExtensionEnablementService Test', () => {
 		const extension = aLocalExtension('pub.a');
 		installed.push(extension);
 
-		testObject.setEnablement([extension], EnablementState.DisabledWorkspace);
+		await testObject.setEnablement([extension], EnablementState.DisabledWorkspace);
 		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 
@@ -765,7 +790,7 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test web extension on remote server is disabled by kind when web worker is not enabled', async () => {
-		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(anExtensionManagementServer('vscode-local', instantiationService), anExtensionManagementServer('vscode-remote', instantiationService), anExtensionManagementServer('web', instantiationService)));
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(anExtensionManagementServer('vscode-local', instantiationService), anExtensionManagementServer('vscode-remote', instantiationService), null));
 		const localWorkspaceExtension = aLocalExtension2('pub.a', { browser: 'browser.js' }, { location: URI.file(`pub.a`).with({ scheme: 'vscode-remote' }) });
 		(<TestConfigurationService>instantiationService.get(IConfigurationService)).setUserConfiguration('extensions', { webWorker: false });
 		testObject = new TestExtensionEnablementService(instantiationService);
@@ -774,12 +799,21 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test web extension on remote server is disabled by kind when web worker is enabled', async () => {
-		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(anExtensionManagementServer('vscode-local', instantiationService), anExtensionManagementServer('vscode-remote', instantiationService), anExtensionManagementServer('web', instantiationService)));
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(anExtensionManagementServer('vscode-local', instantiationService), anExtensionManagementServer('vscode-remote', instantiationService), null));
 		const localWorkspaceExtension = aLocalExtension2('pub.a', { browser: 'browser.js' }, { location: URI.file(`pub.a`).with({ scheme: 'vscode-remote' }) });
 		(<TestConfigurationService>instantiationService.get(IConfigurationService)).setUserConfiguration('extensions', { webWorker: true });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.strictEqual(testObject.isEnabled(localWorkspaceExtension), false);
 		assert.deepStrictEqual(testObject.getEnablementState(localWorkspaceExtension), EnablementState.DisabledByExtensionKind);
+	});
+
+	test('test web extension on remote server is enabled in web', async () => {
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(anExtensionManagementServer('vscode-local', instantiationService), anExtensionManagementServer('vscode-remote', instantiationService), anExtensionManagementServer('web', instantiationService)));
+		const localWorkspaceExtension = aLocalExtension2('pub.a', { browser: 'browser.js' }, { location: URI.file(`pub.a`).with({ scheme: 'vscode-remote' }) });
+		(<TestConfigurationService>instantiationService.get(IConfigurationService)).setUserConfiguration('extensions', { webWorker: false });
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.strictEqual(testObject.isEnabled(localWorkspaceExtension), true);
+		assert.deepStrictEqual(testObject.getEnablementState(localWorkspaceExtension), EnablementState.EnabledGlobally);
 	});
 
 	test('test web extension on web server is not disabled by kind', async () => {
@@ -931,7 +965,7 @@ function aMultiExtensionManagementServerService(instantiationService: TestInstan
 	return anExtensionManagementServerService(localExtensionManagementServer, remoteExtensionManagementServer, null);
 }
 
-function anExtensionManagementServerService(localExtensionManagementServer: IExtensionManagementServer | null, remoteExtensionManagementServer: IExtensionManagementServer | null, webExtensionManagementServer: IExtensionManagementServer | null): IExtensionManagementServerService {
+export function anExtensionManagementServerService(localExtensionManagementServer: IExtensionManagementServer | null, remoteExtensionManagementServer: IExtensionManagementServer | null, webExtensionManagementServer: IExtensionManagementServer | null): IExtensionManagementServerService {
 	return {
 		_serviceBrand: undefined,
 		localExtensionManagementServer,
@@ -945,6 +979,12 @@ function anExtensionManagementServerService(localExtensionManagementServer: IExt
 				return remoteExtensionManagementServer;
 			}
 			return webExtensionManagementServer;
+		},
+		getExtensionInstallLocation(extension: IExtension): ExtensionInstallLocation | null {
+			const server = this.getExtensionManagementServer(extension);
+			return server === remoteExtensionManagementServer ? ExtensionInstallLocation.Remote
+				: server === webExtensionManagementServer ? ExtensionInstallLocation.Web
+					: ExtensionInstallLocation.Local;
 		}
 	};
 }

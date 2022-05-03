@@ -4,20 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MultilineTokens2, SparseEncodedTokens, TokensStore2 } from 'vs/editor/common/model/tokensStore';
+import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
+import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
 import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { MetadataConsts, TokenMetadata, FontStyle, ColorId } from 'vs/editor/common/modes';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { MetadataConsts, TokenMetadata, FontStyle, ColorId } from 'vs/editor/common/languages';
+import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILanguageConfigurationService, LanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 suite('TokensStore', () => {
 
 	const SEMANTIC_COLOR: ColorId = 5;
 
-	function parseTokensState(state: string[]): { text: string; tokens: MultilineTokens2; } {
+	function parseTokensState(state: string[]): { text: string; tokens: SparseMultilineTokens } {
 		let text: string[] = [];
 		let tokens: number[] = [];
 		let baseLine = 1;
@@ -66,14 +72,14 @@ suite('TokensStore', () => {
 
 		return {
 			text: text.join('\n'),
-			tokens: new MultilineTokens2(baseLine, new SparseEncodedTokens(new Uint32Array(tokens)))
+			tokens: SparseMultilineTokens.create(baseLine, new Uint32Array(tokens))
 		};
 	}
 
 	function extractState(model: TextModel): string[] {
 		let result: string[] = [];
 		for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
-			const lineTokens = model.getLineTokens(lineNumber);
+			const lineTokens = model.tokenization.getLineTokens(lineNumber);
 			const lineContent = model.getLineContent(lineNumber);
 
 			let lineText = '';
@@ -97,10 +103,10 @@ suite('TokensStore', () => {
 
 	// function extractState
 
-	function testTokensAdjustment(rawInitialState: string[], edits: IIdentifiedSingleEditOperation[], rawFinalState: string[]) {
+	function testTokensAdjustment(rawInitialState: string[], edits: ISingleEditOperation[], rawFinalState: string[]) {
 		const initialState = parseTokensState(rawInitialState);
 		const model = createTextModel(initialState.text);
-		model.setSemanticTokens([initialState.tokens], true);
+		model.tokenization.setSemanticTokens([initialState.tokens], true);
 
 		model.applyEdits(edits);
 
@@ -173,180 +179,197 @@ suite('TokensStore', () => {
 
 	test('issue #91936: Semantic token color highlighting fails on line with selected text', () => {
 		const model = createTextModel('                    else if ($s = 08) then \'\\b\'');
-		model.setSemanticTokens([
-			new MultilineTokens2(1, new SparseEncodedTokens(new Uint32Array([
-				0, 20, 24, 0b0111100000000010000,
-				0, 25, 27, 0b0111100000000010000,
-				0, 28, 29, 0b0000100000000010000,
-				0, 29, 31, 0b1000000000000010000,
-				0, 32, 33, 0b0000100000000010000,
-				0, 34, 36, 0b0011000000000010000,
-				0, 36, 37, 0b0000100000000010000,
-				0, 38, 42, 0b0111100000000010000,
-				0, 43, 47, 0b0101100000000010000,
-			])))
+		model.tokenization.setSemanticTokens([
+			SparseMultilineTokens.create(1, new Uint32Array([
+				0, 20, 24, 0b01111000000000010000,
+				0, 25, 27, 0b01111000000000010000,
+				0, 28, 29, 0b00001000000000010000,
+				0, 29, 31, 0b10000000000000010000,
+				0, 32, 33, 0b00001000000000010000,
+				0, 34, 36, 0b00110000000000010000,
+				0, 36, 37, 0b00001000000000010000,
+				0, 38, 42, 0b01111000000000010000,
+				0, 43, 47, 0b01011000000000010000,
+			]))
 		], true);
-		const lineTokens = model.getLineTokens(1);
+		const lineTokens = model.tokenization.getLineTokens(1);
 		let decodedTokens: number[] = [];
 		for (let i = 0, len = lineTokens.getCount(); i < len; i++) {
 			decodedTokens.push(lineTokens.getEndOffset(i), lineTokens.getMetadata(i));
 		}
 
 		assert.deepStrictEqual(decodedTokens, [
-			20, 16793600,
-			24, 17022976,
-			25, 16793600,
-			27, 17022976,
-			28, 16793600,
-			29, 16793600,
-			31, 17039360,
-			32, 16793600,
-			33, 16793600,
-			34, 16793600,
-			36, 16875520,
-			37, 16793600,
-			38, 16793600,
-			42, 17022976,
-			43, 16793600,
-			47, 16957440
+			20, 0b10000000001000010000000001,
+			24, 0b10000001111000010000000001,
+			25, 0b10000000001000010000000001,
+			27, 0b10000001111000010000000001,
+			28, 0b10000000001000010000000001,
+			29, 0b10000000001000010000000001,
+			31, 0b10000010000000010000000001,
+			32, 0b10000000001000010000000001,
+			33, 0b10000000001000010000000001,
+			34, 0b10000000001000010000000001,
+			36, 0b10000000110000010000000001,
+			37, 0b10000000001000010000000001,
+			38, 0b10000000001000010000000001,
+			42, 0b10000001111000010000000001,
+			43, 0b10000000001000010000000001,
+			47, 0b10000001011000010000000001
 		]);
 
 		model.dispose();
 	});
 
+	test('issue #147944: Language id "vs.editor.nullLanguage" is not configured nor known', () => {
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables, new ServiceCollection([
+			ILanguageConfigurationService, new SyncDescriptor(LanguageConfigurationService)
+		]));
+		const model = instantiateTextModel(instantiationService, '--[[\n\n]]');
+		model.tokenization.setSemanticTokens([
+			SparseMultilineTokens.create(1, new Uint32Array([
+				0, 2, 4, 0b100000000000010000,
+				1, 0, 0, 0b100000000000010000,
+				2, 0, 2, 0b100000000000010000,
+			]))
+		], true);
+		assert.strictEqual(model.getWordAtPosition(new Position(2, 1)), null);
+		disposables.dispose();
+	});
+
 	test('partial tokens 1', () => {
 		const codec = new LanguageIdCodec();
-		const store = new TokensStore2(codec);
+		const store = new SparseTokensStore(codec);
 
 		// setPartial: [1,1 -> 31,2], [(5,5-10),(10,5-10),(15,5-10),(20,5-10),(25,5-10),(30,5-10)]
 		store.setPartial(new Range(1, 1, 31, 2), [
-			new MultilineTokens2(5, new SparseEncodedTokens(new Uint32Array([
+			SparseMultilineTokens.create(5, new Uint32Array([
 				0, 5, 10, 1,
 				5, 5, 10, 2,
 				10, 5, 10, 3,
 				15, 5, 10, 4,
 				20, 5, 10, 5,
 				25, 5, 10, 6,
-			])))
+			]))
 		]);
 
 		// setPartial: [18,1 -> 42,1], [(20,5-10),(25,5-10),(30,5-10),(35,5-10),(40,5-10)]
 		store.setPartial(new Range(18, 1, 42, 1), [
-			new MultilineTokens2(20, new SparseEncodedTokens(new Uint32Array([
+			SparseMultilineTokens.create(20, new Uint32Array([
 				0, 5, 10, 4,
 				5, 5, 10, 5,
 				10, 5, 10, 6,
 				15, 5, 10, 7,
 				20, 5, 10, 8,
-			])))
+			]))
 		]);
 
 		// setPartial: [1,1 -> 31,2], [(5,5-10),(10,5-10),(15,5-10),(20,5-10),(25,5-10),(30,5-10)]
 		store.setPartial(new Range(1, 1, 31, 2), [
-			new MultilineTokens2(5, new SparseEncodedTokens(new Uint32Array([
+			SparseMultilineTokens.create(5, new Uint32Array([
 				0, 5, 10, 1,
 				5, 5, 10, 2,
 				10, 5, 10, 3,
 				15, 5, 10, 4,
 				20, 5, 10, 5,
 				25, 5, 10, 6,
-			])))
+			]))
 		]);
 
-		const lineTokens = store.addSemanticTokens(10, new LineTokens(new Uint32Array([12, 1]), `enum Enum1 {`, codec));
+		const lineTokens = store.addSparseTokens(10, new LineTokens(new Uint32Array([12, 1]), `enum Enum1 {`, codec));
 		assert.strictEqual(lineTokens.getCount(), 3);
 	});
 
 	test('partial tokens 2', () => {
 		const codec = new LanguageIdCodec();
-		const store = new TokensStore2(codec);
+		const store = new SparseTokensStore(codec);
 
 		// setPartial: [1,1 -> 31,2], [(5,5-10),(10,5-10),(15,5-10),(20,5-10),(25,5-10),(30,5-10)]
 		store.setPartial(new Range(1, 1, 31, 2), [
-			new MultilineTokens2(5, new SparseEncodedTokens(new Uint32Array([
+			SparseMultilineTokens.create(5, new Uint32Array([
 				0, 5, 10, 1,
 				5, 5, 10, 2,
 				10, 5, 10, 3,
 				15, 5, 10, 4,
 				20, 5, 10, 5,
 				25, 5, 10, 6,
-			])))
+			]))
 		]);
 
 		// setPartial: [6,1 -> 36,2], [(10,5-10),(15,5-10),(20,5-10),(25,5-10),(30,5-10),(35,5-10)]
 		store.setPartial(new Range(6, 1, 36, 2), [
-			new MultilineTokens2(10, new SparseEncodedTokens(new Uint32Array([
+			SparseMultilineTokens.create(10, new Uint32Array([
 				0, 5, 10, 2,
 				5, 5, 10, 3,
 				10, 5, 10, 4,
 				15, 5, 10, 5,
 				20, 5, 10, 6,
-			])))
+			]))
 		]);
 
 		// setPartial: [17,1 -> 42,1], [(20,5-10),(25,5-10),(30,5-10),(35,5-10),(40,5-10)]
 		store.setPartial(new Range(17, 1, 42, 1), [
-			new MultilineTokens2(20, new SparseEncodedTokens(new Uint32Array([
+			SparseMultilineTokens.create(20, new Uint32Array([
 				0, 5, 10, 4,
 				5, 5, 10, 5,
 				10, 5, 10, 6,
 				15, 5, 10, 7,
 				20, 5, 10, 8,
-			])))
+			]))
 		]);
 
-		const lineTokens = store.addSemanticTokens(20, new LineTokens(new Uint32Array([12, 1]), `enum Enum1 {`, codec));
+		const lineTokens = store.addSparseTokens(20, new LineTokens(new Uint32Array([12, 1]), `enum Enum1 {`, codec));
 		assert.strictEqual(lineTokens.getCount(), 3);
 	});
 
 	test('partial tokens 3', () => {
 		const codec = new LanguageIdCodec();
-		const store = new TokensStore2(codec);
+		const store = new SparseTokensStore(codec);
 
 		// setPartial: [1,1 -> 31,2], [(5,5-10),(10,5-10),(15,5-10),(20,5-10),(25,5-10),(30,5-10)]
 		store.setPartial(new Range(1, 1, 31, 2), [
-			new MultilineTokens2(5, new SparseEncodedTokens(new Uint32Array([
+			SparseMultilineTokens.create(5, new Uint32Array([
 				0, 5, 10, 1,
 				5, 5, 10, 2,
 				10, 5, 10, 3,
 				15, 5, 10, 4,
 				20, 5, 10, 5,
 				25, 5, 10, 6,
-			])))
+			]))
 		]);
 
 		// setPartial: [11,1 -> 16,2], [(15,5-10),(20,5-10)]
 		store.setPartial(new Range(11, 1, 16, 2), [
-			new MultilineTokens2(10, new SparseEncodedTokens(new Uint32Array([
+			SparseMultilineTokens.create(10, new Uint32Array([
 				0, 5, 10, 3,
 				5, 5, 10, 4,
-			])))
+			]))
 		]);
 
-		const lineTokens = store.addSemanticTokens(5, new LineTokens(new Uint32Array([12, 1]), `enum Enum1 {`, codec));
+		const lineTokens = store.addSparseTokens(5, new LineTokens(new Uint32Array([12, 1]), `enum Enum1 {`, codec));
 		assert.strictEqual(lineTokens.getCount(), 3);
 	});
 
 	test('issue #94133: Semantic colors stick around when using (only) range provider', () => {
 		const codec = new LanguageIdCodec();
-		const store = new TokensStore2(codec);
+		const store = new SparseTokensStore(codec);
 
 		// setPartial: [1,1 -> 1,20] [(1,9-11)]
 		store.setPartial(new Range(1, 1, 1, 20), [
-			new MultilineTokens2(1, new SparseEncodedTokens(new Uint32Array([
+			SparseMultilineTokens.create(1, new Uint32Array([
 				0, 9, 11, 1,
-			])))
+			]))
 		]);
 
 		// setPartial: [1,1 -> 1,20], []
 		store.setPartial(new Range(1, 1, 1, 20), []);
 
-		const lineTokens = store.addSemanticTokens(1, new LineTokens(new Uint32Array([12, 1]), `enum Enum1 {`, codec));
+		const lineTokens = store.addSparseTokens(1, new LineTokens(new Uint32Array([12, 1]), `enum Enum1 {`, codec));
 		assert.strictEqual(lineTokens.getCount(), 1);
 	});
 
 	test('bug', () => {
-		function createTokens(str: string): MultilineTokens2 {
+		function createTokens(str: string): SparseMultilineTokens {
 			str = str.replace(/^\[\(/, '');
 			str = str.replace(/\)\]$/, '');
 			const strTokens = str.split('),(');
@@ -364,11 +387,11 @@ suite('TokensStore', () => {
 				}
 				result.push(lineNumber - firstLineNumber, startChar, endChar, (lineNumber + startChar) % 13);
 			}
-			return new MultilineTokens2(firstLineNumber, new SparseEncodedTokens(new Uint32Array(result)));
+			return SparseMultilineTokens.create(firstLineNumber, new Uint32Array(result));
 		}
 
 		const codec = new LanguageIdCodec();
-		const store = new TokensStore2(codec);
+		const store = new SparseTokensStore(codec);
 		// setPartial [36446,1 -> 36475,115] [(36448,24-29),(36448,33-46),(36448,47-54),(36450,25-35),(36450,36-50),(36451,28-33),(36451,36-49),(36451,50-57),(36452,35-53),(36452,54-62),(36454,33-38),(36454,41-54),(36454,55-60),(36455,35-53),(36455,54-62),(36457,33-44),(36457,45-49),(36457,50-56),(36457,62-83),(36457,84-88),(36458,35-53),(36458,54-62),(36460,33-37),(36460,38-42),(36460,47-57),(36460,58-67),(36461,35-53),(36461,54-62),(36463,34-38),(36463,39-45),(36463,46-51),(36463,54-63),(36463,64-71),(36463,76-80),(36463,81-87),(36463,88-92),(36463,97-107),(36463,108-119),(36464,35-53),(36464,54-62),(36466,33-71),(36466,72-76),(36467,35-53),(36467,54-62),(36469,24-29),(36469,33-46),(36469,47-54),(36470,24-35),(36470,38-46),(36473,25-35),(36473,36-51),(36474,28-33),(36474,36-49),(36474,50-58),(36475,35-53),(36475,54-62)]
 		store.setPartial(
 			new Range(36446, 1, 36475, 115),
@@ -390,7 +413,7 @@ suite('TokensStore', () => {
 			[createTokens('[(36442,25-35),(36442,36-50),(36443,30-39),(36443,42-46),(36443,47-53),(36443,54-58),(36443,63-73),(36443,74-84),(36443,87-91),(36443,92-98),(36443,101-105),(36443,106-112),(36443,113-119),(36444,28-37),(36444,38-42),(36444,47-57),(36444,58-75),(36444,80-95),(36444,96-105),(36445,35-53),(36445,54-62),(36448,24-29),(36448,33-46),(36448,47-54),(36450,25-35),(36450,36-50),(36451,28-33),(36451,36-49),(36451,50-57),(36452,35-53),(36452,54-62),(36454,33-38),(36454,41-54),(36454,55-60),(36455,35-53),(36455,54-62),(36457,33-44),(36457,45-49),(36457,50-56),(36457,62-83),(36457,84-88),(36458,35-53),(36458,54-62),(36460,33-37),(36460,38-42),(36460,47-57),(36460,58-67),(36461,35-53),(36461,54-62),(36463,34-38),(36463,39-45),(36463,46-51),(36463,54-63),(36463,64-71),(36463,76-80),(36463,81-87),(36463,88-92),(36463,97-107),(36463,108-119),(36464,35-53),(36464,54-62),(36466,33-71),(36466,72-76),(36467,35-53),(36467,54-62),(36469,24-29),(36469,33-46),(36469,47-54),(36470,24-35)]')]
 		);
 
-		const lineTokens = store.addSemanticTokens(36451, new LineTokens(new Uint32Array([60, 1]), `                        if (flags & ModifierFlags.Ambient) {`, codec));
+		const lineTokens = store.addSparseTokens(36451, new LineTokens(new Uint32Array([60, 1]), `                        if (flags & ModifierFlags.Ambient) {`, codec));
 		assert.strictEqual(lineTokens.getCount(), 7);
 	});
 
@@ -415,15 +438,15 @@ suite('TokensStore', () => {
 		}
 
 		const codec = new LanguageIdCodec();
-		const store = new TokensStore2(codec);
+		const store = new SparseTokensStore(codec);
 
 		store.set([
-			new MultilineTokens2(1, new SparseEncodedTokens(new Uint32Array([
+			SparseMultilineTokens.create(1, new Uint32Array([
 				0, 6, 11, (1 << MetadataConsts.FOREGROUND_OFFSET) | MetadataConsts.SEMANTIC_USE_FOREGROUND,
-			])))
+			]))
 		], true);
 
-		const lineTokens = store.addSemanticTokens(1, new LineTokens(new Uint32Array([
+		const lineTokens = store.addSparseTokens(1, new LineTokens(new Uint32Array([
 			5, createTMMetadata(5, FontStyle.Bold, 53),
 			14, createTMMetadata(1, FontStyle.None, 53),
 			17, createTMMetadata(6, FontStyle.None, 53),

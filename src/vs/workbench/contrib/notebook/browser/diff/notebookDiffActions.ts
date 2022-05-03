@@ -5,11 +5,11 @@
 
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { localize } from 'vs/nls';
-import { Action2, ICommandActionTitle, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ActiveEditorContext } from 'vs/workbench/common/editor';
+import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
@@ -21,6 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { EditorResolution } from 'vs/platform/editor/common/editor';
+import { ICommandActionTitle } from 'vs/platform/action/common/action';
 
 // ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
 
@@ -77,7 +78,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -132,7 +133,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -157,7 +158,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -191,7 +192,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -214,7 +215,7 @@ class ToggleRenderAction extends Action2 {
 	constructor(id: string, title: string | ICommandActionTitle, precondition: ContextKeyExpression | undefined, toggled: ContextKeyExpression | undefined, order: number, private readonly toggleOutputs?: boolean, private readonly toggleMetadata?: boolean) {
 		super({
 			id: id,
-			title: title,
+			title,
 			precondition: precondition,
 			menu: [{
 				id: MenuId.EditorTitle,

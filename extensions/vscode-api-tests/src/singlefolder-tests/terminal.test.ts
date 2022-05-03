@@ -26,15 +26,18 @@ import { assertNoRpc, poll } from '../utils';
 		await config.update('gpuAcceleration', 'off', ConfigurationTarget.Global);
 		// Disable env var relaunch for tests to prevent terminals relaunching themselves
 		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
+		await config.update('shellIntegration.enabled', false);
 	});
 
 	suite('Terminal', () => {
 		let disposables: Disposable[] = [];
 
-		teardown(() => {
+		teardown(async () => {
 			assertNoRpc();
 			disposables.forEach(d => d.dispose());
 			disposables.length = 0;
+			const config = workspace.getConfiguration('terminal.integrated');
+			await config.update('shellIntegration.enabled', undefined);
 		});
 
 		test('sendText immediately after createTerminal should not throw', async () => {
@@ -347,7 +350,7 @@ import { assertNoRpc, poll } from '../utils';
 		suite('window.onDidWriteTerminalData', () => {
 			test('should listen to all future terminal data events', (done) => {
 				const openEvents: string[] = [];
-				const dataEvents: { name: string, data: string }[] = [];
+				const dataEvents: { name: string; data: string }[] = [];
 				const closeEvents: string[] = [];
 				disposables.push(window.onDidOpenTerminal(e => openEvents.push(e.name)));
 
@@ -666,7 +669,7 @@ import { assertNoRpc, poll } from '../utils';
 			});
 		});
 
-		suite('environmentVariableCollection', () => {
+		(process.platform === 'win32' ? suite.skip : suite)('environmentVariableCollection', () => {
 			test('should have collection variables apply to terminals immediately after setting', async () => {
 				// Setup collection and create terminal
 				const collection = extensionContext.environmentVariableCollection;

@@ -12,7 +12,7 @@ export interface IIconFilter {
 	(query: string, target: IParsedLabelWithIcons): IMatch[] | null;
 }
 
-function filterOk(filter: IIconFilter, word: string, target: IParsedLabelWithIcons, highlights?: { start: number; end: number; }[]) {
+function filterOk(filter: IIconFilter, word: string, target: IParsedLabelWithIcons, highlights?: { start: number; end: number }[]) {
 	let r = filter(word, target);
 	assert(r);
 	if (highlights) {

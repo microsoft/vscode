@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { IDisposable, Disposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, IFileService } from 'vs/platform/files/common/files';
+import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ResourceMap } from 'vs/base/common/map';
 import { INotificationService, Severity, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
-import { localize } from 'vs/nls';
-import { FileService } from 'vs/platform/files/common/fileService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { isAbsolute } from 'vs/base/common/path';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 
 export class WorkspaceWatcher extends Disposable {
 
-	private readonly watches = new ResourceMap<IDisposable>();
+	private readonly watchedWorkspaces = new ResourceMap<IDisposable>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 
 	constructor(
-		@IFileService private readonly fileService: FileService,
+		@IWorkbenchFileService private readonly fileService: IWorkbenchFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -149,13 +149,13 @@ export class WorkspaceWatcher extends Disposable {
 		for (const [, pathToWatch] of pathsToWatch) {
 			disposables.add(this.fileService.watch(pathToWatch, { recursive: true, excludes }));
 		}
-		this.watches.set(workspace.uri, disposables);
+		this.watchedWorkspaces.set(workspace.uri, disposables);
 	}
 
 	private unwatchWorkspace(workspace: IWorkspaceFolder): void {
-		if (this.watches.has(workspace.uri)) {
-			dispose(this.watches.get(workspace.uri));
-			this.watches.delete(workspace.uri);
+		if (this.watchedWorkspaces.has(workspace.uri)) {
+			dispose(this.watchedWorkspaces.get(workspace.uri));
+			this.watchedWorkspaces.delete(workspace.uri);
 		}
 	}
 
@@ -171,8 +171,10 @@ export class WorkspaceWatcher extends Disposable {
 	}
 
 	private unwatchWorkspaces(): void {
-		this.watches.forEach(disposable => dispose(disposable));
-		this.watches.clear();
+		for (const [, disposable] of this.watchedWorkspaces) {
+			disposable.dispose();
+		}
+		this.watchedWorkspaces.clear();
 	}
 
 	override dispose(): void {

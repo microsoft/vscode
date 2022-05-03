@@ -33,47 +33,50 @@ import { assertNoRpc } from '../utils';
 		});
 
 		suite('ShellExecution', () => {
-			test('Execution from onDidEndTaskProcess and onDidStartTaskProcess are equal to original', () => {
-				return new Promise<void>(async (resolve) => {
-					const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
-					let taskExecution: TaskExecution | undefined;
-					const executeDoneEvent: EventEmitter<void> = new EventEmitter();
-					const taskExecutionShouldBeSet: Promise<void> = new Promise(resolve => {
-						const disposable = executeDoneEvent.event(() => {
-							resolve();
-							disposable.dispose();
-						});
+			test('Execution from onDidEndTaskProcess and onDidStartTaskProcess are equal to original', async () => {
+				window.terminals.forEach(terminal => terminal.dispose());
+				const executeDoneEvent: EventEmitter<void> = new EventEmitter();
+				const taskExecutionShouldBeSet: Promise<void> = new Promise(resolve => {
+					const disposable = executeDoneEvent.event(() => {
+						resolve();
+						disposable.dispose();
 					});
-					let count = 2;
-					const progressMade: EventEmitter<void> = new EventEmitter();
-					let startSucceeded = false;
-					let endSucceeded = false;
+				});
+
+				const progressMade: EventEmitter<void> = new EventEmitter();
+				let count = 2;
+				let startSucceeded = false;
+				let endSucceeded = false;
+				const testDonePromise = new Promise<void>(resolve => {
 					disposables.push(progressMade.event(() => {
 						count--;
 						if ((count === 0) && startSucceeded && endSucceeded) {
 							resolve();
 						}
 					}));
-
-
-					disposables.push(tasks.onDidStartTaskProcess(async (e) => {
-						await taskExecutionShouldBeSet;
-						if (e.execution === taskExecution) {
-							startSucceeded = true;
-							progressMade.fire();
-						}
-					}));
-
-					disposables.push(tasks.onDidEndTaskProcess(async (e) => {
-						await taskExecutionShouldBeSet;
-						if (e.execution === taskExecution) {
-							endSucceeded = true;
-							progressMade.fire();
-						}
-					}));
-					taskExecution = await tasks.executeTask(task);
-					executeDoneEvent.fire();
 				});
+
+				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
+				let taskExecution: TaskExecution | undefined;
+
+				disposables.push(tasks.onDidStartTaskProcess(async (e) => {
+					await taskExecutionShouldBeSet;
+					if (e.execution === taskExecution) {
+						startSucceeded = true;
+						progressMade.fire();
+					}
+				}));
+
+				disposables.push(tasks.onDidEndTaskProcess(async (e) => {
+					await taskExecutionShouldBeSet;
+					if (e.execution === taskExecution) {
+						endSucceeded = true;
+						progressMade.fire();
+					}
+				}));
+				taskExecution = await tasks.executeTask(task);
+				executeDoneEvent.fire();
+				await testDonePromise;
 			});
 
 			test('dependsOn task should start with a different processId (#118256)', async () => {
@@ -97,11 +100,16 @@ import { assertNoRpc } from '../utils';
 					}
 				], ConfigurationTarget.Workspace);
 
-				// Run the task
-				commands.executeCommand('workbench.action.tasks.runTask', 'Run this task');
+				const waitForTaskToFinish = new Promise<void>(resolve => {
+					tasks.onDidEndTask(e => {
+						if (e.execution.task.name === 'Run this task') {
+							resolve();
+						}
+					});
+				});
 
-				// Listen for first task and verify valid process ID
-				const startEvent1 = await new Promise<TaskProcessStartEvent>(r => {
+				const waitForStartEvent1 = new Promise<TaskProcessStartEvent>(r => {
+					// Listen for first task and verify valid process ID
 					const listener = tasks.onDidStartTaskProcess(async (e) => {
 						if (e.execution.task.name === 'taskToDependOn') {
 							listener.dispose();
@@ -109,11 +117,10 @@ import { assertNoRpc } from '../utils';
 						}
 					});
 				});
-				assert.ok(startEvent1.processId);
 
-				// Listen for second task, verify valid process ID and that it's not the process ID of
-				// the first task
-				const startEvent2 = await new Promise<TaskProcessStartEvent>(r => {
+				const waitForStartEvent2 = new Promise<TaskProcessStartEvent>(r => {
+					// Listen for second task, verify valid process ID and that it's not the process ID of
+					// the first task
 					const listener = tasks.onDidStartTaskProcess(async (e) => {
 						if (e.execution.task.name === 'Run this task') {
 							listener.dispose();
@@ -121,9 +128,17 @@ import { assertNoRpc } from '../utils';
 						}
 					});
 				});
+
+				// Run the task
+				commands.executeCommand('workbench.action.tasks.runTask', 'Run this task');
+
+				const startEvent1 = await waitForStartEvent1;
+				assert.ok(startEvent1.processId);
+
+				const startEvent2 = await waitForStartEvent2;
 				assert.ok(startEvent2.processId);
 				assert.notStrictEqual(startEvent1.processId, startEvent2.processId);
-
+				await waitForTaskToFinish;
 				// Clear out tasks config
 				await tasksConfig.update('tasks', []);
 			});
@@ -282,86 +297,93 @@ import { assertNoRpc } from '../utils';
 				});
 			});
 
-			test('A task can be fetched and executed (#100577)', () => {
-				return new Promise<void>(async (resolve, reject) => {
-					class CustomTerminal implements Pseudoterminal {
-						private readonly writeEmitter = new EventEmitter<string>();
-						public readonly onDidWrite: Event<string> = this.writeEmitter.event;
-						public async close(): Promise<void> { }
-						private closeEmitter = new EventEmitter<void>();
-						onDidClose: Event<void> = this.closeEmitter.event;
-						public open(): void {
-							this.closeEmitter.fire();
-							resolve();
-						}
+			test('A task can be fetched and executed (#100577)', async () => {
+				class CustomTerminal implements Pseudoterminal {
+					private readonly writeEmitter = new EventEmitter<string>();
+					public readonly onDidWrite: Event<string> = this.writeEmitter.event;
+					public async close(): Promise<void> { }
+					private closeEmitter = new EventEmitter<void>();
+					onDidClose: Event<void> = this.closeEmitter.event;
+					private readonly _onDidOpen = new EventEmitter<void>();
+					public readonly onDidOpen = this._onDidOpen.event;
+					public open(): void {
+						this._onDidOpen.fire();
+						this.closeEmitter.fire();
 					}
+				}
 
-					function buildTask(): Task {
-						const task = new Task(
-							{
-								type: 'customTesting',
-							},
-							TaskScope.Workspace,
-							'Test Task',
-							'customTesting',
-							new CustomExecution(
-								async (): Promise<Pseudoterminal> => {
-									return new CustomTerminal();
-								}
-							)
-						);
-						return task;
-					}
-
-					disposables.push(tasks.registerTaskProvider('customTesting', {
-						provideTasks: () => {
-							return [buildTask()];
-						},
-						resolveTask(_task: Task): undefined {
-							return undefined;
-						}
-					}));
-
-					const task = await tasks.fetchTasks({ type: 'customTesting' });
-
-					if (task && task.length > 0) {
-						await tasks.executeTask(task[0]);
-					} else {
-						reject('fetched task can\'t be undefined');
-					}
+				const customTerminal = new CustomTerminal();
+				const terminalOpenedPromise = new Promise<void>(resolve => {
+					const disposable = customTerminal.onDidOpen(() => {
+						disposable.dispose();
+						resolve();
+					});
 				});
+
+				function buildTask(): Task {
+					const task = new Task(
+						{
+							type: 'customTesting',
+						},
+						TaskScope.Workspace,
+						'Test Task',
+						'customTesting',
+						new CustomExecution(
+							async (): Promise<Pseudoterminal> => {
+								return customTerminal;
+							}
+						)
+					);
+					return task;
+				}
+
+				disposables.push(tasks.registerTaskProvider('customTesting', {
+					provideTasks: () => {
+						return [buildTask()];
+					},
+					resolveTask(_task: Task): undefined {
+						return undefined;
+					}
+				}));
+
+
+				const task = await tasks.fetchTasks({ type: 'customTesting' });
+
+				if (task && task.length > 0) {
+					await tasks.executeTask(task[0]);
+				} else {
+					assert.fail('fetched task can\'t be undefined');
+				}
+				await terminalOpenedPromise;
 			});
 
-			test('A task can be fetched with default task group information', () => {
-				return new Promise<void>(async (resolve, reject) => {
-					// Add default to tasks.json since this is not possible using an API yet.
-					const tasksConfig = workspace.getConfiguration('tasks');
-					await tasksConfig.update('version', '2.0.0', ConfigurationTarget.Workspace);
-					await tasksConfig.update('tasks', [
-						{
-							label: 'Run this task',
-							type: 'shell',
-							command: 'sleep 1',
-							problemMatcher: [],
-							group: {
-								kind: 'build',
-								isDefault: 'true'
-							}
+			test('A task can be fetched with default task group information', async () => {
+				// Add default to tasks.json since this is not possible using an API yet.
+				const tasksConfig = workspace.getConfiguration('tasks');
+				await tasksConfig.update('version', '2.0.0', ConfigurationTarget.Workspace);
+				await tasksConfig.update('tasks', [
+					{
+						label: 'Run this task',
+						type: 'shell',
+						command: 'sleep 1',
+						problemMatcher: [],
+						group: {
+							kind: 'build',
+							isDefault: true
 						}
-					], ConfigurationTarget.Workspace);
-
-					const task = <Task[]>(await tasks.fetchTasks());
-
-					if (task && task.length > 0) {
-						const grp = task[0].group;
-						assert.strictEqual(grp?.isDefault, true);
-						resolve();
-					} else {
-						reject('fetched task can\'t be undefined');
 					}
-					// Reset tasks.json
-					await tasksConfig.update('tasks', []);
-				});
+				], ConfigurationTarget.Workspace);
+
+				const task = <Task[]>(await tasks.fetchTasks());
+
+				if (task && task.length > 0) {
+					const grp = task[0].group;
+					assert.strictEqual(grp?.isDefault, true);
+				} else {
+					assert.fail('fetched task can\'t be undefined');
+				}
+				// Reset tasks.json
+				await tasksConfig.update('tasks', []);
 			});
 
 			test('Tasks can be run back to back', async () => {

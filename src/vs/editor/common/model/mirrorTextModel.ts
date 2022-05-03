@@ -7,8 +7,8 @@ import { splitLines } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { IModelContentChange } from 'vs/editor/common/model/textModelEvents';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { IModelContentChange } from 'vs/editor/common/textModelEvents';
+import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 
 export interface IModelChangedEvent {
 	/**
@@ -144,7 +144,7 @@ export class MirrorTextModel implements IMirrorTextModel {
 			// Nothing to insert
 			return;
 		}
-		let insertLines = splitLines(insertText);
+		const insertLines = splitLines(insertText);
 		if (insertLines.length === 1) {
 			// Inserting text on one line
 			this._setLineText(position.lineNumber - 1,
@@ -165,7 +165,7 @@ export class MirrorTextModel implements IMirrorTextModel {
 		);
 
 		// Insert new lines & store lengths
-		let newLengths = new Uint32Array(insertLines.length - 1);
+		const newLengths = new Uint32Array(insertLines.length - 1);
 		for (let i = 1; i < insertLines.length; i++) {
 			this._lines.splice(position.lineNumber + i - 1, 0, insertLines[i]);
 			newLengths[i - 1] = insertLines[i].length + this._eol.length;

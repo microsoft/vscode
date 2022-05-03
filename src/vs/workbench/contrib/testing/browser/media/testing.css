@@ -19,6 +19,7 @@
 .test-output-peek-tree .test-peek-item {
 	display: flex;
 	align-items: center;
+	color: var(--vscode-editor-foreground);
 }
 
 .test-output-peek-tree .monaco-list-row .monaco-action-bar,
@@ -62,11 +63,6 @@
 .test-explorer .computed-state,
 .test-output-peek-tree .computed-state {
 	margin-right: 0.25em;
-}
-
-.test-explorer .computed-state.retired,
-.testing-run-glyph.retired {
-	opacity: 0.7  !important;
 }
 
 .test-explorer .test-is-hidden {
@@ -146,6 +142,10 @@
 	margin-bottom: 0;
 }
 
+.monaco-editor .zone-widget.test-output-peek .preview-text a {
+	cursor: pointer;
+}
+
 /** -- filter  */
 .testing-filter-action-bar {
 	flex-shrink: 0;
@@ -205,5 +205,8 @@
 .test-message-inline-content {
 	font-family: var(--testMessageDecorationFontFamily);
 	font-size: var(--testMessageDecorationFontSize);
+}
+
+.test-message-inline-content-clickable {
 	cursor: pointer;
 }

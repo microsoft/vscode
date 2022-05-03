@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
-import { InjectedText, ModelLineProjectionData } from 'vs/editor/common/viewModel/modelLineProjectionData';
-import { SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import { LineInjectedText } from 'vs/editor/common/textModelEvents';
+import { InjectedText, ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
+import { SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel';
 
 export interface IModelLineProjection {
 	isVisible(): boolean;
@@ -37,7 +37,9 @@ export interface IModelLineProjection {
 }
 
 export interface ISimpleModel {
-	getLineTokens(lineNumber: number): LineTokens;
+	tokenization: {
+		getLineTokens(lineNumber: number): LineTokens;
+	};
 	getLineContent(lineNumber: number): string;
 	getLineLength(lineNumber: number): number;
 	getLineMinColumn(lineNumber: number): number;
@@ -198,25 +200,30 @@ class ModelLineProjection implements IModelLineProjection {
 						}
 					}
 
-					totalInjectedTextLengthBefore += length;
-					currentInjectedOffset++;
+					if (injectedTextEndOffsetInInputWithInjections <= lineEndOffsetInInputWithInjections) {
+						totalInjectedTextLengthBefore += length;
+						currentInjectedOffset++;
+					} else {
+						// injected text breaks into next line, process it again
+						break;
+					}
 				}
 			}
 		}
 
 		let lineWithInjections: LineTokens;
 		if (injectionOffsets) {
-			lineWithInjections = model.getLineTokens(modelLineNumber).withInserted(injectionOffsets.map((offset, idx) => ({
+			lineWithInjections = model.tokenization.getLineTokens(modelLineNumber).withInserted(injectionOffsets.map((offset, idx) => ({
 				offset,
 				text: injectionOptions![idx].content,
 				tokenMetadata: LineTokens.defaultTokenMetadata
 			})));
 		} else {
-			lineWithInjections = model.getLineTokens(modelLineNumber);
+			lineWithInjections = model.tokenization.getLineTokens(modelLineNumber);
 		}
 
 		for (let outputLineIndex = outputLineIdx; outputLineIndex < outputLineIdx + lineCount; outputLineIndex++) {
-			let globalIndex = globalStartIndex + outputLineIndex - outputLineIdx;
+			const globalIndex = globalStartIndex + outputLineIndex - outputLineIdx;
 			if (!needed[globalIndex]) {
 				result[globalIndex] = null;
 				continue;
@@ -262,7 +269,7 @@ class ModelLineProjection implements IModelLineProjection {
 
 	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number, affinity: PositionAffinity = PositionAffinity.None): Position {
 		this._assertVisible();
-		let r = this._projectionData.translateToOutputPosition(inputColumn - 1, affinity);
+		const r = this._projectionData.translateToOutputPosition(inputColumn - 1, affinity);
 		return r.toPosition(deltaLineNumber);
 	}
 
@@ -334,8 +341,8 @@ class IdentityModelLineProjection implements IModelLineProjection {
 	}
 
 	public getViewLineData(model: ISimpleModel, modelLineNumber: number, _outputLineIndex: number): ViewLineData {
-		let lineTokens = model.getLineTokens(modelLineNumber);
-		let lineContent = lineTokens.getLineContent();
+		const lineTokens = model.tokenization.getLineTokens(modelLineNumber);
+		const lineContent = lineTokens.getLineContent();
 		return new ViewLineData(
 			lineContent,
 			false,

@@ -30,7 +30,7 @@ if [ "$(id -u)" = "0" ]; then
 		esac
 	done
 	if [ -z $CAN_LAUNCH_AS_ROOT ]; then
-		echo "You are trying to start @@PRODNAME@@ as a super user which isn't recommended. If this was intended, please specify an alternate user data directory using the \`--user-data-dir\` argument." 1>&2
+		echo "You are trying to start @@PRODNAME@@ as a super user which isn't recommended. If this was intended, please add the argument \`--no-sandbox\` and specify an alternate user data directory using the \`--user-data-dir\` argument." 1>&2
 		exit 1
 	fi
 fi

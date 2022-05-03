@@ -21,7 +21,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 
 export enum FileLocationKind {
 	Default,
@@ -199,9 +199,9 @@ export async function getResource(filename: string, matcher: ProblemMatcher, fil
 		matcherClone.fileLocation = FileLocationKind.Relative;
 		if (fileService) {
 			const relative = await getResource(filename, matcherClone);
-			let stat: IFileStat | undefined = undefined;
+			let stat: IFileStatWithPartialMetadata | undefined = undefined;
 			try {
-				stat = await fileService.resolve(relative);
+				stat = await fileService.stat(relative);
 			} catch (ex) {
 				// Do nothing, we just need to catch file resolution errors.
 			}
@@ -1206,7 +1206,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 
 	private fillDefaults(): void {
 		this.add('msCompile', {
-			regexp: /^(?:\s+\d+\>)?([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\)\s*:\s+(error|warning|info)\s+(\w+\d+)\s*:\s*(.*)$/,
+			regexp: /^(?:\s+\d+>)?(\S.*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\)\s*:\s+(error|warning|info)\s+(\w+\d+)\s*:\s*(.*)$/,
 			kind: ProblemLocationKind.Location,
 			file: 1,
 			location: 2,
@@ -1223,7 +1223,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 			message: 4
 		});
 		this.add('cpp', {
-			regexp: /^([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\):\s+(error|warning|info)\s+(C\d+)\s*:\s*(.*)$/,
+			regexp: /^(\S.*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\):\s+(error|warning|info)\s+(C\d+)\s*:\s*(.*)$/,
 			kind: ProblemLocationKind.Location,
 			file: 1,
 			location: 2,
@@ -1232,7 +1232,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 			message: 5
 		});
 		this.add('csc', {
-			regexp: /^([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\):\s+(error|warning|info)\s+(CS\d+)\s*:\s*(.*)$/,
+			regexp: /^(\S.*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\):\s+(error|warning|info)\s+(CS\d+)\s*:\s*(.*)$/,
 			kind: ProblemLocationKind.Location,
 			file: 1,
 			location: 2,
@@ -1241,7 +1241,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 			message: 5
 		});
 		this.add('vb', {
-			regexp: /^([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\):\s+(error|warning|info)\s+(BC\d+)\s*:\s*(.*)$/,
+			regexp: /^(\S.*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\):\s+(error|warning|info)\s+(BC\d+)\s*:\s*(.*)$/,
 			kind: ProblemLocationKind.Location,
 			file: 1,
 			location: 2,
@@ -1294,7 +1294,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 		});
 		this.add('eslint-stylish', [
 			{
-				regexp: /^((?:[a-zA-Z]:)*[\\\/.]+.*?)$/,
+				regexp: /^((?:[a-zA-Z]:)*[./\\]+.*?)$/,
 				kind: ProblemLocationKind.Location,
 				file: 1
 			},

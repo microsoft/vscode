@@ -15,7 +15,7 @@ import { dirname, join } from 'vs/base/common/path';
 import { Promises, readdirSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { WorkingCopyBackupsModel, hashIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { Schemas } from 'vs/base/common/network';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -27,16 +27,17 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { NativeWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupService';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 import { bufferToReadable, bufferToStream, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { TestLifecycleService, TestProductService, toTypedWorkingCopyId, toUntypedWorkingCopyId } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestNativeWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestLifecycleService, toTypedWorkingCopyId, toUntypedWorkingCopyId } from 'vs/workbench/test/browser/workbenchTestServices';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { consumeStream } from 'vs/base/common/stream';
+import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(testDir: string, backupPath: string) {
-		super({ ...TestWorkbenchConfiguration, backupPath, 'user-data-dir': testDir }, TestProductService);
+		super({ ...TestNativeWindowConfiguration, backupPath, 'user-data-dir': testDir }, TestProductService);
 	}
 }
 
@@ -60,7 +61,7 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 
 		this.diskFileSystemProvider = new DiskFileSystemProvider(logService);
 		fileService.registerProvider(Schemas.file, this.diskFileSystemProvider);
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, this.diskFileSystemProvider, Schemas.userData, logService));
+		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, this.diskFileSystemProvider, Schemas.vscodeUserData, logService));
 
 		this.fileService = fileService;
 		this.backupResourceJoiners = [];
@@ -274,13 +275,13 @@ flakySuite('WorkingCopyBackupService', () => {
 			// No Type ID
 			let backupId = toUntypedWorkingCopyId(backupResource);
 			let filePathHash = hashIdentifier(backupId);
-			let expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.file, filePathHash)).with({ scheme: Schemas.userData }).toString();
+			let expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.file, filePathHash)).with({ scheme: Schemas.vscodeUserData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
 
 			// With Type ID
 			backupId = toTypedWorkingCopyId(backupResource);
 			filePathHash = hashIdentifier(backupId);
-			expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.file, filePathHash)).with({ scheme: Schemas.userData }).toString();
+			expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.file, filePathHash)).with({ scheme: Schemas.vscodeUserData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
 		});
 
@@ -293,13 +294,13 @@ flakySuite('WorkingCopyBackupService', () => {
 			// No Type ID
 			let backupId = toUntypedWorkingCopyId(backupResource);
 			let filePathHash = hashIdentifier(backupId);
-			let expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.untitled, filePathHash)).with({ scheme: Schemas.userData }).toString();
+			let expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.untitled, filePathHash)).with({ scheme: Schemas.vscodeUserData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
 
 			// With Type ID
 			backupId = toTypedWorkingCopyId(backupResource);
 			filePathHash = hashIdentifier(backupId);
-			expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.untitled, filePathHash)).with({ scheme: Schemas.userData }).toString();
+			expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.untitled, filePathHash)).with({ scheme: Schemas.vscodeUserData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
 		});
 
@@ -312,13 +313,13 @@ flakySuite('WorkingCopyBackupService', () => {
 			// No Type ID
 			let backupId = toUntypedWorkingCopyId(backupResource);
 			let filePathHash = hashIdentifier(backupId);
-			let expectedPath = URI.file(join(backupHome, workspaceHash, 'custom', filePathHash)).with({ scheme: Schemas.userData }).toString();
+			let expectedPath = URI.file(join(backupHome, workspaceHash, 'custom', filePathHash)).with({ scheme: Schemas.vscodeUserData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
 
 			// With Type ID
 			backupId = toTypedWorkingCopyId(backupResource);
 			filePathHash = hashIdentifier(backupId);
-			expectedPath = URI.file(join(backupHome, workspaceHash, 'custom', filePathHash)).with({ scheme: Schemas.userData }).toString();
+			expectedPath = URI.file(join(backupHome, workspaceHash, 'custom', filePathHash)).with({ scheme: Schemas.vscodeUserData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
 		});
 	});

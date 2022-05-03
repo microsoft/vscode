@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { compressConsecutiveTextChanges, TextChange } from 'vs/editor/common/model/textChange';
+import { compressConsecutiveTextChanges, TextChange } from 'vs/editor/common/core/textChange';
 
 const GENERATE_TESTS = false;
 

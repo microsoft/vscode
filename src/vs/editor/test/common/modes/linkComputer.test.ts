@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { ILink } from 'vs/editor/common/modes';
-import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/modes/linkComputer';
+import { ILink } from 'vs/editor/common/languages';
+import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/languages/linkComputer';
 
 class SimpleLinkComputerTarget implements ILinkComputerTarget {
 

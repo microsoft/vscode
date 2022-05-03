@@ -12,7 +12,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -20,10 +21,10 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellViewModelStateChangeEvent, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { CellFocusMode, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { ClickTargetType, IClickTarget } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const $ = DOM.$;
@@ -48,6 +49,7 @@ export class CellEditorStatusBar extends CellPart {
 		private readonly _notebookEditor: INotebookEditorDelegate,
 		private readonly _cellContainer: HTMLElement,
 		editorPart: HTMLElement,
+		private readonly _editor: ICodeEditor | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
@@ -88,23 +90,53 @@ export class CellEditorStatusBar extends CellPart {
 	}
 
 
-	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
+	override didRenderCell(element: ICellViewModel): void {
 		this.updateContext(<INotebookCellActionContext>{
 			ui: true,
 			cell: element,
-			cellTemplate: templateData,
 			notebookEditor: this._notebookEditor,
 			$mid: MarshalledId.NotebookCellActionContext
 		});
+
+		if (this._editor) {
+			// Focus Mode
+			const updateFocusModeForEditorEvent = () => {
+				element.focusMode =
+					this._editor && (this._editor.hasWidgetFocus() || (document.activeElement && this.statusBarContainer.contains(document.activeElement)))
+						? CellFocusMode.Editor
+						: CellFocusMode.Container;
+			};
+
+			this.cellDisposables.add(this._editor.onDidFocusEditorWidget(() => {
+				updateFocusModeForEditorEvent();
+			}));
+			this.cellDisposables.add(this._editor.onDidBlurEditorWidget(() => {
+				// this is for a special case:
+				// users click the status bar empty space, which we will then focus the editor
+				// so we don't want to update the focus state too eagerly, it will be updated with onDidFocusEditorWidget
+				if (
+					this._notebookEditor.hasEditorFocus() &&
+					!(document.activeElement && this.statusBarContainer.contains(document.activeElement))) {
+					updateFocusModeForEditorEvent();
+				}
+			}));
+
+			// Mouse click handlers
+			this.cellDisposables.add(this.onDidClick(e => {
+				if (this.currentCell instanceof CodeCellViewModel && e.type !== ClickTargetType.ContributedCommandItem && this._editor) {
+					const target = this._editor.getTargetAtClientPoint(e.event.clientX, e.event.clientY - this._notebookEditor.notebookOptions.computeEditorStatusbarHeight(this.currentCell.internalMetadata, this.currentCell.uri));
+					if (target?.position) {
+						this._editor.setPosition(target.position);
+						this._editor.focus();
+					}
+				}
+			}));
+		}
 	}
 
-	prepareLayout(): void {
-		// nothing to read
-	}
-
-	updateInternalLayoutNow(element: ICellViewModel): void {
+	override updateInternalLayoutNow(element: ICellViewModel): void {
 		// todo@rebornix layer breaker
-		this._cellContainer.classList.toggle('cell-statusbar-hidden', this._notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
+		this._cellContainer.classList.toggle('cell-statusbar-hidden', this._notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata, element.uri) === 0);
 
 		const layoutInfo = element.layoutInfo;
 		const width = layoutInfo.editorWidth;
@@ -118,11 +150,6 @@ export class CellEditorStatusBar extends CellPart {
 		const maxItemWidth = this.getMaxItemWidth();
 		this.leftItems.forEach(item => item.maxWidth = maxItemWidth);
 		this.rightItems.forEach(item => item.maxWidth = maxItemWidth);
-	}
-
-
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
-		// nothing to update
 	}
 
 	private getMaxItemWidth() {
@@ -167,7 +194,7 @@ export class CellEditorStatusBar extends CellPart {
 		const updateItems = (renderedItems: CellStatusBarItem[], newItems: INotebookCellStatusBarItem[], container: HTMLElement) => {
 			if (renderedItems.length > newItems.length) {
 				const deleted = renderedItems.splice(newItems.length, renderedItems.length - newItems.length);
-				for (let deletedItem of deleted) {
+				for (const deletedItem of deleted) {
 					container.removeChild(deletedItem.container);
 					deletedItem.dispose();
 				}

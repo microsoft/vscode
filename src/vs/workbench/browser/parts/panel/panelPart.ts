@@ -10,7 +10,7 @@ import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/panel';
+import { ActivePanelContext, PanelFocusContext, getEnabledViewContainerContextKey } from 'vs/workbench/common/contextkeys';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -31,7 +31,7 @@ import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ViewContainer, IViewDescriptorService, IViewContainerModel, ViewContainerLocation, getEnabledViewContainerContextKey } from 'vs/workbench/common/views';
+import { ViewContainer, IViewDescriptorService, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { Before2D, CompositeDragAndDropObserver, ICompositeDragAndDrop, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
@@ -45,6 +45,7 @@ import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/bro
 import { IPartOptions } from 'vs/workbench/browser/part';
 import { StringSHA1 } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/profiles/common/profileStorageRegistry';
 
 interface ICachedPanel {
 	id: string;
@@ -52,7 +53,7 @@ interface ICachedPanel {
 	pinned: boolean;
 	order?: number;
 	visible: boolean;
-	views?: { when?: string; }[];
+	views?: { when?: string }[];
 }
 
 interface IPlaceholderViewContainer {
@@ -61,8 +62,8 @@ interface IPlaceholderViewContainer {
 }
 
 interface IPanelPartOptions extends IPartOptions {
-	hasTitle: true,
-	borderWidth?: (() => number),
+	hasTitle: true;
+	borderWidth?: (() => number);
 	useIcons?: boolean;
 }
 
@@ -87,7 +88,18 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	get preferredWidth(): number | undefined {
-		return this.layoutService.dimension.width * 0.4;
+		const activeComposite = this.getActivePaneComposite();
+
+		if (!activeComposite) {
+			return;
+		}
+
+		const width = activeComposite.getOptimalWidth();
+		if (typeof width !== 'number') {
+			return;
+		}
+
+		return Math.max(width, 300);
 	}
 
 	//#endregion
@@ -96,7 +108,10 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	readonly onDidPaneCompositeClose = this.onDidCompositeClose.event as Event<IPaneComposite>;
 
 	private compositeBar: CompositeBar;
-	private readonly compositeActions = new Map<string, { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction; }>();
+	private readonly compositeActions = new Map<string, { activityAction: PanelActivityAction; pinnedAction: ToggleCompositePinnedAction }>();
+
+	private globalToolBar: ToolBar | undefined;
+	private globalActions: CompositeMenuActions;
 
 	private readonly panelDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
 
@@ -190,6 +205,16 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 		this.registerListeners();
 		this.onDidRegisterPanels([...this.getPaneComposites()]);
+
+		// Global Panel Actions
+		this.globalActions = this._register(this.instantiationService.createInstance(CompositeMenuActions, partId === Parts.PANEL_PART ? MenuId.PanelTitle : MenuId.AuxiliaryBarTitle, undefined, undefined));
+		this._register(this.globalActions.onDidChange(() => this.updateGlobalToolbarActions()));
+
+		Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry)
+			.registerKeys([{
+				key: this.pinnedPanelsKey,
+				description: localize('pinned view containers', "Panel entries visibility customizations")
+			}]);
 	}
 
 	protected abstract getActivityHoverOptions(): IActivityHoverOptions;
@@ -241,12 +266,12 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 				}
 
 				if (isActive) {
+					this.compositeBar.activateComposite(panel.id);
+
 					// Only try to open the panel if it has been created and visible
 					if (!activePanel && this.element && this.layoutService.isVisible(this.partId)) {
 						this.doOpenPanel(panel.id);
 					}
-
-					this.compositeBar.activateComposite(panel.id);
 				}
 			}
 		}
@@ -327,12 +352,14 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			const hash = new StringSHA1();
 			hash.update(cssUrl);
 			cssClass = `activity-${id.replace(/\./g, '-')}-${hash.digest()}`;
-			const iconClass = `.monaco-workbench .panel .monaco-action-bar .action-label.${cssClass}`;
+			const iconClass = `.monaco-workbench .basepanel .monaco-action-bar .action-label.${cssClass}`;
 			createCSSRule(iconClass, `
 				mask: ${cssUrl} no-repeat 50% 50%;
-				mask-size: 24px;
+				mask-size: 16px;
 				-webkit-mask: ${cssUrl} no-repeat 50% 50%;
-				-webkit-mask-size: 24px;
+				-webkit-mask-size: 16px;
+				mask-origin: padding;
+				-webkit-mask-origin: padding;
 			`);
 		} else if (ThemeIcon.isThemeIcon(icon)) {
 			cssClass = ThemeIcon.asClassName(icon);
@@ -350,6 +377,14 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		if (viewContainerModel.activeViewDescriptors.length) {
 			contextKey.set(true);
 			this.compositeBar.addComposite({ id: viewContainer.id, name: viewContainer.title, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
+
+			const activeComposite = this.getActiveComposite();
+			if (activeComposite === undefined || activeComposite.getId() === viewContainer.id) {
+				this.compositeBar.activateComposite(viewContainer.id);
+			}
+
+			this.layoutCompositeBar();
+			this.layoutEmptyMessage();
 		} else if (viewContainer.hideIfEmpty) {
 			contextKey.set(false);
 			this.hideComposite(viewContainer.id);
@@ -473,7 +508,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 		const messageElement = document.createElement('div');
 		messageElement.classList.add('empty-panel-message');
-		messageElement.innerText = localize('panel.emptyMessage', "Drag a view into the panel to display.");
+		messageElement.innerText = localize('panel.emptyMessage', "Drag a view here to display.");
 
 		this.emptyPanelMessageElement.appendChild(messageElement);
 		contentArea.appendChild(this.emptyPanelMessageElement);
@@ -505,6 +540,24 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 				this.dndHandler.drop(e.dragAndDropData, undefined, e.eventData);
 			},
 		}));
+	}
+
+	override createTitleArea(parent: HTMLElement): HTMLElement {
+		const element = super.createTitleArea(parent);
+		const globalTitleActionsContainer = element.appendChild($('.global-actions'));
+
+		// Global Actions Toolbar
+		this.globalToolBar = this._register(new ToolBar(globalTitleActionsContainer, this.contextMenuService, {
+			actionViewItemProvider: action => this.actionViewItemProvider(action),
+			orientation: ActionsOrientation.HORIZONTAL,
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
+			toggleMenuTitle: localize('moreActions', "More Actions...")
+		}));
+
+		this.updateGlobalToolbarActions();
+
+		return element;
 	}
 
 	override updateStyles(): void {
@@ -672,7 +725,16 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		return viewContainer && this.viewDescriptorService.getViewContainerLocation(viewContainer) === this.viewContainerLocation ? viewContainer : undefined;
 	}
 
-	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction; } {
+	private updateGlobalToolbarActions(): void {
+		const primaryActions = this.globalActions.getPrimaryActions();
+		const secondaryActions = this.globalActions.getSecondaryActions();
+
+		if (this.globalToolBar) {
+			this.globalToolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
+		}
+	}
+
+	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction; pinnedAction: ToggleCompositePinnedAction } {
 		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
 			// const panel = this.getPaneComposite(compositeId);
@@ -719,7 +781,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			return 0;
 		}
 
-		return this.toolBar.getItemsWidth();
+		return this.toolBar.getItemsWidth() + (this.globalToolBar?.getItemsWidth() ?? 0);
 	}
 
 	private onDidStorageValueChange(e: IStorageValueChangeEvent): void {
@@ -853,9 +915,6 @@ export class PanelPart extends BasePanelPart {
 	static readonly pinnedPanelsKey = 'workbench.panel.pinnedPanels';
 	static readonly placeholdeViewContainersKey = 'workbench.panel.placeholderPanels';
 
-	private globalToolBar: ToolBar | undefined;
-	private globalActions: CompositeMenuActions;
-
 	constructor(
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
@@ -895,10 +954,6 @@ export class PanelPart extends BasePanelPart {
 				hasTitle: true
 			},
 		);
-
-		// Global Panel Actions
-		this.globalActions = this._register(this.instantiationService.createInstance(CompositeMenuActions, MenuId.PanelTitle, undefined, undefined));
-		this._register(this.globalActions.onDidChange(() => this.updateGlobalToolbarActions()));
 	}
 
 	override updateStyles(): void {
@@ -922,36 +977,15 @@ export class PanelPart extends BasePanelPart {
 	}
 
 	protected fillExtraContextMenuActions(actions: IAction[]): void {
+
 		actions.push(...[
 			new Separator(),
 			...PositionPanelActionConfigs
 				// show the contextual menu item if it is not in that position
 				.filter(({ when }) => this.contextKeyService.contextMatchesRules(when))
-				.map(({ id, label }) => this.instantiationService.createInstance(SetPanelPositionAction, id, label)),
+				.map(({ id, title }) => this.instantiationService.createInstance(SetPanelPositionAction, id, title.value)),
 			this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
 		]);
-	}
-
-	override createTitleArea(parent: HTMLElement): HTMLElement {
-		const element = super.createTitleArea(parent);
-		const globalTitleActionsContainer = element.appendChild($('.global-actions'));
-
-		// Global Actions Toolbar
-		this.globalToolBar = this._register(new ToolBar(globalTitleActionsContainer, this.contextMenuService, {
-			actionViewItemProvider: action => this.actionViewItemProvider(action),
-			orientation: ActionsOrientation.HORIZONTAL,
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
-			toggleMenuTitle: localize('moreActions', "More Actions...")
-		}));
-
-		this.updateGlobalToolbarActions();
-
-		return element;
-	}
-
-	override getToolbarWidth(): number {
-		return super.getToolbarWidth() + (this.globalToolBar?.getItemsWidth() ?? 0);
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
@@ -964,15 +998,6 @@ export class PanelPart extends BasePanelPart {
 
 		// Layout contents
 		super.layout(dimensions.width, dimensions.height, top, left);
-	}
-
-	private updateGlobalToolbarActions(): void {
-		const primaryActions = this.globalActions.getPrimaryActions();
-		const secondaryActions = this.globalActions.getSecondaryActions();
-
-		if (this.globalToolBar) {
-			this.globalToolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
-		}
 	}
 
 	toJSON(): object {
@@ -1000,49 +1025,16 @@ registerThemingParticipant((theme, collector) => {
 
 	// Title Active
 	const titleActive = theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND);
-	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
-	if (titleActive || titleActiveBorder) {
+	if (titleActive) {
 		collector.addRule(`
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
-				color: ${titleActive} !important;
-				border-bottom-color: ${titleActiveBorder} !important;
-			}
+		.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+			color: ${titleActive} !important;
+		}
 		`);
-	}
-
-	// Title focus
-	const focusBorderColor = theme.getColor(focusBorder);
-	if (focusBorderColor) {
 		collector.addRule(`
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
-				color: ${titleActive} !important;
-				border-bottom-color: ${focusBorderColor} !important;
-				border-bottom: 1px solid;
-			}
-			`);
-		collector.addRule(`
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
-				outline: none;
-			}
-			`);
-	}
-
-	// Styling with Outline color (e.g. high contrast theme)
-	const outline = theme.getColor(activeContrastBorder);
-	if (outline) {
-		collector.addRule(`
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
-				outline-color: ${outline};
-				outline-width: 1px;
-				outline-style: solid;
-				border-bottom: none;
-				outline-offset: -2px;
-			}
-
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked):hover .action-label {
-				outline-style: dashed;
-			}
+		.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
+			color: ${titleActive} !important;
+		}
 		`);
 	}
 
@@ -1053,5 +1045,51 @@ registerThemingParticipant((theme, collector) => {
 				border-color: ${inputBorder}
 			}
 		`);
+	}
+
+
+	// Base Panel Styles
+	// Title focus
+	const focusBorderColor = theme.getColor(focusBorder);
+	if (focusBorderColor) {
+		collector.addRule(`
+				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+					border-top-color: ${focusBorderColor};
+				}
+				`);
+		collector.addRule(`
+				.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
+					outline: none;
+				}
+				`);
+	}
+
+	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
+	if (titleActiveBorder) {
+		collector.addRule(`
+				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+					.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
+					border-top-color: ${titleActiveBorder};
+				}
+			`);
+	}
+
+	// Styling with Outline color (e.g. high contrast theme)
+	const outline = theme.getColor(activeContrastBorder);
+	if (outline) {
+		collector.addRule(`
+				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
+				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+					outline-color: ${outline};
+					outline-width: 1px;
+					outline-style: solid;
+					border-bottom: none;
+					outline-offset: -2px;
+				}
+
+				.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked):hover .action-label {
+					outline-style: dashed;
+				}
+			`);
 	}
 });

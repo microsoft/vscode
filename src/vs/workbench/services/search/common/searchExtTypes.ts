@@ -17,10 +17,10 @@ export class Position {
 	isEqual(other: Position): boolean { return false; }
 	compareTo(other: Position): number { return 0; }
 	translate(lineDelta?: number, characterDelta?: number): Position;
-	translate(change: { lineDelta?: number; characterDelta?: number; }): Position;
+	translate(change: { lineDelta?: number; characterDelta?: number }): Position;
 	translate(_?: any, _2?: any): Position { return new Position(0, 0); }
 	with(line?: number, character?: number): Position;
-	with(change: { line?: number; character?: number; }): Position;
+	with(change: { line?: number; character?: number }): Position;
 	with(_: any): Position { return new Position(0, 0); }
 }
 
@@ -41,7 +41,7 @@ export class Range {
 	union(other: Range): Range { return new Range(0, 0, 0, 0); }
 
 	with(start?: Position, end?: Position): Range;
-	with(change: { start?: Position, end?: Position }): Range;
+	with(change: { start?: Position; end?: Position }): Range;
 	with(_: any): Range { return new Range(0, 0, 0, 0); }
 }
 
@@ -74,7 +74,7 @@ export interface RelativePattern {
  * (like `** /*.{ts,js}` without space before / or `*.{ts,js}`) or a [relative pattern](#RelativePattern).
  *
  * Glob patterns can have the following syntax:
- * * `*` to match one or more characters in a path segment
+ * * `*` to match zero or more characters in a path segment
  * * `?` to match on one character in a path segment
  * * `**` to match any number of path segments, including none
  * * `{}` to group conditions (e.g. `** /*.{ts,js}` without space before / matches all TypeScript and JavaScript files)
@@ -161,6 +161,12 @@ export interface SearchOptions {
 	 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
 	 */
 	useGlobalIgnoreFiles: boolean;
+
+	/**
+	 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
+	 * See the vscode setting `"search.useParentIgnoreFiles"`.
+	 */
+	useParentIgnoreFiles: boolean;
 }
 
 /**
@@ -231,15 +237,15 @@ export interface TextSearchCompleteMessage {
 	/**
 	 * Markdown text of the message.
 	 */
-	text: string,
+	text: string;
 	/**
 	 * Whether the source of the message is trusted, command links are disabled for untrusted message sources.
 	 */
-	trusted?: boolean,
+	trusted?: boolean;
 	/**
 	 * The message type, this affects how the message will be rendered.
 	 */
-	type: TextSearchCompleteMessageType,
+	type: TextSearchCompleteMessageType;
 }
 
 /**
@@ -418,6 +424,12 @@ export interface FindTextInFilesOptions {
 	 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
 	 */
 	useGlobalIgnoreFiles?: boolean;
+
+	/**
+	 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
+	 * See the vscode setting `"search.useParentIgnoreFiles"`.
+	 */
+	useParentIgnoreFiles: boolean;
 
 	/**
 	 * Whether symlinks should be followed while searching.

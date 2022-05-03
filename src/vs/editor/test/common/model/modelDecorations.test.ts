@@ -9,7 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 // --------- utils
 
@@ -51,8 +51,8 @@ function addDecoration(model: TextModel, startLineNumber: number, startColumn: n
 	})!;
 }
 
-function lineHasDecorations(model: TextModel, lineNumber: number, decorations: { start: number; end: number; className: string; }[]) {
-	let lineDecorations: Array<{ start: number; end: number; className: string | null | undefined; }> = [];
+function lineHasDecorations(model: TextModel, lineNumber: number, decorations: { start: number; end: number; className: string }[]) {
+	let lineDecorations: Array<{ start: number; end: number; className: string | null | undefined }> = [];
 	let decs = model.getLineDecorations(lineNumber);
 	for (let i = 0, len = decs.length; i < len; i++) {
 		lineDecorations.push({

@@ -16,7 +16,7 @@ import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
-import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { getTitleBarStyle } from 'vs/platform/window/common/window';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
@@ -97,9 +97,23 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			let x: number;
 			let y: number;
 
-			const zoom = getZoomFactor();
+			let zoom = getZoomFactor();
 			if (dom.isHTMLElement(anchor)) {
 				const elementPosition = dom.getDomNodePagePosition(anchor);
+
+				// When drawing context menus, we adjust the pixel position for native menus using zoom level
+				// In areas where zoom is applied to the element or its ancestors, we need to adjust accordingly
+				// e.g. The title bar has counter zoom behavior meaning it applies the inverse of zoom level.
+				// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Coordinate Multiplier: 1.5 * 1.0 / 1.5 = 1.0
+				let testElement: HTMLElement | null = anchor;
+				do {
+					const elementZoomLevel = (dom.getComputedStyle(testElement) as any).zoom;
+					if (elementZoomLevel !== null && elementZoomLevel !== undefined && elementZoomLevel !== '1') {
+						zoom *= elementZoomLevel;
+					}
+
+					testElement = testElement.parentElement;
+				} while (testElement !== null && testElement !== document.documentElement);
 
 				x = elementPosition.left;
 				y = elementPosition.top + elementPosition.height;
@@ -111,7 +125,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 					y += 4 / zoom;
 				}
 			} else {
-				const pos: { x: number; y: number; } = anchor;
+				const pos: { x: number; y: number } = anchor;
 				x = pos.x + 1; /* prevent first item from being selected automatically under mouse */
 				y = pos.y;
 			}

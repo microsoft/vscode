@@ -13,6 +13,7 @@ let _isNative = false;
 let _isWeb = false;
 let _isElectron = false;
 let _isIOS = false;
+let _isCI = false;
 let _locale: string | undefined = undefined;
 let _language: string = LANGUAGE_DEFAULT;
 let _translationsConfigFile: string | undefined = undefined;
@@ -20,7 +21,7 @@ let _userAgent: string | undefined = undefined;
 
 interface NLSConfig {
 	locale: string;
-	availableLanguages: { [key: string]: string; };
+	availableLanguages: { [key: string]: string };
 	_translationsConfigFile: string;
 }
 
@@ -42,7 +43,6 @@ export interface INodeProcess {
 	versions?: {
 		electron?: string;
 	};
-	sandboxed?: boolean;
 	type?: string;
 	cwd: () => string;
 }
@@ -64,7 +64,6 @@ if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.process !== '
 
 const isElectronProcess = typeof nodeProcess?.versions?.electron === 'string';
 const isElectronRenderer = isElectronProcess && nodeProcess?.type === 'renderer';
-export const isElectronSandboxed = isElectronRenderer && nodeProcess?.sandboxed;
 
 interface INavigator {
 	userAgent: string;
@@ -92,6 +91,7 @@ else if (typeof nodeProcess === 'object') {
 	_isLinux = (nodeProcess.platform === 'linux');
 	_isLinuxSnap = _isLinux && !!nodeProcess.env['SNAP'] && !!nodeProcess.env['SNAP_REVISION'];
 	_isElectron = isElectronProcess;
+	_isCI = !!nodeProcess.env['CI'] || !!nodeProcess.env['BUILD_ARTIFACTSTAGINGDIRECTORY'];
 	_locale = LANGUAGE_DEFAULT;
 	_language = LANGUAGE_DEFAULT;
 	const rawNlsConfig = nodeProcess.env['VSCODE_NLS_CONFIG'];
@@ -145,7 +145,13 @@ export const isLinuxSnap = _isLinuxSnap;
 export const isNative = _isNative;
 export const isElectron = _isElectron;
 export const isWeb = _isWeb;
+export const isWebWorker = (_isWeb && typeof globals.importScripts === 'function');
 export const isIOS = _isIOS;
+/**
+ * Whether we run inside a CI environment, such as
+ * GH actions or Azure Pipelines.
+ */
+export const isCI = _isCI;
 export const platform = _platform;
 export const userAgent = _userAgent;
 
@@ -247,3 +253,9 @@ export function isLittleEndian(): boolean {
 	}
 	return _isLittleEndian;
 }
+
+export const isChrome = !!(userAgent && userAgent.indexOf('Chrome') >= 0);
+export const isFirefox = !!(userAgent && userAgent.indexOf('Firefox') >= 0);
+export const isSafari = !!(!isChrome && (userAgent && userAgent.indexOf('Safari') >= 0));
+export const isEdge = !!(userAgent && userAgent.indexOf('Edg/') >= 0);
+export const isAndroid = !!(userAgent && userAgent.indexOf('Android') >= 0);

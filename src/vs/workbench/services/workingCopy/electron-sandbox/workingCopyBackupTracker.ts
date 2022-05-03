@@ -217,7 +217,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		this.logService.error(error ? `[backup tracker] ${msg}: ${error}` : `[backup tracker] ${msg}`);
 	}
 
-	private async backupBeforeShutdown(dirtyWorkingCopies: readonly IWorkingCopy[]): Promise<{ backups: IWorkingCopy[], error?: Error }> {
+	private async backupBeforeShutdown(dirtyWorkingCopies: readonly IWorkingCopy[]): Promise<{ backups: IWorkingCopy[]; error?: Error }> {
 		const backups: IWorkingCopy[] = [];
 		let error: Error | undefined = undefined;
 
@@ -252,7 +252,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 				error = backupError;
 			}
 		},
-			localize('backupBeforeShutdownMessage', "Backing up editors with unsaved changes is taking longer than expected..."),
+			localize('backupBeforeShutdownMessage', "Backing up editors with unsaved changes is taking a bit longer..."),
 			localize('backupBeforeShutdownDetail', "Click 'Cancel' to stop waiting and to save or revert editors with unsaved changes.")
 		);
 
@@ -323,7 +323,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			if (result !== false) {
 				await Promises.settled(dirtyWorkingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.save(saveOptions) : Promise.resolve(true)));
 			}
-		}, localize('saveBeforeShutdown', "Saving editors with unsaved changes is taking longer than expected..."));
+		}, localize('saveBeforeShutdown', "Saving editors with unsaved changes is taking a bit longer..."));
 	}
 
 	private doRevertAllBeforeShutdown(dirtyWorkingCopies: IWorkingCopy[]): Promise<void> {
@@ -338,9 +338,8 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			}
 
 			// If we still have dirty working copies, revert those directly
-			// unless the revert operation was not successful (e.g. cancelled)
 			await Promises.settled(dirtyWorkingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.revert(revertOptions) : Promise.resolve()));
-		}, localize('revertBeforeShutdown', "Reverting editors with unsaved changes is taking longer than expected..."));
+		}, localize('revertBeforeShutdown', "Reverting editors with unsaved changes is taking a bit longer..."));
 	}
 
 	private async noVeto(backupsToDiscard: IWorkingCopyIdentifier[]): Promise<boolean> {
@@ -406,7 +405,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			} catch (error) {
 				this.logService.error(`[backup tracker] error discarding backups: ${error}`);
 			}
-		}, localize('discardBackupsBeforeShutdown', "Discarding backups is taking longer than expected..."));
+		}, localize('discardBackupsBeforeShutdown', "Discarding backups is taking a bit longer..."));
 	}
 
 	private withProgressAndCancellation(promiseFactory: (token: CancellationToken) => Promise<void>, title: string, detail?: string): Promise<void> {

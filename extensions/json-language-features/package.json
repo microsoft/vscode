@@ -23,9 +23,6 @@
       "supported": true
     }
   },
-  "enabledApiProposals": [
-    "languageStatus"
-  ],
   "scripts": {
     "compile": "npx gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
     "watch": "npx gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
@@ -75,6 +72,12 @@
               }
             }
           }
+        },
+        "json.validate.enable": {
+          "type": "boolean",
+          "scope": "window",
+          "default": true,
+          "description": "%json.validate.enable.desc%"
         },
         "json.format.enable": {
           "type": "boolean",
@@ -135,20 +138,22 @@
         "url": "http://json-schema.org/draft-07/schema#"
       }
     ],
-    "commands": [{
-      "command": "json.clearCache",
-      "title": "%json.command.clearCache%",
-      "category": "JSON"
-    }]
+    "commands": [
+      {
+        "command": "json.clearCache",
+        "title": "%json.command.clearCache%",
+        "category": "JSON"
+      }
+    ]
   },
   "dependencies": {
-    "request-light": "^0.5.5",
-    "vscode-extension-telemetry": "0.4.3",
+    "@vscode/extension-telemetry": "0.5.0",
+    "request-light": "^0.5.8",
     "vscode-languageclient": "^7.0.0",
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
-    "@types/node": "14.x"
+    "@types/node": "16.x"
   },
   "repository": {
     "type": "git",

@@ -3,131 +3,136 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ThrottledDelayer } from 'vs/base/common/async';
+import { Event, Emitter } from 'vs/base/common/event';
+import { patternsEquals } from 'vs/base/common/glob';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { basename, join } from 'vs/base/common/path';
-import { realpath } from 'vs/base/node/extpath';
-import { SymlinkSupport } from 'vs/base/node/pfs';
-import { CHANGE_BUFFER_DELAY, watchFile, watchFolder } from 'vs/base/node/watcher';
-import { FileChangeType } from 'vs/platform/files/common/files';
-import { IDiskFileChange, ILogMessage, coalesceEvents } from 'vs/platform/files/common/watcher';
+import { isLinux } from 'vs/base/common/platform';
+import { IDiskFileChange, ILogMessage, INonRecursiveWatchRequest, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 
-export class NodeJSFileWatcher extends Disposable {
+export interface INodeJSWatcherInstance {
 
-	private readonly fileChangesDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(CHANGE_BUFFER_DELAY * 2 /* sync on delay from underlying library */));
-	private fileChangesBuffer: IDiskFileChange[] = [];
-	
-	private isDisposed: boolean | undefined;
+	/**
+	 * The watcher instance.
+	 */
+	readonly instance: NodeJSFileWatcherLibrary;
 
-	constructor(
-		private path: string,
-		private onDidFilesChange: (changes: IDiskFileChange[]) => void,
-		private onLogMessage: (msg: ILogMessage) => void,
-		private verboseLogging: boolean
-	) {
-		super();
+	/**
+	 * The watch request associated to the watcher.
+	 */
+	readonly request: INonRecursiveWatchRequest;
+}
 
-		this.startWatching();
-	}
+export class NodeJSWatcher extends Disposable implements INonRecursiveWatcher {
 
-	setVerboseLogging(verboseLogging: boolean): void {
-		this.verboseLogging = verboseLogging;
-	}
+	private readonly _onDidChangeFile = this._register(new Emitter<IDiskFileChange[]>());
+	readonly onDidChangeFile = this._onDidChangeFile.event;
 
-	private async startWatching(): Promise<void> {
-		try {
-			const { stat, symbolicLink } = await SymlinkSupport.stat(this.path);
+	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
+	readonly onDidLogMessage = this._onDidLogMessage.event;
 
-			if (this.isDisposed) {
-				return;
+	readonly onDidError = Event.None;
+
+	protected readonly watchers = new Map<string, INodeJSWatcherInstance>();
+
+	private verboseLogging = false;
+
+	async watch(requests: INonRecursiveWatchRequest[]): Promise<void> {
+
+		// Figure out duplicates to remove from the requests
+		const normalizedRequests = this.normalizeRequests(requests);
+
+		// Gather paths that we should start watching
+		const requestsToStartWatching = normalizedRequests.filter(request => {
+			const watcher = this.watchers.get(request.path);
+			if (!watcher) {
+				return true; // not yet watching that path
 			}
 
-			let pathToWatch = this.path;
-			if (symbolicLink) {
-				try {
-					pathToWatch = await realpath(pathToWatch);
-				} catch (error) {
-					this.onError(error);
+			// Re-watch path if excludes or includes have changed
+			return !patternsEquals(watcher.request.excludes, request.excludes) || !patternsEquals(watcher.request.includes, request.includes);
+		});
 
-					if (symbolicLink.dangling) {
-						return; // give up if symbolic link is dangling
-					}
-				}
-			}
-
-			// Watch Folder
-			if (stat.isDirectory()) {
-				this._register(watchFolder(pathToWatch, (eventType, path) => {
-					this.onFileChange({
-						type: eventType === 'changed' ? FileChangeType.UPDATED : eventType === 'added' ? FileChangeType.ADDED : FileChangeType.DELETED,
-						path: join(this.path, basename(path)) // ensure path is identical with what was passed in
-					});
-				}, error => this.onError(error)));
-			}
-
-			// Watch File
-			else {
-				this._register(watchFile(pathToWatch, eventType => {
-					this.onFileChange({
-						type: eventType === 'changed' ? FileChangeType.UPDATED : FileChangeType.DELETED,
-						path: this.path // ensure path is identical with what was passed in
-					});
-				}, error => this.onError(error)));
-			}
-		} catch (error) {
-			if (error.code !== 'ENOENT') {
-				this.onError(error);
-			}
-		}
-	}
-
-	private onFileChange(event: IDiskFileChange): void {
-
-		// Add to buffer
-		this.fileChangesBuffer.push(event);
+		// Gather paths that we should stop watching
+		const pathsToStopWatching = Array.from(this.watchers.values()).filter(({ request }) => {
+			return !normalizedRequests.find(normalizedRequest => normalizedRequest.path === request.path && patternsEquals(normalizedRequest.excludes, request.excludes) && patternsEquals(normalizedRequest.includes, request.includes));
+		}).map(({ request }) => request.path);
 
 		// Logging
+
+		if (requestsToStartWatching.length) {
+			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? request.includes : '<all>'})`).join(',')}`);
+		}
+
+		if (pathsToStopWatching.length) {
+			this.trace(`Request to stop watching: ${pathsToStopWatching.join(',')}`);
+		}
+
+		// Stop watching as instructed
+		for (const pathToStopWatching of pathsToStopWatching) {
+			this.stopWatching(pathToStopWatching);
+		}
+
+		// Start watching as instructed
+		for (const request of requestsToStartWatching) {
+			this.startWatching(request);
+		}
+	}
+
+	private startWatching(request: INonRecursiveWatchRequest): void {
+
+		// Start via node.js lib
+		const instance = new NodeJSFileWatcherLibrary(request, changes => this._onDidChangeFile.fire(changes), msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
+
+		// Remember as watcher instance
+		const watcher: INodeJSWatcherInstance = { request, instance };
+		this.watchers.set(request.path, watcher);
+	}
+
+	async stop(): Promise<void> {
+		for (const [path] of this.watchers) {
+			this.stopWatching(path);
+		}
+
+		this.watchers.clear();
+	}
+
+	private stopWatching(path: string): void {
+		const watcher = this.watchers.get(path);
+		if (watcher) {
+			this.watchers.delete(path);
+
+			watcher.instance.dispose();
+		}
+	}
+
+	private normalizeRequests(requests: INonRecursiveWatchRequest[]): INonRecursiveWatchRequest[] {
+		const requestsMap = new Map<string, INonRecursiveWatchRequest>();
+
+		// Ignore requests for the same paths
+		for (const request of requests) {
+			const path = isLinux ? request.path : request.path.toLowerCase(); // adjust for case sensitivity
+			requestsMap.set(path, request);
+		}
+
+		return Array.from(requestsMap.values());
+	}
+
+	async setVerboseLogging(enabled: boolean): Promise<void> {
+		this.verboseLogging = enabled;
+
+		for (const [, watcher] of this.watchers) {
+			watcher.instance.setVerboseLogging(enabled);
+		}
+	}
+
+	private trace(message: string): void {
 		if (this.verboseLogging) {
-			this.onVerbose(`${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
-		}
-
-		// Handle emit through delayer to accommodate for bulk changes and thus reduce spam
-		this.fileChangesDelayer.trigger(async () => {
-			const fileChanges = this.fileChangesBuffer;
-			this.fileChangesBuffer = [];
-
-			// Event coalsecer
-			const coalescedFileChanges = coalesceEvents(fileChanges);
-
-			// Logging
-			if (this.verboseLogging) {
-				for (const event of coalescedFileChanges) {
-					this.onVerbose(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
-				}
-			}
-
-			// Fire
-			if (coalescedFileChanges.length > 0) {
-				this.onDidFilesChange(coalescedFileChanges);
-			}
-		});
-	}
-
-	private onError(error: string): void {
-		if (!this.isDisposed) {
-			this.onLogMessage({ type: 'error', message: `[File Watcher (node.js)] ${error}` });
+			this._onDidLogMessage.fire({ type: 'trace', message: this.toMessage(message) });
 		}
 	}
 
-	private onVerbose(message: string): void {
-		if (!this.isDisposed) {
-			this.onLogMessage({ type: 'trace', message: `[File Watcher (node.js)] ${message}` });
-		}
-	}
-
-	override dispose(): void {
-		this.isDisposed = true;
-
-		super.dispose();
+	private toMessage(message: string, watcher?: INodeJSWatcherInstance): string {
+		return watcher ? `[File Watcher (node.js)] ${message} (path: ${watcher.request.path})` : `[File Watcher (node.js)] ${message}`;
 	}
 }

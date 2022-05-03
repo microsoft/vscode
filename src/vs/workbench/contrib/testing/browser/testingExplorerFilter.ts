@@ -17,11 +17,11 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { TestTag } from 'vs/workbench/api/common/extHostTypeConverters';
 import { attachSuggestEnabledInputBoxStyler, ContextScopedSuggestEnabledInputWithHistory, SuggestEnabledInputWithHistory, SuggestResultsProvider } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { testingFilterIcon } from 'vs/workbench/contrib/testing/browser/icons';
-import { Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
+import { denamespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
@@ -65,6 +65,11 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 		const wrapper = this.wrapper = dom.$('.testing-filter-wrapper');
 		container.appendChild(wrapper);
 
+		const history = this.history.get([]);
+		if (history.length) {
+			this.state.setText(history[history.length - 1]);
+		}
+
 		const input = this.input = this._register(this.instantiationService.createInstance(ContextScopedSuggestEnabledInputWithHistory, {
 			id: 'testing.explorer.filter',
 			ariaLabel: localize('testExplorerFilterLabel', "Filter text for tests in the explorer"),
@@ -74,11 +79,11 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 				provideResults: () => [
 					...Object.entries(testFilterDescriptions).map(([label, detail]) => ({ label, detail })),
 					...Iterable.map(this.testService.collection.tags.values(), tag => {
-						const { ctrlId, tagId } = TestTag.denamespace(tag.id);
+						const { ctrlId, tagId } = denamespaceTestTag(tag.id);
 						const insertText = `@${ctrlId}:${tagId}`;
 						return ({
 							label: `@${ctrlId}:${tagId}`,
-							detail: tag.ctrlLabel,
+							detail: this.testService.collection.getNodeById(ctrlId)?.item.label,
 							insertText: tagId.includes(' ') ? `@${ctrlId}:"${tagId.replace(/(["\\])/g, '\\$1')}"` : insertText,
 						});
 					}),
@@ -89,7 +94,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 				value: this.state.text.value,
 				placeholderText: localize('testExplorerFilter', "Filter (e.g. text, !exclude, @tag)"),
 			},
-			history: this.history.get([])
+			history
 		}));
 		this._register(attachSuggestEnabledInputBoxStyler(input, this.themeService));
 
@@ -205,6 +210,17 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 			})),
 			new Separator(),
 			{
+				checked: this.filters.fuzzy.value,
+				class: undefined,
+				enabled: true,
+				id: 'fuzzy',
+				label: localize('testing.filters.fuzzyMatch', "Fuzzy Match"),
+				run: () => this.filters.fuzzy.value = !this.filters.fuzzy.value,
+				tooltip: '',
+				dispose: () => null
+			},
+			new Separator(),
+			{
 				checked: this.filters.isFilteringFor(TestFilterTerm.Hidden),
 				class: undefined,
 				enabled: this.testService.excluded.hasAny,
@@ -235,7 +251,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: Testing.FilterActionId,
+			id: TestCommandId.FilterAction,
 			title: localize('filter', "Filter"),
 		});
 	}

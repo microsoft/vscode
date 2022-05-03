@@ -15,6 +15,7 @@
     "*"
   ],
   "main": "./out/extension.js",
+  "browser": "./dist/browser/extension.js",
   "icon": "resources/icons/git.png",
   "scripts": {
     "compile": "gulp compile-extension:git-base",
@@ -99,10 +100,10 @@
     ]
   },
   "dependencies": {
-    "vscode-nls": "^4.0.0"
+    "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
-    "@types/node": "14.x"
+    "@types/node": "16.x"
   },
   "repository": {
     "type": "git",

@@ -5,11 +5,11 @@
 
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/services/languageService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestMessageType } from 'vs/workbench/contrib/testing/common/testTypes';
 import { parseTestUri, TestUriType, TEST_DATA_SCHEME } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 
@@ -76,6 +76,6 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 			return null;
 		}
 
-		return this.modelService.createModel(text, language, resource, true);
+		return this.modelService.createModel(text, language, resource, false);
 	}
 }

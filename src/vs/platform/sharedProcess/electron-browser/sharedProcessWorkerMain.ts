@@ -12,7 +12,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { removeDangerousEnvVariables } from 'vs/base/node/processes';
+import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { hash, ISharedProcessWorkerConfiguration, ISharedProcessWorkerProcessExit } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { SharedProcessWorkerMessages, ISharedProcessToWorkerMessage, ISharedProcessWorkerEnvironment, IWorkerToSharedProcessMessage } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorker';
 
@@ -124,7 +124,7 @@ class SharedProcessWorkerProcess extends Disposable {
 	}
 
 	spawn(): void {
-		Logger.trace(`Forking worker process (env: ${JSON.stringify(this.environment.env)})`);
+		Logger.trace('Forking worker process');
 
 		// Fork module via bootstrap-fork for AMD support
 		this.child = fork(
@@ -142,7 +142,7 @@ class SharedProcessWorkerProcess extends Disposable {
 		// Handle termination that happens from the process
 		// itself. This can either be a crash or the process
 		// not being long running.
-		const onExit = Event.fromNodeEventEmitter<{ code: number | null, signal: NodeJS.Signals | null }>(this.child, 'exit', (code: number | null, signal: NodeJS.Signals | null) => ({ code, signal }));
+		const onExit = Event.fromNodeEventEmitter<{ code: number | null; signal: NodeJS.Signals | null }>(this.child, 'exit', (code: number | null, signal: NodeJS.Signals | null) => ({ code, signal }));
 		this._register(onExit(({ code, signal }) => {
 			const logMsg = `Worker process with pid ${this.child?.pid} terminated by itself with code ${code}, signal: ${signal} (type: ${this.configuration.process.type}, window: ${this.configuration.reply.windowId})`;
 			if (code !== 0 && signal !== 'SIGTERM') {
@@ -194,7 +194,6 @@ class SharedProcessWorkerProcess extends Disposable {
 	private getEnv(): NodeJS.ProcessEnv {
 		const env: NodeJS.ProcessEnv = {
 			...deepClone(process.env),
-			...this.environment.env,
 			VSCODE_AMD_ENTRYPOINT: this.configuration.process.moduleId,
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true',

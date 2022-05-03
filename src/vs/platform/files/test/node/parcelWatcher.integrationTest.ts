@@ -13,28 +13,30 @@ import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IParcelWatcherInstance, ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
-import { IWatchRequest } from 'vs/platform/files/common/watcher';
+import { IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
+import { getDriveLetter } from 'vs/base/common/extpath';
+import { ltrim } from 'vs/base/common/strings';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
 // mocha but generally). as such they will run only on demand
 // whenever we update the watcher library.
 
-((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('Recursive Watcher (parcel)', () => {
+((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (parcel)', () => {
 
 	class TestParcelWatcher extends ParcelWatcher {
 
 		testNormalizePaths(paths: string[]): string[] {
 
 			// Work with strings as paths to simplify testing
-			const requests: IWatchRequest[] = paths.map(path => {
-				return { path, excludes: [] };
+			const requests: IRecursiveWatchRequest[] = paths.map(path => {
+				return { path, excludes: [], recursive: true };
 			});
 
 			return this.normalizeRequests(requests).map(request => request.path);
 		}
 
-		override async watch(requests: IWatchRequest[]): Promise<void> {
+		override async watch(requests: IRecursiveWatchRequest[]): Promise<void> {
 			await super.watch(requests);
 			await this.whenReady();
 		}
@@ -90,6 +92,7 @@ import { IWatchRequest } from 'vs/platform/files/common/watcher';
 
 	teardown(async () => {
 		await watcher.stop();
+		watcher.dispose();
 
 		// Possible that the file watcher is still holding
 		// onto the folders on Windows specifically and the
@@ -152,7 +155,7 @@ import { IWatchRequest } from 'vs/platform/files/common/watcher';
 	}
 
 	test('basics', async function () {
-		await watcher.watch([{ path: testDir, excludes: [] }]);
+		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]); //
 
 		// New file
 		const newFilePath = join(testDir, 'deep', 'newFile.txt');
@@ -278,7 +281,7 @@ import { IWatchRequest } from 'vs/platform/files/common/watcher';
 	});
 
 	(isMacintosh /* this test seems not possible with fsevents backend */ ? test.skip : test)('basics (atomic writes)', async function () {
-		await watcher.watch([{ path: testDir, excludes: [] }]);
+		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]);
 
 		// Delete + Recreate file
 		const newFilePath = join(testDir, 'deep', 'conway.js');
@@ -289,27 +292,31 @@ import { IWatchRequest } from 'vs/platform/files/common/watcher';
 	});
 
 	(!isLinux /* polling is only used in linux environments (WSL) */ ? test.skip : test)('basics (polling)', async function () {
-		await watcher.watch([{ path: testDir, excludes: [], pollingInterval: 100 }]);
+		await watcher.watch([{ path: testDir, excludes: [], pollingInterval: 100, recursive: true }]);
+
+		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
+	});
+
+	async function basicCrudTest(filePath: string): Promise<void> {
 
 		// New file
-		const newFilePath = join(testDir, 'deep', 'newFile.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
-		await Promises.writeFile(newFilePath, 'Hello World');
+		let changeFuture: Promise<unknown> = awaitEvent(watcher, filePath, FileChangeType.ADDED);
+		await Promises.writeFile(filePath, 'Hello World');
 		await changeFuture;
 
 		// Change file
-		changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
-		await Promises.writeFile(newFilePath, 'Hello Change');
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED);
+		await Promises.writeFile(filePath, 'Hello Change');
 		await changeFuture;
 
 		// Delete file
-		changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.DELETED);
-		await Promises.unlink(newFilePath);
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED);
+		await Promises.unlink(filePath);
 		await changeFuture;
-	});
+	}
 
 	test('multiple events', async function () {
-		await watcher.watch([{ path: testDir, excludes: [] }]);
+		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]);
 		await Promises.mkdir(join(testDir, 'deep-multiple'));
 
 		// multiple add
@@ -401,7 +408,7 @@ import { IWatchRequest } from 'vs/platform/files/common/watcher';
 	});
 
 	test('subsequent watch updates watchers (path)', async function () {
-		await watcher.watch([{ path: testDir, excludes: [join(realpathSync(testDir), 'unrelated')] }]);
+		await watcher.watch([{ path: testDir, excludes: [join(realpathSync(testDir), 'unrelated')], recursive: true }]);
 
 		// New file (*.txt)
 		let newTextFilePath = join(testDir, 'deep', 'newFile.txt');
@@ -409,14 +416,14 @@ import { IWatchRequest } from 'vs/platform/files/common/watcher';
 		await Promises.writeFile(newTextFilePath, 'Hello World');
 		await changeFuture;
 
-		await watcher.watch([{ path: join(testDir, 'deep'), excludes: [join(realpathSync(testDir), 'unrelated')] }]);
+		await watcher.watch([{ path: join(testDir, 'deep'), excludes: [join(realpathSync(testDir), 'unrelated')], recursive: true }]);
 		newTextFilePath = join(testDir, 'deep', 'newFile2.txt');
 		changeFuture = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newTextFilePath, 'Hello World');
 		await changeFuture;
 
-		await watcher.watch([{ path: join(testDir, 'deep'), excludes: [realpathSync(testDir)] }]);
-		await watcher.watch([{ path: join(testDir, 'deep'), excludes: [] }]);
+		await watcher.watch([{ path: join(testDir, 'deep'), excludes: [realpathSync(testDir)], recursive: true }]);
+		await watcher.watch([{ path: join(testDir, 'deep'), excludes: [], recursive: true }]);
 		newTextFilePath = join(testDir, 'deep', 'newFile3.txt');
 		changeFuture = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newTextFilePath, 'Hello World');
@@ -424,14 +431,35 @@ import { IWatchRequest } from 'vs/platform/files/common/watcher';
 	});
 
 	test('subsequent watch updates watchers (excludes)', async function () {
-		await watcher.watch([{ path: testDir, excludes: [realpathSync(testDir)] }]);
-		await watcher.watch([{ path: testDir, excludes: [] }]);
+		await watcher.watch([{ path: testDir, excludes: [realpathSync(testDir)], recursive: true }]);
+		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]);
 
-		// New file (*.txt)
-		let newTextFilePath = join(testDir, 'deep', 'newFile.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
-		await Promises.writeFile(newTextFilePath, 'Hello World');
-		await changeFuture;
+		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
+	});
+
+	test('subsequent watch updates watchers (includes)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['nothing'], recursive: true }]);
+		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]);
+
+		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
+	});
+
+	test('includes are supported', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['**/deep/**'], recursive: true }]);
+
+		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
+	});
+
+	test('includes are supported (relative pattern explicit)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: [{ base: testDir, pattern: 'deep/newFile.txt' }], recursive: true }]);
+
+		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
+	});
+
+	test('includes are supported (relative pattern implicit)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['deep/newFile.txt'], recursive: true }]);
+
+		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
 	});
 
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (root)', async function () {
@@ -439,13 +467,9 @@ import { IWatchRequest } from 'vs/platform/files/common/watcher';
 		const linkTarget = join(testDir, 'deep');
 		await Promises.symlink(linkTarget, link);
 
-		await watcher.watch([{ path: link, excludes: [] }]);
+		await watcher.watch([{ path: link, excludes: [], recursive: true }]);
 
-		// New file
-		const newFilePath = join(link, 'newFile.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
-		await Promises.writeFile(newFilePath, 'Hello World');
-		await changeFuture;
+		return basicCrudTest(join(link, 'newFile.txt'));
 	});
 
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (via extra watch)', async function () {
@@ -453,37 +477,39 @@ import { IWatchRequest } from 'vs/platform/files/common/watcher';
 		const linkTarget = join(testDir, 'deep');
 		await Promises.symlink(linkTarget, link);
 
-		await watcher.watch([{ path: testDir, excludes: [] }, { path: link, excludes: [] }]);
+		await watcher.watch([{ path: testDir, excludes: [], recursive: true }, { path: link, excludes: [], recursive: true }]);
 
-		// New file
-		const newFilePath = join(link, 'newFile.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
-		await Promises.writeFile(newFilePath, 'Hello World');
-		await changeFuture;
+		return basicCrudTest(join(link, 'newFile.txt'));
+	});
+
+	(!isWindows /* UNC is windows only */ ? test.skip : test)('unc support', async function () {
+
+		// Local UNC paths are in the form of: \\localhost\c$\my_dir
+		const uncPath = `\\\\localhost\\${getDriveLetter(testDir)?.toLowerCase()}$\\${ltrim(testDir.substr(testDir.indexOf(':') + 1), '\\')}`;
+
+		await watcher.watch([{ path: uncPath, excludes: [], recursive: true }]);
+
+		return basicCrudTest(join(uncPath, 'deep', 'newFile.txt'));
 	});
 
 	(isLinux /* linux: is case sensitive */ ? test.skip : test)('wrong casing', async function () {
 		const deepWrongCasedPath = join(testDir, 'DEEP');
 
-		await watcher.watch([{ path: deepWrongCasedPath, excludes: [] }]);
+		await watcher.watch([{ path: deepWrongCasedPath, excludes: [], recursive: true }]);
 
-		// New file
-		const newFilePath = join(deepWrongCasedPath, 'newFile.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
-		await Promises.writeFile(newFilePath, 'Hello World');
-		await changeFuture;
+		return basicCrudTest(join(deepWrongCasedPath, 'newFile.txt'));
 	});
 
 	test('invalid folder does not explode', async function () {
 		const invalidPath = join(testDir, 'invalid');
 
-		await watcher.watch([{ path: invalidPath, excludes: [] }]);
+		await watcher.watch([{ path: invalidPath, excludes: [], recursive: true }]);
 	});
 
 	test('deleting watched path is handled properly', async function () {
 		const watchedPath = join(testDir, 'deep');
 
-		await watcher.watch([{ path: watchedPath, excludes: [] }]);
+		await watcher.watch([{ path: watchedPath, excludes: [], recursive: true }]);
 
 		// Delete watched path and await
 		const warnFuture = awaitMessage(watcher, 'warn');
@@ -491,6 +517,7 @@ import { IWatchRequest } from 'vs/platform/files/common/watcher';
 		await warnFuture;
 
 		// Restore watched path
+		await timeout(1500); // node.js watcher used for monitoring folder restore is async
 		await Promises.mkdir(watchedPath);
 		await timeout(1500); // restart is delayed
 		await watcher.whenReady();

@@ -48,12 +48,17 @@
           "extensions.json",
           "argv.json",
           "profiles.json",
+          "devcontainer.json",
           ".devcontainer.json"
         ],
         "filenamePatterns": [
-					"**/.devcontainer/devcontainer.json",
           "**/User/snippets/*.json"
-				]
+        ]
+      }, {
+        "id": "json",
+        "extensions": [
+          ".code-profile"
+        ]
       }
     ],
     "jsonValidation": [
@@ -122,11 +127,11 @@
         "url": "vscode://schemas/extensions"
       },
       {
-        "fileMatch": "/.devcontainer/devcontainer.json",
+        "fileMatch": "devcontainer.json",
         "url": "./schemas/devContainer.schema.generated.json"
       },
       {
-        "fileMatch": "/.devcontainer.json",
+        "fileMatch": ".devcontainer.json",
         "url": "./schemas/devContainer.schema.generated.json"
       },
       {
@@ -136,11 +141,15 @@
       {
         "fileMatch": "%APP_SETTINGS_HOME%/globalStorage/ms-vscode-remote.remote-containers/imageConfigs/*.json",
         "url": "./schemas/attachContainer.schema.json"
+      },
+      {
+        "fileMatch": "**/quality/*/product.json",
+        "url": "vscode://schemas/vscode-product"
       }
     ]
   },
   "devDependencies": {
-    "@types/node": "14.x"
+    "@types/node": "16.x"
   },
   "repository": {
     "type": "git",

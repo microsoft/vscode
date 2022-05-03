@@ -7,6 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IViewBadge } from 'vs/workbench/common/views';
 import { IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
 
 export const IWebviewViewService = createDecorator<IWebviewViewService>('webviewViewService');
@@ -14,6 +15,7 @@ export const IWebviewViewService = createDecorator<IWebviewViewService>('webview
 export interface WebviewView {
 	title?: string;
 	description?: string;
+	badge?: IViewBadge;
 
 	readonly webview: IOverlayWebview;
 
@@ -46,7 +48,7 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 
 	private readonly _resolvers = new Map<string, IWebviewViewResolver>();
 
-	private readonly _awaitingRevival = new Map<string, { webview: WebviewView, resolve: () => void }>();
+	private readonly _awaitingRevival = new Map<string, { webview: WebviewView; resolve: () => void }>();
 
 	private readonly _onNewResolverRegistered = this._register(new Emitter<{ readonly viewType: string }>());
 	public readonly onNewResolverRegistered = this._onNewResolverRegistered.event;

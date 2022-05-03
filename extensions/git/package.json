@@ -87,13 +87,6 @@
         "icon": "$(compare-changes)"
       },
       {
-        "command": "git.openChangeEditor",
-        "title": "%command.openChange%",
-        "category": "Git",
-        "icon": "$(compare-changes)",
-        "enablement": "scmActiveResourceHasChanges"
-      },
-      {
         "command": "git.openAllChanges",
         "title": "%command.openAllChanges%",
         "category": "Git"
@@ -502,6 +495,11 @@
         "category": "Git"
       },
       {
+        "command": "git.stashDropAll",
+        "title": "%command.stashDropAll%",
+        "category": "Git"
+      },
+      {
         "command": "git.timeline.openDiff",
         "title": "%command.timelineOpenDiff%",
         "icon": "$(compare-changes)",
@@ -530,6 +528,11 @@
       {
         "command": "git.rebaseAbort",
         "title": "%command.rebaseAbort%",
+        "category": "Git"
+      },
+      {
+        "command": "git.closeAllDiffEditors",
+        "title": "%command.closeAllDiffEditors%",
         "category": "Git"
       },
       {
@@ -600,18 +603,14 @@
         },
         {
           "command": "git.openFile",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file && scmActiveResourceHasChanges"
         },
         {
           "command": "git.openHEADFile",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file && scmActiveResourceHasChanges"
         },
         {
           "command": "git.openChange",
-          "when": "false"
-        },
-        {
-          "command": "git.openChangeEditor",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -684,7 +683,7 @@
         },
         {
           "command": "git.rename",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file && scmActiveResourceRepository"
         },
         {
           "command": "git.commit",
@@ -884,7 +883,7 @@
         },
         {
           "command": "git.ignore",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file && scmActiveResourceRepository"
         },
         {
           "command": "git.stashIncludeUntracked",
@@ -915,6 +914,10 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.stashDropAll",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.timeline.openDiff",
           "when": "false"
         },
@@ -933,6 +936,10 @@
         {
           "command": "git.timeline.compareWithSelected",
           "when": "false"
+        },
+        {
+          "command": "git.closeAllDiffEditors",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.api.getRepositories",
@@ -976,6 +983,11 @@
         {
           "command": "git.checkout",
           "group": "1_header@4",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.fetch",
+          "group": "1_header@5",
           "when": "scmProvider == git"
         },
         {
@@ -1369,9 +1381,9 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInNotebookTextDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
-          "command": "git.openChangeEditor",
+          "command": "git.openChange",
           "group": "navigation",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file && scmActiveResourceHasChanges"
         },
         {
           "command": "git.stageSelectedRanges",
@@ -1651,6 +1663,10 @@
         {
           "command": "git.stashDrop",
           "group": "stash@7"
+        },
+        {
+          "command": "git.stashDropAll",
+          "group": "stash@8"
         }
       ],
       "git.tags": [
@@ -2111,6 +2127,12 @@
           "default": true,
           "description": "%config.confirmNoVerifyCommit%"
         },
+        "git.closeDiffOnOperation": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.closeDiffOnOperation%"
+        },
         "git.openDiffOnClick": {
           "type": "boolean",
           "scope": "resource",
@@ -2171,6 +2193,11 @@
           "default": false,
           "description": "%config.useCommitInputAsStashMessage%"
         },
+        "git.useIntegratedAskPass": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.useIntegratedAskPass%"
+        },
         "git.githubAuthentication": {
           "deprecationMessage": "This setting is now deprecated, please use `github.gitAuthentication` instead."
         },
@@ -2194,6 +2221,12 @@
           "description": "%config.timeline.showAuthor%",
           "scope": "window"
         },
+        "git.timeline.showUncommitted": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.timeline.showUncommitted%",
+          "scope": "window"
+        },
         "git.showUnpublishedCommitsButton": {
           "type": "string",
           "enum": [
@@ -2215,6 +2248,45 @@
           "scope": "resource",
           "default": 10000,
           "description": "%config.statusLimit%"
+        },
+        "git.experimental.installGuide": {
+          "type": "string",
+          "enum": [
+            "default",
+            "download"
+          ],
+          "tags": [
+            "experimental"
+          ],
+          "scope": "machine",
+          "description": "%config.experimental.installGuide%",
+          "default": "default"
+        },
+        "git.repositoryScanIgnoredFolders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "node_modules"
+          ],
+          "scope": "resource",
+          "markdownDescription": "%config.repositoryScanIgnoredFolders%"
+        },
+        "git.repositoryScanMaxDepth": {
+          "type": "number",
+          "scope": "resource",
+          "default": 1,
+          "markdownDescription": "%config.repositoryScanMaxDepth%"
+        },
+        "git.commandsToLog": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "resource",
+          "markdownDescription": "%config.commandsToLog%"
         }
       }
     },
@@ -2225,7 +2297,8 @@
         "defaults": {
           "light": "#587c0c",
           "dark": "#81b88b",
-          "highContrast": "#1b5225"
+          "highContrast": "#1b5225",
+          "highContrastLight": "#374e06"
         }
       },
       {
@@ -2234,7 +2307,8 @@
         "defaults": {
           "light": "#895503",
           "dark": "#E2C08D",
-          "highContrast": "#E2C08D"
+          "highContrast": "#E2C08D",
+          "highContrastLight": "#895503"
         }
       },
       {
@@ -2243,7 +2317,8 @@
         "defaults": {
           "light": "#ad0707",
           "dark": "#c74e39",
-          "highContrast": "#c74e39"
+          "highContrast": "#c74e39",
+          "highContrastLight": "#ad0707"
         }
       },
       {
@@ -2252,7 +2327,8 @@
         "defaults": {
           "light": "#007100",
           "dark": "#73C991",
-          "highContrast": "#73C991"
+          "highContrast": "#73C991",
+          "highContrastLight": "#007100"
         }
       },
       {
@@ -2261,7 +2337,8 @@
         "defaults": {
           "light": "#007100",
           "dark": "#73C991",
-          "highContrast": "#73C991"
+          "highContrast": "#73C991",
+          "highContrastLight": "#007100"
         }
       },
       {
@@ -2270,7 +2347,8 @@
         "defaults": {
           "light": "#8E8E90",
           "dark": "#8C8C8C",
-          "highContrast": "#A7A8A9"
+          "highContrast": "#A7A8A9",
+          "highContrastLight": "#8e8e90"
         }
       },
       {
@@ -2279,7 +2357,8 @@
         "defaults": {
           "light": "#895503",
           "dark": "#E2C08D",
-          "highContrast": "#E2C08D"
+          "highContrast": "#E2C08D",
+          "highContrastLight": "#895503"
         }
       },
       {
@@ -2288,7 +2367,8 @@
         "defaults": {
           "light": "#ad0707",
           "dark": "#c74e39",
-          "highContrast": "#c74e39"
+          "highContrast": "#c74e39",
+          "highContrastLight": "#ad0707"
         }
       },
       {
@@ -2297,7 +2377,8 @@
         "defaults": {
           "light": "#ad0707",
           "dark": "#e4676b",
-          "highContrast": "#c74e39"
+          "highContrast": "#c74e39",
+          "highContrastLight": "#ad0707"
         }
       },
       {
@@ -2306,7 +2387,8 @@
         "defaults": {
           "light": "#1258a7",
           "dark": "#8db9e2",
-          "highContrast": "#8db9e2"
+          "highContrast": "#8db9e2",
+          "highContrastLight": "#1258a7"
         }
       }
     ],
@@ -2329,8 +2411,28 @@
       },
       {
         "view": "scm",
+        "contents": "%view.workbench.scm.missing.guide%",
+        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.missing.guide.mac%",
+        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download && isMac"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.missing.guide.windows%",
+        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download && isWindows"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.missing.guide.linux%",
+        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download && isLinux"
+      },
+      {
+        "view": "scm",
         "contents": "%view.workbench.scm.missing%",
-        "when": "config.git.enabled && git.missing"
+        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == default"
       },
       {
         "view": "scm",
@@ -2377,11 +2479,11 @@
     ]
   },
   "dependencies": {
+    "@vscode/extension-telemetry": "0.4.10",
+    "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "^7.2.0",
-    "iconv-lite-umd": "0.6.10",
     "jschardet": "3.0.0",
-    "vscode-extension-telemetry": "0.4.3",
     "vscode-nls": "^4.0.0",
     "vscode-uri": "^2.0.0",
     "which": "^1.3.0"
@@ -2389,8 +2491,8 @@
   "devDependencies": {
     "@types/byline": "4.2.31",
     "@types/file-type": "^5.2.1",
-    "@types/mocha": "^8.2.0",
-    "@types/node": "14.x",
+    "@types/mocha": "^9.1.1",
+    "@types/node": "16.x",
     "@types/which": "^1.0.28"
   },
   "repository": {

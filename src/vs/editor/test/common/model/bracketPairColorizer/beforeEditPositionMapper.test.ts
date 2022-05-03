@@ -392,7 +392,7 @@ class PositionOffsetTransformer {
 	}
 }
 
-function applyLineColumnEdits(text: string, edits: { range: IRange, text: string }[]): string {
+function applyLineColumnEdits(text: string, edits: { range: IRange; text: string }[]): string {
 	const transformer = new PositionOffsetTransformer(text);
 	const offsetEdits = edits.map(e => {
 		const range = Range.lift(e.range);

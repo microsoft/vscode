@@ -28,6 +28,8 @@ extends:
     globalSdl:
       policheck:
         break: true
+      credscan:
+        suppressionsFile: $(Build.SourcesDirectory)\build\azure-pipelines\config\CredScanSuppressions.json
 
     stages:
     - stage: Compile

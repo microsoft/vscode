@@ -24,6 +24,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 
 export class NativeMenubarControl extends MenubarControl {
 
@@ -138,7 +139,7 @@ export class NativeMenubarControl extends MenubarControl {
 
 					menuToDispose.dispose();
 				} else {
-					if (menuItem.id === 'workbench.action.openRecent') {
+					if (menuItem.id === OpenRecentAction.ID) {
 						const actions = this.getOpenRecentActions().map(this.transformOpenRecentAction);
 						menuToPopulate.items.push(...actions);
 					}

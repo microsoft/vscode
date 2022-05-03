@@ -14,7 +14,7 @@ import { EncodingMode, TextFileOperationError, TextFileOperationResult } from 'v
 import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { timeout } from 'vs/base/common/async';
-import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -29,8 +29,8 @@ suite('Files - FileEditorInput', () => {
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
-	function createFileInput(resource: URI, preferredResource?: URI, preferredMode?: string, preferredName?: string, preferredDescription?: string, preferredContents?: string): FileEditorInput {
-		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, undefined, preferredMode, preferredContents);
+	function createFileInput(resource: URI, preferredResource?: URI, preferredLanguageId?: string, preferredName?: string, preferredDescription?: string, preferredContents?: string): FileEditorInput {
+		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, undefined, preferredLanguageId, preferredContents);
 	}
 
 	class TestTextEditorService extends TextEditorService {
@@ -90,7 +90,7 @@ suite('Files - FileEditorInput', () => {
 		assert(resolvedModelA === resolved); // OK: Resolved Model cached globally per input
 
 		try {
-			DisposableStore.DISABLE_DISPOSED_WARNING = true; // prevent unwanted warning output from occuring
+			DisposableStore.DISABLE_DISPOSED_WARNING = true; // prevent unwanted warning output from occurring
 
 			const otherResolved = await sameOtherInput.resolve();
 			assert(otherResolved === resolvedModelA); // OK: Resolved Model cached globally per input
@@ -169,27 +169,29 @@ suite('Files - FileEditorInput', () => {
 		listener.dispose();
 	});
 
-	test('preferred mode', async function () {
-		const mode = 'file-input-test';
-		ModesRegistry.registerLanguage({
-			id: mode,
+	test('preferred language', async function () {
+		const languageId = 'file-input-test';
+		const registration = accessor.languageService.registerLanguage({
+			id: languageId,
 		});
 
-		const input = createFileInput(toResource.call(this, '/foo/bar/file.js'), undefined, mode);
-		assert.strictEqual(input.getPreferredMode(), mode);
+		const input = createFileInput(toResource.call(this, '/foo/bar/file.js'), undefined, languageId);
+		assert.strictEqual(input.getPreferredLanguageId(), languageId);
 
 		const model = await input.resolve() as TextFileEditorModel;
-		assert.strictEqual(model.textEditorModel!.getLanguageId(), mode);
+		assert.strictEqual(model.textEditorModel!.getLanguageId(), languageId);
 
-		input.setMode('text');
-		assert.strictEqual(input.getPreferredMode(), 'text');
-		assert.strictEqual(model.textEditorModel!.getLanguageId(), PLAINTEXT_MODE_ID);
+		input.setLanguageId('text');
+		assert.strictEqual(input.getPreferredLanguageId(), 'text');
+		assert.strictEqual(model.textEditorModel!.getLanguageId(), PLAINTEXT_LANGUAGE_ID);
 
 		const input2 = createFileInput(toResource.call(this, '/foo/bar/file.js'));
-		input2.setPreferredMode(mode);
+		input2.setPreferredLanguageId(languageId);
 
 		const model2 = await input2.resolve() as TextFileEditorModel;
-		assert.strictEqual(model2.textEditorModel!.getLanguageId(), mode);
+		assert.strictEqual(model2.textEditorModel!.getLanguageId(), languageId);
+
+		registration.dispose();
 	});
 
 	test('preferred contents', async function () {

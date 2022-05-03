@@ -103,7 +103,8 @@
 
 
 /* Hides active elements in high contrast mode */
-.monaco-workbench.hc-black .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator {
+.monaco-workbench.hc-black .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator.action-item,
+.monaco-workbench.hc-light .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator {
 	display: none;
 }
 
@@ -121,7 +122,9 @@
 
 /* Hides outline on HC as focus is handled by border */
 .monaco-workbench.hc-black .activitybar.left > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before,
-.monaco-workbench.hc-black .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
+.monaco-workbench.hc-black .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before,
+.monaco-workbench.hc-light .activitybar.left > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before,
+.monaco-workbench.hc-light .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
 	outline: none;
 }
 

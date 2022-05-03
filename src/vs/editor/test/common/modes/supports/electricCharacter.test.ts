@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { StandardTokenType } from 'vs/editor/common/modes';
-import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
-import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
+import { StandardTokenType } from 'vs/editor/common/languages';
+import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
+import { RichEditBrackets } from 'vs/editor/common/languages/supports/richEditBrackets';
 import { TokenText, createFakeScopedLineTokens } from 'vs/editor/test/common/modesTestUtils';
 
 const fakeLanguageId = 'test';

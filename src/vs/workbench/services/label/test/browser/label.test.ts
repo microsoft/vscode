@@ -5,18 +5,19 @@
 
 import * as resources from 'vs/base/common/resources';
 import * as assert from 'assert';
-import { TestEnvironmentService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEnvironmentService, TestPathService, TestRemoteAgentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { isWindows } from 'vs/base/common/platform';
 
 suite('URI Label', () => {
 	let labelService: LabelService;
 
 	setup(() => {
-		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestPathService());
+		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestPathService(), new TestRemoteAgentService());
 	});
 
 	test('custom scheme', function () {
@@ -172,11 +173,13 @@ suite('multi-root workspace', () => {
 			TestEnvironmentService,
 			new TestContextService(
 				new Workspace('test-workspace', [
-					new WorkspaceFolder({ uri: sources, index: 0, name: 'Sources' }, { uri: sources.toString() }),
-					new WorkspaceFolder({ uri: tests, index: 1, name: 'Tests' }, { uri: tests.toString() }),
-					new WorkspaceFolder({ uri: other, index: 2, name: resources.basename(other) }, { uri: other.toString() }),
+					new WorkspaceFolder({ uri: sources, index: 0, name: 'Sources' }),
+					new WorkspaceFolder({ uri: tests, index: 1, name: 'Tests' }),
+					new WorkspaceFolder({ uri: other, index: 2, name: resources.basename(other) }),
 				])),
-			new TestPathService());
+			new TestPathService(),
+			new TestRemoteAgentService()
+		);
 	});
 
 	test('labels of files in multiroot workspaces are the foldername followed by offset from the folder', () => {
@@ -249,6 +252,27 @@ suite('multi-root workspace', () => {
 			assert.strictEqual(generated, label, path);
 		});
 	});
+
+	test('relative label without formatter', () => {
+		const rootFolder = URI.parse('myscheme://myauthority/');
+
+		labelService = new LabelService(
+			TestEnvironmentService,
+			new TestContextService(
+				new Workspace('test-workspace', [
+					new WorkspaceFolder({ uri: rootFolder, index: 0, name: 'FSProotFolder' }),
+				])),
+			new TestPathService(undefined, rootFolder.scheme),
+			new TestRemoteAgentService()
+		);
+
+		const generated = labelService.getUriLabel(URI.parse('myscheme://myauthority/some/folder/test.txt'), { relative: true });
+		if (isWindows) {
+			assert.strictEqual(generated, 'some\\folder\\test.txt');
+		} else {
+			assert.strictEqual(generated, 'some/folder/test.txt');
+		}
+	});
 });
 
 suite('workspace at FSP root', () => {
@@ -261,9 +285,11 @@ suite('workspace at FSP root', () => {
 			TestEnvironmentService,
 			new TestContextService(
 				new Workspace('test-workspace', [
-					new WorkspaceFolder({ uri: rootFolder, index: 0, name: 'FSProotFolder' }, { uri: rootFolder.toString() }),
+					new WorkspaceFolder({ uri: rootFolder, index: 0, name: 'FSProotFolder' }),
 				])),
-			new TestPathService());
+			new TestPathService(),
+			new TestRemoteAgentService()
+		);
 		labelService.registerFormatter({
 			scheme: 'myscheme',
 			formatting: {
