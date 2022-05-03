@@ -2287,6 +2287,30 @@
           "default": [],
           "scope": "resource",
           "markdownDescription": "%config.commandsToLog%"
+        },
+        "git.logLevel": {
+          "type": "string",
+          "default": "Info",
+          "enum": [
+            "Trace",
+            "Debug",
+            "Info",
+            "Warning",
+            "Error",
+            "Critical",
+            "Off"
+          ],
+          "enumDescriptions": [
+            "%config.logLevel.trace%",
+            "%config.logLevel.debug%",
+            "%config.logLevel.info%",
+            "%config.logLevel.warn%",
+            "%config.logLevel.error%",
+            "%config.logLevel.critical%",
+            "%config.logLevel.off%"
+          ],
+          "markdownDescription": "%config.logLevel%",
+          "scope": "window"
         }
       }
     },
