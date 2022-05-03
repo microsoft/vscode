@@ -300,6 +300,7 @@ export class MainThreadCommentController {
 	deleteCommentThread(commentThreadHandle: number) {
 		let thread = this.getKnownThread(commentThreadHandle);
 		this._threads.delete(commentThreadHandle);
+		thread.dispose();
 
 		if (thread.isDocumentCommentThread()) {
 			this._commentService.updateComments(this._uniqueId, {
@@ -314,8 +315,6 @@ export class MainThreadCommentController {
 				changed: []
 			});
 		}
-
-		thread.dispose();
 	}
 
 	deleteCommentThreadMain(commentThreadId: string) {

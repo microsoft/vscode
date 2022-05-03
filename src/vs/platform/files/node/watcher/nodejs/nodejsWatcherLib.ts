@@ -7,7 +7,6 @@ import { watch } from 'fs';
 import { ThrottledDelayer, ThrottledWorker } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isEqualOrParent } from 'vs/base/common/extpath';
-import { parse } from 'vs/base/common/glob';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { basename, dirname, join } from 'vs/base/common/path';
@@ -15,7 +14,7 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { realcase } from 'vs/base/node/extpath';
 import { Promises } from 'vs/base/node/pfs';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { IDiskFileChange, ILogMessage, coalesceEvents, INonRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
+import { IDiskFileChange, ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
 
 export class NodeJSFileWatcherLibrary extends Disposable {
 
@@ -47,8 +46,8 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	private readonly fileChangesDelayer = this._register(new ThrottledDelayer<void>(NodeJSFileWatcherLibrary.FILE_CHANGES_HANDLER_DELAY));
 	private fileChangesBuffer: IDiskFileChange[] = [];
 
-	private readonly excludes = this.request.excludes.map(exclude => parse(exclude));
-	private readonly includes = this.request.includes?.map(include => parse(include));
+	private readonly excludes = parseWatcherPatterns(this.request.path, this.request.excludes);
+	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
 
 	private readonly cts = new CancellationTokenSource();
 

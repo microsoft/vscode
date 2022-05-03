@@ -135,6 +135,7 @@ export interface ISCMInput {
 }
 
 export interface ISCMRepository extends IDisposable {
+	readonly id: string;
 	readonly provider: ISCMProvider;
 	readonly input: ISCMInput;
 }
@@ -144,9 +145,11 @@ export interface ISCMService {
 	readonly _serviceBrand: undefined;
 	readonly onDidAddRepository: Event<ISCMRepository>;
 	readonly onDidRemoveRepository: Event<ISCMRepository>;
-	readonly repositories: ISCMRepository[];
+	readonly repositories: Iterable<ISCMRepository>;
+	readonly repositoryCount: number;
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
+	getRepository(id: string): ISCMRepository | undefined;
 }
 
 export interface ISCMTitleMenu {

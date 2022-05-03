@@ -60,7 +60,6 @@ import { Color } from 'vs/base/common/color';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { SettingsSearchFilterDropdownMenuActionViewItem } from 'vs/workbench/contrib/preferences/browser/settingsSearchMenu';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -275,8 +274,10 @@ export class SettingsEditor2 extends EditorPane {
 			SettingsEditor2.SUGGESTIONS.push(`@${LANGUAGE_SETTING_TAG}`);
 		}
 
-		extensionManagementService.getInstalled(ExtensionType.System).then(extensions => {
-			this.installedExtensionIds = extensions.map(extension => extension.identifier.id);
+		extensionManagementService.getInstalled().then(extensions => {
+			this.installedExtensionIds = extensions
+				.filter(ext => ext.manifest && ext.manifest.contributes && ext.manifest.contributes.configuration)
+				.map(ext => ext.identifier.id);
 		});
 	}
 

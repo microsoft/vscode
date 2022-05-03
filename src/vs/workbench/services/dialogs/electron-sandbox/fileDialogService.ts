@@ -169,11 +169,9 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.showOpenDialogSimplified(schema, options);
 		}
 
-		const defaultUri = options.defaultUri;
-
 		const newOptions: OpenDialogOptions & { properties: string[] } = {
 			title: options.title,
-			defaultPath: defaultUri?.fsPath,
+			defaultPath: options.defaultUri?.fsPath,
 			buttonLabel: options.openLabel,
 			filters: options.filters,
 			properties: []

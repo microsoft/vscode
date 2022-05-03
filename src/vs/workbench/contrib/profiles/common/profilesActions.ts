@@ -39,7 +39,7 @@ registerAction2(class ExportProfileAction extends Action2 {
 		const profileLocation = await fileDialogService.showSaveDialog({
 			title: localize('export profile dialog', "Save Profile"),
 			filters: PROFILE_FILTER,
-			defaultUri: joinPath(await fileDialogService.defaultFilePath(undefined), `profile.${PROFILE_EXTENSION}`),
+			defaultUri: joinPath(await fileDialogService.defaultFilePath(), `profile.${PROFILE_EXTENSION}`),
 		});
 
 		if (!profileLocation) {

@@ -120,8 +120,12 @@ export class ExplorerItem {
 		this._isExcluded = value;
 	}
 
-	get hasChildren() {
-		return this.isDirectory || this.hasNests;
+	hasChildren(filter: (stat: ExplorerItem) => boolean): boolean {
+		if (this.hasNests) {
+			return this.nestedChildren?.some(c => filter(c)) ?? false;
+		} else {
+			return this.isDirectory;
+		}
 	}
 
 	get hasNests() {

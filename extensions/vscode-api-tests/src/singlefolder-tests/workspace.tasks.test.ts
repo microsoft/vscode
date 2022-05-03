@@ -369,7 +369,7 @@ import { assertNoRpc } from '../utils';
 						problemMatcher: [],
 						group: {
 							kind: 'build',
-							isDefault: 'true'
+							isDefault: true
 						}
 					}
 				], ConfigurationTarget.Workspace);

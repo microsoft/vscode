@@ -117,7 +117,7 @@ export namespace IRichLocation {
 
 export const enum TestMessageType {
 	Error,
-	Info
+	Output
 }
 
 export interface ITestErrorMessage {
@@ -156,7 +156,7 @@ export namespace ITestErrorMessage {
 
 export interface ITestOutputMessage {
 	message: string;
-	type: TestMessageType.Info;
+	type: TestMessageType.Output;
 	offset: number;
 	location: IRichLocation | undefined;
 }
@@ -165,20 +165,20 @@ export namespace ITestOutputMessage {
 	export interface Serialized {
 		message: string;
 		offset: number;
-		type: TestMessageType.Info;
+		type: TestMessageType.Output;
 		location: IRichLocation.Serialize | undefined;
 	}
 
 	export const serialize = (message: ITestOutputMessage): Serialized => ({
 		message: message.message,
-		type: TestMessageType.Info,
+		type: TestMessageType.Output,
 		offset: message.offset,
 		location: message.location && IRichLocation.serialize(message.location),
 	});
 
 	export const deserialize = (message: Serialized): ITestOutputMessage => ({
 		message: message.message,
-		type: TestMessageType.Info,
+		type: TestMessageType.Output,
 		offset: message.offset,
 		location: message.location && IRichLocation.deserialize(message.location),
 	});

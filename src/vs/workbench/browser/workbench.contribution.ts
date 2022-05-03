@@ -533,6 +533,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': isMacintosh ? ' \u2014 ' : ' - ',
 				'markdownDescription': localize("window.titleSeparator", "Separator used by `window.title`.")
 			},
+			'window.experimental.titleMenu': {
+				type: 'boolean',
+				default: false,
+				description: localize('window.experimental.titleMenu', "Show window title as menu")
+			},
 			'window.menuBarVisibility': {
 				'type': 'string',
 				'enum': ['classic', 'visible', 'toggle', 'hidden', 'compact'],

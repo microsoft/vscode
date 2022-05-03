@@ -7,6 +7,7 @@ import * as uri from 'vscode-uri';
 import { MarkdownEngine } from '../markdownEngine';
 import { Slugifier } from '../slugify';
 import { TableOfContents, TocEntry } from '../tableOfContents';
+import { noopToken } from '../test/util';
 import { Disposable } from '../util/dispose';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { InternalHref, MdLink, MdLinkProvider } from './documentLinkProvider';
@@ -70,7 +71,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 	) {
 		super();
 
-		this._linkCache = this._register(new MdWorkspaceCache(workspaceContents, doc => linkProvider.getAllLinks(doc)));
+		this._linkCache = this._register(new MdWorkspaceCache(workspaceContents, doc => linkProvider.getAllLinks(doc, noopToken)));
 	}
 
 	async provideReferences(document: SkinnyTextDocument, position: vscode.Position, context: vscode.ReferenceContext, token: vscode.CancellationToken): Promise<vscode.Location[] | undefined> {
@@ -128,7 +129,7 @@ export class MdReferencesProvider extends Disposable implements vscode.Reference
 	}
 
 	private async getReferencesToLinkAtPosition(document: SkinnyTextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<MdReference[]> {
-		const docLinks = await this.linkProvider.getAllLinks(document);
+		const docLinks = await this.linkProvider.getAllLinks(document, token);
 
 		for (const link of docLinks) {
 			if (link.kind === 'definition') {
