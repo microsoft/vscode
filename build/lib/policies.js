@@ -10,6 +10,7 @@ const path = require("path");
 const byline = require("byline");
 const ripgrep_1 = require("@vscode/ripgrep");
 const Parser = require("tree-sitter");
+const node_fetch_1 = require("node-fetch");
 const { typescript } = require('tree-sitter-typescript');
 function isNlsString(value) {
     return value ? typeof value !== 'string' : false;
@@ -72,7 +73,7 @@ function getStringArrayProperty(node, key) {
     return getProperty(StringArrayQ, node, key);
 }
 // ---
-function getPolicy(settingNode, policyNode, categories) {
+function getPolicy(moduleName, settingNode, policyNode, categories) {
     const name = getStringProperty(policyNode, 'name');
     if (!name) {
         throw new Error(`Missing required 'name' property.`);
@@ -128,9 +129,9 @@ function getPolicy(settingNode, policyNode, categories) {
         category = { name: categoryName };
         categories.set(categoryKey, category);
     }
-    return { policyType: PolicyType.StringEnum, name, minimumVersion, description, type, enum: _enum, enumDescriptions, category };
+    return { policyType: PolicyType.StringEnum, name, minimumVersion, description, type, moduleName, enum: _enum, enumDescriptions, category };
 }
-function getPolicies(node) {
+function getPolicies(moduleName, node) {
     const query = new Parser.Query(typescript, `
 		(
 			(call_expression
@@ -152,7 +153,7 @@ function getPolicies(node) {
     return query.matches(node).map(m => {
         const settingNode = m.captures.filter(c => c.name === 'setting')[0].node;
         const policyNode = m.captures.filter(c => c.name === 'policy')[0].node;
-        return getPolicy(settingNode, policyNode, categories);
+        return getPolicy(moduleName, settingNode, policyNode, categories);
     });
 }
 // ---
@@ -172,7 +173,7 @@ function renderADMXPolicy(regKey, policy) {
         case PolicyType.StringEnum:
             return `<policy name="${policy.name}" class="Both" displayName="$(string.${policy.name})" explainText="$(string.${policy.name}_${policy.description.nlsKey})" key="Software\\Policies\\Microsoft\\${regKey}" presentation="$(presentation.${policy.name})">
 			<parentCategory ref="${policy.category.name.nlsKey}" />
-			<supportedOn ref="SUPPORTED_${policy.minimumVersion.replace('.', '_')}" />
+			<supportedOn ref="SUPPORTED_${policy.minimumVersion.replace(/\./g, '_')}" />
 			<elements>
 				<enum id="${policy.name}" valueName="${policy.name}">
 					${policy.enum.map((value, index) => `<item displayName="$(string.${policy.name}_${policy.enumDescriptions[index].nlsKey})"><value><string>${value}</string></value></item>`).join(`\n					`)}
@@ -184,7 +185,7 @@ function renderADMXPolicy(regKey, policy) {
     }
 }
 function renderADMX(regKey, versions, categories, policies) {
-    versions = versions.map(v => v.replace('.', '_'));
+    versions = versions.map(v => v.replace(/\./g, '_'));
     return `<?xml version="1.0" encoding="utf-8"?>
 <policyDefinitions revision="1.1" schemaVersion="1.0">
 	<policyNamespaces>
@@ -206,34 +207,44 @@ function renderADMX(regKey, versions, categories, policies) {
 </policyDefinitions>
 `;
 }
-function renderADMLString(policy, nlsString) {
-    return `<string id="${policy.name}_${nlsString.nlsKey}">${nlsString.value}</string>`;
+function renderADMLString(policy, nlsString, translations) {
+    let value;
+    if (translations) {
+        const moduleTranslations = translations[policy.moduleName];
+        if (moduleTranslations) {
+            value = moduleTranslations[nlsString.nlsKey];
+        }
+    }
+    if (!value) {
+        value = nlsString.value;
+    }
+    return `<string id="${policy.name}_${nlsString.nlsKey}">${value}</string>`;
 }
-function pushADMLString(arr, policy, value) {
+function pushADMLString(arr, policy, value, translations) {
     if (isNlsString(value)) {
-        arr.push(renderADMLString(policy, value));
+        arr.push(renderADMLString(policy, value, translations));
     }
 }
-function pushADMLStrings(arr, policy, values) {
+function pushADMLStrings(arr, policy, values, translations) {
     for (const value of values) {
-        pushADMLString(arr, policy, value);
+        pushADMLString(arr, policy, value, translations);
     }
 }
-function renderADMLStrings(policy) {
+function renderADMLStrings(policy, translations) {
     const result = [
         `<string id="${policy.name}">${policy.name}</string>`
     ];
-    pushADMLString(result, policy, policy.description);
+    pushADMLString(result, policy, policy.description, translations);
     switch (policy.policyType) {
         case PolicyType.StringEnum:
-            pushADMLStrings(result, policy, policy.enumDescriptions);
+            pushADMLStrings(result, policy, policy.enumDescriptions, translations);
             break;
         default:
             throw new Error(`Unexpected policy type: ${policy.type}`);
     }
     return result;
 }
-function renderADMLPresentation(policy) {
+function renderADMLPresentation(policy, _translations) {
     switch (policy.policyType) {
         case PolicyType.StringEnum:
             return `<presentation id="${policy.name}"><dropdownList refId="${policy.name}" /></presentation>`;
@@ -241,7 +252,7 @@ function renderADMLPresentation(policy) {
             throw new Error(`Unexpected policy type: ${policy.type}`);
     }
 }
-function renderADML(appName, versions, categories, policies) {
+function renderADML(appName, versions, categories, policies, translations) {
     return `<?xml version="1.0" encoding="utf-8"?>
 <policyDefinitionResources revision="1.0" schemaVersion="1.0">
 	<displayName />
@@ -249,18 +260,18 @@ function renderADML(appName, versions, categories, policies) {
 	<resources>
 		<stringTable>
 			<string id="Application">${appName}</string>
-			${versions.map(v => `<string id="Supported_${v.replace('.', '_')}">${appName} ${v} or later</string>`)}
+			${versions.map(v => `<string id="Supported_${v.replace(/\./g, '_')}">${appName} ${v} or later</string>`)}
 			${categories.map(c => `<string id="Category_${c.name.nlsKey}">${c.name.value}</string>`)}
-			${policies.map(p => renderADMLStrings(p)).flat().join(`\n			`)}
+			${policies.map(p => renderADMLStrings(p, translations)).flat().join(`\n			`)}
 		</stringTable>
 		<presentationTable>
-			${policies.map(p => renderADMLPresentation(p)).join(`\n			`)}
+			${policies.map(p => renderADMLPresentation(p, translations)).join(`\n			`)}
 		</presentationTable>
 	</resources>
 </policyDefinitionResources>
 `;
 }
-async function renderGP(policies) {
+async function renderGP(policies, translations) {
     const product = JSON.parse(await fs_1.promises.readFile('product.json', 'utf-8'));
     const appName = product.nameLong;
     const regKey = product.win32RegValueName;
@@ -268,28 +279,64 @@ async function renderGP(policies) {
     const categories = [...new Set(policies.map(p => p.category))];
     return {
         admx: renderADMX(regKey, versions, categories, policies),
-        adml: renderADML(appName, versions, categories, policies),
+        adml: [
+            { languageId: 'en-us', contents: renderADML(appName, versions, categories, policies) },
+            ...translations.map(({ languageId, languageTranslations }) => ({ languageId, contents: renderADML(appName, versions, categories, policies, languageTranslations) }))
+        ]
     };
+}
+// ---
+const Languages = {
+    'fr': 'fr-fr',
+    'it': 'it-it',
+    'de': 'de-de',
+    'es': 'es-es',
+    'ru': 'ru-ru',
+    'zh-hans': 'zh-cn',
+    'zh-hant': 'zh-tw',
+    'ja': 'ja-jp',
+    'ko': 'ko-kr',
+    'cs': 'cs-cz',
+    'pt-br': 'pt-br',
+    'tr': 'tr-tr',
+    'pl': 'pl-pl',
+};
+async function getLatestStableVersion() {
+    const res = await (0, node_fetch_1.default)(`https://update.code.visualstudio.com/api/update/darwin/stable/latest`);
+    const { name: version } = await res.json();
+    return version;
+}
+async function getNLS(languageId, version) {
+    const res = await (0, node_fetch_1.default)(`https://ms-ceintl.vscode-unpkg.net/ms-ceintl/vscode-language-pack-${languageId}/${version}/extension/translations/main.i18n.json`);
+    const { contents: result } = await res.json();
+    return result;
 }
 // ---
 async function main() {
     const parser = new Parser();
     parser.setLanguage(typescript);
     const files = await getFiles(process.cwd());
+    const base = path.join(process.cwd(), 'src');
     const policies = [];
     for (const file of files) {
+        const moduleName = path.relative(base, file).replace(/\.ts$/i, '').replace(/\\/g, '/');
         const contents = await fs_1.promises.readFile(file, { encoding: 'utf8' });
         const tree = parser.parse(contents);
-        policies.push(...getPolicies(tree.rootNode));
+        policies.push(...getPolicies(moduleName, tree.rootNode));
     }
-    const { admx, adml } = await renderGP(policies);
+    const version = await getLatestStableVersion();
+    const languageIds = Object.keys(Languages);
+    const translations = await Promise.all(languageIds.map(languageId => getNLS(languageId, version).then(languageTranslations => ({ languageId, languageTranslations }))));
+    const { admx, adml } = await renderGP(policies, translations);
     const root = '.build/policies/win32';
     await fs_1.promises.rm(root, { recursive: true, force: true });
     await fs_1.promises.mkdir(root, { recursive: true });
     await fs_1.promises.writeFile(path.join(root, 'Code.admx'), admx.replace(/\r?\n/g, '\n'));
-    const enUS = path.join(root, 'en-US');
-    await fs_1.promises.mkdir(enUS, { recursive: true });
-    await fs_1.promises.writeFile(path.join(enUS, 'Code.adml'), adml.replace(/\r?\n/g, '\n'));
+    for (const { languageId, contents } of adml) {
+        const languagePath = languageId === 'en-us' ? 'en-us' : path.join(root, Languages[languageId]);
+        await fs_1.promises.mkdir(languagePath, { recursive: true });
+        await fs_1.promises.writeFile(path.join(languagePath, 'Code.adml'), contents.replace(/\r?\n/g, '\n'));
+    }
 }
 if (require.main === module) {
     main().catch(err => {

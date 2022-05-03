@@ -58,6 +58,7 @@
     "jsonc-parser": "^2.3.0",
     "mime": "^1.4.1",
     "mkdirp": "^1.0.4",
+    "node-fetch": "2",
     "p-limit": "^3.1.0",
     "source-map": "0.6.1",
     "through2": "^4.0.2",
