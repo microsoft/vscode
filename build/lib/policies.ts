@@ -5,6 +5,7 @@
 
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
+import { EOL } from 'os';
 import * as byline from 'byline';
 import { rgPath } from '@vscode/ripgrep';
 import * as Parser from 'tree-sitter';
@@ -15,15 +16,30 @@ interface NlsString {
 	readonly nlsKey: string;
 }
 
+function isNlsString(value: string | NlsString | undefined): value is NlsString {
+	return value ? typeof value !== 'string' : false;
+}
+
+function isStringArray(value: (string | NlsString)[]): value is string[] {
+	return !value.some(s => isNlsString(s));
+}
+
+enum PolicyType {
+	StringEnum
+}
+
 interface BasePolicy {
+	readonly policyType: PolicyType;
 	readonly name: string;
+	readonly minimumVersion: string;
 	readonly description: string | NlsString;
 	readonly category?: string | NlsString;
 }
 
 interface StringEnumPolicy extends BasePolicy {
+	readonly policyType: PolicyType.StringEnum;
 	readonly type: 'string';
-	readonly enum: (string | NlsString)[];
+	readonly enum: string[];
 	readonly enumDescriptions: (string | NlsString)[];
 }
 
@@ -107,8 +123,18 @@ function getPolicy(settingNode: Parser.SyntaxNode, policyNode: Parser.SyntaxNode
 		throw new Error(`Missing required 'name' property.`);
 	}
 
-	if (typeof name !== 'string') {
+	if (isNlsString(name)) {
 		throw new Error(`Property 'name' should be a literal string.`);
+	}
+
+	const minimumVersion = getStringProperty(policyNode, 'minimumVersion');
+
+	if (!minimumVersion) {
+		throw new Error(`Missing required 'minimumVersion' property.`);
+	}
+
+	if (isNlsString(minimumVersion)) {
+		throw new Error(`Property 'minimumVersion' should be a literal string.`);
 	}
 
 	const description = getStringProperty(settingNode, 'description');
@@ -133,6 +159,10 @@ function getPolicy(settingNode: Parser.SyntaxNode, policyNode: Parser.SyntaxNode
 		throw new Error(`TODO`);
 	}
 
+	if (!isStringArray(_enum)) {
+		throw new Error(`TODO`);
+	}
+
 	const enumDescriptions = getStringArrayProperty(settingNode, 'enumDescriptions');
 
 	if (!enumDescriptions) {
@@ -142,9 +172,9 @@ function getPolicy(settingNode: Parser.SyntaxNode, policyNode: Parser.SyntaxNode
 	const category = getStringProperty(policyNode, 'category');
 
 	if (category) {
-		return { name, description, type, enum: _enum, enumDescriptions, category };
+		return { policyType: PolicyType.StringEnum, name, minimumVersion, description, type, enum: _enum, enumDescriptions, category };
 	} else {
-		return { name, description, type, enum: _enum, enumDescriptions };
+		return { policyType: PolicyType.StringEnum, name, minimumVersion, description, type, enum: _enum, enumDescriptions };
 	}
 }
 
@@ -189,20 +219,144 @@ async function getFiles(root: string): Promise<string[]> {
 
 // ---
 
+// const admxTemplate = `<?xml version="1.0" encoding="utf-8"?>
+// <policyDefinitions revision="1.1" schemaVersion="1.0">
+//   <policyNamespaces>
+//     <target prefix="CodeOSS" namespace="Microsoft.Policies.CodeOSS" />
+//   </policyNamespaces>
+//   <resources minRequiredRevision="1.0" />
+//   <supportedOn>
+//     <definitions>
+//       <definition name="SUPPORTED_1_67" displayName="$(string.SUPPORTED_1_67)" />
+//     </definitions>
+//   </supportedOn>
+//   <categories>
+//     <category displayName="$(string.Application)" name="Application" />
+//     <category displayName="$(string.Update_group)" name="Update">
+//       <parentCategory ref="Application" />
+//     </category>
+//   </categories>
+//   <policies>
+//     <policy name="UpdateMode" class="Both" displayName="$(string.UpdateMode)" explainText="$(string.UpdateMode_Explain)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.UpdateMode)">
+//       <parentCategory ref="Update" />
+//       <supportedOn ref="SUPPORTED_1_67" />
+//       <elements>
+//         <enum id="UpdateMode" valueName="UpdateMode">
+//           <item displayName="$(string.UpdateMode_None)">
+//             <value>
+//               <string>none</string>
+//             </value>
+//           </item>
+//           <item displayName="$(string.UpdateMode_Manual)">
+//             <value>
+//               <string>manual</string>
+//             </value>
+//           </item>
+//           <item displayName="$(string.UpdateMode_Start)">
+//             <value>
+//               <string>start</string>
+//             </value>
+//           </item>
+//           <item displayName="$(string.UpdateMode_Default)">
+//             <value>
+//               <string>default</string>
+//             </value>
+//           </item>
+//         </enum>
+//       </elements>
+//     </policy>
+//   </policies>
+// </policyDefinitions>
+// `;
+
+function renderADMLString(policy: Policy, nlsString: NlsString): string {
+	return `<string id="${policy.name}_${nlsString.nlsKey}">${nlsString.value}</string>`;
+}
+
+function pushADMLString(arr: string[], policy: Policy, value: string | NlsString | undefined): void {
+	if (isNlsString(value)) {
+		arr.push(renderADMLString(policy, value));
+	}
+}
+
+function pushADMLStrings(arr: string[], policy: Policy, values: (string | NlsString)[]): void {
+	for (const value of values) {
+		pushADMLString(arr, policy, value);
+	}
+}
+
+function renderADMLStrings(policy: Policy): string[] {
+	const result: string[] = [];
+
+	pushADMLString(result, policy, policy.category);
+	pushADMLString(result, policy, policy.description);
+
+	switch (policy.policyType) {
+		case PolicyType.StringEnum:
+			pushADMLStrings(result, policy, policy.enumDescriptions);
+			break;
+		default:
+			throw new Error(`Unexpected policy type: ${policy.type}`);
+	}
+
+	return result;
+}
+
+function renderADMLPresentation(policy: Policy): string {
+	switch (policy.policyType) {
+		case PolicyType.StringEnum:
+			return `<presentation id="${policy.name}"><dropdownList refId="${policy.name}" /></presentation>`;
+		default:
+			throw new Error(`Unexpected policy type: ${policy.type}`);
+	}
+}
+
+async function renderADML(policies: Policy[]) {
+	const versions = [...new Set(policies.map(p => p.minimumVersion)).values()].sort();
+	const app = JSON.parse(await fs.readFile('product.json', 'utf-8')).nameLong;
+
+	return `<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources revision="1.0" schemaVersion="1.0">
+	<displayName />
+	<description />
+	<resources>
+		<stringTable>
+			<string id="Application">${app}</string>
+			${versions.map(v => `<string id="Supported_${v.replace('.', '_')}">${app} ${v} or later</string>`)}
+			${policies.map(p => renderADMLStrings(p)).flat().join(`${EOL}			`)}
+			</stringTable>
+			<presentationTable>
+			${policies.map(p => renderADMLPresentation(p)).join(`${EOL}			`)}
+		</presentationTable>
+	</resources>
+</policyDefinitionResources>
+`;
+}
+
+// function renderGP(policies: Policy[]): { admx: string; adml: string } {
+
+// }
+
+// ---
+
 async function main() {
 	const parser = new Parser();
 	parser.setLanguage(typescript);
 
 	const files = await getFiles(process.cwd());
+	const policies = [];
 
 	for (const file of files) {
 		const contents = await fs.readFile(file, { encoding: 'utf8' });
 		const tree = parser.parse(contents);
 
-		for (const policy of getPolicies(tree.rootNode)) {
-			console.log(policy);
-		}
+		// for (const policy of getPolicies(tree.rootNode)) {
+		// 	console.log(policy);
+		// }
+		policies.push(...getPolicies(tree.rootNode));
 	}
+
+	console.log(await renderADML(policies));
 }
 
 if (require.main === module) {
