@@ -144,14 +144,16 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		return treeView.getChildren(treeItemHandle);
 	}
 
-	async $handleDrop(destinationViewId: string, treeDataTransferDTO: DataTransferDTO, targetItemHandle: string | undefined, token: CancellationToken,
+	async $handleDrop(destinationViewId: string, requestId: number, treeDataTransferDTO: DataTransferDTO, targetItemHandle: string | undefined, token: CancellationToken,
 		operationUuid?: string, sourceViewId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
 		const treeView = this.treeViews.get(destinationViewId);
 		if (!treeView) {
 			return Promise.reject(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', destinationViewId)));
 		}
 
-		const treeDataTransfer = DataTransferConverter.toDataTransfer(treeDataTransferDTO);
+		const treeDataTransfer = DataTransferConverter.toDataTransfer(treeDataTransferDTO, async dataItemIndex => {
+			return (await this._proxy.$resolveDropFileData(destinationViewId, requestId, dataItemIndex)).buffer;
+		});
 		if ((sourceViewId === destinationViewId) && sourceTreeItemHandles) {
 			await this.addAdditionalTransferItems(treeDataTransfer, treeView, sourceTreeItemHandles, token, operationUuid);
 		}

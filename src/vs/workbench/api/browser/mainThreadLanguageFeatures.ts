@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { mixin } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Position as EditorPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as languages from 'vs/editor/common/languages';
@@ -36,8 +36,6 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	private readonly _proxy: ExtHostLanguageFeaturesShape;
 	private readonly _registrations = new Map<number, IDisposable>();
-
-	private readonly _dropIntoEditorListeners = new Map<ICodeEditor, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -83,9 +81,6 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			registration.dispose();
 		}
 		this._registrations.clear();
-
-		dispose(this._dropIntoEditorListeners.values());
-		this._dropIntoEditorListeners.clear();
 
 		super.dispose();
 	}
@@ -865,13 +860,60 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	// --- document drop Edits
 
+	private readonly _documentOnDropProviders = new Map<number, MainThreadDocumentOnDropProvider>();
+
 	$registerDocumentOnDropProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, this._languageFeaturesService.documentOnDropEditProvider.register(selector, {
-			provideDocumentOnDropEdits: async (model, position, dataTransfer, token) => {
-				const dataTransferDto = await DataTransferConverter.toDataTransferDTO(dataTransfer);
-				return this._proxy.$provideDocumentOnDropEdits(handle, model.uri, position, new SerializableObjectWithBuffers(dataTransferDto), token);
-			}
-		}));
+		const provider = new MainThreadDocumentOnDropProvider(handle, this._proxy);
+		this._documentOnDropProviders.set(handle, provider);
+		this._registrations.set(handle, combinedDisposable(
+			this._languageFeaturesService.documentOnDropEditProvider.register(selector, provider),
+			toDisposable(() => this._documentOnDropProviders.delete(handle)),
+		));
+	}
+
+	async $resolveDocumentOnDropFileData(handle: number, requestId: number, dataIndex: number): Promise<VSBuffer> {
+		const provider = this._documentOnDropProviders.get(handle);
+		if (!provider) {
+			throw new Error('Could not find provider');
+		}
+		return provider.resolveDocumentOnDropFileData(requestId, dataIndex);
+	}
+}
+
+class MainThreadDocumentOnDropProvider implements languages.DocumentOnDropEditProvider {
+
+	private documentOnDropRequestId = 0;
+	private readonly dataTransfers = new Map</* requestId */ number, ReadonlyArray<languages.IDataTransferItem>>();
+
+	constructor(
+		private readonly handle: number,
+		private readonly _proxy: ExtHostLanguageFeaturesShape,
+	) { }
+
+	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: languages.IDataTransfer, token: CancellationToken): Promise<languages.SnippetTextEdit | null | undefined> {
+		const requestId = this.documentOnDropRequestId++;
+
+		this.dataTransfers.set(requestId, [...dataTransfer.values()]);
+		try {
+			const dataTransferDto = await DataTransferConverter.toDataTransferDTO(dataTransfer);
+			return await this._proxy.$provideDocumentOnDropEdits(this.handle, requestId, model.uri, position, new SerializableObjectWithBuffers(dataTransferDto), token);
+		} finally {
+			this.dataTransfers.delete(requestId);
+		}
+	}
+
+	public async resolveDocumentOnDropFileData(requestId: number, dataIndex: number): Promise<VSBuffer> {
+		const items = this.dataTransfers.get(requestId);
+		if (!items) {
+			throw new Error('No data transfer found for request');
+		}
+
+		const file = items[dataIndex].asFile();
+		if (!file) {
+			throw new Error('Data transfer item is not a file');
+		}
+
+		return VSBuffer.wrap(await file.data());
 	}
 }
 

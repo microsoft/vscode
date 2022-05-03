@@ -15,13 +15,15 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ILogService } from 'vs/platform/log/common/log';
 import { DataTransferConverter } from 'vs/workbench/api/common/shared/dataTransfer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDataTransfer } from 'vs/workbench/common/dnd';
+import { IDataTransfer, IDataTransferItem } from 'vs/workbench/common/dnd';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
 
 	private readonly _proxy: ExtHostTreeViewsShape;
 	private readonly _dataProviders: Map<string, TreeViewDataProvider> = new Map<string, TreeViewDataProvider>();
+	private readonly _dndControllers = new Map<string, TreeViewDragAndDropController>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -49,6 +51,9 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 				viewer.showCollapseAllAction = !!options.showCollapseAll;
 				viewer.canSelectMany = !!options.canSelectMany;
 				viewer.dragAndDropController = dndController;
+				if (dndController) {
+					this._dndControllers.set(treeViewId, dndController);
+				}
 				viewer.dataProvider = dataProvider;
 				this.registerListeners(treeViewId, viewer);
 				this._proxy.$setVisible(treeViewId, viewer.visible);
@@ -111,6 +116,15 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		}
 	}
 
+	$resolveDropFileData(destinationViewId: string, requestId: number, dataItemIndex: number): Promise<VSBuffer> {
+		const controller = this._dndControllers.get(destinationViewId);
+		if (!controller) {
+			throw new Error('Unknown tree');
+		}
+		return controller.resolveDropFileData(requestId, dataItemIndex);
+	}
+
+
 	private async reveal(treeView: ITreeView, dataProvider: TreeViewDataProvider, itemIn: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
 		options = options ? options : { select: false, focus: false };
 		const select = isUndefinedOrNull(options.select) ? false : options.select;
@@ -170,6 +184,9 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 			}
 		});
 		this._dataProviders.clear();
+
+		this._dndControllers.clear();
+
 		super.dispose();
 	}
 }
@@ -177,6 +194,9 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 type TreeItemHandle = string;
 
 class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
+
+	private dropRequestId = 0;
+	private readonly dataTransfers = new Map</* requestId */ number, ReadonlyArray<IDataTransferItem>>();
 
 	constructor(private readonly treeViewId: string,
 		readonly dropMimeTypes: string[],
@@ -186,7 +206,13 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 
 	async handleDrop(dataTransfer: IDataTransfer, targetTreeItem: ITreeItem | undefined, token: CancellationToken,
 		operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
-		return this._proxy.$handleDrop(this.treeViewId, await DataTransferConverter.toDataTransferDTO(dataTransfer), targetTreeItem?.handle, token, operationUuid, sourceTreeId, sourceTreeItemHandles);
+		const requestId = this.dropRequestId++;
+		this.dataTransfers.set(requestId, [...dataTransfer.values()]);
+		try {
+			return await this._proxy.$handleDrop(this.treeViewId, requestId, await DataTransferConverter.toDataTransferDTO(dataTransfer), targetTreeItem?.handle, token, operationUuid, sourceTreeId, sourceTreeItemHandles);
+		} finally {
+			this.dataTransfers.delete(requestId);
+		}
 	}
 
 	async handleDrag(sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<IDataTransfer | undefined> {
@@ -197,7 +223,21 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 		if (!additionalTransferItems) {
 			return;
 		}
-		return DataTransferConverter.toDataTransfer(additionalTransferItems);
+		return DataTransferConverter.toDataTransfer(additionalTransferItems, () => { throw new Error('not supported'); });
+	}
+
+	public async resolveDropFileData(requestId: number, dataItemIndex: number): Promise<VSBuffer> {
+		const entry = this.dataTransfers.get(requestId);
+		if (!entry) {
+			throw new Error('No data transfer found');
+		}
+
+		const file = entry[dataItemIndex]?.asFile();
+		if (!file) {
+			throw new Error('No file item found in data transfer');
+		}
+
+		return VSBuffer.wrap(await file.data());
 	}
 }
 

@@ -7,6 +7,9 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/TODO
 
+	/**
+	 * A file associated with a {@linkcode DataTransferItem}.
+	 */
 	interface DataTransferFile {
 		/**
 		 * The name of the file.
@@ -27,6 +30,13 @@ declare module 'vscode' {
 	}
 
 	export interface DataTransferItem {
+		/**
+		 * Try getting the file associated with this data transfer item.
+		 *
+		 * Note that the file object is only valid for the scope of the drag and drop operation.
+		 *
+		 * @returns The file for the data transfer or `undefined` if the item is not a file.
+		 */
 		asFile(): DataTransferFile | undefined;
 	}
 }
