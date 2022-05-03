@@ -333,7 +333,7 @@ async function main() {
     await fs_1.promises.mkdir(root, { recursive: true });
     await fs_1.promises.writeFile(path.join(root, 'Code.admx'), admx.replace(/\r?\n/g, '\n'));
     for (const { languageId, contents } of adml) {
-        const languagePath = languageId === 'en-us' ? 'en-us' : path.join(root, Languages[languageId]);
+        const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId]);
         await fs_1.promises.mkdir(languagePath, { recursive: true });
         await fs_1.promises.writeFile(path.join(languagePath, 'Code.adml'), contents.replace(/\r?\n/g, '\n'));
     }

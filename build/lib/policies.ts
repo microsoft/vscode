@@ -449,7 +449,7 @@ async function main() {
 	await fs.writeFile(path.join(root, 'Code.admx'), admx.replace(/\r?\n/g, '\n'));
 
 	for (const { languageId, contents } of adml) {
-		const languagePath = languageId === 'en-us' ? 'en-us' : path.join(root, Languages[languageId as keyof typeof Languages]);
+		const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
 		await fs.mkdir(languagePath, { recursive: true });
 		await fs.writeFile(path.join(languagePath, 'Code.adml'), contents.replace(/\r?\n/g, '\n'));
 	}
