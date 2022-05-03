@@ -52,7 +52,7 @@ class BasePolicy {
         return [
             `<policy name="${this.name}" class="Both" displayName="$(string.${this.name})" explainText="$(string.${this.name}_${this.description.nlsKey})" key="Software\\Policies\\Microsoft\\${regKey}" presentation="$(presentation.${this.name})">`,
             `	<parentCategory ref="${this.category.name.nlsKey}" />`,
-            `	<supportedOn ref="SUPPORTED_${this.minimumVersion.replace(/\./g, '_')}" />`,
+            `	<supportedOn ref="Supported_${this.minimumVersion.replace(/\./g, '_')}" />`,
             `	<elements>`,
             ...this.renderADMXElements(),
             `	</elements>`,
@@ -66,7 +66,7 @@ class BasePolicy {
         ];
     }
     renderADMLPresentation() {
-        return `<presentation id="${this.name}">${this.renderADMLPresentationContents()}></presentation>`;
+        return `<presentation id="${this.name}">${this.renderADMLPresentationContents()}</presentation>`;
     }
 }
 class StringEnumPolicy extends BasePolicy {
