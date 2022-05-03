@@ -639,8 +639,8 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private onDidClickSetting(evt: ISettingLinkClickEvent, recursed?: boolean): void {
-		const elements = this.currentSettingsModel.getElementsByName(evt.targetKey);
-		if (elements && elements[0]) {
+		const targetElement = this.currentSettingsModel.getElementsByName(evt.targetKey)?.[0];
+		if (targetElement) {
 			let sourceTop = 0.5;
 			try {
 				const _sourceTop = this.settingsTree.getRelativeTop(evt.source);
@@ -651,12 +651,22 @@ export class SettingsEditor2 extends EditorPane {
 				// e.g. clicked a searched element, now the search has been cleared
 			}
 
-			this.settingsTree.reveal(elements[0], sourceTop);
+			// If we search for something and focus on a category, the settings tree
+			// only renders settings in that category.
+			// If the target display category is different than the source's, unfocus the category
+			// so that we can render all found settings again.
+			// Then, the reveal call will correctly find the target setting.
+			if (this.viewState.filterToCategory && evt.source.displayCategory !== targetElement.displayCategory) {
+				this.tocTree.setFocus([]);
+			}
+			this.settingsTree.reveal(targetElement, sourceTop);
 
 			// We need to shift focus from the setting that contains the link to the setting that's
-			//  linked. Clicking on the link sets focus on the setting that contains the link,
-			//  which is why we need the setTimeout
-			setTimeout(() => this.settingsTree.setFocus([elements[0]]), 50);
+			// linked. Clicking on the link sets focus on the setting that contains the link,
+			// which is why we need the setTimeout.
+			setTimeout(() => {
+				this.settingsTree.setFocus([targetElement]);
+			}, 50);
 
 			const domElements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), evt.targetKey);
 			if (domElements && domElements[0]) {
@@ -666,6 +676,8 @@ export class SettingsEditor2 extends EditorPane {
 				}
 			}
 		} else if (!recursed) {
+			// We'll call this event handler again after clearing the search query,
+			// so that more settings show up in the list.
 			const p = this.triggerSearch('');
 			p.then(() => {
 				this.searchWidget.setValue('');
@@ -792,7 +804,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this._register(this.tocTree.onDidChangeFocus(e => {
-			const element: SettingsTreeGroupElement | null = e.elements[0];
+			const element: SettingsTreeGroupElement | null = withUndefinedAsNull(e.elements?.[0]);
 			if (this.tocFocusedElement === element) {
 				return;
 			}
@@ -802,7 +814,9 @@ export class SettingsEditor2 extends EditorPane {
 			if (this.searchResultModel) {
 				if (this.viewState.filterToCategory !== element) {
 					this.viewState.filterToCategory = withNullAsUndefined(element);
-					this.renderTree();
+					// Force render in this case, because
+					// onDidClickSetting relies on the updated view.
+					this.renderTree(undefined, true);
 					this.settingsTree.scrollTop = 0;
 				}
 			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
