@@ -9,7 +9,10 @@ builtin autoload -Uz add-zsh-hook
 VSCODE_SHELL_INTEGRATION=1
 
 if [[ $options[norcs] = off  && -f $USER_ZDOTDIR/.zshrc ]]; then
+	VSCODE_ZDOTDIR=$ZDOTDIR
+	ZDOTDIR=$USER_ZDOTDIR
 	. $USER_ZDOTDIR/.zshrc
+	ZDOTDIR=$VSCODE_ZDOTDIR
 fi
 
 # Shell integration was disabled by the shell, exit without warning assuming either the shell has
