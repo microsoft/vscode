@@ -19,7 +19,7 @@ import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/com
 import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { ILanguageDetectionService, LanguageDetectionHintConfig } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 class CellStatusBarLanguagePickerProvider implements INotebookCellStatusBarItemProvider {
@@ -79,8 +79,8 @@ class CellStatusBarLanguageDetectionProvider implements INotebookCellStatusBarIt
 		const cell = doc?.cells[index];
 		if (!cell) { return; }
 
-		const enablementConfig = this._configurationService.getValue('workbench.editor.languageDetectionHints');
-		const enabled = enablementConfig === 'always' || enablementConfig === 'notebookEditors';
+		const enablementConfig = this._configurationService.getValue<LanguageDetectionHintConfig>('workbench.editor.languageDetectionHints');
+		const enabled = typeof enablementConfig === 'object' && enablementConfig?.notebookEditors;
 		if (!enabled) {
 			return;
 		}

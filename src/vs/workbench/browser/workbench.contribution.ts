@@ -112,17 +112,21 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize('workbench.editor.preferBasedLanguageDetection', "When enabled, a language detection model that takes into account editor history will be given higher precedence."),
 			},
 			'workbench.editor.languageDetectionHints': {
-				type: 'string',
-				default: 'textEditors',
+				type: 'object',
+				default: { 'untitledEditors': true, 'notebookEditors': false },
 				tags: ['experimental'],
-				enum: ['always', 'notebookEditors', 'textEditors', 'never'],
 				description: localize('workbench.editor.showLanguageDetectionHints', "When enabled, shows a status bar quick fix when the editor language doesn't match detected content language."),
-				enumDescriptions: [
-					localize('workbench.editor.showLanguageDetectionHints.always', "Show show language detection quick fixes in both notebooks and untitled editors"),
-					localize('workbench.editor.showLanguageDetectionHints.notebook', "Only show language detection quick fixes in notebooks"),
-					localize('workbench.editor.showLanguageDetectionHints.editors', "Only show language detection quick fixes in untitled editors"),
-					localize('workbench.editor.showLanguageDetectionHints.never', "Never show language quick fixes"),
-				]
+				additionalProperties: false,
+				properties: {
+					untitledEditors: {
+						type: 'boolean',
+						description: localize('workbench.editor.showLanguageDetectionHints.editors', "Show in untitled editors"),
+					},
+					notebookEditors: {
+						type: 'boolean',
+						description: localize('workbench.editor.showLanguageDetectionHints.notebook', "Show in notebook editors"),
+					}
+				}
 			},
 			'workbench.editor.tabCloseButton': {
 				'type': 'string',
