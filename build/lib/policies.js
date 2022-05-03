@@ -272,7 +272,7 @@ function renderADML(appName, versions, categories, policies, translations) {
 </policyDefinitionResources>
 `;
 }
-async function renderGP(policies, translations) {
+function renderGP(policies, translations) {
     const appName = product.nameLong;
     const regKey = product.win32RegValueName;
     const versions = [...new Set(policies.map(p => p.minimumVersion)).values()].sort();
@@ -312,7 +312,7 @@ async function getNLS(languageId, version) {
     return result;
 }
 // ---
-async function main() {
+async function parsePolicies() {
     const parser = new Parser();
     parser.setLanguage(typescript);
     const files = await getFiles(process.cwd());
@@ -324,9 +324,16 @@ async function main() {
         const tree = parser.parse(contents);
         policies.push(...getPolicies(moduleName, tree.rootNode));
     }
+    return policies;
+}
+async function getTranslations() {
     const version = await getLatestStableVersion();
     const languageIds = Object.keys(Languages);
-    const translations = await Promise.all(languageIds.map(languageId => getNLS(languageId, version).then(languageTranslations => ({ languageId, languageTranslations }))));
+    return await Promise.all(languageIds.map(languageId => getNLS(languageId, version)
+        .then(languageTranslations => ({ languageId, languageTranslations }))));
+}
+async function main() {
+    const [policies, translations] = await Promise.all([parsePolicies(), getTranslations()]);
     const { admx, adml } = await renderGP(policies, translations);
     const root = '.build/policies/win32';
     await fs_1.promises.rm(root, { recursive: true, force: true });

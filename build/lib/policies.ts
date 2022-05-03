@@ -366,11 +366,7 @@ function renderADML(appName: string, versions: string[], categories: Category[],
 `;
 }
 
-type GP = {
-	admx: string; adml: { languageId: string; contents: string }[];
-};
-
-async function renderGP(policies: Policy[], translations: Translations): Promise<GP> {
+function renderGP(policies: Policy[], translations: Translations) {
 	const appName = product.nameLong;
 	const regKey = product.win32RegValueName;
 
@@ -422,7 +418,7 @@ async function getNLS(languageId: string, version: string) {
 
 // ---
 
-async function main() {
+async function parsePolicies(): Promise<Policy[]> {
 	const parser = new Parser();
 	parser.setLanguage(typescript);
 
@@ -437,9 +433,21 @@ async function main() {
 		policies.push(...getPolicies(moduleName, tree.rootNode));
 	}
 
+	return policies;
+}
+
+async function getTranslations(): Promise<Translations> {
 	const version = await getLatestStableVersion();
 	const languageIds = Object.keys(Languages);
-	const translations = await Promise.all(languageIds.map(languageId => getNLS(languageId, version).then(languageTranslations => ({ languageId, languageTranslations }))));
+
+	return await Promise.all(languageIds.map(
+		languageId => getNLS(languageId, version)
+			.then(languageTranslations => ({ languageId, languageTranslations }))
+	));
+}
+
+async function main() {
+	const [policies, translations] = await Promise.all([parsePolicies(), getTranslations()]);
 	const { admx, adml } = await renderGP(policies, translations);
 
 	const root = '.build/policies/win32';
