@@ -553,7 +553,11 @@ export class SuggestModel implements IDisposable {
 
 		setTimeout(() => {
 			type Durations = { data: string };
-			type DurationsClassification = { data: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' } };
+			type DurationsClassification = {
+				owner: 'jrieken';
+				comment: 'Completions performance numbers';
+				data: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			};
 			this._telemetryService.publicLog2<Durations, DurationsClassification>('suggest.durations.json', { data: JSON.stringify(durations) });
 			this._logService.debug('suggest.durations.json', durations);
 		});
