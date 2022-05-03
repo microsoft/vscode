@@ -6,6 +6,8 @@
 import * as vscode from 'vscode';
 import { SymbolItemDragAndDrop, SymbolItemEditorHighlights, SymbolItemNavigation, SymbolTreeInput, SymbolTreeModel } from '../references-view';
 import { asResourceUrl, del, getPreviewChunks, tail } from '../utils';
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
 
 export class ReferencesTreeInput implements SymbolTreeInput<FileItem | ReferenceItem> {
 
@@ -110,18 +112,18 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 
 	get message() {
 		if (this.items.length === 0) {
-			return 'No results.';
+			return localize('noresult', 'No results.');
 		}
 		const total = this.items.reduce((prev, cur) => prev + cur.references.length, 0);
 		const files = this.items.length;
 		if (total === 1 && files === 1) {
-			return `${total} result in ${files} file`;
+			return localize('result.1', '{0} result in {1} file', total, files);
 		} else if (total === 1) {
-			return `${total} result in ${files} files`;
+			return localize('result.1n', '{0} result in {1} files', total, files);
 		} else if (files === 1) {
-			return `${total} results in ${files} file`;
+			return localize('result.n1', '{0} results in {1} file', total, files);
 		} else {
-			return `${total} results in ${files} files`;
+			return localize('result.nm', '{0} results in {1} files', total, files);
 		}
 	}
 
@@ -297,7 +299,7 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | R
 			result.contextValue = 'reference-item';
 			result.command = {
 				command: 'vscode.open',
-				title: 'Open Reference',
+				title: localize('open', 'Open Reference'),
 				arguments: [
 					element.location.uri,
 					<vscode.TextDocumentShowOptions>{ selection: range.with({ end: range.start }) }

@@ -6,6 +6,8 @@
 import * as vscode from 'vscode';
 import { SymbolsTree } from '../tree';
 import { FileItem, ReferenceItem, ReferencesModel, ReferencesTreeInput } from './model';
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
 
 export function register(tree: SymbolsTree, context: vscode.ExtensionContext): void {
 
@@ -43,7 +45,7 @@ export function register(tree: SymbolsTree, context: vscode.ExtensionContext): v
 
 		if (value === 'view') {
 			showReferencesDisposable = vscode.commands.registerCommand('editor.action.showReferences', async (uri: vscode.Uri, position: vscode.Position, locations: vscode.Location[]) => {
-				const input = new ReferencesTreeInput('References', new vscode.Location(uri, position), 'vscode.executeReferenceProvider', locations);
+				const input = new ReferencesTreeInput(localize('title', 'References'), new vscode.Location(uri, position), 'vscode.executeReferenceProvider', locations);
 				tree.setInput(input);
 			});
 		}
