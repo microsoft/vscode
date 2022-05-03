@@ -26,6 +26,72 @@ var PolicyType;
 (function (PolicyType) {
     PolicyType[PolicyType["StringEnum"] = 0] = "StringEnum";
 })(PolicyType || (PolicyType = {}));
+class BasePolicy {
+    constructor(policyType, name, category, minimumVersion, description, moduleName) {
+        this.policyType = policyType;
+        this.name = name;
+        this.category = category;
+        this.minimumVersion = minimumVersion;
+        this.description = description;
+        this.moduleName = moduleName;
+    }
+    renderADMLString(nlsString, translations) {
+        let value;
+        if (translations) {
+            const moduleTranslations = translations[this.moduleName];
+            if (moduleTranslations) {
+                value = moduleTranslations[nlsString.nlsKey];
+            }
+        }
+        if (!value) {
+            value = nlsString.value;
+        }
+        return `<string id="${this.name}_${nlsString.nlsKey}">${value}</string>`;
+    }
+    renderADMX(regKey) {
+        return [
+            `<policy name="${this.name}" class="Both" displayName="$(string.${this.name})" explainText="$(string.${this.name}_${this.description.nlsKey})" key="Software\\Policies\\Microsoft\\${regKey}" presentation="$(presentation.${this.name})">`,
+            `	<parentCategory ref="${this.category.name.nlsKey}" />`,
+            `	<supportedOn ref="SUPPORTED_${this.minimumVersion.replace(/\./g, '_')}" />`,
+            `	<elements>`,
+            ...this.renderADMXElements(),
+            `	</elements>`,
+            `</policy>`
+        ];
+    }
+    renderADMLStrings(translations) {
+        return [
+            `<string id="${this.name}">${this.name}</string>`,
+            this.renderADMLString(this.description, translations)
+        ];
+    }
+    renderADMLPresentation() {
+        return `<presentation id="${this.name}">${this.renderADMLPresentationContents()}></presentation>`;
+    }
+}
+class StringEnumPolicy extends BasePolicy {
+    constructor(name, category, minimumVersion, description, moduleName, enum_, enumDescriptions) {
+        super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
+        this.enum_ = enum_;
+        this.enumDescriptions = enumDescriptions;
+    }
+    renderADMXElements() {
+        return [
+            `<enum id="${this.name}" valueName="${this.name}">`,
+            ...this.enum_.map((value, index) => `	<item displayName="$(string.${this.name}_${this.enumDescriptions[index].nlsKey})"><value><string>${value}</string></value></item>`),
+            `</enum>`
+        ];
+    }
+    renderADMLStrings(translations) {
+        return [
+            ...super.renderADMLStrings(translations),
+            ...this.enumDescriptions.map(e => this.renderADMLString(e, translations))
+        ];
+    }
+    renderADMLPresentationContents() {
+        return `<dropdownList refId="${this.name}" />`;
+    }
+}
 const StringQ = {
     Q: `[
 		(string (string_fragment) @value)
@@ -103,11 +169,11 @@ function getPolicy(moduleName, settingNode, policyNode, categories) {
     if (type !== 'string') {
         throw new Error(`Can't create policy from setting type '${type}' (needs implementing)`);
     }
-    const _enum = getStringArrayProperty(settingNode, 'enum');
-    if (!_enum) {
+    const enum_ = getStringArrayProperty(settingNode, 'enum');
+    if (!enum_) {
         throw new Error(`Missing required 'enum' property.`);
     }
-    if (!isStringArray(_enum)) {
+    if (!isStringArray(enum_)) {
         throw new Error(`Property 'enum' should not be localized.`);
     }
     const enumDescriptions = getStringArrayProperty(settingNode, 'enumDescriptions');
@@ -130,7 +196,7 @@ function getPolicy(moduleName, settingNode, policyNode, categories) {
         category = { name: categoryName };
         categories.set(categoryKey, category);
     }
-    return { policyType: PolicyType.StringEnum, name, minimumVersion, description, type, moduleName, enum: _enum, enumDescriptions, category };
+    return new StringEnumPolicy(name, category, minimumVersion, description, moduleName, enum_, enumDescriptions);
 }
 function getPolicies(moduleName, node) {
     const query = new Parser.Query(typescript, `
@@ -169,22 +235,6 @@ async function getFiles(root) {
     });
 }
 // ---
-function renderADMXPolicy(regKey, policy) {
-    switch (policy.policyType) {
-        case PolicyType.StringEnum:
-            return `<policy name="${policy.name}" class="Both" displayName="$(string.${policy.name})" explainText="$(string.${policy.name}_${policy.description.nlsKey})" key="Software\\Policies\\Microsoft\\${regKey}" presentation="$(presentation.${policy.name})">
-			<parentCategory ref="${policy.category.name.nlsKey}" />
-			<supportedOn ref="SUPPORTED_${policy.minimumVersion.replace(/\./g, '_')}" />
-			<elements>
-				<enum id="${policy.name}" valueName="${policy.name}">
-					${policy.enum.map((value, index) => `<item displayName="$(string.${policy.name}_${policy.enumDescriptions[index].nlsKey})"><value><string>${value}</string></value></item>`).join(`\n					`)}
-				</enum>
-			</elements>
-		</policy>`;
-        default:
-            throw new Error(`Unexpected policy type: ${policy.type}`);
-    }
-}
 function renderADMX(regKey, versions, categories, policies) {
     versions = versions.map(v => v.replace(/\./g, '_'));
     return `<?xml version="1.0" encoding="utf-8"?>
@@ -203,55 +253,10 @@ function renderADMX(regKey, versions, categories, policies) {
 		${categories.map(c => `<category displayName="$(string.Category_${c.name.nlsKey})" name="${c.name.nlsKey}"><parentCategory ref="Application" /></category>`).join(`\n		`)}
 	</categories>
 	<policies>
-		${policies.map(p => renderADMXPolicy(regKey, p)).join(`\n		`)}
+		${policies.map(p => p.renderADMX(regKey)).flat().join(`\n		`)}
 	</policies>
 </policyDefinitions>
 `;
-}
-function renderADMLString(policy, nlsString, translations) {
-    let value;
-    if (translations) {
-        const moduleTranslations = translations[policy.moduleName];
-        if (moduleTranslations) {
-            value = moduleTranslations[nlsString.nlsKey];
-        }
-    }
-    if (!value) {
-        value = nlsString.value;
-    }
-    return `<string id="${policy.name}_${nlsString.nlsKey}">${value}</string>`;
-}
-function pushADMLString(arr, policy, value, translations) {
-    if (isNlsString(value)) {
-        arr.push(renderADMLString(policy, value, translations));
-    }
-}
-function pushADMLStrings(arr, policy, values, translations) {
-    for (const value of values) {
-        pushADMLString(arr, policy, value, translations);
-    }
-}
-function renderADMLStrings(policy, translations) {
-    const result = [
-        `<string id="${policy.name}">${policy.name}</string>`
-    ];
-    pushADMLString(result, policy, policy.description, translations);
-    switch (policy.policyType) {
-        case PolicyType.StringEnum:
-            pushADMLStrings(result, policy, policy.enumDescriptions, translations);
-            break;
-        default:
-            throw new Error(`Unexpected policy type: ${policy.type}`);
-    }
-    return result;
-}
-function renderADMLPresentation(policy, _translations) {
-    switch (policy.policyType) {
-        case PolicyType.StringEnum:
-            return `<presentation id="${policy.name}"><dropdownList refId="${policy.name}" /></presentation>`;
-        default:
-            throw new Error(`Unexpected policy type: ${policy.type}`);
-    }
 }
 function renderADML(appName, versions, categories, policies, translations) {
     return `<?xml version="1.0" encoding="utf-8"?>
@@ -263,10 +268,10 @@ function renderADML(appName, versions, categories, policies, translations) {
 			<string id="Application">${appName}</string>
 			${versions.map(v => `<string id="Supported_${v.replace(/\./g, '_')}">${appName} ${v} or later</string>`)}
 			${categories.map(c => `<string id="Category_${c.name.nlsKey}">${c.name.value}</string>`)}
-			${policies.map(p => renderADMLStrings(p, translations)).flat().join(`\n			`)}
+			${policies.map(p => p.renderADMLStrings(translations)).flat().join(`\n			`)}
 		</stringTable>
 		<presentationTable>
-			${policies.map(p => renderADMLPresentation(p, translations)).join(`\n			`)}
+			${policies.map(p => p.renderADMLPresentation()).join(`\n			`)}
 		</presentationTable>
 	</resources>
 </policyDefinitionResources>
