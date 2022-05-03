@@ -284,9 +284,12 @@ async function main() {
     }
     const { admx, adml } = await renderGP(policies);
     const root = '.build/policies/win32';
+    await fs_1.promises.rm(root, { recursive: true, force: true });
     await fs_1.promises.mkdir(root, { recursive: true });
     await fs_1.promises.writeFile(path.join(root, 'Code.admx'), admx.replace(/\r?\n/g, '\n'));
-    await fs_1.promises.writeFile(path.join(root, 'Code.adml'), adml.replace(/\r?\n/g, '\n'));
+    const enUS = path.join(root, 'en-US');
+    await fs_1.promises.mkdir(enUS, { recursive: true });
+    await fs_1.promises.writeFile(path.join(enUS, 'Code.adml'), adml.replace(/\r?\n/g, '\n'));
 }
 if (require.main === module) {
     main().catch(err => {
