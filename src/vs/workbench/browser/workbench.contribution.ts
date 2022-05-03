@@ -113,7 +113,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.languageDetectionHints': {
 				type: 'string',
-				default: 'always',
+				default: 'textEditors',
 				tags: ['experimental'],
 				enum: ['always', 'notebookEditors', 'textEditors', 'never'],
 				description: localize('workbench.editor.showLanguageDetectionHints', "When enabled, shows a status bar quick fix when the editor language doesn't match detected content language."),
