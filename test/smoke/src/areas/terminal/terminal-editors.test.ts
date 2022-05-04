@@ -66,7 +66,7 @@ export function setup() {
 			await terminal.assertEditorGroupCount(1);
 		});
 
-		it.skip('should create a terminal in the editor area by default', async () => {
+		it('should create a terminal in the editor area by default', async () => {
 			await app.workbench.settingsEditor.addUserSetting('terminal.integrated.defaultLocation', '"editor"');
 			// Close the settings editor
 			await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');

@@ -75,7 +75,7 @@ export class Terminal {
 
 	constructor(private code: Code, private quickaccess: QuickAccess, private quickinput: QuickInput) { }
 
-	async runCommand(commandId: TerminalCommandId): Promise<void> {
+	async runCommand(commandId: TerminalCommandId, expectedLocation?: 'editor' | 'panel'): Promise<void> {
 		const keepOpen = commandId === TerminalCommandId.Join;
 		await this.quickaccess.runCommand(commandId, keepOpen);
 		if (keepOpen) {
@@ -83,7 +83,7 @@ export class Terminal {
 			await this.quickinput.waitForQuickInputClosed();
 		}
 		if (commandId === TerminalCommandId.Show || commandId === TerminalCommandId.CreateNewEditor || commandId === TerminalCommandId.CreateNew || commandId === TerminalCommandId.NewWithProfile) {
-			return await this._waitForTerminal(commandId === TerminalCommandId.CreateNewEditor ? 'editor' : 'panel');
+			return await this._waitForTerminal(expectedLocation === 'editor' || commandId === TerminalCommandId.CreateNewEditor ? 'editor' : 'panel');
 		}
 	}
 
@@ -114,11 +114,11 @@ export class Terminal {
 
 	/**
 	 * Creates a terminal using the new terminal command.
-	 * @param location The location to check the terminal for, defaults to panel.
+	 * @param expectedLocation The location to check the terminal for, defaults to panel.
 	 */
-	async createTerminal(location?: 'editor' | 'panel'): Promise<void> {
-		await this.runCommand(TerminalCommandId.CreateNew);
-		await this._waitForTerminal(location);
+	async createTerminal(expectedLocation?: 'editor' | 'panel'): Promise<void> {
+		await this.runCommand(TerminalCommandId.CreateNew, expectedLocation);
+		await this._waitForTerminal(expectedLocation);
 	}
 
 	async assertEditorGroupCount(count: number): Promise<void> {
@@ -261,10 +261,10 @@ export class Terminal {
 
 	/**
 	 * Waits for the terminal to be focused and to contain content.
-	 * @param location The location to check the terminal for, defaults to panel.
+	 * @param expectedLocation The location to check the terminal for, defaults to panel.
 	 */
-	private async _waitForTerminal(location?: 'editor' | 'panel'): Promise<void> {
+	private async _waitForTerminal(expectedLocation?: 'editor' | 'panel'): Promise<void> {
 		await this.code.waitForElement(Selector.XtermFocused);
-		await this.code.waitForTerminalBuffer(location === 'editor' ? Selector.XtermEditor : Selector.Xterm, lines => lines.some(line => line.length > 0));
+		await this.code.waitForTerminalBuffer(expectedLocation === 'editor' ? Selector.XtermEditor : Selector.Xterm, lines => lines.some(line => line.length > 0));
 	}
 }
