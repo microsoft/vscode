@@ -16,7 +16,8 @@
     "Programming Languages"
   ],
   "enabledApiProposals": [
-    "textEditorDrop"
+    "textEditorDrop",
+    "editorInsets"
   ],
   "activationEvents": [
     "onLanguage:markdown",

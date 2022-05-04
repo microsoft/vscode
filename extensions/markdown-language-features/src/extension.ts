@@ -12,6 +12,7 @@ import { MdLinkProvider } from './languageFeatures/documentLinkProvider';
 import { MdDocumentSymbolProvider } from './languageFeatures/documentSymbolProvider';
 import { registerDropIntoEditor } from './languageFeatures/dropIntoEditor';
 import { registerFindFileReferences } from './languageFeatures/fileReferences';
+import { registerImagePreview } from './languageFeatures/editorImagePreview';
 import { MdFoldingProvider } from './languageFeatures/foldingProvider';
 import { MdPathCompletionProvider } from './languageFeatures/pathCompletions';
 import { MdReferencesProvider } from './languageFeatures/references';
@@ -53,6 +54,8 @@ export function activate(context: vscode.ExtensionContext) {
 		logger.updateConfiguration();
 		previewManager.updateConfiguration();
 	}));
+
+	context.subscriptions.push(registerImagePreview());
 }
 
 function registerMarkdownLanguageFeatures(
