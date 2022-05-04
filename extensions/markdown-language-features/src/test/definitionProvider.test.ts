@@ -10,11 +10,12 @@ import { MdDefinitionProvider } from '../languageFeatures/definitionProvider';
 import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { MdReferencesProvider } from '../languageFeatures/references';
 import { githubSlugifier } from '../slugify';
+import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
-import { joinLines, noopToken, workspacePath } from './util';
+import { joinLines, workspacePath } from './util';
 
 
 function getDefinition(doc: InMemoryDocument, pos: vscode.Position, workspaceContents: MdWorkspaceContents) {

@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as vscode from 'vscode';
 import 'mocha';
+import * as vscode from 'vscode';
 import { DiagnosticComputer, DiagnosticConfiguration, DiagnosticLevel, DiagnosticManager, DiagnosticOptions } from '../languageFeatures/diagnostics';
 import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
+import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
-import { assertRangeEqual, joinLines, noopToken, workspacePath } from './util';
+import { assertRangeEqual, joinLines, workspacePath } from './util';
 
 
 function getComputedDiagnostics(doc: InMemoryDocument, workspaceContents: MdWorkspaceContents) {
