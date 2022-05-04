@@ -504,6 +504,42 @@ suite('markdown: find all references', () => {
 			);
 		});
 
+		test('Should find reference links using shorthand', async () => {
+			const docUri = workspacePath('doc.md');
+			const doc = new InMemoryDocument(docUri, joinLines(
+				`[ref]`, // trigger 1
+				``,
+				`[yes][ref]`, // trigger 2
+				``,
+				`[ref]: /Hello.md` // trigger 3
+			));
+
+			{
+				const refs = await getReferences(doc, new vscode.Position(0, 2), new InMemoryWorkspaceMarkdownDocuments([doc]));
+				assertReferencesEqual(refs!,
+					{ uri: docUri, line: 0 },
+					{ uri: docUri, line: 2 },
+					{ uri: docUri, line: 4 },
+				);
+			}
+			{
+				const refs = await getReferences(doc, new vscode.Position(2, 7), new InMemoryWorkspaceMarkdownDocuments([doc]));
+				assertReferencesEqual(refs!,
+					{ uri: docUri, line: 0 },
+					{ uri: docUri, line: 2 },
+					{ uri: docUri, line: 4 },
+				);
+			}
+			{
+				const refs = await getReferences(doc, new vscode.Position(4, 2), new InMemoryWorkspaceMarkdownDocuments([doc]));
+				assertReferencesEqual(refs!,
+					{ uri: docUri, line: 0 },
+					{ uri: docUri, line: 2 },
+					{ uri: docUri, line: 4 },
+				);
+			}
+		});
+
 		test('Should find reference links within file from definition', async () => {
 			const docUri = workspacePath('doc.md');
 			const doc = new InMemoryDocument(docUri, joinLines(

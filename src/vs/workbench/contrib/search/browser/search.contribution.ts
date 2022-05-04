@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
@@ -594,25 +593,37 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	when: ContextKeyExpr.and(ExplorerRootContext, ExplorerFolderContext.toNegated())
 });
 
-
-class ShowAllSymbolsAction extends Action {
+registerAction2(class ShowAllSymbolsAction extends Action2 {
 
 	static readonly ID = 'workbench.action.showAllSymbols';
 	static readonly LABEL = nls.localize('showTriggerActions', "Go to Symbol in Workspace...");
 	static readonly ALL_SYMBOLS_PREFIX = '#';
 
 	constructor(
-		actionId: string,
-		actionLabel: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
-		super(actionId, actionLabel);
+		super({
+			id: 'workbench.action.showAllSymbols',
+			title: {
+				value: nls.localize('showTriggerActions', "Go to Symbol in Workspace..."),
+				original: 'Go to Symbol in Workspace...'
+			},
+			f1: true,
+			menu: {
+				id: MenuId.TitleMenuQuickPick,
+				group: '1/workspaceNav',
+				order: 2
+			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyT
+			}
+		});
 	}
 
-	override async run(): Promise<void> {
-		this.quickInputService.quickAccess.show(ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(IQuickInputService).quickAccess.show(ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX);
 	}
-}
+});
 
 const SEARCH_MODE_CONFIG = 'search.mode';
 
@@ -793,7 +804,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowAllSymbolsAction, { primary: KeyMod.CtrlCmd | KeyCode.KeyT }), 'Go to Symbol in Workspace...');
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleSearchOnTypeAction), 'Search: Toggle Search on Type', category.value);
 
 // Register Quick Access Handler

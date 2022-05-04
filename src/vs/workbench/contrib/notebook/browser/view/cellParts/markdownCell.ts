@@ -221,7 +221,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 	override dispose() {
 		// move focus back to the cell list otherwise the focus goes to body
-		if (this.notebookEditor.getActiveCell() === this.viewCell && this.viewCell.focusMode === CellFocusMode.Editor) {
+		if (this.notebookEditor.getActiveCell() === this.viewCell && this.viewCell.focusMode === CellFocusMode.Editor && (this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)) {
 			this.notebookEditor.focusContainer();
 		}
 

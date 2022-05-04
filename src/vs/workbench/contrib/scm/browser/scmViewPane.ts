@@ -1642,19 +1642,19 @@ abstract class SetSortKeyAction extends ViewAction<SCMViewPane>  {
 
 class SetSortByNameAction extends SetSortKeyAction {
 	constructor() {
-		super(ViewModelSortKey.Name, localize('sortByName', "Sort by Name"));
+		super(ViewModelSortKey.Name, localize('sortChangesByName', "Sort Changes by Name"));
 	}
 }
 
 class SetSortByPathAction extends SetSortKeyAction {
 	constructor() {
-		super(ViewModelSortKey.Path, localize('sortByPath', "Sort by Path"));
+		super(ViewModelSortKey.Path, localize('sortChangesByPath', "Sort Changes by Path"));
 	}
 }
 
 class SetSortByStatusAction extends SetSortKeyAction {
 	constructor() {
-		super(ViewModelSortKey.Status, localize('sortByStatus', "Sort by Status"));
+		super(ViewModelSortKey.Status, localize('sortChangesByStatus', "Sort Changes by Status"));
 	}
 }
 
@@ -1724,7 +1724,7 @@ class SCMInputWidget extends Disposable {
 	private inputEditor: CodeEditorWidget;
 
 	private model: { readonly input: ISCMInput; readonly textModel: ITextModel } | undefined;
-	private repositoryContextKey: IContextKey<ISCMRepository | undefined>;
+	private repositoryIdContextKey: IContextKey<string | undefined>;
 	private repositoryDisposables = new DisposableStore();
 
 	private validation: IInputValidation | undefined;
@@ -1753,7 +1753,7 @@ class SCMInputWidget extends Disposable {
 
 		this.repositoryDisposables.dispose();
 		this.repositoryDisposables = new DisposableStore();
-		this.repositoryContextKey.set(input?.repository);
+		this.repositoryIdContextKey.set(input?.repository.id);
 
 		if (!input) {
 			this.model?.textModel.dispose();
@@ -1919,7 +1919,7 @@ class SCMInputWidget extends Disposable {
 		this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
 
 		const contextKeyService2 = contextKeyService.createScoped(this.element);
-		this.repositoryContextKey = contextKeyService2.createKey('scmRepository', undefined);
+		this.repositoryIdContextKey = contextKeyService2.createKey('scmRepository', undefined);
 
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(),
@@ -2326,14 +2326,14 @@ export class SCMViewPane extends ViewPane {
 			return;
 		} else if (isSCMResourceGroup(e.element)) {
 			const provider = e.element.provider;
-			const repository = this.scmService.repositories.find(r => r.provider === provider);
+			const repository = Iterable.find(this.scmService.repositories, r => r.provider === provider);
 			if (repository) {
 				this.scmViewService.focus(repository);
 			}
 			return;
 		} else if (ResourceTree.isResourceNode(e.element)) {
 			const provider = e.element.context.provider;
-			const repository = this.scmService.repositories.find(r => r.provider === provider);
+			const repository = Iterable.find(this.scmService.repositories, r => r.provider === provider);
 			if (repository) {
 				this.scmViewService.focus(repository);
 			}
@@ -2376,7 +2376,7 @@ export class SCMViewPane extends ViewPane {
 		}
 
 		const provider = e.element.resourceGroup.provider;
-		const repository = this.scmService.repositories.find(r => r.provider === provider);
+		const repository = Iterable.find(this.scmService.repositories, r => r.provider === provider);
 
 		if (repository) {
 			this.scmViewService.focus(repository);
@@ -2451,7 +2451,7 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	override shouldShowWelcome(): boolean {
-		return this.scmService.repositories.length === 0;
+		return this.scmService.repositoryCount === 0;
 	}
 
 	override getActionsContext(): unknown {

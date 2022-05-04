@@ -14,8 +14,7 @@ import { extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
 import { localize } from 'vs/nls';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -494,26 +493,32 @@ export class BreadcrumbsControl {
 //#region commands
 
 // toggle command
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: 'breadcrumbs.toggle',
-		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
-		category: CATEGORIES.View
+registerAction2(class ToggleBreadcrumb extends Action2 {
+
+	constructor() {
+		super({
+			id: 'breadcrumbs.toggle',
+			title: {
+				value: localize('cmd.toggle', "Toggle Breadcrumbs"),
+				mnemonicTitle: localize('miShowBreadcrumbs', "Show &&Breadcrumbs"),
+				original: 'Toggle Breadcrumbs',
+			},
+			category: CATEGORIES.View,
+			toggled: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
+			menu: [
+				{ id: MenuId.CommandPalette },
+				{ id: MenuId.MenubarViewMenu, group: '5_editor', order: 3 },
+				{ id: MenuId.NotebookToolbar, group: 'notebookLayout', order: 2 }
+			]
+		});
 	}
-});
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '5_editor',
-	order: 3,
-	command: {
-		id: 'breadcrumbs.toggle',
-		title: localize('miShowBreadcrumbs', "Show &&Breadcrumbs"),
-		toggled: ContextKeyExpr.equals('config.breadcrumbs.enabled', true)
+
+	run(accessor: ServicesAccessor): void {
+		let config = accessor.get(IConfigurationService);
+		let value = BreadcrumbsConfig.IsEnabled.bindTo(config).getValue();
+		BreadcrumbsConfig.IsEnabled.bindTo(config).updateValue(!value);
 	}
-});
-CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
-	let config = accessor.get(IConfigurationService);
-	let value = BreadcrumbsConfig.IsEnabled.bindTo(config).getValue();
-	BreadcrumbsConfig.IsEnabled.bindTo(config).updateValue(!value);
+
 });
 
 // focus/focus-and-select
@@ -530,20 +535,27 @@ function focusAndSelectHandler(accessor: ServicesAccessor, select: boolean): voi
 		}
 	}
 }
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: 'breadcrumbs.focusAndSelect',
-		title: { value: localize('cmd.focus', "Focus Breadcrumbs"), original: 'Focus Breadcrumbs' },
-		precondition: BreadcrumbsControl.CK_BreadcrumbsVisible
+registerAction2(class FocusAndSelectBreadcrumbs extends Action2 {
+	constructor() {
+		super({
+			id: 'breadcrumbs.focusAndSelect',
+			title: {
+				value: localize('cmd.focus', "Focus Breadcrumbs"),
+				original: 'Focus Breadcrumbs'
+			},
+			precondition: BreadcrumbsControl.CK_BreadcrumbsVisible,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period,
+				when: BreadcrumbsControl.CK_BreadcrumbsPossible,
+			}
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		focusAndSelectHandler(accessor, true);
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.focusAndSelect',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period,
-	when: BreadcrumbsControl.CK_BreadcrumbsPossible,
-	handler: accessor => focusAndSelectHandler(accessor, true)
-});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focus',
 	weight: KeybindingWeight.WorkbenchContrib,

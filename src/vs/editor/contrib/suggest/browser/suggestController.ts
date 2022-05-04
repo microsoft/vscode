@@ -492,9 +492,9 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>, auto?: boolean): void {
+	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>, auto?: boolean, noFilter?: boolean): void {
 		if (this.editor.hasModel()) {
-			this.model.trigger({ auto: auto ?? false, shy: false }, false, onlyFrom);
+			this.model.trigger({ auto: auto ?? false, shy: false }, false, onlyFrom, undefined, noFilter);
 			this.editor.revealPosition(this.editor.getPosition(), ScrollType.Smooth);
 			this.editor.focus();
 		}

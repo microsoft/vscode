@@ -38,6 +38,7 @@ import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-m
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
+import { Color } from 'vs/base/common/color';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -246,6 +247,19 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				if (!isMacintosh) {
 					options.frame = false;
 				}
+
+				if (isWindows) {
+					// This logic will not perfectly guess the right colors to use on initialization,
+					// but prefer to keep things simple as it is temporary and not noticeable
+					const titleBarColor = this.themeMainService.getWindowSplash()?.colorInfo.titleBarBackground ?? this.themeMainService.getBackgroundColor();
+					const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
+
+					options.titleBarOverlay = {
+						height: 29, // The smallest size of the title bar on windows accounting for the border on windows 11
+						color: titleBarColor,
+						symbolColor
+					};
+				}
 			}
 
 			// Create the browser window
@@ -369,7 +383,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private readyState = ReadyState.NONE;
 
 	setReady(): void {
-		this.logService.info(`window#load: window reported ready (id: ${this._id})`);
+		this.logService.trace(`window#load: window reported ready (id: ${this._id})`);
 
 		this.readyState = ReadyState.READY;
 
@@ -718,7 +732,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	load(configuration: INativeWindowConfiguration, options: ILoadOptions = Object.create(null)): void {
-		this.logService.info(`window#load: attempt to load window (id: ${this._id})`);
+		this.logService.trace(`window#load: attempt to load window (id: ${this._id})`);
 
 		// Clear Document Edited if needed
 		if (this.isDocumentEdited()) {

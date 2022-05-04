@@ -921,10 +921,6 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	layout(dimension: Dimension) {
-		if (this.container) {
-			this.container.style.height = `${dimension.height}px`;
-		}
-
 		this.menubar?.update(this.getMenuBarOptions());
 	}
 

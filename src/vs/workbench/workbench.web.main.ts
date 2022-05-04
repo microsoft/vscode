@@ -112,6 +112,9 @@ registerSingleton(IDiagnosticsService, NullDiagnosticsService, true);
 // Output
 import 'vs/workbench/contrib/output/common/outputChannelModelService';
 
+// Logs
+import 'vs/workbench/contrib/logs/browser/logs.contribution';
+
 // Explorer
 import 'vs/workbench/contrib/files/browser/files.web.contribution';
 

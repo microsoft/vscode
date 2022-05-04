@@ -1097,16 +1097,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			setTimeout(() => this._refreshSelectionContextKey(), 0);
 		}));
 
-		this._register(dom.addDisposableListener(xterm.raw.textarea, 'focus', () => {
-			this._terminalFocusContextKey.set(true);
-			this._onDidFocus.fire(this);
-		}));
-
-		this._register(dom.addDisposableListener(xterm.raw.textarea, 'blur', () => {
-			this._terminalFocusContextKey.reset();
-			this._onDidBlur.fire(this);
-			this._refreshSelectionContextKey();
-		}));
+		this._register(dom.addDisposableListener(xterm.raw.textarea, 'focus', () => this._setFocus(true)));
+		this._register(dom.addDisposableListener(xterm.raw.textarea, 'blur', () => this._setFocus(false)));
+		this._register(dom.addDisposableListener(xterm.raw.textarea, 'focusout', () => this._setFocus(false)));
 
 		this._initDragAndDrop(container);
 
@@ -1132,6 +1125,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
+	private _setFocus(focused?: boolean): void {
+		if (focused) {
+			this._terminalFocusContextKey.set(true);
+			this._onDidFocus.fire(this);
+		} else {
+			this._terminalFocusContextKey.reset();
+			this._onDidBlur.fire(this);
+			this._refreshSelectionContextKey();
+		}
+	}
+
 	private _initDragAndDrop(container: HTMLElement) {
 		this._dndObserver?.dispose();
 		const dndController = this._instantiationService.createInstance(TerminalInstanceDragAndDropController, container);
@@ -1153,6 +1157,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (asHtml) {
 				const textAsHtml = await xterm.getSelectionAsHtml(command);
 				function listener(e: any) {
+					if (!e.clipboardData.types.includes('text/plain')) {
+						e.clipboardData.setData('text/plain', command?.getOutput() ?? '');
+					}
 					e.clipboardData.setData('text/html', textAsHtml);
 					e.preventDefault();
 				}

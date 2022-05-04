@@ -29,6 +29,11 @@
 	height: 21px;
 }
 
+.review-widget .body .review-comment .comment-title .comment-header-info {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .review-widget .body .review-comment .comment-title {
 	display: flex;
 	width: 100%;
