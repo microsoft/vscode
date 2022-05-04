@@ -14,7 +14,7 @@ import { IFilesConfiguration, UndoConfirmLevel, VIEW_ID } from 'vs/workbench/con
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Limiter, Promises, RunOnceWorker } from 'vs/base/common/async';
 import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
-import { basename, joinPath } from 'vs/base/common/resources';
+import { basename, dirname, joinPath } from 'vs/base/common/resources';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
@@ -35,6 +35,7 @@ import { canceled } from 'vs/base/common/errors';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 //#region Browser File Upload (drag and drop, input element)
 
@@ -574,12 +575,15 @@ interface IDownloadOperation {
 
 export class FileDownload {
 
+	private static readonly LAST_USED_DOWNLOAD_PATH_STORAGE_KEY = 'workbench.explorer.downloadPath';
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IProgressService private readonly progressService: IProgressService,
 		@ILogService private readonly logService: ILogService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 	}
 
@@ -791,12 +795,18 @@ export class FileDownload {
 	private async doDownloadNative(explorerItem: ExplorerItem, progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
 		progress.report({ message: explorerItem.name });
 
-		const defaultUri = joinPath(
-			explorerItem.isDirectory ?
-				await this.fileDialogService.defaultFolderPath(Schemas.file) :
-				await this.fileDialogService.defaultFilePath(Schemas.file),
-			explorerItem.name
-		);
+		let defaultUri: URI;
+		const lastUsedDownloadPath = this.storageService.get(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, StorageScope.GLOBAL);
+		if (lastUsedDownloadPath) {
+			defaultUri = joinPath(URI.file(lastUsedDownloadPath), explorerItem.name);
+		} else {
+			defaultUri = joinPath(
+				explorerItem.isDirectory ?
+					await this.fileDialogService.defaultFolderPath(Schemas.file) :
+					await this.fileDialogService.defaultFilePath(Schemas.file),
+				explorerItem.name
+			);
+		}
 
 		const destination = await this.fileDialogService.showSaveDialog({
 			availableFileSystems: [Schemas.file],
@@ -806,6 +816,11 @@ export class FileDownload {
 		});
 
 		if (destination) {
+
+			// Remember as last used download folder
+			this.storageService.store(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, dirname(destination).fsPath, StorageScope.GLOBAL, StorageTarget.MACHINE);
+
+			// Perform download
 			await this.explorerService.applyBulkEdit([new ResourceFileEdit(explorerItem.resource, destination, { overwrite: true, copy: true })], {
 				undoLabel: localize('downloadBulkEdit', "Download {0}", explorerItem.name),
 				progressLabel: localize('downloadingBulkEdit', "Downloading {0}", explorerItem.name),

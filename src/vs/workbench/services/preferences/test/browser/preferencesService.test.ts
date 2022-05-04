@@ -15,8 +15,7 @@ import { TestJSONEditingService } from 'vs/workbench/services/configuration/test
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
-import { ITestInstantiationService, TestEditorService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestRemoteAgentService, ITestInstantiationService, TestEditorService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('PreferencesService', () => {
 

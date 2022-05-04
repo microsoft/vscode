@@ -10,8 +10,8 @@ if [ -z "$VSCODE_SHELL_LOGIN" ]; then
 else
 	# Imitate -l because --init-file doesn't support it:
 	# run the first of these files that exists
-	if [ -f /etc/bash_profile ]; then
-		. /etc/bash_profile
+	if [ -f /etc/profile ]; then
+		. /etc/profile
 	fi
 	# exceute the first that exists
 	if [ -f ~/.bash_profile ]; then
@@ -109,15 +109,16 @@ __vsc_prompt_cmd_original() {
 		IFS=' '
 	fi
 	builtin read -ra ADDR <<<"$__vsc_original_prompt_command"
-	for ((i = 0; i < ${#ADDR[@]}; i++)); do
-		builtin eval ${ADDR[i]}
-	done
 	if [[ ${__vsc_original_ifs+set} ]]; then
 		IFS="$__vsc_original_ifs"
 		unset __vsc_original_ifs
 	else
 		unset IFS
 	fi
+	for ((i = 0; i < ${#ADDR[@]}; i++)); do
+		# unset IFS
+		builtin eval ${ADDR[i]}
+	done
 	__vsc_precmd
 }
 

@@ -652,6 +652,12 @@ class ClipboardEventUtils {
 			}
 		}
 
+		if (text.length === 0 && metadata === null && clipboardData.files.length > 0) {
+			// no textual data pasted, generate text from file names
+			const files: File[] = Array.prototype.slice.call(clipboardData.files, 0);
+			return [files.map(file => file.name).join('\n'), null];
+		}
+
 		return [text, metadata];
 	}
 

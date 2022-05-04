@@ -11,7 +11,7 @@ import { performance } from 'perf_hooks';
 import * as url from 'url';
 import { LoaderStats } from 'vs/base/common/amd';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { connectionTokenQueryName, FileAccess, Schemas } from 'vs/base/common/network';
@@ -35,7 +35,7 @@ import { ManagementConnection } from 'vs/server/node/remoteExtensionManagement';
 import { determineServerConnectionToken, requestHasValidConnectionToken as httpRequestHasValidConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
 import { IServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 import { setupServerServices, SocketServer } from 'vs/server/node/serverServices';
-import { serveError, serveFile, WebClientServer } from 'vs/server/node/webClientServer';
+import { CacheControl, serveError, serveFile, WebClientServer } from 'vs/server/node/webClientServer';
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -151,8 +151,7 @@ export class RemoteExtensionHostAgentServer extends Disposable implements IServe
 			if (requestOrigin && this._webEndpointOriginChecker.matches(requestOrigin)) {
 				responseHeaders['Access-Control-Allow-Origin'] = requestOrigin;
 			}
-
-			return serveFile(this._logService, req, res, filePath, responseHeaders);
+			return serveFile(filePath, CacheControl.ETAG, this._logService, req, res, responseHeaders);
 		}
 
 		// workbench web UI
@@ -671,6 +670,13 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 				return;
 			}
 			logService.error(err);
+		});
+		process.on('SIGPIPE', () => {
+			// See https://github.com/microsoft/vscode-remote-release/issues/6543
+			// We would normally install a SIGPIPE listener in bootstrap.js
+			// But in certain situations, the console itself can be in a broken pipe state
+			// so logging SIGPIPE to the console will cause an infinite async loop
+			onUnexpectedError(new Error(`Unexpected SIGPIPE`));
 		});
 	});
 

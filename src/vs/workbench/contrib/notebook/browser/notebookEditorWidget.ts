@@ -101,7 +101,6 @@ export class BaseCellEditorOptions extends Disposable implements IBaseCellEditor
 		},
 		renderLineHighlightOnlyWhenFocus: true,
 		overviewRulerLanes: 0,
-		selectOnLineNumbers: false,
 		lineNumbers: 'off',
 		lineDecorationsWidth: 0,
 		folding: true,
@@ -1823,6 +1822,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			if (this.viewModel) {
 				const focusRange = this.viewModel.getFocus();
 				const element = this.viewModel.cellAt(focusRange.start);
+
+				// The notebook editor doesn't have focus yet
+				if (!this.hasEditorFocus()) {
+					this.focusContainer();
+				}
 
 				if (element && element.focusMode === CellFocusMode.Editor) {
 					element.updateEditState(CellEditState.Editing, 'editorWidget.focus');

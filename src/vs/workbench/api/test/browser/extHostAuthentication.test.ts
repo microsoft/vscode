@@ -22,9 +22,8 @@ import { AuthenticationService } from 'vs/workbench/services/authentication/brow
 import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService, nullExtensionDescription as extensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
 import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestQuickInputService, TestRemoteAgentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestActivityService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import type { AuthenticationProvider, AuthenticationSession } from 'vscode';
 

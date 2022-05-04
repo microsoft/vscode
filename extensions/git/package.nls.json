@@ -163,7 +163,14 @@
 	"config.ignoreSubmodules": "Ignore modifications to submodules in the file tree.",
 	"config.ignoredRepositories": "List of git repositories to ignore.",
 	"config.scanRepositories": "List of paths to search for git repositories in.",
-	"config.commandsToLog": "List of git commands (ex: commit, push) that would have their `stdout` logged to the [git output](command:git.showOutput). If the git command has a client-side hook configured, the client-side hook's `stdout` will also be logged to the [git output](command:git.showOutput).",
+	"config.commandsToLog": {
+		"message": "List of git commands (ex: commit, push) that would have their `stdout` logged to the [git output](command:git.showOutput). If the git command has a client-side hook configured, the client-side hook's `stdout` will also be logged to the [git output](command:git.showOutput).",
+		"comment": [
+			"{Locked='](command:git.showOutput'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
 	"config.showProgress": "Controls whether git actions should show progress.",
 	"config.rebaseWhenSync": "Force git to use rebase when running the sync command.",
 	"config.confirmEmptyCommits": "Always confirm the creation of empty commits for the 'Git: Commit Empty' command.",
@@ -222,16 +229,86 @@
 	"colors.ignored": "Color for ignored resources.",
 	"colors.conflict": "Color for resources with conflicts.",
 	"colors.submodule": "Color for submodule resources.",
-	"view.workbench.scm.missing": "A valid git installation was not detected, more details can be found in the [git output](command:git.showOutput).\nPlease [install git](https://git-scm.com/), or learn more about how to use git and source control in VS Code in [our docs](https://aka.ms/vscode-scm).\nIf you're using a different version control system, you can [search the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22) for additional extensions.",
-	"view.workbench.scm.missing.guide.windows": "[Download Git for Windows](https://git-scm.com/download/win)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
-	"view.workbench.scm.missing.guide.mac": "[Download Git for macOS](https://git-scm.com/download/mac)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
-	"view.workbench.scm.missing.guide.linux": "Source control depends on Git being installed.\n[Download Git for Linux](https://git-scm.com/download/mac)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
+	"view.workbench.scm.missing": {
+		"message": "A valid git installation was not detected, more details can be found in the [git output](command:git.showOutput).\nPlease [install git](https://git-scm.com/), or learn more about how to use git and source control in VS Code in [our docs](https://aka.ms/vscode-scm).\nIf you're using a different version control system, you can [search the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22) for additional extensions.",
+		"comment": [
+			"{Locked='](command:git.showOutput'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
+	"view.workbench.scm.missing.guide.windows": {
+		"message": "[Download Git for Windows](https://git-scm.com/download/win)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
+		"comment": [
+			"{Locked='](command:workbench.action.reloadWindow'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
+	"view.workbench.scm.missing.guide.mac": {
+		"message": "[Download Git for macOS](https://git-scm.com/download/mac)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
+		"comment": [
+			"{Locked='](command:workbench.action.reloadWindow'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
+	"view.workbench.scm.missing.guide.linux": {
+		"message": "Source control depends on Git being installed.\n[Download Git for Linux](https://git-scm.com/download/linux)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
+		"comment": [
+			"{Locked='](command:workbench.action.reloadWindow'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
 	"view.workbench.scm.missing.guide": "Install Git, a popular source control system, to track code changes and collaborate with others. Learn more in our [Git guides](https://aka.ms/vscode-scm).",
-	"view.workbench.scm.disabled": "If you would like to use git features, please enable git in your [settings](command:workbench.action.openSettings?%5B%22git.enabled%22%5D).\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
-	"view.workbench.scm.empty": "In order to use git features, you can open a folder containing a git repository or clone from a URL.\n[Open Folder](command:vscode.openFolder)\n[Clone Repository](command:git.clone)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
-	"view.workbench.scm.folder": "The folder currently open doesn't have a git repository. You can initialize a repository which will enable source control features powered by git.\n[Initialize Repository](command:git.init?%5Btrue%5D)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
-	"view.workbench.scm.workspace": "The workspace currently open doesn't have any folders containing git repositories. You can initialize a repository on a folder which will enable source control features powered by git.\n[Initialize Repository](command:git.init)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
-	"view.workbench.scm.emptyWorkspace": "The workspace currently open doesn't have any folders containing git repositories.\n[Add Folder to Workspace](command:workbench.action.addRootFolder)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
-	"view.workbench.cloneRepository": "You can clone a repository locally.\n[Clone Repository](command:git.clone 'Clone a repository once the git extension has activated')",
+	"view.workbench.scm.disabled": {
+		"message": "If you would like to use git features, please enable git in your [settings](command:workbench.action.openSettings?%5B%22git.enabled%22%5D).\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"comment": [
+			"{Locked='](command:workbench.action.openSettings?%5B%22git.enabled%22%5D'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
+	"view.workbench.scm.empty": {
+		"message": "In order to use git features, you can open a folder containing a git repository or clone from a URL.\n[Open Folder](command:vscode.openFolder)\n[Clone Repository](command:git.clone)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"comment": [
+			"{Locked='](command:vscode.openFolder'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
+	"view.workbench.scm.folder": {
+		"message": "The folder currently open doesn't have a git repository. You can initialize a repository which will enable source control features powered by git.\n[Initialize Repository](command:git.init?%5Btrue%5D)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"comment": [
+			"{Locked='](command:git.init?%5Btrue%5D'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
+	"view.workbench.scm.workspace": {
+		"message": "The workspace currently open doesn't have any folders containing git repositories. You can initialize a repository on a folder which will enable source control features powered by git.\n[Initialize Repository](command:git.init)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"comment": [
+			"{Locked='](command:git.init'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
+	"view.workbench.scm.emptyWorkspace": {
+		"message": "The workspace currently open doesn't have any folders containing git repositories.\n[Add Folder to Workspace](command:workbench.action.addRootFolder)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
+		"comment": [
+			"{Locked='](command:workbench.action.addRootFolder'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
+	"view.workbench.cloneRepository": {
+		"message": "You can clone a repository locally.\n[Clone Repository](command:git.clone 'Clone a repository once the git extension has activated')",
+		"comment": [
+			"{Locked='](command:git.clone'}",
+			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
+			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
+		]
+	},
 	"view.workbench.learnMore": "To learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm)."
 }

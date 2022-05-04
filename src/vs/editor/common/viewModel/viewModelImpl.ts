@@ -53,6 +53,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly _updateConfigurationViewLineCount: RunOnceScheduler;
 	private _hasFocus: boolean;
 	private _viewportStartLine: number;
+	private _viewportStartLineIsValid: boolean;
 	private _viewportStartLineTrackedRange: string | null;
 	private _viewportStartLineDelta: number;
 	private readonly _lines: IViewModelLines;
@@ -83,6 +84,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._updateConfigurationViewLineCount = this._register(new RunOnceScheduler(() => this._updateConfigurationViewLineCountNow(), 0));
 		this._hasFocus = false;
 		this._viewportStartLine = -1;
+		this._viewportStartLineIsValid = false;
 		this._viewportStartLineTrackedRange = null;
 		this._viewportStartLineDelta = 0;
 
@@ -119,6 +121,9 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._register(this.viewLayout.onDidScroll((e) => {
 			if (e.scrollTopChanged) {
 				this._tokenizeViewportSoon.schedule();
+			}
+			if (e.scrollTopChanged) {
+				this._viewportStartLineIsValid = false;
 			}
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewScrollChangedEvent(e));
 			this._eventDispatcher.emitOutgoingEvent(new ScrollChangedEvent(
@@ -380,7 +385,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._updateConfigurationViewLineCountNow();
 
 			// Recover viewport
-			if (!this._hasFocus && this.model.getAttachedEditorCount() >= 2 && this._viewportStartLineTrackedRange) {
+			if (!this._hasFocus && this.model.getAttachedEditorCount() >= 2 && this._viewportStartLineTrackedRange && this._viewportStartLineIsValid) {
 				const modelRange = this.model._getTrackedRange(this._viewportStartLineTrackedRange);
 				if (modelRange) {
 					const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(modelRange.getStartPosition());
@@ -624,6 +629,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	 */
 	public setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void {
 		this._viewportStartLine = startLineNumber;
+		this._viewportStartLineIsValid = true;
 		const position = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(startLineNumber, this.getLineMinColumn(startLineNumber)));
 		this._viewportStartLineTrackedRange = this.model._setTrackedRange(this._viewportStartLineTrackedRange, new Range(position.lineNumber, position.column, position.lineNumber, position.column), TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 		const viewportStartLineTop = this.viewLayout.getVerticalOffsetForLineNumber(startLineNumber);

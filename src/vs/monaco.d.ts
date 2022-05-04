@@ -3721,11 +3721,7 @@ declare namespace monaco.editor {
 		 * Enable the inline hints.
 		 * Defaults to true.
 		 */
-		enabled?: boolean;
-		/**
-		 *
-		 */
-		toggle?: 'show' | 'hide' | null;
+		enabled?: 'on' | 'off' | 'offUnlessPressed' | 'onUnlessPressed';
 		/**
 		 * Font size of inline hints.
 		 * Default to 90% of the editor font size.

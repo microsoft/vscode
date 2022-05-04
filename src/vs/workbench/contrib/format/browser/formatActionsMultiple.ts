@@ -65,6 +65,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		this._store.add(_editorService.onDidActiveEditorChange(this._updateStatus, this));
 		this._store.add(_languageFeaturesService.documentFormattingEditProvider.onDidChange(this._updateStatus, this));
 		this._store.add(_languageFeaturesService.documentRangeFormattingEditProvider.onDidChange(this._updateStatus, this));
+		this._store.add(_configService.onDidChangeConfiguration(e => e.affectsConfiguration(DefaultFormatter.configName) && this._updateStatus()));
 		this._updateConfigValues();
 	}
 

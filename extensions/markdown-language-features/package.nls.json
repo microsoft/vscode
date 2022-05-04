@@ -29,5 +29,9 @@
 	"configuration.markdown.links.openLocation.beside": "Open links beside the active editor.",
 	"configuration.markdown.suggest.paths.enabled.description": "Enable/disable path suggestions for markdown links",
 	"configuration.markdown.editor.drop.enabled": "Enable/disable dropping into the markdown editor to insert shift. Requires enabling `#workbenck.experimental.editor.dropIntoEditor.enabled#`.",
+	"configuration.markdown.experimental.validate.enabled.description": "Enable/disable all error reporting in Markdown files.",
+	"configuration.markdown.experimental.validate.referenceLinks.description": "Validate reference links in Markdown files, e.g. `[link][ref]`.  Requires enabling `#markdown.experimental.validate.enabled#`.",
+	"configuration.markdown.experimental.validate.headerLinks.description": "Validate links to headers in Markdown files, e.g. `[link](#header)`. Requires enabling `#markdown.experimental.validate.enabled#`.",
+	"configuration.markdown.experimental.validate.fileLinks.description": "Validate links to other files in Markdown files, e.g. `[link](/path/to/file.md)`. This checks that the target files exists. Requires enabling `#markdown.experimental.validate.enabled#`.",
 	"workspaceTrust": "Required for loading styles configured in the workspace."
 }

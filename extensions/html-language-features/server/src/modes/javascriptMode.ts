@@ -52,7 +52,21 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 				};
 			},
 			getCurrentDirectory: () => '',
-			getDefaultLibFileName: (_options: ts.CompilerOptions) => 'es6'
+			getDefaultLibFileName: (_options: ts.CompilerOptions) => 'es6',
+			readFile: (path: string, _encoding?: string | undefined): string | undefined => {
+				if (path === currentTextDocument.uri) {
+					return currentTextDocument.getText();
+				} else {
+					return libs.loadLibrary(path);
+				}
+			},
+			fileExists: (path: string): boolean => {
+				if (path === currentTextDocument.uri) {
+					return true;
+				} else {
+					return !!libs.loadLibrary(path);
+				}
+			}
 		};
 		return ts.createLanguageService(host);
 	});

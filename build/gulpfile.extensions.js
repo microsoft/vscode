@@ -60,6 +60,7 @@ const compilations = [
 	'npm/tsconfig.json',
 	'php-language-features/tsconfig.json',
 	'search-result/tsconfig.json',
+	'references-view/tsconfig.json',
 	'simple-browser/tsconfig.json',
 	'typescript-language-features/test-workspace/tsconfig.json',
 	'typescript-language-features/tsconfig.json',
