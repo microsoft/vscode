@@ -31,7 +31,6 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'UpdateMode',
 				minimumVersion: '1.67',
-				category: localize('update', "Update")
 			}
 		},
 		'update.channel': {

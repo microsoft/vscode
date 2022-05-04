@@ -128,9 +128,16 @@ export const enum ConfigurationScope {
 }
 
 export interface PolicyConfiguration {
+
+	/**
+	 * The policy name.
+	 */
 	readonly name: string;
-	readonly minimumVersion: `1.${number}`;
-	readonly category: string;
+
+	/**
+	 * The Code version in which this policy was introduced.
+	 */
+	readonly minimumVersion: `${number}.${number}`;
 }
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
@@ -182,6 +189,10 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 */
 	order?: number;
 
+	/**
+	 * When specified, this setting's value can always be overwritten by
+	 * a system-wide policy.
+	 */
 	policy?: PolicyConfiguration;
 }
 

@@ -26,6 +26,19 @@ var PolicyType;
 (function (PolicyType) {
     PolicyType[PolicyType["StringEnum"] = 0] = "StringEnum";
 })(PolicyType || (PolicyType = {}));
+function renderADMLString(prefix, moduleName, nlsString, translations) {
+    let value;
+    if (translations) {
+        const moduleTranslations = translations[moduleName];
+        if (moduleTranslations) {
+            value = moduleTranslations[nlsString.nlsKey];
+        }
+    }
+    if (!value) {
+        value = nlsString.value;
+    }
+    return `<string id="${prefix}_${nlsString.nlsKey}">${value}</string>`;
+}
 class BasePolicy {
     constructor(policyType, name, category, minimumVersion, description, moduleName) {
         this.policyType = policyType;
@@ -36,17 +49,7 @@ class BasePolicy {
         this.moduleName = moduleName;
     }
     renderADMLString(nlsString, translations) {
-        let value;
-        if (translations) {
-            const moduleTranslations = translations[this.moduleName];
-            if (moduleTranslations) {
-                value = moduleTranslations[nlsString.nlsKey];
-            }
-        }
-        if (!value) {
-            value = nlsString.value;
-        }
-        return `<string id="${this.name}_${nlsString.nlsKey}">${value}</string>`;
+        return renderADMLString(this.name, this.moduleName, nlsString, translations);
     }
     renderADMX(regKey) {
         return [
@@ -139,20 +142,26 @@ function getStringProperty(node, key) {
 function getStringArrayProperty(node, key) {
     return getProperty(StringArrayQ, node, key);
 }
-// ---
-function getPolicy(moduleName, settingNode, policyNode, categories) {
+function getPolicy(moduleName, configurationNode, settingNode, policyNode, categories) {
     const name = getStringProperty(policyNode, 'name');
     if (!name) {
         throw new Error(`Missing required 'name' property.`);
     }
-    if (isNlsString(name)) {
+    else if (isNlsString(name)) {
         throw new Error(`Property 'name' should be a literal string.`);
+    }
+    const categoryName = getStringProperty(configurationNode, 'title');
+    if (!categoryName) {
+        throw new Error(`Missing required 'title' property.`);
+    }
+    else if (!isNlsString(categoryName)) {
+        throw new Error(`Property 'title' should be localized.`);
     }
     const minimumVersion = getStringProperty(policyNode, 'minimumVersion');
     if (!minimumVersion) {
         throw new Error(`Missing required 'minimumVersion' property.`);
     }
-    if (isNlsString(minimumVersion)) {
+    else if (isNlsString(minimumVersion)) {
         throw new Error(`Property 'minimumVersion' should be a literal string.`);
     }
     const description = getStringProperty(settingNode, 'description');
@@ -173,27 +182,20 @@ function getPolicy(moduleName, settingNode, policyNode, categories) {
     if (!enum_) {
         throw new Error(`Missing required 'enum' property.`);
     }
-    if (!isStringArray(enum_)) {
+    else if (!isStringArray(enum_)) {
         throw new Error(`Property 'enum' should not be localized.`);
     }
     const enumDescriptions = getStringArrayProperty(settingNode, 'enumDescriptions');
     if (!enumDescriptions) {
         throw new Error(`Missing required 'enumDescriptions' property.`);
     }
-    if (!isNlsStringArray(enumDescriptions)) {
+    else if (!isNlsStringArray(enumDescriptions)) {
         throw new Error(`Property 'enumDescriptions' should be localized.`);
-    }
-    const categoryName = getStringProperty(policyNode, 'category');
-    if (!categoryName) {
-        throw new Error(`Missing required 'category' property.`);
-    }
-    else if (!isNlsString(categoryName)) {
-        throw new Error(`Property 'category' should be localized.`);
     }
     const categoryKey = `${categoryName.nlsKey}:${categoryName.value}`;
     let category = categories.get(categoryKey);
     if (!category) {
-        category = { name: categoryName };
+        category = { moduleName, name: categoryName };
         categories.set(categoryKey, category);
     }
     return new StringEnumPolicy(name, category, minimumVersion, description, moduleName, enum_, enumDescriptions);
@@ -212,18 +214,18 @@ function getPolicies(moduleName, node) {
 							value: (object) @policy
 						))
 					)) @setting
-				)))
+				)) @configuration)
 			)
 		)
 	`);
     const categories = new Map();
     return query.matches(node).map(m => {
+        const configurationNode = m.captures.filter(c => c.name === 'configuration')[0].node;
         const settingNode = m.captures.filter(c => c.name === 'setting')[0].node;
         const policyNode = m.captures.filter(c => c.name === 'policy')[0].node;
-        return getPolicy(moduleName, settingNode, policyNode, categories);
+        return getPolicy(moduleName, configurationNode, settingNode, policyNode, categories);
     });
 }
-// ---
 async function getFiles(root) {
     return new Promise((c, e) => {
         const result = [];
@@ -234,7 +236,6 @@ async function getFiles(root) {
         stream.on('end', () => c(result));
     });
 }
-// ---
 function renderADMX(regKey, versions, categories, policies) {
     versions = versions.map(v => v.replace(/\./g, '_'));
     return `<?xml version="1.0" encoding="utf-8"?>
@@ -267,7 +268,7 @@ function renderADML(appName, versions, categories, policies, translations) {
 		<stringTable>
 			<string id="Application">${appName}</string>
 			${versions.map(v => `<string id="Supported_${v.replace(/\./g, '_')}">${appName} &gt;= ${v}</string>`)}
-			${categories.map(c => `<string id="Category_${c.name.nlsKey}">${c.name.value}</string>`)}
+			${categories.map(c => renderADMLString('Category', c.moduleName, c.name, translations))}
 			${policies.map(p => p.renderADMLStrings(translations)).flat().join(`\n			`)}
 		</stringTable>
 		<presentationTable>
@@ -290,7 +291,6 @@ function renderGP(policies, translations) {
         ]
     };
 }
-// ---
 const Languages = {
     'fr': 'fr-fr',
     'it': 'it-it',
@@ -323,7 +323,6 @@ async function getNLS(resourceUrlTemplate, languageId, version) {
     const { contents: result } = await res.json();
     return result;
 }
-// ---
 async function parsePolicies() {
     const parser = new Parser();
     parser.setLanguage(typescript);
