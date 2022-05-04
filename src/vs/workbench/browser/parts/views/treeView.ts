@@ -1522,7 +1522,6 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 					// Check if there are uris to add and add them
 					if (uris.length) {
 						treeDataTransfer.set(Mimes.uriList, {
-							kind: 'string',
 							asString: () => Promise.resolve(uris.map(uri => uri.toString()).join('\n')),
 							asFile: () => undefined,
 							value: undefined
@@ -1549,7 +1548,6 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 							if (dataValue) {
 								const converted = this.convertKnownMimes(type, kind, dataValue);
 								treeDataTransfer.set(converted.type, {
-									kind: 'string',
 									asString: () => Promise.resolve(converted.value!),
 									asFile: () => undefined,
 									value: undefined

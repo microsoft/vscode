@@ -168,7 +168,6 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 				if (value) {
 					const file = value.asFile();
 					treeDataTransfer.set(key, {
-						kind: file ? 'file' : 'string',
 						value: value.value,
 						asString: value.asString,
 						asFile() {

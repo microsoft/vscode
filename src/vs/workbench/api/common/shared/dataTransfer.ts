@@ -13,7 +13,6 @@ export interface IDataTransferFileDTO {
 }
 
 interface DataTransferItemDTO {
-	readonly kind: 'string' | 'file';
 	readonly asString: string;
 	readonly fileData: IDataTransferFileDTO | undefined;
 }
@@ -28,7 +27,6 @@ export namespace DataTransferConverter {
 		const newDataTransfer: IDataTransfer = new Map<string, IDataTransferItem>();
 		value.types.forEach((type, index) => {
 			newDataTransfer.set(type, {
-				kind: value.items[index].kind,
 				asString: async () => value.items[index].asString,
 				asFile: () => {
 					const file = value.items[index].fileData;
@@ -59,7 +57,6 @@ export namespace DataTransferConverter {
 			const stringValue = await entry[1].asString();
 			const fileValue = entry[1].asFile();
 			newDTO.items.push({
-				kind: entry[1].kind,
 				asString: stringValue,
 				fileData: fileValue ? { name: fileValue.name, uri: fileValue.uri } : undefined,
 			});

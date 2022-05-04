@@ -51,7 +51,6 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 			if (item.kind === 'string') {
 				const asStringValue = new Promise<string>(resolve => item.getAsString(resolve));
 				textEditorDataTransfer.set(type, {
-					kind: 'string',
 					asString: () => asStringValue,
 					asFile: () => undefined,
 					value: undefined
@@ -60,7 +59,6 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 				const file = item.getAsFile();
 				if (file) {
 					textEditorDataTransfer.set(type, {
-						kind: 'file',
 						asString: () => Promise.resolve(''),
 						asFile: () => {
 							const uri = file.path ? URI.parse(file.path) : undefined;
@@ -86,7 +84,6 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 			if (editorData.length) {
 				const str = distinct(editorData).join('\n');
 				textEditorDataTransfer.set(Mimes.uriList.toLowerCase(), {
-					kind: 'string',
 					asString: () => Promise.resolve(str),
 					asFile: () => undefined,
 					value: undefined
