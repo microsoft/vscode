@@ -37,10 +37,10 @@ export interface IAutomaticLanguageDetectionLikelyWrongData {
 }
 
 export type AutomaticLanguageDetectionLikelyWrongClassification = {
-	currentLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	nextLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	modelPreference: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	currentLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: '@TylerLeonhardt,@JacksonKearl'; comment: 'Used to determine how often language detection is likely wrong.' };
+	nextLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: '@TylerLeonhardt,@JacksonKearl'; comment: 'Used to determine how often language detection is likely wrong.' };
+	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; owner: '@TylerLeonhardt,@JacksonKearl'; comment: 'Used to determine how often language detection is likely wrong.' };
+	modelPreference: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: '@TylerLeonhardt,@JacksonKearl'; comment: 'Used to determine how often language detection is likely wrong.' };
 };
 
 export const LanguageDetectionStatsId = 'automaticlanguagedetection.stats';
@@ -52,9 +52,9 @@ export interface ILanguageDetectionStats {
 }
 
 export type LanguageDetectionStatsClassification = {
-	languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: '@TylerLeonhardt,@JacksonKearl'; comment: 'Used to determine how definitive language detection is and how long it takes.' };
+	confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: '@TylerLeonhardt,@JacksonKearl'; comment: 'Used to determine how definitive language detection is and how long it takes.' };
+	timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: '@TylerLeonhardt,@JacksonKearl'; comment: 'Used to determine how definitive language detection is and how long it takes.' };
 };
 
 //#endregion
