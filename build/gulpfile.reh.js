@@ -80,7 +80,8 @@ const serverResources = [
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-env.zsh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-profile.zsh',
-	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh',
+	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh',
+	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-login.zsh',
 
 	'!**/test/**'
 ];
