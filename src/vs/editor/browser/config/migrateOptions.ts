@@ -163,3 +163,11 @@ registerEditorSettingMigration('suggest.filteredTypes', (value, read, write) => 
 		write('suggest.filteredTypes', undefined);
 	}
 });
+
+registerEditorSettingMigration('quickSuggestions', (input, read, write) => {
+	if (typeof input === 'boolean') {
+		const value = input ? 'on' : 'off';
+		const newValue = { comments: value, strings: value, other: value };
+		write('quickSuggestions', newValue);
+	}
+});
