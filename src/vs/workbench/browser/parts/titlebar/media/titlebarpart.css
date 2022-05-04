@@ -57,41 +57,6 @@
 	-webkit-app-region: drag;
 }
 
-/* Command Center */
-.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen {
-	color: var(--vscode-input-foreground);
-	border: 1px solid var(--vscode-dropdown-border);
-	height: 20px;
-	line-height: 20px;
-	width: 38vw;
-	max-width: 600px;
-	margin: 4px 4px;
-	flex-direction: row;
-	justify-content: center;
-	overflow: hidden;
-}
-
-.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen:HOVER,
-.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen .action-container .action-label:HOVER {
-	background-color: var(--vscode-dropdown-border);
-	line-height: 18px;
-}
-
-.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen .action-container {
-	flex: 1 0 auto;
-	display: flex;
-	justify-content: center;
-}
-
-.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen .action-container .keybinding {
-	font-size: 11px;
-	padding: 3px;
-}
-
-.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen .dropdown-action-container {
-	margin-left: auto;
-}
-
 /* Window title text */
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title {
 	flex: 0 1 auto;
@@ -120,13 +85,44 @@
 	cursor: default;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container.enable-title-menu>.window-title {
-	display: none;
-}
-
 .monaco-workbench.linux .part.titlebar>.titlebar-container>.window-title {
 	font-size: inherit;
 	/* see #55435 */
+}
+
+/* Window Title Menu */
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title.title-menu .action-item.quickopen {
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-dropdown-border);
+	height: 20px;
+	line-height: 20px;
+	width: 38vw;
+	max-width: 600px;
+	margin: 4px 4px;
+	flex-direction: row;
+	justify-content: center;
+	overflow: hidden;
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title.title-menu .action-item.quickopen:HOVER,
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title.title-menu .action-item.quickopen .action-container .action-label:HOVER {
+	background-color: var(--vscode-dropdown-border);
+	line-height: 18px;
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title.title-menu .action-item.quickopen .action-container {
+	flex: 1 0 auto;
+	display: flex;
+	justify-content: center;
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title.title-menu .action-item.quickopen .action-container .keybinding {
+	font-size: 11px;
+	padding: 3px;
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen .dropdown-action-container {
+	margin-left: auto;
 }
 
 /* Menubar */

@@ -77,7 +77,7 @@ class WindowTitle extends Disposable {
 	}
 
 	get value() {
-		return this.title;
+		return this.title ?? '';
 	}
 
 	private registerListeners(): void {
@@ -278,7 +278,6 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	protected rootContainer!: HTMLElement;
 	protected windowControls: HTMLElement | undefined;
-	protected readonly titleMenuElement: HTMLElement = $('div.title-menu');
 	protected title!: HTMLElement;
 
 	protected customMenubar: CustomMenubarControl | undefined;
@@ -356,7 +355,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		if (event.affectsConfiguration('window.experimental.titleMenu')) {
-			this.updateTitleMenu();
+			this.updateTitle();
 		}
 	}
 
@@ -389,7 +388,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
 
-		this.menubar = this.rootContainer.insertBefore($('div.menubar'), this.titleMenuElement);
+		this.menubar = this.rootContainer.insertBefore($('div.menubar'), this.title);
 		this.menubar.setAttribute('role', 'menubar');
 
 		this.customMenubar.create(this.menubar);
@@ -397,54 +396,58 @@ export class TitlebarPart extends Part implements ITitleService {
 		this._register(this.customMenubar.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
 	}
 
-	private updateTitleMenu(): void {
+	private updateTitle(): void {
 		this.titleMenuDisposables.clear();
 		const enableTitleMenu = this.configurationService.getValue<boolean>('window.experimental.titleMenu');
-		this.rootContainer.classList.toggle('enable-title-menu', enableTitleMenu);
+		this.title.classList.toggle('title-menu', enableTitleMenu);
+
 		if (!enableTitleMenu) {
-			return;
-		}
+			// Text Title
+			this.title.innerText = this.windowTitle.value;
+			this._register(this.windowTitle.onDidChange(() => this.title.innerText = this.windowTitle.value));
 
+		} else {
+			// Menu Title
+			clearNode(this.title);
+			const that = this;
+			const titleToolbar = new ToolBar(this.title, this.contextMenuService, {
+				actionViewItemProvider: (action) => {
 
-		const that = this;
-		const titleToolbar = new ToolBar(this.titleMenuElement, this.contextMenuService, {
-			actionViewItemProvider: (action) => {
-
-				if (action instanceof SubmenuItemAction && action.item.submenu === MenuId.TitleMenuQuickPick) {
-					class QuickInputDropDown extends DropdownWithDefaultActionViewItem {
-						override render(container: HTMLElement): void {
-							super.render(container);
-							container.classList.add('quickopen');
-							container.title = that.windowTitle.value ?? '';
-							this._store.add(that.windowTitle.onDidChange(() => container.title = that.windowTitle.value ?? ''));
+					if (action instanceof SubmenuItemAction && action.item.submenu === MenuId.TitleMenuQuickPick) {
+						class QuickInputDropDown extends DropdownWithDefaultActionViewItem {
+							override render(container: HTMLElement): void {
+								super.render(container);
+								container.classList.add('quickopen');
+								container.title = that.windowTitle.value;
+								this._store.add(that.windowTitle.onDidChange(() => container.title = that.windowTitle.value));
+							}
 						}
+						return that.instantiationService.createInstance(QuickInputDropDown, action, {
+							keybindingProvider: action => that.keybindingService.lookupKeybinding(action.id),
+							renderKeybindingWithDefaultActionLabel: true
+						});
 					}
-					return that.instantiationService.createInstance(QuickInputDropDown, action, {
-						keybindingProvider: action => that.keybindingService.lookupKeybinding(action.id),
-						renderKeybindingWithDefaultActionLabel: true
-					});
+					return undefined;
 				}
-				return undefined;
-			}
-		});
-		const titleMenu = this.titleMenuDisposables.add(this.menuService.createMenu(MenuId.TitleMenu, this.contextKeyService));
-		const titleMenuDisposables = this.titleMenuDisposables.add(new DisposableStore());
-		const updateTitleMenu = () => {
-			titleMenuDisposables.clear();
-			const actions: IAction[] = [];
-			titleMenuDisposables.add(createAndFillInContextMenuActions(titleMenu, undefined, actions));
-			titleToolbar.setActions(actions);
-		};
-		this.titleMenuDisposables.add(titleMenu.onDidChange(updateTitleMenu));
-		this.titleMenuDisposables.add(this.keybindingService.onDidUpdateKeybindings(updateTitleMenu));
-		this.titleMenuDisposables.add(toDisposable(() => clearNode(this.titleMenuElement)));
-		updateTitleMenu();
+			});
+			const titleMenu = this.titleMenuDisposables.add(this.menuService.createMenu(MenuId.TitleMenu, this.contextKeyService));
+			const titleMenuDisposables = this.titleMenuDisposables.add(new DisposableStore());
+			const updateTitleMenu = () => {
+				titleMenuDisposables.clear();
+				const actions: IAction[] = [];
+				titleMenuDisposables.add(createAndFillInContextMenuActions(titleMenu, undefined, actions));
+				titleToolbar.setActions(actions);
+			};
+			this.titleMenuDisposables.add(titleMenu.onDidChange(updateTitleMenu));
+			this.titleMenuDisposables.add(this.keybindingService.onDidUpdateKeybindings(updateTitleMenu));
+			this.titleMenuDisposables.add(toDisposable(() => clearNode(this.title)));
+			updateTitleMenu();
+		}
 	}
 
 	override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 		this.rootContainer = append(parent, $('.titlebar-container'));
-		append(this.rootContainer, this.titleMenuElement);
 
 		// App Icon (Native Windows/Linux and Web)
 		if (!isMacintosh || isWeb) {
@@ -473,13 +476,9 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.installMenubar();
 		}
 
-		// Title Menu
-		this.updateTitleMenu();
-
 		// Title
 		this.title = append(this.rootContainer, $('div.window-title'));
-		this.title.innerText = this.windowTitle.value ?? '';
-		this._register(this.windowTitle.onDidChange(() => this.title.innerText = this.windowTitle.value ?? ''));
+		this.updateTitle();
 
 
 		if (this.titleBarStyle !== 'native') {
@@ -542,7 +541,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				return;
 			}
 
-			if (e.target && isAncestor(e.target as HTMLElement, this.titleMenuElement)) {
+			if (e.target && isAncestor(e.target as HTMLElement, this.title)) {
 				return;
 			}
 
@@ -652,8 +651,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		this.title.style.position = 'absolute';
-		this.title.style.left = '50%';
-		this.title.style.transform = 'translate(-50%, 0)';
+		this.title.style.left = `calc(50% - ${this.title.clientWidth / 2}px)`;
 	}
 
 	protected get currentMenubarVisibility(): MenuBarVisibility {
