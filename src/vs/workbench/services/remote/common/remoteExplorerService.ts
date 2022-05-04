@@ -115,11 +115,16 @@ export interface Tunnel {
 	};
 }
 
+export interface PortAddress {
+	host: string;
+	port: number;
+}
+
 export function makeAddress(host: string, port: number): string {
 	return host + ':' + port;
 }
 
-export function parseAddress(address: string): { host: string; port: number } | undefined {
+export function parseAddress(address: string): PortAddress | undefined {
 	const matches = address.match(/^([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*:)?([0-9]+)$/);
 	if (!matches) {
 		return undefined;
@@ -889,9 +894,9 @@ export interface IRemoteExplorerService {
 	onDidChangeTargetType: Event<string[]>;
 	targetType: string[];
 	readonly tunnelModel: TunnelModel;
-	onDidChangeEditable: Event<{ tunnel: ITunnelItem; editId: TunnelEditId } | undefined>;
-	setEditable(tunnelItem: ITunnelItem | undefined, editId: TunnelEditId, data: IEditableData | null): void;
-	getEditableData(tunnelItem: ITunnelItem | undefined, editId?: TunnelEditId): IEditableData | undefined;
+	onDidChangeEditable: Event<{ tunnelAddress: PortAddress; tunnelType: TunnelType; editId: TunnelEditId } | undefined>;
+	setEditable(tunnelAddress: PortAddress | undefined, tunnelType: TunnelType | undefined, editId: TunnelEditId, data: IEditableData | null): void;
+	getEditableData(tunnelAddress: PortAddress | undefined, editId?: TunnelEditId): IEditableData | undefined;
 	forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | void>;
 	close(remote: { host: string; port: number }): Promise<void>;
 	setTunnelInformation(tunnelInformation: TunnelInformation | undefined): void;
@@ -910,9 +915,9 @@ class RemoteExplorerService implements IRemoteExplorerService {
 	private readonly _onDidChangeTargetType: Emitter<string[]> = new Emitter<string[]>();
 	public readonly onDidChangeTargetType: Event<string[]> = this._onDidChangeTargetType.event;
 	private _tunnelModel: TunnelModel;
-	private _editable: { tunnelItem: ITunnelItem | undefined; editId: TunnelEditId; data: IEditableData } | undefined;
-	private readonly _onDidChangeEditable: Emitter<{ tunnel: ITunnelItem; editId: TunnelEditId } | undefined> = new Emitter();
-	public readonly onDidChangeEditable: Event<{ tunnel: ITunnelItem; editId: TunnelEditId } | undefined> = this._onDidChangeEditable.event;
+	private _editable: { tunnelAddress: PortAddress | undefined; tunnelType: TunnelType; editId: TunnelEditId; data: IEditableData } | undefined;
+	private readonly _onDidChangeEditable: Emitter<{ tunnelAddress: PortAddress; tunnelType: TunnelType; editId: TunnelEditId } | undefined> = new Emitter();
+	public readonly onDidChangeEditable: Event<{ tunnelAddress: PortAddress; tunnelType: TunnelType; editId: TunnelEditId } | undefined> = this._onDidChangeEditable.event;
 	private readonly _onEnabledPortsFeatures: Emitter<void> = new Emitter();
 	public readonly onEnabledPortsFeatures: Event<void> = this._onEnabledPortsFeatures.event;
 	private _portsFeaturesEnabled: boolean = false;
@@ -966,21 +971,26 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		this.tunnelModel.addEnvironmentTunnels(tunnelInformation?.environmentTunnels);
 	}
 
-	setEditable(tunnelItem: ITunnelItem | undefined, editId: TunnelEditId, data: IEditableData | null): void {
+	setEditable(tunnelAddress: PortAddress | undefined, tunnelType: TunnelType, editId: TunnelEditId, data: IEditableData | null): void {
 		if (!data) {
 			this._editable = undefined;
 		} else {
-			this._editable = { tunnelItem, data, editId };
+			this._editable = { tunnelAddress, tunnelType, data, editId };
 		}
-		this._onDidChangeEditable.fire(tunnelItem ? { tunnel: tunnelItem, editId } : undefined);
+		this._onDidChangeEditable.fire(tunnelAddress ? { tunnelAddress, tunnelType, editId } : undefined);
 	}
 
-	getEditableData(tunnelItem: ITunnelItem | undefined, editId: TunnelEditId): IEditableData | undefined {
-		return (this._editable &&
-			((!tunnelItem && (tunnelItem === this._editable.tunnelItem)) ||
-				(tunnelItem && (this._editable.tunnelItem?.remotePort === tunnelItem.remotePort) && (this._editable.tunnelItem.remoteHost === tunnelItem.remoteHost)
-					&& (this._editable.editId === editId)))) ?
-			this._editable.data : undefined;
+	getEditableData(tunnelItem: PortAddress | undefined, editId: TunnelEditId): IEditableData | undefined {
+		if (!this._editable) {
+			return undefined;
+		} else if (!tunnelItem && !this._editable.tunnelAddress) {
+			return this._editable.data;
+		} else if (tunnelItem && this._editable.tunnelAddress &&
+			(this._editable.tunnelAddress.port === tunnelItem.port) && (this._editable.tunnelAddress.host === tunnelItem.host)
+			&& (this._editable.editId === editId)) {
+			return this._editable.data;
+		}
+		return undefined;
 	}
 
 	setCandidateFilter(filter: (candidates: CandidatePort[]) => Promise<CandidatePort[]>): IDisposable {

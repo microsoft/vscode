@@ -393,7 +393,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		if (element.editId === TunnelEditId.New && (editableData = this.remoteExplorerService.getEditableData(undefined))) {
 			this.renderInputBox(templateData.container, editableData);
 		} else {
-			editableData = this.remoteExplorerService.getEditableData(element.tunnel, element.editId);
+			editableData = this.remoteExplorerService.getEditableData({ host: element.tunnel.remoteHost, port: element.tunnel.remotePort }, element.editId);
 			if (editableData) {
 				this.renderInputBox(templateData.container, editableData);
 			} else if ((element.tunnel.tunnelType === TunnelType.Add) && (element.menuId === MenuId.TunnelPortInline)) {
@@ -734,7 +734,8 @@ const TunnelPrivacyEnabledContextKey = new RawContextKey<boolean>('tunnelPrivacy
 const TunnelProtocolContextKey = new RawContextKey<TunnelProtocol | undefined>('tunnelProtocol', TunnelProtocol.Http, true);
 const TunnelViewFocusContextKey = new RawContextKey<boolean>('tunnelViewFocus', false, nls.localize('tunnel.focusContext', "Whether the Ports view has focus."));
 const TunnelViewSelectionKeyName = 'tunnelViewSelection';
-const TunnelViewSelectionContextKey = new RawContextKey<ITunnelItem | undefined>(TunnelViewSelectionKeyName, undefined, true);
+// host:port
+const TunnelViewSelectionContextKey = new RawContextKey<string | undefined>(TunnelViewSelectionKeyName, undefined, true);
 const TunnelViewMultiSelectionKeyName = 'tunnelViewMultiSelection';
 const TunnelViewMultiSelectionContextKey = new RawContextKey<ITunnelItem[] | undefined>(TunnelViewMultiSelectionKeyName, undefined, true);
 const PortChangableContextKey = new RawContextKey<boolean>('portChangable', false, true);
@@ -752,7 +753,7 @@ export class TunnelPanel extends ViewPane {
 	private tunnelPrivacyEnabledContext: IContextKey<boolean>;
 	private tunnelProtocolContext: IContextKey<TunnelProtocol | undefined>;
 	private tunnelViewFocusContext: IContextKey<boolean>;
-	private tunnelViewSelectionContext: IContextKey<ITunnelItem | undefined>;
+	private tunnelViewSelectionContext: IContextKey<string | undefined>;
 	private tunnelViewMultiSelectionContext: IContextKey<ITunnelItem[] | undefined>;
 	private portChangableContextKey: IContextKey<boolean>;
 	private isEditing: boolean = false;
@@ -916,7 +917,7 @@ export class TunnelPanel extends ViewPane {
 		}));
 
 		this._register(this.remoteExplorerService.onDidChangeEditable(e => {
-			this.isEditing = !!this.remoteExplorerService.getEditableData(e?.tunnel, e?.editId);
+			this.isEditing = !!this.remoteExplorerService.getEditableData(e?.tunnelAddress, e?.editId);
 			this._onDidChangeViewWelcomeState.fire();
 
 			if (!this.isEditing) {
@@ -932,7 +933,7 @@ export class TunnelPanel extends ViewPane {
 					this.table.reveal(this.table.indexOf(this.viewModel.input));
 				}
 			} else {
-				if (e && (e.tunnel.tunnelType !== TunnelType.Add)) {
+				if (e && (e.tunnelType !== TunnelType.Add)) {
 					this.table.setFocus(this.lastFocus);
 				}
 				this.focus();
@@ -956,7 +957,7 @@ export class TunnelPanel extends ViewPane {
 		const elements = event.elements;
 		const item = elements && elements.length ? elements[0] : undefined;
 		if (item) {
-			this.tunnelViewSelectionContext.set(item);
+			this.tunnelViewSelectionContext.set(makeAddress(item.remoteHost, item.remotePort));
 			this.tunnelTypeContext.set(item.tunnelType);
 			this.tunnelCloseableContext.set(!!item.closeable);
 			this.tunnelPrivacyContext.set(item.privacy.id);
@@ -1080,31 +1081,43 @@ export class TunnelPanelDescriptor implements IViewDescriptor {
 	}
 }
 
+function isITunnelItem(item: any): item is ITunnelItem {
+	return item && item.tunnelType && item.remoteHost && item.source;
+}
+
 namespace LabelTunnelAction {
 	export const ID = 'remote.tunnel.label';
 	export const LABEL = nls.localize('remote.tunnel.label', "Set Port Label");
 	export const COMMAND_ID_KEYWORD = 'label';
 
-	function isITunnelItem(item: any): item is ITunnelItem {
-		return item && item.tunnelType && item.remoteHost && item.source;
-	}
-
 	export function handler(): ICommandHandler {
 		return async (accessor, arg): Promise<{ port: number; label: string } | undefined> => {
-			const context = isITunnelItem(arg) ? arg : accessor.get(IContextKeyService).getContextKeyValue<ITunnelItem | undefined>(TunnelViewSelectionKeyName);
-			if (context) {
+			const remoteExplorerService = accessor.get(IRemoteExplorerService);
+			let tunnelContext: ITunnelItem | undefined;
+			if (isITunnelItem(arg)) {
+				tunnelContext = arg;
+			} else {
+				const context = accessor.get(IContextKeyService).getContextKeyValue<string | undefined>(TunnelViewSelectionKeyName);
+				const tunnel = context ? remoteExplorerService.tunnelModel.forwarded.get(context) : undefined;
+				if (tunnel) {
+					const tunnelService = accessor.get(ITunnelService);
+					tunnelContext = TunnelItem.createFromTunnel(remoteExplorerService, tunnelService, tunnel);
+				}
+			}
+			if (tunnelContext) {
+				const tunnelItem: ITunnelItem = tunnelContext;
 				return new Promise(resolve => {
-					const remoteExplorerService = accessor.get(IRemoteExplorerService);
-					const startingValue = context.name ? context.name : `${context.remotePort}`;
-					remoteExplorerService.setEditable(context, TunnelEditId.Label, {
+					const startingValue = tunnelItem.name ? tunnelItem.name : `${tunnelItem.remotePort}`;
+					const address = { host: tunnelItem.remoteHost, port: tunnelItem.remotePort };
+					remoteExplorerService.setEditable(address, tunnelItem.tunnelType, TunnelEditId.Label, {
 						onFinish: async (value, success) => {
 							value = value.trim();
-							remoteExplorerService.setEditable(context, TunnelEditId.Label, null);
+							remoteExplorerService.setEditable(address, tunnelItem.tunnelType, TunnelEditId.Label, null);
 							const changed = success && (value !== startingValue);
 							if (changed) {
-								await remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
+								await remoteExplorerService.tunnelModel.name(tunnelItem.remoteHost, tunnelItem.remotePort, value);
 							}
-							resolve(changed ? { port: context.remotePort, label: value } : undefined);
+							resolve(changed ? { port: tunnelItem.remotePort, label: value } : undefined);
 						},
 						validationMessage: () => null,
 						placeholder: nls.localize('remote.tunnelsView.labelPlaceholder', "Port label"),
@@ -1155,9 +1168,9 @@ export namespace ForwardPortAction {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
 			const notificationService = accessor.get(INotificationService);
 			const tunnelService = accessor.get(ITunnelService);
-			remoteExplorerService.setEditable(undefined, TunnelEditId.New, {
+			remoteExplorerService.setEditable(undefined, undefined, TunnelEditId.New, {
 				onFinish: async (value, success) => {
-					remoteExplorerService.setEditable(undefined, TunnelEditId.New, null);
+					remoteExplorerService.setEditable(undefined, undefined, TunnelEditId.New, null);
 					let parsed: { host: string; port: number } | undefined;
 					if (success && (parsed = parseAddress(value))) {
 						remoteExplorerService.forward({
@@ -1426,20 +1439,33 @@ namespace ChangeLocalPortAction {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
 			const notificationService = accessor.get(INotificationService);
 			const tunnelService = accessor.get(ITunnelService);
-			const context = (arg !== undefined || arg instanceof TunnelItem) ? arg : accessor.get(IContextKeyService).getContextKeyValue(TunnelViewSelectionKeyName);
-			if (context instanceof TunnelItem) {
-				remoteExplorerService.setEditable(context, TunnelEditId.LocalPort, {
+			let tunnelContext: ITunnelItem | undefined;
+			if (isITunnelItem(arg)) {
+				tunnelContext = arg;
+			} else {
+				const context = accessor.get(IContextKeyService).getContextKeyValue<string>(TunnelViewSelectionKeyName);
+				const tunnel = context ? remoteExplorerService.tunnelModel.forwarded.get(context) : undefined;
+				if (tunnel) {
+					const tunnelService = accessor.get(ITunnelService);
+					tunnelContext = TunnelItem.createFromTunnel(remoteExplorerService, tunnelService, tunnel);
+				}
+			}
+
+			if (tunnelContext) {
+				const tunnelItem: ITunnelItem = tunnelContext;
+				const address = { host: tunnelItem.remoteHost, port: tunnelItem.remotePort };
+				remoteExplorerService.setEditable(address, tunnelItem.tunnelType, TunnelEditId.LocalPort, {
 					onFinish: async (value, success) => {
-						remoteExplorerService.setEditable(context, TunnelEditId.LocalPort, null);
+						remoteExplorerService.setEditable(address, tunnelItem.tunnelType, TunnelEditId.LocalPort, null);
 						if (success) {
-							await remoteExplorerService.close({ host: context.remoteHost, port: context.remotePort });
+							await remoteExplorerService.close({ host: tunnelItem.remoteHost, port: tunnelItem.remotePort });
 							const numberValue = Number(value);
 							const newForward = await remoteExplorerService.forward({
-								remote: { host: context.remoteHost, port: context.remotePort },
+								remote: { host: tunnelItem.remoteHost, port: tunnelItem.remotePort },
 								local: numberValue,
-								name: context.name,
+								name: tunnelItem.name,
 								elevateIfNeeded: true,
-								source: context.source
+								source: tunnelItem.source
 							});
 							if (newForward && newForward.tunnelLocalPort !== numberValue) {
 								notificationService.warn(nls.localize('remote.tunnel.changeLocalPortNumber', "The local port {0} is not available. Port number {1} has been used instead", value, newForward.tunnelLocalPort ?? newForward.localAddress));
