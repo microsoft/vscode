@@ -249,8 +249,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.clearTextureAtlas();
 	}
 
-	clearDecorations(disableDecorations?: boolean): void {
-		this._decorationAddon?.clearDecorations(disableDecorations);
+	clearDecorations(): void {
+		this._decorationAddon?.clearDecorations();
 	}
 
 
