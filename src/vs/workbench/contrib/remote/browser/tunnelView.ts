@@ -393,7 +393,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		if (element.editId === TunnelEditId.New && (editableData = this.remoteExplorerService.getEditableData(undefined))) {
 			this.renderInputBox(templateData.container, editableData);
 		} else {
-			editableData = this.remoteExplorerService.getEditableData({ host: element.tunnel.remoteHost, port: element.tunnel.remotePort }, element.editId);
+			editableData = this.remoteExplorerService.getEditableData(element.tunnel, element.editId);
 			if (editableData) {
 				this.renderInputBox(templateData.container, editableData);
 			} else if ((element.tunnel.tunnelType === TunnelType.Add) && (element.menuId === MenuId.TunnelPortInline)) {
@@ -917,7 +917,7 @@ export class TunnelPanel extends ViewPane {
 		}));
 
 		this._register(this.remoteExplorerService.onDidChangeEditable(e => {
-			this.isEditing = !!this.remoteExplorerService.getEditableData(e?.tunnelAddress, e?.editId);
+			this.isEditing = !!this.remoteExplorerService.getEditableData(e?.tunnel, e?.editId);
 			this._onDidChangeViewWelcomeState.fire();
 
 			if (!this.isEditing) {
@@ -933,7 +933,7 @@ export class TunnelPanel extends ViewPane {
 					this.table.reveal(this.table.indexOf(this.viewModel.input));
 				}
 			} else {
-				if (e && (e.tunnelType !== TunnelType.Add)) {
+				if (e && (e.tunnel.tunnelType !== TunnelType.Add)) {
 					this.table.setFocus(this.lastFocus);
 				}
 				this.focus();
@@ -1108,11 +1108,10 @@ namespace LabelTunnelAction {
 				const tunnelItem: ITunnelItem = tunnelContext;
 				return new Promise(resolve => {
 					const startingValue = tunnelItem.name ? tunnelItem.name : `${tunnelItem.remotePort}`;
-					const address = { host: tunnelItem.remoteHost, port: tunnelItem.remotePort };
-					remoteExplorerService.setEditable(address, tunnelItem.tunnelType, TunnelEditId.Label, {
+					remoteExplorerService.setEditable(tunnelItem, TunnelEditId.Label, {
 						onFinish: async (value, success) => {
 							value = value.trim();
-							remoteExplorerService.setEditable(address, tunnelItem.tunnelType, TunnelEditId.Label, null);
+							remoteExplorerService.setEditable(tunnelItem, TunnelEditId.Label, null);
 							const changed = success && (value !== startingValue);
 							if (changed) {
 								await remoteExplorerService.tunnelModel.name(tunnelItem.remoteHost, tunnelItem.remotePort, value);
@@ -1168,9 +1167,9 @@ export namespace ForwardPortAction {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
 			const notificationService = accessor.get(INotificationService);
 			const tunnelService = accessor.get(ITunnelService);
-			remoteExplorerService.setEditable(undefined, undefined, TunnelEditId.New, {
+			remoteExplorerService.setEditable(undefined, TunnelEditId.New, {
 				onFinish: async (value, success) => {
-					remoteExplorerService.setEditable(undefined, undefined, TunnelEditId.New, null);
+					remoteExplorerService.setEditable(undefined, TunnelEditId.New, null);
 					let parsed: { host: string; port: number } | undefined;
 					if (success && (parsed = parseAddress(value))) {
 						remoteExplorerService.forward({
@@ -1453,10 +1452,9 @@ namespace ChangeLocalPortAction {
 
 			if (tunnelContext) {
 				const tunnelItem: ITunnelItem = tunnelContext;
-				const address = { host: tunnelItem.remoteHost, port: tunnelItem.remotePort };
-				remoteExplorerService.setEditable(address, tunnelItem.tunnelType, TunnelEditId.LocalPort, {
+				remoteExplorerService.setEditable(tunnelItem, TunnelEditId.LocalPort, {
 					onFinish: async (value, success) => {
-						remoteExplorerService.setEditable(address, tunnelItem.tunnelType, TunnelEditId.LocalPort, null);
+						remoteExplorerService.setEditable(tunnelItem, TunnelEditId.LocalPort, null);
 						if (success) {
 							await remoteExplorerService.close({ host: tunnelItem.remoteHost, port: tunnelItem.remotePort });
 							const numberValue = Number(value);
