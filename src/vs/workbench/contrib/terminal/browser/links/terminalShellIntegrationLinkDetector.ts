@@ -45,10 +45,10 @@ export class TerminalShellIntegrationLinkDetector implements ITerminalLinkDetect
 			return [{
 				text: match,
 				type: TerminalBuiltinLinkType.Url,
-				label: localize('learn', 'Learn about shell integration'),
+				label: match === LinkType.Activated ? localize('learn', 'Learn about shell integration') : localize('read more', 'Read more about this warning'),
 				uri: URI.from({
 					scheme: Schemas.https,
-					path: 'aka.ms/vscode-shell-integration'
+					path: match === LinkType.Activated ? 'aka.ms/vscode-shell-integration' : 'aka.ms/vscode-shell-integration#_complex-bash-promptcommand'
 				}),
 				bufferRange: {
 					start: { x: 1, y: startLine + 1 },
