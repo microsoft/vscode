@@ -122,8 +122,8 @@ class RemoteAuthoritiesImpl {
 		this._delegate = delegate;
 	}
 
-	setProductRoutePrefix(product: { quality?: string; commit?: string }): void {
-		this._remoteResourcesPath = `/${product.quality ?? 'oss'}-${product.commit ?? 'dev'}/${Schemas.vscodeRemoteResource}`;
+	setServerRootPath(serverRootPath: string): void {
+		this._remoteResourcesPath = `${serverRootPath}/${Schemas.vscodeRemoteResource}`;
 	}
 
 	set(authority: string, host: string, port: number): void {
@@ -140,6 +140,7 @@ class RemoteAuthoritiesImpl {
 	}
 
 	rewrite(uri: URI): URI {
+		console.log(`rewrite ${uri.toString()}`);
 		if (this._delegate) {
 			return this._delegate(uri);
 		}

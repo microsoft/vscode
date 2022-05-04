@@ -30,6 +30,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ConnectionType, ConnectionTypeRequest, ErrorMessage, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, SignRequest } from 'vs/platform/remote/common/remoteAgentConnection';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionHostConnection } from 'vs/server/node/extensionHostConnection';
 import { ManagementConnection } from 'vs/server/node/remoteExtensionManagement';
@@ -62,7 +63,7 @@ export class RemoteExtensionHostAgentServer extends Disposable implements IServe
 	private readonly _webClientServer: WebClientServer | null;
 	private readonly _webEndpointOriginChecker = WebEndpointOriginChecker.create(this._productService);
 
-	private readonly _routePrefix: string;
+	private readonly _serverRootPath: string;
 
 	private shutdownTimer: NodeJS.Timer | undefined;
 
@@ -78,14 +79,13 @@ export class RemoteExtensionHostAgentServer extends Disposable implements IServe
 	) {
 		super();
 
-		this._routePrefix = `/${_productService.quality ?? 'oss'}-${_productService.commit ?? 'dev'}`;
-
+		this._serverRootPath = getRemoteServerRootPath(_productService);
 		this._extHostConnections = Object.create(null);
 		this._managementConnections = Object.create(null);
 		this._allReconnectionTokens = new Set<string>();
 		this._webClientServer = (
 			hasWebClient
-				? this._instantiationService.createInstance(WebClientServer, this._routePrefix, this._connectionToken)
+				? this._instantiationService.createInstance(WebClientServer, this._serverRootPath, this._connectionToken)
 				: null
 		);
 		this._logService.info(`Extension host agent started.`);
@@ -108,8 +108,9 @@ export class RemoteExtensionHostAgentServer extends Disposable implements IServe
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		if (pathname.startsWith(this._routePrefix) && pathname.charCodeAt(this._routePrefix.length) === CharCode.Slash) {
-			pathname = pathname.substring(this._routePrefix.length);
+		// for now accept all paths, with or without server root path
+		if (pathname.startsWith(this._serverRootPath) && pathname.charCodeAt(this._serverRootPath.length) === CharCode.Slash) {
+			pathname = pathname.substring(this._serverRootPath.length);
 		}
 
 		// Version

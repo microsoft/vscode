@@ -10,6 +10,7 @@ import { RemoteAuthorities } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRemoteAuthorityResolverService, IRemoteConnectionData, ResolvedAuthority, ResolvedOptions, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
 
 class PendingPromise<I, R> {
 	public readonly promise: Promise<R>;
@@ -56,7 +57,7 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		this._canonicalURIRequests = new Map<string, PendingPromise<URI, URI>>();
 		this._canonicalURIProvider = null;
 
-		RemoteAuthorities.setProductRoutePrefix(productService);
+		RemoteAuthorities.setServerRootPath(getRemoteServerRootPath(productService));
 	}
 
 	resolveAuthority(authority: string): Promise<ResolverResult> {

@@ -9,6 +9,7 @@ import { RemoteAuthorities } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRemoteAuthorityResolverService, IRemoteConnectionData, ResolvedAuthority, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
 
 export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
 
@@ -29,7 +30,7 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		if (resourceUriProvider) {
 			RemoteAuthorities.setDelegate(resourceUriProvider);
 		}
-		RemoteAuthorities.setProductRoutePrefix(productService);
+		RemoteAuthorities.setServerRootPath(getRemoteServerRootPath(productService));
 	}
 
 	async resolveAuthority(authority: string): Promise<ResolverResult> {
