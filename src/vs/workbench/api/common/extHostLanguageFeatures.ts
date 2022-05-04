@@ -1750,14 +1750,18 @@ class TypeHierarchyAdapter {
 class DocumentOnDropAdapter {
 
 	constructor(
+		private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape,
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.DocumentOnDropProvider
+		private readonly _provider: vscode.DocumentOnDropProvider,
+		private readonly _handle: number,
 	) { }
 
-	async provideDocumentOnDropEdits(uri: URI, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
+	async provideDocumentOnDropEdits(requestId: number, uri: URI, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
 		const doc = this._documents.getDocument(uri);
 		const pos = typeConvert.Position.to(position);
-		const dataTransfer = DataTransferConverter.toDataTransfer(dataTransferDto);
+		const dataTransfer = DataTransferConverter.toDataTransfer(dataTransferDto, async (index) => {
+			return (await this._proxy.$resolveDocumentOnDropFileData(this._handle, requestId, index)).buffer;
+		});
 
 		const edit = await this._provider.provideDocumentOnDropEdits(doc, pos, dataTransfer, token);
 		if (!edit) {
@@ -2400,13 +2404,15 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- Document on drop
 
 	registerDocumentOnDropProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentOnDropProvider) {
-		const handle = this._addNewAdapter(new DocumentOnDropAdapter(this._documents, provider), extension);
+		const handle = this._nextHandle();
+		this._adapter.set(handle, new AdapterData(new DocumentOnDropAdapter(this._proxy, this._documents, provider, handle), extension));
 		this._proxy.$registerDocumentOnDropProvider(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentOnDropEdits(handle: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
-		return this._withAdapter(handle, DocumentOnDropAdapter, adapter => Promise.resolve(adapter.provideDocumentOnDropEdits(URI.revive(resource), position, dataTransferDto, token)), undefined, undefined);
+	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined> {
+		return this._withAdapter(handle, DocumentOnDropAdapter, adapter =>
+			Promise.resolve(adapter.provideDocumentOnDropEdits(requestId, URI.revive(resource), position, dataTransferDto, token)), undefined, undefined);
 	}
 
 	// --- configuration

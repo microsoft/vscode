@@ -2393,6 +2393,10 @@ export class DataTransferItem {
 		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
 	}
 
+	asFile(): undefined {
+		return undefined;
+	}
+
 	constructor(public readonly value: any) { }
 }
 

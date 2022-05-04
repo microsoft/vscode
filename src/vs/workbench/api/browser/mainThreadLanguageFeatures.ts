@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { mixin } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Position as EditorPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as languages from 'vs/editor/common/languages';
@@ -23,20 +23,20 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { DataTransferCache } from 'vs/workbench/api/common/shared/dataTransferCache';
 import { DataTransferConverter } from 'vs/workbench/api/common/shared/dataTransfer';
 import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import * as search from 'vs/workbench/contrib/search/common/search';
 import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape, reviveWorkspaceEditDto } from '../common/extHost.protocol';
+import { IDataTransfer } from 'vs/editor/common/dnd';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
 
 	private readonly _proxy: ExtHostLanguageFeaturesShape;
 	private readonly _registrations = new Map<number, IDisposable>();
-
-	private readonly _dropIntoEditorListeners = new Map<ICodeEditor, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -82,9 +82,6 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			registration.dispose();
 		}
 		this._registrations.clear();
-
-		dispose(this._dropIntoEditorListeners.values());
-		this._dropIntoEditorListeners.clear();
 
 		super.dispose();
 	}
@@ -864,13 +861,47 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	// --- document drop Edits
 
+	private readonly _documentOnDropProviders = new Map<number, MainThreadDocumentOnDropProvider>();
+
 	$registerDocumentOnDropProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, this._languageFeaturesService.documentOnDropEditProvider.register(selector, {
-			provideDocumentOnDropEdits: async (model, position, dataTransfer, token) => {
-				const dataTransferDto = await DataTransferConverter.toDataTransferDTO(dataTransfer);
-				return this._proxy.$provideDocumentOnDropEdits(handle, model.uri, position, dataTransferDto, token);
-			}
-		}));
+		const provider = new MainThreadDocumentOnDropProvider(handle, this._proxy);
+		this._documentOnDropProviders.set(handle, provider);
+		this._registrations.set(handle, combinedDisposable(
+			this._languageFeaturesService.documentOnDropEditProvider.register(selector, provider),
+			toDisposable(() => this._documentOnDropProviders.delete(handle)),
+		));
+	}
+
+	async $resolveDocumentOnDropFileData(handle: number, requestId: number, dataIndex: number): Promise<VSBuffer> {
+		const provider = this._documentOnDropProviders.get(handle);
+		if (!provider) {
+			throw new Error('Could not find provider');
+		}
+		return provider.resolveDocumentOnDropFileData(requestId, dataIndex);
+	}
+}
+
+class MainThreadDocumentOnDropProvider implements languages.DocumentOnDropEditProvider {
+
+	private readonly dataTransfers = new DataTransferCache();
+
+	constructor(
+		private readonly handle: number,
+		private readonly _proxy: ExtHostLanguageFeaturesShape,
+	) { }
+
+	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: IDataTransfer, token: CancellationToken): Promise<languages.SnippetTextEdit | null | undefined> {
+		const request = this.dataTransfers.add(dataTransfer);
+		try {
+			const dataTransferDto = await DataTransferConverter.toDataTransferDTO(dataTransfer);
+			return await this._proxy.$provideDocumentOnDropEdits(this.handle, request.id, model.uri, position, dataTransferDto, token);
+		} finally {
+			request.dispose();
+		}
+	}
+
+	public resolveDocumentOnDropFileData(requestId: number, dataIndex: number): Promise<VSBuffer> {
+		return this.dataTransfers.resolveDropFileData(requestId, dataIndex);
 	}
 }
 
