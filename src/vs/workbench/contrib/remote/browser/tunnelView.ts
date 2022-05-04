@@ -1236,18 +1236,23 @@ namespace ClosePortAction {
 	export function inlineHandler(): ICommandHandler {
 		return async (accessor, arg) => {
 			const contextKeyService = accessor.get(IContextKeyService);
-			let ports = contextKeyService.getContextKeyValue<ITunnelItem[] | undefined>(TunnelViewMultiSelectionKeyName);
+			const remoteExplorerService = accessor.get(IRemoteExplorerService);
+
+			let ports: (ITunnelItem | Tunnel)[] | undefined = contextKeyService.getContextKeyValue<ITunnelItem[] | undefined>(TunnelViewMultiSelectionKeyName);
 			if (!ports) {
-				const context = (arg !== undefined || arg instanceof TunnelItem) ?
-					arg : contextKeyService.getContextKeyValue<ITunnelItem | undefined>(TunnelViewSelectionKeyName);
-				if (context) {
-					ports = [context];
+				if (isITunnelItem(arg)) {
+					ports = [arg];
+				} else {
+					const context = contextKeyService.getContextKeyValue<string | undefined>(TunnelViewSelectionKeyName);
+					const tunnel = context ? remoteExplorerService.tunnelModel.forwarded.get(context) : undefined;
+					if (tunnel) {
+						ports = [tunnel];
+					}
 				}
 			}
 			if (!ports) {
 				return;
 			}
-			const remoteExplorerService = accessor.get(IRemoteExplorerService);
 			return Promise.all(ports.map(port => remoteExplorerService.close({ host: port.remoteHost, port: port.remotePort })));
 		};
 	}
@@ -1383,7 +1388,7 @@ namespace CopyAddressAction {
 	export const INLINE_LABEL = nls.localize('remote.tunnel.copyAddressInline', "Copy Local Address");
 	export const COMMANDPALETTE_LABEL = nls.localize('remote.tunnel.copyAddressCommandPalette', "Copy Forwarded Port Address");
 
-	async function copyAddress(remoteExplorerService: IRemoteExplorerService, clipboardService: IClipboardService, tunnelItem: ITunnelItem) {
+	async function copyAddress(remoteExplorerService: IRemoteExplorerService, clipboardService: IClipboardService, tunnelItem: { remoteHost: string; remotePort: number }) {
 		const address = remoteExplorerService.tunnelModel.address(tunnelItem.remoteHost, tunnelItem.remotePort);
 		if (address) {
 			await clipboardService.writeText(address.toString());
@@ -1392,9 +1397,16 @@ namespace CopyAddressAction {
 
 	export function inlineHandler(): ICommandHandler {
 		return async (accessor, arg) => {
-			const context = (arg !== undefined || arg instanceof TunnelItem) ? arg : accessor.get(IContextKeyService).getContextKeyValue(TunnelViewSelectionKeyName);
-			if (context instanceof TunnelItem) {
-				return copyAddress(accessor.get(IRemoteExplorerService), accessor.get(IClipboardService), context);
+			const remoteExplorerService = accessor.get(IRemoteExplorerService);
+			let tunnelItem: ITunnelItem | Tunnel | undefined;
+			if (isITunnelItem(arg)) {
+				tunnelItem = arg;
+			} else {
+				const context = accessor.get(IContextKeyService).getContextKeyValue<string | undefined>(TunnelViewSelectionKeyName);
+				tunnelItem = context ? remoteExplorerService.tunnelModel.forwarded.get(context) : undefined;
+			}
+			if (tunnelItem) {
+				return copyAddress(remoteExplorerService, accessor.get(IClipboardService), tunnelItem);
 			}
 		};
 	}
@@ -1442,7 +1454,7 @@ namespace ChangeLocalPortAction {
 			if (isITunnelItem(arg)) {
 				tunnelContext = arg;
 			} else {
-				const context = accessor.get(IContextKeyService).getContextKeyValue<string>(TunnelViewSelectionKeyName);
+				const context = accessor.get(IContextKeyService).getContextKeyValue<string | undefined>(TunnelViewSelectionKeyName);
 				const tunnel = context ? remoteExplorerService.tunnelModel.forwarded.get(context) : undefined;
 				if (tunnel) {
 					const tunnelService = accessor.get(ITunnelService);
