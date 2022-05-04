@@ -12,7 +12,7 @@
 		}
 	},
 	{
-		"c": " ubuntu",
+		"c": " mcr.microsoft.com/vscode/devcontainers/repos/microsoft/vscode",
 		"t": "source.dockerfile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -36,7 +36,7 @@
 		}
 	},
 	{
-		"c": " Kimbro Staken",
+		"c": " Microsoft",
 		"t": "source.dockerfile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -324,7 +324,7 @@
 		}
 	},
 	{
-		"c": "] ",
+		"c": "]",
 		"t": "source.dockerfile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
