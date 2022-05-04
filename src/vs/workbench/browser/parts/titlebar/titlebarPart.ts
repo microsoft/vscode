@@ -131,6 +131,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		if (event.affectsConfiguration('window.experimental.titleMenu')) {
 			this.updateTitle();
+			this.adjustTitleMarginToCenter();
 		}
 	}
 
