@@ -15,8 +15,9 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ILogService } from 'vs/platform/log/common/log';
 import { DataTransferConverter } from 'vs/workbench/api/common/shared/dataTransfer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDataTransfer, IDataTransferItem } from 'vs/workbench/common/dnd';
+import { IDataTransfer } from 'vs/editor/common/dnd';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { DataTransferCache } from 'vs/workbench/api/common/shared/dataTransferCache';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
@@ -124,7 +125,6 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		return controller.resolveDropFileData(requestId, dataItemIndex);
 	}
 
-
 	private async reveal(treeView: ITreeView, dataProvider: TreeViewDataProvider, itemIn: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
 		options = options ? options : { select: false, focus: false };
 		const select = isUndefinedOrNull(options.select) ? false : options.select;
@@ -195,8 +195,7 @@ type TreeItemHandle = string;
 
 class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 
-	private dropRequestId = 0;
-	private readonly dataTransfers = new Map</* requestId */ number, ReadonlyArray<IDataTransferItem>>();
+	private readonly dataTransfersCache = new DataTransferCache();
 
 	constructor(private readonly treeViewId: string,
 		readonly dropMimeTypes: string[],
@@ -206,12 +205,11 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 
 	async handleDrop(dataTransfer: IDataTransfer, targetTreeItem: ITreeItem | undefined, token: CancellationToken,
 		operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
-		const requestId = this.dropRequestId++;
-		this.dataTransfers.set(requestId, [...dataTransfer.values()]);
+		const request = this.dataTransfersCache.add(dataTransfer);
 		try {
-			return await this._proxy.$handleDrop(this.treeViewId, requestId, await DataTransferConverter.toDataTransferDTO(dataTransfer), targetTreeItem?.handle, token, operationUuid, sourceTreeId, sourceTreeItemHandles);
+			return await this._proxy.$handleDrop(this.treeViewId, request.id, await DataTransferConverter.toDataTransferDTO(dataTransfer), targetTreeItem?.handle, token, operationUuid, sourceTreeId, sourceTreeItemHandles);
 		} finally {
-			this.dataTransfers.delete(requestId);
+			request.dispose();
 		}
 	}
 
@@ -226,18 +224,8 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 		return DataTransferConverter.toDataTransfer(additionalTransferItems, () => { throw new Error('not supported'); });
 	}
 
-	public async resolveDropFileData(requestId: number, dataItemIndex: number): Promise<VSBuffer> {
-		const entry = this.dataTransfers.get(requestId);
-		if (!entry) {
-			throw new Error('No data transfer found');
-		}
-
-		const file = entry[dataItemIndex]?.asFile();
-		if (!file) {
-			throw new Error('No file item found in data transfer');
-		}
-
-		return VSBuffer.wrap(await file.data());
+	public resolveDropFileData(requestId: number, dataItemIndex: number): Promise<VSBuffer> {
+		return this.dataTransfersCache.resolveDropFileData(requestId, dataItemIndex);
 	}
 }
 

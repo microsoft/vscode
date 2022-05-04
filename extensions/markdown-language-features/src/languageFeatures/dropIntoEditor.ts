@@ -6,7 +6,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as URI from 'vscode-uri';
-import { coalesce } from '../util/arrays';
 
 const imageFileExtensions = new Set<string>([
 	'.bmp',
@@ -34,12 +33,14 @@ export function registerDropIntoEditor(selector: vscode.DocumentSelector) {
 
 			const replacementRange = new vscode.Range(position, position);
 
-			const filePromises: Thenable<vscode.DataTransferFile | undefined>[] = [];
+			const files: Array<vscode.DataTransferFile> = [];
 			dataTransfer.forEach((x) => {
-				filePromises.push(x.asFile());
+				const file = x.asFile();
+				if (file) {
+					files.push(file);
+				}
 			});
 
-			const files = coalesce(await Promise.all(filePromises));
 			if (files.length) {
 				// Copy next to md file
 				const dir = URI.Utils.dirname(document.uri);

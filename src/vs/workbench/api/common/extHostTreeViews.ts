@@ -25,7 +25,7 @@ import { Command } from 'vs/editor/common/languages';
 import { DataTransferConverter, DataTransferDTO } from 'vs/workbench/api/common/shared/dataTransfer';
 import { ITreeViewsService, TreeviewsService } from 'vs/workbench/services/views/common/treeViewsService';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { IDataTransfer } from 'vs/workbench/common/dnd';
+import { IDataTransfer } from 'vs/editor/common/dnd';
 
 type TreeItemHandle = string;
 
@@ -166,11 +166,12 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if (existingTransferOperation) {
 			(await existingTransferOperation)?.forEach((value, key) => {
 				if (value) {
+					const file = value.asFile();
 					treeDataTransfer.set(key, {
+						kind: file ? 'file' : 'string',
 						value: value.value,
 						asString: value.asString,
 						asFile() {
-							const file = value.asFile();
 							if (!file) {
 								return undefined;
 							}

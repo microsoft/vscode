@@ -19,6 +19,7 @@ import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { IDataTransfer } from 'vs/editor/common/dnd';
 
 /**
  * Open ended enum at runtime
@@ -1984,30 +1985,6 @@ export enum ExternalUriOpenerPriority {
 	Preferred = 3,
 }
 
-
-/**
- * @internal
- */
-export interface IDataTransferFile {
-	readonly name: string;
-	readonly path?: URI;
-	data(): Promise<Uint8Array>;
-}
-
-/**
- * @internal
- */
-export interface IDataTransferItem {
-	readonly kind: 'string' | 'file';
-	asString(): Thenable<string>;
-	asFile(): IDataTransferFile | undefined;
-	value: any;
-}
-
-/**
- * @internal
- */
-export type IDataTransfer = Map<string, IDataTransferItem>;
 
 /**
  * @internal

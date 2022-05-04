@@ -23,6 +23,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { DataTransferCache } from 'vs/workbench/api/common/shared/dataTransferCache';
 import { DataTransferConverter } from 'vs/workbench/api/common/shared/dataTransfer';
 import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import * as search from 'vs/workbench/contrib/search/common/search';
@@ -30,6 +31,7 @@ import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy'
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape, reviveWorkspaceEditDto } from '../common/extHost.protocol';
+import { IDataTransfer } from 'vs/editor/common/dnd';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -882,38 +884,25 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 class MainThreadDocumentOnDropProvider implements languages.DocumentOnDropEditProvider {
 
-	private documentOnDropRequestId = 0;
-	private readonly dataTransfers = new Map</* requestId */ number, ReadonlyArray<languages.IDataTransferItem>>();
+	private readonly dataTransfers = new DataTransferCache();
 
 	constructor(
 		private readonly handle: number,
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 	) { }
 
-	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: languages.IDataTransfer, token: CancellationToken): Promise<languages.SnippetTextEdit | null | undefined> {
-		const requestId = this.documentOnDropRequestId++;
-
-		this.dataTransfers.set(requestId, [...dataTransfer.values()]);
+	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: IDataTransfer, token: CancellationToken): Promise<languages.SnippetTextEdit | null | undefined> {
+		const request = this.dataTransfers.add(dataTransfer);
 		try {
 			const dataTransferDto = await DataTransferConverter.toDataTransferDTO(dataTransfer);
-			return await this._proxy.$provideDocumentOnDropEdits(this.handle, requestId, model.uri, position, new SerializableObjectWithBuffers(dataTransferDto), token);
+			return await this._proxy.$provideDocumentOnDropEdits(this.handle, request.id, model.uri, position, new SerializableObjectWithBuffers(dataTransferDto), token);
 		} finally {
-			this.dataTransfers.delete(requestId);
+			request.dispose();
 		}
 	}
 
-	public async resolveDocumentOnDropFileData(requestId: number, dataIndex: number): Promise<VSBuffer> {
-		const items = this.dataTransfers.get(requestId);
-		if (!items) {
-			throw new Error('No data transfer found for request');
-		}
-
-		const file = items[dataIndex].asFile();
-		if (!file) {
-			throw new Error('Data transfer item is not a file');
-		}
-
-		return VSBuffer.wrap(await file.data());
+	public resolveDocumentOnDropFileData(requestId: number, dataIndex: number): Promise<VSBuffer> {
+		return this.dataTransfers.resolveDropFileData(requestId, dataIndex);
 	}
 }
 
