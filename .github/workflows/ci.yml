@@ -247,3 +247,68 @@ jobs:
       - name: Run Integration Tests (Remote)
         timeout-minutes: 15
         run: DISPLAY=:10 ./scripts/test-remote-integration.sh
+
+  hygiene:
+    name: Hygiene and Layering
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 16
+
+      - name: Compute node modules cache key
+        id: nodeModulesCacheKey
+        run: echo "::set-output name=value::$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)"
+      - name: Cache node modules
+        id: cacheNodeModules
+        uses: actions/cache@v2
+        with:
+          path: "**/node_modules"
+          key: ${{ runner.os }}-cacheNodeModules21-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules21-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
+      - name: Execute yarn
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+        run: yarn --frozen-lockfile --network-timeout 180000
+
+      - name: Download Playwright
+        run: yarn playwright-install
+
+      - name: Run Hygiene Checks
+        run: yarn gulp hygiene
+
+      - name: Run Valid Layers Checks
+        run: yarn valid-layers-check
+
+      - name: Compile /build/
+        run: yarn --cwd build compile
+
+      - name: Check clean git state
+        run: ./.github/workflows/check-clean-git-state.sh
+
+      - name: Run eslint
+        run: yarn eslint
+
+      - name: Run vscode-dts Compile Checks
+        run: yarn vscode-dts-compile-check
+
+      - name: Run Trusted Types Checks
+        run: yarn tsec-compile-check
