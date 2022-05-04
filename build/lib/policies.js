@@ -78,6 +78,27 @@ class StringEnumPolicy extends BasePolicy {
         this.enum_ = enum_;
         this.enumDescriptions = enumDescriptions;
     }
+    static from(name, category, minimumVersion, description, moduleName, settingNode) {
+        const type = getStringProperty(settingNode, 'type');
+        if (type !== 'string') {
+            return undefined;
+        }
+        const enum_ = getStringArrayProperty(settingNode, 'enum');
+        if (!enum_) {
+            return undefined;
+        }
+        if (!isStringArray(enum_)) {
+            throw new Error(`Property 'enum' should not be localized.`);
+        }
+        const enumDescriptions = getStringArrayProperty(settingNode, 'enumDescriptions');
+        if (!enumDescriptions) {
+            throw new Error(`Missing required 'enumDescriptions' property.`);
+        }
+        else if (!isNlsStringArray(enumDescriptions)) {
+            throw new Error(`Property 'enumDescriptions' should be localized.`);
+        }
+        return new StringEnumPolicy(name, category, minimumVersion, description, moduleName, enum_, enumDescriptions);
+    }
     renderADMXElements() {
         return [
             `<enum id="${this.name}" valueName="${this.name}">`,
@@ -121,6 +142,9 @@ const StringQ = {
 const StringArrayQ = {
     Q: `(array ${StringQ.Q})`,
     value(matches) {
+        if (matches.length === 0) {
+            return undefined;
+        }
         return matches.map(match => {
             return StringQ.value([match]);
         });
@@ -142,6 +166,10 @@ function getStringProperty(node, key) {
 function getStringArrayProperty(node, key) {
     return getProperty(StringArrayQ, node, key);
 }
+// TODO: add more policy types
+const PolicyTypes = [
+    StringEnumPolicy
+];
 function getPolicy(moduleName, configurationNode, settingNode, policyNode, categories) {
     const name = getStringProperty(policyNode, 'name');
     if (!name) {
@@ -157,6 +185,12 @@ function getPolicy(moduleName, configurationNode, settingNode, policyNode, categ
     else if (!isNlsString(categoryName)) {
         throw new Error(`Property 'title' should be localized.`);
     }
+    const categoryKey = `${categoryName.nlsKey}:${categoryName.value}`;
+    let category = categories.get(categoryKey);
+    if (!category) {
+        category = { moduleName, name: categoryName };
+        categories.set(categoryKey, category);
+    }
     const minimumVersion = getStringProperty(policyNode, 'minimumVersion');
     if (!minimumVersion) {
         throw new Error(`Missing required 'minimumVersion' property.`);
@@ -171,34 +205,16 @@ function getPolicy(moduleName, configurationNode, settingNode, policyNode, categ
     if (!isNlsString(description)) {
         throw new Error(`Property 'description' should be localized.`);
     }
-    const type = getStringProperty(settingNode, 'type');
-    if (!type) {
-        throw new Error(`Missing required 'type' property.`);
+    let result;
+    for (const policyType of PolicyTypes) {
+        if (result = policyType.from(name, category, minimumVersion, description, moduleName, settingNode)) {
+            break;
+        }
     }
-    if (type !== 'string') {
-        throw new Error(`Can't create policy from setting type '${type}' (needs implementing)`);
+    if (!result) {
+        throw new Error(`Failed to parse policy '${name}'.`);
     }
-    const enum_ = getStringArrayProperty(settingNode, 'enum');
-    if (!enum_) {
-        throw new Error(`Missing required 'enum' property.`);
-    }
-    else if (!isStringArray(enum_)) {
-        throw new Error(`Property 'enum' should not be localized.`);
-    }
-    const enumDescriptions = getStringArrayProperty(settingNode, 'enumDescriptions');
-    if (!enumDescriptions) {
-        throw new Error(`Missing required 'enumDescriptions' property.`);
-    }
-    else if (!isNlsStringArray(enumDescriptions)) {
-        throw new Error(`Property 'enumDescriptions' should be localized.`);
-    }
-    const categoryKey = `${categoryName.nlsKey}:${categoryName.value}`;
-    let category = categories.get(categoryKey);
-    if (!category) {
-        category = { moduleName, name: categoryName };
-        categories.set(categoryKey, category);
-    }
-    return new StringEnumPolicy(name, category, minimumVersion, description, moduleName, enum_, enumDescriptions);
+    return result;
 }
 function getPolicies(moduleName, node) {
     const query = new Parser.Query(typescript, `
@@ -212,8 +228,8 @@ function getPolicies(moduleName, node) {
 						value: (object (pair
 							key: [(property_identifier)(string)] @policyKey (#eq? @policyKey policy)
 							value: (object) @policy
-						))
-					)) @setting
+						)) @setting
+					))
 				)) @configuration)
 			)
 		)

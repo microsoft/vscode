@@ -105,7 +105,43 @@ abstract class BasePolicy implements Policy {
 }
 
 class StringEnumPolicy extends BasePolicy {
-	constructor(
+
+	static from(
+		name: string,
+		category: Category,
+		minimumVersion: string,
+		description: NlsString,
+		moduleName: string,
+		settingNode: Parser.SyntaxNode
+	): StringEnumPolicy | undefined {
+		const type = getStringProperty(settingNode, 'type');
+
+		if (type !== 'string') {
+			return undefined;
+		}
+
+		const enum_ = getStringArrayProperty(settingNode, 'enum');
+
+		if (!enum_) {
+			return undefined;
+		}
+
+		if (!isStringArray(enum_)) {
+			throw new Error(`Property 'enum' should not be localized.`);
+		}
+
+		const enumDescriptions = getStringArrayProperty(settingNode, 'enumDescriptions');
+
+		if (!enumDescriptions) {
+			throw new Error(`Missing required 'enumDescriptions' property.`);
+		} else if (!isNlsStringArray(enumDescriptions)) {
+			throw new Error(`Property 'enumDescriptions' should be localized.`);
+		}
+
+		return new StringEnumPolicy(name, category, minimumVersion, description, moduleName, enum_, enumDescriptions);
+	}
+
+	private constructor(
 		name: string,
 		category: Category,
 		minimumVersion: string,
@@ -175,6 +211,10 @@ const StringArrayQ: QType<(string | NlsString)[]> = {
 	Q: `(array ${StringQ.Q})`,
 
 	value(matches: Parser.QueryMatch[]): (string | NlsString)[] | undefined {
+		if (matches.length === 0) {
+			return undefined;
+		}
+
 		return matches.map(match => {
 			return StringQ.value([match]) as string | NlsString;
 		});
@@ -204,6 +244,11 @@ function getStringArrayProperty(node: Parser.SyntaxNode, key: string): (string |
 	return getProperty(StringArrayQ, node, key);
 }
 
+// TODO: add more policy types
+const PolicyTypes = [
+	StringEnumPolicy
+];
+
 function getPolicy(
 	moduleName: string,
 	configurationNode: Parser.SyntaxNode,
@@ -227,6 +272,14 @@ function getPolicy(
 		throw new Error(`Property 'title' should be localized.`);
 	}
 
+	const categoryKey = `${categoryName.nlsKey}:${categoryName.value}`;
+	let category = categories.get(categoryKey);
+
+	if (!category) {
+		category = { moduleName, name: categoryName };
+		categories.set(categoryKey, category);
+	}
+
 	const minimumVersion = getStringProperty(policyNode, 'minimumVersion');
 
 	if (!minimumVersion) {
@@ -243,41 +296,19 @@ function getPolicy(
 		throw new Error(`Property 'description' should be localized.`);
 	}
 
-	const type = getStringProperty(settingNode, 'type');
+	let result: Policy | undefined;
 
-	if (!type) {
-		throw new Error(`Missing required 'type' property.`);
+	for (const policyType of PolicyTypes) {
+		if (result = policyType.from(name, category, minimumVersion, description, moduleName, settingNode)) {
+			break;
+		}
 	}
 
-	if (type !== 'string') {
-		throw new Error(`Can't create policy from setting type '${type}' (needs implementing)`);
+	if (!result) {
+		throw new Error(`Failed to parse policy '${name}'.`);
 	}
 
-	const enum_ = getStringArrayProperty(settingNode, 'enum');
-
-	if (!enum_) {
-		throw new Error(`Missing required 'enum' property.`);
-	} else if (!isStringArray(enum_)) {
-		throw new Error(`Property 'enum' should not be localized.`);
-	}
-
-	const enumDescriptions = getStringArrayProperty(settingNode, 'enumDescriptions');
-
-	if (!enumDescriptions) {
-		throw new Error(`Missing required 'enumDescriptions' property.`);
-	} else if (!isNlsStringArray(enumDescriptions)) {
-		throw new Error(`Property 'enumDescriptions' should be localized.`);
-	}
-
-	const categoryKey = `${categoryName.nlsKey}:${categoryName.value}`;
-	let category = categories.get(categoryKey);
-
-	if (!category) {
-		category = { moduleName, name: categoryName };
-		categories.set(categoryKey, category);
-	}
-
-	return new StringEnumPolicy(name, category, minimumVersion, description, moduleName, enum_, enumDescriptions);
+	return result;
 }
 
 function getPolicies(moduleName: string, node: Parser.SyntaxNode): Policy[] {
@@ -292,8 +323,8 @@ function getPolicies(moduleName: string, node: Parser.SyntaxNode): Policy[] {
 						value: (object (pair
 							key: [(property_identifier)(string)] @policyKey (#eq? @policyKey policy)
 							value: (object) @policy
-						))
-					)) @setting
+						)) @setting
+					))
 				)) @configuration)
 			)
 		)
