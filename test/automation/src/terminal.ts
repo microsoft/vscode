@@ -6,6 +6,7 @@
 import { QuickInput } from './quickinput';
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
+import { IElement } from './driver';
 
 export enum Selector {
 	TerminalView = `#terminal`,
@@ -164,11 +165,11 @@ export class Terminal {
 		const groups: TerminalGroup[] = [];
 		for (let i = 0; i < tabCount; i++) {
 			const title = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry}`, e => e?.textContent?.length ? e?.textContent?.length > 1 : false);
-			const description = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry} ${Selector.Description}`, e => e?.textContent?.length ? e?.textContent?.length > 1 : false);
+			const description: IElement | undefined = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry} ${Selector.Description}`, () => true);
 
 			const label: TerminalLabel = {
 				name: title.textContent.replace(/^[├┌└]\s*/, ''),
-				description: description.textContent
+				description: description?.textContent
 			};
 			// It's a new group if the the tab does not start with ├ or └
 			if (title.textContent.match(/^[├└]/)) {
