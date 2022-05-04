@@ -53,7 +53,7 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			return htmlLanguageService.format(document, range, formatSettings);
 		},
 		async getFoldingRanges(document: TextDocument): Promise<FoldingRange[]> {
-			return htmlLanguageService.getFoldingRanges(document) as FoldingRange[];
+			return htmlLanguageService.getFoldingRanges(document);
 		},
 		async doAutoInsert(document: TextDocument, position: Position, kind: 'autoQuote' | 'autoClose', settings = workspace.settings) {
 			const offset = document.offsetAt(position);

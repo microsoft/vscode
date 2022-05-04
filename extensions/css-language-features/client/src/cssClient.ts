@@ -198,7 +198,6 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 							}
 						}
 					}
-					console.log(JSON.stringify(params.options));
 					return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
 						client.protocol2CodeConverter.asTextEdits,
 						(error) => {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
-	Connection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder, TextDocumentSyncKind, NotificationType, Disposable, TextDocumentIdentifier, Range, FormattingOptions, TextEdit, FoldingRange, Diagnostic
+	Connection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder, TextDocumentSyncKind, NotificationType, Disposable, TextDocumentIdentifier, Range, FormattingOptions, TextEdit, Diagnostic
 } from 'vscode-languageserver';
 import { URI } from 'vscode-uri';
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, TextDocument, Position, CSSFormatConfiguration } from 'vscode-css-languageservice';
@@ -354,7 +354,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
 				await dataProvidersReady;
-				return getLanguageService(document).getFoldingRanges(document, { rangeLimit: foldingRangeLimit }) as FoldingRange[];
+				return getLanguageService(document).getFoldingRanges(document, { rangeLimit: foldingRangeLimit });
 			}
 			return null;
 		}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);

@@ -5,7 +5,7 @@
 
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import { Stylesheet, LanguageService as CSSLanguageService } from 'vscode-css-languageservice';
-import { LanguageMode, Workspace, Color, TextDocument, Position, Range, CompletionList, DocumentContext, Diagnostic, FoldingRange } from './languageModes';
+import { LanguageMode, Workspace, Color, TextDocument, Position, Range, CompletionList, DocumentContext, Diagnostic } from './languageModes';
 import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';
 
 export function getCSSMode(cssLanguageService: CSSLanguageService, documentRegions: LanguageModelCache<HTMLDocumentRegions>, workspace: Workspace): LanguageMode {
@@ -55,7 +55,7 @@ export function getCSSMode(cssLanguageService: CSSLanguageService, documentRegio
 		},
 		async getFoldingRanges(document: TextDocument) {
 			let embedded = embeddedCSSDocuments.get(document);
-			return cssLanguageService.getFoldingRanges(embedded, {}) as FoldingRange[];
+			return cssLanguageService.getFoldingRanges(embedded, {});
 		},
 		async getSelectionRange(document: TextDocument, position: Position) {
 			let embedded = embeddedCSSDocuments.get(document);

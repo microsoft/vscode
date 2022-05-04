@@ -6,7 +6,7 @@
 import {
 	Connection,
 	TextDocuments, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind, TextEdit, DocumentFormattingRequest, TextDocumentIdentifier, FormattingOptions, Diagnostic, FoldingRange
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind, TextEdit, DocumentFormattingRequest, TextDocumentIdentifier, FormattingOptions, Diagnostic
 } from 'vscode-languageserver';
 
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
@@ -527,7 +527,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
 				const onRangeLimitExceeded = limitExceededWarnings.onResultLimitExceeded(document.uri, foldingRangeLimit, 'folding ranges');
-				return languageService.getFoldingRanges(document, { rangeLimit: foldingRangeLimit, onRangeLimitExceeded }) as FoldingRange[];
+				return languageService.getFoldingRanges(document, { rangeLimit: foldingRangeLimit, onRangeLimitExceeded });
 			}
 			return null;
 		}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
