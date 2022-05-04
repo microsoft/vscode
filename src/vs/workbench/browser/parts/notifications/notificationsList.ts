@@ -301,10 +301,9 @@ registerThemingParticipant((theme, collector) => {
 	// Notification Error Icon
 	const notificationErrorIconForegroundColor = theme.getColor(NOTIFICATIONS_ERROR_ICON_FOREGROUND);
 	if (notificationErrorIconForegroundColor) {
-		const errorCodiconSelector = Codicon.error.cssSelector;
 		collector.addRule(`
-		.monaco-workbench .notifications-center ${errorCodiconSelector},
-		.monaco-workbench .notifications-toasts ${errorCodiconSelector} {
+		.monaco-workbench .notifications-center ${Codicon.error.cssSelector},
+		.monaco-workbench .notifications-toasts ${Codicon.error.cssSelector} {
 			color: ${notificationErrorIconForegroundColor};
 		}`);
 	}
@@ -312,10 +311,9 @@ registerThemingParticipant((theme, collector) => {
 	// Notification Warning Icon
 	const notificationWarningIconForegroundColor = theme.getColor(NOTIFICATIONS_WARNING_ICON_FOREGROUND);
 	if (notificationWarningIconForegroundColor) {
-		const warningCodiconSelector = Codicon.warning.cssSelector;
 		collector.addRule(`
-		.monaco-workbench .notifications-center ${warningCodiconSelector},
-		.monaco-workbench .notifications-toasts ${warningCodiconSelector} {
+		.monaco-workbench .notifications-center ${Codicon.warning.cssSelector},
+		.monaco-workbench .notifications-toasts ${Codicon.warning.cssSelector} {
 			color: ${notificationWarningIconForegroundColor};
 		}`);
 	}
@@ -323,10 +321,9 @@ registerThemingParticipant((theme, collector) => {
 	// Notification Info Icon
 	const notificationInfoIconForegroundColor = theme.getColor(NOTIFICATIONS_INFO_ICON_FOREGROUND);
 	if (notificationInfoIconForegroundColor) {
-		const infoCodiconSelector = Codicon.info.cssSelector;
 		collector.addRule(`
-		.monaco-workbench .notifications-center ${infoCodiconSelector},
-		.monaco-workbench .notifications-toasts ${infoCodiconSelector} {
+		.monaco-workbench .notifications-center ${Codicon.info.cssSelector},
+		.monaco-workbench .notifications-toasts ${Codicon.info.cssSelector} {
 			color: ${notificationInfoIconForegroundColor};
 		}`);
 	}

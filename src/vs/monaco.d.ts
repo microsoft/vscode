@@ -3721,7 +3721,7 @@ declare namespace monaco.editor {
 		 * Enable the inline hints.
 		 * Defaults to true.
 		 */
-		enabled?: boolean;
+		enabled?: 'on' | 'off' | 'offUnlessPressed' | 'onUnlessPressed';
 		/**
 		 * Font size of inline hints.
 		 * Default to 90% of the editor font size.
@@ -4028,7 +4028,7 @@ declare namespace monaco.editor {
 		 * Enable highlighting of the active indent guide.
 		 * Defaults to true.
 		 */
-		highlightActiveIndentation?: boolean;
+		highlightActiveIndentation?: boolean | 'always';
 	}
 
 	/**
@@ -6328,6 +6328,10 @@ declare namespace monaco.languages {
 
 	export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 		readonly items: readonly TItem[];
+		/**
+		 * A list of commands associated with the inline completions of this list.
+		 */
+		readonly commands?: Command[];
 	}
 
 	export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {

@@ -71,6 +71,8 @@ export interface ICommonNativeHostService {
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
 
+	updateTitleBarOverlay(backgroundColor: string, foregroundColor: string): Promise<void>;
+
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 
 	saveWindowSplash(splash: IPartsSplash): Promise<void>;
@@ -153,6 +155,7 @@ export interface ICommonNativeHostService {
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
+	findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride?: number): Promise<number>;
 
 	// Registry (windows only)
 	windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined>;

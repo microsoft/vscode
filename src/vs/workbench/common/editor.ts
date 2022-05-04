@@ -9,7 +9,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditorViewState } from 'vs/editor/common/editorCommon';
-import { IEditorOptions, ITextEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput } from 'vs/platform/editor/common/editor';
 import type { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -675,7 +675,13 @@ export const enum EditorInputCapabilities {
 	 * component may decide to hide the description portion
 	 * for brevity.
 	 */
-	ForceDescription = 1 << 6
+	ForceDescription = 1 << 6,
+
+	/**
+	 * Signals that the editor supports dropping into the
+	 * editor by holding shift.
+	 */
+	CanDropIntoEditor = 1 << 7,
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput;
@@ -1334,10 +1340,9 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			return;
 		}
 
-		const options: ITextEditorOptions = {
-			selection: exists ? path.selection : undefined,
-			pinned: true,
-			override: path.editorOverrideId
+		const options: IEditorOptions = {
+			...path.options,
+			pinned: true
 		};
 
 		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;

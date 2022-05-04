@@ -11,7 +11,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
-import { OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
+import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
 import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';

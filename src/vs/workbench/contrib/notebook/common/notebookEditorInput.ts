@@ -102,6 +102,10 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			}
 		}
 
+		if (!(capabilities & EditorInputCapabilities.Readonly)) {
+			capabilities |= EditorInputCapabilities.CanDropIntoEditor;
+		}
+
 		return capabilities;
 	}
 
@@ -120,7 +124,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return this._editorModelReference.object.isDirty();
 	}
 
-	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
+	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {
 		if (this._editorModelReference) {
 
 			if (this.hasCapability(EditorInputCapabilities.Untitled)) {
@@ -135,7 +139,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return undefined;
 	}
 
-	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
+	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IUntypedEditorInput | undefined> {
 		if (!this._editorModelReference) {
 			return undefined;
 		}

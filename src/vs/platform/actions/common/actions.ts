@@ -54,6 +54,7 @@ export class MenuId {
 	static readonly DebugVariablesContext = new MenuId('DebugVariablesContext');
 	static readonly DebugWatchContext = new MenuId('DebugWatchContext');
 	static readonly DebugToolBar = new MenuId('DebugToolBar');
+	static readonly DebugToolBarStop = new MenuId('DebugToolBarStop');
 	static readonly EditorContext = new MenuId('EditorContext');
 	static readonly SimpleEditorContext = new MenuId('SimpleEditorContext');
 	static readonly EditorContextCopy = new MenuId('EditorContextCopy');
@@ -66,6 +67,8 @@ export class MenuId {
 	static readonly ExplorerContext = new MenuId('ExplorerContext');
 	static readonly ExtensionContext = new MenuId('ExtensionContext');
 	static readonly GlobalActivity = new MenuId('GlobalActivity');
+	static readonly TitleMenu = new MenuId('TitleMenu');
+	static readonly TitleMenuQuickPick = new MenuId('TitleMenuQuickPick');
 	static readonly LayoutControlMenuSubmenu = new MenuId('LayoutControlMenuSubmenu');
 	static readonly LayoutControlMenu = new MenuId('LayoutControlMenu');
 	static readonly MenubarMainMenu = new MenuId('MenubarMainMenu');

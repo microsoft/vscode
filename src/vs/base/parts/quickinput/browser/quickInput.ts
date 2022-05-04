@@ -1249,7 +1249,6 @@ export class QuickInputController extends Disposable {
 
 		const inputBox = this._register(new QuickInputBox(filterContainer));
 		inputBox.setAttribute('aria-describedby', `${this.idPrefix}message`);
-		inputBox.setAttribute('aria-live', 'polite');
 
 		const visibleCountContainer = dom.append(filterContainer, $('.quick-input-visible-count'));
 		visibleCountContainer.setAttribute('aria-live', 'polite');
@@ -1478,6 +1477,7 @@ export class QuickInputController extends Disposable {
 			input.matchOnLabel = (options.matchOnLabel === undefined) || options.matchOnLabel; // default to true
 			input.autoFocusOnList = (options.autoFocusOnList === undefined) || options.autoFocusOnList; // default to true
 			input.quickNavigate = options.quickNavigate;
+			input.hideInput = !!options.hideInput;
 			input.contextKey = options.contextKey;
 			input.busy = true;
 			Promise.all([picks, options.activeItem])

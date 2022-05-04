@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { MenuRegistry, MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
@@ -21,21 +21,6 @@ const globalQuickAccessKeybinding = {
 	secondary: [KeyMod.CtrlCmd | KeyCode.KeyE],
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyP, secondary: undefined }
 };
-
-const QUICKACCESS_ACTION_ID = 'workbench.action.quickOpen';
-
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: { id: QUICKACCESS_ACTION_ID, title: { value: localize('quickOpen', "Go to File..."), original: 'Go to File...' } }
-});
-
-KeybindingsRegistry.registerKeybindingRule({
-	id: QUICKACCESS_ACTION_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: undefined,
-	primary: globalQuickAccessKeybinding.primary,
-	secondary: globalQuickAccessKeybinding.secondary,
-	mac: globalQuickAccessKeybinding.mac
-});
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.closeQuickOpen',
@@ -131,21 +116,41 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: QUICKACCESS_ACTION_ID,
-	handler: async function (accessor: ServicesAccessor, prefix: unknown) {
-		const quickInputService = accessor.get(IQuickInputService);
-
-		quickInputService.quickAccess.show(typeof prefix === 'string' ? prefix : undefined, { preserveValue: typeof prefix === 'string' /* preserve as is if provided */ });
-	},
-	description: {
-		description: `Quick access`,
-		args: [{
-			name: 'prefix',
-			schema: {
-				'type': 'string'
+registerAction2(class QuickAccessAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.quickOpen',
+			title: {
+				value: localize('quickOpen', "Go to File..."),
+				original: 'Go to File...'
+			},
+			description: {
+				description: `Quick access`,
+				args: [{
+					name: 'prefix',
+					schema: {
+						'type': 'string'
+					}
+				}]
+			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: globalQuickAccessKeybinding.primary,
+				secondary: globalQuickAccessKeybinding.secondary,
+				mac: globalQuickAccessKeybinding.mac
+			},
+			f1: true,
+			menu: {
+				id: MenuId.TitleMenuQuickPick,
+				group: '1/workspaceNav',
+				order: 1
 			}
-		}]
+		});
+	}
+
+	run(accessor: ServicesAccessor, prefix: undefined): void {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.quickAccess.show(typeof prefix === 'string' ? prefix : undefined, { preserveValue: typeof prefix === 'string' /* preserve as is if provided */ });
 	}
 });
 

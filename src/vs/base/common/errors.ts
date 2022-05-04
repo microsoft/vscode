@@ -235,6 +235,10 @@ export class ExpectedError extends Error {
 export class ErrorNoTelemetry extends Error {
 
 	public static fromError(err: any): ErrorNoTelemetry {
+		if (err && err instanceof ErrorNoTelemetry) {
+			return err;
+		}
+
 		if (err && err instanceof Error) {
 			const result = new ErrorNoTelemetry();
 			result.name = err.name;
@@ -247,4 +251,21 @@ export class ErrorNoTelemetry extends Error {
 	}
 
 	readonly logTelemetry = false;
+}
+
+/**
+ * This error indicates a bug.
+ * Do not throw this for invalid user input.
+ * Only catch this error to recover gracefully from bugs.
+ */
+export class BugIndicatingError extends Error {
+	constructor(message: string) {
+		super(message);
+		Object.setPrototypeOf(this, BugIndicatingError.prototype);
+
+		// Because we know for sure only buggy code throws this,
+		// we definitely want to break here and fix the bug.
+		// eslint-disable-next-line no-debugger
+		debugger;
+	}
 }

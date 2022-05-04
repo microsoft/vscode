@@ -1008,6 +1008,30 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(e.files[1].oldUri.toString(), file2.toString());
 	});
 
+	test('WorkspaceEdit fails when creating then writing to file if file is open in the editor and is not empty #146964', async function () {
+		const file1 = await createRandomFile();
+
+		{
+			// prepare: open file in editor, make sure it has contents
+			const editor = await vscode.window.showTextDocument(file1);
+			const prepEdit = new vscode.WorkspaceEdit();
+			prepEdit.insert(file1, new vscode.Position(0, 0), 'Hello Here And There');
+			const status = await vscode.workspace.applyEdit(prepEdit);
+
+			assert.ok(status);
+			assert.strictEqual(editor.document.getText(), 'Hello Here And There');
+			assert.ok(vscode.window.activeTextEditor === editor);
+		}
+
+		const we = new vscode.WorkspaceEdit();
+		we.createFile(file1, { overwrite: true, ignoreIfExists: false });
+		we.set(file1, [new vscode.TextEdit(new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0)), 'SOME TEXT')]);
+		const status = await vscode.workspace.applyEdit(we);
+		assert.ok(status);
+		assert.strictEqual(vscode.window.activeTextEditor!.document.getText(), 'SOME TEXT');
+
+	});
+
 	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867, 2/3', async function () {
 
 		const event = new Promise<vscode.FileWillCreateEvent>(resolve => {

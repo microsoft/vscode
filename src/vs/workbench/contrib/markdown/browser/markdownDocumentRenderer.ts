@@ -121,7 +121,7 @@ code > div {
 }
 
 .vscode-high-contrast code > div {
-	background-color: rgb(0, 0, 0);
+	background-color: var(--vscode-textCodeBlock-background);
 }
 
 .vscode-high-contrast h1 {

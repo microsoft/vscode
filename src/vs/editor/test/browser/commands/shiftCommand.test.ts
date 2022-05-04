@@ -10,11 +10,13 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { getEditOperation, testCommand } from 'vs/editor/test/browser/testCommand';
 import { withEditorModel } from 'vs/editor/test/common/testTextModel';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * Create single edit operation
@@ -27,14 +29,17 @@ export function createSingleEditOp(text: string, positionLineNumber: number, pos
 	};
 }
 
-class DocBlockCommentMode extends MockMode {
+class DocBlockCommentMode extends Disposable {
 
-	private static readonly _id = 'commentMode';
+	public static languageId = 'commentMode';
+	public readonly languageId = DocBlockCommentMode.languageId;
 
 	constructor(
+		@ILanguageService languageService: ILanguageService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
 	) {
-		super(DocBlockCommentMode._id);
+		super();
+		this._register(languageService.registerLanguage({ id: this.languageId }));
 		this._register(languageConfigurationService.register(this.languageId, {
 			brackets: [
 				['(', ')'],
@@ -47,7 +52,7 @@ class DocBlockCommentMode extends MockMode {
 	}
 }
 
-function testShiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService = new TestLanguageConfigurationService()): void {
+function testShiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection, prepare?: (accessor: ServicesAccessor, disposables: DisposableStore) => void): void {
 	testCommand(lines, languageId, selection, (accessor, sel) => new ShiftCommand(sel, {
 		isUnshift: false,
 		tabSize: 4,
@@ -55,10 +60,10 @@ function testShiftCommand(lines: string[], languageId: string | null, useTabStop
 		insertSpaces: false,
 		useTabStops: useTabStops,
 		autoIndent: EditorAutoIndentStrategy.Full,
-	}, languageConfigurationService), expectedLines, expectedSelection);
+	}, accessor.get(ILanguageConfigurationService)), expectedLines, expectedSelection, undefined, prepare);
 }
 
-function testUnshiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService = new TestLanguageConfigurationService()): void {
+function testUnshiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection, prepare?: (accessor: ServicesAccessor, disposables: DisposableStore) => void): void {
 	testCommand(lines, languageId, selection, (accessor, sel) => new ShiftCommand(sel, {
 		isUnshift: true,
 		tabSize: 4,
@@ -66,14 +71,13 @@ function testUnshiftCommand(lines: string[], languageId: string | null, useTabSt
 		insertSpaces: false,
 		useTabStops: useTabStops,
 		autoIndent: EditorAutoIndentStrategy.Full,
-	}, languageConfigurationService), expectedLines, expectedSelection);
+	}, accessor.get(ILanguageConfigurationService)), expectedLines, expectedSelection, undefined, prepare);
 }
 
-function withDockBlockCommentMode(callback: (mode: DocBlockCommentMode, languageConfigurationService: TestLanguageConfigurationService) => void): void {
-	const languageConfigurationService = new TestLanguageConfigurationService();
-	let mode = new DocBlockCommentMode(languageConfigurationService);
-	callback(mode, languageConfigurationService);
-	mode.dispose();
+function prepareDocBlockCommentLanguage(accessor: ServicesAccessor, disposables: DisposableStore) {
+	const languageConfigurationService = accessor.get(ILanguageConfigurationService);
+	const languageService = accessor.get(ILanguageService);
+	disposables.add(new DocBlockCommentMode(languageService, languageConfigurationService));
 }
 
 suite('Editor Commands - ShiftCommand', () => {
@@ -558,105 +562,99 @@ suite('Editor Commands - ShiftCommand', () => {
 	});
 
 	test('issue #348: indenting around doc block comments', () => {
-		withDockBlockCommentMode((mode, languageConfigurationService) => {
+		testShiftCommand(
+			[
+				'',
+				'/**',
+				' * a doc comment',
+				' */',
+				'function hello() {}'
+			],
+			DocBlockCommentMode.languageId,
+			true,
+			new Selection(1, 1, 5, 20),
+			[
+				'',
+				'\t/**',
+				'\t * a doc comment',
+				'\t */',
+				'\tfunction hello() {}'
+			],
+			new Selection(1, 1, 5, 21),
+			prepareDocBlockCommentLanguage
+		);
 
-			testShiftCommand(
-				[
-					'',
-					'/**',
-					' * a doc comment',
-					' */',
-					'function hello() {}'
-				],
-				mode.languageId,
-				true,
-				new Selection(1, 1, 5, 20),
-				[
-					'',
-					'\t/**',
-					'\t * a doc comment',
-					'\t */',
-					'\tfunction hello() {}'
-				],
-				new Selection(1, 1, 5, 21),
-				languageConfigurationService
-			);
+		testUnshiftCommand(
+			[
+				'',
+				'/**',
+				' * a doc comment',
+				' */',
+				'function hello() {}'
+			],
+			DocBlockCommentMode.languageId,
+			true,
+			new Selection(1, 1, 5, 20),
+			[
+				'',
+				'/**',
+				' * a doc comment',
+				' */',
+				'function hello() {}'
+			],
+			new Selection(1, 1, 5, 20),
+			prepareDocBlockCommentLanguage
+		);
 
-			testUnshiftCommand(
-				[
-					'',
-					'/**',
-					' * a doc comment',
-					' */',
-					'function hello() {}'
-				],
-				mode.languageId,
-				true,
-				new Selection(1, 1, 5, 20),
-				[
-					'',
-					'/**',
-					' * a doc comment',
-					' */',
-					'function hello() {}'
-				],
-				new Selection(1, 1, 5, 20),
-				languageConfigurationService
-			);
-
-			testUnshiftCommand(
-				[
-					'\t',
-					'\t/**',
-					'\t * a doc comment',
-					'\t */',
-					'\tfunction hello() {}'
-				],
-				mode.languageId,
-				true,
-				new Selection(1, 1, 5, 21),
-				[
-					'',
-					'/**',
-					' * a doc comment',
-					' */',
-					'function hello() {}'
-				],
-				new Selection(1, 1, 5, 20),
-				languageConfigurationService
-			);
-
-		});
+		testUnshiftCommand(
+			[
+				'\t',
+				'\t/**',
+				'\t * a doc comment',
+				'\t */',
+				'\tfunction hello() {}'
+			],
+			DocBlockCommentMode.languageId,
+			true,
+			new Selection(1, 1, 5, 21),
+			[
+				'',
+				'/**',
+				' * a doc comment',
+				' */',
+				'function hello() {}'
+			],
+			new Selection(1, 1, 5, 20),
+			prepareDocBlockCommentLanguage
+		);
 	});
 
 	test('issue #1609: Wrong indentation of block comments', () => {
-		withDockBlockCommentMode((mode, languageConfigurationService) => {
-			testShiftCommand(
-				[
-					'',
-					'/**',
-					' * test',
-					' *',
-					' * @type {number}',
-					' */',
-					'var foo = 0;'
-				],
-				mode.languageId,
-				true,
-				new Selection(1, 1, 7, 13),
-				[
-					'',
-					'\t/**',
-					'\t * test',
-					'\t *',
-					'\t * @type {number}',
-					'\t */',
-					'\tvar foo = 0;'
-				],
-				new Selection(1, 1, 7, 14),
-				languageConfigurationService
-			);
-		});
+		testShiftCommand(
+			[
+				'',
+				'/**',
+				' * test',
+				' *',
+				' * @type {number}',
+				' */',
+				'var foo = 0;'
+			],
+			DocBlockCommentMode.languageId,
+			true,
+			new Selection(1, 1, 7, 13),
+			[
+				'',
+				'\t/**',
+				'\t * test',
+				'\t *',
+				'\t * @type {number}',
+				'\t */',
+				'\tvar foo = 0;'
+			],
+			new Selection(1, 1, 7, 14),
+			prepareDocBlockCommentLanguage
+		);
 	});
 
 	test('issue #1620: a) Line indent doesn\'t handle leading whitespace properly', () => {

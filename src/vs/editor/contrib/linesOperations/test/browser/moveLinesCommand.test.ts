@@ -2,13 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { Disposable } from 'vs/base/common/lifecycle';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { Selection } from 'vs/editor/common/core/selection';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IndentationRule } from 'vs/editor/common/languages/languageConfiguration';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { LanguageService } from 'vs/editor/common/services/languageService';
 import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/browser/moveLinesCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 function testMoveLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService = new TestLanguageConfigurationService()): void {
@@ -259,13 +261,15 @@ suite('Editor Contrib - Move Lines Command', () => {
 	});
 });
 
-class IndentRulesMode extends MockMode {
-	private static readonly _id = 'moveLinesIndentMode';
+class IndentRulesMode extends Disposable {
+	public readonly languageId = 'moveLinesIndentMode';
 	constructor(
 		indentationRules: IndentationRule,
+		@ILanguageService languageService: ILanguageService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
 	) {
-		super(IndentRulesMode._id);
+		super();
+		this._register(languageService.registerLanguage({ id: this.languageId }));
 		this._register(languageConfigurationService.register(this.languageId, {
 			indentationRules: indentationRules
 		}));
@@ -282,8 +286,9 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 
 	// https://github.com/microsoft/vscode/issues/28552#issuecomment-307862797
 	test('first line indentation adjust to 0', () => {
+		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
-		const mode = new IndentRulesMode(indentRules, languageConfigurationService);
+		const mode = new IndentRulesMode(indentRules, languageService, languageConfigurationService);
 
 		testMoveLinesUpWithIndentCommand(
 			mode.languageId,
@@ -303,12 +308,14 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 		);
 
 		mode.dispose();
+		languageService.dispose();
 	});
 
 	// https://github.com/microsoft/vscode/issues/28552#issuecomment-307867717
 	test('move lines across block', () => {
+		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
-		const mode = new IndentRulesMode(indentRules, languageConfigurationService);
+		const mode = new IndentRulesMode(indentRules, languageService, languageConfigurationService);
 
 		testMoveLinesDownWithIndentCommand(
 			mode.languageId,
@@ -334,6 +341,7 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 		);
 
 		mode.dispose();
+		languageService.dispose();
 	});
 
 
@@ -360,12 +368,14 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 	});
 });
 
-class EnterRulesMode extends MockMode {
-	private static readonly _id = 'moveLinesEnterMode';
+class EnterRulesMode extends Disposable {
+	public readonly languageId = 'moveLinesEnterMode';
 	constructor(
+		@ILanguageService languageService: ILanguageService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
 	) {
-		super(EnterRulesMode._id);
+		super();
+		this._register(languageService.registerLanguage({ id: this.languageId }));
 		this._register(languageConfigurationService.register(this.languageId, {
 			indentationRules: {
 				decreaseIndentPattern: /^\s*\[$/,
@@ -381,8 +391,9 @@ class EnterRulesMode extends MockMode {
 suite('Editor - contrib - Move Lines Command honors onEnter Rules', () => {
 
 	test('issue #54829. move block across block', () => {
+		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
-		const mode = new EnterRulesMode(languageConfigurationService);
+		const mode = new EnterRulesMode(languageService, languageConfigurationService);
 
 		testMoveLinesDownWithIndentCommand(
 			mode.languageId,
@@ -413,5 +424,6 @@ suite('Editor - contrib - Move Lines Command honors onEnter Rules', () => {
 		);
 
 		mode.dispose();
+		languageService.dispose();
 	});
 });

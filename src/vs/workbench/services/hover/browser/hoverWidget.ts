@@ -38,7 +38,7 @@ const enum Constants {
 
 export class HoverWidget extends Widget {
 	private readonly _messageListeners = new DisposableStore();
-	private readonly _mouseTracker: CompositeMouseTracker;
+	private readonly _lockMouseTracker: CompositeMouseTracker;
 
 	private readonly _hover: BaseHoverWidget;
 	private readonly _hoverPointer: HTMLElement | undefined;
@@ -51,8 +51,10 @@ export class HoverWidget extends Widget {
 	private _forcePosition: boolean = false;
 	private _x: number = 0;
 	private _y: number = 0;
+	private _isLocked: boolean = false;
 
 	get isDisposed(): boolean { return this._isDisposed; }
+	get isMouseIn(): boolean { return this._lockMouseTracker.isMouseIn; }
 	get domNode(): HTMLElement { return this._hover.containerDomNode; }
 
 	private readonly _onDispose = this._register(new Emitter<void>());
@@ -63,6 +65,19 @@ export class HoverWidget extends Widget {
 	get anchor(): AnchorPosition { return this._hoverPosition === HoverPosition.BELOW ? AnchorPosition.BELOW : AnchorPosition.ABOVE; }
 	get x(): number { return this._x; }
 	get y(): number { return this._y; }
+
+	/**
+	 * Whether the hover is "locked" by holding the alt/option key. When locked, the hover will not
+	 * hide and can be hovered regardless of whether the `hideOnHover` hover option is set.
+	 */
+	get isLocked(): boolean { return this._isLocked; }
+	set isLocked(value: boolean) {
+		if (this._isLocked === value) {
+			return;
+		}
+		this._isLocked = value;
+		this._hoverContainer.classList.toggle('locked', this._isLocked);
+	}
 
 	constructor(
 		options: IHoverOptions,
@@ -165,7 +180,6 @@ export class HoverWidget extends Widget {
 		}
 		this._hoverContainer.appendChild(this._hover.containerDomNode);
 
-		const mouseTrackerTargets = [...this._target.targetElements];
 		let hideOnHover: boolean;
 		if (options.actions && options.actions.length > 0) {
 			// If there are actions, require hover so they can be accessed
@@ -179,12 +193,31 @@ export class HoverWidget extends Widget {
 				hideOnHover = options.hideOnHover;
 			}
 		}
+		const mouseTrackerTargets = [...this._target.targetElements];
 		if (!hideOnHover) {
 			mouseTrackerTargets.push(this._hoverContainer);
 		}
-		this._mouseTracker = new CompositeMouseTracker(mouseTrackerTargets);
-		this._register(this._mouseTracker.onMouseOut(() => this.dispose()));
-		this._register(this._mouseTracker);
+		const mouseTracker = this._register(new CompositeMouseTracker(mouseTrackerTargets));
+		this._register(mouseTracker.onMouseOut(() => {
+			if (!this._isLocked) {
+				this.dispose();
+			}
+		}));
+
+		// Setup another mouse tracker when hideOnHover is set in order to track the hover as well
+		// when it is locked. This ensures the hover will hide on mouseout after alt has been
+		// released to unlock the element.
+		if (hideOnHover) {
+			const mouseTracker2Targets = [...this._target.targetElements, this._hoverContainer];
+			this._lockMouseTracker = this._register(new CompositeMouseTracker(mouseTracker2Targets));
+			this._register(this._lockMouseTracker.onMouseOut(() => {
+				if (!this._isLocked) {
+					this.dispose();
+				}
+			}));
+		} else {
+			this._lockMouseTracker = mouseTracker;
+		}
 	}
 
 	public render(container: HTMLElement): void {
@@ -467,6 +500,8 @@ class CompositeMouseTracker extends Widget {
 
 	private readonly _onMouseOut = this._register(new Emitter<void>());
 	get onMouseOut(): Event<void> { return this._onMouseOut.event; }
+
+	get isMouseIn(): boolean { return this._isMouseIn; }
 
 	constructor(
 		private _elements: HTMLElement[]

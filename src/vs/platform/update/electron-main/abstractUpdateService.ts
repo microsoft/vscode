@@ -57,7 +57,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	 * optimization, to avoid using extra CPU cycles before first window open.
 	 * https://github.com/microsoft/vscode/issues/89784
 	 */
-	initialize(): void {
+	async initialize(): Promise<void> {
 		if (!this.environmentMainService.isBuilt) {
 			return; // updates are never enabled when running out of sources
 		}
@@ -72,7 +72,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		const updateMode = this.getUpdateMode();
+		const updateMode = await this.getUpdateMode();
 		const quality = this.getProductQuality(updateMode);
 
 		if (!quality) {
@@ -104,7 +104,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		}
 	}
 
-	private getUpdateMode(): 'none' | 'manual' | 'start' | 'default' {
+	protected async getUpdateMode(): Promise<'none' | 'manual' | 'start' | 'default'> {
 		return getMigratedSettingValue<'none' | 'manual' | 'start' | 'default'>(this.configurationService, 'update.mode', 'update.channel');
 	}
 
@@ -184,7 +184,11 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	async isLatestVersion(): Promise<boolean | undefined> {
 		if (!this.url) {
 			return undefined;
-		} else if (this.getUpdateMode() === 'none') {
+		}
+
+		const mode = await this.getUpdateMode();
+
+		if (mode === 'none') {
 			return false;
 		}
 

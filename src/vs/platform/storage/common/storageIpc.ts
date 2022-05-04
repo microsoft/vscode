@@ -86,8 +86,9 @@ class GlobalStorageDatabaseClient extends BaseStorageDatabaseClient implements I
 	async close(): Promise<void> {
 
 		// The global storage database is shared across all instances so
-		// we do not await it. However we dispose the listener for external
-		// changes because we no longer interested int it.
+		// we do not close it from the window. However we dispose the
+		// listener for external changes because we no longer interested in it.
+
 		this.dispose();
 	}
 }
@@ -101,9 +102,12 @@ class WorkspaceStorageDatabaseClient extends BaseStorageDatabaseClient implement
 	}
 
 	async close(): Promise<void> {
-		const serializableRequest: ISerializableUpdateRequest = { workspace: this.workspace };
 
-		return this.channel.call('close', serializableRequest);
+		// The workspace storage database is only used in this instance
+		// but we do not need to close it from here, the main process
+		// can take care of that.
+
+		this.dispose();
 	}
 }
 

@@ -53,4 +53,3 @@ export function getOctokit(): Promise<Octokit> {
 
 	return _octokit;
 }
-

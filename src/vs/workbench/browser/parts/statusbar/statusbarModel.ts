@@ -8,6 +8,9 @@ import { isStatusbarEntryLocation, IStatusbarEntryLocation, StatusbarAlignment }
 import { hide, show, isAncestor } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter } from 'vs/base/common/event';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IProfileStorageRegistry } from 'vs/workbench/services/profiles/common/profileStorageRegistry';
+import { localize } from 'vs/nls';
 
 export interface IStatusbarEntryPriority {
 
@@ -64,6 +67,12 @@ export class StatusbarViewModel extends Disposable {
 
 		this.restoreState();
 		this.registerListeners();
+
+		Registry.as<IProfileStorageRegistry>(Extensions.ProfileStorageRegistry)
+			.registerKeys([{
+				key: StatusbarViewModel.HIDDEN_ENTRIES_KEY,
+				description: localize('statusbar.hidden', "Status bar entries visibility customizations"),
+			}]);
 	}
 
 	private restoreState(): void {

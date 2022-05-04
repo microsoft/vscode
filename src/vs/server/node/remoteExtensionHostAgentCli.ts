@@ -40,6 +40,8 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { buildHelpMessage, buildVersionMessage, OptionDescriptions } from 'vs/platform/environment/node/argv';
 import { isWindows } from 'vs/base/common/platform';
+import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
+import { ExtensionsScannerService } from 'vs/server/node/extensionsScannerService';
 
 class CliMain extends Disposable {
 
@@ -98,6 +100,7 @@ class CliMain extends Disposable {
 		services.set(IDownloadService, new SyncDescriptor(DownloadService));
 		services.set(ITelemetryService, NullTelemetryService);
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));
+		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService));
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionManagementCLIService, new SyncDescriptor(ExtensionManagementCLIService));
 		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
