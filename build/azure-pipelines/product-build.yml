@@ -1,4 +1,10 @@
-pr: none
+trigger:
+  branches:
+    include: ["main", "release/*"]
+
+pr:
+  branches:
+    include: ["release/*"]
 
 schedules:
   - cron: "0 5 * * Mon-Fri"
