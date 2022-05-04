@@ -30,21 +30,6 @@
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/181b43c0e2949e36ecb623d8cc6de29d4fa2bae8/out/vs/workbench/contrib/webview/browser/pre/",
 	"builtInExtensions": [
 		{
-			"name": "ms-vscode.references-view",
-			"version": "0.0.89",
-			"repo": "https://github.com/microsoft/vscode-references-view",
-			"metadata": {
-				"id": "dc489f46-520d-4556-ae85-1f9eab3c412d",
-				"publisherId": {
-					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
-					"publisherName": "ms-vscode",
-					"displayName": "Microsoft",
-					"flags": "verified"
-				},
-				"publisherDisplayName": "Microsoft"
-			}
-		},
-		{
 			"name": "ms-vscode.js-debug-companion",
 			"version": "1.0.18",
 			"repo": "https://github.com/microsoft/vscode-js-debug-companion",
