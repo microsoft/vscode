@@ -188,20 +188,20 @@ export function validateTelemetryData(data?: any): { properties: Properties; mea
 	};
 }
 
+const telemetryAllowedAuthorities: readonly string[] = ['ssh-remote', 'dev-container', 'attached-container', 'wsl', 'tunneling'];
+
 export function cleanRemoteAuthority(remoteAuthority?: string): string {
 	if (!remoteAuthority) {
 		return 'none';
 	}
 
-	let ret = 'other';
-	const allowedAuthorities = ['ssh-remote', 'dev-container', 'attached-container', 'wsl'];
-	allowedAuthorities.forEach((res: string) => {
-		if (remoteAuthority!.indexOf(`${res}+`) === 0) {
-			ret = res;
+	for (const authority of telemetryAllowedAuthorities) {
+		if (remoteAuthority.startsWith(`${authority}+`)) {
+			return authority;
 		}
-	});
+	}
 
-	return ret;
+	return 'other';
 }
 
 function flatten(obj: any, result: { [key: string]: any }, order: number = 0, prefix?: string): void {
