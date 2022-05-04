@@ -409,14 +409,22 @@ const Languages = {
 type LanguageTranslations = { [moduleName: string]: { [nlsKey: string]: string } };
 type Translations = { languageId: string; languageTranslations: LanguageTranslations }[];
 
-async function getLatestStableVersion() {
-	const res = await fetch(`https://update.code.visualstudio.com/api/update/darwin/stable/latest`);
+async function getLatestStableVersion(updateUrl: string) {
+	const res = await fetch(`${updateUrl}/api/update/darwin/stable/latest`);
 	const { name: version } = await res.json() as { name: string };
 	return version;
 }
 
-async function getNLS(languageId: string, version: string) {
-	const res = await fetch(`https://ms-ceintl.vscode-unpkg.net/ms-ceintl/vscode-language-pack-${languageId}/${version}/extension/translations/main.i18n.json`);
+async function getNLS(resourceUrlTemplate: string, languageId: string, version: string) {
+	const resource = {
+		publisher: 'ms-ceintl',
+		name: `vscode-language-pack-${languageId}`,
+		version,
+		path: 'extension/translations/main.i18n.json'
+	};
+
+	const url = resourceUrlTemplate.replace(/\{([^}]+)\}/g, (_, key) => resource[key as keyof typeof resource]);
+	const res = await fetch(url);
 	const { contents: result } = await res.json() as { contents: LanguageTranslations };
 	return result;
 }
@@ -442,11 +450,25 @@ async function parsePolicies(): Promise<Policy[]> {
 }
 
 async function getTranslations(): Promise<Translations> {
-	const version = await getLatestStableVersion();
+	const updateUrl = product.updateUrl;
+
+	if (!updateUrl) {
+		console.warn(`Skipping policy localization: No 'updateUrl' found in 'product.json'.`);
+		return [];
+	}
+
+	const resourceUrlTemplate = product.extensionsGallery?.resourceUrlTemplate;
+
+	if (!resourceUrlTemplate) {
+		console.warn(`Skipping policy localization: No 'resourceUrlTemplate' found in 'product.json'.`);
+		return [];
+	}
+
+	const version = await getLatestStableVersion(updateUrl);
 	const languageIds = Object.keys(Languages);
 
 	return await Promise.all(languageIds.map(
-		languageId => getNLS(languageId, version)
+		languageId => getNLS(resourceUrlTemplate, languageId, version)
 			.then(languageTranslations => ({ languageId, languageTranslations }))
 	));
 }

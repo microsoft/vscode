@@ -306,13 +306,20 @@ const Languages = {
     'tr': 'tr-tr',
     'pl': 'pl-pl',
 };
-async function getLatestStableVersion() {
-    const res = await (0, node_fetch_1.default)(`https://update.code.visualstudio.com/api/update/darwin/stable/latest`);
+async function getLatestStableVersion(updateUrl) {
+    const res = await (0, node_fetch_1.default)(`${updateUrl}/api/update/darwin/stable/latest`);
     const { name: version } = await res.json();
     return version;
 }
-async function getNLS(languageId, version) {
-    const res = await (0, node_fetch_1.default)(`https://ms-ceintl.vscode-unpkg.net/ms-ceintl/vscode-language-pack-${languageId}/${version}/extension/translations/main.i18n.json`);
+async function getNLS(resourceUrlTemplate, languageId, version) {
+    const resource = {
+        publisher: 'ms-ceintl',
+        name: `vscode-language-pack-${languageId}`,
+        version,
+        path: 'extension/translations/main.i18n.json'
+    };
+    const url = resourceUrlTemplate.replace(/\{([^}]+)\}/g, (_, key) => resource[key]);
+    const res = await (0, node_fetch_1.default)(url);
     const { contents: result } = await res.json();
     return result;
 }
@@ -332,9 +339,19 @@ async function parsePolicies() {
     return policies;
 }
 async function getTranslations() {
-    const version = await getLatestStableVersion();
+    const updateUrl = product.updateUrl;
+    if (!updateUrl) {
+        console.warn(`Skipping policy localization: No 'updateUrl' found in 'product.json'.`);
+        return [];
+    }
+    const resourceUrlTemplate = product.extensionsGallery?.resourceUrlTemplate;
+    if (!resourceUrlTemplate) {
+        console.warn(`Skipping policy localization: No 'resourceUrlTemplate' found in 'product.json'.`);
+        return [];
+    }
+    const version = await getLatestStableVersion(updateUrl);
     const languageIds = Object.keys(Languages);
-    return await Promise.all(languageIds.map(languageId => getNLS(languageId, version)
+    return await Promise.all(languageIds.map(languageId => getNLS(resourceUrlTemplate, languageId, version)
         .then(languageTranslations => ({ languageId, languageTranslations }))));
 }
 async function main() {
