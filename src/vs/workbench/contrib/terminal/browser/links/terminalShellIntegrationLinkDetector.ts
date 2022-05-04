@@ -12,9 +12,23 @@ import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalBuiltinLinkType } f
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IBufferCell, IBufferLine, Terminal } from 'xterm';
 
-// This is intentionally not localized currently as it must match the text in the shell script
-const linkText = 'Shell integration activated';
-const linkCodes = new Uint8Array(linkText.split('').map(e => e.charCodeAt(0)));
+interface IShellIntegrationLink {
+	type: LinkType;
+	codes: Uint8Array;
+}
+
+const enum LinkType {
+	// This is intentionally not localized currently as it must match the text in the shell script
+	Activated = 'Shell integration activated',
+	Disabled = 'Shell integration cannot be activated due to complex PROMPT_COMMAND:'
+}
+
+const activatedLink: IShellIntegrationLink = { type: LinkType.Activated, codes: getCodesForText(LinkType.Activated) };
+const disabledLink: IShellIntegrationLink = { type: LinkType.Disabled, codes: getCodesForText(LinkType.Disabled) };
+
+function getCodesForText(text: string): Uint8Array {
+	return new Uint8Array(text.split('').map(e => e.charCodeAt(0)));
+}
 
 export class TerminalShellIntegrationLinkDetector implements ITerminalLinkDetector {
 	static id = 'shellintegration';
@@ -26,9 +40,10 @@ export class TerminalShellIntegrationLinkDetector implements ITerminalLinkDetect
 	}
 
 	detect(lines: IBufferLine[], startLine: number, endLine: number): ITerminalSimpleLink[] {
-		if (this._matches(lines)) {
+		const match = this._matches(lines);
+		if (match) {
 			return [{
-				text: linkText,
+				text: match,
 				type: TerminalBuiltinLinkType.Url,
 				label: localize('learn', 'Learn about shell integration'),
 				uri: URI.from({
@@ -37,7 +52,7 @@ export class TerminalShellIntegrationLinkDetector implements ITerminalLinkDetect
 				}),
 				bufferRange: {
 					start: { x: 1, y: startLine + 1 },
-					end: { x: linkText.length % this.xterm.cols, y: startLine + Math.floor(linkText.length / this.xterm.cols) + 1 }
+					end: { x: match.length % this.xterm.cols, y: startLine + Math.floor(match.length / this.xterm.cols) + 1 }
 				},
 				actions: [{
 					label: terminalStrings.doNotShowAgain,
@@ -50,18 +65,29 @@ export class TerminalShellIntegrationLinkDetector implements ITerminalLinkDetect
 		return [];
 	}
 
-	private _matches(lines: IBufferLine[]): boolean {
-		if (lines.length < linkCodes.length) {
-			return false;
+	private _matches(lines: IBufferLine[]): LinkType | undefined {
+		if (lines[0].length < activatedLink.codes.length && lines[0].length < disabledLink.codes.length) {
+			return undefined;
 		}
 		let cell: IBufferCell | undefined;
-		for (let i = 0; i < linkCodes.length; i++) {
+		let i: number = 0;
+		for (; i < activatedLink.codes.length; i++) {
 			cell = lines[Math.floor(i / this.xterm.cols)].getCell(i % this.xterm.cols, cell);
-			if (cell?.getCode() !== linkCodes[i]) {
-				return false;
+			if (cell?.getCode() !== activatedLink.codes[i]) {
+				break;
 			}
 		}
-		return true;
+		if (i === activatedLink.codes.length) {
+			return LinkType.Activated;
+		}
+		let j: number = 0;
+		for (; j < disabledLink.codes.length; j++) {
+			cell = lines[Math.floor(j / this.xterm.cols)].getCell(j % this.xterm.cols, cell);
+			if (cell?.getCode() !== disabledLink.codes[j]) {
+				break;
+			}
+		}
+		return j === disabledLink.codes.length ? LinkType.Disabled : undefined;
 	}
 
 	private async _hideMessage() {
