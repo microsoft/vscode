@@ -402,7 +402,7 @@ async function resolveConnectionOptions(options: IConnectionOptions, reconnectio
 		reconnectionProtocol: reconnectionProtocol,
 		socketFactory: options.socketFactory,
 		signService: options.signService,
-		logService: options.logService,
+		logService: options.logService
 	};
 }
 

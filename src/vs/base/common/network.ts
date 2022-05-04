@@ -140,7 +140,6 @@ class RemoteAuthoritiesImpl {
 	}
 
 	rewrite(uri: URI): URI {
-		console.log(`rewrite ${uri.toString()}`);
 		if (this._delegate) {
 			return this._delegate(uri);
 		}

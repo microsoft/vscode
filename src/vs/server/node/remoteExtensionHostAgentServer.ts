@@ -85,7 +85,7 @@ export class RemoteExtensionHostAgentServer extends Disposable implements IServe
 		this._allReconnectionTokens = new Set<string>();
 		this._webClientServer = (
 			hasWebClient
-				? this._instantiationService.createInstance(WebClientServer, this._serverRootPath, this._connectionToken)
+				? this._instantiationService.createInstance(WebClientServer, this._connectionToken)
 				: null
 		);
 		this._logService.info(`Extension host agent started.`);
