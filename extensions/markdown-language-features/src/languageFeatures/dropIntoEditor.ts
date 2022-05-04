@@ -32,29 +32,7 @@ export function registerDropIntoEditor(selector: vscode.DocumentSelector) {
 			}
 
 			const replacementRange = new vscode.Range(position, position);
-
-			const files: Array<vscode.DataTransferFile> = [];
-			dataTransfer.forEach((x) => {
-				const file = x.asFile();
-				if (file) {
-					files.push(file);
-				}
-			});
-
-			if (files.length) {
-				// Copy next to md file
-				const dir = URI.Utils.dirname(document.uri);
-				const edit = new vscode.SnippetTextEdit(replacementRange, new vscode.SnippetString('$0'));
-
-				for (const file of files) {
-					const path = vscode.Uri.joinPath(dir, file.name);
-					await vscode.workspace.fs.writeFile(path, await file.data());
-				}
-
-				return edit;
-			} else {
-				return this.tryInsertUriList(document, replacementRange, dataTransfer, token);
-			}
+			return this.tryInsertUriList(document, replacementRange, dataTransfer, token);
 		}
 
 		private async tryInsertUriList(document: vscode.TextDocument, replacementRange: vscode.Range, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.SnippetTextEdit | undefined> {
