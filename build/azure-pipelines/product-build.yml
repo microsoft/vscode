@@ -1,4 +1,10 @@
-pr: none
+trigger:
+  branches:
+    include: ["main", "release/*"]
+
+pr:
+  branches:
+    include: ["release/*"]
 
 schedules:
   - cron: "0 5 * * Mon-Fri"
@@ -7,10 +13,6 @@ schedules:
       include:
         - main
         - joao/web
-
-trigger:
-  branches:
-    include: ["main", "release/*"]
 
 parameters:
   - name: VSCODE_DISTRO_REF
