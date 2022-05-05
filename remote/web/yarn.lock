@@ -98,10 +98,10 @@ jschardet@3.0.0:
   resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-3.0.0.tgz#898d2332e45ebabbdb6bf2feece9feea9a99e882"
   integrity sha512-lJH6tJ77V8Nzd5QWRkFYCLc13a3vADkh3r/Fi8HupZGWk2OVVDfnZP8V/VgQgZ+lzW0kG2UGb5hFgt3V3ndotQ==
 
-tas-client-umd@0.1.4:
-  version "0.1.4"
-  resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.4.tgz#49db4130dd63a8342fabf77185a740fc6a7bea80"
-  integrity sha512-1hFqJeLD3ryNikniIaO7TItlXhS5vx7bJ+wbPDf8o+IifgwwOWK2ARisdEM9SnJd0ccfcwNPG6Po+RiKn5L2hg==
+tas-client-umd@0.1.5:
+  version "0.1.5"
+  resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.5.tgz#743c02e344afdec55a68bb9d62805e30a1ae83d4"
+  integrity sha512-NL9eFzYBBHfiYja6tP27084j4YbqtGEk68C5BTyTNHapsM9dizZ/RoSUGst5L1xUiw1zO1WbHf4Lir2e/wgT8g==
 
 vscode-oniguruma@1.6.1:
   version "1.6.1"
