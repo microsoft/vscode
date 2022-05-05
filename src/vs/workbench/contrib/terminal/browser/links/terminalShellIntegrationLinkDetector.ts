@@ -25,6 +25,8 @@ const enum LinkType {
 
 const activatedLink: IShellIntegrationLink = { type: LinkType.Activated, codes: getCodesForText(LinkType.Activated) };
 const disabledLink: IShellIntegrationLink = { type: LinkType.Disabled, codes: getCodesForText(LinkType.Disabled) };
+const links = [activatedLink, disabledLink];
+const minLinkLength = Math.min(...links.map(e => e.codes.length));
 
 function getCodesForText(text: string): Uint8Array {
 	return new Uint8Array(text.split('').map(e => e.charCodeAt(0)));
@@ -66,28 +68,23 @@ export class TerminalShellIntegrationLinkDetector implements ITerminalLinkDetect
 	}
 
 	private _matches(lines: IBufferLine[]): LinkType | undefined {
-		if (lines[0].length < activatedLink.codes.length && lines[0].length < disabledLink.codes.length) {
+		if (lines.length < minLinkLength) {
 			return undefined;
 		}
-		let cell: IBufferCell | undefined;
-		let i: number = 0;
-		for (; i < activatedLink.codes.length; i++) {
-			cell = lines[Math.floor(i / this.xterm.cols)].getCell(i % this.xterm.cols, cell);
-			if (cell?.getCode() !== activatedLink.codes[i]) {
-				break;
+		for (const link of links) {
+			let cell: IBufferCell | undefined;
+			let i: number = 0;
+			for (; i < link.codes.length; i++) {
+				cell = lines[Math.floor(i / this.xterm.cols)].getCell(i % this.xterm.cols, cell);
+				if (cell?.getCode() !== link.codes[i]) {
+					break;
+				}
+			}
+			if (i === link.codes.length) {
+				return link.type;
 			}
 		}
-		if (i === activatedLink.codes.length) {
-			return LinkType.Activated;
-		}
-		let j: number = 0;
-		for (; j < disabledLink.codes.length; j++) {
-			cell = lines[Math.floor(j / this.xterm.cols)].getCell(j % this.xterm.cols, cell);
-			if (cell?.getCode() !== disabledLink.codes[j]) {
-				break;
-			}
-		}
-		return j === disabledLink.codes.length ? LinkType.Disabled : undefined;
+		return undefined;
 	}
 
 	private async _hideMessage() {
