@@ -167,7 +167,7 @@ export function getShellIntegrationInjection(
 				return undefined;
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
+			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			return { newArgs };
 		}
 		case 'zsh': {
