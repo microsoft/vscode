@@ -38,18 +38,18 @@ stages:
         steps:
           - template: product-compile.yml
 
-  - stage: LinuxServerDependencies
-    dependsOn: []
-    pool:
-      vmImage: ubuntu-18.04
-    jobs:
-      - job: x64
-        container: centos7-devtoolset8-x64
-        variables:
-          VSCODE_ARCH: x64
-          NPM_ARCH: x64
-        steps:
-          - template: linux/product-build-linux-server.yml
+  # - stage: LinuxServerDependencies
+  #   dependsOn: []
+  #   pool:
+  #     vmImage: ubuntu-18.04
+  #   jobs:
+  #     - job: x64
+  #       container: centos7-devtoolset8-x64
+  #       variables:
+  #         VSCODE_ARCH: x64
+  #         NPM_ARCH: x64
+  #       steps:
+  #         - template: linux/product-build-linux-server.yml
 
   - stage: Windows
     dependsOn:
