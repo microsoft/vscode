@@ -56,7 +56,7 @@ export interface ILanguageDetectionStats {
 export type LanguageDetectionStatsClassification = {
 	owner: 'TylerLeonhardt,JacksonKearl';
 	comment: 'Used to determine how definitive language detection is and how long it takes.';
-	languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The languages.' };
+	languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The languages the model supports.' };
 	confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The confidences of those languages.' };
 	timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How long the operation took.' };
 };
