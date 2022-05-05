@@ -163,6 +163,8 @@ if (!opts.web) {
 		quality = Quality.Dev;
 	} else if (electronPath.indexOf('Code - Insiders') >= 0 /* macOS/Windows */ || electronPath.indexOf('code-insiders') /* Linux */ >= 0) {
 		quality = Quality.Insiders;
+	} else if (electronPath.indexOf('Code - OSS') >= 0 /* macOS/Windows */ || electronPath.indexOf('code-oss') /* Linux */ >= 0) {
+		quality = Quality.OSS;
 	} else {
 		quality = Quality.Stable;
 	}
@@ -195,6 +197,10 @@ else {
 
 		logger.log(`Running web smoke out of sources`);
 	}
+
+	console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+	console.log(testCodeServerPath);
+	console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
 
 	if (process.env.VSCODE_DEV === '1') {
 		quality = Quality.Dev;
@@ -373,8 +379,8 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	setupLanguagesTests(logger);
 	if (opts.web) { setupTerminalTests(logger); } // Tests require playwright driver (https://github.com/microsoft/vscode/issues/146811)
 	setupStatusbarTests(logger);
-	if (quality !== Quality.Dev) { setupExtensionTests(logger); }
+	if (quality !== Quality.Dev && quality !== Quality.OSS) { setupExtensionTests(logger); }
 	setupMultirootTests(logger);
-	if (!opts.web && !opts.remote && quality !== Quality.Dev) { setupLocalizationTests(logger); }
+	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupLocalizationTests(logger); }
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
 });

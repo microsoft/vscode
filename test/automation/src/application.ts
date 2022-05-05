@@ -10,7 +10,8 @@ import { Logger, measureAndLog } from './logger';
 export const enum Quality {
 	Dev,
 	Insiders,
-	Stable
+	Stable,
+	OSS
 }
 
 export interface ApplicationOptions extends LaunchOptions {
