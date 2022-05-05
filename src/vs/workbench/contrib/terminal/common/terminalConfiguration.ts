@@ -544,12 +544,6 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
-		[TerminalSettingId.ShellIntegrationShowWelcome]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellIntegration.showWelcome', "Whether to show the shell integration activated welcome message in the terminal when the feature is enabled."),
-			type: 'boolean',
-			default: true
-		},
 		[TerminalSettingId.ShellIntegrationCommandHistory]: {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.shellIntegration.history', "Controls the number of recently used commands to keep in the terminal command history. Set to 0 to disable terminal command history."),

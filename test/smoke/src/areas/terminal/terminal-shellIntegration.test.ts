@@ -22,25 +22,21 @@ export function setup() {
 			describe('Activation', function () {
 				it('should activate shell integration on creation of a terminal', async () => {
 					await terminal.createTerminal();
-					await terminal.assertShellIntegrationActivated();
 				});
 			});
 			(process.platform === 'win32' ? describe.skip : describe)('Decorations', function () {
 				describe('Should show default icons', function () {
 					it('Placeholder', async () => {
 						await terminal.createTerminal();
-						await terminal.assertShellIntegrationActivated();
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
 					});
 					it('Success', async () => {
 						await terminal.createTerminal();
-						await terminal.assertShellIntegrationActivated();
 						await terminal.runCommandInTerminal(`ls`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 1, error: 0 });
 					});
 					it('Error', async () => {
 						await terminal.createTerminal();
-						await terminal.assertShellIntegrationActivated();
 						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 1 });
 					});
@@ -48,7 +44,6 @@ export function setup() {
 				describe('Custom configuration', function () {
 					it('Should update and show custom icons', async () => {
 						await terminal.createTerminal();
-						await terminal.assertShellIntegrationActivated();
 						await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
 						await terminal.runCommandInTerminal(`ls`);
 						await terminal.runCommandInTerminal(`fsdkfsjdlfksjdkf`);
