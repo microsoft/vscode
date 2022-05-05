@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
+import * as URI from 'vscode-uri';
 
 export function registerImagePreview() {
 
@@ -27,8 +27,11 @@ export function registerImagePreview() {
 	function renderImagesInline(e: vscode.TextEditor) {
 		const entries = allImages(e.document);
 		const insets: vscode.WebviewEditorInset[] = [];
+		const webviewOptions: vscode.WebviewOptions = {
+			localResourceRoots: vscode.workspace.workspaceFolders?.map(x => x.uri) ?? [URI.Utils.dirname(e.document.uri)],
+		};
 		for (let [range, src] of entries) {
-			const inset = vscode.window.createWebviewTextEditorInset(e, range.start.line - 1, 5, {});
+			const inset = vscode.window.createWebviewTextEditorInset(e, range.start.line - 1, 5, webviewOptions);
 			if (src.startsWith('.')) {
 				let uri = vscode.Uri.joinPath(e.document.uri, '..', src);
 				uri = inset.webview.asWebviewUri(uri);
@@ -36,8 +39,13 @@ export function registerImagePreview() {
 			}
 			inset.webview.html = `
 			<html>
-			<head><meta http-equiv="Content-Security-Policy" content="img-src data: https: ${inset.webview.cspSource};"></head>
-			<body><img src='${src}' /></body>
+			<head>
+				<meta http-equiv="Content-Security-Policy" content="img-src data: https: ${inset.webview.cspSource};">
+				<base href="${inset.webview.asWebviewUri(e.document.uri)}">
+			</head>
+			<body>
+				<img src="${src.replace(/"/g, '&quot;')} " />
+			</body>
 			<html>`;
 			insets.push(inset);
 		}
