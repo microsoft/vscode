@@ -9,23 +9,13 @@ steps:
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
     - script: |
-        echo Hello World!
+        echo Hello World!!
       displayName: Test1
-
-  - ${{ if eq(variables.VSCODE_PUBLISH, true) }}:
-    - script: |
-        echo Hello World!
-      displayName: Test2
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, false) }}:
     - script: |
         echo Hello World!!
-      displayName: Test3
-
-  - ${{ if eq(variables.VSCODE_PUBLISH, false) }}:
-    - script: |
-        echo Hello World!!
-      displayName: Test4
+      displayName: Test2
 
   # - ${{ if eq('true', 'false') }}:
   #   - task: AzureKeyVault@1
