@@ -27,6 +27,7 @@ import { streamToBuffer } from 'vs/base/common/buffer';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { isString } from 'vs/base/common/types';
 import { CharCode } from 'vs/base/common/charCode';
+import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -106,7 +107,7 @@ export class WebClientServer {
 		@IProductService private readonly _productService: IProductService,
 	) {
 		this._webExtensionResourceUrlTemplate = this._productService.extensionsGallery?.resourceUrlTemplate ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate) : undefined;
-		const serverRootPath = getServerRootPath(_productService);
+		const serverRootPath = getRemoteServerRootPath(_productService);
 		this._staticRoute = `${serverRootPath}/static`;
 		this._callbackRoute = `${serverRootPath}/callback`;
 	}
@@ -410,7 +411,3 @@ export class WebClientServer {
 		return res.end(data);
 	}
 }
-function getServerRootPath(_productService: IProductService) {
-	throw new Error('Function not implemented.');
-}
-
