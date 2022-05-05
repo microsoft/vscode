@@ -1,0 +1,21 @@
+trigger: none
+
+pr:
+  branches:
+    include: ["main", "release/*"]
+
+variables:
+  - name: skipComponentGovernanceDetection
+    value: true
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+
+stages:
+  - stage: Compile
+    jobs:
+      - job: Compile
+        pool: vscode-1es-linux
+        variables:
+          VSCODE_ARCH: x64
+        steps:
+          - template: product-compile.yml
