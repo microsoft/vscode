@@ -75,7 +75,59 @@ suite('ModelService', () => {
 			1, 48, 53, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (6 << MetadataConsts.FOREGROUND_OFFSET)),
 			2, 12, 20, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (7 << MetadataConsts.FOREGROUND_OFFSET)),
 			2, 31, 36, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (8 << MetadataConsts.FOREGROUND_OFFSET)),
-			2, 36, 41, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (9 << MetadataConsts.FOREGROUND_OFFSET)),
+			2, 38, 39, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (9 << MetadataConsts.FOREGROUND_OFFSET)),
+		]));
+		assert.deepStrictEqual(result.toString(), expected.toString());
+	});
+
+	test('issue #148651: VSCode UI process can hang if a semantic token with negative values is returned by language service', () => {
+		const languageId = 'dockerfile';
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		const legend = {
+			tokenTypes: ['st0', 'st1', 'st2', 'st3', 'st4', 'st5', 'st6', 'st7', 'st8', 'st9'],
+			tokenModifiers: ['stm0', 'stm1', 'stm2']
+		};
+		instantiationService.stub(IThemeService, <Partial<IThemeService>>{
+			getColorTheme() {
+				return {
+					getTokenStyleMetadata: (tokenType, tokenModifiers, languageId): ITokenStyle => {
+						return {
+							foreground: parseInt(tokenType.substr(2), 10),
+							bold: undefined,
+							underline: undefined,
+							strikethrough: undefined,
+							italic: undefined
+						};
+					}
+				};
+			}
+		});
+		const styling = instantiationService.createInstance(SemanticTokensProviderStyling, legend);
+		const badTokens = {
+			data: new Uint32Array([
+				0, 0, 3, 0, 0,
+				0, 4, 2, 2, 0,
+				0, 2, 3, 8, 0,
+				0, 3, 1, 9, 0,
+				0, 1, 1, 10, 0,
+				0, 1, 4, 8, 0,
+				0, 4, 4294967292, 2, 0,
+				0, 4294967292, 4294967294, 8, 0,
+				0, 4294967294, 1, 9, 0,
+				0, 1, 1, 10, 0,
+				0, 1, 3, 8, 0,
+				0, 3, 4294967291, 8, 0,
+				0, 4294967291, 1, 9, 0,
+				0, 1, 1, 10, 0,
+				0, 1, 4, 8, 0
+			])
+		};
+		const result = toMultilineTokens2(badTokens, styling, languageId);
+		const expected = SparseMultilineTokens.create(1, new Uint32Array([
+			0, 4, 6, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (1 << MetadataConsts.FOREGROUND_OFFSET)),
+			0, 6, 9, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (2 << MetadataConsts.FOREGROUND_OFFSET)),
+			0, 9, 10, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (3 << MetadataConsts.FOREGROUND_OFFSET)),
+			0, 11, 15, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (4 << MetadataConsts.FOREGROUND_OFFSET)),
 		]));
 		assert.deepStrictEqual(result.toString(), expected.toString());
 	});
