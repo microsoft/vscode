@@ -65,6 +65,8 @@ stages:
           VSCODE_ARCH: x64
         steps:
           - template: win32/product-build-win32.yml
+            parameters:
+              VSCODE_PUBLISH: false
 
   # - stage: Linux
   #   dependsOn:

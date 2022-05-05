@@ -1,3 +1,7 @@
+parameters:
+  - name: VSCODE_PUBLISH
+    type: boolean
+
 steps:
   - task: NodeTool@0
     inputs:
@@ -8,12 +12,13 @@ steps:
       versionSpec: "3.x"
       addToPath: true
 
-  # - task: AzureKeyVault@1
-  #   displayName: "Azure Key Vault: Get Secrets"
-  #   inputs:
-  #     azureSubscription: "vscode-builds-subscription"
-  #     KeyVaultName: vscode
-  #     SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
+  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+    - task: AzureKeyVault@1
+      displayName: "Azure Key Vault: Get Secrets"
+      inputs:
+        azureSubscription: "vscode-builds-subscription"
+        KeyVaultName: vscode
+        SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -27,30 +32,33 @@ steps:
       archiveFilePatterns: "$(Build.ArtifactStagingDirectory)/compilation.tar.gz"
       cleanDestinationFolder: false
 
-  # - powershell: |
-  #     . build/azure-pipelines/win32/exec.ps1
-  #     $ErrorActionPreference = "Stop"
-  #     "machine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
+  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        "machine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
 
-  #     exec { git config user.email "vscode@microsoft.com" }
-  #     exec { git config user.name "VSCode" }
-  #   displayName: Prepare tooling
+        exec { git config user.email "vscode@microsoft.com" }
+        exec { git config user.name "VSCode" }
+      displayName: Prepare tooling
 
-  # - powershell: |
-  #     . build/azure-pipelines/win32/exec.ps1
-  #     $ErrorActionPreference = "Stop"
+  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
 
-  #     exec { git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $(VSCODE_DISTRO_REF) }
-  #     Write-Host "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-  #     exec { git checkout FETCH_HEAD }
-  #   condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-  #   displayName: Checkout override commit
+        exec { git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $(VSCODE_DISTRO_REF) }
+        Write-Host "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
+        exec { git checkout FETCH_HEAD }
+      condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
+      displayName: Checkout override commit
 
-  # - powershell: |
-  #     . build/azure-pipelines/win32/exec.ps1
-  #     $ErrorActionPreference = "Stop"
-  #     exec { git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro") }
-  #   displayName: Merge distro
+  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro") }
+      displayName: Merge distro
 
   - powershell: |
       "$(VSCODE_ARCH)" | Out-File -Encoding ascii -NoNewLine .build\arch
@@ -104,11 +112,12 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
-  # - powershell: |
-  #     . build/azure-pipelines/win32/exec.ps1
-  #     $ErrorActionPreference = "Stop"
-  #     exec { node build/azure-pipelines/mixin }
-  #   displayName: Mix in quality
+  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { node build/azure-pipelines/mixin }
+      displayName: Mix in quality
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -134,11 +143,12 @@ steps:
     displayName: Prepare Package
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  # - powershell: |
-  #     . build/azure-pipelines/win32/exec.ps1
-  #     $ErrorActionPreference = "Stop"
-  #     exec { node build/azure-pipelines/mixin --server }
-  #   displayName: Mix in quality
+  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { node build/azure-pipelines/mixin --server }
+      displayName: Mix in quality
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
