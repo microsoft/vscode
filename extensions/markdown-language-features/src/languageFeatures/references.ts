@@ -7,7 +7,7 @@ import * as uri from 'vscode-uri';
 import { MarkdownEngine } from '../markdownEngine';
 import { Slugifier } from '../slugify';
 import { TableOfContents, TocEntry } from '../tableOfContents';
-import { noopToken } from '../test/util';
+import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { InternalHref, MdLink, MdLinkProvider } from './documentLinkProvider';

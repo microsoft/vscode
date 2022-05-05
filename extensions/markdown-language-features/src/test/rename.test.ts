@@ -10,11 +10,12 @@ import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { MdReferencesProvider } from '../languageFeatures/references';
 import { MdRenameProvider, MdWorkspaceEdit } from '../languageFeatures/rename';
 import { githubSlugifier } from '../slugify';
+import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
-import { assertRangeEqual, joinLines, noopToken, workspacePath } from './util';
+import { assertRangeEqual, joinLines, workspacePath } from './util';
 
 
 /**

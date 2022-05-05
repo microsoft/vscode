@@ -7,9 +7,10 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
-import { createNewMarkdownEngine } from './engine';
+import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
-import { assertRangeEqual, joinLines, noopToken } from './util';
+import { createNewMarkdownEngine } from './engine';
+import { assertRangeEqual, joinLines } from './util';
 
 
 const testFile = vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 'x.md');
