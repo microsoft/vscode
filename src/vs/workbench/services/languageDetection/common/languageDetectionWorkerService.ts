@@ -54,9 +54,11 @@ export interface ILanguageDetectionStats {
 }
 
 export type LanguageDetectionStatsClassification = {
-	languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: '@TylerLeonhardt,@JacksonKearl'; comment: 'Used to determine how definitive language detection is and how long it takes.' };
-	confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: '@TylerLeonhardt,@JacksonKearl'; comment: 'Used to determine how definitive language detection is and how long it takes.' };
-	timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: '@TylerLeonhardt,@JacksonKearl'; comment: 'Used to determine how definitive language detection is and how long it takes.' };
+	owner: 'TylerLeonhardt,JacksonKearl';
+	comment: 'Used to determine how definitive language detection is and how long it takes.';
+	languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Used to determine how definitive language detection is and how long it takes.' };
+	confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Used to determine how definitive language detection is and how long it takes.' };
+	timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Used to determine how definitive language detection is and how long it takes.' };
 };
 
 //#endregion
