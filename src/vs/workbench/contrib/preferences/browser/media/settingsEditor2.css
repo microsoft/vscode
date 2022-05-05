@@ -452,15 +452,16 @@
 	margin: 0px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-trust-description a:focus
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-trust-description a:focus,
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:focus {
 	outline: 1px solid -webkit-focus-ring-color;
 	outline-offset: -1px;
 	text-decoration: underline;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-trust-description a:hover
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-trust-description a:hover,
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:hover {
+	cursor: pointer;
 	text-decoration: underline;
 }
 
