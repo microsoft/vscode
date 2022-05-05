@@ -6,20 +6,23 @@
 import * as assert from 'assert';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
+import { raceTimeout } from 'vs/base/common/async';
 import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
 import { IQuickPick, IQuickPickItem } from 'vs/base/parts/quickinput/common/quickInput';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.
 async function setupWaitTilShownListener(controller: QuickInputController): Promise<void> {
-	const showEvent = await new Promise<void>(resolve => {
+	const result = await raceTimeout(new Promise<boolean>(resolve => {
 		const event = controller.onShow(_ => {
 			event.dispose();
-			resolve();
+			resolve(true);
 		});
-	});
-	const twoSecondTimeout = new Promise<void>((_, reject) => setTimeout(() => reject('Waiting for the quick pick to show up failed.'), 2000));
-	return Promise.race([showEvent, twoSecondTimeout]);
+	}), 2000);
+
+	if (!result) {
+		throw new Error('Cancelled');
+	}
 }
 
 suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
