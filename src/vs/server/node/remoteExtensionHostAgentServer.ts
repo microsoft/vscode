@@ -35,7 +35,7 @@ import { ManagementConnection } from 'vs/server/node/remoteExtensionManagement';
 import { determineServerConnectionToken, requestHasValidConnectionToken as httpRequestHasValidConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
 import { IServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 import { setupServerServices, SocketServer } from 'vs/server/node/serverServices';
-import { serveError, serveFile, WebClientServer } from 'vs/server/node/webClientServer';
+import { CacheControl, serveError, serveFile, WebClientServer } from 'vs/server/node/webClientServer';
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -151,8 +151,7 @@ export class RemoteExtensionHostAgentServer extends Disposable implements IServe
 			if (requestOrigin && this._webEndpointOriginChecker.matches(requestOrigin)) {
 				responseHeaders['Access-Control-Allow-Origin'] = requestOrigin;
 			}
-
-			return serveFile(this._logService, req, res, filePath, responseHeaders);
+			return serveFile(filePath, CacheControl.ETAG, this._logService, req, res, responseHeaders);
 		}
 
 		// workbench web UI

@@ -452,7 +452,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// to hang in resolver extensions
 			if (!this.shellLaunchConfig.customPtyImplementation && this._configHelper.config.shellIntegration?.enabled && !this.shellLaunchConfig.executable) {
 				const os = await this._processManager.getBackendOS();
-				this.shellLaunchConfig.executable = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os })).path;
+				const defaultProfile = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os }));
+				this.shellLaunchConfig.executable = defaultProfile.path;
+				this.shellLaunchConfig.args = defaultProfile.args;
+				this.shellLaunchConfig.icon = defaultProfile.icon;
+				this.shellLaunchConfig.color = defaultProfile.color;
+				this.shellLaunchConfig.env = defaultProfile.env;
 			}
 
 			await this._createProcess();
@@ -1097,16 +1102,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			setTimeout(() => this._refreshSelectionContextKey(), 0);
 		}));
 
-		this._register(dom.addDisposableListener(xterm.raw.textarea, 'focus', () => {
-			this._terminalFocusContextKey.set(true);
-			this._onDidFocus.fire(this);
-		}));
-
-		this._register(dom.addDisposableListener(xterm.raw.textarea, 'blur', () => {
-			this._terminalFocusContextKey.reset();
-			this._onDidBlur.fire(this);
-			this._refreshSelectionContextKey();
-		}));
+		this._register(dom.addDisposableListener(xterm.raw.textarea, 'focus', () => this._setFocus(true)));
+		this._register(dom.addDisposableListener(xterm.raw.textarea, 'blur', () => this._setFocus(false)));
+		this._register(dom.addDisposableListener(xterm.raw.textarea, 'focusout', () => this._setFocus(false)));
 
 		this._initDragAndDrop(container);
 
@@ -1132,6 +1130,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
+	private _setFocus(focused?: boolean): void {
+		if (focused) {
+			this._terminalFocusContextKey.set(true);
+			this._onDidFocus.fire(this);
+		} else {
+			this._terminalFocusContextKey.reset();
+			this._onDidBlur.fire(this);
+			this._refreshSelectionContextKey();
+		}
+	}
+
 	private _initDragAndDrop(container: HTMLElement) {
 		this._dndObserver?.dispose();
 		const dndController = this._instantiationService.createInstance(TerminalInstanceDragAndDropController, container);
@@ -1154,7 +1163,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				const textAsHtml = await xterm.getSelectionAsHtml(command);
 				function listener(e: any) {
 					if (!e.clipboardData.types.includes('text/plain')) {
-						e.clipboardData.setData('text/plain', command?.getOutput());
+						e.clipboardData.setData('text/plain', command?.getOutput() ?? '');
 					}
 					e.clipboardData.setData('text/html', textAsHtml);
 					e.preventDefault();
@@ -1683,6 +1692,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.xterm.raw.options.disableStdin = false;
 				this._isExiting = false;
 			}
+			this.xterm.clearDecorations();
 		}
 
 		// Dispose the environment info widget if it exists

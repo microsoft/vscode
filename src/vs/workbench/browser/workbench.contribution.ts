@@ -9,6 +9,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
+import 'vs/workbench/common/configurationMigration';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -112,17 +113,21 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize('workbench.editor.preferBasedLanguageDetection', "When enabled, a language detection model that takes into account editor history will be given higher precedence."),
 			},
 			'workbench.editor.languageDetectionHints': {
-				type: 'string',
-				default: 'always',
+				type: 'object',
+				default: { 'untitledEditors': true, 'notebookEditors': true },
 				tags: ['experimental'],
-				enum: ['always', 'notebookEditors', 'textEditors', 'never'],
 				description: localize('workbench.editor.showLanguageDetectionHints', "When enabled, shows a status bar quick fix when the editor language doesn't match detected content language."),
-				enumDescriptions: [
-					localize('workbench.editor.showLanguageDetectionHints.always', "Show show language detection quick fixes in both notebooks and untitled editors"),
-					localize('workbench.editor.showLanguageDetectionHints.notebook', "Only show language detection quick fixes in notebooks"),
-					localize('workbench.editor.showLanguageDetectionHints.editors', "Only show language detection quick fixes in untitled editors"),
-					localize('workbench.editor.showLanguageDetectionHints.never', "Never show language quick fixes"),
-				]
+				additionalProperties: false,
+				properties: {
+					untitledEditors: {
+						type: 'boolean',
+						description: localize('workbench.editor.showLanguageDetectionHints.editors', "Show in untitled text editors"),
+					},
+					notebookEditors: {
+						type: 'boolean',
+						description: localize('workbench.editor.showLanguageDetectionHints.notebook', "Show in notebook editors"),
+					}
+				}
 			},
 			'workbench.editor.tabCloseButton': {
 				'type': 'string',

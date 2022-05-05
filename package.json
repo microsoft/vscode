@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.67.0",
-  "distro": "c78aa0a8c4272bc4aeb870f9315b30fb381d1b17",
+  "version": "1.68.0",
+  "distro": "bc869e57dd77f75fca2fd0c88c62eb7e5a80fc06",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -78,7 +78,7 @@
     "native-watchdog": "1.4.0",
     "node-pty": "0.11.0-beta11",
     "spdlog": "^0.13.0",
-    "tas-client-umd": "0.1.4",
+    "tas-client-umd": "0.1.5",
     "v8-inspect-profiler": "^0.1.0",
     "vscode-oniguruma": "1.6.1",
     "vscode-proxy-agent": "^0.12.0",
@@ -163,7 +163,6 @@
     "gulp-replace": "^0.5.4",
     "gulp-sourcemaps": "^3.0.0",
     "gulp-svgmin": "^4.1.0",
-    "gulp-tsb": "4.0.6",
     "gulp-untar": "^0.0.7",
     "gulp-vinyl-zip": "^2.1.2",
     "husky": "^0.13.1",
@@ -200,7 +199,7 @@
     "style-loader": "^1.0.0",
     "ts-loader": "^9.2.7",
     "tsec": "0.1.4",
-    "typescript": "^4.7.0-dev.20220419",
+    "typescript": "^4.7.0-dev.20220502",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",

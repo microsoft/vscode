@@ -250,7 +250,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	}
 
 	clearDecorations(): void {
-		this._decorationAddon?.clearDecorations(true);
+		this._decorationAddon?.clearDecorations();
 	}
 
 

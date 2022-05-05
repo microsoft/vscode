@@ -1903,15 +1903,17 @@ export function registerTerminalActions() {
 			if (!selectedInstances) {
 				return;
 			}
+			const listService = accessor.get(IListService);
 			const terminalService = accessor.get(ITerminalService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const disposePromises: Promise<void>[] = [];
 			for (const instance of selectedInstances) {
 				disposePromises.push(terminalService.safeDisposeTerminal(instance));
 			}
 			await Promise.all(disposePromises);
 			if (terminalService.instances.length > 0) {
-				accessor.get(ITerminalGroupService).focusTabs();
-				focusNext(accessor);
+				terminalGroupService.focusTabs();
+				listService.lastFocusedList?.focusNext();
 			}
 		}
 	});
@@ -2255,11 +2257,6 @@ function getSelectedInstances(accessor: ServicesAccessor): ITerminalInstance[] |
 		instances.push(terminalService.getInstanceFromIndex(selection) as ITerminalInstance);
 	}
 	return instances;
-}
-
-function focusNext(accessor: ServicesAccessor): void {
-	const listService = accessor.get(IListService);
-	listService.lastFocusedList?.focusNext();
 }
 
 export function validateTerminalName(name: string): { content: string; severity: Severity } | null {

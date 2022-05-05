@@ -342,7 +342,7 @@ export class ExtensionEditor extends EditorPane {
 					this.instantiationService.createInstance(InstallAnotherVersionAction),
 				]
 			]),
-			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction),
+			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction, false),
 			this.instantiationService.createInstance(SwitchToReleasedVersionAction),
 			this.instantiationService.createInstance(ToggleSyncExtensionAction),
 			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),

@@ -490,17 +490,9 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			if (existing && semver.gt(existing.manifest.version, webExtension.version)) {
 				continue;
 			}
-			try {
-				const extension = await this.toScannedExtension(webExtension, false);
-				if (extension.isValid || !scanOptions?.skipInvalidExtensions) {
-					result.set(extension.identifier.id.toLowerCase(), extension);
-				}
-			} catch (error) {
-				if (scanOptions?.bailOut) {
-					throw error;
-				} else {
-					this.logService.error(error, 'Error while scanning user extension', webExtension.identifier.id);
-				}
+			const extension = await this.toScannedExtension(webExtension, false);
+			if (extension.isValid || !scanOptions?.skipInvalidExtensions) {
+				result.set(extension.identifier.id.toLowerCase(), extension);
 			}
 		}
 		return [...result.values()];
@@ -557,25 +549,43 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	private async toScannedExtension(webExtension: IWebExtension, isBuiltin: boolean, type: ExtensionType = ExtensionType.User): Promise<IScannedExtension> {
 		const url = joinPath(webExtension.location, 'package.json');
 
-		let content;
+		const validations: [Severity, string][] = [];
+		let content: string | undefined;
 		try {
 			content = await this.extensionResourceLoaderService.readExtensionResource(url);
+			if (!content) {
+				validations.push([Severity.Error, `Error while fetching package.json from the location '${url}'. Server returned no content`]);
+			}
 		} catch (error) {
-			throw new Error(`Error while fetching package.json for extension '${webExtension.identifier.id}' from the location '${url}'. ${getErrorMessage(error)}`);
+			validations.push([Severity.Error, `Error while fetching package.json from the location '${url}'. ${getErrorMessage(error)}`]);
 		}
 
-		if (!content) {
-			throw new Error(`Error while fetching package.json for extension '${webExtension.identifier.id}'. Server returned no content for the request '${url}'`);
+		let manifest: IExtensionManifest | null = null;
+		if (content) {
+			try {
+				manifest = JSON.parse(content);
+			} catch (error) {
+				validations.push([Severity.Error, `Error while parsing package.json. ${getErrorMessage(error)}`]);
+			}
 		}
 
-		let manifest: IExtensionManifest = JSON.parse(content);
+		if (!manifest) {
+			const [publisher, name] = webExtension.identifier.id.split('.');
+			manifest = {
+				name,
+				publisher,
+				version: webExtension.version,
+				engines: { vscode: '*' },
+			};
+		}
+
 		if (webExtension.packageNLSUri) {
 			manifest = await this.translateManifest(manifest, webExtension.packageNLSUri);
 		}
 
 		const uuid = (<IGalleryMetadata | undefined>webExtension.metadata)?.id;
 
-		const validations = validateExtensionManifest(this.productService.version, this.productService.date, webExtension.location, manifest, false);
+		validations.push(...validateExtensionManifest(this.productService.version, this.productService.date, webExtension.location, manifest, false));
 		let isValid = true;
 		for (const [severity, message] of validations) {
 			if (severity === Severity.Error) {

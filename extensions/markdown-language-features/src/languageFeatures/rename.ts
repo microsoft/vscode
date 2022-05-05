@@ -169,7 +169,7 @@ export class MdRenameProvider extends Disposable implements vscode.RenameProvide
 		}
 
 		// First rename the file
-		if (await this.workspaceContents.fileExists(targetUri)) {
+		if (await this.workspaceContents.pathExists(targetUri)) {
 			fileRenames.push({ from: targetUri, to: resolvedNewFilePath });
 			edit.renameFile(targetUri, resolvedNewFilePath);
 		}

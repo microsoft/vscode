@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
+import { promises as fsp, createReadStream } from 'fs';
 import * as path from 'path';
 import * as http from 'http';
 import * as url from 'url';
-import * as util from 'util';
 import * as cookie from 'cookie';
 import * as crypto from 'crypto';
 import { isEqualOrParent } from 'vs/base/common/extpath';
@@ -27,6 +26,7 @@ import { URI } from 'vs/base/common/uri';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { isString } from 'vs/base/common/types';
+import { CharCode } from 'vs/base/common/charCode';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -44,32 +44,44 @@ export async function serveError(req: http.IncomingMessage, res: http.ServerResp
 	res.end(errorMessage);
 }
 
+export const enum CacheControl {
+	NO_CACHING, ETAG, NO_EXPIRY
+}
+
 /**
  * Serve a file at a given path or 404 if the file is missing.
  */
-export async function serveFile(logService: ILogService, req: http.IncomingMessage, res: http.ServerResponse, filePath: string, responseHeaders: Record<string, string> = Object.create(null)): Promise<void> {
+export async function serveFile(filePath: string, cacheControl: CacheControl, logService: ILogService, req: http.IncomingMessage, res: http.ServerResponse, responseHeaders: Record<string, string>): Promise<void> {
 	try {
-		const stat = await util.promisify(fs.stat)(filePath);
+		const stat = await fsp.stat(filePath); // throws an error if file doesn't exist
+		if (cacheControl === CacheControl.ETAG) {
 
-		// Check if file modified since
-		const etag = `W/"${[stat.ino, stat.size, stat.mtime.getTime()].join('-')}"`; // weak validator (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag)
-		if (req.headers['if-none-match'] === etag) {
-			res.writeHead(304);
-			return res.end();
+			// Check if file modified since
+			const etag = `W/"${[stat.ino, stat.size, stat.mtime.getTime()].join('-')}"`; // weak validator (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag)
+			if (req.headers['if-none-match'] === etag) {
+				res.writeHead(304);
+				return res.end();
+			}
+
+			responseHeaders['Etag'] = etag;
+		} else if (cacheControl === CacheControl.NO_EXPIRY) {
+			responseHeaders['Cache-Control'] = 'public, max-age=31536000';
+		} else if (cacheControl === CacheControl.NO_CACHING) {
+			responseHeaders['Cache-Control'] = 'no-store';
 		}
 
-		// Headers
 		responseHeaders['Content-Type'] = textMimeType[extname(filePath)] || getMediaMime(filePath) || 'text/plain';
-		responseHeaders['Etag'] = etag;
 
 		res.writeHead(200, responseHeaders);
 
 		// Data
-		fs.createReadStream(filePath).pipe(res);
+		createReadStream(filePath).pipe(res);
 	} catch (error) {
 		if (error.code !== 'ENOENT') {
 			logService.error(error);
 			console.error(error.toString());
+		} else {
+			console.error(`File not found: ${filePath}`);
 		}
 
 		res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -83,6 +95,9 @@ export class WebClientServer {
 
 	private readonly _webExtensionResourceUrlTemplate: URI | undefined;
 
+	private readonly _staticRoute: string;
+	private readonly _callbackRoute: string;
+
 	constructor(
 		private readonly _connectionToken: ServerConnectionToken,
 		@IServerEnvironmentService private readonly _environmentService: IServerEnvironmentService,
@@ -91,6 +106,9 @@ export class WebClientServer {
 		@IProductService private readonly _productService: IProductService,
 	) {
 		this._webExtensionResourceUrlTemplate = this._productService.extensionsGallery?.resourceUrlTemplate ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate) : undefined;
+		const qualityAndCommit = `${_productService.quality ?? 'oss'}-${_productService.commit ?? 'dev'}`;
+		this._staticRoute = `/${qualityAndCommit}/static`;
+		this._callbackRoute = `/${qualityAndCommit}/callback`;
 	}
 
 	/**
@@ -102,16 +120,13 @@ export class WebClientServer {
 		try {
 			const pathname = parsedUrl.pathname!;
 
-			if (pathname === '/favicon.ico' || pathname === '/manifest.json' || pathname === '/code-192.png' || pathname === '/code-512.png') {
-				return serveFile(this._logService, req, res, join(APP_ROOT, 'resources', 'server', pathname.substr(1)));
-			}
-			if (/^\/static\//.test(pathname)) {
+			if (pathname.startsWith(this._staticRoute) && pathname.charCodeAt(this._staticRoute.length) === CharCode.Slash) {
 				return this._handleStatic(req, res, parsedUrl);
 			}
 			if (pathname === '/') {
 				return this._handleRoot(req, res, parsedUrl);
 			}
-			if (pathname === '/callback') {
+			if (pathname === this._callbackRoute) {
 				// callback support
 				return this._handleCallback(res);
 			}
@@ -128,23 +143,22 @@ export class WebClientServer {
 			return serveError(req, res, 500, 'Internal Server Error.');
 		}
 	}
-
 	/**
 	 * Handle HTTP requests for /static/*
 	 */
 	private async _handleStatic(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
 		const headers: Record<string, string> = Object.create(null);
 
-		// Strip `/static/` from the path
+		// Strip the this._staticRoute from the path
 		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
-		const relativeFilePath = normalize(normalizedPathname.substr('/static/'.length));
+		const relativeFilePath = normalizedPathname.substring(this._staticRoute.length + 1);
 
-		const filePath = join(APP_ROOT, relativeFilePath);
+		const filePath = join(APP_ROOT, relativeFilePath); // join also normalizes the path
 		if (!isEqualOrParent(filePath, APP_ROOT, !isLinux)) {
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		return serveFile(this._logService, req, res, filePath, headers);
+		return serveFile(filePath, this._environmentService.isBuilt ? CacheControl.NO_EXPIRY : CacheControl.ETAG, this._logService, req, res, headers);
 	}
 
 	private _getResourceURLTemplateAuthority(uri: URI): string | undefined {
@@ -259,8 +273,8 @@ export class WebClientServer {
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		function escapeAttribute(value: string): string {
-			return value.replace(/"/g, '&quot;');
+		function asJSON(value: unknown): string {
+			return JSON.stringify(value).replace(/"/g, '&quot;');
 		}
 
 		let _wrapWebWorkerExtHostInIframe: undefined | false = undefined;
@@ -279,28 +293,45 @@ export class WebClientServer {
 			accessToken: this._environmentService.args['github-auth'],
 			scopes: [['user:email'], ['repo']]
 		} : undefined;
-		const data = (await util.promisify(fs.readFile)(filePath)).toString()
-			.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify({
-				remoteAuthority,
-				_wrapWebWorkerExtHostInIframe,
-				developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined },
-				settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
-				enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
-				folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
-				workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
-				productConfiguration: <Partial<IProductConfiguration>>{
-					embedderIdentifier: 'server-distro',
-					extensionsGallery: this._webExtensionResourceUrlTemplate ? {
-						...this._productService.extensionsGallery,
-						'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({
-							scheme: 'http',
-							authority: remoteAuthority,
-							path: `web-extension-resource/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
-						}).toString(true)
-					} : undefined
-				}
-			})))
-			.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '');
+
+
+		const workbenchWebConfiguration = {
+			remoteAuthority,
+			_wrapWebWorkerExtHostInIframe,
+			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined },
+			settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
+			enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
+			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
+			workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
+			productConfiguration: <Partial<IProductConfiguration>>{
+				embedderIdentifier: 'server-distro',
+				extensionsGallery: this._webExtensionResourceUrlTemplate ? {
+					...this._productService.extensionsGallery,
+					'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({
+						scheme: 'http',
+						authority: remoteAuthority,
+						path: `web-extension-resource/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
+					}).toString(true)
+				} : undefined
+			},
+			callbackRoute: this._callbackRoute
+		};
+
+		const values: { [key: string]: string } = {
+			WORKBENCH_WEB_CONFIGURATION: asJSON(workbenchWebConfiguration),
+			WORKBENCH_AUTH_SESSION: authSessionInfo ? asJSON(authSessionInfo) : '',
+			WORKBENCH_WEB_BASE_URL: this._staticRoute,
+		};
+
+
+		let data;
+		try {
+			const workbenchTemplate = (await fsp.readFile(filePath)).toString();
+			data = workbenchTemplate.replace(/\{\{([^}]+)\}\}/g, (_, key) => values[key] ?? 'undefined');
+		} catch (e) {
+			res.writeHead(404, { 'Content-Type': 'text/plain' });
+			return res.end('Not found');
+		}
 
 		const cspDirectives = [
 			'default-src \'self\';',
@@ -362,7 +393,7 @@ export class WebClientServer {
 	 */
 	private async _handleCallback(res: http.ServerResponse): Promise<void> {
 		const filePath = FileAccess.asFileUri('vs/code/browser/workbench/callback.html', require).fsPath;
-		const data = (await util.promisify(fs.readFile)(filePath)).toString();
+		const data = (await fsp.readFile(filePath)).toString();
 		const cspDirectives = [
 			'default-src \'self\';',
 			'img-src \'self\' https: data: blob:;',

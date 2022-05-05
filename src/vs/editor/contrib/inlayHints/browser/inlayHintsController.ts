@@ -563,11 +563,14 @@ export class InlayHintsController implements IEditorContribution {
 				}
 			}
 		}
-		const newDecorationIds = this._editor.deltaDecorations(decorationIdsToReplace, newDecorationsData.map(d => d.decoration));
-		for (let i = 0; i < newDecorationIds.length; i++) {
-			const data = newDecorationsData[i];
-			this._decorationsMetadata.set(newDecorationIds[i], data);
-		}
+
+		this._editor.changeDecorations(accessor => {
+			const newDecorationIds = accessor.deltaDecorations(decorationIdsToReplace, newDecorationsData.map(d => d.decoration));
+			for (let i = 0; i < newDecorationIds.length; i++) {
+				const data = newDecorationsData[i];
+				this._decorationsMetadata.set(newDecorationIds[i], data);
+			}
+		});
 	}
 
 	private _fillInColors(props: CssProperties, hint: languages.InlayHint): void {
