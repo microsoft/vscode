@@ -1595,6 +1595,7 @@ export class CompletionList {
 @es5ClassCompat
 export class InlineSuggestion implements vscode.InlineCompletionItem {
 
+	filterText?: string;
 	insertText: string;
 	range?: Range;
 	command?: vscode.Command;
