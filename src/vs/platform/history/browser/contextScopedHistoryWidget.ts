@@ -37,7 +37,7 @@ export function registerAndCreateHistoryNavigationContext(contextKeyService: ICo
 	widgets.push(widget);
 	const disposableStore = new DisposableStore();
 	const scopedContextKeyService = disposableStore.add(contextKeyService.createScoped(widget.element));
-	const historyNavigationWidgetFocus = new RawContextKey<boolean>(HistoryNavigationWidgetFocusContext, false).bindTo(contextKeyService);
+	const historyNavigationWidgetFocus = new RawContextKey<boolean>(HistoryNavigationWidgetFocusContext, false).bindTo(scopedContextKeyService);
 	const historyNavigationForwardsEnablement = new RawContextKey<boolean>(HistoryNavigationForwardsEnablementContext, true).bindTo(scopedContextKeyService);
 	const historyNavigationBackwardsEnablement = new RawContextKey<boolean>(HistoryNavigationBackwardsEnablementContext, true).bindTo(scopedContextKeyService);
 
