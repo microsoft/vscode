@@ -37,10 +37,12 @@ export interface IAutomaticLanguageDetectionLikelyWrongData {
 }
 
 export type AutomaticLanguageDetectionLikelyWrongClassification = {
-	currentLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: '@TylerLeonhardt,@JacksonKearl'; comment: 'Used to determine how often language detection is likely wrong.' };
-	nextLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: '@TylerLeonhardt,@JacksonKearl'; comment: 'Used to determine how often language detection is likely wrong.' };
-	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; owner: '@TylerLeonhardt,@JacksonKearl'; comment: 'Used to determine how often language detection is likely wrong.' };
-	modelPreference: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: '@TylerLeonhardt,@JacksonKearl'; comment: 'Used to determine how often language detection is likely wrong.' };
+	owner: 'TylerLeonhardt,JacksonKearl';
+	comment: 'Used to determine how often language detection is likely wrong.';
+	currentLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Used to determine how often language detection is likely wrong.' };
+	nextLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Used to determine how often language detection is likely wrong.' };
+	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Used to determine how often language detection is likely wrong.' };
+	modelPreference: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Used to determine how often language detection is likely wrong.' };
 };
 
 export const LanguageDetectionStatsId = 'automaticlanguagedetection.stats';
