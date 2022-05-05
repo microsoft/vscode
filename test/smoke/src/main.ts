@@ -204,6 +204,12 @@ else {
 
 	if (process.env.VSCODE_DEV === '1') {
 		quality = Quality.Dev;
+	} else if (typeof testCodeServerPath === 'string') {
+		const { applicationName } = require(path.join(testCodeServerPath, 'product.json'));
+
+		console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+		console.log(applicationName);
+		console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
 	} else {
 		quality = Quality.Insiders;
 	}
