@@ -7,7 +7,7 @@ steps:
     inputs:
       versionSpec: "16.x"
 
-  - ${{ if ne(parameters.VSCODE_PUBLISH, 'false') }}:
+  - ${{ if eq('true', 'false') }}:
     - task: AzureKeyVault@1
       displayName: "Azure Key Vault: Get Secrets"
       inputs:
