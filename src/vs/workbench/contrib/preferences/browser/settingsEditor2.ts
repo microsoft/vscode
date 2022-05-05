@@ -563,7 +563,7 @@ export class SettingsEditor2 extends EditorPane {
 			focusContextKey: this.searchFocusContextKey,
 			// TODO: Aria-live
 		}));
-		this._register(this.searchWidget.onFocus(() => {
+		this._register(this.searchWidget.onDidFocus(() => {
 			this._currentFocusContext = SettingsFocusContext.Search;
 		}));
 

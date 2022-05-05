@@ -15,7 +15,7 @@ import 'vs/css!./notebookFindReplaceWidget';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/browser/findState';
 import { findNextMatchIcon, findPreviousMatchIcon, findReplaceAllIcon, findReplaceIcon, SimpleButton } from 'vs/editor/contrib/find/browser/findWidget';
 import * as nls from 'vs/nls';
-import { ContextScopedReplaceInput, createAndBindHistoryNavigationWidgetScopedContextKeyService, IContextScopedHistoryNavigationWidget } from 'vs/platform/history/browser/contextScopedHistoryWidget';
+import { ContextScopedReplaceInput, registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { editorWidgetBackground, editorWidgetForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
@@ -162,7 +162,7 @@ class NotebookFindInput extends FindInput {
 		parent: HTMLElement | null, contextViewProvider: IContextViewProvider, showOptionButtons: boolean, options: IFindInputOptions) {
 		super(parent, contextViewProvider, showOptionButtons, options);
 
-		this._register(createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.inputBox.element, historyNavigator: this.inputBox }).scopedContextKeyService);
+		this._register(registerAndCreateHistoryNavigationContext(contextKeyService, this.inputBox));
 		this._filtersAction = new Action('notebookFindFilterAction', NOTEBOOK_FIND_FILTERS, 'notebook-filters ' + ThemeIcon.asClassName(filterIcon));
 		this._filtersAction.checked = false;
 		this._filterButtonContainer = dom.$('.find-filter-button');
