@@ -24,6 +24,8 @@ variables:
     value: true
   - name: VSCODE_PUBLISH
     value: false
+  - name: VSCODE_QUALITY
+    value: oss
   - name: VSCODE_STEP_ON_IT
     value: false
 

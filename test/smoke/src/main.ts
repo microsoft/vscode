@@ -198,18 +198,25 @@ else {
 		logger.log(`Running web smoke out of sources`);
 	}
 
-	console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-	console.log(testCodeServerPath);
-	console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-
 	if (process.env.VSCODE_DEV === '1') {
 		quality = Quality.Dev;
 	} else if (typeof testCodeServerPath === 'string') {
 		const { applicationName } = require(path.join(testCodeServerPath, 'product.json'));
 
-		console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-		console.log(applicationName);
-		console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+		switch (applicationName) {
+			case 'code':
+				quality = Quality.Stable;
+				break;
+			case 'code-insiders':
+				quality = Quality.Insiders;
+				break;
+			case 'code-oss':
+				quality = Quality.OSS;
+				break;
+			default:
+				quality = Quality.Insiders;
+				break;
+		}
 	} else {
 		quality = Quality.Insiders;
 	}
