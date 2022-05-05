@@ -274,8 +274,10 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		if (session) {
 			type AuthProviderUsageClassification = {
-				extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-				providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				owner: 'TylerLeonhardt';
+				comment: 'Used to see which extensions are using which providers';
+				extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id.' };
+				providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider id.' };
 			};
 			this.telemetryService.publicLog2<{ extensionId: string; providerId: string }, AuthProviderUsageClassification>('authentication.providerUsage', { providerId, extensionId });
 
