@@ -2929,6 +2929,7 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 		];
 		super(EditorOption.quickSuggestions, 'quickSuggestions', defaults, {
 			type: 'object',
+			additionalProperties: false,
 			properties: {
 				strings: {
 					anyOf: types,
@@ -2947,7 +2948,7 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 				},
 			},
 			default: defaults,
-			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing.")
+			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, and other code. Quick suggestion can be configured to show as ghost text or with the suggest widget.")
 		});
 		this.defaultValue = defaults;
 	}
