@@ -64,33 +64,33 @@ stages:
         steps:
           - template: win32/product-build-win32.yml
 
-  - stage: Linux
-    dependsOn:
-      - Compile
-      - LinuxServerDependencies
-    pool:
-      vmImage: ubuntu-18.04
-    jobs:
-      - job: Linuxx64
-        container: vscode-bionic-x64
-        variables:
-          VSCODE_ARCH: x64
-          NPM_ARCH: x64
-          DISPLAY: ":10"
-        steps:
-          - template: linux/product-build-linux-client.yml
+  # - stage: Linux
+  #   dependsOn:
+  #     - Compile
+  #     - LinuxServerDependencies
+  #   pool:
+  #     vmImage: ubuntu-18.04
+  #   jobs:
+  #     - job: Linuxx64
+  #       container: vscode-bionic-x64
+  #       variables:
+  #         VSCODE_ARCH: x64
+  #         NPM_ARCH: x64
+  #         DISPLAY: ":10"
+  #       steps:
+  #         - template: linux/product-build-linux-client.yml
 
-  - stage: macOS
-    dependsOn:
-      - Compile
-    pool:
-      vmImage: macOS-latest
-    variables:
-      BUILDSECMON_OPT_IN: true
-    jobs:
-      - job: macOSTest
-        timeoutInMinutes: 90
-        variables:
-          VSCODE_ARCH: x64
-        steps:
-          - template: darwin/product-build-darwin-test.yml
+  # - stage: macOS
+  #   dependsOn:
+  #     - Compile
+  #   pool:
+  #     vmImage: macOS-latest
+  #   variables:
+  #     BUILDSECMON_OPT_IN: true
+  #   jobs:
+  #     - job: macOSTest
+  #       timeoutInMinutes: 90
+  #       variables:
+  #         VSCODE_ARCH: x64
+  #       steps:
+  #         - template: darwin/product-build-darwin-test.yml
