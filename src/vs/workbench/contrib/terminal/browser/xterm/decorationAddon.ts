@@ -23,6 +23,7 @@ import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -58,7 +59,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
 		this._register(toDisposable(() => this.clearDecorations(true)));
@@ -323,6 +325,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		actions.push({
 			class: 'rerun-command', tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: localize("terminal.rerunCommand", 'Rerun Command'), enabled: true,
 			run: () => this._onDidRequestRunCommand.fire({ command })
+		});
+		actions.push({
+			class: 'how-does-this-work', tooltip: 'How does this work?', dispose: () => { }, id: 'terminal.howDoesThisWork', label: localize("terminal.howDoesThisWork", 'How does this work?'), enabled: true,
+			run: () => this._openerService.open('https://code.visualstudio.com/docs/editor/integrated-terminal#_shell-integration')
 		});
 		return actions;
 	}
