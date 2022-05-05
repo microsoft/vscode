@@ -17,13 +17,13 @@ steps:
         echo Hello World!!
       displayName: Test2
 
-  # - ${{ if eq('true', 'false') }}:
-  #   - task: AzureKeyVault@1
-  #     displayName: "Azure Key Vault: Get Secrets"
-  #     inputs:
-  #       azureSubscription: "vscode-builds-subscription"
-  #       KeyVaultName: vscode
-  #       SecretsFilter: "github-distro-mixin-password"
+  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+    - task: AzureKeyVault@1
+      displayName: "Azure Key Vault: Get Secrets"
+      inputs:
+        azureSubscription: "vscode-builds-subscription"
+        KeyVaultName: vscode
+        SecretsFilter: "github-distro-mixin-password"
 
   # - script: |
   #     set -e
