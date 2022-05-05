@@ -128,12 +128,6 @@ export class InputBox extends Widget {
 	private _onDidHeightChange = this._register(new Emitter<number>());
 	public readonly onDidHeightChange: Event<number> = this._onDidHeightChange.event;
 
-	private readonly _onDidFocus = this._register(new Emitter<void>());
-	readonly onDidFocus = this._onDidFocus.event;
-
-	private readonly _onDidBlur = this._register(new Emitter<void>());
-	readonly onDidBlur = this._onDidBlur.event;
-
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options?: IInputOptions) {
 		super();
 
@@ -239,20 +233,18 @@ export class InputBox extends Widget {
 		this.applyStyles();
 	}
 
-	private onBlur(): void {
+	protected onBlur(): void {
 		this._hideMessage();
 		if (this.options.showPlaceholderOnFocus) {
 			this.input.setAttribute('placeholder', '');
 		}
-		this._onDidBlur.fire();
 	}
 
-	private onFocus(): void {
+	protected onFocus(): void {
 		this._showMessage();
 		if (this.options.showPlaceholderOnFocus) {
 			this.input.setAttribute('placeholder', this.placeholder || '');
 		}
-		this._onDidFocus.fire();
 	}
 
 	public setPlaceHolder(placeHolder: string): void {
@@ -647,6 +639,12 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 	private readonly history: HistoryNavigator<string>;
 	private observer: MutationObserver | undefined;
 
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	readonly onDidFocus = this._onDidFocus.event;
+
+	private readonly _onDidBlur = this._register(new Emitter<void>());
+	readonly onDidBlur = this._onDidBlur.event;
+
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IHistoryInputOptions) {
 		const NLS_PLACEHOLDER_HISTORY_HINT = nls.localize({ key: 'history.inputbox.hint', comment: ['Text will be prefixed with \u21C5 plus a single space, then used as a hint where input field keeps history'] }, "for history");
 		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX = ` or \u21C5 ${NLS_PLACEHOLDER_HISTORY_HINT}`;
@@ -754,6 +752,16 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 
 	public clearHistory(): void {
 		this.history.clear();
+	}
+
+	protected override onBlur(): void {
+		super.onBlur();
+		this._onDidBlur.fire();
+	}
+
+	protected override onFocus(): void {
+		super.onFocus();
+		this._onDidFocus.fire();
 	}
 
 	private getCurrentValue(): string | null {
