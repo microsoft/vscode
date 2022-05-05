@@ -14,10 +14,10 @@ import { setup as setupTerminalSplitCwdTests } from './terminal-splitCwd.test';
 import { setup as setupTerminalShellIntegrationTests } from './terminal-shellIntegration.test';
 
 export function setup(logger: Logger) {
-	describe('Terminal', function () {
+	describe.only('Terminal', function () {
 
 		// Retry tests 3 times to minimize build failures due to any flakiness
-		this.retries(3);
+		// this.retries(3);
 
 		// Shared before/after handling
 		installAllHandlers(logger);
