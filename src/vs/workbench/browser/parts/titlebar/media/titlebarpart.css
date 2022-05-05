@@ -68,17 +68,6 @@
 	margin-right: auto;
 }
 
-/* Windows/Linux: Rules for custom title (icon, window controls)  */
-.monaco-workbench.web .part.titlebar>.titlebar-container,
-.monaco-workbench.windows .part.titlebar>.titlebar-container,
-.monaco-workbench.linux .part.titlebar>.titlebar-container {
-	padding: 0;
-	height: 30px;
-	line-height: 30px;
-	justify-content: left;
-	overflow: visible;
-}
-
 .monaco-workbench.web .part.titlebar>.titlebar-container>.window-title,
 .monaco-workbench.windows .part.titlebar>.titlebar-container>.window-title,
 .monaco-workbench.linux .part.titlebar>.titlebar-container>.window-title {
