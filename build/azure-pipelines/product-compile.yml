@@ -3,13 +3,13 @@ steps:
     inputs:
       versionSpec: "16.x"
 
-  # - task: AzureKeyVault@1
-  #   displayName: "Azure Key Vault: Get Secrets"
-  #   inputs:
-  #     azureSubscription: "vscode-builds-subscription"
-  #     KeyVaultName: vscode
-  #     SecretsFilter: "github-distro-mixin-password"
-  #   condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - ${{ if ne(variables['VSCODE_PUBLISH'], 'false') }}:
+    - task: AzureKeyVault@1
+      displayName: "Azure Key Vault: Get Secrets"
+      inputs:
+        azureSubscription: "vscode-builds-subscription"
+        KeyVaultName: vscode
+        SecretsFilter: "github-distro-mixin-password"
 
   - script: |
       set -e
