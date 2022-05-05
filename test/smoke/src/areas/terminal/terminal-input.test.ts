@@ -6,7 +6,7 @@
 import { Application, Terminal, SettingsEditor } from '../../../../automation';
 
 export function setup() {
-	describe.skip('Terminal Input', () => {
+	describe('Terminal Input', () => {
 		let terminal: Terminal;
 		let settingsEditor: SettingsEditor;
 

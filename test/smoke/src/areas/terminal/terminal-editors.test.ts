@@ -66,13 +66,20 @@ export function setup() {
 			await terminal.assertEditorGroupCount(1);
 		});
 
-		it('should create a terminal in the editor area by default', async () => {
-			await app.workbench.settingsEditor.addUserSetting('terminal.integrated.defaultLocation', '"editor"');
-			// Close the settings editor
-			await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
-			await terminal.createTerminal('editor');
-			await terminal.assertEditorGroupCount(1);
-			await terminal.assertTerminalViewHidden();
+		describe('terminal.integrated defaultLocation = editor', () => {
+			before(async () => {
+				await app.workbench.settingsEditor.addUserSetting('terminal.integrated.defaultLocation', '"editor"');
+			});
+			after(async () => {
+				await app.workbench.settingsEditor.clearUserSettings();
+			});
+			it('should create a terminal in the editor area by default', async () => {
+				// Close the settings editor
+				await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
+				await terminal.createTerminal('editor');
+				await terminal.assertEditorGroupCount(1);
+				await terminal.assertTerminalViewHidden();
+			});
 		});
 	});
 }
