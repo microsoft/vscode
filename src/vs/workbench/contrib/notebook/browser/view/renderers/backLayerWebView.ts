@@ -686,7 +686,7 @@ var requirejs = (function() {
 						linkToOpen = data.href;
 					} else if (!/^[\w\-]+:/.test(data.href)) {
 						const fragmentStartIndex = data.href.lastIndexOf('#');
-						const path = fragmentStartIndex >= 0 ? data.href.slice(0, fragmentStartIndex) : data.href;
+						const path = decodeURI(fragmentStartIndex >= 0 ? data.href.slice(0, fragmentStartIndex) : data.href);
 						if (this.documentUri.scheme === Schemas.untitled) {
 							const folders = this.workspaceContextService.getWorkspace().folders;
 							if (!folders.length) {
