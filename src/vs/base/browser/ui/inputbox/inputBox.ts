@@ -128,6 +128,12 @@ export class InputBox extends Widget {
 	private _onDidHeightChange = this._register(new Emitter<number>());
 	public readonly onDidHeightChange: Event<number> = this._onDidHeightChange.event;
 
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	readonly onDidFocus = this._onDidFocus.event;
+
+	private readonly _onDidBlur = this._register(new Emitter<void>());
+	readonly onDidBlur = this._onDidBlur.event;
+
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options?: IInputOptions) {
 		super();
 
@@ -238,6 +244,7 @@ export class InputBox extends Widget {
 		if (this.options.showPlaceholderOnFocus) {
 			this.input.setAttribute('placeholder', '');
 		}
+		this._onDidBlur.fire();
 	}
 
 	private onFocus(): void {
@@ -245,6 +252,7 @@ export class InputBox extends Widget {
 		if (this.options.showPlaceholderOnFocus) {
 			this.input.setAttribute('placeholder', this.placeholder || '');
 		}
+		this._onDidFocus.fire();
 	}
 
 	public setPlaceHolder(placeHolder: string): void {
