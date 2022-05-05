@@ -17,6 +17,10 @@ export function setup() {
 			settingsEditor = app.workbench.settingsEditor;
 		});
 
+		after(async function () {
+			await settingsEditor.clearUserSettings();
+		});
+
 		describe('Auto replies', function () {
 
 			// HACK: Retry this suite only on Windows because conpty can rarely lead to unexpected behavior which would

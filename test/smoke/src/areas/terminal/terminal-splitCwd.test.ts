@@ -16,6 +16,11 @@ export function setup() {
 			await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
 		});
 
+		after(async function () {
+			const app = this.app as Application;
+			await app.workbench.settingsEditor.clearUserSettings();
+		});
+
 		it('should inherit cwd when split and update the tab description - alt click', async () => {
 			await terminal.createTerminal();
 			const cwd = 'test';

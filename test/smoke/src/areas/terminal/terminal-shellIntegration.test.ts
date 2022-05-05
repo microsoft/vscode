@@ -18,6 +18,10 @@ export function setup() {
 			await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.enabled', 'true');
 		});
 
+		after(async function () {
+			await settingsEditor.clearUserSettings();
+		});
+
 		describe('Shell integration', function () {
 			describe('Activation', function () {
 				it('should activate shell integration on creation of a terminal', async () => {
