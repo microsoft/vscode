@@ -222,6 +222,7 @@ interface IQueryState {
 	readonly criteria: ICriterium[];
 	readonly assetTypes: string[];
 	readonly source?: string;
+	readonly searchTextLength?: number;
 }
 
 const DefaultQueryState: IQueryState = {
@@ -231,7 +232,8 @@ const DefaultQueryState: IQueryState = {
 	sortOrder: SortOrder.Default,
 	flags: Flags.None,
 	criteria: [],
-	assetTypes: []
+	assetTypes: [],
+	searchTextLength: 0
 };
 
 type GalleryServiceQueryClassification = {
@@ -327,6 +329,10 @@ class Query {
 
 	withSource(source: string): Query {
 		return new Query({ ...this.state, source });
+	}
+
+	withSearchTextLength(length: number): Query {
+		return new Query({ ...this.state, searchTextLength: length });
 	}
 
 	get raw(): any {
@@ -708,7 +714,8 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 			if (text) {
 				text = text.length < 200 ? text : text.substring(0, 200);
-				query = query.withFilter(FilterType.SearchText, text);
+				query = query.withFilter(FilterType.SearchText, text)
+					.withSearchTextLength(text.length);
 			}
 
 			query = query.withSortBy(SortBy.NoneOrRelevance);
