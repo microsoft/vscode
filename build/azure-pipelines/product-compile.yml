@@ -1,14 +1,19 @@
+parameters:
+  - name: VSCODE_PUBLISH
+    type: boolean
+
 steps:
   - task: NodeTool@0
     inputs:
       versionSpec: "16.x"
 
-  # - task: AzureKeyVault@1
-  #   displayName: "Azure Key Vault: Get Secrets"
-  #   inputs:
-  #     azureSubscription: "vscode-builds-subscription"
-  #     KeyVaultName: vscode
-  #     SecretsFilter: "github-distro-mixin-password"
+  - ${{ if ne(parameters.VSCODE_PUBLISH, 'false') }}:
+    - task: AzureKeyVault@1
+      displayName: "Azure Key Vault: Get Secrets"
+      inputs:
+        azureSubscription: "vscode-builds-subscription"
+        KeyVaultName: vscode
+        SecretsFilter: "github-distro-mixin-password"
 
   # - script: |
   #     set -e

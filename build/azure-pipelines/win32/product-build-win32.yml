@@ -134,11 +134,11 @@ steps:
     displayName: Prepare Package
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { node build/azure-pipelines/mixin --server }
-    displayName: Mix in quality
+  # - powershell: |
+  #     . build/azure-pipelines/win32/exec.ps1
+  #     $ErrorActionPreference = "Stop"
+  #     exec { node build/azure-pipelines/mixin --server }
+  #   displayName: Mix in quality
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1

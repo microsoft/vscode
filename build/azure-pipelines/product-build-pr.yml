@@ -37,6 +37,8 @@ stages:
           VSCODE_ARCH: x64
         steps:
           - template: product-compile.yml
+            parameters:
+              VSCODE_PUBLISH: false
 
   # - stage: LinuxServerDependencies
   #   dependsOn: []
