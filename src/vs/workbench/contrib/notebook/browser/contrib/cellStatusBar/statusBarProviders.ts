@@ -60,9 +60,11 @@ class CellStatusBarLanguageDetectionProvider implements INotebookCellStatusBarIt
 	readonly viewType = '*';
 
 	private cache = new ResourceMap<{
-		lastUpdate: number;
-		lastCellLang: string;
-		lastGuess?: string;
+		contentVersion: number;
+		updateTimestamp: number;
+		cellLanguage: string;
+
+		guess?: string;
 	}>();
 
 	constructor(
@@ -84,32 +86,41 @@ class CellStatusBarLanguageDetectionProvider implements INotebookCellStatusBarIt
 		if (!enabled) {
 			return;
 		}
+		const cellUri = cell.uri;
+		const contentVersion = cell.textModel?.getVersionId();
+		if (!contentVersion) {
+			return;
+		}
 
 		const currentLanguageId = cell.cellKind === CellKind.Markup ?
 			'markdown' :
 			(this._languageService.getLanguageIdByLanguageName(cell.language) || cell.language);
 
-		if (!this.cache.has(uri)) {
-			this.cache.set(uri, { lastCellLang: currentLanguageId, lastUpdate: 0 });
+		if (!this.cache.has(cellUri)) {
+			this.cache.set(cellUri, {
+				cellLanguage: currentLanguageId, // force a re-compute upon a change in configured language
+				updateTimestamp: 0, // facilitates a disposable-free debounce operation
+				contentVersion: 1, // dont run for the initial contents, only on update
+			});
 		}
 
-		const cached = this.cache.get(uri)!;
-		if (cached.lastUpdate < Date.now() - 1000 || cached.lastCellLang !== currentLanguageId) {
-			cached.lastUpdate = Date.now();
-			cached.lastCellLang = currentLanguageId;
+		const cached = this.cache.get(cellUri)!;
+		if (cached.cellLanguage !== currentLanguageId || (cached.updateTimestamp < Date.now() - 1000 && cached.contentVersion !== contentVersion)) {
+			cached.updateTimestamp = Date.now();
+			cached.cellLanguage = currentLanguageId;
+			cached.contentVersion = contentVersion;
 
 			const kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(doc);
-
 			if (kernel) {
-				const availableLangs = [];
-				availableLangs.push(...kernel.supportedLanguages, 'markdown');
-				cached.lastGuess = await this._languageDetectionService.detectLanguage(cell.uri, availableLangs);
+				const supportedLangs = [...kernel.supportedLanguages, 'markdown'];
+				console.log('running a detection!');
+				cached.guess = await this._languageDetectionService.detectLanguage(cell.uri, supportedLangs);
 			}
 		}
 
 		const items: INotebookCellStatusBarItem[] = [];
-		if (cached.lastGuess && currentLanguageId !== cached.lastGuess) {
-			const detectedName = this._languageService.getLanguageName(cached.lastGuess) || cached.lastGuess;
+		if (cached.guess && currentLanguageId !== cached.guess) {
+			const detectedName = this._languageService.getLanguageName(cached.guess) || cached.guess;
 			let tooltip = localize('notebook.cell.status.autoDetectLanguage', "Accept Detected Language: {0}", detectedName);
 			const keybinding = this._keybindingService.lookupKeybinding(DETECT_CELL_LANGUAGE);
 			const label = keybinding?.getLabel();
