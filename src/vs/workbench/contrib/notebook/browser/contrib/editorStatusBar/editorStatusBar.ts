@@ -28,7 +28,7 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelService, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
@@ -38,7 +38,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: '_notebook.selectKernel',
+			id: SELECT_KERNEL_ID,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
 			// precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
@@ -182,12 +182,7 @@ registerAction2(class extends Action2 {
 				return res;
 			}
 			const quickPickItems: QuickPickInput<IQuickPickItem | KernelPick>[] = [];
-			if (!all.length) {
-				quickPickItems.push({
-					id: 'install',
-					label: nls.localize('installKernels', "Install kernels from the marketplace"),
-				});
-			} else {
+			if (all.length) {
 				// Always display suggested kernels on the top.
 				if (suggestions.length) {
 					quickPickItems.push({
@@ -207,6 +202,14 @@ registerAction2(class extends Action2 {
 						label: items[0].kernel.kind || nls.localize('otherKernelKinds', "Other")
 					});
 					quickPickItems.push(...items);
+				});
+			}
+
+			if (!all.find(item => item.type === NotebookKernelType.Resolved)) {
+				// there is no resolved kernel, show the install from marketplace
+				quickPickItems.push({
+					id: 'install',
+					label: nls.localize('installKernels', "Install kernels from the marketplace"),
 				});
 			}
 
@@ -381,7 +384,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 					tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
 					command: SELECT_KERNEL_ID,
 				},
-				'_notebook.selectKernel',
+				SELECT_KERNEL_ID,
 				StatusbarAlignment.RIGHT,
 				10
 			));
@@ -399,7 +402,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 					command: SELECT_KERNEL_ID,
 					backgroundColor: { id: 'statusBarItem.prominentBackground' }
 				},
-				'_notebook.selectKernel',
+				SELECT_KERNEL_ID,
 				StatusbarAlignment.RIGHT,
 				10
 			));

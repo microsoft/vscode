@@ -19,7 +19,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
 import { LocationLink } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -219,7 +218,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	}
 
 	private getPreviewValue(textEditorModel: ITextModel, startLineNumber: number, result: LocationLink) {
-		let rangeToUse = result.targetSelectionRange ? result.range : this.getPreviewRangeBasedOnBrackets(textEditorModel, startLineNumber);
+		let rangeToUse = result.range;
 		const numberOfLinesInRange = rangeToUse.endLineNumber - rangeToUse.startLineNumber;
 		if (numberOfLinesInRange >= GotoDefinitionAtPositionEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
 			rangeToUse = this.getPreviewRangeBasedOnIndentation(textEditorModel, startLineNumber);
@@ -256,52 +255,6 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		}
 
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
-	}
-
-	private getPreviewRangeBasedOnBrackets(textEditorModel: ITextModel, startLineNumber: number) {
-		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionAtPositionEditorContribution.MAX_SOURCE_PREVIEW_LINES);
-
-		const brackets: IFoundBracket[] = [];
-
-		let ignoreFirstEmpty = true;
-		let currentBracket = textEditorModel.bracketPairs.findNextBracket(new Position(startLineNumber, 1));
-		while (currentBracket !== null) {
-
-			if (brackets.length === 0) {
-				brackets.push(currentBracket);
-			} else {
-				const lastBracket = brackets[brackets.length - 1];
-				if (lastBracket.open[0] === currentBracket.open[0] && lastBracket.isOpen && !currentBracket.isOpen) {
-					brackets.pop();
-				} else {
-					brackets.push(currentBracket);
-				}
-
-				if (brackets.length === 0) {
-					if (ignoreFirstEmpty) {
-						ignoreFirstEmpty = false;
-					} else {
-						return new Range(startLineNumber, 1, currentBracket.range.endLineNumber + 1, 1);
-					}
-				}
-			}
-
-			const maxColumn = textEditorModel.getLineMaxColumn(startLineNumber);
-			let nextLineNumber = currentBracket.range.endLineNumber;
-			let nextColumn = currentBracket.range.endColumn;
-			if (maxColumn === currentBracket.range.endColumn) {
-				nextLineNumber++;
-				nextColumn = 1;
-			}
-
-			if (nextLineNumber > maxLineNumber) {
-				return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
-			}
-
-			currentBracket = textEditorModel.bracketPairs.findNextBracket(new Position(nextLineNumber, nextColumn));
-		}
-
-		return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
 	}
 
 	private addDecoration(range: Range, hoverMessage: MarkdownString): void {

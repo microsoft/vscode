@@ -11,6 +11,7 @@ import { setup as setupTerminalPersistenceTests } from './terminal-persistence.t
 import { setup as setupTerminalProfileTests } from './terminal-profiles.test';
 import { setup as setupTerminalTabsTests } from './terminal-tabs.test';
 import { setup as setupTerminalSplitCwdTests } from './terminal-splitCwd.test';
+import { setup as setupTerminalShellIntegrationTests } from './terminal-shellIntegration.test';
 
 export function setup(logger: Logger) {
 	describe('Terminal', function () {
@@ -47,6 +48,7 @@ export function setup(logger: Logger) {
 		setupTerminalPersistenceTests();
 		setupTerminalProfileTests();
 		setupTerminalTabsTests();
+		setupTerminalShellIntegrationTests();
 		if (!process.platform.startsWith('win')) {
 			setupTerminalSplitCwdTests();
 		}

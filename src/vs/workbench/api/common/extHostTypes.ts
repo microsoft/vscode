@@ -1594,13 +1594,9 @@ export class CompletionList {
 
 @es5ClassCompat
 export class InlineSuggestion implements vscode.InlineCompletionItem {
-	insertText?: string;
 
-	/**
-	 * @deprecated Use `insertText` instead. Will be removed eventually.
-	*/
-	text?: string;
-
+	filterText?: string;
+	insertText: string;
 	range?: Range;
 	command?: vscode.Command;
 
@@ -1611,14 +1607,13 @@ export class InlineSuggestion implements vscode.InlineCompletionItem {
 	}
 }
 
-/**
- * @deprecated Return an array of inline completion items directly. Will be removed eventually.
-*/
 @es5ClassCompat
-export class InlineSuggestions implements vscode.InlineCompletionList {
-	items: vscode.InlineCompletionItem[];
+export class InlineSuggestionList implements vscode.InlineCompletionList {
+	items: vscode.InlineCompletionItemNew[];
 
-	constructor(items: vscode.InlineCompletionItem[]) {
+	commands: vscode.Command[] | undefined = undefined;
+
+	constructor(items: vscode.InlineCompletionItemNew[]) {
 		this.items = items;
 	}
 }
@@ -1640,8 +1635,11 @@ export class InlineSuggestionNew implements vscode.InlineCompletionItemNew {
 export class InlineSuggestionsNew implements vscode.InlineCompletionListNew {
 	items: vscode.InlineCompletionItemNew[];
 
-	constructor(items: vscode.InlineCompletionItemNew[]) {
+	commands: vscode.Command[] | undefined;
+
+	constructor(items: vscode.InlineCompletionItemNew[], commands?: vscode.Command[]) {
 		this.items = items;
+		this.commands = commands;
 	}
 }
 
@@ -2387,6 +2385,10 @@ export class DataTransferItem {
 		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
 	}
 
+	asFile(): undefined {
+		return undefined;
+	}
+
 	constructor(public readonly value: any) { }
 }
 
@@ -2616,8 +2618,8 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 }
 
 export enum InlineCompletionTriggerKind {
-	Automatic = 0,
-	Explicit = 1,
+	Invoke = 0,
+	Automatic = 1,
 }
 
 export enum InlineCompletionTriggerKindNew {

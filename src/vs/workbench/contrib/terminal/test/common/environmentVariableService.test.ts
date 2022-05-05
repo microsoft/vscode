@@ -87,7 +87,7 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 			]);
 		});
 
-		test('should correctly apply the environment values from multiple extension contributions in the correct order', () => {
+		test('should correctly apply the environment values from multiple extension contributions in the correct order', async () => {
 			const collection1 = new Map<string, IEnvironmentVariableMutator>();
 			const collection2 = new Map<string, IEnvironmentVariableMutator>();
 			const collection3 = new Map<string, IEnvironmentVariableMutator>();
@@ -109,7 +109,7 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 
 			// Verify the entries get applied to the environment as expected
 			const env: IProcessEnvironment = { A: 'foo' };
-			environmentVariableService.mergedCollection.applyToProcessEnvironment(env);
+			await environmentVariableService.mergedCollection.applyToProcessEnvironment(env);
 			deepStrictEqual(env, { A: 'a2:a3:a1' });
 		});
 	});

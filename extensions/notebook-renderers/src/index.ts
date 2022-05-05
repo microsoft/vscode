@@ -174,7 +174,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	.output-plaintext,
 	.output-stream,
 	.traceback {
-		line-height: 22px;
+		line-height: var(--notebook-cell-output-line-height);
 		font-family: var(--notebook-cell-output-font-family);
 		white-space: pre-wrap;
 		word-wrap: break-word;
@@ -184,6 +184,9 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		-webkit-user-select: text;
 		-ms-user-select: text;
 		cursor: auto;
+	}
+	span.output-stream {
+		display: inline-block;
 	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,

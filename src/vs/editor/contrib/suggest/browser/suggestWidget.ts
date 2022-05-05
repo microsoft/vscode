@@ -223,6 +223,7 @@ export class SuggestWidget implements IDisposable {
 			alwaysConsumeMouseWheel: true,
 			useShadows: false,
 			mouseSupport: false,
+			multipleSelectionSupport: false,
 			accessibilityProvider: {
 				getRole: () => 'option',
 				getWidgetAriaLabel: () => nls.localize('suggest', "Suggest"),

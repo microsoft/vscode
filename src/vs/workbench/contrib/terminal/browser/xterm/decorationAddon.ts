@@ -74,6 +74,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._refreshStyles();
 			} else if (e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight)) {
 				this.refreshLayouts();
+			} else if (e.affectsConfiguration('workbench.colorCustomizations')) {
+				this._refreshStyles(true);
 			}
 		});
 		this._themeService.onDidColorThemeChange(() => this._refreshStyles(true));
@@ -95,10 +97,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				} else {
 					color = '';
 				}
-				if (decoration.decoration.overviewRulerOptions) {
-					decoration.decoration.overviewRulerOptions.color = color;
-				} else {
-					decoration.decoration.overviewRulerOptions = { color };
+				if (decoration.decoration.options?.overviewRulerOptions) {
+					decoration.decoration.options.overviewRulerOptions.color = color;
+				} else if (decoration.decoration.options) {
+					decoration.decoration.options.overviewRulerOptions = { color };
 				}
 			}
 		}

@@ -87,26 +87,26 @@ function getWorkspaceFolder(document: SkinnyTextDocument) {
 		|| vscode.workspace.workspaceFolders?.[0]?.uri;
 }
 
+interface MdLinkSource {
+	readonly text: string;
+	readonly resource: vscode.Uri;
+	readonly hrefRange: vscode.Range;
+	readonly fragmentRange: vscode.Range | undefined;
+}
+
 export interface MdInlineLink {
 	readonly kind: 'link';
-
+	readonly source: MdLinkSource;
 	readonly href: LinkHref;
-
-	readonly sourceText: string;
-	readonly sourceResource: vscode.Uri;
-	readonly sourceHrefRange: vscode.Range;
 }
 
 export interface MdLinkDefinition {
 	readonly kind: 'definition';
-
-	readonly sourceText: string;
-	readonly sourceResource: vscode.Uri;
-	readonly sourceHrefRange: vscode.Range;
-
-	readonly refRange: vscode.Range;
-
-	readonly ref: string;
+	readonly source: MdLinkSource;
+	readonly ref: {
+		readonly range: vscode.Range;
+		readonly text: string;
+	};
 	readonly href: ExternalHref | InternalHref;
 }
 
@@ -129,13 +129,24 @@ function extractDocumentLink(
 		return {
 			kind: 'link',
 			href: linkTarget,
-			sourceText: link,
-			sourceResource: document.uri,
-			sourceHrefRange: new vscode.Range(linkStart, linkEnd)
+			source: {
+				text: link,
+				resource: document.uri,
+				hrefRange: new vscode.Range(linkStart, linkEnd),
+				fragmentRange: getFragmentRange(link, linkStart, linkEnd),
+			}
 		};
 	} catch {
 		return undefined;
 	}
+}
+
+function getFragmentRange(text: string, start: vscode.Position, end: vscode.Position): vscode.Range | undefined {
+	const index = text.indexOf('#');
+	if (index < 0) {
+		return undefined;
+	}
+	return new vscode.Range(start.translate({ characterDelta: index + 1 }), end);
 }
 
 const angleBracketLinkRe = /^<(.*)>$/;
@@ -158,6 +169,11 @@ const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*
  * Matches `[text][ref]`
  */
 const referenceLinkPattern = /(?:(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]|\[\s*?([^\s\]]*?)\])(?![\:\(])/g;
+
+/**
+ * Matches `<http://example.com>`
+ */
+const autoLinkPattern = /\<(\w+:[^\>\s]+)\>/g;
 
 /**
  * Matches `[text]: link`
@@ -191,9 +207,9 @@ async function findCode(document: SkinnyTextDocument, engine: MarkdownEngine): P
 	return { multiline, inline };
 }
 
-function isLinkInsideCode(code: CodeInDocument, link: MdLink) {
-	return code.multiline.some(interval => link.sourceHrefRange.start.line >= interval[0] && link.sourceHrefRange.start.line < interval[1]) ||
-		code.inline.some(position => position.intersection(link.sourceHrefRange));
+function isLinkInsideCode(code: CodeInDocument, linkHrefRange: vscode.Range) {
+	return code.multiline.some(interval => linkHrefRange.start.line >= interval[0] && linkHrefRange.start.line < interval[1]) ||
+		code.inline.some(position => position.intersection(linkHrefRange));
 }
 
 export class MdLinkProvider implements vscode.DocumentLinkProvider {
@@ -206,7 +222,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 		document: SkinnyTextDocument,
 		token: vscode.CancellationToken
 	): Promise<vscode.DocumentLink[]> {
-		const allLinks = await this.getAllLinks(document);
+		const allLinks = await this.getAllLinks(document, token);
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -219,11 +235,11 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 	private toValidDocumentLink(link: MdLink, definitionSet: LinkDefinitionSet): vscode.DocumentLink | undefined {
 		switch (link.href.kind) {
 			case 'external': {
-				return new vscode.DocumentLink(link.sourceHrefRange, link.href.uri);
+				return new vscode.DocumentLink(link.source.hrefRange, link.href.uri);
 			}
 			case 'internal': {
-				const uri = OpenDocumentLinkCommand.createCommandUri(link.sourceResource, link.href.path, link.href.fragment);
-				const documentLink = new vscode.DocumentLink(link.sourceHrefRange, uri);
+				const uri = OpenDocumentLinkCommand.createCommandUri(link.source.resource, link.href.path, link.href.fragment);
+				const documentLink = new vscode.DocumentLink(link.source.hrefRange, uri);
 				documentLink.tooltip = localize('documentLink.tooltip', 'Follow link');
 				return documentLink;
 			}
@@ -231,8 +247,8 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				const def = definitionSet.lookup(link.href.ref);
 				if (def) {
 					return new vscode.DocumentLink(
-						link.sourceHrefRange,
-						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([def.sourceHrefRange.start.line, def.sourceHrefRange.start.character]))}`));
+						link.source.hrefRange,
+						vscode.Uri.parse(`command:_markdown.moveCursorToPosition?${encodeURIComponent(JSON.stringify([def.source.hrefRange.start.line, def.source.hrefRange.start.character]))}`));
 				} else {
 					return undefined;
 				}
@@ -240,33 +256,64 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 		}
 	}
 
-	public async getAllLinks(document: SkinnyTextDocument): Promise<MdLink[]> {
+	public async getAllLinks(document: SkinnyTextDocument, token: vscode.CancellationToken): Promise<MdLink[]> {
+		const codeInDocument = await findCode(document, this.engine);
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
 		return Array.from([
-			...(await this.getInlineLinks(document)),
-			...this.getReferenceLinks(document),
-			...this.getLinkDefinitions(document),
+			...this.getInlineLinks(document, codeInDocument),
+			...this.getReferenceLinks(document, codeInDocument),
+			...this.getLinkDefinitions2(document, codeInDocument),
+			...this.getAutoLinks(document, codeInDocument),
 		]);
 	}
 
-	private async getInlineLinks(document: SkinnyTextDocument): Promise<MdLink[]> {
+	private *getInlineLinks(document: SkinnyTextDocument, codeInDocument: CodeInDocument): Iterable<MdLink> {
 		const text = document.getText();
 
-		const results: MdLink[] = [];
-		const codeInDocument = await findCode(document, this.engine);
 		for (const match of text.matchAll(linkPattern)) {
 			const matchImageData = match[4] && extractDocumentLink(document, match[3].length + 1, match[4], match.index);
-			if (matchImageData && !isLinkInsideCode(codeInDocument, matchImageData)) {
-				results.push(matchImageData);
+			if (matchImageData && !isLinkInsideCode(codeInDocument, matchImageData.source.hrefRange)) {
+				yield matchImageData;
 			}
 			const matchLinkData = extractDocumentLink(document, match[1].length, match[5], match.index);
-			if (matchLinkData && !isLinkInsideCode(codeInDocument, matchLinkData)) {
-				results.push(matchLinkData);
+			if (matchLinkData && !isLinkInsideCode(codeInDocument, matchLinkData.source.hrefRange)) {
+				yield matchLinkData;
 			}
 		}
-		return results;
 	}
 
-	private *getReferenceLinks(document: SkinnyTextDocument): Iterable<MdLink> {
+	private *getAutoLinks(document: SkinnyTextDocument, codeInDocument: CodeInDocument): Iterable<MdLink> {
+		const text = document.getText();
+
+		for (const match of text.matchAll(autoLinkPattern)) {
+			const link = match[1];
+			const linkTarget = parseLink(document, link);
+			if (linkTarget) {
+				const offset = (match.index ?? 0) + 1;
+				const linkStart = document.positionAt(offset);
+				const linkEnd = document.positionAt(offset + link.length);
+				const hrefRange = new vscode.Range(linkStart, linkEnd);
+				if (isLinkInsideCode(codeInDocument, hrefRange)) {
+					continue;
+				}
+				yield {
+					kind: 'link',
+					href: linkTarget,
+					source: {
+						text: link,
+						resource: document.uri,
+						hrefRange: new vscode.Range(linkStart, linkEnd),
+						fragmentRange: getFragmentRange(link, linkStart, linkEnd),
+					}
+				};
+			}
+		}
+	}
+
+	private *getReferenceLinks(document: SkinnyTextDocument, codeInDocument: CodeInDocument): Iterable<MdLink> {
 		const text = document.getText();
 		for (const match of text.matchAll(referenceLinkPattern)) {
 			let linkStart: vscode.Position;
@@ -286,11 +333,19 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				continue;
 			}
 
+			const hrefRange = new vscode.Range(linkStart, linkEnd);
+			if (isLinkInsideCode(codeInDocument, hrefRange)) {
+				continue;
+			}
+
 			yield {
 				kind: 'link',
-				sourceText: reference,
-				sourceHrefRange: new vscode.Range(linkStart, linkEnd),
-				sourceResource: document.uri,
+				source: {
+					text: reference,
+					resource: document.uri,
+					hrefRange,
+					fragmentRange: undefined,
+				},
 				href: {
 					kind: 'reference',
 					ref: reference,
@@ -299,7 +354,12 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 		}
 	}
 
-	public *getLinkDefinitions(document: SkinnyTextDocument): Iterable<MdLinkDefinition> {
+	public async getLinkDefinitions(document: SkinnyTextDocument): Promise<Iterable<MdLinkDefinition>> {
+		const codeInDocument = await findCode(document, this.engine);
+		return this.getLinkDefinitions2(document, codeInDocument);
+	}
+
+	private *getLinkDefinitions2(document: SkinnyTextDocument, codeInDocument: CodeInDocument): Iterable<MdLinkDefinition> {
 		const text = document.getText();
 		for (const match of text.matchAll(definitionPattern)) {
 			const pre = match[1];
@@ -310,37 +370,35 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 			const refStart = document.positionAt((match.index ?? 0) + 1);
 			const refRange = new vscode.Range(refStart, refStart.translate({ characterDelta: reference.length }));
 
+			let linkStart: vscode.Position;
+			let linkEnd: vscode.Position;
+			let text: string;
 			if (angleBracketLinkRe.test(link)) {
-				const linkStart = document.positionAt(offset + 1);
-				const linkEnd = document.positionAt(offset + link.length - 1);
-				const text = link.substring(1, link.length - 1);
-				const target = parseLink(document, text);
-				if (target) {
-					yield {
-						kind: 'definition',
-						sourceText: link,
-						sourceResource: document.uri,
-						sourceHrefRange: new vscode.Range(linkStart, linkEnd),
-						refRange,
-						ref: reference,
-						href: target,
-					};
-				}
+				linkStart = document.positionAt(offset + 1);
+				linkEnd = document.positionAt(offset + link.length - 1);
+				text = link.substring(1, link.length - 1);
 			} else {
-				const linkStart = document.positionAt(offset);
-				const linkEnd = document.positionAt(offset + link.length);
-				const target = parseLink(document, link);
-				if (target) {
-					yield {
-						kind: 'definition',
-						sourceText: link,
-						sourceResource: document.uri,
-						sourceHrefRange: new vscode.Range(linkStart, linkEnd),
-						refRange,
-						ref: reference,
-						href: target,
-					};
-				}
+				linkStart = document.positionAt(offset);
+				linkEnd = document.positionAt(offset + link.length);
+				text = link;
+			}
+			const hrefRange = new vscode.Range(linkStart, linkEnd);
+			if (isLinkInsideCode(codeInDocument, hrefRange)) {
+				continue;
+			}
+			const target = parseLink(document, text);
+			if (target) {
+				yield {
+					kind: 'definition',
+					source: {
+						text: link,
+						resource: document.uri,
+						hrefRange,
+						fragmentRange: getFragmentRange(link, linkStart, linkEnd),
+					},
+					ref: { text: reference, range: refRange },
+					href: target,
+				};
 			}
 		}
 	}
@@ -352,7 +410,7 @@ export class LinkDefinitionSet {
 	constructor(links: Iterable<MdLink>) {
 		for (const link of links) {
 			if (link.kind === 'definition') {
-				this._map.set(link.ref, link);
+				this._map.set(link.ref.text, link);
 			}
 		}
 	}

@@ -473,7 +473,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			return;
 		}
 
-		if (!model.isCheapToTokenize(range.getStartPosition().lineNumber)) {
+		if (!model.tokenization.isCheapToTokenize(range.getStartPosition().lineNumber)) {
 			return;
 		}
 		const autoIndent = this.editor.getOption(EditorOption.autoIndent);
@@ -546,14 +546,16 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 		if (startLineNumber !== range.endLineNumber) {
 			let virtualModel = {
-				getLineTokens: (lineNumber: number) => {
-					return model.getLineTokens(lineNumber);
-				},
-				getLanguageId: () => {
-					return model.getLanguageId();
-				},
-				getLanguageIdAtPosition: (lineNumber: number, column: number) => {
-					return model.getLanguageIdAtPosition(lineNumber, column);
+				tokenization: {
+					getLineTokens: (lineNumber: number) => {
+						return model.tokenization.getLineTokens(lineNumber);
+					},
+					getLanguageId: () => {
+						return model.getLanguageId();
+					},
+					getLanguageIdAtPosition: (lineNumber: number, column: number) => {
+						return model.getLanguageIdAtPosition(lineNumber, column);
+					},
 				},
 				getLineContent: (lineNumber: number) => {
 					if (lineNumber === firstLineNumber) {
@@ -597,12 +599,12 @@ export class AutoIndentOnPaste implements IEditorContribution {
 	}
 
 	private shouldIgnoreLine(model: ITextModel, lineNumber: number): boolean {
-		model.forceTokenization(lineNumber);
+		model.tokenization.forceTokenization(lineNumber);
 		let nonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
 		if (nonWhitespaceColumn === 0) {
 			return true;
 		}
-		let tokens = model.getLineTokens(lineNumber);
+		let tokens = model.tokenization.getLineTokens(lineNumber);
 		if (tokens.getCount() > 0) {
 			let firstNonWhitespaceTokenIndex = tokens.findTokenIndexAtOffset(nonWhitespaceColumn);
 			if (firstNonWhitespaceTokenIndex >= 0 && tokens.getStandardTokenType(firstNonWhitespaceTokenIndex) === StandardTokenType.Comment) {

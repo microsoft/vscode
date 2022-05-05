@@ -18,6 +18,7 @@ import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contig
 import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
 import { setTimeout0 } from 'vs/base/common/platform';
 import { IModelContentChangedEvent, IModelLanguageChangedEvent } from 'vs/editor/common/textModelEvents';
+import { TokenizationTextModelPart } from 'vs/editor/common/model/tokenizationTextModelPart';
 
 const enum Constants {
 	CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048
@@ -166,6 +167,7 @@ export class TextModelTokenization extends Disposable {
 
 	constructor(
 		private readonly _textModel: TextModel,
+		private readonly _tokenizationPart: TokenizationTextModelPart,
 		private readonly _languageIdCodec: ILanguageIdCodec
 	) {
 		super();
@@ -179,7 +181,7 @@ export class TextModelTokenization extends Disposable {
 			}
 
 			this._resetTokenizationState();
-			this._textModel.clearTokens();
+			this._tokenizationPart.clearTokens();
 		}));
 
 		this._resetTokenizationState();
@@ -214,13 +216,13 @@ export class TextModelTokenization extends Disposable {
 
 	public handleDidChangeLanguage(e: IModelLanguageChangedEvent): void {
 		this._resetTokenizationState();
-		this._textModel.clearTokens();
+		this._tokenizationPart.clearTokens();
 	}
 
 	//#endregion
 
 	private _resetTokenizationState(): void {
-		const [tokenizationSupport, initialState] = initializeTokenization(this._textModel);
+		const [tokenizationSupport, initialState] = initializeTokenization(this._textModel, this._tokenizationPart);
 		if (tokenizationSupport && initialState) {
 			this._tokenizationStateStore = new TokenizationStateStore(tokenizationSupport, initialState);
 		} else {
@@ -294,24 +296,24 @@ export class TextModelTokenization extends Disposable {
 			}
 		} while (this._hasLinesToTokenize());
 
-		this._textModel.setTokens(builder.finalize(), this._isTokenizationComplete());
+		this._tokenizationPart.setTokens(builder.finalize(), this._isTokenizationComplete());
 	}
 
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
 		const builder = new ContiguousMultilineTokensBuilder();
 		this._tokenizeViewport(builder, startLineNumber, endLineNumber);
-		this._textModel.setTokens(builder.finalize(), this._isTokenizationComplete());
+		this._tokenizationPart.setTokens(builder.finalize(), this._isTokenizationComplete());
 	}
 
 	public reset(): void {
 		this._resetTokenizationState();
-		this._textModel.clearTokens();
+		this._tokenizationPart.clearTokens();
 	}
 
 	public forceTokenization(lineNumber: number): void {
 		const builder = new ContiguousMultilineTokensBuilder();
 		this._updateTokensUntilLine(builder, lineNumber);
-		this._textModel.setTokens(builder.finalize(), this._isTokenizationComplete());
+		this._tokenizationPart.setTokens(builder.finalize(), this._isTokenizationComplete());
 	}
 
 	public getTokenTypeIfInsertingCharacter(position: Position, character: string): StandardTokenType {
@@ -499,11 +501,11 @@ export class TextModelTokenization extends Disposable {
 	}
 }
 
-function initializeTokenization(textModel: TextModel): [ITokenizationSupport, IState] | [null, null] {
+function initializeTokenization(textModel: TextModel, tokenizationPart: TokenizationTextModelPart): [ITokenizationSupport, IState] | [null, null] {
 	if (textModel.isTooLargeForTokenization()) {
 		return [null, null];
 	}
-	const tokenizationSupport = TokenizationRegistry.get(textModel.getLanguageId());
+	const tokenizationSupport = TokenizationRegistry.get(tokenizationPart.getLanguageId());
 	if (!tokenizationSupport) {
 		return [null, null];
 	}

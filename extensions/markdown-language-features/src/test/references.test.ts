@@ -9,11 +9,12 @@ import * as vscode from 'vscode';
 import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { MdReferencesProvider } from '../languageFeatures/references';
 import { githubSlugifier } from '../slugify';
+import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
-import { joinLines, noopToken, workspacePath } from './util';
+import { joinLines, workspacePath } from './util';
 
 
 function getReferences(doc: InMemoryDocument, pos: vscode.Position, workspaceContents: MdWorkspaceContents) {
@@ -23,7 +24,7 @@ function getReferences(doc: InMemoryDocument, pos: vscode.Position, workspaceCon
 	return provider.provideReferences(doc, pos, { includeDeclaration: true }, noopToken);
 }
 
-function assertReferencesEqual(actualRefs: readonly vscode.Location[], ...expectedRefs: { uri: vscode.Uri; line: number }[]) {
+function assertReferencesEqual(actualRefs: readonly vscode.Location[], ...expectedRefs: { uri: vscode.Uri; line: number; startCharacter?: number; endCharacter?: number }[]) {
 	assert.strictEqual(actualRefs.length, expectedRefs.length, `Reference counts should match`);
 
 	for (let i = 0; i < actualRefs.length; ++i) {
@@ -32,6 +33,12 @@ function assertReferencesEqual(actualRefs: readonly vscode.Location[], ...expect
 		assert.strictEqual(actual.uri.toString(), expected.uri.toString(), `Ref '${i}' has expected document`);
 		assert.strictEqual(actual.range.start.line, expected.line, `Ref '${i}' has expected start line`);
 		assert.strictEqual(actual.range.end.line, expected.line, `Ref '${i}' has expected end line`);
+		if (typeof expected.startCharacter !== 'undefined') {
+			assert.strictEqual(actual.range.start.character, expected.startCharacter, `Ref '${i}' has expected start character`);
+		}
+		if (typeof expected.endCharacter !== 'undefined') {
+			assert.strictEqual(actual.range.end.character, expected.endCharacter, `Ref '${i}' has expected end character`);
+		}
 	}
 }
 
@@ -158,7 +165,7 @@ suite('markdown: find all references', () => {
 		);
 	});
 
-	test('Should find references from link definition', async () => {
+	test('Should find header references from link definition', async () => {
 		const uri = workspacePath('doc.md');
 		const doc = new InMemoryDocument(uri, joinLines(
 			`# A b C`,
@@ -265,7 +272,7 @@ suite('markdown: find all references', () => {
 			`[without ext](./sub/other.md#header)`,
 		));
 
-		const refs = await getReferences(doc, new vscode.Position(0, 15), new InMemoryWorkspaceMarkdownDocuments([
+		const refs = await getReferences(doc, new vscode.Position(0, 23), new InMemoryWorkspaceMarkdownDocuments([
 			doc,
 			new InMemoryDocument(other1Uri, joinLines(
 				`pre`,
@@ -312,7 +319,7 @@ suite('markdown: find all references', () => {
 		const otherUri = workspacePath('sub', 'other.md');
 
 		const doc = new InMemoryDocument(docUri, joinLines(
-			`[other](./sub/other)`,
+			`[other](./sub/other)`, // trigger here
 		));
 
 		const refs = await getReferences(doc, new vscode.Position(0, 15), new InMemoryWorkspaceMarkdownDocuments([
@@ -325,6 +332,160 @@ suite('markdown: find all references', () => {
 
 		assertReferencesEqual(refs!,
 			{ uri: docUri, line: 0 },
+		);
+	});
+
+	test('Should find explicit references to own file ', async () => {
+		const uri = workspacePath('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`[bare](doc.md)`, // trigger here
+			`[rel](./doc.md)`,
+			`[abs](/doc.md)`,
+		));
+
+		const refs = await getReferences(doc, new vscode.Position(0, 12), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assertReferencesEqual(refs!,
+			{ uri, line: 0 },
+			{ uri, line: 1 },
+			{ uri, line: 2 },
+		);
+	});
+
+	test('Should support finding references to http uri', async () => {
+		const uri = workspacePath('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`[1](http://example.com)`,
+			`[no](https://example.com)`,
+			`[2](http://example.com)`,
+			`[3]: http://example.com`,
+		));
+
+		const refs = await getReferences(doc, new vscode.Position(0, 13), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assertReferencesEqual(refs!,
+			{ uri, line: 0 },
+			{ uri, line: 2 },
+			{ uri, line: 3 },
+		);
+	});
+
+	test('Should consider authority, scheme and paths when finding references to http uri', async () => {
+		const uri = workspacePath('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`[1](http://example.com/cat)`,
+			`[2](http://example.com)`,
+			`[3](http://example.com/dog)`,
+			`[4](http://example.com/cat/looong)`,
+			`[5](http://example.com/cat)`,
+			`[6](http://other.com/cat)`,
+			`[7](https://example.com/cat)`,
+		));
+
+		const refs = await getReferences(doc, new vscode.Position(0, 13), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assertReferencesEqual(refs!,
+			{ uri, line: 0 },
+			{ uri, line: 4 },
+		);
+	});
+
+	test('Should support finding references to http uri across files', async () => {
+		const uri1 = workspacePath('doc.md');
+		const uri2 = workspacePath('doc2.md');
+		const doc = new InMemoryDocument(uri1, joinLines(
+			`[1](http://example.com)`,
+			`[3]: http://example.com`,
+		));
+
+		const refs = await getReferences(doc, new vscode.Position(0, 13), new InMemoryWorkspaceMarkdownDocuments([
+			doc,
+			new InMemoryDocument(uri2, joinLines(
+				`[other](http://example.com)`,
+			))
+		]));
+		assertReferencesEqual(refs!,
+			{ uri: uri1, line: 0 },
+			{ uri: uri1, line: 1 },
+			{ uri: uri2, line: 0 },
+		);
+	});
+
+	test('Should support finding references to autolinked http links', async () => {
+		const uri = workspacePath('doc.md');
+		const doc = new InMemoryDocument(uri, joinLines(
+			`[1](http://example.com)`,
+			`<http://example.com>`,
+		));
+
+		const refs = await getReferences(doc, new vscode.Position(0, 13), new InMemoryWorkspaceMarkdownDocuments([doc]));
+		assertReferencesEqual(refs!,
+			{ uri, line: 0 },
+			{ uri, line: 1 },
+		);
+	});
+
+	test('Should distinguish between references to file and to header within file', async () => {
+		const docUri = workspacePath('doc.md');
+		const other1Uri = workspacePath('sub', 'other.md');
+
+		const doc = new InMemoryDocument(docUri, joinLines(
+			`# abc`,
+			``,
+			`[link 1](#abc)`,
+		));
+		const otherDoc = new InMemoryDocument(other1Uri, joinLines(
+			`[link](/doc.md#abc)`,
+			`[link no text](/doc#abc)`,
+		));
+		const workspaceContents = new InMemoryWorkspaceMarkdownDocuments([
+			doc,
+			otherDoc,
+		]);
+		{
+			// Check refs to header fragment
+			const headerRefs = await getReferences(otherDoc, new vscode.Position(0, 16), workspaceContents);
+			assertReferencesEqual(headerRefs!,
+				{ uri: docUri, line: 0 }, // Header definition
+				{ uri: docUri, line: 2 },
+				{ uri: other1Uri, line: 0 },
+				{ uri: other1Uri, line: 1 },
+			);
+		}
+		{
+			// Check refs to file itself from link with ext
+			const fileRefs = await getReferences(otherDoc, new vscode.Position(0, 9), workspaceContents);
+			assertReferencesEqual(fileRefs!,
+				{ uri: other1Uri, line: 0, endCharacter: 14 },
+				{ uri: other1Uri, line: 1, endCharacter: 19 },
+			);
+		}
+		{
+			// Check refs to file itself from link without ext
+			const fileRefs = await getReferences(otherDoc, new vscode.Position(1, 17), workspaceContents);
+			assertReferencesEqual(fileRefs!,
+				{ uri: other1Uri, line: 0 },
+				{ uri: other1Uri, line: 1 },
+			);
+		}
+	});
+
+	test('Should support finding references to unknown file', async () => {
+		const uri1 = workspacePath('doc1.md');
+		const doc1 = new InMemoryDocument(uri1, joinLines(
+			`![img](/images/more/image.png)`,
+			``,
+			`[ref]: /images/more/image.png`,
+		));
+
+		const uri2 = workspacePath('sub', 'doc2.md');
+		const doc2 = new InMemoryDocument(uri2, joinLines(
+			`![img](/images/more/image.png)`,
+		));
+
+
+		const refs = await getReferences(doc1, new vscode.Position(0, 10), new InMemoryWorkspaceMarkdownDocuments([doc1, doc2]));
+		assertReferencesEqual(refs!,
+			{ uri: uri1, line: 0 },
+			{ uri: uri1, line: 2 },
+			{ uri: uri2, line: 0 },
 		);
 	});
 
@@ -342,6 +503,42 @@ suite('markdown: find all references', () => {
 				{ uri: docUri, line: 0 },
 				{ uri: docUri, line: 2 },
 			);
+		});
+
+		test('Should find reference links using shorthand', async () => {
+			const docUri = workspacePath('doc.md');
+			const doc = new InMemoryDocument(docUri, joinLines(
+				`[ref]`, // trigger 1
+				``,
+				`[yes][ref]`, // trigger 2
+				``,
+				`[ref]: /Hello.md` // trigger 3
+			));
+
+			{
+				const refs = await getReferences(doc, new vscode.Position(0, 2), new InMemoryWorkspaceMarkdownDocuments([doc]));
+				assertReferencesEqual(refs!,
+					{ uri: docUri, line: 0 },
+					{ uri: docUri, line: 2 },
+					{ uri: docUri, line: 4 },
+				);
+			}
+			{
+				const refs = await getReferences(doc, new vscode.Position(2, 7), new InMemoryWorkspaceMarkdownDocuments([doc]));
+				assertReferencesEqual(refs!,
+					{ uri: docUri, line: 0 },
+					{ uri: docUri, line: 2 },
+					{ uri: docUri, line: 4 },
+				);
+			}
+			{
+				const refs = await getReferences(doc, new vscode.Position(4, 2), new InMemoryWorkspaceMarkdownDocuments([doc]));
+				assertReferencesEqual(refs!,
+					{ uri: docUri, line: 0 },
+					{ uri: docUri, line: 2 },
+					{ uri: docUri, line: 4 },
+				);
+			}
 		});
 
 		test('Should find reference links within file from definition', async () => {

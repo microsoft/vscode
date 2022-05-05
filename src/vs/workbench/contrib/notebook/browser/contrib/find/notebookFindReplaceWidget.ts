@@ -15,7 +15,7 @@ import 'vs/css!./notebookFindReplaceWidget';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/browser/findState';
 import { findNextMatchIcon, findPreviousMatchIcon, findReplaceAllIcon, findReplaceIcon, SimpleButton } from 'vs/editor/contrib/find/browser/findWidget';
 import * as nls from 'vs/nls';
-import { ContextScopedReplaceInput, createAndBindHistoryNavigationWidgetScopedContextKeyService, IContextScopedHistoryNavigationWidget } from 'vs/platform/history/browser/contextScopedHistoryWidget';
+import { ContextScopedReplaceInput, registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { editorWidgetBackground, editorWidgetForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
@@ -34,6 +34,7 @@ import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { filterIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
+import { isSafari } from 'vs/base/common/platform';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -73,57 +74,73 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 	}
 
 	private getActions(): IAction[] {
-		return [
-			{
-				checked: this.filters.markupInput,
-				class: undefined,
-				enabled: !this.filters.markupPreview,
-				id: 'findInMarkdownInput',
-				label: NOTEBOOK_FIND_IN_MARKUP_INPUT,
-				run: async () => {
-					this.filters.markupInput = !this.filters.markupInput;
-				},
-				tooltip: '',
-				dispose: () => null
+		const markdownInput: IAction = {
+			checked: this.filters.markupInput,
+			class: undefined,
+			enabled: !this.filters.markupPreview,
+			id: 'findInMarkdownInput',
+			label: NOTEBOOK_FIND_IN_MARKUP_INPUT,
+			run: async () => {
+				this.filters.markupInput = !this.filters.markupInput;
 			},
-			{
-				checked: this.filters.markupPreview,
-				class: undefined,
-				enabled: true,
-				id: 'findInMarkdownInput',
-				label: NOTEBOOK_FIND_IN_MARKUP_PREVIEW,
-				run: async () => {
-					this.filters.markupPreview = !this.filters.markupPreview;
-				},
-				tooltip: '',
-				dispose: () => null
+			tooltip: '',
+			dispose: () => null
+		};
+
+		const markdownPreview: IAction = {
+			checked: this.filters.markupPreview,
+			class: undefined,
+			enabled: true,
+			id: 'findInMarkdownInput',
+			label: NOTEBOOK_FIND_IN_MARKUP_PREVIEW,
+			run: async () => {
+				this.filters.markupPreview = !this.filters.markupPreview;
 			},
-			new Separator(),
-			{
-				checked: this.filters.codeInput,
-				class: undefined,
-				enabled: true,
-				id: 'findInCodeInput',
-				label: NOTEBOOK_FIND_IN_CODE_INPUT,
-				run: async () => {
-					this.filters.codeInput = !this.filters.codeInput;
-				},
-				tooltip: '',
-				dispose: () => null
+			tooltip: '',
+			dispose: () => null
+		};
+
+		const codeInput: IAction = {
+			checked: this.filters.codeInput,
+			class: undefined,
+			enabled: true,
+			id: 'findInCodeInput',
+			label: NOTEBOOK_FIND_IN_CODE_INPUT,
+			run: async () => {
+				this.filters.codeInput = !this.filters.codeInput;
 			},
-			{
-				checked: this.filters.codeOutput,
-				class: undefined,
-				enabled: true,
-				id: 'findInCodeOutput',
-				label: NOTEBOOK_FIND_IN_CODE_OUTPUT,
-				run: async () => {
-					this.filters.codeOutput = !this.filters.codeOutput;
-				},
-				tooltip: '',
-				dispose: () => null
+			tooltip: '',
+			dispose: () => null
+		};
+
+		const codeOutput = {
+			checked: this.filters.codeOutput,
+			class: undefined,
+			enabled: true,
+			id: 'findInCodeOutput',
+			label: NOTEBOOK_FIND_IN_CODE_OUTPUT,
+			run: async () => {
+				this.filters.codeOutput = !this.filters.codeOutput;
 			},
-		];
+			tooltip: '',
+			dispose: () => null
+		};
+
+		if (isSafari) {
+			return [
+				markdownInput,
+				codeInput
+			];
+		} else {
+			return [
+				markdownInput,
+				markdownPreview,
+				new Separator(),
+				codeInput,
+				codeOutput,
+			];
+		}
+
 	}
 
 	override updateChecked(): void {
@@ -145,7 +162,7 @@ class NotebookFindInput extends FindInput {
 		parent: HTMLElement | null, contextViewProvider: IContextViewProvider, showOptionButtons: boolean, options: IFindInputOptions) {
 		super(parent, contextViewProvider, showOptionButtons, options);
 
-		this._register(createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.inputBox.element, historyNavigator: this.inputBox }).scopedContextKeyService);
+		this._register(registerAndCreateHistoryNavigationContext(contextKeyService, this.inputBox));
 		this._filtersAction = new Action('notebookFindFilterAction', NOTEBOOK_FIND_FILTERS, 'notebook-filters ' + ThemeIcon.asClassName(filterIcon));
 		this._filtersAction.checked = false;
 		this._filterButtonContainer = dom.$('.find-filter-button');
@@ -597,7 +614,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._findInput.focus();
 	}
 
-	public show(initialInput?: string): void {
+	public show(initialInput?: string, options?: { focus?: boolean }): void {
 		if (initialInput && !this._isVisible) {
 			this._findInput.setValue(initialInput);
 		}
@@ -608,7 +625,9 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this._domNode.classList.add('visible', 'visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'false');
 
-			this.focus();
+			if (options?.focus ?? true) {
+				this.focus();
+			}
 		}, 0);
 	}
 

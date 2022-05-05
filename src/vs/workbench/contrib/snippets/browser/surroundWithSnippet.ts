@@ -38,7 +38,7 @@ registerAction2(class SurroundWithAction extends EditorAction2 {
 		}
 
 		const { lineNumber, column } = editor.getPosition();
-		editor.getModel().tokenizeIfCheap(lineNumber);
+		editor.getModel().tokenization.tokenizeIfCheap(lineNumber);
 		const languageId = editor.getModel().getLanguageIdAtPosition(lineNumber, column);
 
 		const allSnippets = await snippetService.getSnippets(languageId, { includeNoPrefixSnippets: true, includeDisabledSnippets: true });
