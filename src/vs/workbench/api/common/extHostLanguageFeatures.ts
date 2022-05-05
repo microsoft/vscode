@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
 import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKindNew } from 'vs/workbench/api/common/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKindNew, InlineCompletionTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import * as languages from 'vs/editor/common/languages';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -32,7 +32,6 @@ import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostAp
 import { Cache } from './cache';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { isCancellationError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
 import { raceCancellationError } from 'vs/base/common/async';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { DataTransferConverter, DataTransferDTO } from 'vs/workbench/api/common/shared/dataTransfer';
@@ -1033,16 +1032,30 @@ class InlineCompletionAdapterBase {
 }
 
 class InlineCompletionAdapter extends InlineCompletionAdapterBase {
-	private readonly _cache = new Cache<vscode.InlineCompletionItem>('InlineCompletionItem');
-	private readonly _disposables = new Map<number, DisposableStore>();
+	private readonly _references = new ReferenceMap<{
+		dispose(): void;
+		items: readonly vscode.InlineCompletionItem[];
+	}>();
+
+	private readonly _isAdditionsProposedApiEnabled = isProposedApiEnabled(this._extension, 'inlineCompletionsAdditions');
 
 	constructor(
+		private readonly _extension: IExtensionDescription,
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.InlineCompletionItemProvider,
 		private readonly _commands: CommandsConverter,
 	) {
 		super();
 	}
+
+	public get supportsHandleDidShowCompletionItem(): boolean {
+		return isProposedApiEnabled(this._extension, 'inlineCompletionsAdditions') && typeof this._provider.handleDidShowCompletionItem === 'function';
+	}
+
+	private readonly languageTriggerKindToVSCodeTriggerKind: Record<languages.InlineCompletionTriggerKind, InlineCompletionTriggerKind> = {
+		[languages.InlineCompletionTriggerKind.Automatic]: InlineCompletionTriggerKind.Automatic,
+		[languages.InlineCompletionTriggerKind.Explicit]: InlineCompletionTriggerKind.Invoke,
+	};
 
 	override async provideInlineCompletions(resource: URI, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
 		const doc = this._documents.getDocument(resource);
@@ -1053,12 +1066,10 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 				context.selectedSuggestionInfo
 					? {
 						range: typeConvert.Range.to(context.selectedSuggestionInfo.range),
-						text: context.selectedSuggestionInfo.text,
-						isSnippetText: context.selectedSuggestionInfo.isSnippetText,
-						completionKind: typeConvert.CompletionItemKind.to(context.selectedSuggestionInfo.completionKind),
+						text: context.selectedSuggestionInfo.text
 					}
 					: undefined,
-			triggerKind: context.triggerKind
+			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind]
 		}, token);
 
 		if (!result) {
@@ -1073,9 +1084,17 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 		}
 
 		const normalizedResult = isArray(result) ? result : result.items;
+		const commands = this._isAdditionsProposedApiEnabled ? isArray(result) ? [] : result.commands || [] : [];
 
-		const pid = this._cache.add(normalizedResult);
 		let disposableStore: DisposableStore | undefined = undefined;
+		const pid = this._references.createReferenceId({
+			dispose() {
+				if (disposableStore) {
+					disposableStore.dispose();
+				}
+			},
+			items: normalizedResult
+		});
 
 		return {
 			pid,
@@ -1084,41 +1103,40 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 				if (item.command) {
 					if (!disposableStore) {
 						disposableStore = new DisposableStore();
-						this._disposables.set(pid, disposableStore);
 					}
 					command = this._commands.toInternal(item.command, disposableStore);
 				}
 
-				const insertText = item.insertText ?? item.text;
-				if (insertText === undefined) {
-					throw new Error('text or insertText must be defined');
-				}
+				const insertText = item.insertText;
 				return ({
 					insertText: typeof insertText === 'string' ? insertText : { snippet: insertText.value },
+					filterText: item.filterText,
 					range: item.range ? typeConvert.Range.from(item.range) : undefined,
 					command,
 					idx: idx,
-					completeBracketPairs: item.completeBracketPairs
+					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false
 				});
 			}),
+			commands: commands.map(c => {
+				if (!disposableStore) {
+					disposableStore = new DisposableStore();
+				}
+				return this._commands.toInternal(c, disposableStore);
+			})
 		};
 	}
 
 	override disposeCompletions(pid: number) {
-		this._cache.delete(pid);
-		const d = this._disposables.get(pid);
-		if (d) {
-			d.clear();
-		}
-		this._disposables.delete(pid);
+		const data = this._references.disposeReferenceId(pid);
+		data?.dispose();
 	}
 
 	override handleDidShowCompletionItem(pid: number, idx: number): void {
-		const completionItem = this._cache.get(pid, idx);
+		const completionItem = this._references.get(pid)?.items[idx];
 		if (completionItem) {
-			InlineCompletionController.get(this._provider).fireOnDidShowCompletionItem({
-				completionItem
-			});
+			if (this._provider.handleDidShowCompletionItem && this._isAdditionsProposedApiEnabled) {
+				this._provider.handleDidShowCompletionItem(completionItem);
+			}
 		}
 	}
 }
@@ -1247,26 +1265,6 @@ class ReferenceMap<T> {
 
 	get(referenceId: number): T | undefined {
 		return this._references.get(referenceId);
-	}
-}
-
-export class InlineCompletionController<T extends vscode.InlineCompletionItem> implements vscode.InlineCompletionController<T> {
-	private static readonly map = new WeakMap<vscode.InlineCompletionItemProvider<any>, InlineCompletionController<any>>();
-
-	static get<T extends vscode.InlineCompletionItem>(provider: vscode.InlineCompletionItemProvider<T>): InlineCompletionController<T> {
-		let existing = InlineCompletionController.map.get(provider);
-		if (!existing) {
-			existing = new InlineCompletionController();
-			InlineCompletionController.map.set(provider, existing);
-		}
-		return existing;
-	}
-
-	private readonly _onDidShowCompletionItemEmitter = new Emitter<vscode.InlineCompletionItemDidShowEvent<T>>();
-	readonly onDidShowCompletionItem: vscode.Event<vscode.InlineCompletionItemDidShowEvent<T>> = this._onDidShowCompletionItemEmitter.event;
-
-	fireOnDidShowCompletionItem(event: vscode.InlineCompletionItemDidShowEvent<T>): void {
-		this._onDidShowCompletionItemEmitter.fire(event);
 	}
 }
 
@@ -2214,14 +2212,15 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- ghost test
 
 	registerInlineCompletionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new InlineCompletionAdapter(this._documents, provider, this._commands.converter), extension);
-		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector));
+		const adapter = new InlineCompletionAdapter(extension, this._documents, provider, this._commands.converter);
+		const handle = this._addNewAdapter(adapter, extension);
+		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector), adapter.supportsHandleDidShowCompletionItem);
 		return this._createDisposable(handle);
 	}
 
 	registerInlineCompletionsProviderNew(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProviderNew): vscode.Disposable {
 		const handle = this._addNewAdapter(new InlineCompletionAdapterNew(extension, this._documents, provider, this._commands.converter), extension);
-		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector));
+		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector), true);
 		return this._createDisposable(handle);
 	}
 
