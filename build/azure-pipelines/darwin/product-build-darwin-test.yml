@@ -1,14 +1,19 @@
+parameters:
+  - name: VSCODE_PUBLISH
+    type: boolean
+
 steps:
   - task: NodeTool@0
     inputs:
       versionSpec: "16.x"
 
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
-    inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
-      SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
+  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+    - task: AzureKeyVault@1
+      displayName: "Azure Key Vault: Get Secrets"
+      inputs:
+        azureSubscription: "vscode-builds-subscription"
+        KeyVaultName: vscode
+        SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -21,32 +26,35 @@ steps:
       tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
     displayName: Extract compilation output
 
-  # Set up the credentials to retrieve distro repo and setup git persona
-  # to create a merge commit for when we merge distro into oss
-  - script: |
-      set -e
-      cat << EOF > ~/.netrc
-      machine github.com
-      login vscode
-      password $(github-distro-mixin-password)
-      EOF
+  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+    # Set up the credentials to retrieve distro repo and setup git persona
+    # to create a merge commit for when we merge distro into oss
+    - script: |
+        set -e
+        cat << EOF > ~/.netrc
+        machine github.com
+        login vscode
+        password $(github-distro-mixin-password)
+        EOF
 
-      git config user.email "vscode@microsoft.com"
-      git config user.name "VSCode"
-    displayName: Prepare tooling
+        git config user.email "vscode@microsoft.com"
+        git config user.name "VSCode"
+      displayName: Prepare tooling
 
-  - script: |
-      set -e
-      git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
-      echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-      git checkout FETCH_HEAD
-    condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-    displayName: Checkout override commit
+  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+    - script: |
+        set -e
+        git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
+        echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
+        git checkout FETCH_HEAD
+      condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
+      displayName: Checkout override commit
 
-  - script: |
-      set -e
-      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-    displayName: Merge distro
+  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+    - script: |
+        set -e
+        git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
+      displayName: Merge distro
 
   - script: |
       mkdir -p .build
@@ -109,11 +117,12 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
-  # This script brings in the right resources (images, icons, etc) based on the quality (insiders, stable, exploration)
-  - script: |
-      set -e
-      node build/azure-pipelines/mixin
-    displayName: Mix in quality
+  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+    # This script brings in the right resources (images, icons, etc) based on the quality (insiders, stable, exploration)
+    - script: |
+        set -e
+        node build/azure-pipelines/mixin
+      displayName: Mix in quality
 
   - script: |
       set -e
@@ -121,10 +130,11 @@ steps:
         yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
     displayName: Build client
 
-  - script: |
-      set -e
-      node build/azure-pipelines/mixin --server
-    displayName: Mix in server quality
+  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+    - script: |
+        set -e
+        node build/azure-pipelines/mixin --server
+      displayName: Mix in server quality
 
   - script: |
       set -e

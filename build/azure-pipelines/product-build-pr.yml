@@ -88,17 +88,19 @@ stages:
   #       steps:
   #         - template: linux/product-build-linux-client.yml
 
-  # - stage: macOS
-  #   dependsOn:
-  #     - Compile
-  #   pool:
-  #     vmImage: macOS-latest
-  #   variables:
-  #     BUILDSECMON_OPT_IN: true
-  #   jobs:
-  #     - job: macOSTest
-  #       timeoutInMinutes: 90
-  #       variables:
-  #         VSCODE_ARCH: x64
-  #       steps:
-  #         - template: darwin/product-build-darwin-test.yml
+  - stage: macOS
+    dependsOn:
+      - Compile
+    pool:
+      vmImage: macOS-latest
+    variables:
+      BUILDSECMON_OPT_IN: true
+    jobs:
+      - job: macOSTest
+        timeoutInMinutes: 90
+        variables:
+          VSCODE_ARCH: x64
+        steps:
+          - template: darwin/product-build-darwin-test.yml
+            parameters:
+              VSCODE_PUBLISH: false
