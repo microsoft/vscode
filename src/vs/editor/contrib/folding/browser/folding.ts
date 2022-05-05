@@ -779,7 +779,7 @@ class ToggleFoldAction extends FoldingAction<void> {
 	}
 
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let selectedLines = this.getSelectedLines(editor);
+		const selectedLines = this.getSelectedLines(editor);
 		toggleCollapseState(foldingModel, 1, selectedLines);
 	}
 }

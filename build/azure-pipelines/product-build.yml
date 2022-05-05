@@ -8,6 +8,10 @@ schedules:
         - main
         - joao/web
 
+trigger:
+  branches:
+    include: ["main", "release/*"]
+
 parameters:
   - name: VSCODE_DISTRO_REF
     displayName: Distro Ref (Private build)

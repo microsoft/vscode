@@ -326,6 +326,11 @@ suite('migrateOptions', () => {
 			}
 		});
 	});
+	test('quickSuggestions', () => {
+		assert.deepStrictEqual(migrate({ quickSuggestions: true }), { quickSuggestions: { comments: 'on', strings: 'on', other: 'on' } });
+		assert.deepStrictEqual(migrate({ quickSuggestions: false }), { quickSuggestions: { comments: 'off', strings: 'off', other: 'off' } });
+		assert.deepStrictEqual(migrate({ quickSuggestions: { comments: 'on', strings: 'off' } }), { quickSuggestions: { comments: 'on', strings: 'off' } });
+	});
 	test('hover', () => {
 		assert.deepStrictEqual(migrate({ hover: true }), { hover: { enabled: true } });
 		assert.deepStrictEqual(migrate({ hover: false }), { hover: { enabled: false } });

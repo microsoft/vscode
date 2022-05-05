@@ -104,8 +104,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		}));
 	}
 
-	async initialize(): Promise<void> {
-		await this._refreshIgnoreProcessNames();
+	initialize(): void {
+		this._refreshIgnoreProcessNames();
 	}
 
 	private get _ignoreProcessNames(): string[] {

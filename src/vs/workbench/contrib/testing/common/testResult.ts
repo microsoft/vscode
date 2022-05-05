@@ -321,7 +321,7 @@ export class LiveTestResult implements ITestResult {
 			location,
 			message: output.toString(),
 			offset: this.output.offset,
-			type: TestMessageType.Info,
+			type: TestMessageType.Output,
 		};
 
 		const index = this.mustGetTaskIndex(taskId);

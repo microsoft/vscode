@@ -89,22 +89,25 @@ suite('platform - terminalEnvironment', () => {
 			suite('zsh', () => {
 				suite('should override args', () => {
 					const expectedDir = /.+\/vscode-zsh/;
-					const expectedDests = [/.+\/vscode-zsh\/.zshrc/, /.+\/vscode-zsh\/.zprofile/, /.+\/vscode-zsh\/.zshenv/];
+					const expectedDests = [/.+\/vscode-zsh\/.zshrc/, /.+\/vscode-zsh\/.zprofile/, /.+\/vscode-zsh\/.zshenv/, /.+\/vscode-zsh\/.zlogin/];
 					const expectedSources = [
-						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration.zsh/,
+						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-rc.zsh/,
 						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-profile.zsh/,
-						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-env.zsh/
+						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-env.zsh/,
+						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-login.zsh/
 					];
 					function assertIsEnabled(result: IShellIntegrationConfigInjection) {
 						strictEqual(Object.keys(result.envMixin!).length, 1);
 						ok(result.envMixin!['ZDOTDIR']?.match(expectedDir));
-						strictEqual(result.filesToCopy?.length, 3);
+						strictEqual(result.filesToCopy?.length, 4);
 						ok(result.filesToCopy[0].dest.match(expectedDests[0]));
 						ok(result.filesToCopy[1].dest.match(expectedDests[1]));
 						ok(result.filesToCopy[2].dest.match(expectedDests[2]));
+						ok(result.filesToCopy[3].dest.match(expectedDests[3]));
 						ok(result.filesToCopy[0].source.match(expectedSources[0]));
 						ok(result.filesToCopy[1].source.match(expectedSources[1]));
 						ok(result.filesToCopy[2].source.match(expectedSources[2]));
+						ok(result.filesToCopy[3].source.match(expectedSources[3]));
 					}
 					test('when undefined, []', () => {
 						const result1 = getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, logService);

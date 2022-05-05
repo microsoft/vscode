@@ -3,9 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IDataTransferItem {
-	asString(): Thenable<string>;
-	value: any;
-}
+//@ts-check
 
-export type IDataTransfer = Map<string, IDataTransferItem>;
+'use strict';
+
+const withBrowserDefaults = require('../shared.webpack.config').browser;
+const path = require('path');
+
+module.exports = withBrowserDefaults({
+	context: __dirname,
+	entry: {
+		extension: './src/extension.ts'
+	},
+	output: {
+		filename: 'extension.js',
+		path: path.join(__dirname, 'dist')
+	}
+});
