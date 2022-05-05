@@ -3,16 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
+import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue, SettingsEditor } from '../../../../automation';
+import { setTerminalTestSettings } from './terminal-helpers';
 
 export function setup() {
 	describe('Terminal Editors', () => {
-		let terminal: Terminal;
 		let app: Application;
+		let terminal: Terminal;
+		let settingsEditor: SettingsEditor;
+
 		// Acquire automation API
 		before(async function () {
 			app = this.app as Application;
 			terminal = app.workbench.terminal;
+			settingsEditor = app.workbench.settingsEditor;
+			await setTerminalTestSettings(app);
+		});
+
+		after(async function () {
+			await settingsEditor.clearUserSettings();
 		});
 
 		it('should update color of the tab', async () => {

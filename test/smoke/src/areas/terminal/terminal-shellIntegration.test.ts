@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, Terminal, SettingsEditor } from '../../../../automation';
+import { setTerminalTestSettings } from './terminal-helpers';
 
 export function setup() {
 	describe('Terminal Shell Integration', () => {
@@ -16,6 +17,7 @@ export function setup() {
 			terminal = app.workbench.terminal;
 			settingsEditor = app.workbench.settingsEditor;
 			await settingsEditor.addUserSetting('terminal.integrated.shellIntegration.enabled', 'true');
+			await setTerminalTestSettings(app);
 		});
 
 		after(async function () {

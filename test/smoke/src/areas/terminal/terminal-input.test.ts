@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, Terminal, SettingsEditor } from '../../../../automation';
+import { setTerminalTestSettings } from './terminal-helpers';
 
 export function setup() {
 	describe('Terminal Input', () => {
@@ -15,6 +16,7 @@ export function setup() {
 			const app = this.app as Application;
 			terminal = app.workbench.terminal;
 			settingsEditor = app.workbench.settingsEditor;
+			await setTerminalTestSettings(app);
 		});
 
 		after(async function () {

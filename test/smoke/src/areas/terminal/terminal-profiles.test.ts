@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
+import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue, SettingsEditor } from '../../../../automation';
+import { setTerminalTestSettings } from './terminal-helpers';
 
 const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
 const ANY_PROFILE_NAME = '^((?!JavaScript Debug Terminal).)*$';
@@ -12,9 +13,17 @@ export function setup() {
 	describe('Terminal Profiles', () => {
 		// Acquire automation API
 		let terminal: Terminal;
-		before(function () {
+		let settingsEditor: SettingsEditor;
+
+		before(async function () {
 			const app = this.app as Application;
 			terminal = app.workbench.terminal;
+			settingsEditor = app.workbench.settingsEditor;
+			await setTerminalTestSettings(app);
+		});
+
+		after(async function () {
+			await settingsEditor.clearUserSettings();
 		});
 
 		it('should launch the default profile', async () => {
