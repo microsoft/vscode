@@ -185,7 +185,7 @@ export class BrowserMain extends Disposable {
 
 		// Remote
 		const connectionToken = environmentService.options.connectionToken || getCookieValue(connectionTokenCookieName);
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(connectionToken, this.configuration.resourceUriProvider);
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(productService, connectionToken, this.configuration.resourceUriProvider);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
@@ -253,7 +253,7 @@ export class BrowserMain extends Disposable {
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
 		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
 
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService, logService);
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 		// Update workspace trust so that configuration is updated accordingly
@@ -334,7 +334,7 @@ export class BrowserMain extends Disposable {
 		// User data
 		let userDataProvider;
 		if (indexedDB) {
-			userDataProvider = new IndexedDBFileSystemProvider(logsPath.scheme, indexedDB, userDataStore, false);
+			userDataProvider = new IndexedDBFileSystemProvider(Schemas.vscodeUserData, indexedDB, userDataStore, true);
 			this.registerDeveloperActions(<IndexedDBFileSystemProvider>userDataProvider);
 		} else {
 			logService.info('Using in-memory user data provider');

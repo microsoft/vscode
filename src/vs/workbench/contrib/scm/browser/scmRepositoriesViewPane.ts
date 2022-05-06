@@ -23,6 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 import { collectContextMenuActions, getActionViewItemProvider } from 'vs/workbench/contrib/scm/browser/util';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { Iterable } from 'vs/base/common/iterator';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -155,23 +156,28 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	}
 
 	private updateListSelection(): void {
-		const set = new Set();
+		const oldSelection = this.list.getSelection();
+		const oldSet = new Set(Iterable.map(oldSelection, i => this.list.element(i)));
+		const set = new Set(this.scmViewService.visibleRepositories);
+		const added = new Set(Iterable.filter(set, r => !oldSet.has(r)));
+		const removed = new Set(Iterable.filter(oldSet, r => !set.has(r)));
 
-		for (const repository of this.scmViewService.visibleRepositories) {
-			set.add(repository);
+		if (added.size === 0 && removed.size === 0) {
+			return;
 		}
 
-		const selection: number[] = [];
+		const selection = oldSelection
+			.filter(i => !removed.has(this.list.element(i)));
 
 		for (let i = 0; i < this.list.length; i++) {
-			if (set.has(this.list.element(i))) {
+			if (added.has(this.list.element(i))) {
 				selection.push(i);
 			}
 		}
 
 		this.list.setSelection(selection);
 
-		if (selection.length > 0) {
+		if (selection.length > 0 && selection.indexOf(this.list.getFocus()[0]) === -1) {
 			this.list.setAnchor(selection[0]);
 			this.list.setFocus([selection[0]]);
 		}

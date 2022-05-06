@@ -63,7 +63,8 @@ export class CellExecutionPart extends CellPart {
 			DOM.hide(this._executionOrderLabel);
 		} else {
 			DOM.show(this._executionOrderLabel);
-			this._executionOrderLabel.style.top = `${element.layoutInfo.editorHeight}px`;
+			const top = element.layoutInfo.editorHeight - 22 + element.layoutInfo.statusBarHeight;
+			this._executionOrderLabel.style.top = `${top}px`;
 		}
 	}
 }

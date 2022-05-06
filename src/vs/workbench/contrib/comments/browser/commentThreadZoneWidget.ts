@@ -193,7 +193,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._scopedInstantiationService,
 			this._commentThread as unknown as languages.CommentThread<IRange | ICellRange>,
 			this._pendingComment,
-			{ editor: this.editor },
+			{ editor: this.editor, codeBlockFontSize: '' },
 			this._commentOptions,
 			{
 				actionRunner: () => {
@@ -311,6 +311,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}));
 		if (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) {
 			this.show({ lineNumber: lineNumber, column: 1 }, 2);
+		}
+
+		// If this is a new comment thread awaiting user input then we need to reveal it.
+		if (this._commentThread.canReply && this._commentThread.isTemplate && (!this._commentThread.comments || (this._commentThread.comments.length === 0))) {
+			this.reveal();
 		}
 
 		this.bindCommentThreadListeners();

@@ -204,8 +204,8 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			// animate the status bar icon whenever language status changes, repeat animation
 			// when severity is warning or error, don't show animation when showing progress/busy
 			const userHasInteractedWithStatus = this._interactionCounter.value >= 3;
-			const node = document.querySelector('.monaco-workbench.enable-motion .statusbar DIV#status\\.languageStatus A>SPAN.codicon');
-			const container = document.querySelector('.monaco-workbench.enable-motion .statusbar DIV#status\\.languageStatus');
+			const node = document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus A>SPAN.codicon');
+			const container = document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus');
 			if (node instanceof HTMLElement && container) {
 				const _wiggle = 'wiggle';
 				const _flash = 'flash';

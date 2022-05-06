@@ -6,14 +6,14 @@
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, OutputChannel, version as vscodeVersion, WorkspaceFolder } from 'vscode';
+import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
 import { GitFileSystemProvider } from './fileSystemProvider';
 import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
-import { toDisposable, filterEvent, eventToPromise, logTimestamp } from './util';
+import { toDisposable, filterEvent, eventToPromise } from './util';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { GitExtension } from './api/git';
 import { GitProtocolHandler } from './protocolHandler';
@@ -24,6 +24,7 @@ import * as os from 'os';
 import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
 import { TerminalEnvironmentManager } from './terminal';
+import { OutputChannelLogger } from './log';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -33,7 +34,7 @@ export async function deactivate(): Promise<any> {
 	}
 }
 
-async function createModel(context: ExtensionContext, outputChannel: OutputChannel, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<Model> {
+async function createModel(context: ExtensionContext, outputChannelLogger: OutputChannelLogger, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<Model> {
 	const pathValue = workspace.getConfiguration('git').get<string | string[]>('path');
 	let pathHints = Array.isArray(pathValue) ? pathValue : pathValue ? [pathValue] : [];
 
@@ -46,7 +47,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	}
 
 	const info = await findGit(pathHints, gitPath => {
-		outputChannel.appendLine(localize('validating', "{0} Validating found git in: {1}", logTimestamp(), gitPath));
+		outputChannelLogger.logInfo(localize('validating', "Validating found git in: {0}", gitPath));
 		if (excludes.length === 0) {
 			return true;
 		}
@@ -54,12 +55,12 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 		const normalized = path.normalize(gitPath).replace(/[\r\n]+$/, '');
 		const skip = excludes.some(e => normalized.startsWith(e));
 		if (skip) {
-			outputChannel.appendLine(localize('skipped', "{0} Skipped found git in: {1}", logTimestamp(), gitPath));
+			outputChannelLogger.logInfo(localize('skipped', "Skipped found git in: {0}", gitPath));
 		}
 		return !skip;
 	});
 
-	const askpass = await Askpass.create(outputChannel, context.storagePath);
+	const askpass = await Askpass.create(outputChannelLogger, context.storagePath);
 	disposables.push(askpass);
 
 	const environment = askpass.getEnv();
@@ -73,7 +74,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 		version: info.version,
 		env: environment,
 	});
-	const model = new Model(git, askpass, context.globalState, outputChannel, telemetryReporter);
+	const model = new Model(git, askpass, context.globalState, outputChannelLogger, telemetryReporter);
 	disposables.push(model);
 
 	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
@@ -81,7 +82,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	model.onDidCloseRepository(onRepository, null, disposables);
 	onRepository();
 
-	outputChannel.appendLine(localize('using git', "{0} Using git {1} from {2}", logTimestamp(), info.version, info.path));
+	outputChannelLogger.logInfo(localize('using git', "Using git {0} from {1}", info.version, info.path));
 
 	const onOutput = (str: string) => {
 		const lines = str.split(/\r?\n/mg);
@@ -90,12 +91,12 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 			lines.pop();
 		}
 
-		outputChannel.appendLine(`${logTimestamp()} ${lines.join('\n')}`);
+		outputChannelLogger.logGitCommand(lines.join('\n'));
 	};
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
-	const cc = new CommandCenter(git, model, outputChannel, telemetryReporter);
+	const cc = new CommandCenter(git, model, outputChannelLogger, telemetryReporter);
 	disposables.push(
 		cc,
 		new GitFileSystemProvider(model),
@@ -161,9 +162,8 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 	const disposables: Disposable[] = [];
 	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
 
-	const outputChannel = window.createOutputChannel('Git');
-	commands.registerCommand('git.showOutput', () => outputChannel.show());
-	disposables.push(outputChannel);
+	const outputChannelLogger = new OutputChannelLogger();
+	disposables.push(outputChannelLogger);
 
 	const { name, version, aiKey } = require('../package.json') as { name: string; version: string; aiKey: string };
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
@@ -177,12 +177,12 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 		const onEnabled = filterEvent(onConfigChange, () => workspace.getConfiguration('git', null).get<boolean>('enabled') === true);
 		const result = new GitExtensionImpl();
 
-		eventToPromise(onEnabled).then(async () => result.model = await createModel(context, outputChannel, telemetryReporter, disposables));
+		eventToPromise(onEnabled).then(async () => result.model = await createModel(context, outputChannelLogger, telemetryReporter, disposables));
 		return result;
 	}
 
 	try {
-		const model = await createModel(context, outputChannel, telemetryReporter, disposables);
+		const model = await createModel(context, outputChannelLogger, telemetryReporter, disposables);
 		return new GitExtensionImpl(model);
 	} catch (err) {
 		if (!/Git installation not found/.test(err.message || '')) {
@@ -190,7 +190,7 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 		}
 
 		console.warn(err.message);
-		outputChannel.appendLine(`${logTimestamp()} ${err.message}`);
+		outputChannelLogger.logWarning(err.message);
 
 		/* __GDPR__
 			"git.missing" : {}

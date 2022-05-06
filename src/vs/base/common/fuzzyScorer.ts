@@ -315,7 +315,7 @@ function doScoreFuzzy2Multiple(target: string, query: IPreparedQueryPiece[], pat
 }
 
 function doScoreFuzzy2Single(target: string, query: IPreparedQueryPiece, patternStart: number, wordStart: number): FuzzyScore2 {
-	const score = fuzzyScore(query.original, query.originalLowercase, patternStart, target, target.toLowerCase(), wordStart);
+	const score = fuzzyScore(query.original, query.originalLowercase, patternStart, target, target.toLowerCase(), wordStart, { firstMatchCanBeWeak: true, boostFullMatch: true });
 	if (!score) {
 		return NO_SCORE2;
 	}

@@ -46,14 +46,14 @@ export function setup(logger: Logger) {
 			await app.workbench.search.removeFileMatch('app.js', '2 results in 2 files');
 		});
 
-		it.skip('replaces first search result with a replace term', async function () { // TODo@roblourens https://github.com/microsoft/vscode/issues/137195
+		it('replaces first search result with a replace term', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.search.searchFor('body');
 			await app.workbench.search.waitForResultText('6 results in 3 files');
 			await app.workbench.search.expandReplace();
 			await app.workbench.search.setReplaceText('ydob');
-			await app.workbench.search.replaceFileMatch('app.js', '12 results in 4 files');
+			await app.workbench.search.replaceFileMatch('app.js', '2 results in 2 files');
 
 			await app.workbench.search.searchFor('ydob');
 			await app.workbench.search.waitForResultText('4 results in 1 file');

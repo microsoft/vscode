@@ -62,7 +62,7 @@ import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescrip
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/workbench/services/authentication/common/authentication';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { IStaticWorkspaceData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { IExtensionDescriptionDelta, IStaticWorkspaceData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { ActivationKind, ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { createProxyIdentifier, Dto, IRPCProtocol, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -122,13 +122,14 @@ export type CommentThreadChanges<T = IRange> = Partial<{
 	collapseState: languages.CommentThreadCollapsibleState;
 	canReply: boolean;
 	state: languages.CommentThreadState;
+	isTemplate: boolean;
 }>;
 
 export interface MainThreadCommentsShape extends IDisposable {
 	$registerCommentController(handle: number, id: string, label: string): void;
 	$unregisterCommentController(handle: number): void;
 	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void;
-	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange | ICellRange, extensionId: ExtensionIdentifier): languages.CommentThread<IRange | ICellRange> | undefined;
+	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange | ICellRange, extensionId: ExtensionIdentifier, isTemplate: boolean): languages.CommentThread<IRange | ICellRange> | undefined;
 	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, changes: CommentThreadChanges): void;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
 	$updateCommentingRanges(handle: number): void;
@@ -263,6 +264,7 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 	$setMessage(treeViewId: string, message: string): void;
 	$setTitle(treeViewId: string, title: string, description: string | undefined): void;
 	$setBadge(treeViewId: string, badge: IViewBadge | undefined): void;
+	$resolveDropFileData(destinationViewId: string, requestId: number, dataItemIndex: number): Promise<VSBuffer>;
 }
 
 export interface MainThreadDownloadServiceShape extends IDisposable {
@@ -379,7 +381,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$emitDocumentSemanticTokensEvent(eventHandle: number): void;
 	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend): void;
 	$registerCompletionsProvider(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, displayName: string): void;
-	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[]): void;
+	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleDidShowCompletionItem: boolean): void;
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void;
 	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean, eventHandle: number | undefined, displayName: string | undefined): void;
 	$emitInlayHintsEvent(eventHandle: number): void;
@@ -391,6 +393,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerTypeHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerDocumentOnDropProvider(handle: number, selector: IDocumentFilterDto[]): void;
+	$resolveDocumentOnDropFileData(handle: number, requestId: number, dataIndex: number): Promise<VSBuffer>;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
 }
 
@@ -1368,7 +1371,7 @@ export interface ExtHostDocumentsAndEditorsShape {
 
 export interface ExtHostTreeViewsShape {
 	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[] | undefined>;
-	$handleDrop(destinationViewId: string, treeDataTransfer: DataTransferDTO, targetHandle: string | undefined, token: CancellationToken, operationUuid?: string, sourceViewId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
+	$handleDrop(destinationViewId: string, requestId: number, treeDataTransfer: DataTransferDTO, targetHandle: string | undefined, token: CancellationToken, operationUuid?: string, sourceViewId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 	$handleDrag(sourceViewId: string, sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<DataTransferDTO | undefined>;
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void;
 	$setSelection(treeViewId: string, treeItemHandles: string[]): void;
@@ -1434,7 +1437,7 @@ export interface ExtHostExtensionServiceShape {
 	 * Returns `null` if no resolver for `remoteAuthority` is found.
 	 */
 	$getCanonicalURI(remoteAuthority: string, uri: UriComponents): Promise<UriComponents | null>;
-	$startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
+	$startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void>;
 	$extensionTestsExecute(): Promise<number>;
 	$extensionTestsExit(code: number): Promise<void>;
 	$activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
@@ -1442,7 +1445,7 @@ export interface ExtHostExtensionServiceShape {
 	$setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 	$updateRemoteConnectionData(connectionData: IRemoteConnectionData): Promise<void>;
 
-	$deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
+	$deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void>;
 
 	$test_latency(n: number): Promise<number>;
 	$test_up(b: VSBuffer): Promise<number>;
@@ -1756,7 +1759,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideTypeHierarchySupertypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$provideTypeHierarchySubtypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$releaseTypeHierarchy(handle: number, sessionId: string): void;
-	$provideDocumentOnDropEdits(handle: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined>;
+	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<Dto<languages.SnippetTextEdit> | undefined>;
 }
 
 export interface ExtHostQuickOpenShape {

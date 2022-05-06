@@ -114,12 +114,8 @@ export class LanguageAgnosticBracketTokens {
 	}
 
 	public didLanguageChange(languageId: string): boolean {
-		const existing = this.languageIdToBracketTokens.get(languageId);
-		if (!existing) {
-			return false;
-		}
-		const newRegExpStr = BracketTokens.createFromLanguage(this.getLanguageConfiguration(languageId), this.denseKeyProvider).getRegExpStr();
-		return existing.getRegExpStr() !== newRegExpStr;
+		// Report a change whenever the language configuration updates.
+		return this.languageIdToBracketTokens.has(languageId);
 	}
 
 	getSingleLanguageBracketTokens(languageId: string): BracketTokens {

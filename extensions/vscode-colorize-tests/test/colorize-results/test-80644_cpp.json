@@ -8,7 +8,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -32,7 +32,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.type: #4EC9B0",
-			"hc_light": "entity.name.type: #267F99"
+			"hc_light": "entity.name.type: #185E73"
 		}
 	},
 	{
@@ -80,7 +80,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"hc_light": "entity.name.function: #795E26"
+			"hc_light": "entity.name.function: #5E2CBC"
 		}
 	},
 	{
@@ -140,7 +140,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -188,7 +188,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -236,7 +236,7 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"hc_light": "storage.type: #0000FF"
+			"hc_light": "storage.type: #0F4A85"
 		}
 	},
 	{
@@ -296,7 +296,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.scope-resolution: #4EC9B0",
-			"hc_light": "entity.name.scope-resolution: #267F99"
+			"hc_light": "entity.name.scope-resolution: #185E73"
 		}
 	},
 	{
@@ -320,7 +320,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"hc_light": "entity.name.function: #795E26"
+			"hc_light": "entity.name.function: #5E2CBC"
 		}
 	},
 	{
@@ -368,7 +368,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"hc_light": "entity.name.function: #795E26"
+			"hc_light": "entity.name.function: #5E2CBC"
 		}
 	},
 	{
@@ -392,7 +392,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{
@@ -428,7 +428,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -440,7 +440,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -452,7 +452,7 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"hc_light": "comment: #515151"
 		}
 	},
 	{
@@ -476,7 +476,7 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"hc_light": "entity.name.function: #795E26"
+			"hc_light": "entity.name.function: #5E2CBC"
 		}
 	},
 	{
@@ -500,7 +500,7 @@
 			"dark_vs": "constant.numeric: #B5CEA8",
 			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8",
-			"hc_light": "constant.numeric: #098658"
+			"hc_light": "constant.numeric: #096D48"
 		}
 	},
 	{

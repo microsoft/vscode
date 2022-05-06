@@ -8,6 +8,10 @@ schedules:
         - main
         - joao/web
 
+trigger:
+  branches:
+    include: ["main", "release/*"]
+
 parameters:
   - name: VSCODE_DISTRO_REF
     displayName: Distro Ref (Private build)
@@ -204,6 +208,13 @@ stages:
                 variables:
                   VSCODE_ARCH: x64
                   NPM_ARCH: x64
+                steps:
+                  - template: linux/product-build-linux-server.yml
+
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+              - job: arm64
+                variables:
+                  VSCODE_ARCH: arm64
                 steps:
                   - template: linux/product-build-linux-server.yml
 

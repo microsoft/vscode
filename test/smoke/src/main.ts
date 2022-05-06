@@ -107,7 +107,7 @@ const testDataPath = path.join(os.tmpdir(), 'vscsmoke');
 if (fs.existsSync(testDataPath)) {
 	rimraf.sync(testDataPath);
 }
-fs.mkdirSync(testDataPath);
+mkdirp.sync(testDataPath);
 process.once('exit', () => {
 	try {
 		rimraf.sync(testDataPath);
@@ -218,12 +218,15 @@ async function setupRepository(): Promise<void> {
 	} else {
 		if (!fs.existsSync(workspacePath)) {
 			logger.log('Cloning test project repository...');
-			cp.spawnSync('git', ['clone', testRepoUrl, workspacePath]);
+			const res = cp.spawnSync('git', ['clone', testRepoUrl, workspacePath], { stdio: 'inherit' });
+			if (!fs.existsSync(workspacePath)) {
+				throw new Error(`Clone operation failed: ${res.stderr.toString()}`);
+			}
 		} else {
 			logger.log('Cleaning test project repository...');
-			cp.spawnSync('git', ['fetch'], { cwd: workspacePath });
-			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath });
-			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
+			cp.spawnSync('git', ['fetch'], { cwd: workspacePath, stdio: 'inherit' });
+			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath, stdio: 'inherit' });
+			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath, stdio: 'inherit' });
 		}
 	}
 }

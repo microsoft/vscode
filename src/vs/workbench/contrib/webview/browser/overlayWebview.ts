@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension } from 'vs/base/browser/dom';
+import { computeClippingRect, Dimension } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -146,7 +146,18 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		}
 	}
 
-	public layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, animated = true) {
+	public layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
+    this.doLayoutWebviewOverElement(element.dimension, clippingContainer);
+    
+    // Temporary fix for https://github.com/microsoft/vscode/issues/110450
+		// There is an animation that lasts about 200ms, update the webview positioning once this animation is complete.
+    clearTimeout(this._repositionTimeout);
+		this._repositionTimeout = setTimeout(() => {
+		  this.doLayoutWebviewOverElement(element, dimension, clippingContainer);
+		}, 200);
+  }
+    
+  public doLayoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
 		if (!this._container || !this._container.parentElement) {
 			return;
 		}
@@ -162,13 +173,9 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._container.style.width = `${dimension ? dimension.width : frameRect.width}px`;
 		this._container.style.height = `${dimension ? dimension.height : frameRect.height}px`;
 
-		// Temporary fix for https://github.com/microsoft/vscode/issues/110450
-		// There is an animation that lasts about 200ms, update the webview positioning once this animation is complete.
-		if (animated) {
-			clearTimeout(this._repositionTimeout);
-			this._repositionTimeout = setTimeout(() => {
-				this.layoutWebviewOverElement(element, dimension, /*animated*/ false);
-			}, 200);
+		if (clippingContainer) {
+			const clip = computeClippingRect(frameRect, clippingContainer);
+			this._container.style.clip = `rect(${clip.top}px, ${clip.right}px, ${clip.bottom}px, ${clip.left}px)`;
 		}
 	}
 
