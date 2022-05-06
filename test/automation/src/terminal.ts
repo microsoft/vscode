@@ -155,10 +155,6 @@ export class Terminal {
 		}
 	}
 
-	async assertShellIntegrationActivated(): Promise<void> {
-		await this.waitForTerminalText(buffer => buffer.some(e => e.includes('Shell integration activated')));
-	}
-
 	async getTerminalGroups(): Promise<TerminalGroup[]> {
 		const tabCount = (await this.code.waitForElements(Selector.Tabs, true)).length;
 		const groups: TerminalGroup[] = [];

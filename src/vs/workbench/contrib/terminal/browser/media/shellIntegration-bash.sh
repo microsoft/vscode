@@ -25,8 +25,7 @@ else
 fi
 
 if [[ "$PROMPT_COMMAND" =~ .*(' '.*\;)|(\;.*' ').* ]]; then
-	builtin echo -e "\033[1;33mShell integration cannot be activated due to complex PROMPT_COMMAND: $PROMPT_COMMAND\033[0m"
-	VSCODE_SHELL_HIDE_WELCOME=""
+	VSCODE_SHELL_INTEGRATION=""
 	builtin return
 fi
 
@@ -151,8 +150,3 @@ else
 fi
 
 trap '__vsc_preexec' DEBUG
-if [ -z "$VSCODE_SHELL_HIDE_WELCOME" ]; then
-	builtin echo -e "\033[1;32mShell integration activated\033[0m"
-else
-	VSCODE_SHELL_HIDE_WELCOME=""
-fi
