@@ -40,7 +40,7 @@ import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { isAbsolute } from 'vs/base/common/path';
 import { Constants } from 'vs/base/common/uint';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { binarySearchAlgorithm } from 'vs/base/common/arrays';
+import { binarySearch2 } from 'vs/base/common/arrays';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
@@ -402,7 +402,7 @@ export class DisassemblyView extends EditorPane {
 		if (disassembledInstructions && disassembledInstructions.length > 0) {
 			const address = BigInt(instructionAddress);
 			if (address) {
-				return binarySearchAlgorithm(disassembledInstructions.length, index => {
+				return binarySearch2(disassembledInstructions.length, index => {
 					const row = disassembledInstructions.row(index);
 
 					this.ensureAddressParsed(row);

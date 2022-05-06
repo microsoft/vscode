@@ -55,10 +55,10 @@ export function equals<T>(one: ReadonlyArray<T> | undefined, other: ReadonlyArra
  *   if they are equal, a negative number if the first element precedes the
  *   second one in the sorting order, or a positive number if the second element
  *   precedes the first one.
- * @return See {@link binarySearchAlgorithm}
+ * @return See {@link binarySearch2}
  */
 export function binarySearch<T>(array: ReadonlyArray<T>, key: T, comparator: (op1: T, op2: T) => number): number {
-	return binarySearchAlgorithm(array.length, i => comparator(array[i], key));
+	return binarySearch2(array.length, i => comparator(array[i], key));
 }
 
 /**
@@ -76,7 +76,7 @@ export function binarySearch<T>(array: ReadonlyArray<T>, key: T, comparator: (op
  *   result is -(n+1) (or ~n, using bitwise notation), where n is the index
  *   where the key should be inserted to maintain the sorting order.
  */
-export function binarySearchAlgorithm(length: number, compareToKey: (index: number) => number): number {
+export function binarySearch2(length: number, compareToKey: (index: number) => number): number {
 	let low = 0,
 		high = length - 1;
 
