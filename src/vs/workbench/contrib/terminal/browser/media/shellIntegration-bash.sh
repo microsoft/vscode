@@ -10,8 +10,8 @@ if [ -z "$VSCODE_SHELL_LOGIN" ]; then
 else
 	# Imitate -l because --init-file doesn't support it:
 	# run the first of these files that exists
-	if [ -f /etc/bash_profile ]; then
-		. /etc/bash_profile
+	if [ -f /etc/profile ]; then
+		. /etc/profile
 	fi
 	# exceute the first that exists
 	if [ -f ~/.bash_profile ]; then
@@ -25,8 +25,7 @@ else
 fi
 
 if [[ "$PROMPT_COMMAND" =~ .*(' '.*\;)|(\;.*' ').* ]]; then
-	builtin echo -e "\033[1;33mShell integration cannot be activated due to complex PROMPT_COMMAND: $PROMPT_COMMAND\033[0m"
-	VSCODE_SHELL_HIDE_WELCOME=""
+	VSCODE_SHELL_INTEGRATION=""
 	builtin return
 fi
 
@@ -88,7 +87,16 @@ __vsc_precmd() {
 		__vsc_update_prompt
 	fi
 }
+
+# capture any debug trap so it is not overwritten
+__vsc_original_trap="$(trap -p DEBUG)"
+if [[ -n "$__vsc_original_trap" ]]; then
+	__vsc_original_trap=${__vsc_original_trap#'trap -- '*}
+	__vsc_original_trap=${__vsc_original_trap%'DEBUG'}
+fi
+
 __vsc_preexec() {
+	eval ${__vsc_original_trap}
 	PS1="$__vsc_prior_prompt"
 	if [ -z "${__vsc_in_command_execution-}" ]; then
 		__vsc_in_command_execution="1"
@@ -109,15 +117,16 @@ __vsc_prompt_cmd_original() {
 		IFS=' '
 	fi
 	builtin read -ra ADDR <<<"$__vsc_original_prompt_command"
-	for ((i = 0; i < ${#ADDR[@]}; i++)); do
-		builtin eval ${ADDR[i]}
-	done
 	if [[ ${__vsc_original_ifs+set} ]]; then
 		IFS="$__vsc_original_ifs"
 		unset __vsc_original_ifs
 	else
 		unset IFS
 	fi
+	for ((i = 0; i < ${#ADDR[@]}; i++)); do
+		# unset IFS
+		builtin eval ${ADDR[i]}
+	done
 	__vsc_precmd
 }
 
@@ -141,8 +150,3 @@ else
 fi
 
 trap '__vsc_preexec' DEBUG
-if [ -z "$VSCODE_SHELL_HIDE_WELCOME" ]; then
-	builtin echo -e "\033[1;32mShell integration activated\033[0m"
-else
-	VSCODE_SHELL_HIDE_WELCOME=""
-fi

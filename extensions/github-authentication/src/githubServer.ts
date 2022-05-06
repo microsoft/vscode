@@ -90,9 +90,14 @@ async function getUserInfo(token: string, serverUri: vscode.Uri, logger: Log): P
 	}
 
 	if (result.ok) {
-		const json = await result.json();
-		logger.info('Got account info!');
-		return { id: json.id, accountName: json.login };
+		try {
+			const json = await result.json();
+			logger.info('Got account info!');
+			return { id: json.id, accountName: json.login };
+		} catch (e) {
+			logger.error(`Unexpected error parsing response from GitHub: ${e.message ?? e}`);
+			throw e;
+		}
 	} else {
 		// either display the response message or the http status text
 		let errorMessage = result.statusText;

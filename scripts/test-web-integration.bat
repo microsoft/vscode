@@ -68,5 +68,5 @@ echo ### Git tests
 for /f "delims=" %%i in ('node -p "require('fs').realpathSync.native(require('os').tmpdir())"') do set TEMPDIR=%%i
 set GITWORKSPACE=%TEMPDIR%\git-%RANDOM%
 mkdir %GITWORKSPACE%
-call node .\test\integration\browser\out\index.js --workspacePath=%GITWORKSPACE% --extensionDevelopmentPath=.\extensions\git --extensionTestsPath=.\extensions\git\out\test --enable-proposed-api=vscode.git %*
+call node .\test\integration\browser\out\index.js --workspacePath=%GITWORKSPACE% --extensionDevelopmentPath=.\extensions\git --extensionTestsPath=.\extensions\git\out\test %*
 if %errorlevel% neq 0 exit /b %errorlevel%

@@ -11,13 +11,14 @@ import { isWindows } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestNativePathService, TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestRemoteAgentService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('URI Label', () => {
 
 	let labelService: LabelService;
 
 	setup(() => {
-		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestNativePathService());
+		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestNativePathService(), new TestRemoteAgentService());
 	});
 
 	test('file scheme', function () {

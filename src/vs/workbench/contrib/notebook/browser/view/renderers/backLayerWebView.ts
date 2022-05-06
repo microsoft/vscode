@@ -685,12 +685,14 @@ var requirejs = (function() {
 					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.command, Schemas.vscodeNotebookCell, Schemas.vscodeNotebook)) {
 						linkToOpen = data.href;
 					} else if (!/^[\w\-]+:/.test(data.href)) {
+						const fragmentStartIndex = data.href.lastIndexOf('#');
+						const path = decodeURI(fragmentStartIndex >= 0 ? data.href.slice(0, fragmentStartIndex) : data.href);
 						if (this.documentUri.scheme === Schemas.untitled) {
 							const folders = this.workspaceContextService.getWorkspace().folders;
 							if (!folders.length) {
 								return;
 							}
-							linkToOpen = URI.joinPath(folders[0].uri, data.href);
+							linkToOpen = URI.joinPath(folders[0].uri, path);
 						} else {
 							if (data.href.startsWith('/')) {
 								// Resolve relative to workspace
@@ -702,10 +704,10 @@ var requirejs = (function() {
 									}
 									folder = folders[0];
 								}
-								linkToOpen = URI.joinPath(folder.uri, data.href);
+								linkToOpen = URI.joinPath(folder.uri, path);
 							} else {
 								// Resolve relative to notebook document
-								linkToOpen = URI.joinPath(dirname(this.documentUri), data.href);
+								linkToOpen = URI.joinPath(dirname(this.documentUri), path);
 							}
 						}
 					}

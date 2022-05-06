@@ -36,6 +36,7 @@ exports.dirs = [
 	'extensions/notebook-renderers',
 	'extensions/npm',
 	'extensions/php-language-features',
+	'extensions/references-view',
 	'extensions/search-result',
 	'extensions/simple-browser',
 	'extensions/typescript-language-features',

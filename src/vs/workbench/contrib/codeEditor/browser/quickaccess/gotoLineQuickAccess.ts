@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions as QuickaccesExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -85,6 +85,11 @@ class GotoLineAction extends Action2 {
 				when: null,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyG,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyG }
+			},
+			menu: {
+				id: MenuId.TitleMenuQuickPick,
+				group: '3/editorNav',
+				order: 2
 			}
 		});
 	}

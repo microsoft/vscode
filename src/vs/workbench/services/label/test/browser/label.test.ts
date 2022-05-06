@@ -5,7 +5,7 @@
 
 import * as resources from 'vs/base/common/resources';
 import * as assert from 'assert';
-import { TestEnvironmentService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEnvironmentService, TestPathService, TestRemoteAgentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -17,7 +17,7 @@ suite('URI Label', () => {
 	let labelService: LabelService;
 
 	setup(() => {
-		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestPathService());
+		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestPathService(), new TestRemoteAgentService());
 	});
 
 	test('custom scheme', function () {
@@ -177,7 +177,9 @@ suite('multi-root workspace', () => {
 					new WorkspaceFolder({ uri: tests, index: 1, name: 'Tests' }),
 					new WorkspaceFolder({ uri: other, index: 2, name: resources.basename(other) }),
 				])),
-			new TestPathService());
+			new TestPathService(),
+			new TestRemoteAgentService()
+		);
 	});
 
 	test('labels of files in multiroot workspaces are the foldername followed by offset from the folder', () => {
@@ -260,7 +262,9 @@ suite('multi-root workspace', () => {
 				new Workspace('test-workspace', [
 					new WorkspaceFolder({ uri: rootFolder, index: 0, name: 'FSProotFolder' }),
 				])),
-			new TestPathService(undefined, rootFolder.scheme));
+			new TestPathService(undefined, rootFolder.scheme),
+			new TestRemoteAgentService()
+		);
 
 		const generated = labelService.getUriLabel(URI.parse('myscheme://myauthority/some/folder/test.txt'), { relative: true });
 		if (isWindows) {
@@ -283,7 +287,9 @@ suite('workspace at FSP root', () => {
 				new Workspace('test-workspace', [
 					new WorkspaceFolder({ uri: rootFolder, index: 0, name: 'FSProotFolder' }),
 				])),
-			new TestPathService());
+			new TestPathService(),
+			new TestRemoteAgentService()
+		);
 		labelService.registerFormatter({
 			scheme: 'myscheme',
 			formatting: {

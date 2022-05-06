@@ -213,7 +213,9 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 			/* __GDPR__
 				"login" : {
-					"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+					"owner": "TylerLeonhardt",
+					"comment": "Used to determine how much usage the GitHub Auth Provider gets.",
+					"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." }
 				}
 			*/
 			this._telemetryReporter?.sendTelemetryEvent('login', {
@@ -244,14 +246,14 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			// If login was cancelled, do not notify user.
 			if (e === 'Cancelled' || e.message === 'Cancelled') {
 				/* __GDPR__
-					"loginCancelled" : { }
+					"loginCancelled" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users cancel the login flow." }
 				*/
 				this._telemetryReporter?.sendTelemetryEvent('loginCancelled');
 				throw e;
 			}
 
 			/* __GDPR__
-				"loginFailed" : { }
+				"loginFailed" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users run into an error login flow." }
 			*/
 			this._telemetryReporter?.sendTelemetryEvent('loginFailed');
 
@@ -274,7 +276,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	public async removeSession(id: string) {
 		try {
 			/* __GDPR__
-				"logout" : { }
+				"logout" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users log out of an account." }
 			*/
 			this._telemetryReporter?.sendTelemetryEvent('logout');
 
@@ -294,7 +296,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			}
 		} catch (e) {
 			/* __GDPR__
-				"logoutFailed" : { }
+				"logoutFailed" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often logging out of an account fails." }
 			*/
 			this._telemetryReporter?.sendTelemetryEvent('logoutFailed');
 

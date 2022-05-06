@@ -152,7 +152,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 				.replace(/>/g, '&gt;')
 				.replace(/"/g, '&quot;')
 				.replace(/'/g, '&#39;');
-			return `<a data-href="${href}" title="${title || href}">${text}</a>`;
+			return `<a href="" data-href="${href}" title="${title || href}">${text}</a>`;
 		}
 	};
 	renderer.paragraph = (text): string => {

@@ -806,7 +806,7 @@ export class JoinLinesAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let selections = editor.getSelections();
+		const selections = editor.getSelections();
 		if (selections === null) {
 			return;
 		}
