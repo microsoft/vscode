@@ -88,7 +88,16 @@ __vsc_precmd() {
 		__vsc_update_prompt
 	fi
 }
+
+# capture any debug trap so it is not overwritten
+__vsc_original_trap="$(trap -p DEBUG)"
+if [[ -n "$__vsc_original_trap" ]]; then
+	__vsc_original_trap=${__vsc_original_trap#'trap -- '*}
+	__vsc_original_trap=${__vsc_original_trap%'DEBUG'}
+fi
+
 __vsc_preexec() {
+	eval ${__vsc_original_trap}
 	PS1="$__vsc_prior_prompt"
 	if [ -z "${__vsc_in_command_execution-}" ]; then
 		__vsc_in_command_execution="1"
