@@ -794,10 +794,13 @@ export class CustomTask extends CommonTask {
 	}
 
 	public override updateWorkspaceFolder(cwd: string): void {
-		this._source.config.workspaceFolder = this._source.config.workspace?.folders.find(f => f.uri.path === cwd);
+		const folder = this._source.config.workspace?.folders.find(f => f.uri.path === cwd);
+		if (folder) {
+			this._source.config.workspaceFolder = folder;
+		}
 	}
 
-	public override getWorkspaceFolder(resolvedCwd?: string): IWorkspaceFolder | undefined {
+	public override getWorkspaceFolder(): IWorkspaceFolder | undefined {
 		return this._source.config.workspaceFolder;
 	}
 
