@@ -143,6 +143,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			if (c === TerminalCapability.CommandDetection) {
 				this._commandStartedListener?.dispose();
 				this._commandFinishedListener?.dispose();
+				this._commandClearedListener?.dispose();
 			}
 		}));
 	}
