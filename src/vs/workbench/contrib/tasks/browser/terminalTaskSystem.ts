@@ -1014,6 +1014,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				};
 				/* __GDPR__
 					"taskService" : {
+						"owner": "alexr00",
+						"comment": "The well known task name and exit code on success.",
 						"${include}": [
 							"${TelemetryEvent}"
 						]
@@ -1034,6 +1036,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				};
 				/* __GDPR__
 					"taskService" : {
+						"owner": "alexr00",
+						"comment": "The well known task name and exit code on failure.",
 						"${include}": [
 							"${TelemetryEvent}"
 						]
