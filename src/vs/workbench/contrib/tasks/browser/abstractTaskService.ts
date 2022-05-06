@@ -2267,6 +2267,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			};
 			/* __GDPR__
 				"taskService.engineVersion" : {
+					"owner": "alexr00",
+					"comment": "The engine version of tasks. Used to determine if a user is using a deprecated version.",
 					"executionEngineVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
