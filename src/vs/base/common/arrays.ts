@@ -51,10 +51,10 @@ export function equals<T>(one: ReadonlyArray<T> | undefined, other: ReadonlyArra
  *
  * @param array The array being searched.
  * @param key The value we search for.
- * @param comparator A function that takes two indices of array elements and
- *   returns zero if elements at these indices are equal, a negative number if
- *   the first element precedes the second one in the sorting order, or a
- *   positive number if the second element precedes the first one.
+ * @param comparator A function that takes two array elements and returns zero
+ *   if they are equal, a negative number if the first element precedes the
+ *   second one in the sorting order, or a positive number if the second element
+ *   precedes the first one.
  * @return See {@link binarySearchAlgorithm}
  */
 export function binarySearch<T>(array: ReadonlyArray<T>, key: T, comparator: (op1: T, op2: T) => number): number {
