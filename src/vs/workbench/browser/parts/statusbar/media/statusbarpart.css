@@ -122,6 +122,11 @@
 	outline-width: 0px; /* do not render focus outline, we already have background */
 }
 
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item > a > span::after{
+	content: " ";
+	white-space: pre;
+}
+
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left > a {
 	padding: 0 5px 0 3px;
 }
