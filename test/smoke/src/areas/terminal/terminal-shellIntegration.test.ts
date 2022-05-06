@@ -19,11 +19,6 @@ export function setup() {
 		});
 
 		describe('Shell integration', function () {
-			describe('Activation', function () {
-				it('should activate shell integration on creation of a terminal', async () => {
-					await terminal.createTerminal();
-				});
-			});
 			(process.platform === 'win32' ? describe.skip : describe)('Decorations', function () {
 				describe('Should show default icons', function () {
 					it('Placeholder', async () => {
