@@ -135,6 +135,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				if (c === TerminalCapability.CommandDetection) {
 					this._addCommandFinishedListener();
 					this._addCommandStartedListener();
+					this._addCommandClearedListener();
 				}
 			}));
 		}
@@ -176,7 +177,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _addCommandClearedListener(): void {
-		if (this._commandStartedListener) {
+		if (this._commandClearedListener) {
 			return;
 		}
 		const capability = this._capabilities.get(TerminalCapability.CommandDetection);
