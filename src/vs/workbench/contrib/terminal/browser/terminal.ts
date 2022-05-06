@@ -858,9 +858,9 @@ export interface IXtermTerminal {
 	readonly commandTracker: ICommandTracker;
 
 	/**
-	 * Reports the status of shell integration and fires events relating to it.
+	 * Reports the status of shell integration and fires events relating to it when enabled.
 	 */
-	readonly shellIntegration: IShellIntegration;
+	readonly shellIntegration: IShellIntegration | undefined;
 
 	/**
 	 * The position of the terminal.

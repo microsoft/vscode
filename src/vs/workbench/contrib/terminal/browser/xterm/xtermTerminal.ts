@@ -60,7 +60,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	// Always on addons
 	private _commandNavigationAddon: CommandNavigationAddon;
-	private _shellIntegrationAddon!: ShellIntegrationAddon;
+	private _shellIntegrationAddon: ShellIntegrationAddon | undefined;
 	private _decorationAddon: DecorationAddon | undefined;
 
 	// Optional addons
@@ -79,7 +79,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
 
 	get commandTracker(): ICommandTracker { return this._commandNavigationAddon; }
-	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
+	get shellIntegration(): IShellIntegration | undefined { return this._shellIntegrationAddon; }
 
 	private _target: TerminalLocation | undefined;
 	set target(location: TerminalLocation | undefined) {

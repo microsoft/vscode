@@ -725,7 +725,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._areLinksReady = true;
 			this._onLinksReady.fire(this);
 		});
-		this._processManager.onRestoreCommands(e => this.xterm?.shellIntegration.deserialize(e));
+		this._processManager.onRestoreCommands(e => this.xterm?.shellIntegration?.deserialize(e));
 
 		this._loadTypeAheadAddon(xterm);
 
@@ -2578,7 +2578,7 @@ export class TerminalLabelComputer extends Disposable {
 	}
 }
 
-export function parseExitResult(this: any,
+export function parseExitResult(
 	exitCodeOrError: ITerminalLaunchError | number | undefined,
 	shellLaunchConfig: IShellLaunchConfig,
 	processState: ProcessState,
@@ -2608,7 +2608,6 @@ export function parseExitResult(this: any,
 			if (shellIntegrationAttempted) {
 				if (commandLine) {
 					message = nls.localize('launchFailed.exitCodeAndCommandLineShellIntegration', "The terminal process \"{0}\" failed to launch (exit code: {1}). Disabling shell integration with `terminal.integrated.shellIntegration.enabled` might help.", commandLine, code);
-					this._logProcessExitShellIntegrationTelemetry();
 				} else {
 					message = nls.localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch (exit code: {0}). Disabling shell integration with `terminal.integrated.shellIntegration.enabled` might help.", code);
 				}
