@@ -81,13 +81,28 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			rows: this._terminal.rows
 		};
 		this._terminal.onResize(e => this._handleResize(e));
-		this._terminal.parser.registerCsiHandler({ final: 'J' }, params => {
-			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
-				this._clearCommandsInViewport();
-			}
-			// We don't want to override xterm.js' default behavior, just augment it
-			return false;
-		});
+
+		// Setup listeners for when clear is run in the shell
+		if (this._isWindowsPty) {
+			// For a Windows backend we cannot listen to CSI J, instead we assume running clear or
+			// cls will clear all commands in the viewport. This is not perfect but it's right most
+			// of the time.
+			this.onCommandFinished(command => {
+				if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
+					this._clearCommandsInViewport();
+				}
+			});
+		} else {
+			// For non-Windows backends we can just listen to CSI J which is what the clear command
+			// typically emits.
+			this._terminal.parser.registerCsiHandler({ final: 'J' }, params => {
+				if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
+					this._clearCommandsInViewport();
+				}
+				// We don't want to override xterm.js' default behavior, just augment it
+				return false;
+			});
+		}
 	}
 
 	private _handleResize(e: { cols: number; rows: number }) {
@@ -158,7 +173,9 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			count++;
 		}
 		// Remove them
-		this._onCommandInvalidated.fire(this._commands.splice(this._commands.length - count, count));
+		if (count > 0) {
+			this._onCommandInvalidated.fire(this._commands.splice(this._commands.length - count, count));
+		}
 	}
 
 	private _waitForCursorMove(): Promise<void> {
