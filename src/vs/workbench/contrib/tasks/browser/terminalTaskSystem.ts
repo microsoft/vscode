@@ -1109,7 +1109,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			shellLaunchConfig.args = windowsShellArgs ? combinedShellArgs.join(' ') : combinedShellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
 				// this may have been set to the first folder in a multi-root repo
-				// if it returned undefined when the command was initially executed
+				// if it was set undefined when the command was initially executed
 				workspaceFolder = task.getWorkspaceFolder();
 				if (needsFolderQualification && workspaceFolder) {
 					shellLaunchConfig.initialText = `\x1b[1m> Executing task in folder ${workspaceFolder.name}: ${commandLine} <\x1b[0m\n`;
