@@ -47,6 +47,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _commandStartedListener: IDisposable | undefined;
 	private _commandFinishedListener: IDisposable | undefined;
 	private _commandClearedListener: IDisposable | undefined;
+	private _currentCommandInvalidatedListener: IDisposable | undefined;
 	private _contextMenuVisible: boolean = false;
 	private _decorations: Map<number, IDisposableDecoration> = new Map();
 	private _placeholderDecoration: IDecoration | undefined;
@@ -126,16 +127,19 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _attachToCommandCapability(): void {
+		// TODO: Merge into single function
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
 			this._addCommandFinishedListener();
 			this._addCommandStartedListener();
 			this._addCommandClearedListener();
+			this._addCurrentCommandInvalidatedListener();
 		} else {
 			this._register(this._capabilities.onDidAddCapability(c => {
 				if (c === TerminalCapability.CommandDetection) {
 					this._addCommandFinishedListener();
 					this._addCommandStartedListener();
 					this._addCommandClearedListener();
+					this._addCurrentCommandInvalidatedListener();
 				}
 			}));
 		}
@@ -185,7 +189,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!capability) {
 			return;
 		}
-
 		this._commandClearedListener = capability.onCommandInvalidated(commands => {
 			for (const command of commands) {
 				const id = command.marker?.id;
@@ -197,6 +200,20 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 					}
 				}
 			}
+		});
+	}
+
+	private _addCurrentCommandInvalidatedListener(): void {
+		if (this._currentCommandInvalidatedListener) {
+			return;
+		}
+		const capability = this._capabilities.get(TerminalCapability.CommandDetection);
+		if (!capability) {
+			return;
+		}
+		this._currentCommandInvalidatedListener = capability.onCurrentCommandInvalidated(() => {
+			this._placeholderDecoration?.dispose();
+			this._placeholderDecoration = undefined;
 		});
 	}
 
