@@ -149,8 +149,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 			: repository.provider.label;
 
 		const disposables = new DisposableStore();
-		for (let index = 0; index < commands.length; index++) {
-			const command = commands[index];
+		for (const command of commands) {
 			const tooltip = `${label}${command.tooltip ? ` - ${command.tooltip}` : ''}`;
 
 			let ariaLabel = stripIcons(command.title).trim();
@@ -162,7 +161,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 				ariaLabel: `${ariaLabel}${command.tooltip ? ` - ${command.tooltip}` : ''}`,
 				tooltip,
 				command: command.id ? command : undefined
-			}, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, 10000));
+			}, 'status.scm', MainThreadStatusBarAlignment.LEFT, 10000));
 		}
 
 		this.statusBarDisposable = disposables;
