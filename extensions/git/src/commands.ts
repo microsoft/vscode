@@ -8,6 +8,7 @@ import * as path from 'path';
 import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
+import { uniqueNamesGenerator, adjectives, animals, colors } from 'unique-names-generator';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
@@ -1772,18 +1773,59 @@ export class CommandCenter {
 		await this._branch(repository, undefined, true);
 	}
 
+	private generateRandomBranchName(): string {
+		const config = workspace.getConfiguration('git');
+		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.Dictionary', ['adjectives', 'animals']);
+		const branchRandomNameSeparator = config.get<string>('branchRandomName.Separator', '-');
+
+		const dictionaries: string[][] = [];
+		for (const dictionary of branchRandomNameDictionary) {
+			if (dictionary.toLowerCase() === 'adjectives') {
+				dictionaries.push(adjectives);
+			}
+			if (dictionary.toLowerCase() === 'animals') {
+				dictionaries.push(animals);
+			}
+			if (dictionary.toLowerCase() === 'colors') {
+				dictionaries.push(colors);
+			}
+		}
+
+		return uniqueNamesGenerator({
+			dictionaries,
+			separator: branchRandomNameSeparator
+		});
+	}
+
 	private async promptForBranchName(defaultName?: string, initialValue?: string): Promise<string> {
 		const config = workspace.getConfiguration('git');
+		const branchPrefix = config.get<string>('branchPrefix', '');
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
 		const sanitize = (name: string) => name ?
 			name.trim().replace(/^-+/, '').replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar)
 			: name;
 
+		let initialValueSelection: [number, number] | undefined = undefined;
+
+		if (!defaultName) {
+			// Branch name
+			if (!initialValue) {
+				const branchRandomNameEnabled = config.get<boolean>('branchRandomName.Enable', true);
+				initialValue = `${branchPrefix}${branchRandomNameEnabled ? this.generateRandomBranchName() : ''}`;
+			}
+
+			// Branch name selection
+			if (initialValue.startsWith(branchPrefix)) {
+				initialValueSelection = [branchPrefix.length, initialValue.length];
+			}
+		}
+
 		const rawBranchName = defaultName || await window.showInputBox({
 			placeHolder: localize('branch name', "Branch name"),
 			prompt: localize('provide branch name', "Please provide a new branch name"),
 			value: initialValue,
+			valueSelection: initialValueSelection,
 			ignoreFocusOut: true,
 			validateInput: (name: string) => {
 				const validateName = new RegExp(branchValidationRegex);
