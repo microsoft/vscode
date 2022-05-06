@@ -136,7 +136,7 @@ export function getEnabledViewContainerContextKey(viewContainerId: string): stri
 
 //#region < --- Resources --- >
 
-export class ResourceContextKey implements IContextKey<URI> {
+export class ResourceContextKey {
 
 	// NOTE: DO NOT CHANGE THE DEFAULT VALUE TO ANYTHING BUT
 	// UNDEFINED! IT IS IMPORTANT THAT DEFAULTS ARE INHERITED
@@ -147,14 +147,15 @@ export class ResourceContextKey implements IContextKey<URI> {
 	static readonly Dirname = new RawContextKey<string>('resourceDirname', undefined, { type: 'string', description: localize('resourceDirname', "The folder name the resource is contained in") });
 	static readonly Path = new RawContextKey<string>('resourcePath', undefined, { type: 'string', description: localize('resourcePath', "The full path of the resource") });
 	static readonly LangId = new RawContextKey<string>('resourceLangId', undefined, { type: 'string', description: localize('resourceLangId', "The language identifier of the resource") });
-	static readonly Resource = new RawContextKey<URI>('resource', undefined, { type: 'URI', description: localize('resource', "The full value of the resource including scheme and path") });
+	static readonly Resource = new RawContextKey<string>('resource', undefined, { type: 'URI', description: localize('resource', "The full value of the resource including scheme and path") });
 	static readonly Extension = new RawContextKey<string>('resourceExtname', undefined, { type: 'string', description: localize('resourceExtname', "The extension name of the resource") });
 	static readonly HasResource = new RawContextKey<boolean>('resourceSet', undefined, { type: 'boolean', description: localize('resourceSet', "Whether a resource is present or not") });
 	static readonly IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', undefined, { type: 'boolean', description: localize('isFileSystemResource', "Whether the resource is backed by a file system provider") });
 
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _resourceKey: IContextKey<URI | null>;
+	private _value: URI | undefined;
+	private readonly _resourceKey: IContextKey<string | null>;
 	private readonly _schemeKey: IContextKey<string | null>;
 	private readonly _filenameKey: IContextKey<string | null>;
 	private readonly _dirnameKey: IContextKey<string | null>;
@@ -211,12 +212,14 @@ export class ResourceContextKey implements IContextKey<URI> {
 		this._langIdKey.set(langId);
 	}
 
-	set(value: URI | null) {
-		if (isEqual(this.get(), value ?? undefined)) {
+	set(value: URI | null | undefined) {
+		value = value ?? undefined;
+		if (isEqual(this._value, value)) {
 			return;
 		}
+		this._value = value;
 		this._contextKeyService.bufferChangeEvents(() => {
-			this._resourceKey.set(value);
+			this._resourceKey.set(value ? value.toString() : null);
 			this._schemeKey.set(value ? value.scheme : null);
 			this._filenameKey.set(value ? basename(value) : null);
 			this._dirnameKey.set(value ? dirname(value).fsPath : null);
@@ -229,6 +232,7 @@ export class ResourceContextKey implements IContextKey<URI> {
 	}
 
 	reset(): void {
+		this._value = undefined;
 		this._contextKeyService.bufferChangeEvents(() => {
 			this._resourceKey.reset();
 			this._schemeKey.reset();
@@ -243,7 +247,7 @@ export class ResourceContextKey implements IContextKey<URI> {
 	}
 
 	get(): URI | undefined {
-		return this._resourceKey.get() ?? undefined;
+		return this._value;
 	}
 }
 

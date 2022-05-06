@@ -180,6 +180,7 @@ export class BaseTunnelService extends AbstractTunnelService {
 			this.logService.trace(`ForwardedPorts: (TunnelService) Creating tunnel without provider ${remoteHost}:${remotePort} on local port ${localPort}.`);
 			const options: IConnectionOptions = {
 				commit: this.productService.commit,
+				quality: this.productService.quality,
 				socketFactory: this.socketFactory,
 				addressProvider,
 				signService: this.signService,

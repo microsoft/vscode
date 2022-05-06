@@ -162,7 +162,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 				ariaLabel: `${ariaLabel}${command.tooltip ? ` - ${command.tooltip}` : ''}`,
 				tooltip,
 				command: command.id ? command : undefined
-			}, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, 10000));
+			}, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, 10000 - index));
 		}
 
 		this.statusBarDisposable = disposables;
