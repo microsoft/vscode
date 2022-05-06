@@ -790,7 +790,7 @@ export class CustomTask extends CommonTask {
 	}
 
 	public override getWorkspaceFolder(): IWorkspaceFolder | undefined {
-		return this._source.config.workspaceFolder;
+		return this._source.config.workspace?.folders.find(f => f.uri.path === this.command.options?.cwd) || this._source.config.workspaceFolder;
 	}
 
 	public override getWorkspaceFileName(): string | undefined {
