@@ -102,7 +102,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 	function createPipeline(build, emitError) {
 		const nlsDev = require('vscode-nls-dev');
-		const tsb = require('gulp-tsb');
+		const tsb = require('./lib/tsb');
 		const sourcemaps = require('gulp-sourcemaps');
 
 		const reporter = createReporter('extensions');

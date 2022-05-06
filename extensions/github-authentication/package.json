@@ -63,7 +63,7 @@
     "uuid": "8.1.0",
     "@vscode/extension-telemetry": "0.4.10",
     "vscode-nls": "^5.0.0",
-    "vscode-tas-client": "^0.1.42"
+    "vscode-tas-client": "^0.1.47"
   },
   "devDependencies": {
     "@types/node": "16.x",

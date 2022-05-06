@@ -180,8 +180,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (!enableTitleMenu) {
 			// Text Title
 			this.title.innerText = this.windowTitle.value;
-			this.titleDisposables.add(this.windowTitle.onDidChange(() => this.title.innerText = this.windowTitle.value));
-
+			this.titleDisposables.add(this.windowTitle.onDidChange(() => {
+				this.title.innerText = this.windowTitle.value;
+				this.adjustTitleMarginToCenter();
+			}));
 		} else {
 			// Menu Title
 			clearNode(this.title);

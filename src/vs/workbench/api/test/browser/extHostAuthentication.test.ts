@@ -211,7 +211,7 @@ suite('ExtHostAuthentication', () => {
 		assert.strictEqual(session.scopes[0], session2?.scopes[0]);
 	});
 
-	test('forceNewSession - true', async () => {
+	test('forceNewSession - true - existing session', async () => {
 		const scopes = ['foo'];
 		const session1 = await extHostAuthentication.getSession(
 			extensionDescription,
@@ -233,6 +233,20 @@ suite('ExtHostAuthentication', () => {
 		assert.strictEqual(session2?.id, '2');
 		assert.strictEqual(session2?.scopes[0], 'foo');
 		assert.notStrictEqual(session1.accessToken, session2?.accessToken);
+	});
+
+	// Should behave like createIfNone: true
+	test('forceNewSession - true - no existing session', async () => {
+		const scopes = ['foo'];
+		const session = await extHostAuthentication.getSession(
+			extensionDescription,
+			'test',
+			scopes,
+			{
+				forceNewSession: true
+			});
+		assert.strictEqual(session?.id, '1');
+		assert.strictEqual(session?.scopes[0], 'foo');
 	});
 
 	test('forceNewSession - detail', async () => {
@@ -349,21 +363,6 @@ suite('ExtHostAuthentication', () => {
 	//#endregion
 
 	//#region error cases
-
-	test('forceNewSession with no sessions', async () => {
-		try {
-			await extHostAuthentication.getSession(
-				extensionDescription,
-				'test',
-				['foo'],
-				{
-					forceNewSession: true
-				});
-			assert.fail('should have thrown an Error.');
-		} catch (e) {
-			assert.strictEqual(e.message, 'No existing sessions found.');
-		}
-	});
 
 	test('createIfNone and forceNewSession', async () => {
 		try {
