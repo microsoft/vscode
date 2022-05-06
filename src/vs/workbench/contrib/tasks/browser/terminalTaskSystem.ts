@@ -1251,7 +1251,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			let resolvedResult: { command: CommandString; args: CommandString[] } = await this.resolveCommandAndArgs(resolver, task.command);
 			command = resolvedResult.command;
 			args = resolvedResult.args;
-
+			if (options.cwd) {
+				task.updateWorkspaceFolder(options.cwd);
+			}
 			this.currentTask.shellLaunchConfig = launchConfigs = await this.createShellLaunchConfig(task, workspaceFolder, resolver, platform, options, command, args, waitOnExit);
 			if (launchConfigs === undefined) {
 				return [undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];

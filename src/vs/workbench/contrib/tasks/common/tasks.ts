@@ -629,6 +629,10 @@ export abstract class CommonTask {
 		return undefined;
 	}
 
+	public updateWorkspaceFolder(cwd: string): void {
+
+	}
+
 	public getWorkspaceFileName(): string | undefined {
 		return undefined;
 	}
@@ -789,8 +793,12 @@ export class CustomTask extends CommonTask {
 		return JSON.stringify(key);
 	}
 
-	public override getWorkspaceFolder(): IWorkspaceFolder | undefined {
-		return this._source.config.workspace?.folders.find(f => f.uri.path === this.command.options?.cwd) || this._source.config.workspaceFolder;
+	public override updateWorkspaceFolder(cwd: string): void {
+		this._source.config.workspaceFolder = this._source.config.workspace?.folders.find(f => f.uri.path === cwd);
+	}
+
+	public override getWorkspaceFolder(resolvedCwd?: string): IWorkspaceFolder | undefined {
+		return this._source.config.workspaceFolder;
 	}
 
 	public override getWorkspaceFileName(): string | undefined {
