@@ -75,32 +75,6 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 
 const sepRegexp = /\//g;
 const labelMatchingRegexp = /\$\{(scheme|authoritySuffix|authority|path|(query)\.(.+?))\}/g;
-const replaceFormattedParts = (str: string, resource: URI, formatting: ResourceLabelFormatting) => str.replace(labelMatchingRegexp, (match, token, qsToken, qsValue) => {
-	switch (token) {
-		case 'scheme': return resource.scheme;
-		case 'authority': return resource.authority;
-		case 'authoritySuffix': {
-			const i = resource.authority.indexOf('+');
-			return i === -1 ? resource.authority : resource.authority.slice(i + 1);
-		}
-		case 'path':
-			return formatting.stripPathStartingSeparator
-				? resource.path.slice(resource.path[0] === formatting.separator ? 1 : 0)
-				: resource.path;
-		default: {
-			if (qsToken === 'query') {
-				const { query } = resource;
-				if (query && query[0] === '{' && query[query.length - 1] === '}') {
-					try {
-						return JSON.parse(query)[qsValue] || '';
-					} catch { }
-				}
-			}
-
-			return '';
-		}
-	}
-});
 
 function hasDriveLetterIgnorePlatform(path: string): boolean {
 	return !!(path && path[2] === ':');
@@ -373,7 +347,32 @@ export class LabelService extends Disposable implements ILabelService {
 	}
 
 	private formatUri(resource: URI, formatting: ResourceLabelFormatting, forceNoTildify?: boolean): string {
-		let label = replaceFormattedParts(formatting.label, resource, formatting);
+		let label = formatting.label.replace(labelMatchingRegexp, (match, token, qsToken, qsValue) => {
+			switch (token) {
+				case 'scheme': return resource.scheme;
+				case 'authority': return resource.authority;
+				case 'authoritySuffix': {
+					const i = resource.authority.indexOf('+');
+					return i === -1 ? resource.authority : resource.authority.slice(i + 1);
+				}
+				case 'path':
+					return formatting.stripPathStartingSeparator
+						? resource.path.slice(resource.path[0] === formatting.separator ? 1 : 0)
+						: resource.path;
+				default: {
+					if (qsToken === 'query') {
+						const { query } = resource;
+						if (query && query[0] === '{' && query[query.length - 1] === '}') {
+							try {
+								return JSON.parse(query)[qsValue] || '';
+							} catch { }
+						}
+					}
+
+					return '';
+				}
+			}
+		});
 
 		// convert \c:\something => C:\something
 		if (formatting.normalizeDriveLetter && hasDriveLetterIgnorePlatform(label)) {
@@ -395,7 +394,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 	private appendWorkspaceSuffix(label: string, uri: URI): string {
 		const formatting = this.findFormatting(uri);
-		const suffix = typeof formatting?.workspaceSuffix === 'string' ? replaceFormattedParts(formatting.workspaceSuffix, uri, formatting) : undefined;
+		const suffix = formatting && (typeof formatting.workspaceSuffix === 'string') ? formatting.workspaceSuffix : undefined;
 
 		return suffix ? `${label} [${suffix}]` : label;
 	}
