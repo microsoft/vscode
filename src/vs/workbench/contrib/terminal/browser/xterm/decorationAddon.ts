@@ -46,6 +46,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _hoverDelayer: Delayer<void>;
 	private _commandStartedListener: IDisposable | undefined;
 	private _commandFinishedListener: IDisposable | undefined;
+	private _commandClearedListener: IDisposable | undefined;
 	private _contextMenuVisible: boolean = false;
 	private _decorations: Map<number, IDisposableDecoration> = new Map();
 	private _placeholderDecoration: IDecoration | undefined;
@@ -63,7 +64,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
-		this._register(toDisposable(() => this.clearDecorations(true)));
+		this._register(toDisposable(() => this._dispose()));
 		this._register(this._contextMenuService.onDidShowContextMenu(() => this._contextMenuVisible = true));
 		this._register(this._contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
@@ -111,11 +112,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	public clearDecorations(disableDecorations?: boolean): void {
-		if (disableDecorations) {
-			this._commandStartedListener?.dispose();
-			this._commandFinishedListener?.dispose();
-		}
+	private _dispose(): void {
+		this._commandStartedListener?.dispose();
+		this._commandFinishedListener?.dispose();
+		this._commandClearedListener?.dispose();
 		this._placeholderDecoration?.dispose();
 		this._placeholderDecoration?.marker.dispose();
 		for (const value of this._decorations.values()) {
@@ -129,11 +129,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
 			this._addCommandFinishedListener();
 			this._addCommandStartedListener();
+			this._addCommandClearedListener();
 		} else {
 			this._register(this._capabilities.onDidAddCapability(c => {
 				if (c === TerminalCapability.CommandDetection) {
 					this._addCommandFinishedListener();
 					this._addCommandStartedListener();
+					this._addCommandClearedListener();
 				}
 			}));
 		}
@@ -141,6 +143,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			if (c === TerminalCapability.CommandDetection) {
 				this._commandStartedListener?.dispose();
 				this._commandFinishedListener?.dispose();
+				this._commandClearedListener?.dispose();
 			}
 		}));
 	}
@@ -171,12 +174,29 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		for (const command of capability.commands) {
 			this.registerCommandDecoration(command);
 		}
-		this._commandFinishedListener = capability.onCommandFinished(command => {
-			if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
-				this.clearDecorations();
-				return;
+		this._commandFinishedListener = capability.onCommandFinished(command => this.registerCommandDecoration(command));
+	}
+
+	private _addCommandClearedListener(): void {
+		if (this._commandClearedListener) {
+			return;
+		}
+		const capability = this._capabilities.get(TerminalCapability.CommandDetection);
+		if (!capability) {
+			return;
+		}
+
+		this._commandClearedListener = capability.onCommandInvalidated(commands => {
+			for (const command of commands) {
+				const id = command.marker?.id;
+				if (id) {
+					const match = this._decorations.get(id);
+					if (match) {
+						match.decoration.dispose();
+						dispose(match.disposables);
+					}
+				}
 			}
-			this.registerCommandDecoration(command);
 		});
 	}
 
