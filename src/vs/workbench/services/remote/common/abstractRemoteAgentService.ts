@@ -40,7 +40,7 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 		super();
 		this.socketFactory = socketFactory;
 		if (this._environmentService.remoteAuthority) {
-			this._connection = this._register(new RemoteAgentConnection(this._environmentService.remoteAuthority, productService.commit, this.socketFactory, this._remoteAuthorityResolverService, signService, logService));
+			this._connection = this._register(new RemoteAgentConnection(this._environmentService.remoteAuthority, productService.commit, productService.quality, this.socketFactory, this._remoteAuthorityResolverService, signService, logService));
 		} else {
 			this._connection = null;
 		}
@@ -156,6 +156,7 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 	constructor(
 		remoteAuthority: string,
 		private readonly _commit: string | undefined,
+		private readonly _quality: string | undefined,
 		private readonly _socketFactory: ISocketFactory,
 		private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		private readonly _signService: ISignService,
@@ -191,6 +192,7 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 		let firstCall = true;
 		const options: IConnectionOptions = {
 			commit: this._commit,
+			quality: this._quality,
 			socketFactory: this._socketFactory,
 			addressProvider: {
 				getAddress: async () => {
