@@ -334,7 +334,7 @@ export class BrowserMain extends Disposable {
 		// User data
 		let userDataProvider;
 		if (indexedDB) {
-			userDataProvider = new IndexedDBFileSystemProvider(logsPath.scheme, indexedDB, userDataStore, false);
+			userDataProvider = new IndexedDBFileSystemProvider(Schemas.vscodeUserData, indexedDB, userDataStore, true);
 			this.registerDeveloperActions(<IndexedDBFileSystemProvider>userDataProvider);
 		} else {
 			logService.info('Using in-memory user data provider');
