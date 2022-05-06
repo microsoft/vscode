@@ -104,10 +104,3 @@ __vsc_preexec() {
 }
 add-zsh-hook precmd __vsc_precmd
 add-zsh-hook preexec __vsc_preexec
-
-# Show the welcome message
-if [ -z "${VSCODE_SHELL_HIDE_WELCOME-}" ]; then
-	builtin echo "\033[1;32mShell integration activated\033[0m"
-else
-	VSCODE_SHELL_HIDE_WELCOME=""
-fi
