@@ -15,6 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 // eslint-disable-next-line code-import-patterns
 import type { ITerminalAddon, Terminal } from 'xterm-headless';
 import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -123,9 +124,11 @@ const enum VSCodeOscPt {
 export class ShellIntegrationAddon extends Disposable implements IShellIntegration, ITerminalAddon {
 	private _terminal?: Terminal;
 	readonly capabilities = new TerminalCapabilityStore();
+	private _hasUpdatedTelemetry: boolean = false;
 
 	constructor(
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService?: ITelemetryService
 	) {
 		super();
 	}
@@ -243,6 +246,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (!commandDetection) {
 			commandDetection = new CommandDetectionCapability(terminal, this._logService);
 			this.capabilities.add(TerminalCapability.CommandDetection, commandDetection);
+		}
+		if (!this._hasUpdatedTelemetry) {
+			this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivated');
+			this._hasUpdatedTelemetry = true;
 		}
 		return commandDetection;
 	}

@@ -80,6 +80,7 @@ import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import type { ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const enum Constants {
 	/**
@@ -361,7 +362,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IHistoryService private readonly _historyService: IHistoryService
+		@IHistoryService private readonly _historyService: IHistoryService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -1631,6 +1633,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
+		if (shellIntegrationAttempted) {
+			this._telemetryService.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationProcessExit');
+		}
+
 		// First onExit to consumers, this can happen after the terminal has already been disposed.
 		this._onExit.fire(exitCodeOrError);
 
@@ -2572,7 +2578,7 @@ export class TerminalLabelComputer extends Disposable {
 	}
 }
 
-export function parseExitResult(
+export function parseExitResult(this: any,
 	exitCodeOrError: ITerminalLaunchError | number | undefined,
 	shellLaunchConfig: IShellLaunchConfig,
 	processState: ProcessState,
@@ -2602,6 +2608,7 @@ export function parseExitResult(
 			if (shellIntegrationAttempted) {
 				if (commandLine) {
 					message = nls.localize('launchFailed.exitCodeAndCommandLineShellIntegration', "The terminal process \"{0}\" failed to launch (exit code: {1}). Disabling shell integration with `terminal.integrated.shellIntegration.enabled` might help.", commandLine, code);
+					this._logProcessExitShellIntegrationTelemetry();
 				} else {
 					message = nls.localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch (exit code: {0}). Disabling shell integration with `terminal.integrated.shellIntegration.enabled` might help.", code);
 				}

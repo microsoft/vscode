@@ -32,8 +32,9 @@ import { Color } from 'vs/base/common/color';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
-import { ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -59,7 +60,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	// Always on addons
 	private _commandNavigationAddon: CommandNavigationAddon;
-	private _shellIntegrationAddon: ShellIntegrationAddon;
+	private _shellIntegrationAddon!: ShellIntegrationAddon;
 	private _decorationAddon: DecorationAddon | undefined;
 
 	// Optional addons
@@ -103,7 +104,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 		this.target = location;
@@ -153,7 +155,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			}
 			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) ||
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled)) {
-				this._updateDecorationAddon();
+				this._updateShellIntegrationAddons();
 			}
 		}));
 
@@ -169,9 +171,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this._updateUnicodeVersion();
 		this._commandNavigationAddon = this._instantiationService.createInstance(CommandNavigationAddon, _capabilities);
 		this.raw.loadAddon(this._commandNavigationAddon);
-		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon);
-		this.raw.loadAddon(this._shellIntegrationAddon);
-		this._updateDecorationAddon();
+		this._updateShellIntegrationAddons();
 	}
 	private _createDecorationAddon(): void {
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
@@ -595,16 +595,40 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		}
 	}
 
-	private _updateDecorationAddon(): void {
-		if (this._configHelper.config.shellIntegration?.enabled && this._configHelper.config.shellIntegration.decorationsEnabled) {
-			if (!this._decorationAddon) {
-				this._createDecorationAddon();
+	private _updateShellIntegrationAddons(): void {
+		const shellIntegrationEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled);
+		const decorationsEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled);
+		if (shellIntegrationEnabled) {
+			if (!this._shellIntegrationAddon) {
+				this._createShellIntegrationAddon();
 			}
-			return;
+			if (decorationsEnabled && !this._decorationAddon) {
+				this._createDecorationAddon();
+			} else if (this._decorationAddon && !decorationsEnabled) {
+				this._decorationAddon.dispose();
+				this._decorationAddon = undefined;
+			}
+		} else {
+			this._shellIntegrationAddon?.dispose();
+			if (this._decorationAddon) {
+				this._decorationAddon.dispose();
+				this._decorationAddon = undefined;
+				this._telemetryService.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationDisabledByUser');
+			}
 		}
-		if (this._decorationAddon) {
-			this._decorationAddon.dispose();
-			this._decorationAddon = undefined;
-		}
+	}
+
+	private _createShellIntegrationAddon(): void {
+		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon);
+		this.raw.loadAddon(this._shellIntegrationAddon);
+		this._addTelemetryIfShellIntegrationFailed();
+	}
+
+	private async _addTelemetryIfShellIntegrationFailed(): Promise<void> {
+		setTimeout(() => {
+			if (!this._capabilities.get(TerminalCapability.CommandDetection) && !this._capabilities.get(TerminalCapability.CwdDetection)) {
+				this._telemetryService.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationFailedToActivate');
+			}
+		}, 10000);
 	}
 }
