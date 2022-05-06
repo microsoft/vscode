@@ -17,7 +17,7 @@ export function setup(logger: Logger) {
 	describe('Terminal', function () {
 
 		// Retry tests 3 times to minimize build failures due to any flakiness
-		// this.retries(3);
+		this.retries(3);
 
 		// Shared before/after handling
 		installAllHandlers(logger);
