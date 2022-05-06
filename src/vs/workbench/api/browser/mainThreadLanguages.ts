@@ -68,8 +68,8 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 		if (!model) {
 			return undefined;
 		}
-		model.tokenizeIfCheap(position.lineNumber);
-		const tokens = model.getLineTokens(position.lineNumber);
+		model.tokenization.tokenizeIfCheap(position.lineNumber);
+		const tokens = model.tokenization.getLineTokens(position.lineNumber);
 		const idx = tokens.findTokenIndexAtOffset(position.column - 1);
 		return {
 			type: tokens.getStandardTokenType(idx),

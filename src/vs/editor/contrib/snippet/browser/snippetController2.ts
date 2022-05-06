@@ -167,7 +167,7 @@ export class SnippetController2 implements IEditorContribution {
 
 			const registration = this._languageFeaturesService.completionProvider.register({
 				language: this._editor.getModel().getLanguageId(),
-				pattern: this._editor.getModel().uri.path,
+				pattern: this._editor.getModel().uri.fsPath,
 				scheme: this._editor.getModel().uri.scheme
 			}, this._choiceCompletionItemProvider);
 
@@ -340,6 +340,7 @@ export function performSnippetEdit(editor: ICodeEditor, edit: SnippetTextEdit) {
 	if (!controller) {
 		return false;
 	}
+	editor.focus();
 	editor.setSelection(edit.range);
 	controller.insert(edit.snippet);
 	return controller.isInSnippet();

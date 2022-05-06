@@ -133,6 +133,16 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 						validLanguageId = grammar.language;
 					}
 
+					function asStringArray(array: unknown, defaultValue: string[]): string[] {
+						if (!Array.isArray(array)) {
+							return defaultValue;
+						}
+						if (!array.every(e => typeof e === 'string')) {
+							return defaultValue;
+						}
+						return array;
+					}
+
 					this._grammarDefinitions.push({
 						location: grammarLocation,
 						language: validLanguageId ? validLanguageId : undefined,
@@ -140,6 +150,8 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 						embeddedLanguages: embeddedLanguages,
 						tokenTypes: tokenTypes,
 						injectTo: grammar.injectTo,
+						balancedBracketSelectors: asStringArray(grammar.balancedBracketScopes, ['*']),
+						unbalancedBracketSelectors: asStringArray(grammar.unbalancedBracketScopes, []),
 					});
 
 					if (validLanguageId) {

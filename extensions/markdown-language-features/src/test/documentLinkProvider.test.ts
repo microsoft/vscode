@@ -7,9 +7,10 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
-import { createNewMarkdownEngine } from './engine';
+import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
-import { assertRangeEqual, joinLines, noopToken } from './util';
+import { createNewMarkdownEngine } from './engine';
+import { assertRangeEqual, joinLines } from './util';
 
 
 const testFile = vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, 'x.md');
@@ -213,6 +214,26 @@ suite('markdown.DocumentLinkProvider', () => {
 		assert.strictEqual(links.length, 0);
 	});
 
+	test('Should not consider link references in code fenced with backticks (#146714)', async () => {
+		const text = joinLines(
+			'```',
+			'[a] [bb]',
+			'```');
+		const links = await getLinksForFile(text);
+		assert.strictEqual(links.length, 0);
+	});
+
+	test('Should not consider reference sources in code fenced with backticks (#146714)', async () => {
+		const text = joinLines(
+			'```',
+			'[a]: http://example.com;',
+			'[b]: <http://example.com>;',
+			'[c]: (http://example.com);',
+			'```');
+		const links = await getLinksForFile(text);
+		assert.strictEqual(links.length, 0);
+	});
+
 	test('Should not consider links in multiline inline code span between between text', async () => {
 		const text = joinLines(
 			'[b](https://1.com) `[b](https://2.com)',
@@ -238,5 +259,13 @@ suite('markdown.DocumentLinkProvider', () => {
 			'``');
 		const links = await getLinksForFile(text);
 		assert.strictEqual(links.length, 1);
+	});
+
+	test('Should find autolinks', async () => {
+		const links = await getLinksForFile('pre <http://example.com> post');
+		assert.strictEqual(links.length, 1);
+
+		const link = links[0];
+		assertRangeEqual(link.range, new vscode.Range(0, 5, 0, 23));
 	});
 });

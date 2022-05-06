@@ -105,18 +105,6 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 				break;
 			}
 
-			case 'close': {
-
-				// We only allow to close workspace scoped storage because
-				// global storage is shared across all windows and closes
-				// only on shutdown.
-				if (workspace) {
-					return storage.close();
-				}
-
-				break;
-			}
-
 			default:
 				throw new Error(`Call not found: ${command}`);
 		}

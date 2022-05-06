@@ -11,7 +11,6 @@ import * as types from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import type * as vscode from 'vscode';
 import * as tasks from '../common/shared/tasks';
-import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -23,13 +22,11 @@ import { ExtHostTaskBase, TaskHandleDTO, TaskDTO, CustomExecutionDTO, HandlerDat
 import { Schemas } from 'vs/base/common/network';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import * as resources from 'vs/base/common/resources';
 import { homedir } from 'os';
+import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHostVariableResolverService';
 
 export class ExtHostTask extends ExtHostTaskBase {
-	private _variableResolver: ExtHostVariableResolverService | undefined;
-
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
@@ -39,7 +36,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
 		@ILogService logService: ILogService,
 		@IExtHostApiDeprecationService deprecationService: IExtHostApiDeprecationService,
-		@IExtHostEditorTabs private readonly editorTabs: IExtHostEditorTabs,
+		@IExtHostVariableResolverProvider private readonly variableResolver: IExtHostVariableResolverProvider,
 	) {
 		super(extHostRpc, initData, workspaceService, editorService, configurationService, extHostTerminalService, logService, deprecationService);
 		if (initData.remote.isRemote && initData.remote.authority) {
@@ -128,14 +125,6 @@ export class ExtHostTask extends ExtHostTaskBase {
 		return resolvedTaskDTO;
 	}
 
-	private async getVariableResolver(workspaceFolders: vscode.WorkspaceFolder[]): Promise<ExtHostVariableResolverService> {
-		if (this._variableResolver === undefined) {
-			const configProvider = await this._configurationService.getConfigProvider();
-			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider, this.editorTabs, this.workspaceService, homedir());
-		}
-		return this._variableResolver;
-	}
-
 	private async getAFolder(workspaceFolders: vscode.WorkspaceFolder[] | undefined): Promise<IWorkspaceFolder> {
 		let folder = (workspaceFolders && workspaceFolders.length > 0) ? workspaceFolders[0] : undefined;
 		if (!folder) {
@@ -161,7 +150,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 		const workspaceFolder = await this._workspaceProvider.resolveWorkspaceFolder(uri);
 		const workspaceFolders = (await this._workspaceProvider.getWorkspaceFolders2()) ?? [];
 
-		const resolver = await this.getVariableResolver(workspaceFolders);
+		const resolver = await this.variableResolver.getResolver();
 		const ws: IWorkspaceFolder = workspaceFolder ? {
 			uri: workspaceFolder.uri,
 			name: workspaceFolder.name,

@@ -101,7 +101,6 @@ export class BaseCellEditorOptions extends Disposable implements IBaseCellEditor
 		},
 		renderLineHighlightOnlyWhenFocus: true,
 		overviewRulerLanes: 0,
-		selectOnLineNumbers: false,
 		lineNumbers: 'off',
 		lineDecorationsWidth: 0,
 		folding: true,
@@ -397,7 +396,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this._updateForNotebookConfiguration();
 			}
 
-			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation || e.dragAndDropEnabled || e.fontSize || e.markupFontSize || e.insertToolbarAlignment) {
+			if (e.fontFamily) {
+				this._generateFontInfo();
+			}
+
+			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation || e.dragAndDropEnabled || e.fontSize || e.outputFontSize || e.markupFontSize || e.fontFamily || e.outputFontFamily || e.insertToolbarAlignment || e.outputLineHeight) {
 				this._styleElement?.remove();
 				this._createLayoutStyles();
 				this._webview?.updateOptions({
@@ -1216,8 +1219,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this.viewModel.updateOptions({ isReadOnly: this._readOnly });
 
 		// reveal cell if editor options tell to do so
-		if (options?.cellOptions) {
-			const cellOptions = options.cellOptions;
+		const cellOptions = options?.cellOptions ?? this._parseIndexedCellOptions(options);
+		if (cellOptions) {
 			const cell = this.viewModel.viewCells.find(cell => cell.uri.toString() === cellOptions.resource.toString());
 			if (cell) {
 				this.focusElement(cell);
@@ -1268,6 +1271,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._updateForOptions();
 		this._onDidChangeOptions.fire();
+	}
+
+	private _parseIndexedCellOptions(options: INotebookEditorOptions | undefined) {
+		if (options?.indexedCellOptions) {
+			// convert index based selections
+			const cell = this.cellAt(options.indexedCellOptions.index);
+			if (cell) {
+				return {
+					resource: cell.uri,
+					options: {
+						selection: options.indexedCellOptions.selection,
+						preserveFocus: false
+					}
+				};
+			}
+		}
+
+		return undefined;
 	}
 
 	private _detachModel() {
@@ -1801,6 +1822,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			if (this.viewModel) {
 				const focusRange = this.viewModel.getFocus();
 				const element = this.viewModel.cellAt(focusRange.start);
+
+				// The notebook editor doesn't have focus yet
+				if (!this.hasEditorFocus()) {
+					this.focusContainer();
+				}
 
 				if (element && element.focusMode === CellFocusMode.Editor) {
 					element.updateEditState(CellEditState.Editing, 'editorWidget.focus');

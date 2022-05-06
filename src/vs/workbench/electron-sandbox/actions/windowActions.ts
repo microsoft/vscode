@@ -227,6 +227,7 @@ abstract class BaseSwitchWindow extends Action2 {
 			activeItem: picks[autoFocusIndex],
 			placeHolder,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingService.lookupKeybindings(this.desc.id) } : undefined,
+			hideInput: this.isQuickNavigate(),
 			onDidTriggerItemButton: async context => {
 				await nativeHostService.closeWindowById(context.item.payload);
 				context.removeItem();

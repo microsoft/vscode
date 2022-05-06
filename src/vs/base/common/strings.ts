@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LRUCachedComputed } from 'vs/base/common/cache';
+import { LRUCachedFunction } from 'vs/base/common/cache';
 import { CharCode } from 'vs/base/common/charCode';
 import { Lazy } from 'vs/base/common/lazy';
 import { Constants } from 'vs/base/common/uint';
@@ -272,6 +272,29 @@ export function lastNonWhitespaceIndex(str: string, startIndex: number = str.len
 		}
 	}
 	return -1;
+}
+
+/**
+ * Function that works identically to String.prototype.replace, except, the
+ * replace function is allowed to be async and return a Promise.
+ */
+export function replaceAsync(str: string, search: RegExp, replacer: (match: string, ...args: any[]) => Promise<string>): Promise<string> {
+	let parts: (string | Promise<string>)[] = [];
+
+	let last = 0;
+	for (const match of str.matchAll(search)) {
+		parts.push(str.slice(last, match.index));
+		if (match.index === undefined) {
+			throw new Error('match.index should be defined');
+		}
+
+		last = match.index + match[0].length;
+		parts.push(replacer(match[0], ...match.slice(1), match.index, str, match.groups));
+	}
+
+	parts.push(str.slice(last));
+
+	return Promise.all(parts).then(p => p.join(''));
 }
 
 export function compare(a: string, b: string): number {
@@ -1052,7 +1075,7 @@ export class AmbiguousCharacters {
 		);
 	});
 
-	private static readonly cache = new LRUCachedComputed<
+	private static readonly cache = new LRUCachedFunction<
 		string[],
 		AmbiguousCharacters
 	>((locales) => {

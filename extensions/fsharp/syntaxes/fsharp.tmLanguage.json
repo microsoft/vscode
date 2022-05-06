@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/b528e4360b4cd967aa93c2f7849e459ff91d192c",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/8825a76681cdc14801b5d9490372ff67ec6b9711",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"patterns": [
@@ -1148,7 +1148,7 @@
 				},
 				{
 					"name": "namespace.open.fsharp",
-					"begin": "\\b(open)\\s+([[:alpha:]][[:alpha:]0-9'_]*)(?=(\\.[A-Z][[:alpha:]0-9_]*)*)",
+					"begin": "\\b(open type|open)\\s+([[:alpha:]][[:alpha:]0-9'_]*)(?=(\\.[A-Z][[:alpha:]0-9_]*)*)",
 					"end": "(\\s|$)",
 					"beginCaptures": {
 						"1": {

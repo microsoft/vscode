@@ -183,7 +183,7 @@ export interface IWebview extends IDisposable {
 	readonly onMessage: Event<WebviewMessageReceivedEvent>;
 	readonly onMissingCsp: Event<ExtensionIdentifier>;
 
-	postMessage(message: any, transfer?: readonly ArrayBuffer[]): void;
+	postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean>;
 
 	focus(): void;
 	reload(): void;

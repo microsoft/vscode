@@ -156,8 +156,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._onDidChangeState.fire({ outputCollapsedChanged: true });
 	}
 
-	private _textEditorRestore: any;
-
 	constructor(
 		readonly viewType: string,
 		readonly model: NotebookCellTextModel,
@@ -236,9 +234,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._textEditor = editor;
 
 		if (this._editorViewStates) {
-			this._textEditorRestore = setTimeout(() => {
-				this._restoreViewState(this._editorViewStates);
-			});
+			this._restoreViewState(this._editorViewStates);
 		}
 
 		if (this._editorTransientState) {
@@ -264,7 +260,6 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	detachTextEditor() {
-		clearTimeout(this._textEditorRestore);
 		this.saveViewState();
 		this.saveTransientState();
 		// decorations need to be cleared first as editors can be resued.
@@ -589,7 +584,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		super.dispose();
 
 		dispose(this._editorListeners);
-		clearTimeout(this._textEditorRestore);
 
 		// Only remove the undo redo stack if we map this cell uri to itself
 		// If we are not in perCell mode, it will map to the full NotebookDocument and

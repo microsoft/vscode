@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel, commands } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise, logTimestamp } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -18,7 +18,7 @@ import { Askpass } from './askpass';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
-import { Log, LogLevel } from './log';
+import { OutputChannelLogger } from './log';
 
 const localize = nls.loadMessageBundle();
 
@@ -105,11 +105,12 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 	private _onDidRemoveRemoteSourcePublisher = new EventEmitter<RemoteSourcePublisher>();
 	readonly onDidRemoveRemoteSourcePublisher = this._onDidRemoveRemoteSourcePublisher.event;
 
+	private showRepoOnHomeDriveRootWarning = true;
 	private pushErrorHandlers = new Set<PushErrorHandler>();
 
 	private disposables: Disposable[] = [];
 
-	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private outputChannel: OutputChannel, private telemetryReporter: TelemetryReporter) {
+	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private outputChannelLogger: OutputChannelLogger, private telemetryReporter: TelemetryReporter) {
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
 		workspace.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
@@ -144,9 +145,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
 
 		// Log repository scan settings
-		if (Log.logLevel <= LogLevel.Trace) {
-			this.outputChannel.appendLine(`${logTimestamp()} Trace: autoRepositoryDetection="${autoRepositoryDetection}"`);
-		}
+		this.outputChannelLogger.logTrace(`autoRepositoryDetection="${autoRepositoryDetection}"`);
 
 		if (autoRepositoryDetection !== true && autoRepositoryDetection !== 'subFolders') {
 			return;
@@ -309,7 +308,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			// Check if the folder is a bare repo: if it has a file named HEAD && `rev-parse --show -cdup` is empty
 			try {
 				fs.accessSync(path.join(repoPath, 'HEAD'), fs.constants.F_OK);
-				const result = await this.git.exec(repoPath, ['-C', repoPath, 'rev-parse', '--show-cdup'], { log: false });
+				const result = await this.git.exec(repoPath, ['-C', repoPath, 'rev-parse', '--show-cdup']);
 				if (result.stderr.trim() === '' && result.stdout.trim() === '') {
 					return;
 				}
@@ -334,16 +333,30 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 				return;
 			}
 
+			// On Window, opening a git repository from the root of the HOMEDRIVE poses a security risk.
+			// We will only a open git repository from the root of the HOMEDRIVE if the user explicitly
+			// opens the HOMEDRIVE as a folder. Only show the warning once during repository discovery.
+			if (process.platform === 'win32' && process.env.HOMEDRIVE && pathEquals(`${process.env.HOMEDRIVE}\\`, repositoryRoot)) {
+				const isRepoInWorkspaceFolders = (workspace.workspaceFolders ?? []).find(f => pathEquals(f.uri.fsPath, repositoryRoot))!!;
+
+				if (!isRepoInWorkspaceFolders) {
+					if (this.showRepoOnHomeDriveRootWarning) {
+						window.showWarningMessage(localize('repoOnHomeDriveRootWarning', "Unable to automatically open the git repository at '{0}'. To open that git repository, open it directly as a folder in VS Code.", repositoryRoot));
+						this.showRepoOnHomeDriveRootWarning = false;
+					}
+
+					return;
+				}
+			}
+
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this.globalState, this.outputChannel, this.telemetryReporter);
+			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this.globalState, this.outputChannelLogger, this.telemetryReporter);
 
 			this.open(repository);
 			repository.status(); // do not await this, we want SCM to know about the repo asap
 		} catch (ex) {
 			// noop
-			if (Log.logLevel <= LogLevel.Trace) {
-				this.outputChannel.appendLine(`${logTimestamp()} Trace: Opening repository for path='${repoPath}' failed; ex=${ex}`);
-			}
+			this.outputChannelLogger.logTrace(`Opening repository for path='${repoPath}' failed; ex=${ex}`);
 		}
 	}
 
@@ -369,7 +382,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 	}
 
 	private open(repository: Repository): void {
-		this.outputChannel.appendLine(`${logTimestamp()} Open repository: ${repository.root}`);
+		this.outputChannelLogger.logInfo(`Open repository: ${repository.root}`);
 
 		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === RepositoryState.Disposed);
 		const disappearListener = onDidDisappearRepository(() => dispose());
@@ -426,7 +439,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			return;
 		}
 
-		this.outputChannel.appendLine(`${logTimestamp()} Close repository: ${repository.root}`);
+		this.outputChannelLogger.logInfo(`Close repository: ${repository.root}`);
 		openRepository.dispose();
 	}
 

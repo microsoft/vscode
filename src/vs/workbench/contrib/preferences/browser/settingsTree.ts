@@ -2234,13 +2234,6 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 			}
 		}
 
-		// @modified or tag
-		if (element instanceof SettingsTreeSettingElement && this.viewState.tagFilters) {
-			if (!element.matchesAllTags(this.viewState.tagFilters)) {
-				return false;
-			}
-		}
-
 		// Group with no visible children
 		if (element instanceof SettingsTreeGroupElement) {
 			if (typeof element.count === 'number') {

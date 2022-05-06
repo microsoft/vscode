@@ -54,8 +54,10 @@ interface IMatchTemplate {
 
 export class SearchDelegate implements IListVirtualDelegate<RenderableMatch> {
 
+	public static ITEM_HEIGHT = 22;
+
 	getHeight(element: RenderableMatch): number {
-		return 22;
+		return SearchDelegate.ITEM_HEIGHT;
 	}
 
 	getTemplateId(element: RenderableMatch): string {

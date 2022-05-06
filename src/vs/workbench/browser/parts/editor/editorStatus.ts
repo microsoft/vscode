@@ -1202,7 +1202,7 @@ export class ChangeLanguageAction extends Action {
 						if (resource) {
 							// Detect languages since we are in an untitled file
 							let languageId: string | undefined = withNullAsUndefined(this.languageService.guessLanguageIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)));
-							if (!languageId) {
+							if (!languageId || languageId === 'unknown') {
 								detectedLanguage = await this.languageDetectionService.detectLanguage(resource);
 								languageId = detectedLanguage;
 							}

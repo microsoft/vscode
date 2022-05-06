@@ -76,7 +76,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		})();
 
 		// Workspace Storage: Warmup when related window with workspace loads
-		this._register(this.lifecycleMainService.onWillLoadWindow(async e => {
+		this._register(this.lifecycleMainService.onWillLoadWindow(e => {
 			if (e.workspace) {
 				this.workspaceStorage(e.workspace).init();
 			}
@@ -142,9 +142,11 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain {
 		if (this.shutdownReason === ShutdownReason.KILL) {
+
 			// Workaround for native crashes that we see when
 			// SQLite DBs are being created even after shutdown
 			// https://github.com/microsoft/vscode/issues/143186
+
 			return new InMemoryStorageMain(this.logService, this.fileService, this.telemetryService);
 		}
 

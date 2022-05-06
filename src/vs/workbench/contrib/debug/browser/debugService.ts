@@ -801,9 +801,9 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	async stopSession(session: IDebugSession | undefined, disconnect = false): Promise<any> {
+	async stopSession(session: IDebugSession | undefined, disconnect = false, suspend = false): Promise<any> {
 		if (session) {
-			return disconnect ? session.disconnect() : session.terminate();
+			return disconnect ? session.disconnect(undefined, suspend) : session.terminate();
 		}
 
 		const sessions = this.model.getSessions();
@@ -815,7 +815,7 @@ export class DebugService implements IDebugService {
 			this.cancelTokens(undefined);
 		}
 
-		return Promise.all(sessions.map(s => disconnect ? s.disconnect() : s.terminate()));
+		return Promise.all(sessions.map(s => disconnect ? s.disconnect(undefined, suspend) : s.terminate()));
 	}
 
 	private async substituteVariables(launch: ILaunch | undefined, config: IConfig): Promise<IConfig | undefined> {
@@ -852,11 +852,11 @@ export class DebugService implements IDebugService {
 
 	//---- focus management
 
-	async focusStackFrame(_stackFrame: IStackFrame | undefined, _thread?: IThread, _session?: IDebugSession, explicit?: boolean): Promise<void> {
+	async focusStackFrame(_stackFrame: IStackFrame | undefined, _thread?: IThread, _session?: IDebugSession, options?: { explicit?: boolean; preserveFocus?: boolean; sideBySide?: boolean; pinned?: boolean }): Promise<void> {
 		const { stackFrame, thread, session } = getStackFrameThreadAndSessionToFocus(this.model, _stackFrame, _thread, _session);
 
 		if (stackFrame) {
-			const editor = await stackFrame.openInEditor(this.editorService, true);
+			const editor = await stackFrame.openInEditor(this.editorService, options?.preserveFocus ?? true, options?.sideBySide, options?.pinned);
 			if (editor) {
 				if (editor.input === DisassemblyViewInput.instance) {
 					// Go to address is invoked via setFocus
@@ -880,7 +880,7 @@ export class DebugService implements IDebugService {
 			this.debugType.reset();
 		}
 
-		this.viewModel.setFocus(stackFrame, thread, session, !!explicit);
+		this.viewModel.setFocus(stackFrame, thread, session, !!options?.explicit);
 	}
 
 	//---- watches

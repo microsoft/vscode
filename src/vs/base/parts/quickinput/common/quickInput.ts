@@ -105,6 +105,13 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	quickNavigate?: IQuickNavigateConfiguration;
 
 	/**
+	 * Hides the input box from the picker UI. This is typically used
+	 * in combination with quick-navigation where no search UI should
+	 * be presented.
+	 */
+	hideInput?: boolean;
+
+	/**
 	 * a context key to set when this picker is active
 	 */
 	contextKey?: string;

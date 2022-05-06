@@ -10,7 +10,6 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { v4 as uuid } from 'uuid';
 import fetch, { Response } from 'node-fetch';
-import { Keychain } from './keychain';
 import Logger from './logger';
 import { toBase64UrlEncoding } from './utils';
 import { sha256 } from './env/node/sha256';
@@ -39,18 +38,6 @@ interface IToken {
 	};
 	scope: string;
 	sessionId: string; // The account id + the scope
-}
-
-interface ITokenClaims {
-	tid: string;
-	email?: string;
-	unique_name?: string;
-	exp?: number;
-	preferred_username?: string;
-	oid?: string;
-	altsecid?: string;
-	ipd?: string;
-	scp: string;
 }
 
 interface IStoredSession {
@@ -125,10 +112,6 @@ export class AzureActiveDirectoryService {
 		let sessions = await this._tokenStorage.getAll();
 		Logger.info(`Got ${sessions.length} stored sessions`);
 
-		if (!sessions.length) {
-			sessions = await this.migrate();
-		}
-
 		const refreshes = sessions.map(async session => {
 			Logger.trace(`Read the following stored session with scopes: ${session.scope}`);
 			const scopes = session.scope.split(' ');
@@ -158,7 +141,16 @@ export class AzureActiveDirectoryService {
 				} else {
 					vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
 					Logger.error(e);
-					await this.removeSession(session.id);
+					await this.removeSessionByIToken({
+						accessToken: undefined,
+						refreshToken: session.refreshToken,
+						account: {
+							label: session.account.label ?? session.account.displayName!,
+							id: session.account.id
+						},
+						scope: session.scope,
+						sessionId: session.id
+					});
 				}
 			}
 		});
@@ -391,27 +383,16 @@ export class AzureActiveDirectoryService {
 			});
 	}
 
-	public async removeSession(sessionId: string, writeToDisk: boolean = true): Promise<vscode.AuthenticationSession | undefined> {
+	public removeSessionById(sessionId: string, writeToDisk: boolean = true): Promise<vscode.AuthenticationSession | undefined> {
 		Logger.info(`Logging out of session '${sessionId}'`);
 		const tokenIndex = this._tokens.findIndex(token => token.sessionId === sessionId);
 		if (tokenIndex === -1) {
 			Logger.info(`Session not found '${sessionId}'`);
-			return undefined;
+			return Promise.resolve(undefined);
 		}
 
-		const token = this._tokens[tokenIndex];
-		this._tokens.splice(tokenIndex, 1);
-		this.removeSessionTimeout(sessionId);
-
-		if (writeToDisk) {
-			await this._tokenStorage.delete(sessionId);
-		}
-
-		const session = this.convertToSessionSync(token);
-		Logger.info(`Sending change event for session that was removed with scopes: ${token.scope}`);
-		onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
-		Logger.info(`Logged out of session '${sessionId}' with scopes: ${token.scope}`);
-		return session;
+		const token = this._tokens.splice(tokenIndex, 1)[0];
+		return this.removeSessionByIToken(token, writeToDisk);
 	}
 
 	public async clearSessions() {
@@ -424,6 +405,25 @@ export class AzureActiveDirectoryService {
 		});
 
 		this._refreshTimeouts.clear();
+	}
+
+	private async removeSessionByIToken(token: IToken, writeToDisk: boolean = true): Promise<vscode.AuthenticationSession | undefined> {
+		this.removeSessionTimeout(token.sessionId);
+
+		if (writeToDisk) {
+			await this._tokenStorage.delete(token.sessionId);
+		}
+
+		const tokenIndex = this._tokens.findIndex(t => t.sessionId === token.sessionId);
+		if (tokenIndex !== -1) {
+			this._tokens.splice(tokenIndex, 1);
+		}
+
+		const session = this.convertToSessionSync(token);
+		Logger.info(`Sending change event for session that was removed with scopes: ${token.scope}`);
+		onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+		Logger.info(`Logged out of session '${token.sessionId}' with scopes: ${token.scope}`);
+		return session;
 	}
 
 	//#endregion
@@ -440,7 +440,7 @@ export class AzureActiveDirectoryService {
 			} catch (e) {
 				if (e.message !== REFRESH_NETWORK_FAILURE) {
 					vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
-					await this.removeSession(sessionId);
+					await this.removeSessionById(sessionId);
 				}
 			}
 		}, timeout));
@@ -797,7 +797,7 @@ export class AzureActiveDirectoryService {
 					// Network failures will automatically retry on next poll.
 					if (e.message !== REFRESH_NETWORK_FAILURE) {
 						vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
-						await this.removeSession(session.id);
+						await this.removeSessionById(session.id);
 					}
 					return;
 				}
@@ -806,36 +806,10 @@ export class AzureActiveDirectoryService {
 
 		for (const { value } of e.removed) {
 			Logger.info(`Session removed in another window with scopes: ${value.scope}`);
-			const session = await this.removeSession(value.id, false);
+			const session = await this.removeSessionById(value.id, false);
 			if (session) {
 				removed.push(session);
 			}
-		}
-	}
-
-	private async migrate() {
-		Logger.info('Attempting to migrate stored sessions.');
-		const migrated = this._context.globalState.get<{ migrated: boolean }>('microsoft-better-storage-layout-migrated');
-		if (migrated?.migrated) {
-			return [];
-		}
-		await this._context.globalState.update('microsoft-better-storage-layout-migrated', { migrated: true });
-		const keychain = new Keychain(this._context);
-		const storedData = await keychain.getToken();
-		if (!storedData) {
-			Logger.info('No stored sessions found.');
-			return [];
-		}
-
-		try {
-			const sessions = JSON.parse(storedData) as IStoredSession[];
-			Logger.info(`Migrated ${sessions.length} stored sessions.`);
-			return sessions;
-		} catch (e) {
-			Logger.info('Failed to parse stored sessions. Migrating no sessions.');
-			return [];
-		} finally {
-			await keychain.deleteToken();
 		}
 	}
 

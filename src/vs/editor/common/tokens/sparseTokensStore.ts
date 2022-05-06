@@ -123,6 +123,11 @@ export class SparseTokensStore {
 	}
 
 	public addSparseTokens(lineNumber: number, aTokens: LineTokens): LineTokens {
+		if (aTokens.getLineContent().length === 0) {
+			// Don't do anything for empty lines
+			return aTokens;
+		}
+
 		const pieces = this._pieces;
 
 		if (pieces.length === 0) {

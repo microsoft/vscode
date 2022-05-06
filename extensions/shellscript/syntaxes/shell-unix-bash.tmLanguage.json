@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-shellscript/commit/4c3711edbe8eac6f501976893976b1ac6a043d50",
+	"version": "https://github.com/atom/language-shellscript/commit/4f8d7bb5cc4d1643674551683df10fe552dd5a6f",
 	"name": "Shell Script",
 	"scopeName": "source.shell",
 	"patterns": [
@@ -624,7 +624,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-\\s*(\"|'|)\\s*\\\\?([^;&<\\s]+)\\2",
+					"begin": "(<<)-\\s*(\"|')\\s*\\\\?([^;&<\\s]+)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -642,7 +642,7 @@
 					"name": "string.unquoted.heredoc.no-indent.shell"
 				},
 				{
-					"begin": "(<<)\\s*(\"|'|)\\s*\\\\?([^;&<\\s]+)\\2",
+					"begin": "(<<)\\s*(\"|')\\s*\\\\?([^;&<\\s]+)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -658,6 +658,66 @@
 						}
 					},
 					"name": "string.unquoted.heredoc.shell"
+				},
+				{
+					"begin": "(<<)-\\s*\\\\?([^;&<\\s]+)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.operator.heredoc.shell"
+						},
+						"2": {
+							"name": "keyword.control.heredoc-token.shell"
+						}
+					},
+					"end": "^\\t*(\\2)(?=\\s|;|&|$)",
+					"endCaptures": {
+						"1": {
+							"name": "keyword.control.heredoc-token.shell"
+						}
+					},
+					"name": "string.unquoted.heredoc.expanded.no-indent.shell",
+					"patterns": [
+						{
+							"match": "\\\\[\\$`\\\\\\n]",
+							"name": "constant.character.escape.shell"
+						},
+						{
+							"include": "#variable"
+						},
+						{
+							"include": "#interpolation"
+						}
+					]
+				},
+				{
+					"begin": "(<<)\\s*\\\\?([^;&<\\s]+)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.operator.heredoc.shell"
+						},
+						"2": {
+							"name": "keyword.control.heredoc-token.shell"
+						}
+					},
+					"end": "^(\\2)(?=\\s|;|&|$)",
+					"endCaptures": {
+						"1": {
+							"name": "keyword.control.heredoc-token.shell"
+						}
+					},
+					"name": "string.unquoted.heredoc.expanded.shell",
+					"patterns": [
+						{
+							"match": "\\\\[\\$`\\\\\\n]",
+							"name": "constant.character.escape.shell"
+						},
+						{
+							"include": "#variable"
+						},
+						{
+							"include": "#interpolation"
+						}
+					]
 				}
 			]
 		},
