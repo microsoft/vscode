@@ -6005,7 +6005,7 @@ declare module 'vscode' {
 		/**
 		 * Check whether this channel is visible in the UI.
 		 */
-		isVisible(): boolean;
+		async isVisible(): boolean;
 
 		/**
 		 * Reveal this channel in the UI.
