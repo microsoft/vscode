@@ -1595,33 +1595,25 @@ export class CompletionList {
 @es5ClassCompat
 export class InlineSuggestion implements vscode.InlineCompletionItem {
 
-	insertText?: string | SnippetString;
-
 	filterText?: string;
-
-	/**
-	 * @deprecated Use `insertText` instead. Will be removed eventually.
-	*/
-	text?: string;
-
+	insertText: string;
 	range?: Range;
 	command?: vscode.Command;
 
-	constructor(insertText: string | SnippetString, range?: Range, command?: vscode.Command) {
+	constructor(insertText: string, range?: Range, command?: vscode.Command) {
 		this.insertText = insertText;
 		this.range = range;
 		this.command = command;
 	}
 }
 
-/**
- * @deprecated Return an array of inline completion items directly. Will be removed eventually.
-*/
 @es5ClassCompat
-export class InlineSuggestions implements vscode.InlineCompletionList {
-	items: vscode.InlineCompletionItem[];
+export class InlineSuggestionList implements vscode.InlineCompletionList {
+	items: vscode.InlineCompletionItemNew[];
 
-	constructor(items: vscode.InlineCompletionItem[]) {
+	commands: vscode.Command[] | undefined = undefined;
+
+	constructor(items: vscode.InlineCompletionItemNew[]) {
 		this.items = items;
 	}
 }
@@ -2626,8 +2618,8 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 }
 
 export enum InlineCompletionTriggerKind {
-	Automatic = 0,
-	Explicit = 1,
+	Invoke = 0,
+	Automatic = 1,
 }
 
 export enum InlineCompletionTriggerKindNew {

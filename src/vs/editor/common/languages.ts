@@ -1733,6 +1733,7 @@ export interface CommentThread<T = IRange> {
 	onDidChangeState: Event<CommentThreadState | undefined>;
 	onDidChangeCanReply: Event<boolean>;
 	isDisposed: boolean;
+	isTemplate: boolean;
 }
 
 /**

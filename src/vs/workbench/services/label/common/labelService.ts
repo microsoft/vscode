@@ -48,7 +48,7 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 					properties: {
 						label: {
 							type: 'string',
-							description: localize('vscode.extension.contributes.resourceLabelFormatters.label', "Label rules to display. For example: myLabel:/${path}. ${path}, ${scheme} and ${authority} are supported as variables.")
+							description: localize('vscode.extension.contributes.resourceLabelFormatters.label', "Label rules to display. For example: myLabel:/${path}. ${path}, ${scheme}, ${authority} and ${authoritySuffix} are supported as variables.")
 						},
 						separator: {
 							type: 'string',
@@ -74,7 +74,7 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 });
 
 const sepRegexp = /\//g;
-const labelMatchingRegexp = /\$\{(scheme|authority|path|(query)\.(.+?))\}/g;
+const labelMatchingRegexp = /\$\{(scheme|authoritySuffix|authority|path|(query)\.(.+?))\}/g;
 
 function hasDriveLetterIgnorePlatform(path: string): boolean {
 	return !!(path && path[2] === ':');
@@ -351,6 +351,10 @@ export class LabelService extends Disposable implements ILabelService {
 			switch (token) {
 				case 'scheme': return resource.scheme;
 				case 'authority': return resource.authority;
+				case 'authoritySuffix': {
+					const i = resource.authority.indexOf('+');
+					return i === -1 ? resource.authority : resource.authority.slice(i + 1);
+				}
 				case 'path':
 					return formatting.stripPathStartingSeparator
 						? resource.path.slice(resource.path[0] === formatting.separator ? 1 : 0)

@@ -11,7 +11,7 @@ import { distinct } from 'vs/base/common/objects';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpression, ContextKeyInfo, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, RawContextKey, SET_CONTEXT_COMMAND_ID } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression, ContextKeyInfo, ContextKeyValue, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, RawContextKey, SET_CONTEXT_COMMAND_ID } from 'vs/platform/contextkey/common/contextkey';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
@@ -182,7 +182,7 @@ class ConfigAwareContextValuesContainer extends Context {
 	}
 }
 
-class ContextKey<T> implements IContextKey<T> {
+class ContextKey<T extends ContextKeyValue> implements IContextKey<T> {
 
 	private _service: AbstractContextKeyService;
 	private _key: string;
@@ -263,7 +263,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 
 	abstract dispose(): void;
 
-	public createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T> {
+	public createKey<T extends ContextKeyValue>(key: string, defaultValue: T | undefined): IContextKey<T> {
 		if (this._isDisposed) {
 			throw new Error(`AbstractContextKeyService has been disposed`);
 		}
@@ -520,7 +520,7 @@ class OverlayContextKeyService implements IContextKeyService {
 		this.parent.bufferChangeEvents(callback);
 	}
 
-	createKey<T>(): IContextKey<T> {
+	createKey<T extends ContextKeyValue>(): IContextKey<T> {
 		throw new Error('Not supported.');
 	}
 

@@ -11,7 +11,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { ILanguageDetectionService, LanguageDetectionHintConfig } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -75,8 +75,8 @@ class LanguageDetectionStatusContribution implements IWorkbenchContribution {
 		const editorModel = editor?.getModel();
 		const editorUri = editorModel?.uri;
 		const existingId = editorModel?.getLanguageId();
-		const enablementConfig = this._configurationService.getValue('workbench.editor.languageDetectionHints');
-		const enabled = enablementConfig === 'always' || enablementConfig === 'textEditors';
+		const enablementConfig = this._configurationService.getValue<LanguageDetectionHintConfig>('workbench.editor.languageDetectionHints');
+		const enabled = typeof enablementConfig === 'object' && enablementConfig?.untitledEditors;
 		const disableLightbulb = !enabled || editorUri?.scheme !== Schemas.untitled || !existingId;
 
 		if (disableLightbulb || !editorUri) {

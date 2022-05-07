@@ -7,11 +7,11 @@
 		"@vscode/iconv-lite-umd": "0.7.0",
 		"@vscode/vscode-languagedetection": "1.0.21",
 		"jschardet": "3.0.0",
-		"tas-client-umd": "0.1.4",
+		"tas-client-umd": "0.1.5",
 		"vscode-oniguruma": "1.6.1",
 		"vscode-textmate": "7.0.1",
-		"xterm": "4.19.0-beta.25",
-		"xterm-addon-search": "0.9.0-beta.25",
+		"xterm": "4.19.0-beta.29",
+		"xterm-addon-search": "0.9.0-beta.26",
 		"xterm-addon-unicode11": "0.4.0-beta.3",
 		"xterm-addon-webgl": "0.12.0-beta.29"
 	}

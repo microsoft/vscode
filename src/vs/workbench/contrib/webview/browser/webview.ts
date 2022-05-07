@@ -264,6 +264,7 @@ export interface IOverlayWebview extends IWebview {
 	 * @param element Element to position the webview on top of. This element should
 	 *   be an placeholder for the webview since the webview will entirely cover it.
 	 * @param dimension Optional explicit dimensions to use for sizing the webview.
+	 * @param clippingContainer Optional container to clip the webview to. This should generally be a parent of `element`.
 	 */
-	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension): void;
+	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement): void;
 }

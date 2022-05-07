@@ -2927,35 +2927,29 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 				enumDescriptions: [nls.localize('on', "Quick suggestions show inside the suggest widget"), nls.localize('inline', "Quick suggestions show as ghost text"), nls.localize('off', "Quick suggestions are disabled")]
 			}
 		];
-		super(
-			EditorOption.quickSuggestions, 'quickSuggestions', defaults,
-			{
-				anyOf: [{
-					type: 'boolean',
-				}, {
-					type: 'object',
-					properties: {
-						strings: {
-							anyOf: types,
-							default: defaults.strings,
-							description: nls.localize('quickSuggestions.strings', "Enable quick suggestions inside strings.")
-						},
-						comments: {
-							anyOf: types,
-							default: defaults.comments,
-							description: nls.localize('quickSuggestions.comments', "Enable quick suggestions inside comments.")
-						},
-						other: {
-							anyOf: types,
-							default: defaults.other,
-							description: nls.localize('quickSuggestions.other', "Enable quick suggestions outside of strings and comments.")
-						},
-					}
-				}],
-				default: defaults,
-				markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing.")
-			}
-		);
+		super(EditorOption.quickSuggestions, 'quickSuggestions', defaults, {
+			type: 'object',
+			additionalProperties: false,
+			properties: {
+				strings: {
+					anyOf: types,
+					default: defaults.strings,
+					description: nls.localize('quickSuggestions.strings', "Enable quick suggestions inside strings.")
+				},
+				comments: {
+					anyOf: types,
+					default: defaults.comments,
+					description: nls.localize('quickSuggestions.comments', "Enable quick suggestions inside comments.")
+				},
+				other: {
+					anyOf: types,
+					default: defaults.other,
+					description: nls.localize('quickSuggestions.other', "Enable quick suggestions outside of strings and comments.")
+				},
+			},
+			default: defaults,
+			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, and other code. Quick suggestion can be configured to show as ghost text or with the suggest widget.")
+		});
 		this.defaultValue = defaults;
 	}
 

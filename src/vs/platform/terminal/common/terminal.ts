@@ -557,7 +557,6 @@ export interface IShellLaunchConfigDto {
 export interface ITerminalProcessOptions {
 	shellIntegration: {
 		enabled: boolean;
-		showWelcome: boolean;
 	};
 	windowsEnableConpty: boolean;
 }

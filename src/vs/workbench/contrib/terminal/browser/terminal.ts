@@ -903,11 +903,6 @@ export interface IXtermTerminal {
 	clearBuffer(): void;
 
 	/**
-	 * Clears decorations - for example, when shell integration is disabled.
-	 */
-	clearDecorations(): void;
-
-	/**
 	 * Clears the search result decorations
 	 */
 	clearSearchDecorations(): void;

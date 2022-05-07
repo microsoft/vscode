@@ -8,28 +8,67 @@ declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/124024 @hediet @alexdima
 
 	export namespace languages {
+
 		/**
 		 * Registers an inline completion provider.
 		 *
-		 *  @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An inline completion provider.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		// TODO@API what are the rules when multiple providers apply
 		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider): Disposable;
 	}
 
-	export interface InlineCompletionItemProvider<T extends InlineCompletionItem = InlineCompletionItem> {
+	/**
+	 * The inline completion item provider interface defines the contract between extensions and
+	 * the inline completion feature.
+	 *
+	 * Providers are asked for completions either explicitly by a user gesture or implicitly when typing.
+	 */
+	export interface InlineCompletionItemProvider {
+
 		/**
 		 * Provides inline completion items for the given position and document.
 		 * If inline completions are enabled, this method will be called whenever the user stopped typing.
-		 * It will also be called when the user explicitly triggers inline completions or asks for the next or previous inline completion.
-		 * Use `context.triggerKind` to distinguish between these scenarios.
-		*/
-		provideInlineCompletionItems(document: TextDocument, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionList<T> | T[]>;
+		 * It will also be called when the user explicitly triggers inline completions or explicitly asks for the next or previous inline completion.
+		 * In that case, all available inline completions should be returned.
+		 * `context.triggerKind` can be used to distinguish between these scenarios.
+		 *
+		 * @param document The document inline completions are requested for.
+		 * @param position The position inline completions are requested for.
+		 * @param context A context object with additional information.
+		 * @param token A cancellation token.
+		 * @return An array of completion items or a thenable that resolves to an array of completion items.
+		 */
+		provideInlineCompletionItems(document: TextDocument, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionItem[] | InlineCompletionList>;
 	}
 
+	/**
+	 * Represents a collection of {@link InlineCompletionItem inline completion items} to be presented
+	 * in the editor.
+	 */
+	export class InlineCompletionList {
+		/**
+		 * The inline completion items.
+		 */
+		items: InlineCompletionItem[];
+
+		/**
+		 * Creates a new list of inline completion items.
+		*/
+		constructor(items: InlineCompletionItem[]);
+	}
+
+	/**
+	 * Provides information about the context in which an inline completion was requested.
+	 */
 	export interface InlineCompletionContext {
 		/**
-		 * How the completion was triggered.
+		 * Describes how the inline completion was triggered.
 		 */
 		readonly triggerKind: InlineCompletionTriggerKind;
 
@@ -42,89 +81,68 @@ declare module 'vscode' {
 		 * the inline completion must also replace `.` and start with `.log`, for example `.log()`.
 		 *
 		 * Inline completion providers are requested again whenever the selected item changes.
-		 *
-		 * The user must configure `"editor.suggest.preview": true` for this feature.
-		*/
+		 */
 		readonly selectedCompletionInfo: SelectedCompletionInfo | undefined;
 	}
 
-	// TODO@API remove kind, snippet properties
-	// TODO@API find a better name, xyzFilter, xyzConstraint
+	/**
+	 * Describes the currently selected completion item.
+	 */
 	export interface SelectedCompletionInfo {
-		range: Range;
-		text: string;
+		/**
+		 * The range that will be replaced if this completion item is accepted.
+		 */
+		readonly range: Range;
 
-
-		completionKind: CompletionItemKind;
-		isSnippetText: boolean;
+		/**
+		 * The text the range will be replaced with if this completion is accepted.
+		 */
+		readonly text: string;
 	}
 
 	/**
-	 * How an {@link InlineCompletionItemProvider inline completion provider} was triggered.
+	 * Describes how an {@link InlineCompletionItemProvider inline completion provider} was triggered.
 	 */
-	// TODO@API align with CodeActionTriggerKind
-	// (1) rename Explicit to Invoke
-	// (2) swap order of Invoke and Automatic
 	export enum InlineCompletionTriggerKind {
-		/**
-		 * Completion was triggered automatically while editing.
-		 * It is sufficient to return a single completion item in this case.
-		 */
-		Automatic = 0,
-
 		/**
 		 * Completion was triggered explicitly by a user gesture.
 		 * Return multiple completion items to enable cycling through them.
 		 */
-		Explicit = 1,
+		Invoke = 0,
+
+		/**
+		 * Completion was triggered automatically while editing.
+		 * It is sufficient to return a single completion item in this case.
+		 */
+		Automatic = 1,
 	}
 
 	/**
-	 * @deprecated Return an array of Inline Completion items directly. Will be removed eventually.
-	*/
-	// TODO@API We could keep this and allow for `vscode.Command` instances that explain
-	// the result. That would replace the existing proposed menu-identifier and be more LSP friendly
-	// TODO@API maybe use MarkdownString
-	export class InlineCompletionList<T extends InlineCompletionItem = InlineCompletionItem> {
-		items: T[];
-
-		// command: Command; "Show More..."
-
-		// description: MarkdownString
-
-		/**
-		 * @deprecated Return an array of Inline Completion items directly. Will be removed eventually.
-		*/
-		constructor(items: T[]);
-	}
-
+	 * An inline completion item represents a text snippet that is proposed inline to complete text that is being typed.
+	 *
+	 * @see {@link InlineCompletionItemProvider.provideInlineCompletionItems}
+	 */
 	export class InlineCompletionItem {
 		/**
 		 * The text to replace the range with. Must be set.
 		 * Is used both for the preview and the accept operation.
-		 *
-		 * The text the range refers to must be a subword of this value (`AB` and `BEF` are subwords of `ABCDEF`, but `Ab` is not).
-		 * Additionally, if possible, it should be a prefix of this value for a better user-experience.
-		 *
-		 * However, any indentation of the text to replace does not matter for the subword constraint.
-		 * Thus, `  B` can be replaced with ` ABC`, effectively removing a whitespace and inserting `A` and `C`.
-		*/
-		insertText?: string | SnippetString;
+		 */
+		insertText: string | SnippetString;
 
 		/**
-		 * @deprecated Use `insertText` instead. Will be removed eventually.
-		*/
-		text?: string;
+		 * A text that is used to decide if this inline completion should be shown. When `falsy`
+		 * the {@link InlineCompletionItem.insertText} is used.
+		 *
+		 * An inline completion is shown if the text to replace is a prefix of the filter text.
+		 */
+		filterText?: string;
 
 		/**
 		 * The range to replace.
 		 * Must begin and end on the same line.
 		 *
-		 * Prefer replacements over insertions to avoid cache invalidation:
-		 * Instead of reporting a completion that inserts an extension at the end of a word,
-		 * the whole word (or even the whole line) should be replaced with the extended word (or extended line) to improve the UX.
-		 * That way, when the user presses backspace, the cache can be reused and there is no flickering.
-		*/
+		 * Prefer replacements over insertions to provide a better experience when the user deletes typed text.
+		 */
 		range?: Range;
 
 		/**
@@ -132,43 +150,13 @@ declare module 'vscode' {
 		 */
 		command?: Command;
 
-		constructor(insertText: string, range?: Range, command?: Command);
-	}
-
-
-	// TODO@API move "never" API into new proposal
-
-	export interface InlineCompletionItem {
 		/**
-		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
-		 * Defaults to `false`.
-		*/
-		completeBracketPairs?: boolean;
-	}
-
-	/**
-	 * Be aware that this API will not ever be finalized.
-	 */
-	export namespace window {
-		// TODO@API move into provider (just like internal API). Only read property if proposal is enabled!
-		export function getInlineCompletionItemController<T extends InlineCompletionItem>(provider: InlineCompletionItemProvider<T>): InlineCompletionController<T>;
-	}
-
-	/**
-	 * Be aware that this API will not ever be finalized.
-	 */
-	export interface InlineCompletionController<T extends InlineCompletionItem> {
-		/**
-		 * Is fired when an inline completion item is shown to the user.
+		 * Creates a new inline completion item.
+		 *
+		 * @param insertText The text to replace the range with.
+		 * @param range The range to replace. If not set, the word at the requested position will be used.
+		 * @param command An optional {@link Command} that is executed *after* inserting this completion.
 		 */
-		// eslint-disable-next-line vscode-dts-event-naming
-		readonly onDidShowCompletionItem: Event<InlineCompletionItemDidShowEvent<T>>;
-	}
-
-	/**
-	 * Be aware that this API will not ever be finalized.
-	 */
-	export interface InlineCompletionItemDidShowEvent<T extends InlineCompletionItem> {
-		completionItem: T;
+		constructor(insertText: string | SnippetString, range?: Range, command?: Command);
 	}
 }
