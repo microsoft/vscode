@@ -94,6 +94,32 @@ class BooleanPolicy extends BasePolicy {
         return `<checkBox refId="${this.name}">${this.name}</checkBox>`;
     }
 }
+class IntPolicy extends BasePolicy {
+    constructor(name, category, minimumVersion, description, moduleName, defaultValue) {
+        super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
+        this.defaultValue = defaultValue;
+    }
+    static from(name, category, minimumVersion, description, moduleName, settingNode) {
+        const type = getStringProperty(settingNode, 'type');
+        if (type !== 'number') {
+            return undefined;
+        }
+        const defaultValue = getIntProperty(settingNode, 'default');
+        if (typeof defaultValue === 'undefined') {
+            throw new Error(`Missing required 'default' property.`);
+        }
+        return new IntPolicy(name, category, minimumVersion, description, moduleName, defaultValue);
+    }
+    renderADMXElements() {
+        return [
+            `<decimal id="${this.name}" valueName="${this.name}" />`
+            // `<decimal id="Quarantine_PurgeItemsAfterDelay" valueName="PurgeItemsAfterDelay" minValue="0" maxValue="10000000" />`
+        ];
+    }
+    renderADMLPresentationContents() {
+        return `<decimalTextBox refId="${this.name}" defaultValue="${this.defaultValue}">${this.name}</decimalTextBox>`;
+    }
+}
 class StringPolicy extends BasePolicy {
     static from(name, category, minimumVersion, description, moduleName, settingNode) {
         const type = getStringProperty(settingNode, 'type');
@@ -156,6 +182,20 @@ class StringEnumPolicy extends BasePolicy {
         return `<dropdownList refId="${this.name}" />`;
     }
 }
+const IntQ = {
+    Q: `(number) @value`,
+    value(matches) {
+        const match = matches[0];
+        if (!match) {
+            return undefined;
+        }
+        const value = match.captures.filter(c => c.name === 'value')[0]?.node.text;
+        if (!value) {
+            throw new Error(`Missing required 'value' property.`);
+        }
+        return parseInt(value);
+    }
+};
 const StringQ = {
     Q: `[
 		(string (string_fragment) @value)
@@ -200,6 +240,9 @@ function getProperty(qtype, node, key) {
 		)`);
     return qtype.value(query.matches(node));
 }
+function getIntProperty(node, key) {
+    return getProperty(IntQ, node, key);
+}
 function getStringProperty(node, key) {
     return getProperty(StringQ, node, key);
 }
@@ -209,6 +252,7 @@ function getStringArrayProperty(node, key) {
 // TODO: add more policy types
 const PolicyTypes = [
     BooleanPolicy,
+    IntPolicy,
     StringEnumPolicy,
     StringPolicy,
 ];
@@ -262,7 +306,7 @@ function getPolicies(moduleName, node) {
     const query = new Parser.Query(typescript, `
 		(
 			(call_expression
-				function: (member_expression object: (identifier) property: (property_identifier) @registerConfigurationFn) (#eq? @registerConfigurationFn registerConfiguration)
+				function: (member_expression property: (property_identifier) @registerConfigurationFn) (#eq? @registerConfigurationFn registerConfiguration)
 				arguments: (arguments	(object	(pair
 					key: [(property_identifier)(string)] @propertiesKey (#eq? @propertiesKey properties)
 					value: (object (pair

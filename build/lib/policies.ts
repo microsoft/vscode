@@ -146,6 +146,54 @@ class BooleanPolicy extends BasePolicy {
 	}
 }
 
+class IntPolicy extends BasePolicy {
+
+	static from(
+		name: string,
+		category: Category,
+		minimumVersion: string,
+		description: NlsString,
+		moduleName: string,
+		settingNode: Parser.SyntaxNode
+	): IntPolicy | undefined {
+		const type = getStringProperty(settingNode, 'type');
+
+		if (type !== 'number') {
+			return undefined;
+		}
+
+		const defaultValue = getIntProperty(settingNode, 'default');
+
+		if (typeof defaultValue === 'undefined') {
+			throw new Error(`Missing required 'default' property.`);
+		}
+
+		return new IntPolicy(name, category, minimumVersion, description, moduleName, defaultValue);
+	}
+
+	private constructor(
+		name: string,
+		category: Category,
+		minimumVersion: string,
+		description: NlsString,
+		moduleName: string,
+		protected readonly defaultValue: number,
+	) {
+		super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
+	}
+
+	protected renderADMXElements(): string[] {
+		return [
+			`<decimal id="${this.name}" valueName="${this.name}" />`
+			// `<decimal id="Quarantine_PurgeItemsAfterDelay" valueName="PurgeItemsAfterDelay" minValue="0" maxValue="10000000" />`
+		];
+	}
+
+	renderADMLPresentationContents() {
+		return `<decimalTextBox refId="${this.name}" defaultValue="${this.defaultValue}">${this.name}</decimalTextBox>`;
+	}
+}
+
 class StringPolicy extends BasePolicy {
 
 	static from(
@@ -258,6 +306,26 @@ interface QType<T> {
 	value(matches: Parser.QueryMatch[]): T | undefined;
 }
 
+const IntQ: QType<number> = {
+	Q: `(number) @value`,
+
+	value(matches: Parser.QueryMatch[]): number | undefined {
+		const match = matches[0];
+
+		if (!match) {
+			return undefined;
+		}
+
+		const value = match.captures.filter(c => c.name === 'value')[0]?.node.text;
+
+		if (!value) {
+			throw new Error(`Missing required 'value' property.`);
+		}
+
+		return parseInt(value);
+	}
+};
+
 const StringQ: QType<string | NlsString> = {
 	Q: `[
 		(string (string_fragment) @value)
@@ -316,6 +384,10 @@ function getProperty<T>(qtype: QType<T>, node: Parser.SyntaxNode, key: string): 
 	return qtype.value(query.matches(node));
 }
 
+function getIntProperty(node: Parser.SyntaxNode, key: string): number | undefined {
+	return getProperty(IntQ, node, key);
+}
+
 function getStringProperty(node: Parser.SyntaxNode, key: string): string | NlsString | undefined {
 	return getProperty(StringQ, node, key);
 }
@@ -327,6 +399,7 @@ function getStringArrayProperty(node: Parser.SyntaxNode, key: string): (string |
 // TODO: add more policy types
 const PolicyTypes = [
 	BooleanPolicy,
+	IntPolicy,
 	StringEnumPolicy,
 	StringPolicy,
 ];
@@ -397,7 +470,7 @@ function getPolicies(moduleName: string, node: Parser.SyntaxNode): Policy[] {
 	const query = new Parser.Query(typescript, `
 		(
 			(call_expression
-				function: (member_expression object: (identifier) property: (property_identifier) @registerConfigurationFn) (#eq? @registerConfigurationFn registerConfiguration)
+				function: (member_expression property: (property_identifier) @registerConfigurationFn) (#eq? @registerConfigurationFn registerConfiguration)
 				arguments: (arguments	(object	(pair
 					key: [(property_identifier)(string)] @propertiesKey (#eq? @propertiesKey properties)
 					value: (object (pair
