@@ -62,6 +62,10 @@ export class ExtHostOutputChannel extends Disposable implements vscode.OutputCha
 		}
 	}
 
+	isVisible(): boolean {
+		return this.visible;
+	}
+
 	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
 		this.logger.flush();
 		this.proxy.$reveal(this.id, !!(typeof columnOrPreserveFocus === 'boolean' ? columnOrPreserveFocus : preserveFocus));

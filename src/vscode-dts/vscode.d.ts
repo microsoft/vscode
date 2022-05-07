@@ -6003,6 +6003,11 @@ declare module 'vscode' {
 		clear(): void;
 
 		/**
+		 * Check whether this channel is visible in the UI.
+		 */
+		isVisible(): boolean;
+
+		/**
 		 * Reveal this channel in the UI.
 		 *
 		 * @param preserveFocus When `true` the channel will not take focus.
