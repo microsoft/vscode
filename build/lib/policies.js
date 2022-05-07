@@ -72,6 +72,28 @@ class BasePolicy {
         return `<presentation id="${this.name}">${this.renderADMLPresentationContents()}</presentation>`;
     }
 }
+class BooleanPolicy extends BasePolicy {
+    static from(name, category, minimumVersion, description, moduleName, settingNode) {
+        const type = getStringProperty(settingNode, 'type');
+        if (type !== 'boolean') {
+            return undefined;
+        }
+        return new BooleanPolicy(name, category, minimumVersion, description, moduleName);
+    }
+    constructor(name, category, minimumVersion, description, moduleName) {
+        super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
+    }
+    renderADMXElements() {
+        return [
+            `<boolean id="${this.name}" valueName="${this.name}">`,
+            `	<trueValue><decimal value="1" /></trueValue><falseValue><decimal value="0" /></falseValue>`,
+            `</boolean>`
+        ];
+    }
+    renderADMLPresentationContents() {
+        return `<checkBox refId="${this.name}">${this.name}</checkBox>`;
+    }
+}
 class StringPolicy extends BasePolicy {
     static from(name, category, minimumVersion, description, moduleName, settingNode) {
         const type = getStringProperty(settingNode, 'type');
@@ -186,6 +208,7 @@ function getStringArrayProperty(node, key) {
 }
 // TODO: add more policy types
 const PolicyTypes = [
+    BooleanPolicy,
     StringEnumPolicy,
     StringPolicy,
 ];

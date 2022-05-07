@@ -104,6 +104,48 @@ abstract class BasePolicy implements Policy {
 	protected abstract renderADMLPresentationContents(): string;
 }
 
+class BooleanPolicy extends BasePolicy {
+
+	static from(
+		name: string,
+		category: Category,
+		minimumVersion: string,
+		description: NlsString,
+		moduleName: string,
+		settingNode: Parser.SyntaxNode
+	): BooleanPolicy | undefined {
+		const type = getStringProperty(settingNode, 'type');
+
+		if (type !== 'boolean') {
+			return undefined;
+		}
+
+		return new BooleanPolicy(name, category, minimumVersion, description, moduleName);
+	}
+
+	private constructor(
+		name: string,
+		category: Category,
+		minimumVersion: string,
+		description: NlsString,
+		moduleName: string,
+	) {
+		super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
+	}
+
+	protected renderADMXElements(): string[] {
+		return [
+			`<boolean id="${this.name}" valueName="${this.name}">`,
+			`	<trueValue><decimal value="1" /></trueValue><falseValue><decimal value="0" /></falseValue>`,
+			`</boolean>`
+		];
+	}
+
+	renderADMLPresentationContents() {
+		return `<checkBox refId="${this.name}">${this.name}</checkBox>`;
+	}
+}
+
 class StringPolicy extends BasePolicy {
 
 	static from(
@@ -284,6 +326,7 @@ function getStringArrayProperty(node: Parser.SyntaxNode, key: string): (string |
 
 // TODO: add more policy types
 const PolicyTypes = [
+	BooleanPolicy,
 	StringEnumPolicy,
 	StringPolicy,
 ];
