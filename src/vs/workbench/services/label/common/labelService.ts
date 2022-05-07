@@ -17,13 +17,15 @@ import { tildify, getPathLabel } from 'vs/base/common/labels';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { match } from 'vs/base/common/glob';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Schemas } from 'vs/base/common/network';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Memento } from 'vs/workbench/common/memento';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -102,15 +104,24 @@ class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 }
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ResourceLabelFormattersHandler, LifecyclePhase.Restored);
 
+const FORMATTER_CACHE_SIZE = 50;
+
+interface IStoredFormatters {
+	formatters?: ResourceLabelFormatter[];
+	i?: number;
+}
+
 export class LabelService extends Disposable implements ILabelService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private formatters: ResourceLabelFormatter[] = [];
+	private formatters: ResourceLabelFormatter[];
 
 	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>({ leakWarningThreshold: 400 }));
 	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
 
+	private readonly storedFormattersMemento: Memento;
+	private readonly storedFormatters: IStoredFormatters;
 	private os: OperatingSystem;
 	private userHome: URI | undefined;
 
@@ -118,7 +129,9 @@ export class LabelService extends Disposable implements ILabelService {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IPathService private readonly pathService: IPathService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IStorageService storageService: IStorageService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -128,6 +141,10 @@ export class LabelService extends Disposable implements ILabelService {
 		// file scheme.
 		this.os = OS;
 		this.userHome = pathService.defaultUriScheme === Schemas.file ? this.pathService.userHome({ preferLocal: true }) : undefined;
+
+		const memento = this.storedFormattersMemento = new Memento('cachedResourceFormatters', storageService);
+		this.storedFormatters = memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
+		this.formatters = this.storedFormatters?.formatters || [];
 
 		// Remote environment is potentially long running
 		this.resolveRemoteEnvironment();
@@ -332,6 +349,28 @@ export class LabelService extends Disposable implements ILabelService {
 		const formatter = this.findFormatting(URI.from({ scheme, authority }));
 
 		return formatter?.workspaceTooltip;
+	}
+
+	registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable {
+		const list = this.storedFormatters.formatters ??= [];
+
+		let replace = list.findIndex(f => f.scheme === formatter.scheme && f.authority === formatter.authority);
+		if (replace === -1 && list.length >= FORMATTER_CACHE_SIZE) {
+			replace = FORMATTER_CACHE_SIZE - 1; // at max capacity, replace the last element
+		}
+
+		if (replace === -1) {
+			list.unshift(formatter);
+		} else {
+			for (let i = replace; i > 0; i--) {
+				list[i] = list[i - 1];
+			}
+			list[0] = formatter;
+		}
+
+		this.storedFormattersMemento.saveMemento();
+
+		return this.registerFormatter(formatter);
 	}
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
