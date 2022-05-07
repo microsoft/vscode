@@ -72,6 +72,24 @@ class BasePolicy {
         return `<presentation id="${this.name}">${this.renderADMLPresentationContents()}</presentation>`;
     }
 }
+class StringPolicy extends BasePolicy {
+    static from(name, category, minimumVersion, description, moduleName, settingNode) {
+        const type = getStringProperty(settingNode, 'type');
+        if (type !== 'string') {
+            return undefined;
+        }
+        return new StringPolicy(name, category, minimumVersion, description, moduleName);
+    }
+    constructor(name, category, minimumVersion, description, moduleName) {
+        super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
+    }
+    renderADMXElements() {
+        return [`<text id="${this.name}" valueName="${this.name}" required="true" />`];
+    }
+    renderADMLPresentationContents() {
+        return `<textBox refId="${this.name}"><label>${this.name}:</label></textBox>`;
+    }
+}
 class StringEnumPolicy extends BasePolicy {
     constructor(name, category, minimumVersion, description, moduleName, enum_, enumDescriptions) {
         super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
@@ -168,7 +186,8 @@ function getStringArrayProperty(node, key) {
 }
 // TODO: add more policy types
 const PolicyTypes = [
-    StringEnumPolicy
+    StringEnumPolicy,
+    StringPolicy,
 ];
 function getPolicy(moduleName, configurationNode, settingNode, policyNode, categories) {
     const name = getStringProperty(policyNode, 'name');

@@ -104,6 +104,44 @@ abstract class BasePolicy implements Policy {
 	protected abstract renderADMLPresentationContents(): string;
 }
 
+class StringPolicy extends BasePolicy {
+
+	static from(
+		name: string,
+		category: Category,
+		minimumVersion: string,
+		description: NlsString,
+		moduleName: string,
+		settingNode: Parser.SyntaxNode
+	): StringPolicy | undefined {
+		const type = getStringProperty(settingNode, 'type');
+
+		if (type !== 'string') {
+			return undefined;
+		}
+
+		return new StringPolicy(name, category, minimumVersion, description, moduleName);
+	}
+
+	private constructor(
+		name: string,
+		category: Category,
+		minimumVersion: string,
+		description: NlsString,
+		moduleName: string,
+	) {
+		super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
+	}
+
+	protected renderADMXElements(): string[] {
+		return [`<text id="${this.name}" valueName="${this.name}" required="true" />`];
+	}
+
+	renderADMLPresentationContents() {
+		return `<textBox refId="${this.name}"><label>${this.name}:</label></textBox>`;
+	}
+}
+
 class StringEnumPolicy extends BasePolicy {
 
 	static from(
@@ -246,7 +284,8 @@ function getStringArrayProperty(node: Parser.SyntaxNode, key: string): (string |
 
 // TODO: add more policy types
 const PolicyTypes = [
-	StringEnumPolicy
+	StringEnumPolicy,
+	StringPolicy,
 ];
 
 function getPolicy(
