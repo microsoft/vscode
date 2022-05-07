@@ -62,7 +62,7 @@ export class ExtHostOutputChannel extends Disposable implements vscode.OutputCha
 		}
 	}
 
-	async isVisible(): boolean {
+	isVisible(): Promise<boolean> {
 		return this.visible;
 	}
 
@@ -178,7 +178,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 				validate();
 				channelPromise.then(channel => channel.replace(value));
 			},
-			async isVisible(): boolean {
+			isVisible(): Promise<boolean> {
 				validate();
 				const channel = await channelPromise;
 				return channel.isVisible();
