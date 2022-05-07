@@ -178,6 +178,10 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 				validate();
 				channelPromise.then(channel => channel.replace(value));
 			},
+			isVisible(): boolean {
+				validate();
+				channelPromise.then(channel => channel.isVisible());
+			},
 			show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
 				validate();
 				channelPromise.then(channel => channel.show(columnOrPreserveFocus, preserveFocus));
