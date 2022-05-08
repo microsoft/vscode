@@ -48,7 +48,7 @@ stages:
       vmImage: ubuntu-18.04
     jobs:
       - job: x64
-        container: centos7-devtoolset8-x64
+        # container: centos7-devtoolset8-x64
         variables:
           VSCODE_ARCH: x64
           NPM_ARCH: x64
