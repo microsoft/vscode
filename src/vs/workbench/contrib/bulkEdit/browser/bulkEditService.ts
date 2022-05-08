@@ -222,7 +222,7 @@ export class BulkEditService implements IBulkEditService {
 
 		let listener: IDisposable | undefined;
 		try {
-			listener = this._lifecycleService.onBeforeShutdown(e => e.veto(this._shouldVeto(label, e.reason), 'veto.blukEditService'));
+			listener = this._lifecycleService.onBeforeShutdown(e => e.veto(this._shouldVeto(label, e.reason), 'veto.bulkEditService'));
 			const resources = await bulkEdit.perform();
 
 			// when enabled (option AND setting) loop over all dirty working copies and trigger save
