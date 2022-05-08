@@ -42,20 +42,20 @@ stages:
             parameters:
               VSCODE_PUBLISH: false
 
-  # - stage: LinuxServerDependencies
-  #   dependsOn: []
-  #   pool:
-  #     vmImage: ubuntu-18.04
-  #   jobs:
-  #     - job: x64
-  #       container: centos7-devtoolset8-x64
-  #       variables:
-  #         VSCODE_ARCH: x64
-  #         NPM_ARCH: x64
-  #       steps:
-  #         - template: linux/product-build-linux-server.yml
-  #           parameters:
-  #             VSCODE_PUBLISH: false
+  - stage: LinuxServerDependencies
+    dependsOn: []
+    pool:
+      vmImage: ubuntu-18.04
+    jobs:
+      - job: x64
+        container: centos7-devtoolset8-x64
+        variables:
+          VSCODE_ARCH: x64
+          NPM_ARCH: x64
+        steps:
+          - template: linux/product-build-linux-server.yml
+            parameters:
+              VSCODE_PUBLISH: false
 
   - stage: Windows
     dependsOn:
