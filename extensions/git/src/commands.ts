@@ -1776,7 +1776,7 @@ export class CommandCenter {
 	private generateRandomBranchName(): string {
 		const config = workspace.getConfiguration('git');
 		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.Dictionary', ['adjectives', 'animals']);
-		const branchRandomNameSeparator = config.get<string>('branchRandomName.Separator', '-');
+		const branchRandomNameSeparator = config.get<string>('branchRandomName.SeparatorChar', '-');
 
 		const dictionaries: string[][] = [];
 		for (const dictionary of branchRandomNameDictionary) {
@@ -1793,6 +1793,7 @@ export class CommandCenter {
 
 		return uniqueNamesGenerator({
 			dictionaries,
+			length: dictionaries.length,
 			separator: branchRandomNameSeparator
 		});
 	}
@@ -1806,9 +1807,9 @@ export class CommandCenter {
 			name.trim().replace(/^-+/, '').replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar)
 			: name;
 
-		let initialValueSelection: [number, number] | undefined = undefined;
+		let rawBranchName = defaultName;
 
-		if (!defaultName) {
+		if (!rawBranchName) {
 			// Branch name
 			if (!initialValue) {
 				const branchRandomNameEnabled = config.get<boolean>('branchRandomName.Enable', true);
@@ -1816,26 +1817,25 @@ export class CommandCenter {
 			}
 
 			// Branch name selection
-			if (initialValue.startsWith(branchPrefix)) {
-				initialValueSelection = [branchPrefix.length, initialValue.length];
-			}
-		}
+			const initialValueSelection: [number, number] | undefined =
+				initialValue.startsWith(branchPrefix) ? [branchPrefix.length, initialValue.length] : undefined;
 
-		const rawBranchName = defaultName || await window.showInputBox({
-			placeHolder: localize('branch name', "Branch name"),
-			prompt: localize('provide branch name', "Please provide a new branch name"),
-			value: initialValue,
-			valueSelection: initialValueSelection,
-			ignoreFocusOut: true,
-			validateInput: (name: string) => {
-				const validateName = new RegExp(branchValidationRegex);
-				if (validateName.test(sanitize(name))) {
-					return null;
+			rawBranchName = await window.showInputBox({
+				placeHolder: localize('branch name', "Branch name"),
+				prompt: localize('provide branch name', "Please provide a new branch name"),
+				value: initialValue,
+				valueSelection: initialValueSelection,
+				ignoreFocusOut: true,
+				validateInput: (name: string) => {
+					const validateName = new RegExp(branchValidationRegex);
+					if (validateName.test(sanitize(name))) {
+						return null;
+					}
+
+					return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
 				}
-
-				return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
-			}
-		});
+			});
+		}
 
 		return sanitize(rawBranchName || '');
 	}

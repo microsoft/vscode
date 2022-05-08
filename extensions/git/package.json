@@ -1794,12 +1794,12 @@
         },
         "git.branchRandomName.Enable": {
           "type": "boolean",
-          "description": "%config.branchRandomName%",
+          "description": "%config.branchRandomNameEnable%",
           "default": true
         },
         "git.branchRandomName.Dictionary": {
           "type": "array",
-          "description": "%config.branchRandomNameDictionary%",
+          "markdownDescription": "%config.branchRandomNameDictionary%",
           "items": {
             "type": "string"
           },
@@ -1808,9 +1808,9 @@
             "animals"
           ]
         },
-        "git.branchRandomName.Separator": {
+        "git.branchRandomName.SeparatorChar": {
           "type": "string",
-          "description": "%config.branchRandomNameSeparator%",
+          "description": "%config.branchRandomNameSeparatorChar%",
           "enum": [
             "-",
             "_"
