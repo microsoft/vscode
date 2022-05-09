@@ -195,6 +195,8 @@ suite('URI Label', () => {
 			expected.unshift(makeFormatter(`i${i}`));
 		}
 		assert.deepStrictEqual(m, { formatters: expected });
+
+		delete (m as any).formatters;
 	});
 });
 
