@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher } from './api/git';
@@ -1787,8 +1787,17 @@ export class CommandCenter {
 			ignoreFocusOut: true,
 			validateInput: (name: string) => {
 				const validateName = new RegExp(branchValidationRegex);
-				if (validateName.test(sanitize(name))) {
-					return null;
+				const sanitizedName = sanitize(name);
+				if (validateName.test(sanitizedName)) {
+					// If the sanitized name that we will use is different than what is
+					// in the input box, show an info message to the user informing them
+					// the branch name that will be used.
+					return name === sanitizedName
+						? null
+						: {
+							message: localize('branch name does not match sanitized', "The new branch will be '{0}'", sanitizedName),
+							severity: InputBoxValidationSeverity.Info
+						};
 				}
 
 				return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
