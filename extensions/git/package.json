@@ -1795,7 +1795,7 @@
         "git.branchRandomName.Enable": {
           "type": "boolean",
           "description": "%config.branchRandomNameEnable%",
-          "default": true
+          "default": false
         },
         "git.branchRandomName.Dictionary": {
           "type": "array",

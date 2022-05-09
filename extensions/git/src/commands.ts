@@ -8,7 +8,7 @@ import * as path from 'path';
 import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
-import { uniqueNamesGenerator, adjectives, animals, colors } from 'unique-names-generator';
+import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from 'unique-names-generator';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
@@ -1789,6 +1789,13 @@ export class CommandCenter {
 			if (dictionary.toLowerCase() === 'colors') {
 				dictionaries.push(colors);
 			}
+			if (dictionary.toLowerCase() === 'numbers') {
+				dictionaries.push(NumberDictionary.generate({ length: 3 }));
+			}
+		}
+
+		if (dictionaries.length === 0) {
+			return '';
 		}
 
 		return uniqueNamesGenerator({
@@ -1812,7 +1819,7 @@ export class CommandCenter {
 		if (!rawBranchName) {
 			// Branch name
 			if (!initialValue) {
-				const branchRandomNameEnabled = config.get<boolean>('branchRandomName.Enable', true);
+				const branchRandomNameEnabled = config.get<boolean>('branchRandomName.Enable', false);
 				initialValue = `${branchPrefix}${branchRandomNameEnabled ? this.generateRandomBranchName() : ''}`;
 			}
 

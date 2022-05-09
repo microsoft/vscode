@@ -117,7 +117,7 @@
 	"config.checkoutType.tags": "Tags",
 	"config.checkoutType.remote": "Remote branches",
 	"config.branchPrefix": "Prefix used when creating a new branch.",
-	"config.branchRandomNameDictionary": "List of dictionaries used when the branch name that is randomly generated. Supported values: `adjectives`, `animals`, `colors`.",
+	"config.branchRandomNameDictionary": "List of dictionaries used when the branch name that is randomly generated. Supported values: `adjectives`, `animals`, `colors`, `numbers`.",
 	"config.branchRandomNameEnable": "Controls whether a random name is generated when creating a new branch.",
 	"config.branchRandomNameSeparatorChar": "The character used to separate segments of the branch name that is randomly generated.",
 	"config.branchValidationRegex": "A regular expression to validate new branch names.",
