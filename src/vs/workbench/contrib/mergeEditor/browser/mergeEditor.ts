@@ -19,37 +19,10 @@ import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/merge
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Direction, Grid, IView, IViewSize, LayoutPriority } from 'vs/base/browser/ui/grid/grid';
 import { Sizing } from 'vs/base/browser/ui/splitview/splitview';
-
-
-class CodeEditorView implements IView {
-
-	preferredWidth?: number | undefined;
-	preferredHeight?: number | undefined;
-
-	element: HTMLElement = document.createElement('div');
-
-	minimumWidth: number = 10;
-	maximumWidth: number = Number.MAX_SAFE_INTEGER;
-	minimumHeight: number = 10;
-	maximumHeight: number = Number.MAX_SAFE_INTEGER;
-	priority?: LayoutPriority | undefined;
-	snap?: boolean | undefined;
-
-	private readonly _onDidChange = new Emitter<IViewSize | undefined>();
-	readonly onDidChange = this._onDidChange.event;
-
-	constructor(text: string) {
-		this.element.innerText = text;
-	}
-
-	layout(width: number, height: number, top: number, left: number): void {
-		this.element.style.width = `${width}px`;
-		this.element.style.height = `${height}px`;
-		this.element.style.top = `${top}px`;
-		this.element.style.left = `${left}px`;
-	}
-
-}
+import { ITextModel } from 'vs/editor/common/model';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 
 export class MergeEditor extends EditorPane {
 
@@ -59,12 +32,28 @@ export class MergeEditor extends EditorPane {
 
 	private _grid!: Grid;
 
+	private readonly inputOneView = this.instantiation.createInstance(CodeEditorView);
+	private readonly inputTwoView = this.instantiation.createInstance(CodeEditorView);
+	private readonly inputResultView = this.instantiation.createInstance(CodeEditorView);
+
 	constructor(
+		@IInstantiationService private readonly instantiation: IInstantiationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
 	) {
 		super(MergeEditor.ID, telemetryService, themeService, storageService);
+
+		this._store.add(this.inputOneView.editor.onDidScrollChange(c => {
+			if (c.scrollTopChanged) {
+				this.inputTwoView.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
+			}
+		}));
+		this._store.add(this.inputTwoView.editor.onDidScrollChange(c => {
+			if (c.scrollTopChanged) {
+				this.inputOneView.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
+			}
+		}));
 	}
 
 	override dispose(): void {
@@ -73,15 +62,10 @@ export class MergeEditor extends EditorPane {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
+		this._grid = new Grid(this.inputResultView);
 
-		const inputOneView = new CodeEditorView('one');
-		const inputTwoView = new CodeEditorView('two');
-		const inputResultView = new CodeEditorView('result');
-
-		this._grid = new Grid(inputResultView);
-
-		this._grid.addView(inputOneView, Sizing.Distribute, inputResultView, Direction.Up);
-		this._grid.addView(inputTwoView, Sizing.Distribute, inputOneView, Direction.Right);
+		this._grid.addView(this.inputOneView, Sizing.Distribute, this.inputResultView, Direction.Up);
+		this._grid.addView(this.inputTwoView, Sizing.Distribute, this.inputOneView, Direction.Right);
 		reset(parent, this._grid.element);
 	}
 
@@ -97,6 +81,11 @@ export class MergeEditor extends EditorPane {
 
 		this._sessionDisposables.clear();
 		const model = await input.resolve();
+
+		this.inputOneView.setModel(model.inputOne);
+		this.inputTwoView.setModel(model.inputTwo);
+		this.inputResultView.setModel(model.result);
+
 		console.log(model);
 		// if (token.isCancellationRequested) {
 		// 	return;
@@ -107,4 +96,46 @@ export class MergeEditor extends EditorPane {
 
 	}
 
+}
+
+class CodeEditorView implements IView {
+	preferredWidth?: number | undefined;
+	preferredHeight?: number | undefined;
+
+	element: HTMLElement = document.createElement('div');
+
+	minimumWidth: number = 10;
+	maximumWidth: number = Number.MAX_SAFE_INTEGER;
+	minimumHeight: number = 10;
+	maximumHeight: number = Number.MAX_SAFE_INTEGER;
+	priority?: LayoutPriority | undefined;
+	snap?: boolean | undefined;
+
+	private readonly _onDidChange = new Emitter<IViewSize | undefined>();
+	readonly onDidChange = this._onDidChange.event;
+
+	public readonly editor = this.instantiationService.createInstance(
+		CodeEditorWidget,
+		this.element,
+		{ minimap: { enabled: false } },
+		{}
+	);
+
+	constructor(
+		@IInstantiationService
+		private readonly instantiationService: IInstantiationService
+	) {
+	}
+
+	public setModel(model: ITextModel | undefined): void {
+		this.editor.setModel(model);
+	}
+
+	layout(width: number, height: number, top: number, left: number): void {
+		this.element.style.width = `${width}px`;
+		this.element.style.height = `${height}px`;
+		this.element.style.top = `${top}px`;
+		this.element.style.left = `${left}px`;
+		this.editor.layout({ width, height });
+	}
 }
