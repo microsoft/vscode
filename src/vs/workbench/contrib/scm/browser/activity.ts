@@ -60,11 +60,11 @@ export class SCMStatusController implements IWorkbenchContribution {
 		this.scmViewService.onDidFocusRepository(this.focusRepository, this, this.disposables);
 		this.focusRepository(this.scmViewService.focusedRepository);
 
-		editorService.onDidActiveEditorChange(this.tryFocusRepositoryBasedOnActiveEditor, this, this.disposables);
+		editorService.onDidActiveEditorChange(() => this.tryFocusRepositoryBasedOnActiveEditor(), this, this.disposables);
 		this.renderActivityCount();
 	}
 
-	private tryFocusRepositoryBasedOnActiveEditor(): boolean {
+	private tryFocusRepositoryBasedOnActiveEditor(repositories: Iterable<ISCMRepository> = this.scmService.repositories): boolean {
 		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
 
 		if (!resource) {
@@ -74,7 +74,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 		let bestRepository: ISCMRepository | null = null;
 		let bestMatchLength = Number.POSITIVE_INFINITY;
 
-		for (const repository of this.scmService.repositories) {
+		for (const repository of repositories) {
 			const root = repository.provider.rootUri;
 
 			if (!root) {
@@ -110,6 +110,8 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 		const disposable = combinedDisposable(changeDisposable, removeDisposable);
 		this.repositoryDisposables.add(disposable);
+
+		this.tryFocusRepositoryBasedOnActiveEditor(Iterable.single(repository));
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {
