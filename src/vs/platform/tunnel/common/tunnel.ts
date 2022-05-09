@@ -264,9 +264,9 @@ export abstract class AbstractTunnelService implements ITunnelService {
 			remoteHost = 'localhost';
 		}
 
-		// Prevent tunnel factories from calling openTunnel from withing the factory
-		if (this._tunnelProvider && this._factoryInProgress.has(`${remoteHost}:${remotePort}`)) {
-			this.logService.warn(`ForwardedPorts: (TunnelService) Another call to create a tunnel with the same address has occurred before the last one completed. This call will be ignored.`);
+		// Prevent tunnel factories from calling openTunnel from within the factory
+		if (this._tunnelProvider && this._factoryInProgress.has(this.factoryInProgressKey(remoteHost, remotePort))) {
+			this.logService.debug(`ForwardedPorts: (TunnelService) Another call to create a tunnel with the same address has occurred before the last one completed. This call will be ignored.`);
 			return;
 		}
 
@@ -389,9 +389,13 @@ export abstract class AbstractTunnelService implements ITunnelService {
 
 	protected abstract retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
 
+	private factoryInProgressKey(remoteHost: string, remotePort: number) {
+		return `${isLocalhost(remoteHost) ? 'localhost' : remoteHost}:${remotePort}`;
+	}
+
 	protected createWithProvider(tunnelProvider: ITunnelProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
 		this.logService.trace(`ForwardedPorts: (TunnelService) Creating tunnel with provider ${remoteHost}:${remotePort} on local port ${localPort}.`);
-		const key = `${remoteHost}:${remotePort}`;
+		const key = this.factoryInProgressKey(remoteHost, remotePort);
 		this._factoryInProgress.add(key);
 		const preferredLocalPort = localPort === undefined ? remotePort : localPort;
 		const creationInfo = { elevationRequired: elevateIfNeeded ? isPortPrivileged(preferredLocalPort) : false };
