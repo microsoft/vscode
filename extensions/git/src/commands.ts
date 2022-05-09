@@ -1773,7 +1773,7 @@ export class CommandCenter {
 		await this._branch(repository, undefined, true);
 	}
 
-	private generateRandomBranchName(): string {
+	private generateRandomBranchName(repository: Repository): string {
 		const config = workspace.getConfiguration('git');
 		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.Dictionary', ['adjectives', 'animals']);
 		const branchRandomNameSeparator = config.get<string>('branchRandomName.SeparatorChar', '-');
@@ -1798,14 +1798,24 @@ export class CommandCenter {
 			return '';
 		}
 
-		return uniqueNamesGenerator({
-			dictionaries,
-			length: dictionaries.length,
-			separator: branchRandomNameSeparator
-		});
+		// 5 attempts to generate a random branch name
+		for (let index = 0; index < 5; index++) {
+			const randomName = uniqueNamesGenerator({
+				dictionaries,
+				length: dictionaries.length,
+				separator: branchRandomNameSeparator
+			});
+
+			// Check for local ref conflict
+			if (!repository.refs.find(r => r.type === RefType.Head && r.name === randomName)) {
+				return randomName;
+			}
+		}
+
+		return '';
 	}
 
-	private async promptForBranchName(defaultName?: string, initialValue?: string): Promise<string> {
+	private async promptForBranchName(repository: Repository, defaultName?: string, initialValue?: string): Promise<string> {
 		const config = workspace.getConfiguration('git');
 		const branchPrefix = config.get<string>('branchPrefix', '');
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
@@ -1820,7 +1830,7 @@ export class CommandCenter {
 			// Branch name
 			if (!initialValue) {
 				const branchRandomNameEnabled = config.get<boolean>('branchRandomName.Enable', false);
-				initialValue = `${branchPrefix}${branchRandomNameEnabled ? this.generateRandomBranchName() : ''}`;
+				initialValue = `${branchPrefix}${branchRandomNameEnabled ? this.generateRandomBranchName(repository) : ''}`;
 			}
 
 			// Branch name selection
@@ -1848,7 +1858,7 @@ export class CommandCenter {
 	}
 
 	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {
-		const branchName = await this.promptForBranchName(defaultName);
+		const branchName = await this.promptForBranchName(repository, defaultName);
 
 		if (!branchName) {
 			return;
@@ -1911,7 +1921,7 @@ export class CommandCenter {
 	@command('git.renameBranch', { repository: true })
 	async renameBranch(repository: Repository): Promise<void> {
 		const currentBranchName = repository.HEAD && repository.HEAD.name;
-		const branchName = await this.promptForBranchName(undefined, currentBranchName);
+		const branchName = await this.promptForBranchName(repository, undefined, currentBranchName);
 
 		if (!branchName) {
 			return;
