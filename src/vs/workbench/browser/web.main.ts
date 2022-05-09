@@ -42,7 +42,7 @@ import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/w
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IndexedDBFileSystemProvider } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
+import { IndexedDBFileSystemProviderErrorDataClassification, IndexedDBFileSystemProvider, IndexedDBFileSystemProviderErrorData } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 import { BrowserRequestService } from 'vs/workbench/services/request/browser/requestService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
@@ -75,6 +75,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 export class BrowserMain extends Disposable {
 
 	private readonly onWillShutdownDisposables = this._register(new DisposableStore());
+	private readonly indexedDBFileSystemProviders: IndexedDBFileSystemProvider[] = [];
 
 	constructor(
 		private readonly domElement: HTMLElement,
@@ -110,6 +111,13 @@ export class BrowserMain extends Disposable {
 
 		// Logging
 		services.logService.trace('workbench#open with configuration', safeStringify(this.configuration));
+
+		instantiationService.invokeFunction(accessor => {
+			const telemetryService = accessor.get(ITelemetryService);
+			for (const indexedDbFileSystemProvider of this.indexedDBFileSystemProviders) {
+				this._register(indexedDbFileSystemProvider.onReportError(e => telemetryService.publicLog2<IndexedDBFileSystemProviderErrorData, IndexedDBFileSystemProviderErrorDataClassification>('indexedDBFileSystemProviderError', e)));
+			}
+		});
 
 		// Return API Facade
 		return instantiationService.invokeFunction(accessor => {
@@ -320,7 +328,9 @@ export class BrowserMain extends Disposable {
 
 		// Logger
 		if (indexedDB) {
-			fileService.registerProvider(logsPath.scheme, new IndexedDBFileSystemProvider(logsPath.scheme, indexedDB, logsStore, false));
+			const logFileSystemProvider = new IndexedDBFileSystemProvider(logsPath.scheme, indexedDB, logsStore, false);
+			this.indexedDBFileSystemProviders.push(logFileSystemProvider);
+			fileService.registerProvider(logsPath.scheme, logFileSystemProvider);
 		} else {
 			fileService.registerProvider(logsPath.scheme, new InMemoryFileSystemProvider());
 		}
@@ -335,6 +345,7 @@ export class BrowserMain extends Disposable {
 		let userDataProvider;
 		if (indexedDB) {
 			userDataProvider = new IndexedDBFileSystemProvider(Schemas.vscodeUserData, indexedDB, userDataStore, true);
+			this.indexedDBFileSystemProviders.push(userDataProvider);
 			this.registerDeveloperActions(<IndexedDBFileSystemProvider>userDataProvider);
 		} else {
 			logService.info('Using in-memory user data provider');
