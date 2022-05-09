@@ -91,6 +91,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 	public start(): Promise<IMessagePassingProtocol> {
 		const options: IConnectionOptions = {
 			commit: this._productService.commit,
+			quality: this._productService.quality,
 			socketFactory: this._socketFactory,
 			addressProvider: {
 				getAddress: async () => {

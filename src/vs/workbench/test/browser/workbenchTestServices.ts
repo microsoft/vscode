@@ -780,6 +780,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidChangeGroupLocked: Event<IEditorGroup> = Event.None;
 	onDidLayout: Event<IDimension> = Event.None;
 	onDidChangeEditorPartOptions = Event.None;
+	onDidScroll = Event.None;
 
 	orientation = GroupOrientation.HORIZONTAL;
 	isReady = true;

@@ -248,7 +248,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					options.frame = false;
 				}
 
-				if (isWindows) {
+				if (isWindows && this.environmentMainService.isBuilt) {
 					// This logic will not perfectly guess the right colors to use on initialization,
 					// but prefer to keep things simple as it is temporary and not noticeable
 					const titleBarColor = this.themeMainService.getWindowSplash()?.colorInfo.titleBarBackground ?? this.themeMainService.getBackgroundColor();

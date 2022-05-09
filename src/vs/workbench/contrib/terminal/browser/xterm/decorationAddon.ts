@@ -23,6 +23,7 @@ import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -45,6 +46,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _hoverDelayer: Delayer<void>;
 	private _commandStartedListener: IDisposable | undefined;
 	private _commandFinishedListener: IDisposable | undefined;
+	private _commandClearedListener: IDisposable | undefined;
 	private _contextMenuVisible: boolean = false;
 	private _decorations: Map<number, IDisposableDecoration> = new Map();
 	private _placeholderDecoration: IDecoration | undefined;
@@ -58,10 +60,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
-		this._register(toDisposable(() => this.clearDecorations(true)));
+		this._register(toDisposable(() => this._dispose()));
 		this._register(this._contextMenuService.onDidShowContextMenu(() => this._contextMenuVisible = true));
 		this._register(this._contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
@@ -109,11 +112,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	public clearDecorations(disableDecorations?: boolean): void {
-		if (disableDecorations) {
-			this._commandStartedListener?.dispose();
-			this._commandFinishedListener?.dispose();
-		}
+	private _dispose(): void {
+		this._commandStartedListener?.dispose();
+		this._commandFinishedListener?.dispose();
+		this._commandClearedListener?.dispose();
 		this._placeholderDecoration?.dispose();
 		this._placeholderDecoration?.marker.dispose();
 		for (const value of this._decorations.values()) {
@@ -127,11 +129,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
 			this._addCommandFinishedListener();
 			this._addCommandStartedListener();
+			this._addCommandClearedListener();
 		} else {
 			this._register(this._capabilities.onDidAddCapability(c => {
 				if (c === TerminalCapability.CommandDetection) {
 					this._addCommandFinishedListener();
 					this._addCommandStartedListener();
+					this._addCommandClearedListener();
 				}
 			}));
 		}
@@ -139,6 +143,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			if (c === TerminalCapability.CommandDetection) {
 				this._commandStartedListener?.dispose();
 				this._commandFinishedListener?.dispose();
+				this._commandClearedListener?.dispose();
 			}
 		}));
 	}
@@ -169,12 +174,29 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		for (const command of capability.commands) {
 			this.registerCommandDecoration(command);
 		}
-		this._commandFinishedListener = capability.onCommandFinished(command => {
-			if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
-				this.clearDecorations();
-				return;
+		this._commandFinishedListener = capability.onCommandFinished(command => this.registerCommandDecoration(command));
+	}
+
+	private _addCommandClearedListener(): void {
+		if (this._commandClearedListener) {
+			return;
+		}
+		const capability = this._capabilities.get(TerminalCapability.CommandDetection);
+		if (!capability) {
+			return;
+		}
+
+		this._commandClearedListener = capability.onCommandInvalidated(commands => {
+			for (const command of commands) {
+				const id = command.marker?.id;
+				if (id) {
+					const match = this._decorations.get(id);
+					if (match) {
+						match.decoration.dispose();
+						dispose(match.disposables);
+					}
+				}
 			}
-			this.registerCommandDecoration(command);
 		});
 	}
 
@@ -323,6 +345,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		actions.push({
 			class: 'rerun-command', tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: localize("terminal.rerunCommand", 'Rerun Command'), enabled: true,
 			run: () => this._onDidRequestRunCommand.fire({ command })
+		});
+		actions.push({
+			class: 'how-does-this-work', tooltip: 'How does this work?', dispose: () => { }, id: 'terminal.howDoesThisWork', label: localize("terminal.howDoesThisWork", 'How does this work?'), enabled: true,
+			run: () => this._openerService.open('https://code.visualstudio.com/docs/editor/integrated-terminal#_shell-integration')
 		});
 		return actions;
 	}

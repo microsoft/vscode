@@ -42,6 +42,11 @@ interface ITerminalDimensions {
 	rows: number;
 }
 
+interface IBeforeCommandFinishedEvent {
+	command: ITerminalCommand;
+	veto?: boolean;
+}
+
 export class CommandDetectionCapability implements ICommandDetectionCapability {
 	readonly type = TerminalCapability.CommandDetection;
 
@@ -67,8 +72,12 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 	private readonly _onCommandStarted = new Emitter<ITerminalCommand>();
 	readonly onCommandStarted = this._onCommandStarted.event;
+	private readonly _onBeforeCommandFinished = new Emitter<IBeforeCommandFinishedEvent>();
+	readonly onBeforeCommandFinished = this._onBeforeCommandFinished.event;
 	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();
 	readonly onCommandFinished = this._onCommandFinished.event;
+	private readonly _onCommandInvalidated = new Emitter<ITerminalCommand[]>();
+	readonly onCommandInvalidated = this._onCommandInvalidated.event;
 
 	constructor(
 		private readonly _terminal: Terminal,
@@ -79,6 +88,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			rows: this._terminal.rows
 		};
 		this._terminal.onResize(e => this._handleResize(e));
+		this._setupClearListeners();
 	}
 
 	private _handleResize(e: { cols: number; rows: number }) {
@@ -87,6 +97,36 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 		this._dimensions.cols = e.cols;
 		this._dimensions.rows = e.rows;
+	}
+
+	private _setupClearListeners() {
+		// Setup listeners for when clear is run in the shell. Since we don't know immediately if
+		// this is a Windows pty, listen to both routes and do the Windows check inside them
+
+		// For a Windows backend we cannot listen to CSI J, instead we assume running clear or
+		// cls will clear all commands in the viewport. This is not perfect but it's right most
+		// of the time.
+		this.onBeforeCommandFinished(event => {
+			if (this._isWindowsPty) {
+				if (event.command.command.trim().toLowerCase() === 'clear' || event.command.command.trim().toLowerCase() === 'cls') {
+					this._clearCommandsInViewport();
+					// Prevent current command to get to command finished listeners
+					event.veto = true;
+				}
+			}
+		});
+
+		// For non-Windows backends we can just listen to CSI J which is what the clear command
+		// typically emits.
+		this._terminal.parser.registerCsiHandler({ final: 'J' }, params => {
+			if (!this._isWindowsPty) {
+				if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
+					this._clearCommandsInViewport();
+				}
+			}
+			// We don't want to override xterm.js' default behavior, just augment it
+			return false;
+		});
 	}
 
 	private _preHandleResizeWindows(e: { cols: number; rows: number }) {
@@ -135,6 +175,22 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 					});
 				}
 			});
+		}
+	}
+
+	private _clearCommandsInViewport(): void {
+		// Find the number of commands on the tail end of the array that are within the viewport
+		let count = 0;
+		for (let i = this._commands.length - 1; i >= 0; i--) {
+			const line = this._commands[i].marker?.line;
+			if (line && line < this._terminal.buffer.active.baseY) {
+				break;
+			}
+			count++;
+		}
+		// Remove them
+		if (count > 0) {
+			this._onCommandInvalidated.fire(this._commands.splice(this._commands.length - count, count));
 		}
 	}
 
@@ -346,7 +402,13 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
-			this._onCommandFinished.fire(newCommand);
+
+			// Fire the command finished event provided there is no veto
+			const beforeEvent: IBeforeCommandFinishedEvent = { command: newCommand };
+			this._onBeforeCommandFinished.fire(beforeEvent);
+			if (!beforeEvent.veto) {
+				this._onCommandFinished.fire(newCommand);
+			}
 		}
 		this._currentCommand.previousCommandMarker = this._currentCommand.commandStartMarker;
 		this._currentCommand = {};
