@@ -1795,7 +1795,7 @@ export class CommandCenter {
 					return name === sanitizedName
 						? null
 						: {
-							message: localize('branch name does not match sanitized', "Will be created as '{0}'", sanitizedName),
+							message: localize('branch name does not match sanitized', "The new branch will be '{0}'", sanitizedName),
 							severity: InputBoxValidationSeverity.Info
 						};
 				}
