@@ -44,14 +44,29 @@ export class MergeEditor extends EditorPane {
 	) {
 		super(MergeEditor.ID, telemetryService, themeService, storageService);
 
+		const reentrancyBarrier = new ReentrancyBarrier();
 		this._store.add(this.inputOneView.editor.onDidScrollChange(c => {
 			if (c.scrollTopChanged) {
-				this.inputTwoView.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
+				reentrancyBarrier.runExclusively(() => {
+					this.inputTwoView.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
+					this.inputResultView.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
+				});
 			}
 		}));
 		this._store.add(this.inputTwoView.editor.onDidScrollChange(c => {
 			if (c.scrollTopChanged) {
-				this.inputOneView.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
+				reentrancyBarrier.runExclusively(() => {
+					this.inputOneView.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
+					this.inputResultView.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
+				});
+			}
+		}));
+		this._store.add(this.inputResultView.editor.onDidScrollChange(c => {
+			if (c.scrollTopChanged) {
+				reentrancyBarrier.runExclusively(() => {
+					this.inputOneView.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
+					this.inputTwoView.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
+				});
 			}
 		}));
 	}
@@ -137,5 +152,21 @@ class CodeEditorView implements IView {
 		this.element.style.top = `${top}px`;
 		this.element.style.left = `${left}px`;
 		this.editor.layout({ width, height });
+	}
+}
+
+class ReentrancyBarrier {
+	private isActive = false;
+
+	public runExclusively(fn: () => void): void {
+		if (this.isActive) {
+			return;
+		}
+		this.isActive = true;
+		try {
+			fn();
+		} finally {
+			this.isActive = false;
+		}
 	}
 }
