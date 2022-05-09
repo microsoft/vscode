@@ -242,6 +242,15 @@ export interface IFixedTerminalDimensions {
 	rows?: number;
 }
 
+
+export const enum ShellIntegrationTelemetry {
+	ActivationTimeout = 'terminal/shellIntegrationActivationTimeout',
+	FailureProcessExit = 'terminal/shellIntegrationFailureProcessExit',
+	FailureCustomArgs = 'terminal/shellIntegrationActivationFailureCustomArgs',
+	Success = 'terminal/shellIntegrationActivationSucceeded',
+	DisabledByUser = 'terminal/shellIntegrationDisabledByUser'
+}
+
 export interface IPtyHostController {
 	readonly onPtyHostExit?: Event<number>;
 	readonly onPtyHostStart?: Event<void>;

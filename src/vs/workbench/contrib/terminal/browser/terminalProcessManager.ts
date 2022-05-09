@@ -21,7 +21,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ITerminalDimensions, IProcessReadyEvent, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, ITerminalProcessOptions, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ITerminalDimensions, IProcessReadyEvent, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, ITerminalProcessOptions, TerminalSettingId, ShellIntegrationTelemetry } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { localize } from 'vs/nls';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -335,7 +335,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						this._hasChildProcesses = value;
 						break;
 					case ProcessPropertyType.FailedShellIntegrationActivation:
-						this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationFailedToActivateArgs');
+						this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(ShellIntegrationTelemetry.FailureCustomArgs);
 						break;
 				}
 				this._onDidChangeProperty.fire({ type, value });

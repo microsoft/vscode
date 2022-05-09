@@ -42,7 +42,7 @@ import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notif
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProcessDataEvent, IProcessPropertyMap, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ProcessPropertyType, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessPropertyMap, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ProcessPropertyType, ShellIntegrationTelemetry, TerminalIcon, TerminalLocation, TerminalSettingId, TerminalShellType, TitleEventSource, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -1634,7 +1634,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		if (failedShellIntegrationInjection) {
-			this._telemetryService.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationProcessExit');
+			this._telemetryService.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(ShellIntegrationTelemetry.FailureProcessExit);
 		}
 
 		// First onExit to consumers, this can happen after the terminal has already been disposed.

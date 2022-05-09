@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IShellIntegration } from 'vs/platform/terminal/common/terminal';
+import { IShellIntegration, ShellIntegrationTelemetry } from 'vs/platform/terminal/common/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
@@ -143,7 +143,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _handleVSCodeSequence(data: string): boolean {
 		const didHandle = this._doHandleVSCodeSequence(data);
 		if (!this._hasUpdatedTelemetry && didHandle) {
-			this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivated');
+			this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(ShellIntegrationTelemetry.Success);
 			this._hasUpdatedTelemetry = true;
 		}
 		return didHandle;
@@ -227,7 +227,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private async _ensureCapabilitiesOrAddFailureTelemetry(): Promise<void> {
 		setTimeout(() => {
 			if (!this.capabilities.get(TerminalCapability.CommandDetection) && !this.capabilities.get(TerminalCapability.CwdDetection)) {
-				this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationFailedToActivate');
+				this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(ShellIntegrationTelemetry.ActivationTimeout);
 				this._logService.warn('Shell integration failed to add capabilities within 10 seconds');
 			}
 		}, 10000);

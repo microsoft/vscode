@@ -35,6 +35,7 @@ import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/dec
 import { ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ShellIntegrationTelemetry } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -613,7 +614,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			if (this._decorationAddon) {
 				this._decorationAddon.dispose();
 				this._decorationAddon = undefined;
-				this._telemetryService.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationDisabledByUser');
+				this._telemetryService.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(ShellIntegrationTelemetry.DisabledByUser);
 			}
 		}
 	}
