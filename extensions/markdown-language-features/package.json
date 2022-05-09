@@ -423,7 +423,7 @@
         "markdown.experimental.validate.referenceLinks": {
           "type": "string",
           "scope": "resource",
-          "description": "%configuration.markdown.experimental.validate.referenceLinks.description%",
+          "markdownDescription": "%configuration.markdown.experimental.validate.referenceLinks.description%",
           "default": "warning",
           "enum": [
             "ignore",
@@ -434,7 +434,7 @@
         "markdown.experimental.validate.headerLinks": {
           "type": "string",
           "scope": "resource",
-          "description": "%configuration.markdown.experimental.validate.headerLinks.description%",
+          "markdownDescription": "%configuration.markdown.experimental.validate.headerLinks.description%",
           "default": "warning",
           "enum": [
             "ignore",
@@ -445,7 +445,7 @@
         "markdown.experimental.validate.fileLinks": {
           "type": "string",
           "scope": "resource",
-          "description": "%configuration.markdown.experimental.validate.fileLinks.description%",
+          "markdownDescription": "%configuration.markdown.experimental.validate.fileLinks.description%",
           "default": "warning",
           "enum": [
             "ignore",
