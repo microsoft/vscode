@@ -108,13 +108,13 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		let attributes: string[] = [];
 		if (href) {
 			({ href, dimensions } = parseHrefAndDimensions(href));
-			attributes.push(`src="${href}"`);
+			attributes.push(`src="${href.replace(/"/g, '&quot;')}"`);
 		}
 		if (text) {
-			attributes.push(`alt="${text}"`);
+			attributes.push(`alt="${text.replace(/"/g, '&quot;')}"`);
 		}
 		if (title) {
-			attributes.push(`title="${title}"`);
+			attributes.push(`title="${title.replace(/"/g, '&quot;')}"`);
 		}
 		if (dimensions.length) {
 			attributes = attributes.concat(dimensions);
@@ -131,7 +131,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			text = removeMarkdownEscapes(text);
 		}
 
-		title = typeof title === 'string' ? removeMarkdownEscapes(title) : '';
+		title = typeof title === 'string' ? removeMarkdownEscapes(title).replace(/"/g, '&quot;') : '';
 		href = removeMarkdownEscapes(href);
 
 		// HTML Encode href
