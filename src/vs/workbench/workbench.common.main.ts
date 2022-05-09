@@ -210,6 +210,9 @@ import 'vs/workbench/contrib/debug/browser/debugViewlet';
 // Markers
 import 'vs/workbench/contrib/markers/browser/markers.contribution';
 
+// Merge Editor
+import 'vs/workbench/contrib/mergeEditor/browser/mergeEditor.contribution';
+
 // Comments
 import 'vs/workbench/contrib/comments/browser/comments.contribution';
 
