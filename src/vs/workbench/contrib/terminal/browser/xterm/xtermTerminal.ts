@@ -619,7 +619,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	}
 
 	private _createShellIntegrationAddon(): void {
-		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(this._logService, this._telemetryService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
 	}
 }

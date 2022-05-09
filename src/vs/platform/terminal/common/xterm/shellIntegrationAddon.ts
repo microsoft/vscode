@@ -127,8 +127,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _hasUpdatedTelemetry: boolean = false;
 
 	constructor(
-		@ILogService private readonly _logService: ILogService,
-		@ITelemetryService private readonly _telemetryService?: ITelemetryService
+		private readonly _logService: ILogService,
+		private readonly _telemetryService?: ITelemetryService
 	) {
 		super();
 	}
