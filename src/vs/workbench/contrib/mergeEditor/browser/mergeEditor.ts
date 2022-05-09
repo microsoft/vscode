@@ -74,7 +74,6 @@ export class MergeEditor extends EditorPane {
 
 	protected createEditor(parent: HTMLElement): void {
 
-
 		const inputOneView = new CodeEditorView('one');
 		const inputTwoView = new CodeEditorView('two');
 		const inputResultView = new CodeEditorView('result');
@@ -95,16 +94,17 @@ export class MergeEditor extends EditorPane {
 			throw new BugIndicatingError('ONLY MergeEditorInput is supported');
 		}
 		await super.setInput(input, options, context, token);
-		console.trace('mergeEditor@53');
+
 		this._sessionDisposables.clear();
-		// const model = await input.resolve();
+		const model = await input.resolve();
+		console.log(model);
 		// if (token.isCancellationRequested) {
 		// 	return;
 		// }
 	}
 
 	override clearInput(): void {
-		console.trace('mergeEditor@66');
+
 	}
 
 }
