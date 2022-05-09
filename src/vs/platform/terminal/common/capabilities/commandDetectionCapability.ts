@@ -49,11 +49,6 @@ interface ITerminalDimensions {
 	rows: number;
 }
 
-interface IBeforeCommandFinishedEvent {
-	command: ITerminalCommand;
-	veto?: boolean;
-}
-
 export class CommandDetectionCapability implements ICommandDetectionCapability {
 	readonly type = TerminalCapability.CommandDetection;
 
