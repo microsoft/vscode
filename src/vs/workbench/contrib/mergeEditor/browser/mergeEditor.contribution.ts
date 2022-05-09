@@ -45,17 +45,39 @@ registerAction2(class Foo extends Action2 {
 			f1: true
 		});
 	}
-
 	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const validatedArgs = ITestMergeEditorArgs.validate(args[0]);
+
+		function normalize(uri: URI | string): URI {
+			if (typeof uri === 'string') {
+				return URI.parse(uri);
+			} else {
+				return uri;
+			}
+		}
+
 		const instaService = accessor.get(IInstantiationService);
 		const input = instaService.createInstance(
 			MergeEditorInput,
-			URI.file('/Users/jrieken/Code/_samples/abc/test.md'),
-			URI.file('/Users/jrieken/Code/_samples/abc/test.md'),
-			URI.file('/Users/jrieken/Code/_samples/abc/test.md'),
-			URI.file('/Users/jrieken/Code/_samples/abc/test.md'),
+			normalize(validatedArgs.ancestor),
+			normalize(validatedArgs.input1),
+			normalize(validatedArgs.input2),
+			normalize(validatedArgs.output),
 		);
 		accessor.get(IEditorService).openEditor(input);
 	}
 
 });
+
+namespace ITestMergeEditorArgs {
+	export function validate(args: any): ITestMergeEditorArgs {
+		return args as ITestMergeEditorArgs;
+	}
+}
+
+interface ITestMergeEditorArgs {
+	ancestor: URI | string;
+	input1: URI | string;
+	input2: URI | string;
+	output: URI | string;
+}
