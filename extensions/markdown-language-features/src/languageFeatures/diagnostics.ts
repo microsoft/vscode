@@ -8,7 +8,6 @@ import * as nls from 'vscode-nls';
 import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContents } from '../tableOfContents';
 import { Delayer } from '../util/async';
-import { noopToken } from '../util/cancellation';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
@@ -73,12 +72,58 @@ class VSCodeDiagnosticConfiguration extends Disposable implements DiagnosticConf
 	}
 }
 
+class InflightDiagnosticRequests {
+
+	private readonly inFlightRequests = new Map<string, { readonly cts: vscode.CancellationTokenSource }>();
+
+	public trigger(resource: vscode.Uri, compute: (token: vscode.CancellationToken) => Promise<void>) {
+		this.cancel(resource);
+
+		const key = this.getResourceKey(resource);
+		const cts = new vscode.CancellationTokenSource();
+		const entry = { cts };
+		this.inFlightRequests.set(key, entry);
+
+		compute(cts.token).finally(() => {
+			if (this.inFlightRequests.get(key) === entry) {
+				this.inFlightRequests.delete(key);
+			}
+			cts.dispose();
+		});
+	}
+
+	public cancel(resource: vscode.Uri) {
+		const key = this.getResourceKey(resource);
+		const existing = this.inFlightRequests.get(key);
+		if (existing) {
+			existing.cts.cancel();
+			this.inFlightRequests.delete(key);
+		}
+	}
+
+	public dispose() {
+		this.clear();
+	}
+
+	public clear() {
+		for (const { cts } of this.inFlightRequests.values()) {
+			cts.dispose();
+		}
+		this.inFlightRequests.clear();
+	}
+
+	private getResourceKey(resource: vscode.Uri): string {
+		return resource.toString();
+	}
+}
+
 export class DiagnosticManager extends Disposable {
 
 	private readonly collection: vscode.DiagnosticCollection;
 
-	private readonly pendingDiagnostics = new Set<vscode.Uri>();
 	private readonly diagnosticDelayer: Delayer<void>;
+	private readonly pendingDiagnostics = new Set<vscode.Uri>();
+	private readonly inFlightDiagnostics = this._register(new InflightDiagnosticRequests());
 
 	constructor(
 		private readonly computer: DiagnosticComputer,
@@ -86,7 +131,7 @@ export class DiagnosticManager extends Disposable {
 	) {
 		super();
 
-		this.diagnosticDelayer = new Delayer(300);
+		this.diagnosticDelayer = this._register(new Delayer(300));
 
 		this.collection = this._register(vscode.languages.createDiagnosticCollection('markdown'));
 
@@ -94,49 +139,61 @@ export class DiagnosticManager extends Disposable {
 			this.rebuild();
 		}));
 
-		const onDocUpdated = (doc: vscode.TextDocument) => {
-			if (isMarkdownFile(doc)) {
-				this.pendingDiagnostics.add(doc.uri);
-				this.diagnosticDelayer.trigger(() => this.recomputePendingDiagnostics());
-			}
-		};
-
 		this._register(vscode.workspace.onDidOpenTextDocument(doc => {
-			onDocUpdated(doc);
+			this.triggerDiagnostics(doc);
 		}));
 
 		this._register(vscode.workspace.onDidChangeTextDocument(e => {
-			onDocUpdated(e.document);
+			this.triggerDiagnostics(e.document);
 		}));
 
 		this._register(vscode.workspace.onDidCloseTextDocument(doc => {
 			this.pendingDiagnostics.delete(doc.uri);
+			this.inFlightDiagnostics.cancel(doc.uri);
 			this.collection.delete(doc.uri);
 		}));
 
 		this.rebuild();
 	}
 
-	private recomputePendingDiagnostics(): void {
+	public override dispose() {
+		super.dispose();
+		this.pendingDiagnostics.clear();
+	}
+
+	public async getDiagnostics(doc: SkinnyTextDocument, token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
+		const config = this.configuration.getOptions(doc.uri);
+		if (!config.enabled) {
+			return [];
+		}
+		return this.computer.getDiagnostics(doc, config, token);
+	}
+
+	private async recomputePendingDiagnostics(): Promise<void> {
 		const pending = [...this.pendingDiagnostics];
 		this.pendingDiagnostics.clear();
 
 		for (const resource of pending) {
 			const doc = vscode.workspace.textDocuments.find(doc => doc.uri.fsPath === resource.fsPath);
 			if (doc) {
-				this.update(doc);
+				this.inFlightDiagnostics.trigger(doc.uri, async (token) => {
+					const diagnostics = await this.getDiagnostics(doc, token);
+					this.collection.set(doc.uri, diagnostics);
+				});
 			}
 		}
 	}
 
 	private async rebuild() {
 		this.collection.clear();
+		this.pendingDiagnostics.clear();
+		this.inFlightDiagnostics.clear();
 
 		const allOpenedTabResources = this.getAllTabResources();
 		await Promise.all(
 			vscode.workspace.textDocuments
 				.filter(doc => allOpenedTabResources.has(doc.uri.toString()) && isMarkdownFile(doc))
-				.map(doc => this.update(doc)));
+				.map(doc => this.triggerDiagnostics(doc)));
 	}
 
 	private getAllTabResources() {
@@ -151,17 +208,13 @@ export class DiagnosticManager extends Disposable {
 		return openedTabDocs;
 	}
 
-	private async update(doc: vscode.TextDocument): Promise<void> {
-		const diagnostics = await this.getDiagnostics(doc, noopToken);
-		this.collection.set(doc.uri, diagnostics);
-	}
+	private triggerDiagnostics(doc: vscode.TextDocument) {
+		this.inFlightDiagnostics.cancel(doc.uri);
 
-	public async getDiagnostics(doc: SkinnyTextDocument, token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
-		const config = this.configuration.getOptions(doc.uri);
-		if (!config.enabled) {
-			return [];
+		if (isMarkdownFile(doc)) {
+			this.pendingDiagnostics.add(doc.uri);
+			this.diagnosticDelayer.trigger(() => this.recomputePendingDiagnostics());
 		}
-		return this.computer.getDiagnostics(doc, config, token);
 	}
 }
 
