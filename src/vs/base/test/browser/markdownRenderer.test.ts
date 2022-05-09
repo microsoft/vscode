@@ -148,7 +148,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown(`[$(zap)-link](#link)`);
 
 			let result: HTMLElement = renderMarkdown(mds).element;
-			assert.strictEqual(result.innerHTML, `<p><a href="" data-href="#link" title="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
+			assert.strictEqual(result.innerHTML, `<p><a data-href="#link" href="" title="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
 		});
 
 		test('render icon in table', () => {
@@ -168,7 +168,7 @@ suite('MarkdownRenderer', () => {
 </thead>
 <tbody><tr>
 <td><span class="codicon codicon-zap"></span></td>
-<td><a href="" data-href="#link" title="#link"><span class="codicon codicon-zap"></span>-link</a></td>
+<td><a data-href="#link" href="" title="#link"><span class="codicon codicon-zap"></span>-link</a></td>
 </tr>
 </tbody></table>
 `);
@@ -209,6 +209,25 @@ suite('MarkdownRenderer', () => {
 		assert.ok(data);
 		assert.strictEqual(data.script, 'echo');
 		assert.ok(data.documentUri.toString().startsWith('file:///c%3A/'));
+	});
+
+	test('Should not render command links by default', () => {
+		const md = new MarkdownString(`[command1](command:doFoo) <a href="command:doFoo">command2</a>`, {
+			supportHtml: true
+		});
+
+		const result: HTMLElement = renderMarkdown(md).element;
+		assert.strictEqual(result.innerHTML, `<p>command1 command2</p>`);
+	});
+
+	test('Should render command links in trusted strings', () => {
+		const md = new MarkdownString(`[command1](command:doFoo) <a href="command:doFoo">command2</a>`, {
+			isTrusted: true,
+			supportHtml: true,
+		});
+
+		const result: HTMLElement = renderMarkdown(md).element;
+		assert.strictEqual(result.innerHTML, `<p><a data-href="command:doFoo" href="" title="command:doFoo">command1</a> <a data-href="command:doFoo" href="">command2</a></p>`);
 	});
 
 	suite('PlaintextMarkdownRender', () => {

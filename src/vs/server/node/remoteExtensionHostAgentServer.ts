@@ -755,6 +755,8 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		const telemetryService = accessor.get(ITelemetryService);
 
 		type ServerStartClassification = {
+			owner: 'alexdima';
+			comment: 'The server has started up';
 			startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			startedTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			codeLoadedTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
