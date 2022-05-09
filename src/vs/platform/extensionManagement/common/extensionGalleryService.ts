@@ -222,7 +222,6 @@ interface IQueryState {
 	readonly criteria: ICriterium[];
 	readonly assetTypes: string[];
 	readonly source?: string;
-	readonly searchTextLength?: number;
 }
 
 const DefaultQueryState: IQueryState = {
@@ -232,8 +231,7 @@ const DefaultQueryState: IQueryState = {
 	sortOrder: SortOrder.Default,
 	flags: Flags.None,
 	criteria: [],
-	assetTypes: [],
-	searchTextLength: 0
+	assetTypes: []
 };
 
 type GalleryServiceQueryClassification = {
@@ -250,6 +248,7 @@ type GalleryServiceQueryClassification = {
 	readonly errorCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly count?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	readonly searchTextLength?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 type QueryTelemetryData = {
@@ -259,6 +258,7 @@ type QueryTelemetryData = {
 	readonly sortOrder: string;
 	readonly pageNumber: string;
 	readonly source?: string;
+	readonly searchTextLength?: number;
 };
 
 type GalleryServiceQueryEvent = QueryTelemetryData & {
@@ -331,10 +331,6 @@ class Query {
 		return new Query({ ...this.state, source });
 	}
 
-	withSearchTextLength(length: number): Query {
-		return new Query({ ...this.state, searchTextLength: length });
-	}
-
 	get raw(): any {
 		const { criteria, pageNumber, pageSize, sortBy, sortOrder, flags, assetTypes } = this.state;
 		const filters = [{ criteria, pageNumber, pageSize, sortBy, sortOrder }];
@@ -353,7 +349,8 @@ class Query {
 			sortBy: String(this.sortBy),
 			sortOrder: String(this.sortOrder),
 			pageNumber: String(this.pageNumber),
-			source: this.state.source
+			source: this.state.source,
+			searchTextLength: this.searchText.length
 		};
 	}
 }
@@ -714,8 +711,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 			if (text) {
 				text = text.length < 200 ? text : text.substring(0, 200);
-				query = query.withFilter(FilterType.SearchText, text)
-					.withSearchTextLength(text.length);
+				query = query.withFilter(FilterType.SearchText, text);
 			}
 
 			query = query.withSortBy(SortBy.NoneOrRelevance);
