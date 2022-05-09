@@ -242,7 +242,9 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 				if (runtime.telemetry && uri.authority === 'schema.management.azure.com') {
 					/* __GDPR__
 						"json.schema" : {
-							"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							"owner": "aeschli",
+							"comment": "Measure the use of the Azure resource manager schemas",
+							"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The azure schema URL that was requested." }
 						}
 					 */
 					runtime.telemetry.sendTelemetryEvent('json.schema', { schemaURL: uriPath });

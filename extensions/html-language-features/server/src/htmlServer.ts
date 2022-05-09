@@ -321,15 +321,6 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			}
 			const doComplete = mode.doComplete;
 
-			if (mode.getId() !== 'html') {
-				/* __GDPR__
-					"html.embbedded.complete" : {
-						"languageId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				 */
-				connection.telemetry.logEvent({ key: 'html.embbedded.complete', value: { languageId: mode.getId() } });
-			}
-
 			const settings = await getDocumentSettings(document, () => doComplete.length > 2);
 			const documentContext = getDocumentContext(document.uri, workspaceFolders);
 			return doComplete(document, textDocumentPosition.position, documentContext, settings);
