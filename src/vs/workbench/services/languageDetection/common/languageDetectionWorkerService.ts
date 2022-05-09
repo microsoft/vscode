@@ -25,6 +25,11 @@ export interface ILanguageDetectionService {
 	detectLanguage(resource: URI, supportedLangs?: string[]): Promise<string | undefined>;
 }
 
+export type LanguageDetectionHintConfig = {
+	untitledEditors: boolean;
+	notebookEditors: boolean;
+};
+
 //#region Telemetry events
 
 export const AutomaticLanguageDetectionLikelyWrongId = 'automaticlanguagedetection.likelywrong';
@@ -37,10 +42,12 @@ export interface IAutomaticLanguageDetectionLikelyWrongData {
 }
 
 export type AutomaticLanguageDetectionLikelyWrongClassification = {
-	currentLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	nextLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-	modelPreference: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	owner: 'TylerLeonhardt,JacksonKearl';
+	comment: 'Used to determine how often language detection is likely wrong.';
+	currentLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id we guessed.' };
+	nextLanguageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id the user chose.' };
+	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of lines in the file.' };
+	modelPreference: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What the user\'s model preference is.' };
 };
 
 export const LanguageDetectionStatsId = 'automaticlanguagedetection.stats';
@@ -52,9 +59,11 @@ export interface ILanguageDetectionStats {
 }
 
 export type LanguageDetectionStatsClassification = {
-	languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	owner: 'TylerLeonhardt,JacksonKearl';
+	comment: 'Used to determine how definitive language detection is and how long it takes.';
+	languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The languages the model supports.' };
+	confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The confidences of those languages.' };
+	timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How long the operation took.' };
 };
 
 //#endregion

@@ -280,7 +280,7 @@ export class MouseHandler extends ViewEventHandler {
 			e.preventDefault();
 		} else if (targetIsViewZone) {
 			const viewZoneData = t.detail;
-			if (this.viewHelper.shouldSuppressMouseDownOnViewZone(viewZoneData.viewZoneId)) {
+			if (shouldHandle && this.viewHelper.shouldSuppressMouseDownOnViewZone(viewZoneData.viewZoneId)) {
 				focus();
 				this._mouseDownOperation.start(t.type, e, pointerId);
 				e.preventDefault();

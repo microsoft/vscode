@@ -84,6 +84,8 @@ export class GlobalPointerMoveMonitor<R extends { buttons: number } = IPointerMo
 		this._pointerMoveCallback = pointerMoveCallback;
 		this._onStopCallback = onStopCallback;
 
+		let eventSource: Element | Window = initialElement;
+
 		try {
 			initialElement.setPointerCapture(pointerId);
 			this._hooks.add(toDisposable(() => {
@@ -91,12 +93,18 @@ export class GlobalPointerMoveMonitor<R extends { buttons: number } = IPointerMo
 			}));
 		} catch (err) {
 			// See https://github.com/microsoft/vscode/issues/144584
-			// `setPointerCapture` sometimes fails when being invoked from a `mousedown` listener
-			// Things appear to work even with `setPointerCapture` failing, so no need to do anything special.
+			// See https://github.com/microsoft/vscode/issues/146947
+			// `setPointerCapture` sometimes fails when being invoked
+			// from a `mousedown` listener on macOS and Windows
+			// and it always fails on Linux with the exception:
+			//     DOMException: Failed to execute 'setPointerCapture' on 'Element':
+			//     No active pointer with the given id is found.
+			// In case of failure, we bind the listeners on the window
+			eventSource = window;
 		}
 
 		this._hooks.add(dom.addDisposableThrottledListener<R, PointerEvent>(
-			initialElement,
+			eventSource,
 			dom.EventType.POINTER_MOVE,
 			(data: R) => {
 				if (data.buttons !== initialButtons) {
@@ -110,7 +118,7 @@ export class GlobalPointerMoveMonitor<R extends { buttons: number } = IPointerMo
 		));
 
 		this._hooks.add(dom.addDisposableListener(
-			initialElement,
+			eventSource,
 			dom.EventType.POINTER_UP,
 			(e: PointerEvent) => this.stopMonitoring(true)
 		));

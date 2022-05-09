@@ -413,6 +413,45 @@
           "default": true,
           "markdownDescription": "%configuration.markdown.editor.drop.enabled%",
           "scope": "resource"
+        },
+        "markdown.experimental.validate.enabled": {
+          "type": "boolean",
+          "scope": "resource",
+          "description": "%configuration.markdown.experimental.validate.enabled.description%",
+          "default": false
+        },
+        "markdown.experimental.validate.referenceLinks": {
+          "type": "string",
+          "scope": "resource",
+          "description": "%configuration.markdown.experimental.validate.referenceLinks.description%",
+          "default": "warning",
+          "enum": [
+            "ignore",
+            "warning",
+            "error"
+          ]
+        },
+        "markdown.experimental.validate.headerLinks": {
+          "type": "string",
+          "scope": "resource",
+          "description": "%configuration.markdown.experimental.validate.headerLinks.description%",
+          "default": "warning",
+          "enum": [
+            "ignore",
+            "warning",
+            "error"
+          ]
+        },
+        "markdown.experimental.validate.fileLinks": {
+          "type": "string",
+          "scope": "resource",
+          "description": "%configuration.markdown.experimental.validate.fileLinks.description%",
+          "default": "warning",
+          "enum": [
+            "ignore",
+            "warning",
+            "error"
+          ]
         }
       }
     },

@@ -249,7 +249,7 @@ jobs:
         run: DISPLAY=:10 ./scripts/test-remote-integration.sh
 
   hygiene:
-    name: Hygiene, Layering and Monaco Editor
+    name: Hygiene and Layering
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:

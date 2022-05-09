@@ -323,6 +323,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		return this.filter.filter(item, TreeVisibility.Visible);
 	}
 
+	isItemCollapsed(item: ExplorerItem): boolean {
+		return this.tree.isCollapsed(item);
+	}
+
 	async setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void> {
 		if (isEditing) {
 			this.horizontalScrolling = this.tree.options.horizontalScrolling;
@@ -408,7 +412,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			multipleSelectionSupport: true,
 			filter: this.filter,
 			sorter: this.instantiationService.createInstance(FileSorter),
-			dnd: this.instantiationService.createInstance(FileDragAndDrop),
+			dnd: this.instantiationService.createInstance(FileDragAndDrop, (item) => this.isItemCollapsed(item)),
 			collapseByDefault: (e) => {
 				if (e instanceof ExplorerItem) {
 					if (e.hasNests && getFileNestingSettings(e).expand) {

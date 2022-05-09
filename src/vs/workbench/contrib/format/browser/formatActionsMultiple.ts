@@ -262,19 +262,22 @@ interface IIndexedPick extends IQuickPickItem {
 }
 
 function logFormatterTelemetry<T extends { extensionId?: ExtensionIdentifier }>(telemetryService: ITelemetryService, mode: 'document' | 'range', options: T[], pick?: T) {
-
+	type FormatterPicks = {
+		mode: 'document' | 'range';
+		extensions: string[];
+		pick: string;
+	};
+	type FormatterPicksClassification = {
+		owner: 'jrieken';
+		comment: 'Information about resolving formatter conflicts';
+		mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Formatting mode: whole document or a range/selection' };
+		extensions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that got picked' };
+		pick: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comments: 'The possible extensions to pick' };
+	};
 	function extKey(obj: T): string {
 		return obj.extensionId ? ExtensionIdentifier.toKey(obj.extensionId) : 'unknown';
 	}
-	/*
-	 * __GDPR__
-		"formatterpick" : {
-			"mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"extensions" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"pick" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		}
-	 */
-	telemetryService.publicLog('formatterpick', {
+	telemetryService.publicLog2<FormatterPicks, FormatterPicksClassification>('formatterpick', {
 		mode,
 		extensions: options.map(extKey),
 		pick: pick ? extKey(pick) : 'none'

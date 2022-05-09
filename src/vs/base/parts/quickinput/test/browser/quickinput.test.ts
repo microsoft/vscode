@@ -6,18 +6,26 @@
 import * as assert from 'assert';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
+import { raceTimeout } from 'vs/base/common/async';
 import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
 import { IQuickPick, IQuickPickItem } from 'vs/base/parts/quickinput/common/quickInput';
-import { flakySuite } from 'vs/base/test/common/testUtils';
 
-// Simple promisify of setTimeout
-function wait(delayMS: number) {
-	return new Promise(function (resolve) {
-		setTimeout(resolve, delayMS);
-	});
+// Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
+// kick this off before you launch the picker and then await the promise returned after you launch the picker.
+async function setupWaitTilShownListener(controller: QuickInputController): Promise<void> {
+	const result = await raceTimeout(new Promise<boolean>(resolve => {
+		const event = controller.onShow(_ => {
+			event.dispose();
+			resolve(true);
+		});
+	}), 2000);
+
+	if (!result) {
+		throw new Error('Cancelled');
+	}
 }
 
-flakySuite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
+suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	let fixture: HTMLElement, controller: QuickInputController, quickpick: IQuickPick<IQuickPickItem>;
 
 	function getScrollTop(): number {
@@ -66,30 +74,38 @@ flakySuite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/1
 
 	test('pick - basecase', async () => {
 		const item = { label: 'foo' };
+
+		const wait = setupWaitTilShownListener(controller);
 		const pickPromise = controller.pick([item, { label: 'bar' }]);
-		// wait a bit to let the pick get set up.
-		await wait(200);
+		await wait;
+
 		controller.accept();
 		const pick = await pickPromise;
+
 		assert.strictEqual(pick, item);
 	});
 
 	test('pick - activeItem is honored', async () => {
 		const item = { label: 'foo' };
+
+		const wait = setupWaitTilShownListener(controller);
 		const pickPromise = controller.pick([{ label: 'bar' }, item], { activeItem: item });
-		// wait a bit to let the pick get set up.
-		await wait(200);
+		await wait;
+
 		controller.accept();
 		const pick = await pickPromise;
+
 		assert.strictEqual(pick, item);
 	});
 
 	test('input - basecase', async () => {
+		const wait = setupWaitTilShownListener(controller);
 		const inputPromise = controller.input({ value: 'foo' });
-		// wait a bit to let the pick get set up.
-		await wait(200);
+		await wait;
+
 		controller.accept();
 		const value = await inputPromise;
+
 		assert.strictEqual(value, 'foo');
 	});
 
@@ -103,8 +119,6 @@ flakySuite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/1
 		quickpick.value = 'changed';
 
 		try {
-			// wait a bit to let the event play out.
-			await wait(200);
 			assert.strictEqual(value, quickpick.value);
 		} finally {
 			quickpick.dispose();

@@ -249,8 +249,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					});
 					const options: ITerminalProcessOptions = {
 						shellIntegration: {
-							enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
-							showWelcome: this._configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome),
+							enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled)
 						},
 						windowsEnableConpty: this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled
 					};
@@ -436,8 +435,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const options: ITerminalProcessOptions = {
 			shellIntegration: {
-				enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
-				showWelcome: this._configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome),
+				enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled)
 			},
 			windowsEnableConpty: this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled
 		};

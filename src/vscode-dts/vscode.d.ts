@@ -1914,6 +1914,32 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Impacts the behavior and appearance of the validation message.
+	 */
+	export enum InputBoxValidationSeverity {
+		Info = 1,
+		Warning = 2,
+		Error = 3
+	}
+
+	/**
+	 * Object to configure the behavior of the validation message.
+	 */
+	export interface InputBoxValidationMessage {
+		/**
+		 * The validation message to display.
+		 */
+		readonly message: string;
+
+		/**
+		 * The severity of the validation message.
+		 * NOTE: When using `InputBoxValidationSeverity.Error`, the user will not be allowed to accept (hit ENTER) the input.
+		 * `Info` and `Warning` will still allow the InputBox to accept the input.
+		 */
+		readonly severity: InputBoxValidationSeverity;
+	}
+
+	/**
 	 * Options to configure the behavior of the input box UI.
 	 */
 	export interface InputBoxOptions {
@@ -1965,7 +1991,8 @@ declare module 'vscode' {
 		 * @return A human-readable string which is presented as diagnostic message.
 		 * Return `undefined`, `null`, or the empty string when 'value' is valid.
 		 */
-		validateInput?(value: string): string | undefined | null | Thenable<string | undefined | null>;
+		validateInput?(value: string): string | InputBoxValidationMessage | undefined | null |
+			Thenable<string | InputBoxValidationMessage | undefined | null>;
 	}
 
 	/**
@@ -10852,7 +10879,7 @@ declare module 'vscode' {
 		/**
 		 * An optional validation message indicating a problem with the current input value.
 		 */
-		validationMessage: string | undefined;
+		validationMessage: string | InputBoxValidationMessage | undefined;
 	}
 
 	/**
@@ -14724,7 +14751,10 @@ declare module 'vscode' {
 		 * If true, a modal dialog will be shown asking the user to sign in again. This is mostly used for scenarios
 		 * where the token needs to be re minted because it has lost some authorization.
 		 *
-		 * Defaults to false.
+		 * If there are no existing sessions and forceNewSession is true, it will behave identically to
+		 * {@link AuthenticationGetSessionOptions.createIfNone createIfNone}.
+		 *
+		 * This defaults to false.
 		 */
 		forceNewSession?: boolean | { detail: string };
 
@@ -15680,7 +15710,7 @@ declare module 'vscode' {
 		readonly viewColumn: ViewColumn;
 
 		/**
-		 * The active {@link Tab tab} in the group. This is the tab whose contents are currently
+		 * The active {@link Tab tab} in the group. This is the tab which contents are currently
 		 * being rendered.
 		 *
 		 * *Note* that there can be one active tab per group but there can only be one {@link TabGroups.activeTabGroup active group}.

@@ -25,14 +25,19 @@ const imageFileExtensions = new Set<string>([
 
 export function registerDropIntoEditor(selector: vscode.DocumentSelector) {
 	return vscode.languages.registerDocumentOnDropProvider(selector, new class implements vscode.DocumentOnDropProvider {
-		async provideDocumentOnDropEdits(document: vscode.TextDocument, position: vscode.Position, dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): Promise<vscode.SnippetTextEdit | undefined> {
+		async provideDocumentOnDropEdits(document: vscode.TextDocument, position: vscode.Position, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.SnippetTextEdit | undefined> {
 			const enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.drop.enabled', true);
 			if (!enabled) {
 				return;
 			}
 
+			const replacementRange = new vscode.Range(position, position);
+			return this.tryInsertUriList(document, replacementRange, dataTransfer, token);
+		}
+
+		private async tryInsertUriList(document: vscode.TextDocument, replacementRange: vscode.Range, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.SnippetTextEdit | undefined> {
 			const urlList = await dataTransfer.get('text/uri-list')?.asString();
-			if (!urlList) {
+			if (!urlList || token.isCancellationRequested) {
 				return undefined;
 			}
 
@@ -65,7 +70,7 @@ export function registerDropIntoEditor(selector: vscode.DocumentSelector) {
 				}
 			});
 
-			return new vscode.SnippetTextEdit(new vscode.Range(position, position), snippet);
+			return new vscode.SnippetTextEdit(replacementRange, snippet);
 		}
 	});
 }

@@ -320,7 +320,7 @@ export namespace TaskDTO {
 			result.group = types.TaskGroup.from(value.group._id);
 			if (result.group && value.group.isDefault) {
 				result.group = new types.TaskGroup(result.group.id, result.group.label);
-				if (value.group.isDefault) {
+				if (value.group.isDefault === true) {
 					result.group.isDefault = value.group.isDefault;
 				}
 			}

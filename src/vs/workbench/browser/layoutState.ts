@@ -210,10 +210,19 @@ export class LayoutStateModel extends Disposable {
 		this.stateCache.set(key.name, value);
 	}
 
-	getRuntimeValue<T extends StorageKeyType>(key: RuntimeStateKey<T>, readFromDisk?: boolean): T {
-		if (readFromDisk) {
-			const fromDiskValue = this.loadKeyFromStorage(key);
-			this.stateCache.set(key.name, fromDiskValue ?? key.defaultValue);
+	getRuntimeValue<T extends StorageKeyType>(key: RuntimeStateKey<T>, fallbackToSetting?: boolean): T {
+		if (fallbackToSetting) {
+			switch (key) {
+				case LayoutStateKeys.ACTIVITYBAR_HIDDEN:
+					this.stateCache.set(key.name, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE));
+					break;
+				case LayoutStateKeys.STATUSBAR_HIDDEN:
+					this.stateCache.set(key.name, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE));
+					break;
+				case LayoutStateKeys.SIDEBAR_POSITON:
+					this.stateCache.set(key.name, this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left');
+					break;
+			}
 		}
 
 		return this.stateCache.get(key.name) as T;

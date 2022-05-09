@@ -40,6 +40,7 @@ import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { isAbsolute } from 'vs/base/common/path';
 import { Constants } from 'vs/base/common/uint';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
+import { binarySearch2 } from 'vs/base/common/arrays';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
@@ -397,40 +398,22 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	private getIndexFromAddress(instructionAddress: string): number {
-		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
+		const disassembledInstructions = this._disassembledInstructions;
+		if (disassembledInstructions && disassembledInstructions.length > 0) {
 			const address = BigInt(instructionAddress);
 			if (address) {
-				let startIndex = 0;
-				let endIndex = this._disassembledInstructions.length - 1;
-				const start = this._disassembledInstructions.row(startIndex);
-				const end = this._disassembledInstructions.row(endIndex);
+				return binarySearch2(disassembledInstructions.length, index => {
+					const row = disassembledInstructions.row(index);
 
-				this.ensureAddressParsed(start);
-				this.ensureAddressParsed(end);
-				if (start.instructionAddress! > address ||
-					end.instructionAddress! < address) {
-					return -1;
-				} else if (start.instructionAddress! === address) {
-					return startIndex;
-				} else if (end.instructionAddress! === address) {
-					return endIndex;
-				}
-
-				while (endIndex > startIndex) {
-					const midIndex = Math.floor((endIndex - startIndex) / 2) + startIndex;
-					const mid = this._disassembledInstructions.row(midIndex);
-
-					this.ensureAddressParsed(mid);
-					if (mid.instructionAddress! > address) {
-						endIndex = midIndex;
-					} else if (mid.instructionAddress! < address) {
-						startIndex = midIndex;
+					this.ensureAddressParsed(row);
+					if (row.instructionAddress! > address) {
+						return 1;
+					} else if (row.instructionAddress! < address) {
+						return -1;
 					} else {
-						return midIndex;
+						return 0;
 					}
-				}
-
-				return startIndex;
+				});
 			}
 		}
 

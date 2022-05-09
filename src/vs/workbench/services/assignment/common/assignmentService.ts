@@ -49,7 +49,6 @@ class WorkbenchAssignmentServiceTelemetry implements IExperimentationTelemetry {
 		return this._lastAssignmentContext?.split(';');
 	}
 
-	// __GDPR__COMMON__ "VSCode.ABExp.Features" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	// __GDPR__COMMON__ "abexp.assignmentcontext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	setSharedProperty(name: string, value: string): void {
 		if (name === this.productService.tasConfig?.assignmentContextTelemetryPropertyName) {
@@ -67,7 +66,9 @@ class WorkbenchAssignmentServiceTelemetry implements IExperimentationTelemetry {
 
 		/* __GDPR__
 			"query-expfeature" : {
-				"ABExp.queriedFeature": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"owner": "sbatten",
+				"comment": "Logs queries to the experiment service by feature for metric calculations",
+				"ABExp.queriedFeature": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The experimental feature being queried" }
 			}
 		*/
 		this.telemetryService.publicLog(eventName, data);
@@ -103,8 +104,10 @@ export class WorkbenchAssignmentService extends BaseAssignmentService {
 		};
 
 		type TASClientReadTreatmentClassification = {
-			treatmentValue: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-			treatmentName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			owner: 'sbatten';
+			comment: 'Logged when a treatment value is read from the experiment service';
+			treatmentValue: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The value of the read treatment' };
+			treatmentName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the treatment that was read' };
 		};
 
 		this.telemetryService.publicLog2<TASClientReadTreatmentData, TASClientReadTreatmentClassification>('tasClientReadTreatmentComplete',
