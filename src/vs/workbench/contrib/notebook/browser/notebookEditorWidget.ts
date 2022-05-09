@@ -1340,9 +1340,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			this._localStore.add(this._webview.webview.onDidBlur(() => {
 				this._outputFocus.set(false);
-				this.updateEditorFocus();
-
 				this._webviewFocused = false;
+
+				this.updateEditorFocus();
+				this.updateCellFocusMode();
 			}));
 
 			this._localStore.add(this._webview.webview.onDidFocus(() => {
@@ -1881,6 +1882,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const focused = this.editorHasDomFocus();
 		this._editorFocus.set(focused);
 		this.viewModel?.setEditorFocus(focused);
+	}
+
+	updateCellFocusMode() {
+		const activeCell = this.getActiveCell();
+
+		if (activeCell?.focusMode === CellFocusMode.Output && !this._webviewFocused) {
+			// output previously has focus, but now it's blurred.
+			activeCell.focusMode = CellFocusMode.Container;
+		}
 	}
 
 	hasEditorFocus() {
