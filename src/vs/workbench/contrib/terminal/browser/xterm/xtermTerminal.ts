@@ -621,15 +621,5 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	private _createShellIntegrationAddon(): void {
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon);
 		this.raw.loadAddon(this._shellIntegrationAddon);
-		this._ensureCapabilitiesOrAddFailureTelemetry();
-	}
-
-	private async _ensureCapabilitiesOrAddFailureTelemetry(): Promise<void> {
-		setTimeout(() => {
-			if (!this._capabilities.get(TerminalCapability.CommandDetection) && !this._capabilities.get(TerminalCapability.CwdDetection)) {
-				this._telemetryService.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationFailedToActivate');
-				this._logService.warn('Shell integration failed to add capabilities within 10 seconds');
-			}
-		}, 10000);
 	}
 }

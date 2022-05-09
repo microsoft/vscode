@@ -137,9 +137,19 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this._terminal = xterm;
 		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
+		this._ensureCapabilitiesOrAddFailureTelemetry();
 	}
 
 	private _handleVSCodeSequence(data: string): boolean {
+		const didHandle = this._doHandleVSCodeSequence(data);
+		if (!this._hasUpdatedTelemetry && didHandle) {
+			this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivated');
+			this._hasUpdatedTelemetry = true;
+		}
+		return didHandle;
+	}
+
+	private _doHandleVSCodeSequence(data: string): boolean {
 		if (!this._terminal) {
 			return false;
 		}
@@ -214,6 +224,15 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		return false;
 	}
 
+	private async _ensureCapabilitiesOrAddFailureTelemetry(): Promise<void> {
+		setTimeout(() => {
+			if (!this.capabilities.get(TerminalCapability.CommandDetection) && !this.capabilities.get(TerminalCapability.CwdDetection)) {
+				this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationFailedToActivate');
+				this._logService.warn('Shell integration failed to add capabilities within 10 seconds');
+			}
+		}, 10000);
+	}
+
 	serialize(): ISerializedCommandDetectionCapability {
 		if (!this._terminal || !this.capabilities.has(TerminalCapability.CommandDetection)) {
 			return {
@@ -246,10 +265,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (!commandDetection) {
 			commandDetection = new CommandDetectionCapability(terminal, this._logService);
 			this.capabilities.add(TerminalCapability.CommandDetection, commandDetection);
-		}
-		if (!this._hasUpdatedTelemetry) {
-			this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivated');
-			this._hasUpdatedTelemetry = true;
 		}
 		return commandDetection;
 	}
