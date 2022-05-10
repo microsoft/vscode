@@ -8,11 +8,9 @@ resources:
   containers:
     - container: centos7-devtoolset8-x64
       image: vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-x64
-      endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: vscode-bionic-x64
       image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-x64
-      endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
 
 variables:
@@ -48,7 +46,7 @@ stages:
       vmImage: ubuntu-18.04
     jobs:
       - job: x64
-        # container: centos7-devtoolset8-x64
+        container: centos7-devtoolset8-x64
         variables:
           VSCODE_ARCH: x64
           NPM_ARCH: x64
