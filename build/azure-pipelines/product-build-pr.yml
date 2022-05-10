@@ -86,7 +86,7 @@ stages:
         steps:
           - template: linux/product-build-linux-client.yml
             parameters:
-              VSCODE_PUBLISH: false
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
   - stage: macOS
     dependsOn:
