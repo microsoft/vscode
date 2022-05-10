@@ -5,7 +5,7 @@
 
 
 import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -40,19 +40,18 @@ registerAction2(class Foo extends Action2 {
 
 	constructor() {
 		super({
-			id: 'testMergeEditor',
-			title: '3wm',
-			f1: true
+			id: '_open.mergeEditor',
+			title: localize('title', "Open Merge Editor"),
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: any[]): void {
 		const validatedArgs = ITestMergeEditorArgs.validate(args[0]);
 
-		function normalize(uri: URI | string): URI {
+		function normalize(uri: URI | UriComponents | string): URI {
 			if (typeof uri === 'string') {
 				return URI.parse(uri);
 			} else {
-				return uri;
+				return URI.revive(uri);
 			}
 		}
 
