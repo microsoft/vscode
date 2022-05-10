@@ -137,6 +137,7 @@ body.web {
 
 .monaco-workbench .monaco-menu .monaco-action-bar.vertical {
 	padding: .5em 0;
+	border-radius: 4px;
 }
 
 .monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-menu-item {
