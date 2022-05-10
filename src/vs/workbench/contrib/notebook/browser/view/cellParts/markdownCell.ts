@@ -105,8 +105,10 @@ export class StatefulMarkdownCell extends Disposable {
 		this.markdownAccessibilityContainer.id = id;
 		// Hide the element from non-screen readers
 		this.markdownAccessibilityContainer.style.height = '1px';
+		this.markdownAccessibilityContainer.style.overflow = 'hidden';
 		this.markdownAccessibilityContainer.style.position = 'absolute';
-		this.markdownAccessibilityContainer.style.top = '10000px';
+		this.markdownAccessibilityContainer.style.top = '100000px';
+		this.markdownAccessibilityContainer.style.left = '10000px';
 		this.markdownAccessibilityContainer.ariaHidden = 'false';
 
 		this.templateData.rootContainer.setAttribute('aria-describedby', id);

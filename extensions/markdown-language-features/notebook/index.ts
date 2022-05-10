@@ -26,6 +26,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	markdownIt.linkify.set({ fuzzyLink: false });
 
 	addNamedHeaderRendering(markdownIt);
+	addLinkRenderer(markdownIt);
 
 	const style = document.createElement('style');
 	style.textContent = `
@@ -225,12 +226,12 @@ function addNamedHeaderRendering(md: InstanceType<typeof MarkdownIt>): void {
 	const originalHeaderOpen = md.renderer.rules.heading_open;
 	md.renderer.rules.heading_open = (tokens: MarkdownItToken[], idx: number, options, env, self) => {
 		const title = tokens[idx + 1].children!.reduce<string>((acc, t) => acc + t.content, '');
-		let slug = slugFromHeading(title);
+		let slug = slugify(title);
 
 		if (slugCounter.has(slug)) {
 			const count = slugCounter.get(slug)!;
 			slugCounter.set(slug, count + 1);
-			slug = slugFromHeading(slug + '-' + (count + 1));
+			slug = slugify(slug + '-' + (count + 1));
 		} else {
 			slugCounter.set(slug, 0);
 		}
@@ -251,9 +252,26 @@ function addNamedHeaderRendering(md: InstanceType<typeof MarkdownIt>): void {
 	};
 }
 
-function slugFromHeading(heading: string): string {
+function addLinkRenderer(md: MarkdownIt): void {
+	const original = md.renderer.rules.link_open;
+
+	md.renderer.rules.link_open = (tokens: MarkdownItToken[], idx: number, options, env, self) => {
+		const token = tokens[idx];
+		const href = token.attrGet('href');
+		if (typeof href === 'string' && href.startsWith('#')) {
+			token.attrSet('href', '#' + slugify(href.slice(1)));
+		}
+		if (original) {
+			return original(tokens, idx, options, env, self);
+		} else {
+			return self.renderToken(tokens, idx, options);
+		}
+	};
+}
+
+function slugify(text: string): string {
 	const slugifiedHeading = encodeURI(
-		heading.trim()
+		text.trim()
 			.toLowerCase()
 			.replace(/\s+/g, '-') // Replace whitespace with -
 			// allow-any-unicode-next-line

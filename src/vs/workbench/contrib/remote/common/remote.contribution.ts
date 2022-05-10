@@ -174,6 +174,8 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 			await this._remoteAgentService.getRawEnvironment();
 
 			type RemoteConnectionSuccessClassification = {
+				owner: 'alexdima';
+				comment: 'The initial connection succeeded';
 				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			};
@@ -189,6 +191,8 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 		} catch (err) {
 
 			type RemoteConnectionFailureClassification = {
+				owner: 'alexdima';
+				comment: 'The initial connection failed';
 				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };

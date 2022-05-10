@@ -65,6 +65,8 @@ export function createExtensionHostManager(instantiationService: IInstantiationS
 }
 
 export type ExtensionHostStartupClassification = {
+	owner: 'alexdima';
+	comment: 'The startup state of the extension host';
 	time: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 	action: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 	kind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };

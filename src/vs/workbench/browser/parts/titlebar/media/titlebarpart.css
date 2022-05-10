@@ -57,8 +57,30 @@
 	-webkit-app-region: drag;
 }
 
-/* Command Center */
-.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen {
+/* Window title text */
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title {
+	flex: 0 1 auto;
+	font-size: 12px;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.monaco-workbench.web .part.titlebar>.titlebar-container>.window-title,
+.monaco-workbench.windows .part.titlebar>.titlebar-container>.window-title,
+.monaco-workbench.linux .part.titlebar>.titlebar-container>.window-title {
+	cursor: default;
+}
+
+.monaco-workbench.linux .part.titlebar>.titlebar-container>.window-title {
+	font-size: inherit;
+	/* see #55435 */
+}
+
+/* Window Title Menu */
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title.title-menu .action-item.quickopen {
 	color: var(--vscode-input-foreground);
 	border: 1px solid var(--vscode-dropdown-border);
 	height: 20px;
@@ -71,62 +93,25 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen:HOVER,
-.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen .action-container .action-label:HOVER {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title.title-menu .action-item.quickopen:HOVER,
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title.title-menu .action-item.quickopen .action-container .action-label:HOVER {
 	background-color: var(--vscode-dropdown-border);
 	line-height: 18px;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen .action-container {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title.title-menu .action-item.quickopen .action-container {
 	flex: 1 0 auto;
 	display: flex;
 	justify-content: center;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen .action-container .keybinding {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title.title-menu .action-item.quickopen .action-container .keybinding {
 	font-size: 11px;
 	padding: 3px;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.title-menu .action-item.quickopen .dropdown-action-container {
 	margin-left: auto;
-}
-
-/* Window title text */
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title {
-	flex: 0 1 auto;
-	font-size: 12px;
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	margin-left: auto;
-	margin-right: auto;
-}
-
-/* Windows/Linux: Rules for custom title (icon, window controls)  */
-.monaco-workbench.web .part.titlebar>.titlebar-container,
-.monaco-workbench.windows .part.titlebar>.titlebar-container,
-.monaco-workbench.linux .part.titlebar>.titlebar-container {
-	padding: 0;
-	height: 30px;
-	line-height: 30px;
-	justify-content: left;
-	overflow: visible;
-}
-
-.monaco-workbench.web .part.titlebar>.titlebar-container>.window-title,
-.monaco-workbench.windows .part.titlebar>.titlebar-container>.window-title,
-.monaco-workbench.linux .part.titlebar>.titlebar-container>.window-title {
-	cursor: default;
-}
-
-.monaco-workbench .part.titlebar>.titlebar-container.enable-title-menu>.window-title {
-	display: none;
-}
-
-.monaco-workbench.linux .part.titlebar>.titlebar-container>.window-title {
-	font-size: inherit;
-	/* see #55435 */
 }
 
 /* Menubar */

@@ -1975,8 +1975,8 @@ class SCMInputWidget extends Disposable {
 			}, 0);
 		}));
 
-		const firstLineKey = contextKeyService2.createKey('scmInputIsInFirstPosition', false);
-		const lastLineKey = contextKeyService2.createKey('scmInputIsInLastPosition', false);
+		const firstLineKey = contextKeyService2.createKey<boolean>('scmInputIsInFirstPosition', false);
+		const lastLineKey = contextKeyService2.createKey<boolean>('scmInputIsInLastPosition', false);
 
 		this._register(this.inputEditor.onDidChangeCursorPosition(({ position }) => {
 			const viewModel = this.inputEditor._getViewModel()!;

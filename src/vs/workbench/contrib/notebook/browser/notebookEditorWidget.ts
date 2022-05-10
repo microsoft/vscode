@@ -85,6 +85,8 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
 const $ = DOM.$;
 
@@ -263,6 +265,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _localCellStateListeners: DisposableStore[] = [];
 	private _fontInfo: FontInfo | undefined;
 	private _dimension: DOM.Dimension | null = null;
+	private _shadowElement?: HTMLElement;
 	private _shadowElementViewInfo: { height: number; width: number; top: number; left: number } | null = null;
 
 	private readonly _editorFocus: IContextKey<boolean>;
@@ -341,6 +344,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	constructor(
 		readonly creationOptions: INotebookEditorCreationOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@INotebookRendererMessagingService private readonly notebookRendererMessaging: INotebookRendererMessagingService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 		@INotebookKernelService private readonly notebookKernelService: INotebookKernelService,
@@ -355,6 +359,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@INotebookExecutionService private readonly notebookExecutionService: INotebookExecutionService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
+		@IWorkbenchLayoutService private readonly workbenchLayoutService: IWorkbenchLayoutService,
 	) {
 		super();
 		this.isEmbedded = creationOptions.isEmbedded ?? false;
@@ -412,6 +417,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			if (this._dimension && this._isVisible) {
 				this.layout(this._dimension);
 			}
+		}));
+
+		this._register(editorGroupsService.onDidScroll(() => {
+			if (!this._shadowElement || !this._isVisible) {
+				return;
+			}
+
+			this.updateShadowElement(this._shadowElement);
+			this.layoutContainerOverShadowElement(this._dimension);
 		}));
 
 		this.notebookEditorService.addNotebookEditor(this);
@@ -1757,14 +1771,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		if (shadowElement) {
-			const containerRect = shadowElement.getBoundingClientRect();
-
-			this._shadowElementViewInfo = {
-				height: containerRect.height,
-				width: containerRect.width,
-				top: containerRect.top,
-				left: containerRect.left
-			};
+			this.updateShadowElement(shadowElement);
 		}
 
 		if (this._shadowElementViewInfo && this._shadowElementViewInfo.width <= 0 && this._shadowElementViewInfo.height <= 0) {
@@ -1793,11 +1800,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.style.position = 'absolute';
 		this._overlayContainer.style.overflow = 'hidden';
 
-		const containerRect = this._overlayContainer.parentElement?.getBoundingClientRect();
-		this._overlayContainer.style.top = `${this._shadowElementViewInfo!.top - (containerRect?.top || 0)}px`;
-		this._overlayContainer.style.left = `${this._shadowElementViewInfo!.left - (containerRect?.left || 0)}px`;
-		this._overlayContainer.style.width = `${dimension ? dimension.width : this._shadowElementViewInfo!.width}px`;
-		this._overlayContainer.style.height = `${dimension ? dimension.height : this._shadowElementViewInfo!.height}px`;
+		this.layoutContainerOverShadowElement(dimension);
 
 		if (this._webviewTransparentCover) {
 			this._webviewTransparentCover.style.height = `${dimension.height}px`;
@@ -1809,6 +1812,37 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._viewContext?.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
+
+	private updateShadowElement(shadowElement: HTMLElement) {
+		const containerRect = shadowElement.getBoundingClientRect();
+
+		this._shadowElement = shadowElement;
+		this._shadowElementViewInfo = {
+			height: containerRect.height,
+			width: containerRect.width,
+			top: containerRect.top,
+			left: containerRect.left
+		};
+	}
+
+	private layoutContainerOverShadowElement(dimension?: DOM.Dimension | null): void {
+		if (!this._shadowElementViewInfo) {
+			return;
+		}
+
+		const elementContainerRect = this._overlayContainer.parentElement?.getBoundingClientRect();
+		this._overlayContainer.style.top = `${this._shadowElementViewInfo.top - (elementContainerRect?.top || 0)}px`;
+		this._overlayContainer.style.left = `${this._shadowElementViewInfo.left - (elementContainerRect?.left || 0)}px`;
+		this._overlayContainer.style.width = `${dimension ? dimension.width : this._shadowElementViewInfo.width}px`;
+		this._overlayContainer.style.height = `${dimension ? dimension.height : this._shadowElementViewInfo.height}px`;
+
+		const rootContainer = this.workbenchLayoutService.getContainer(Parts.EDITOR_PART);
+		if (rootContainer) {
+			const clip = DOM.computeClippingRect(this._overlayContainer, rootContainer);
+			this._overlayContainer.style.clip = `rect(${clip.top}px, ${clip.right}px, ${clip.bottom}px, ${clip.left}px)`;
+		}
+	}
+
 	//#endregion
 
 	//#region Focus tracker

@@ -49,7 +49,6 @@ class WorkbenchAssignmentServiceTelemetry implements IExperimentationTelemetry {
 		return this._lastAssignmentContext?.split(';');
 	}
 
-	// __GDPR__COMMON__ "VSCode.ABExp.Features" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	// __GDPR__COMMON__ "abexp.assignmentcontext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	setSharedProperty(name: string, value: string): void {
 		if (name === this.productService.tasConfig?.assignmentContextTelemetryPropertyName) {

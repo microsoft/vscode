@@ -46,7 +46,7 @@ export class Workbench {
 	readonly notebook: Notebook;
 	readonly localization: Localization;
 
-	constructor(code: Code, userDataPath: string) {
+	constructor(code: Code) {
 		this.editors = new Editors(code);
 		this.quickinput = new QuickInput(code);
 		this.quickaccess = new QuickAccess(code, this.editors, this.quickinput);
@@ -59,7 +59,7 @@ export class Workbench {
 		this.debug = new Debug(code, this.quickaccess, this.editors, this.editor);
 		this.statusbar = new StatusBar(code);
 		this.problems = new Problems(code, this.quickaccess);
-		this.settingsEditor = new SettingsEditor(code, userDataPath, this.editors, this.editor, this.quickaccess);
+		this.settingsEditor = new SettingsEditor(code, this.editors, this.editor, this.quickaccess);
 		this.keybindingsEditor = new KeybindingsEditor(code);
 		this.terminal = new Terminal(code, this.quickaccess, this.quickinput);
 		this.notebook = new Notebook(this.quickaccess, code);

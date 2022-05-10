@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher } from './api/git';
@@ -14,8 +14,8 @@ import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri } from './uri';
-import { grep, isDescendant, logTimestamp, pathEquals, relativePath } from './util';
-import { Log, LogLevel } from './log';
+import { grep, isDescendant, pathEquals, relativePath } from './util';
+import { LogLevel, OutputChannelLogger } from './log';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { pickRemoteSource } from './remoteSource';
@@ -310,7 +310,7 @@ export class CommandCenter {
 	constructor(
 		private git: Git,
 		private model: Model,
-		private outputChannel: OutputChannel,
+		private outputChannelLogger: OutputChannelLogger,
 		private telemetryReporter: TelemetryReporter
 	) {
 		this.disposables = Commands.map(({ commandId, key, method, options }) => {
@@ -328,11 +328,25 @@ export class CommandCenter {
 
 	@command('git.setLogLevel')
 	async setLogLevel(): Promise<void> {
-		const createItem = (logLevel: LogLevel) => ({
-			label: LogLevel[logLevel],
-			logLevel,
-			description: Log.logLevel === logLevel ? localize('current', "Current") : undefined
-		});
+		const createItem = (logLevel: LogLevel) => {
+			let description: string | undefined;
+			const defaultDescription = localize('default', "Default");
+			const currentDescription = localize('current', "Current");
+
+			if (logLevel === this.outputChannelLogger.defaultLogLevel && logLevel === this.outputChannelLogger.currentLogLevel) {
+				description = `${defaultDescription} & ${currentDescription} `;
+			} else if (logLevel === this.outputChannelLogger.defaultLogLevel) {
+				description = defaultDescription;
+			} else if (logLevel === this.outputChannelLogger.currentLogLevel) {
+				description = currentDescription;
+			}
+
+			return {
+				label: LogLevel[logLevel],
+				logLevel,
+				description
+			};
+		};
 
 		const items = [
 			createItem(LogLevel.Trace),
@@ -352,8 +366,7 @@ export class CommandCenter {
 			return;
 		}
 
-		Log.logLevel = choice.logLevel;
-		this.outputChannel.appendLine(localize('changed', "{0} Log level changed to: {1}", logTimestamp(), LogLevel[Log.logLevel]));
+		this.outputChannelLogger.setLogLevel(choice.logLevel);
 	}
 
 	@command('git.refresh', { repository: true })
@@ -820,14 +833,14 @@ export class CommandCenter {
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		this.outputChannel.appendLine(`${logTimestamp()} git.stage ${resourceStates.length}`);
+		this.outputChannelLogger.logDebug(`git.stage ${resourceStates.length} `);
 
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
-			this.outputChannel.appendLine(`${logTimestamp()} git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null}`);
+			this.outputChannelLogger.logDebug(`git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null} `);
 
 			if (!resource) {
 				return;
@@ -870,7 +883,7 @@ export class CommandCenter {
 		const untracked = selection.filter(s => s.resourceGroupType === ResourceGroupType.Untracked);
 		const scmResources = [...workingTree, ...untracked, ...resolved, ...unresolved];
 
-		this.outputChannel.appendLine(`${logTimestamp()} git.stage.scmResources ${scmResources.length}`);
+		this.outputChannelLogger.logDebug(`git.stage.scmResources ${scmResources.length} `);
 		if (!scmResources.length) {
 			return;
 		}
@@ -1774,8 +1787,17 @@ export class CommandCenter {
 			ignoreFocusOut: true,
 			validateInput: (name: string) => {
 				const validateName = new RegExp(branchValidationRegex);
-				if (validateName.test(sanitize(name))) {
-					return null;
+				const sanitizedName = sanitize(name);
+				if (validateName.test(sanitizedName)) {
+					// If the sanitized name that we will use is different than what is
+					// in the input box, show an info message to the user informing them
+					// the branch name that will be used.
+					return name === sanitizedName
+						? null
+						: {
+							message: localize('branch name does not match sanitized', "The new branch will be '{0}'", sanitizedName),
+							severity: InputBoxValidationSeverity.Info
+						};
 				}
 
 				return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
@@ -2809,8 +2831,8 @@ export class CommandCenter {
 
 				const choices = new Map<string, () => void>();
 				const openOutputChannelChoice = localize('open git log', "Open Git Log");
-				const outputChannel = this.outputChannel as OutputChannel;
-				choices.set(openOutputChannelChoice, () => outputChannel.show());
+				const outputChannelLogger = this.outputChannelLogger;
+				choices.set(openOutputChannelChoice, () => outputChannelLogger.showOutputChannel());
 
 				const showCommandOutputChoice = localize('show command output', "Show Command Output");
 				if (err.stderr) {
@@ -2913,10 +2935,10 @@ export class CommandCenter {
 	private getSCMResource(uri?: Uri): Resource | undefined {
 		uri = uri ? uri : (window.activeTextEditor && window.activeTextEditor.document.uri);
 
-		this.outputChannel.appendLine(`${logTimestamp()} git.getSCMResource.uri ${uri && uri.toString()}`);
+		this.outputChannelLogger.logDebug(`git.getSCMResource.uri ${uri && uri.toString()}`);
 
 		for (const r of this.model.repositories.map(r => r.root)) {
-			this.outputChannel.appendLine(`${logTimestamp()} repo root ${r}`);
+			this.outputChannelLogger.logDebug(`repo root ${r}`);
 		}
 
 		if (!uri) {

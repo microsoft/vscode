@@ -27,6 +27,7 @@ import { streamToBuffer } from 'vs/base/common/buffer';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { isString } from 'vs/base/common/types';
 import { CharCode } from 'vs/base/common/charCode';
+import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -106,9 +107,9 @@ export class WebClientServer {
 		@IProductService private readonly _productService: IProductService,
 	) {
 		this._webExtensionResourceUrlTemplate = this._productService.extensionsGallery?.resourceUrlTemplate ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate) : undefined;
-		const qualityAndCommit = `${_productService.quality ?? 'oss'}-${_productService.commit ?? 'dev'}`;
-		this._staticRoute = `/${qualityAndCommit}/static`;
-		this._callbackRoute = `/${qualityAndCommit}/callback`;
+		const serverRootPath = getRemoteServerRootPath(_productService);
+		this._staticRoute = `${serverRootPath}/static`;
+		this._callbackRoute = `${serverRootPath}/callback`;
 	}
 
 	/**
@@ -158,7 +159,7 @@ export class WebClientServer {
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		return serveFile(filePath, this._environmentService.isBuilt ? CacheControl.NO_EXPIRY : CacheControl.NO_CACHING, this._logService, req, res, headers);
+		return serveFile(filePath, this._environmentService.isBuilt ? CacheControl.NO_EXPIRY : CacheControl.ETAG, this._logService, req, res, headers);
 	}
 
 	private _getResourceURLTemplateAuthority(uri: URI): string | undefined {

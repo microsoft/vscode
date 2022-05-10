@@ -159,29 +159,6 @@ export class RatingsWidget extends ExtensionWidget {
 	}
 }
 
-export class RunningPreReleaseVersionIndicatorWidget extends ExtensionWidget {
-
-	constructor(
-		private readonly container: HTMLElement,
-	) {
-		super();
-		container.classList.add('extension-pre-release');
-		this.render();
-	}
-
-	render(): void {
-		this.container.innerText = '';
-
-		if (!this.extension
-			|| this.extension.state !== ExtensionState.Installed
-			|| !this.extension.local?.isPreReleaseVersion) {
-			return;
-		}
-
-		append(this.container, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
-	}
-}
-
 export class RecommendationWidget extends ExtensionWidget {
 
 	private element?: HTMLElement;
@@ -252,7 +229,7 @@ export class PreReleaseBookmarkWidget extends ExtensionWidget {
 		if (!this.extension.hasPreReleaseVersion) {
 			return;
 		}
-		if (this.extension.state === ExtensionState.Installed && this.extension.local?.isPreReleaseVersion) {
+		if (this.extension.state === ExtensionState.Installed && !this.extension.local?.isPreReleaseVersion) {
 			return;
 		}
 		this.element = append(this.parent, $('div.extension-bookmark'));
