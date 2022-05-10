@@ -28,6 +28,7 @@ import { Color } from 'vs/base/common/color';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { localize } from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 
 export class MergeEditor extends EditorPane {
 
@@ -75,6 +76,12 @@ export class MergeEditor extends EditorPane {
 				});
 			}
 		}));
+
+		// TODO@jrieken make this proper: add menu id and allow extensions to contribute
+		const acceptBtn = this.instantiation.createInstance(FloatingClickWidget, this.inputResultView.editor, 'Accept Merge', '');
+		acceptBtn.render();
+		this._store.add(acceptBtn.onClick(() => { console.log('DO IT'); }));
+		this._store.add(acceptBtn);
 	}
 
 	override dispose(): void {
