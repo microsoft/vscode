@@ -792,19 +792,19 @@ suite('SerializableGrid', function () {
 	});
 
 	test('createSerializedGrid', () => {
-		const gridDescriptor = { orientation: Orientation.VERTICAL, groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{}, {}] }] };
+		const gridDescriptor = { orientation: Orientation.VERTICAL, groups: [{ size: 0.2, data: 'a' }, { size: 0.2, data: 'b' }, { size: 0.6, groups: [{ data: 'c' }, { data: 'd' }] }] };
 		const serializedGrid = createSerializedGrid(gridDescriptor);
 		assert.deepStrictEqual(serializedGrid, {
 			root: {
 				type: 'branch',
 				size: undefined,
 				data: [
-					{ type: 'leaf', size: 0.2, data: null },
-					{ type: 'leaf', size: 0.2, data: null },
+					{ type: 'leaf', size: 0.2, data: 'a' },
+					{ type: 'leaf', size: 0.2, data: 'b' },
 					{
 						type: 'branch', size: 0.6, data: [
-							{ type: 'leaf', size: 0.5, data: null },
-							{ type: 'leaf', size: 0.5, data: null }
+							{ type: 'leaf', size: 0.5, data: 'c' },
+							{ type: 'leaf', size: 0.5, data: 'd' }
 						]
 					}
 				]

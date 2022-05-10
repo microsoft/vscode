@@ -776,15 +776,21 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 	}
 }
 
-export type GridNodeDescriptor = { size?: number; groups?: GridNodeDescriptor[] };
-export type GridDescriptor = { orientation: Orientation; groups?: GridNodeDescriptor[] };
+export type GridLeafNodeDescriptor = { size?: number; data?: any };
+export type GridBranchNodeDescriptor = { size?: number; groups: GridNodeDescriptor[] };
+export type GridNodeDescriptor = GridBranchNodeDescriptor | GridLeafNodeDescriptor;
+export type GridDescriptor = { orientation: Orientation } & GridBranchNodeDescriptor;
+
+function isGridBranchNodeDescriptor(nodeDescriptor: GridNodeDescriptor): nodeDescriptor is GridBranchNodeDescriptor {
+	return !!(nodeDescriptor as GridBranchNodeDescriptor).groups;
+}
 
 export function sanitizeGridNodeDescriptor(nodeDescriptor: GridNodeDescriptor, rootNode: boolean): void {
-	if (!rootNode && nodeDescriptor.groups && nodeDescriptor.groups.length <= 1) {
-		nodeDescriptor.groups = undefined;
+	if (!rootNode && (nodeDescriptor as any).groups && (nodeDescriptor as any).groups.length <= 1) {
+		(nodeDescriptor as any).groups = undefined;
 	}
 
-	if (!nodeDescriptor.groups) {
+	if (!isGridBranchNodeDescriptor(nodeDescriptor)) {
 		return;
 	}
 
@@ -812,10 +818,10 @@ export function sanitizeGridNodeDescriptor(nodeDescriptor: GridNodeDescriptor, r
 }
 
 function createSerializedNode(nodeDescriptor: GridNodeDescriptor): ISerializedNode {
-	if (nodeDescriptor.groups) {
+	if (isGridBranchNodeDescriptor(nodeDescriptor)) {
 		return { type: 'branch', data: nodeDescriptor.groups.map(c => createSerializedNode(c)), size: nodeDescriptor.size! };
 	} else {
-		return { type: 'leaf', data: null, size: nodeDescriptor.size! };
+		return { type: 'leaf', data: nodeDescriptor.data, size: nodeDescriptor.size! };
 	}
 }
 
