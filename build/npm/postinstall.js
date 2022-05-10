@@ -47,9 +47,9 @@ for (let dir of dirs) {
 		continue;
 	}
 
-	if (dir === 'build') {
+	if (dir === 'build/lib/watch') {
 		// node modules for watching, specific to host node version, not electron
-		yarnInstallBuildDependencies(dir);
+		yarnInstallBuildDependencies();
 		continue;
 	}
 
@@ -73,10 +73,11 @@ for (let dir of dirs) {
 	yarnInstall(dir, opts);
 }
 
-function yarnInstallBuildDependencies(dir) {
-	// make sure we install the deps of build for the system installed
+function yarnInstallBuildDependencies() {
+	// make sure we install the deps of build/lib/watch for the system installed
 	// node, since that is the driver of gulp
-	const yarnrcPath = path.join(dir, '.yarnrc');
+	const watchPath = path.join(path.dirname(__dirname), 'lib', 'watch');
+	const yarnrcPath = path.join(watchPath, '.yarnrc');
 
 	const disturl = 'https://nodejs.org/download/release';
 	const target = process.versions.node;
@@ -87,7 +88,7 @@ target "${target}"
 runtime "${runtime}"`;
 
 	fs.writeFileSync(yarnrcPath, yarnrc, 'utf8');
-	yarnInstall(dir);
+	yarnInstall(watchPath);
 }
 
 cp.execSync('git config pull.rebase merges');

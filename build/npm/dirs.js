@@ -7,6 +7,7 @@
 exports.dirs = [
 	'',
 	'build',
+	'build/lib/watch',
 	'extensions',
 	'extensions/configuration-editing',
 	'extensions/css-language-features',
