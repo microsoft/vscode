@@ -8,6 +8,7 @@ import * as path from 'path';
 import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
+import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
@@ -1772,43 +1773,100 @@ export class CommandCenter {
 		await this._branch(repository, undefined, true);
 	}
 
-	private async promptForBranchName(defaultName?: string, initialValue?: string): Promise<string> {
+	private generateRandomBranchName(repository: Repository, separator: string): string {
 		const config = workspace.getConfiguration('git');
+		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary')!;
+
+		const dictionaries: string[][] = [];
+		for (const dictionary of branchRandomNameDictionary) {
+			if (dictionary.toLowerCase() === 'adjectives') {
+				dictionaries.push(adjectives);
+			}
+			if (dictionary.toLowerCase() === 'animals') {
+				dictionaries.push(animals);
+			}
+			if (dictionary.toLowerCase() === 'colors') {
+				dictionaries.push(colors);
+			}
+			if (dictionary.toLowerCase() === 'numbers') {
+				dictionaries.push(NumberDictionary.generate({ length: 3 }));
+			}
+		}
+
+		if (dictionaries.length === 0) {
+			return '';
+		}
+
+		// 5 attempts to generate a random branch name
+		for (let index = 0; index < 5; index++) {
+			const randomName = uniqueNamesGenerator({
+				dictionaries,
+				length: dictionaries.length,
+				separator
+			});
+
+			// Check for local ref conflict
+			if (!repository.refs.find(r => r.type === RefType.Head && r.name === randomName)) {
+				return randomName;
+			}
+		}
+
+		return '';
+	}
+
+	private async promptForBranchName(repository: Repository, defaultName?: string, initialValue?: string): Promise<string> {
+		const config = workspace.getConfiguration('git');
+		const branchPrefix = config.get<string>('branchPrefix')!;
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
 		const sanitize = (name: string) => name ?
 			name.trim().replace(/^-+/, '').replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar)
 			: name;
 
-		const rawBranchName = defaultName || await window.showInputBox({
-			placeHolder: localize('branch name', "Branch name"),
-			prompt: localize('provide branch name', "Please provide a new branch name"),
-			value: initialValue,
-			ignoreFocusOut: true,
-			validateInput: (name: string) => {
-				const validateName = new RegExp(branchValidationRegex);
-				const sanitizedName = sanitize(name);
-				if (validateName.test(sanitizedName)) {
-					// If the sanitized name that we will use is different than what is
-					// in the input box, show an info message to the user informing them
-					// the branch name that will be used.
-					return name === sanitizedName
-						? null
-						: {
-							message: localize('branch name does not match sanitized', "The new branch will be '{0}'", sanitizedName),
-							severity: InputBoxValidationSeverity.Info
-						};
-				}
+		let rawBranchName = defaultName;
 
-				return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
+		if (!rawBranchName) {
+			// Branch name
+			if (!initialValue) {
+				const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
+				initialValue = `${branchPrefix}${branchRandomNameEnabled ? this.generateRandomBranchName(repository, branchWhitespaceChar) : ''}`;
 			}
-		});
+
+			// Branch name selection
+			const initialValueSelection: [number, number] | undefined =
+				initialValue.startsWith(branchPrefix) ? [branchPrefix.length, initialValue.length] : undefined;
+
+			rawBranchName = await window.showInputBox({
+				placeHolder: localize('branch name', "Branch name"),
+				prompt: localize('provide branch name', "Please provide a new branch name"),
+				value: initialValue,
+				valueSelection: initialValueSelection,
+				ignoreFocusOut: true,
+				validateInput: (name: string) => {
+					const validateName = new RegExp(branchValidationRegex);
+					const sanitizedName = sanitize(name);
+					if (validateName.test(sanitizedName)) {
+						// If the sanitized name that we will use is different than what is
+						// in the input box, show an info message to the user informing them
+						// the branch name that will be used.
+						return name === sanitizedName
+							? null
+							: {
+								message: localize('branch name does not match sanitized', "The new branch will be '{0}'", sanitizedName),
+								severity: InputBoxValidationSeverity.Info
+							};
+					}
+
+					return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
+				}
+			});
+		}
 
 		return sanitize(rawBranchName || '');
 	}
 
 	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {
-		const branchName = await this.promptForBranchName(defaultName);
+		const branchName = await this.promptForBranchName(repository, defaultName);
 
 		if (!branchName) {
 			return;
@@ -1871,7 +1929,7 @@ export class CommandCenter {
 	@command('git.renameBranch', { repository: true })
 	async renameBranch(repository: Repository): Promise<void> {
 		const currentBranchName = repository.HEAD && repository.HEAD.name;
-		const branchName = await this.promptForBranchName(undefined, currentBranchName);
+		const branchName = await this.promptForBranchName(repository, undefined, currentBranchName);
 
 		if (!branchName) {
 			return;
