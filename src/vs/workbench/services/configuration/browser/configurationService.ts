@@ -13,6 +13,7 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationModel, ConfigurationChangeEvent, AllKeysConfigurationChangeEvent, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationUpdateOverrides, isConfigurationUpdateOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
 import { Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -54,7 +55,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private readonly configurationCache: IConfigurationCache;
 	private _configuration: Configuration;
 	private initialized: boolean = false;
-	private defaultConfiguration: DefaultConfiguration;
+	private readonly defaultConfiguration: DefaultConfiguration;
+	private readonly policyConfiguration: PolicyConfiguration;
 	private localUserConfiguration: UserConfiguration;
 	private remoteUserConfiguration: RemoteUserConfiguration | null = null;
 	private workspaceConfiguration: WorkspaceConfiguration;
@@ -109,12 +111,13 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 		this.initRemoteUserConfigurationBarrier = new Barrier();
 		this.completeWorkspaceBarrier = new Barrier();
-		this.defaultConfiguration = new DefaultConfiguration(configurationCache, environmentService);
+		this.defaultConfiguration = this._register(new DefaultConfiguration(configurationCache, environmentService));
+		this.policyConfiguration = this._register(new PolicyConfiguration(this.defaultConfiguration, fileService, environmentService, logService));
 		this.configurationCache = configurationCache;
 		this.fileService = fileService;
 		this.uriIdentityService = uriIdentityService;
 		this.logService = logService;
-		this._configuration = new Configuration(this.defaultConfiguration.configurationModel, new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.workspace);
+		this._configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.workspace);
 		this.cachedFolderConfigs = new ResourceMap<FolderConfiguration>();
 		this.localUserConfiguration = this._register(new UserConfiguration(environmentService.settingsResource, remoteAuthority ? LOCAL_MACHINE_SCOPES : undefined, fileService, uriIdentityService, logService));
 		this._register(this.localUserConfiguration.onDidChangeConfiguration(userConfiguration => this.onLocalUserConfigurationChanged(userConfiguration)));
@@ -138,6 +141,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}));
 
 		this._register(this.defaultConfiguration.onDidChangeConfiguration(({ properties, defaults }) => this.onDefaultConfigurationChanged(defaults, properties)));
+		this._register(this.policyConfiguration.onDidChangeConfiguration(configurationModel => this.onPolicyConfigurationChanged(configurationModel)));
 
 		this.workspaceEditingQueue = new Queue<void>();
 	}
@@ -572,12 +576,18 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private async initializeConfiguration(): Promise<void> {
 		await this.defaultConfiguration.initialize();
 
-		mark('code/willInitUserConfiguration');
-		const { local, remote } = await this.initializeUserConfiguration();
-		mark('code/didInitUserConfiguration');
+		const [, user] = await Promise.all([
+			this.policyConfiguration.initialize(),
+			(async () => {
+				mark('code/willInitUserConfiguration');
+				const result = await this.initializeUserConfiguration();
+				mark('code/didInitUserConfiguration');
+				return result;
+			})()
+		]);
 
 		mark('code/willInitWorkspaceConfiguration');
-		await this.loadConfiguration(local, remote);
+		await this.loadConfiguration(user.local, user.remote);
 		mark('code/didInitWorkspaceConfiguration');
 	}
 
@@ -640,7 +650,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		folderConfigurations.forEach((folderConfiguration, index) => folderConfigurationModels.set(folders[index].uri, folderConfiguration));
 
 		const currentConfiguration = this._configuration;
-		this._configuration = new Configuration(this.defaultConfiguration.configurationModel, userConfigurationModel, remoteUserConfigurationModel, workspaceConfiguration, folderConfigurationModels, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.workspace);
+		this._configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, userConfigurationModel, remoteUserConfigurationModel, workspaceConfiguration, folderConfigurationModels, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.workspace);
 
 		if (this.initialized) {
 			const change = this._configuration.compare(currentConfiguration);
@@ -690,6 +700,12 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			this.triggerConfigurationChange(change, { data: previousData, workspace: this.workspace }, ConfigurationTarget.DEFAULT);
 			this.updateRestrictedSettings();
 		}
+	}
+
+	private onPolicyConfigurationChanged(policyConfiguration: ConfigurationModel): void {
+		const previous = { data: this._configuration.toData(), workspace: this.workspace };
+		const change = this._configuration.compareAndUpdatePolicyConfiguration(policyConfiguration);
+		this.triggerConfigurationChange(change, previous, ConfigurationTarget.DEFAULT);
 	}
 
 	private onLocalUserConfigurationChanged(userConfiguration: ConfigurationModel): void {

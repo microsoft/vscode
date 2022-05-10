@@ -86,7 +86,7 @@ export class UserDataSyncClient extends Disposable {
 
 		this.instantiationService.stub(IStorageService, this._register(new InMemoryStorageService()));
 
-		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
+		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService, environmentService, logService));
 		await configurationService.initialize();
 		this.instantiationService.stub(IConfigurationService, configurationService);
 		this.instantiationService.stub(IUriIdentityService, this.instantiationService.createInstance(UriIdentityService));

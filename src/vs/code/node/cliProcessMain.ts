@@ -129,7 +129,7 @@ class CliMain extends Disposable {
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// Configuration
-		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
+		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService, environmentService, logService));
 		services.set(IConfigurationService, configurationService);
 
 		// Init config

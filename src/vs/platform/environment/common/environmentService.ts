@@ -237,6 +237,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	@memoize
 	get disableWorkspaceTrust(): boolean { return !!this.args['disable-workspace-trust']; }
 
+	@memoize
+	get policyFile(): URI | undefined { return this.args['policy-file'] ? URI.file(this.args['policy-file']) : undefined; }
+
 	get args(): NativeParsedArgs { return this._args; }
 
 	constructor(

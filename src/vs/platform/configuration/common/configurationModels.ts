@@ -232,33 +232,6 @@ export class ConfigurationModel implements IConfigurationModel {
 	}
 }
 
-export class DefaultConfigurationModel extends ConfigurationModel {
-
-	constructor(configurationDefaultsOverrides: IStringDictionary<any> = {}) {
-		const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		const keys = Object.keys(properties);
-		const contents: any = Object.create(null);
-		const overrides: IOverrides[] = [];
-
-		for (const key in properties) {
-			const defaultOverrideValue = configurationDefaultsOverrides[key];
-			const value = defaultOverrideValue !== undefined ? defaultOverrideValue : properties[key].default;
-			addToValueTree(contents, key, value, message => console.error(`Conflict in default settings: ${message}`));
-		}
-		for (const key of Object.keys(contents)) {
-			if (OVERRIDE_PROPERTY_REGEX.test(key)) {
-				overrides.push({
-					identifiers: overrideIdentifiersFromKey(key),
-					keys: Object.keys(contents[key]),
-					contents: toValuesTree(contents[key], message => console.error(`Conflict in default settings file: ${message}`)),
-				});
-			}
-		}
-
-		super(contents, keys, overrides);
-	}
-}
-
 export interface ConfigurationParseOptions {
 	scopes: ConfigurationScope[] | undefined;
 	skipRestricted?: boolean;
@@ -473,6 +446,7 @@ export class Configuration {
 
 	constructor(
 		private _defaultConfiguration: ConfigurationModel,
+		private _policyConfiguration: ConfigurationModel,
 		private _localUserConfiguration: ConfigurationModel,
 		private _remoteUserConfiguration: ConfigurationModel = new ConfigurationModel(),
 		private _workspaceConfiguration: ConfigurationModel = new ConfigurationModel(),
@@ -483,7 +457,7 @@ export class Configuration {
 	}
 
 	getValue(section: string | undefined, overrides: IConfigurationOverrides, workspace: Workspace | undefined): any {
-		const consolidateConfigurationModel = this.getConsolidateConfigurationModel(overrides, workspace);
+		const consolidateConfigurationModel = this.getConsolidatedConfigurationModel(section, overrides, workspace);
 		return consolidateConfigurationModel.getValue(section);
 	}
 
@@ -511,11 +485,12 @@ export class Configuration {
 	}
 
 	inspect<C>(key: string, overrides: IConfigurationOverrides, workspace: Workspace | undefined): IConfigurationValue<C> {
-		const consolidateConfigurationModel = this.getConsolidateConfigurationModel(overrides, workspace);
+		const consolidateConfigurationModel = this.getConsolidatedConfigurationModel(key, overrides, workspace);
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource(overrides.resource, workspace);
 		const memoryConfigurationModel = overrides.resource ? this._memoryConfigurationByResource.get(overrides.resource) || this._memoryConfiguration : this._memoryConfiguration;
 
 		const defaultValue = overrides.overrideIdentifier ? this._defaultConfiguration.freeze().override(overrides.overrideIdentifier).getValue<C>(key) : this._defaultConfiguration.freeze().getValue<C>(key);
+		const policyValue = this._policyConfiguration.freeze().getValue<C>(key);
 		const userValue = overrides.overrideIdentifier ? this.userConfiguration.freeze().override(overrides.overrideIdentifier).getValue<C>(key) : this.userConfiguration.freeze().getValue<C>(key);
 		const userLocalValue = overrides.overrideIdentifier ? this.localUserConfiguration.freeze().override(overrides.overrideIdentifier).getValue<C>(key) : this.localUserConfiguration.freeze().getValue<C>(key);
 		const userRemoteValue = overrides.overrideIdentifier ? this.remoteUserConfiguration.freeze().override(overrides.overrideIdentifier).getValue<C>(key) : this.remoteUserConfiguration.freeze().getValue<C>(key);
@@ -523,19 +498,21 @@ export class Configuration {
 		const workspaceFolderValue = folderConfigurationModel ? overrides.overrideIdentifier ? folderConfigurationModel.freeze().override(overrides.overrideIdentifier).getValue<C>(key) : folderConfigurationModel.freeze().getValue<C>(key) : undefined;
 		const memoryValue = overrides.overrideIdentifier ? memoryConfigurationModel.override(overrides.overrideIdentifier).getValue<C>(key) : memoryConfigurationModel.getValue<C>(key);
 		const value = consolidateConfigurationModel.getValue<C>(key);
-		const overrideIdentifiers: string[] = arrays.distinct(arrays.flatten(consolidateConfigurationModel.overrides.map(override => override.identifiers))).filter(overrideIdentifier => consolidateConfigurationModel.getOverrideValue(key, overrideIdentifier) !== undefined);
+		const overrideIdentifiers: string[] = arrays.distinct(consolidateConfigurationModel.overrides.map(override => override.identifiers).flat()).filter(overrideIdentifier => consolidateConfigurationModel.getOverrideValue(key, overrideIdentifier) !== undefined);
 
 		return {
-			defaultValue: defaultValue,
-			userValue: userValue,
-			userLocalValue: userLocalValue,
-			userRemoteValue: userRemoteValue,
-			workspaceValue: workspaceValue,
-			workspaceFolderValue: workspaceFolderValue,
-			memoryValue: memoryValue,
+			defaultValue,
+			policyValue,
+			userValue,
+			userLocalValue,
+			userRemoteValue,
+			workspaceValue,
+			workspaceFolderValue,
+			memoryValue,
 			value,
 
 			default: defaultValue !== undefined ? { value: this._defaultConfiguration.freeze().getValue(key), override: overrides.overrideIdentifier ? this._defaultConfiguration.freeze().getOverrideValue(key, overrides.overrideIdentifier) : undefined } : undefined,
+			policy: policyValue !== undefined ? { value: policyValue } : undefined,
 			user: userValue !== undefined ? { value: this.userConfiguration.freeze().getValue(key), override: overrides.overrideIdentifier ? this.userConfiguration.freeze().getOverrideValue(key, overrides.overrideIdentifier) : undefined } : undefined,
 			userLocal: userLocalValue !== undefined ? { value: this.localUserConfiguration.freeze().getValue(key), override: overrides.overrideIdentifier ? this.localUserConfiguration.freeze().getOverrideValue(key, overrides.overrideIdentifier) : undefined } : undefined,
 			userRemote: userRemoteValue !== undefined ? { value: this.remoteUserConfiguration.freeze().getValue(key), override: overrides.overrideIdentifier ? this.remoteUserConfiguration.freeze().getOverrideValue(key, overrides.overrideIdentifier) : undefined } : undefined,
@@ -566,6 +543,10 @@ export class Configuration {
 		this._defaultConfiguration = defaultConfiguration;
 		this._workspaceConsolidatedConfiguration = null;
 		this._foldersConsolidatedConfigurations.clear();
+	}
+
+	updatePolicyConfiguration(policyConfiguration: ConfigurationModel): void {
+		this._policyConfiguration = policyConfiguration;
 	}
 
 	updateLocalUserConfiguration(localUserConfiguration: ConfigurationModel): void {
@@ -618,6 +599,15 @@ export class Configuration {
 		}
 		this.updateDefaultConfiguration(defaults);
 		return { keys, overrides };
+	}
+
+	compareAndUpdatePolicyConfiguration(policyConfiguration: ConfigurationModel): IConfigurationChange {
+		const { added, updated, removed } = compare(this._policyConfiguration, policyConfiguration);
+		const keys = [...added, ...updated, ...removed];
+		if (keys.length) {
+			this.updatePolicyConfiguration(policyConfiguration);
+		}
+		return { keys, overrides: [] };
 	}
 
 	compareAndUpdateLocalUserConfiguration(user: ConfigurationModel): IConfigurationChange {
@@ -698,9 +688,15 @@ export class Configuration {
 		return this._folderConfigurations;
 	}
 
-	private getConsolidateConfigurationModel(overrides: IConfigurationOverrides, workspace: Workspace | undefined): ConfigurationModel {
+	private getConsolidatedConfigurationModel(section: string | undefined, overrides: IConfigurationOverrides, workspace: Workspace | undefined): ConfigurationModel {
 		let configurationModel = this.getConsolidatedConfigurationModelForResource(overrides, workspace);
-		return overrides.overrideIdentifier ? configurationModel.override(overrides.overrideIdentifier) : configurationModel;
+		if (overrides.overrideIdentifier) {
+			configurationModel = configurationModel.override(overrides.overrideIdentifier);
+		}
+		if (!this._policyConfiguration.isEmpty() && this._policyConfiguration.getValue(section) !== undefined) {
+			configurationModel = configurationModel.merge(this._policyConfiguration);
+		}
+		return configurationModel;
 	}
 
 	private getConsolidatedConfigurationModelForResource({ resource }: IConfigurationOverrides, workspace: Workspace | undefined): ConfigurationModel {
@@ -765,6 +761,11 @@ export class Configuration {
 				overrides: this._defaultConfiguration.overrides,
 				keys: this._defaultConfiguration.keys
 			},
+			policy: {
+				contents: this._policyConfiguration.contents,
+				overrides: this._policyConfiguration.overrides,
+				keys: this._policyConfiguration.keys
+			},
 			user: {
 				contents: this.userConfiguration.contents,
 				overrides: this.userConfiguration.overrides,
@@ -812,13 +813,14 @@ export class Configuration {
 
 	static parse(data: IConfigurationData): Configuration {
 		const defaultConfiguration = this.parseConfigurationModel(data.defaults);
+		const policyConfiguration = this.parseConfigurationModel(data.policy);
 		const userConfiguration = this.parseConfigurationModel(data.user);
 		const workspaceConfiguration = this.parseConfigurationModel(data.workspace);
 		const folders: ResourceMap<ConfigurationModel> = data.folders.reduce((result, value) => {
 			result.set(URI.revive(value[0]), this.parseConfigurationModel(value[1]));
 			return result;
 		}, new ResourceMap<ConfigurationModel>());
-		return new Configuration(defaultConfiguration, userConfiguration, new ConfigurationModel(), workspaceConfiguration, folders, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), false);
+		return new Configuration(defaultConfiguration, policyConfiguration, userConfiguration, new ConfigurationModel(), workspaceConfiguration, folders, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), false);
 	}
 
 	private static parseConfigurationModel(model: IConfigurationModel): ConfigurationModel {

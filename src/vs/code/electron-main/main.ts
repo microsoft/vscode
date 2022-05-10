@@ -167,7 +167,7 @@ class CodeMain {
 		services.set(ILoggerService, new LoggerService(logService, fileService));
 
 		// Configuration
-		const configurationService = new ConfigurationService(environmentMainService.settingsResource, fileService);
+		const configurationService = new ConfigurationService(environmentMainService.settingsResource, fileService, environmentMainService, logService);
 		services.set(IConfigurationService, configurationService);
 
 		// Lifecycle

@@ -73,6 +73,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'disable-extensions': { type: 'boolean', deprecates: ['disableExtensions'], cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
 	'disable-extension': { type: 'string[]', cat: 't', args: 'ext-id', description: localize('disableExtension', "Disable an extension.") },
 	'sync': { type: 'string', cat: 't', description: localize('turn sync', "Turn sync on or off."), args: ['on | off'] },
+	'policy-file': { type: 'string', cat: 't', description: localize('policyFile', "Path of the file defining policies") },
 
 	'inspect-extensions': { type: 'string', deprecates: ['debugPluginHost'], args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
 	'inspect-brk-extensions': { type: 'string', deprecates: ['debugBrkPluginHost'], args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
