@@ -100,4 +100,5 @@
 		"comments": "inline",
 		"strings": "inline"
 	},
+	"githubPullRequests.assignCreated": "${user}"
 }
