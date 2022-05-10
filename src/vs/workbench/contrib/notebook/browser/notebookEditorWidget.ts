@@ -2329,13 +2329,27 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			cell.updateEditState(CellEditState.Editing, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Editor;
 			if (!options?.skipReveal) {
-				const selectionsStartPosition = cell.getSelectionsStartPosition();
-				if (selectionsStartPosition?.length) {
-					const firstSelectionPosition = selectionsStartPosition[0];
-					this.revealRangeInCenterIfOutsideViewportAsync(cell, Range.fromPositions(firstSelectionPosition, firstSelectionPosition));
+				if (typeof options?.focusEditorLine === 'number') {
+					this.revealLineInViewAsync(cell, options.focusEditorLine).then(() => {
+						const editor = this._renderedEditors.get(cell)!;
+						const focusEditorLine = options.focusEditorLine === -1 && editor.hasModel() ? editor.getModel()?.getLineCount() : options.focusEditorLine!;
+						editor?.setSelection({
+							startLineNumber: focusEditorLine,
+							startColumn: 1,
+							endLineNumber: focusEditorLine,
+							endColumn: 1
+						});
+					});
 				} else {
-					this.revealInCenterIfOutsideViewport(cell);
+					const selectionsStartPosition = cell.getSelectionsStartPosition();
+					if (selectionsStartPosition?.length) {
+						const firstSelectionPosition = selectionsStartPosition[0];
+						this.revealRangeInCenterIfOutsideViewportAsync(cell, Range.fromPositions(firstSelectionPosition, firstSelectionPosition));
+					} else {
+						this.revealInCenterIfOutsideViewport(cell);
+					}
 				}
+
 			}
 		} else if (focusItem === 'output') {
 			this.focusElement(cell);

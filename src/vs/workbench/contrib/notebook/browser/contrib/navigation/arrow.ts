@@ -32,7 +32,7 @@ const NOTEBOOK_CURSOR_PAGEDOWN_COMMAND_ID = 'notebook.cell.cursorPageDown';
 const NOTEBOOK_CURSOR_PAGEDOWN_SELECT_COMMAND_ID = 'notebook.cell.cursorPageDownSelect';
 
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class FocusNextCellAction extends NotebookCellAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_FOCUS_NEXT_EDITOR,
@@ -76,13 +76,13 @@ registerAction2(class extends NotebookCellAction {
 
 		const newCell = editor.cellAt(idx + 1);
 		const newFocusMode = newCell.cellKind === CellKind.Markup && newCell.getEditState() === CellEditState.Preview ? 'container' : 'editor';
-		editor.focusNotebookCell(newCell, newFocusMode);
+		editor.focusNotebookCell(newCell, newFocusMode, { focusEditorLine: 1 });
 		editor.cursorNavigationMode = true;
 	}
 });
 
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_FOCUS_PREVIOUS_EDITOR,
@@ -118,7 +118,7 @@ registerAction2(class extends NotebookCellAction {
 
 		const newCell = editor.cellAt(idx - 1);
 		const newFocusMode = newCell.cellKind === CellKind.Markup && newCell.getEditState() === CellEditState.Preview ? 'container' : 'editor';
-		editor.focusNotebookCell(newCell, newFocusMode);
+		editor.focusNotebookCell(newCell, newFocusMode, { focusEditorLine: -1 });
 		editor.cursorNavigationMode = true;
 	}
 });

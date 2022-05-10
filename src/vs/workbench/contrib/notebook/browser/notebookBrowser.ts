@@ -122,6 +122,7 @@ export interface ICommonCellInfo {
 
 export interface IFocusNotebookCellOptions {
 	readonly skipReveal?: boolean;
+	readonly focusEditorLine?: number;
 }
 
 //#endregion
