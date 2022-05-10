@@ -628,7 +628,7 @@ export class NotebookEdit implements vscode.NotebookEdit {
 	readonly newCells: NotebookCellData[];
 	readonly newCellMetadata?: { [key: string]: any };
 
-	private constructor(range: NotebookRange, newCells: NotebookCellData[], newCellMetadata?: { [key: string]: any }) {
+	constructor(range: NotebookRange, newCells: NotebookCellData[], newCellMetadata?: { [key: string]: any }) {
 		this.range = range;
 		this.newCells = newCells;
 		this.newCellMetadata = newCellMetadata;

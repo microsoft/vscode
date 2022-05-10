@@ -49,6 +49,8 @@ declare module 'vscode' {
 		 * Optional new metadata for the cells.
 		 */
 		readonly newCellMetadata?: { [key: string]: any };
+
+		constructor(range: NotebookRange, newCells: NotebookCellData[], newCellMetadata?: { [key: string]: any });
 	}
 
 	export interface WorkspaceEdit {
