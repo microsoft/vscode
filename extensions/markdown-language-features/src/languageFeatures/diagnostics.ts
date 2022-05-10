@@ -261,6 +261,48 @@ class FileLinkMap {
 	}
 }
 
+interface FileLinksData {
+	readonly path: vscode.Uri;
+
+	readonly links: Array<{
+		readonly source: MdLinkSource;
+		readonly fragment: string;
+	}>;
+}
+
+/**
+ * Map of file paths to markdown links to that file.
+ */
+class FileLinkMap {
+
+	private readonly _filesToLinksMap = new Map<string, FileLinksData>();
+
+	constructor(links: Iterable<MdLink>) {
+		for (const link of links) {
+			if (link.href.kind !== 'internal') {
+				continue;
+			}
+
+			const fileKey = link.href.path.toString();
+			const existingFileEntry = this._filesToLinksMap.get(fileKey);
+			const linkData = { source: link.source, fragment: link.href.fragment };
+			if (existingFileEntry) {
+				existingFileEntry.links.push(linkData);
+			} else {
+				this._filesToLinksMap.set(fileKey, { path: link.href.path, links: [linkData] });
+			}
+		}
+	}
+
+	public get size(): number {
+		return this._filesToLinksMap.size;
+	}
+
+	public entries(): Iterable<FileLinksData> {
+		return this._filesToLinksMap.values();
+	}
+}
+
 export class DiagnosticComputer {
 
 	constructor(
