@@ -12,7 +12,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorControl, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
@@ -29,6 +29,8 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { localize } from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class MergeEditor extends EditorPane {
 
@@ -36,11 +38,11 @@ export class MergeEditor extends EditorPane {
 
 	private readonly _sessionDisposables = new DisposableStore();
 
-	private _grid!: Grid;
+	private _grid!: Grid<CodeEditorView>;
 
-	private readonly inputOneView = this.instantiation.createInstance(CodeEditorView);
-	private readonly inputTwoView = this.instantiation.createInstance(CodeEditorView);
-	private readonly inputResultView = this.instantiation.createInstance(CodeEditorView);
+	private readonly inputOneView = this.instantiation.createInstance(CodeEditorView, { readonly: true });
+	private readonly inputTwoView = this.instantiation.createInstance(CodeEditorView, { readonly: true });
+	private readonly inputResultView = this.instantiation.createInstance(CodeEditorView, { readonly: false });
 
 	constructor(
 		@IInstantiationService private readonly instantiation: IInstantiationService,
@@ -125,6 +127,27 @@ export class MergeEditor extends EditorPane {
 	// 	console.log('VISISBLE', visible);
 	// }
 
+	// ---- interact with "outside world" via `getControl`, `scopedContextKeyService`
+
+	override getControl(): IEditorControl | undefined {
+		for (const view of [this.inputOneView, this.inputTwoView, this.inputResultView]) {
+			if (view.editor.hasWidgetFocus()) {
+				return view.editor;
+			}
+		}
+		return undefined;
+	}
+
+	override get scopedContextKeyService(): IContextKeyService | undefined {
+		const control = this.getControl();
+		return isCodeEditor(control)
+			? control.invokeWithinContext(accessor => accessor.get(IContextKeyService))
+			: undefined;
+	}
+}
+
+interface ICodeEditorViewOptions {
+	readonly: boolean;
 }
 
 class CodeEditorView implements IView {
@@ -151,14 +174,14 @@ class CodeEditorView implements IView {
 	public readonly editor = this.instantiationService.createInstance(
 		CodeEditorWidget,
 		this._editorElement,
-		{ minimap: { enabled: false } },
+		{ minimap: { enabled: false }, readOnly: this._options.readonly },
 		{}
 	);
 
 
 	constructor(
-		@IInstantiationService
-		private readonly instantiationService: IInstantiationService
+		private readonly _options: ICodeEditorViewOptions,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		this.element.classList.add('code-view');
 		this._titleElement.classList.add('title');
