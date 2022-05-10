@@ -142,6 +142,7 @@ steps:
         $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
         exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
       displayName: Prepare Package
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: |
