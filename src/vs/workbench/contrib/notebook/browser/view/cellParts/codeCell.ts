@@ -330,11 +330,6 @@ export class CodeCell extends Disposable {
 			this.templateData.editor?.focus();
 		}
 
-		if (this.notebookEditor.getActiveCell() === this.viewCell
-			&& this.viewCell.focusMode === CellFocusMode.Container) {
-			this.notebookEditor.focusNotebookCell(this.viewCell, 'container');
-		}
-
 		this.templateData.container.classList.toggle('cell-editor-focus', this.viewCell.focusMode === CellFocusMode.Editor);
 		this.templateData.container.classList.toggle('cell-output-focus', this.viewCell.focusMode === CellFocusMode.Output);
 	}
