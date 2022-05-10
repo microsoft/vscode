@@ -1779,7 +1779,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected createTerminalTaskSystem(): ITaskSystem {
 		return new TerminalTaskSystem(
 			this.terminalService, this.terminalGroupService, this.outputService, this.paneCompositeService, this.viewsService, this.markerService,
-			this.modelService, this.configurationResolverService, this.telemetryService,
+			this.modelService, this.configurationResolverService,
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalProfileResolverService,
 			this.pathService, this.viewDescriptorService, this.logService, this.configurationService, this.notificationService,
@@ -2267,7 +2267,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			};
 			/* __GDPR__
 				"taskService.engineVersion" : {
-					"executionEngineVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"owner": "alexr00",
+					"comment": "The engine version of tasks. Used to determine if a user is using a deprecated version.",
+					"executionEngineVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The engine version of tasks." }
 				}
 			*/
 			this.telemetryService.publicLog('taskService.engineVersion', telemetryData);

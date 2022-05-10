@@ -131,9 +131,8 @@ export function getShellIntegrationInjection(
 				return undefined;
 			}
 			if (newArgs) {
-				const additionalArgs = options.showWelcome ? '' : ' -HideWelcome';
 				newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-				newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, additionalArgs);
+				newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			}
 			return { newArgs };
 		}
@@ -156,9 +155,6 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
-			if (!options.showWelcome) {
-				envMixin['VSCODE_SHELL_HIDE_WELCOME'] = '1';
-			}
 			return { newArgs, envMixin };
 		}
 		case 'pwsh': {
@@ -170,9 +166,8 @@ export function getShellIntegrationInjection(
 			if (!newArgs) {
 				return undefined;
 			}
-			const additionalArgs = options.showWelcome ? '' : ' -HideWelcome';
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, additionalArgs);
+			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			return { newArgs };
 		}
 		case 'zsh': {
@@ -208,9 +203,6 @@ export function getShellIntegrationInjection(
 				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-login.zsh'),
 				dest: path.join(zdotdir, '.zlogin')
 			});
-			if (!options.showWelcome) {
-				envMixin['VSCODE_SHELL_HIDE_WELCOME'] = '1';
-			}
 			return { newArgs, envMixin, filesToCopy };
 		}
 	}

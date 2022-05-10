@@ -107,7 +107,7 @@ export class Application {
 			extraArgs: [...(this.options.extraArgs || []), ...extraArgs],
 		});
 
-		this._workbench = new Workbench(this._code, this.userDataPath);
+		this._workbench = new Workbench(this._code);
 
 		return code;
 	}
