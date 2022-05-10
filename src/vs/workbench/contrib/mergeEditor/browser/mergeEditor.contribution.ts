@@ -17,9 +17,6 @@ import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/merge
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { MergeEditorSerializer } from './mergeEditorSerializer';
 
-
-//#region Editor Descriptior
-
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		MergeEditor,

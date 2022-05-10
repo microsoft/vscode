@@ -1033,6 +1033,19 @@ export class CommandCenter {
 		await this._stageChanges(textEditor, selectedChanges);
 	}
 
+	@command('git.acceptMerge')
+	async acceptMerge(uri: Uri | unknown): Promise<void> {
+		// TODO@jrieken make this proper, needs help from SCM folks
+		if (!(uri instanceof Uri)) {
+			return;
+		}
+		const repository = this.model.getRepository(uri);
+		if (!repository) {
+			return;
+		}
+		await repository.add([uri]);
+	}
+
 	private async _stageChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
 		const modifiedDocument = textEditor.document;
 		const modifiedUri = modifiedDocument.uri;

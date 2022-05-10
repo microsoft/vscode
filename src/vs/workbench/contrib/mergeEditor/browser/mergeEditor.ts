@@ -29,8 +29,13 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { localize } from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IAction } from 'vs/base/common/actions';
+
+export const ctxIsMergeEditor = new RawContextKey<boolean>('isMergeEditor', false);
 
 export class MergeEditor extends EditorPane {
 
@@ -47,11 +52,15 @@ export class MergeEditor extends EditorPane {
 	constructor(
 		@IInstantiationService private readonly instantiation: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@IMenuService private readonly _menuService: IMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
 	) {
 		super(MergeEditor.ID, telemetryService, themeService, storageService);
+
+		ctxIsMergeEditor.bindTo(_contextKeyService).set(true);
 
 		const reentrancyBarrier = new ReentrancyBarrier();
 		this._store.add(this.inputOneView.editor.onDidScrollChange(c => {
@@ -80,10 +89,25 @@ export class MergeEditor extends EditorPane {
 		}));
 
 		// TODO@jrieken make this proper: add menu id and allow extensions to contribute
-		const acceptBtn = this.instantiation.createInstance(FloatingClickWidget, this.inputResultView.editor, 'Accept Merge', '');
-		acceptBtn.render();
-		this._store.add(acceptBtn.onClick(() => { console.log('DO IT'); }));
-		this._store.add(acceptBtn);
+		const toolbarMenu = this._menuService.createMenu(MenuId.MergeToolbar, this._contextKeyService);
+		const toolbarMenuDisposables = new DisposableStore();
+		const toolbarMenuRender = () => {
+			toolbarMenuDisposables.clear();
+
+			const actions: IAction[] = [];
+			createAndFillInActionBarActions(toolbarMenu, { renderShortTitle: true, shouldForwardArgs: true }, actions);
+			if (actions.length > 0) {
+				const [first] = actions;
+				const acceptBtn = this.instantiation.createInstance(FloatingClickWidget, this.inputResultView.editor, first.label, first.id);
+				toolbarMenuDisposables.add(acceptBtn.onClick(() => first.run(this.inputResultView.editor.getModel()?.uri)));
+				toolbarMenuDisposables.add(acceptBtn);
+				acceptBtn.render();
+			}
+		};
+		this._store.add(toolbarMenu);
+		this._store.add(toolbarMenuDisposables);
+		this._store.add(toolbarMenu.onDidChange(toolbarMenuRender));
+		toolbarMenuRender();
 	}
 
 	override dispose(): void {
@@ -116,7 +140,6 @@ export class MergeEditor extends EditorPane {
 		this.inputOneView.setModel(model.inputOne, localize('yours', 'Yours'), undefined);
 		this.inputTwoView.setModel(model.inputTwo, localize('theirs', 'Theirs',), undefined);
 		this.inputResultView.setModel(model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }));
-
 	}
 
 	// override clearInput(): void {
