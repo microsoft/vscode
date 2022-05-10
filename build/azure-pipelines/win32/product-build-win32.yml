@@ -1,6 +1,6 @@
 parameters:
-  - name: VSCODE_PUBLISH
-    type: boolean
+  - name: VSCODE_QUALITY
+    type: string
 
 steps:
   - task: NodeTool@0
@@ -12,7 +12,7 @@ steps:
       versionSpec: "3.x"
       addToPath: true
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - task: AzureKeyVault@1
       displayName: "Azure Key Vault: Get Secrets"
       inputs:
@@ -32,7 +32,7 @@ steps:
       archiveFilePatterns: "$(Build.ArtifactStagingDirectory)/compilation.tar.gz"
       cleanDestinationFolder: false
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
@@ -42,7 +42,7 @@ steps:
         exec { git config user.name "VSCode" }
       displayName: Prepare tooling
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
@@ -53,7 +53,7 @@ steps:
       condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
       displayName: Checkout override commit
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
@@ -112,7 +112,7 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
@@ -135,7 +135,7 @@ steps:
       echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)"
     displayName: Build
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
@@ -143,7 +143,7 @@ steps:
         exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
       displayName: Prepare Package
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
@@ -301,16 +301,16 @@ steps:
       searchFolder: "$(Build.ArtifactStagingDirectory)/test-results"
     condition: and(succeededOrFailed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - task: UseDotNet@2
       inputs:
         version: 3.x
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - task: EsrpClientTool@1
       displayName: Download ESRPClient
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
@@ -322,21 +322,21 @@ steps:
         echo "##vso[task.setvariable variable=EsrpCliDllPath]$EsrpCliDllPath"
       displayName: Find ESRP CLI
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         exec { node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.dll,*.exe,*.node' }
       displayName: Codesign
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-archive" }
       displayName: Package archive
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
@@ -347,51 +347,51 @@ steps:
         exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-user-setup" --sign }
       displayName: Package setups
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         .\build\azure-pipelines\win32\prepare-publish.ps1
       displayName: Publish
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\archive\$(ARCHIVE_NAME)
       artifact: vscode_client_win32_$(VSCODE_ARCH)_archive
       displayName: Publish archive
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\system-setup\$(SYSTEM_SETUP_NAME)
       artifact: vscode_client_win32_$(VSCODE_ARCH)_setup
       displayName: Publish system setup
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\user-setup\$(USER_SETUP_NAME)
       artifact: vscode_client_win32_$(VSCODE_ARCH)_user-setup
       displayName: Publish user setup
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - publish: $(System.DefaultWorkingDirectory)\.build\vscode-server-win32-$(VSCODE_ARCH).zip
       artifact: vscode_server_win32_$(VSCODE_ARCH)_archive
       displayName: Publish server archive
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - publish: $(System.DefaultWorkingDirectory)\.build\vscode-server-win32-$(VSCODE_ARCH)-web.zip
       artifact: vscode_web_win32_$(VSCODE_ARCH)_archive
       displayName: Publish web server archive
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (client)
       inputs:
         BuildDropPath: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)
         PackageName: Visual Studio Code
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - publish: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/_manifest
       displayName: Publish SBOM (client)
       artifact: vscode_client_win32_$(VSCODE_ARCH)_sbom
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (server)
       inputs:
@@ -399,7 +399,7 @@ steps:
         PackageName: Visual Studio Code Server
       condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - publish: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)/_manifest
       displayName: Publish SBOM (server)
       artifact: vscode_server_win32_$(VSCODE_ARCH)_sbom

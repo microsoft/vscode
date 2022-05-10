@@ -68,7 +68,7 @@ stages:
         steps:
           - template: win32/product-build-win32.yml
             parameters:
-              VSCODE_PUBLISH: false
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
   - stage: Linux
     dependsOn:
@@ -103,4 +103,4 @@ stages:
         steps:
           - template: darwin/product-build-darwin-test.yml
             parameters:
-              VSCODE_PUBLISH: false
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
