@@ -1792,7 +1792,7 @@
           "description": "%config.branchWhitespaceChar%",
           "default": "-"
         },
-        "git.branchRandomName.Enable": {
+        "git.branchRandomName.enable": {
           "type": "boolean",
           "description": "%config.branchRandomNameEnable%",
           "default": false
