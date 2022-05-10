@@ -3,13 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { localize } from 'vs/nls';
+import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IUntypedEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorModel';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export interface MergeEditorInputJSON {
 	anchestor: URI;
@@ -18,11 +25,12 @@ export interface MergeEditorInputJSON {
 	result: URI;
 }
 
-export class MergeEditorInput extends EditorInput {
+export class MergeEditorInput extends AbstractTextResourceEditorInput {
 
 	static readonly ID = 'mergeEditor.Input';
 
 	private _model?: MergeEditorModel;
+	private _outTextModel?: ITextFileEditorModel;
 
 	constructor(
 		private readonly _anchestor: URI,
@@ -31,8 +39,32 @@ export class MergeEditorInput extends EditorInput {
 		private readonly _result: URI,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
+		@IEditorService editorService: IEditorService,
+		@ITextFileService textFileService: ITextFileService,
+		@ILabelService labelService: ILabelService,
+		@IFileService fileService: IFileService
 	) {
-		super();
+		super(_result, undefined, editorService, textFileService, labelService, fileService);
+
+		const modelListener = new DisposableStore();
+		const handleDidCreate = (model: ITextFileEditorModel) => {
+			// TODO@jrieken copied from fileEditorInput.ts
+			if (isEqual(_result, model.resource)) {
+				modelListener.clear();
+				this._outTextModel = model;
+				modelListener.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+				modelListener.add(model.onDidSaveError(() => this._onDidChangeDirty.fire()));
+
+				modelListener.add(model.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
+
+				modelListener.add(model.onWillDispose(() => {
+					this._outTextModel = undefined;
+					modelListener.clear();
+				}));
+			}
+		};
+		textFileService.files.onDidCreate(handleDidCreate, this, modelListener);
+		textFileService.files.models.forEach(handleDidCreate);
 	}
 
 	override dispose(): void {
@@ -43,11 +75,20 @@ export class MergeEditorInput extends EditorInput {
 		return MergeEditorInput.ID;
 	}
 
-	get resource(): URI | undefined {
-		return this._result;
+	override getName(): string {
+		return localize('name', "Merging: {0}", super.getName());
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		let result = EditorInputCapabilities.Singleton;
+		if (!this.fileService.hasProvider(this._result) || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+			result |= EditorInputCapabilities.Readonly;
+		}
+		return result;
 	}
 
 	override async resolve(): Promise<MergeEditorModel> {
+
 		if (!this._model) {
 
 			const anchestor = await this._textModelService.createModelReference(this._anchestor);
@@ -68,6 +109,8 @@ export class MergeEditorInput extends EditorInput {
 			this._store.add(inputOne);
 			this._store.add(inputTwo);
 			this._store.add(result);
+
+			// result.object.
 		}
 		return this._model;
 	}
@@ -90,4 +133,14 @@ export class MergeEditorInput extends EditorInput {
 			result: this._result,
 		};
 	}
+
+	// ---- FileEditorInput
+
+	override isDirty(): boolean {
+		return Boolean(this._outTextModel?.isDirty());
+	}
+
+
+	// implement get/set languageId
+	// implement get/set encoding
 }
