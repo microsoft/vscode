@@ -2,6 +2,11 @@
 # yarn lockfile v1
 
 
+"@joaomoreno/unique-names-generator@5.0.0":
+  version "5.0.0"
+  resolved "https://registry.yarnpkg.com/@joaomoreno/unique-names-generator/-/unique-names-generator-5.0.0.tgz#a67fe66e3d825c929fc97abfdf17fd80a72beab0"
+  integrity sha512-3kP6z7aoGEoM3tvhTBZioYa1QFkovOU8uxAlVclnZlXivwF/WTE5EcOzvoDdM+jtjJyWvCMDR1Q4RBjDqupD3A==
+
 "@types/byline@4.2.31":
   version "4.2.31"
   resolved "https://registry.yarnpkg.com/@types/byline/-/byline-4.2.31.tgz#0e61fcb9c03e047d21c4496554c7116297ab60cd"
@@ -65,11 +70,6 @@ jschardet@3.0.0:
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-3.0.0.tgz#898d2332e45ebabbdb6bf2feece9feea9a99e882"
   integrity sha512-lJH6tJ77V8Nzd5QWRkFYCLc13a3vADkh3r/Fi8HupZGWk2OVVDfnZP8V/VgQgZ+lzW0kG2UGb5hFgt3V3ndotQ==
-
-unique-names-generator@4.7.1:
-  version "4.7.1"
-  resolved "https://registry.yarnpkg.com/unique-names-generator/-/unique-names-generator-4.7.1.tgz#966407b12ba97f618928f77322cfac8c80df5597"
-  integrity sha512-lMx9dX+KRmG8sq6gulYYpKWZc9RlGsgBR6aoO8Qsm3qvkSJ+3rAymr+TnV8EDMrIrwuFJ4kruzMWM/OpYzPoow==
 
 vscode-nls@^4.0.0:
   version "4.0.0"

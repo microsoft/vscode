@@ -8,7 +8,7 @@ import * as path from 'path';
 import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
-import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from 'unique-names-generator';
+import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
@@ -1773,10 +1773,9 @@ export class CommandCenter {
 		await this._branch(repository, undefined, true);
 	}
 
-	private generateRandomBranchName(repository: Repository): string {
+	private generateRandomBranchName(repository: Repository, separator: string): string {
 		const config = workspace.getConfiguration('git');
 		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.Dictionary', ['adjectives', 'animals']);
-		const branchRandomNameSeparator = config.get<string>('branchRandomName.SeparatorChar', '-');
 
 		const dictionaries: string[][] = [];
 		for (const dictionary of branchRandomNameDictionary) {
@@ -1803,7 +1802,7 @@ export class CommandCenter {
 			const randomName = uniqueNamesGenerator({
 				dictionaries,
 				length: dictionaries.length,
-				separator: branchRandomNameSeparator
+				separator
 			});
 
 			// Check for local ref conflict
@@ -1830,7 +1829,7 @@ export class CommandCenter {
 			// Branch name
 			if (!initialValue) {
 				const branchRandomNameEnabled = config.get<boolean>('branchRandomName.Enable', false);
-				initialValue = `${branchPrefix}${branchRandomNameEnabled ? this.generateRandomBranchName(repository) : ''}`;
+				initialValue = `${branchPrefix}${branchRandomNameEnabled ? this.generateRandomBranchName(repository, branchWhitespaceChar) : ''}`;
 			}
 
 			// Branch name selection
