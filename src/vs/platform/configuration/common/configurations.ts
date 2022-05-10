@@ -12,7 +12,8 @@ import { Extensions, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRID
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { PolicyModel } from 'vs/platform/policy/common/policy';
+import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
+import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export class DefaultConfiguration extends Disposable {
@@ -82,7 +83,7 @@ export class PolicyConfiguration extends Disposable {
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
-	private readonly policies: PolicyModel;
+	private readonly policyService: IPolicyService;
 
 	constructor(
 		private readonly defaultConfiguration: DefaultConfiguration,
@@ -91,7 +92,7 @@ export class PolicyConfiguration extends Disposable {
 		logService: ILogService
 	) {
 		super();
-		this.policies = new PolicyModel(fileService, environmentService, logService);
+		this.policyService = environmentService.policyFile ? new FilePolicyService(environmentService.policyFile, fileService, logService) : new NullPolicyService();
 	}
 
 	private _configurationModel: ConfigurationModel | undefined;
@@ -105,7 +106,7 @@ export class PolicyConfiguration extends Disposable {
 				if (!policyName) {
 					continue;
 				}
-				const value = this.policies.getPolicy(policyName);
+				const value = this.policyService.getPolicyValue(policyName);
 				if (value === undefined) {
 					continue;
 				}
@@ -118,8 +119,8 @@ export class PolicyConfiguration extends Disposable {
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
-		await this.policies.initialize();
-		this._register(this.policies.onDidChange(e => this.onDidChange()));
+		await this.policyService.initialize();
+		this._register(this.policyService.onDidChange(e => this.onDidChange()));
 		this._register(this.defaultConfiguration.onDidChangeConfiguration(({ properties }) => this.onDidDefaultConfigurationChange(properties)));
 		return this.reload();
 	}
