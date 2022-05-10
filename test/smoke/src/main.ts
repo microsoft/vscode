@@ -137,6 +137,27 @@ function parseVersion(version: string): { major: number; minor: number; patch: n
 	return { major: parseInt(major), minor: parseInt(minor), patch: parseInt(patch) };
 }
 
+function parseQuality(): Quality {
+	if (process.env.VSCODE_DEV === '1') {
+		return Quality.Dev;
+	}
+
+	const quality = process.env.VSCODE_QUALITY ?? '';
+
+	switch (quality) {
+		case 'stable':
+			return Quality.Stable;
+		case 'insider':
+			return Quality.Insiders;
+		case 'exploration':
+			return Quality.Exploration;
+		case 'oss':
+			return Quality.OSS;
+		default:
+			return Quality.Dev;
+	}
+}
+
 //
 // #### Electron Smoke Tests ####
 //
@@ -159,15 +180,7 @@ if (!opts.web) {
 		fail(`Can't find VSCode at ${electronPath}. Please run VSCode once first (scripts/code.sh, scripts\\code.bat) and try again.`);
 	}
 
-	if (process.env.VSCODE_DEV === '1') {
-		quality = Quality.Dev;
-	} else if (electronPath.indexOf('Code - Insiders') >= 0 /* macOS/Windows */ || electronPath.indexOf('code-insiders') /* Linux */ >= 0) {
-		quality = Quality.Insiders;
-	} else if (electronPath.indexOf('Code - OSS') >= 0 /* macOS/Windows */ || electronPath.indexOf('code-oss') /* Linux */ >= 0) {
-		quality = Quality.OSS;
-	} else {
-		quality = Quality.Stable;
-	}
+	quality = parseQuality();
 
 	if (opts.remote) {
 		logger.log(`Running desktop remote smoke tests against ${electronPath}`);
@@ -198,29 +211,11 @@ else {
 		logger.log(`Running web smoke out of sources`);
 	}
 
-	if (process.env.VSCODE_DEV === '1') {
-		quality = Quality.Dev;
-	} else if (typeof testCodeServerPath === 'string') {
-		const { applicationName } = require(path.join(testCodeServerPath, 'product.json'));
-
-		switch (applicationName) {
-			case 'code':
-				quality = Quality.Stable;
-				break;
-			case 'code-insiders':
-				quality = Quality.Insiders;
-				break;
-			case 'code-oss':
-				quality = Quality.OSS;
-				break;
-			default:
-				quality = Quality.Insiders;
-				break;
-		}
-	} else {
-		quality = Quality.Insiders;
-	}
+	quality = parseQuality();
 }
+
+console.log('Quality: ', quality);
+logger.log(`VS Code product quality: ${quality}.`);
 
 const userDataDir = path.join(testDataPath, 'd');
 

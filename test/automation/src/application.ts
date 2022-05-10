@@ -11,6 +11,7 @@ export const enum Quality {
 	Dev,
 	Insiders,
 	Stable,
+	Exploration,
 	OSS
 }
 
