@@ -1087,10 +1087,9 @@ ${formatRule(Codicon.menuSubmenu)}
 
 .monaco-menu .monaco-action-bar.vertical .action-label.separator {
 	display: block;
-	border-bottom: 1px solid #bbb;
+	border-bottom: 1px solid var(--vscode-menu-separatorBackground);
 	padding-top: 1px;
-	margin-left: .8em;
-	margin-right: .8em;
+	padding: 30px;
 }
 
 .monaco-menu .secondary-actions .monaco-action-bar .action-label {
@@ -1195,8 +1194,6 @@ ${formatRule(Codicon.menuSubmenu)}
 	margin-bottom: 0.5em;
 	width: 100%;
 	height: 0px !important;
-	margin-left: .8em !important;
-	margin-right: .8em !important;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label.separator.text {
@@ -1238,15 +1235,16 @@ ${formatRule(Codicon.menuSubmenu)}
 	outline: 0;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item {
-	border: thin solid transparent; /* prevents jumping behaviour on hover or focus */
-}
-
 
 /* High Contrast Theming */
 :host-context(.hc-black) .context-view.monaco-menu-container,
 :host-context(.hc-light) .context-view.monaco-menu-container {
 	box-shadow: none;
+}
+
+:host-context(.hc-black) .monaco-menu .monaco-action-bar.vertical .action-item,
+:host-context(.hc-light) .monaco-menu .monaco-action-bar.vertical .action-item {
+	border: thin solid transparent; /* prevents jumping behaviour on hover or focus */
 }
 
 :host-context(.hc-black) .monaco-menu .monaco-action-bar.vertical .action-item.focused,
@@ -1261,7 +1259,7 @@ ${formatRule(Codicon.menuSubmenu)}
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {
-	height: 1.8em;
+	height: 2.1em;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
@@ -1279,6 +1277,7 @@ ${formatRule(Codicon.menuSubmenu)}
 	font-size: inherit;
 	padding: 0.2em 0 0 0;
 	margin-bottom: 0.2em;
+	border-radius: 0;
 }
 
 :host-context(.linux) .monaco-menu .monaco-action-bar.vertical .action-label.separator {

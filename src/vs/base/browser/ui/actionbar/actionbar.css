@@ -71,14 +71,12 @@
 	display: block;
 	border-bottom: 1px solid #bbb;
 	padding-top: 1px;
-	margin-left: .8em;
-	margin-right: .8em;
 }
 
 .monaco-action-bar .action-item .action-label.separator {
 	width: 1px;
 	height: 16px;
-	margin: 5px 4px !important;
+	margin: 5px 0px !important;
 	cursor: default;
 	min-width: 1px;
 	padding: 0;
