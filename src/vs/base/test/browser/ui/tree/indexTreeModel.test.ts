@@ -358,7 +358,7 @@ suite('IndexTreeModel', () => {
 
 		assert.deepStrictEqual(list.length, 3);
 
-		model.expandTo([0]);
+		model.expandTo([0, 1]);
 		assert.deepStrictEqual(list.length, 6);
 		assert.deepStrictEqual(list[0].element, 0);
 		assert.deepStrictEqual(list[0].collapsed, false);
