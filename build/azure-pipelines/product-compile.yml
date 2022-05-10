@@ -1,6 +1,8 @@
 parameters:
   - name: VSCODE_PUBLISH
     type: boolean
+  - name: VSCODE_QUALITY
+    type: string
 
 steps:
   - task: NodeTool@0
@@ -162,14 +164,16 @@ steps:
       artifactName: Compilation
     displayName: Publish compilation artifact
 
-  - script: |
-      set -e
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn download-builtin-extensions-cg
-    displayName: Built-in extensions component details
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+          yarn download-builtin-extensions-cg
+      displayName: Built-in extensions component details
 
-  - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-    displayName: "Component Detection"
-    inputs:
-      sourceScanPath: $(Build.SourcesDirectory)
-    continueOnError: true
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+      displayName: "Component Detection"
+      inputs:
+        sourceScanPath: $(Build.SourcesDirectory)
+      continueOnError: true

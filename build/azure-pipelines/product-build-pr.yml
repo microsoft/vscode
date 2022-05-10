@@ -39,6 +39,7 @@ stages:
           - template: product-compile.yml
             parameters:
               VSCODE_PUBLISH: false
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
   - stage: LinuxServerDependencies
     dependsOn: []
