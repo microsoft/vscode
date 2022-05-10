@@ -10,8 +10,9 @@ import { TableOfContents } from '../tableOfContents';
 import { Delayer } from '../util/async';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
+import { Limiter } from '../util/limiter';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { InternalHref, LinkDefinitionSet, MdLink, MdLinkProvider } from './documentLinkProvider';
+import { LinkDefinitionSet, MdLink, MdLinkProvider, MdLinkSource } from './documentLinkProvider';
 import { tryFindMdDocumentForLink } from './references';
 
 const localize = nls.loadMessageBundle();
@@ -218,6 +219,48 @@ export class DiagnosticManager extends Disposable {
 	}
 }
 
+interface FileLinksData {
+	readonly path: vscode.Uri;
+
+	readonly links: Array<{
+		readonly source: MdLinkSource;
+		readonly fragment: string;
+	}>;
+}
+
+/**
+ * Map of file paths to markdown links to that file.
+ */
+class FileLinkMap {
+
+	private readonly _filesToLinksMap = new Map<string, FileLinksData>();
+
+	constructor(links: Iterable<MdLink>) {
+		for (const link of links) {
+			if (link.href.kind !== 'internal') {
+				continue;
+			}
+
+			const fileKey = link.href.path.toString();
+			const existingFileEntry = this._filesToLinksMap.get(fileKey);
+			const linkData = { source: link.source, fragment: link.href.fragment };
+			if (existingFileEntry) {
+				existingFileEntry.links.push(linkData);
+			} else {
+				this._filesToLinksMap.set(fileKey, { path: link.href.path, links: [linkData] });
+			}
+		}
+	}
+
+	public get size(): number {
+		return this._filesToLinksMap.size;
+	}
+
+	public entries(): Iterable<FileLinksData> {
+		return this._filesToLinksMap.values();
+	}
+}
+
 export class DiagnosticComputer {
 
 	constructor(
@@ -290,52 +333,47 @@ export class DiagnosticComputer {
 			return [];
 		}
 
-		const tocs = new Map<string, TableOfContents>();
-
-		// TODO: cache links so we don't recompute duplicate hrefs
-		// TODO: parallelize
-
-		const diagnostics: vscode.Diagnostic[] = [];
-		for (const link of links) {
-			if (token.isCancellationRequested) {
-				return [];
-			}
-
-			if (link.href.kind !== 'internal') {
-				continue;
-			}
-
-			const hrefDoc = await tryFindMdDocumentForLink(link.href, this.workspaceContents);
-			if (hrefDoc && hrefDoc.uri.toString() === doc.uri.toString()) {
-				continue;
-			}
-
-			if (!hrefDoc && !await this.workspaceContents.pathExists(link.href.path)) {
-				diagnostics.push(
-					new vscode.Diagnostic(
-						link.source.hrefRange,
-						localize('invalidPathLink', 'File does not exist at path: {0}', (link.href as InternalHref).path.toString(true)),
-						severity));
-			} else if (hrefDoc) {
-				if (link.href.fragment) {
-					// validate fragment looks valid
-					let hrefDocToc = tocs.get(link.href.path.toString());
-					if (!hrefDocToc) {
-						hrefDocToc = await TableOfContents.create(this.engine, hrefDoc);
-						tocs.set(link.href.path.toString(), hrefDocToc);
-					}
-
-					if (!hrefDocToc.lookup(link.href.fragment)) {
-						diagnostics.push(
-							new vscode.Diagnostic(
-								link.source.hrefRange,
-								localize('invalidLinkToHeaderInOtherFile', 'Header does not exist in file: {0}', (link.href as InternalHref).path.fragment),
-								severity));
-					}
-				}
-			}
+		const linkSet = new FileLinkMap(links);
+		if (linkSet.size === 0) {
+			return [];
 		}
 
+		const limiter = new Limiter(10);
+
+		const diagnostics: vscode.Diagnostic[] = [];
+		await Promise.all(
+			Array.from(linkSet.entries()).map(({ path, links }) => {
+				return limiter.queue(async () => {
+					if (token.isCancellationRequested) {
+						return;
+					}
+
+					const hrefDoc = await tryFindMdDocumentForLink({ kind: 'internal', path: path, fragment: '' }, this.workspaceContents);
+					if (hrefDoc && hrefDoc.uri.toString() === doc.uri.toString()) {
+						// We've already validated our own links in `validateOwnHeaderLinks`
+						return;
+					}
+
+					if (!hrefDoc && !await this.workspaceContents.pathExists(path)) {
+						const msg = localize('invalidPathLink', 'File does not exist at path: {0}', path.toString(true));
+						for (const link of links) {
+							diagnostics.push(new vscode.Diagnostic(link.source.hrefRange, msg, severity));
+						}
+					} else if (hrefDoc) {
+						// Validate each of the links to headers in the file
+						const fragmentLinks = links.filter(x => x.fragment);
+						if (fragmentLinks.length) {
+							const toc = await TableOfContents.create(this.engine, hrefDoc);
+							for (const link of fragmentLinks) {
+								if (!toc.lookup(link.fragment)) {
+									const msg = localize('invalidLinkToHeaderInOtherFile', 'Header does not exist in file: {0}', link.fragment);
+									diagnostics.push(new vscode.Diagnostic(link.source.hrefRange, msg, severity));
+								}
+							}
+						}
+					}
+				});
+			}));
 		return diagnostics;
 	}
 }
