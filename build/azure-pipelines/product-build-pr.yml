@@ -38,7 +38,6 @@ stages:
         steps:
           - template: product-compile.yml
             parameters:
-              VSCODE_PUBLISH: false
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
   - stage: LinuxServerDependencies
@@ -54,7 +53,7 @@ stages:
         steps:
           - template: linux/product-build-linux-server.yml
             parameters:
-              VSCODE_PUBLISH: false
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
   - stage: Windows
     dependsOn:

@@ -1,6 +1,4 @@
 parameters:
-  - name: VSCODE_PUBLISH
-    type: boolean
   - name: VSCODE_QUALITY
     type: string
 
@@ -9,7 +7,7 @@ steps:
     inputs:
       versionSpec: "16.x"
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - task: AzureKeyVault@1
       displayName: "Azure Key Vault: Get Secrets"
       inputs:
@@ -17,7 +15,7 @@ steps:
         KeyVaultName: vscode
         SecretsFilter: "github-distro-mixin-password"
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
         cat << EOF > ~/.netrc
@@ -30,7 +28,7 @@ steps:
         git config user.name "VSCode"
       displayName: Prepare tooling
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
         git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
@@ -39,7 +37,7 @@ steps:
       condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
       displayName: Checkout override commit
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
         git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
@@ -104,7 +102,7 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     # Mixin must run before optimize, because the CSS loader will inline small SVGs
     - script: |
         set -e
@@ -125,7 +123,7 @@ steps:
     displayName: Compile test suites
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - task: AzureCLI@2
       inputs:
         azureSubscription: "vscode-builds-subscription"
@@ -137,7 +135,7 @@ steps:
           Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
           Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
         AZURE_STORAGE_ACCOUNT="ticino" \
@@ -147,7 +145,7 @@ steps:
           node build/azure-pipelines/upload-sourcemaps
       displayName: Upload sourcemaps
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -
         ./build/azure-pipelines/common/extract-telemetry.sh

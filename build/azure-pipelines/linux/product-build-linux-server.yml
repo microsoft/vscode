@@ -1,13 +1,13 @@
 parameters:
-  - name: VSCODE_PUBLISH
-    type: boolean
+  - name: VSCODE_QUALITY
+    type: string
 
 steps:
   - task: NodeTool@0
     inputs:
       versionSpec: "16.x"
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - task: AzureKeyVault@1
       displayName: "Azure Key Vault: Get Secrets"
       inputs:
@@ -15,7 +15,7 @@ steps:
         KeyVaultName: vscode
         SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - task: Docker@1
       displayName: "Pull Docker image"
       inputs:
@@ -26,7 +26,7 @@ steps:
         containerCommand: uname
       condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
         cat << EOF > ~/.netrc
@@ -39,7 +39,7 @@ steps:
         git config user.name "VSCode"
       displayName: Prepare tooling
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
         git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
@@ -48,7 +48,7 @@ steps:
       condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
       displayName: Checkout override commit
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
         git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
