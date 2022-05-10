@@ -138,6 +138,11 @@ function parseVersion(version: string): { major: number; minor: number; patch: n
 }
 
 function parseQuality(): Quality {
+	console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+	console.log(process.env.VSCODE_DEV);
+	console.log(process.env.VSCODE_QUALITY);
+	console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+
 	if (process.env.VSCODE_DEV === '1') {
 		return Quality.Dev;
 	}
@@ -214,7 +219,6 @@ else {
 	quality = parseQuality();
 }
 
-console.log('Quality: ', quality);
 logger.log(`VS Code product quality: ${quality}.`);
 
 const userDataDir = path.join(testDataPath, 'd');
