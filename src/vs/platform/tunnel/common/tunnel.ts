@@ -176,7 +176,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	protected _tunnelProvider: ITunnelProvider | undefined;
 	protected _canElevate: boolean = false;
 	private _privacyOptions: TunnelPrivacy[] = [];
-	private _factoryInProgress: Set<string/**host:port*/> = new Set();
+	private _factoryInProgress: Set<number/*port*/> = new Set();
 
 	public constructor(
 		@ILogService protected readonly logService: ILogService
@@ -265,7 +265,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		}
 
 		// Prevent tunnel factories from calling openTunnel from within the factory
-		if (this._tunnelProvider && this._factoryInProgress.has(this.factoryInProgressKey(remoteHost, remotePort))) {
+		if (this._tunnelProvider && this._factoryInProgress.has(remotePort)) {
 			this.logService.debug(`ForwardedPorts: (TunnelService) Another call to create a tunnel with the same address has occurred before the last one completed. This call will be ignored.`);
 			return;
 		}
@@ -389,13 +389,9 @@ export abstract class AbstractTunnelService implements ITunnelService {
 
 	protected abstract retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
 
-	private factoryInProgressKey(remoteHost: string, remotePort: number) {
-		return `${isLocalhost(remoteHost) ? 'localhost' : remoteHost}:${remotePort}`;
-	}
-
 	protected createWithProvider(tunnelProvider: ITunnelProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
 		this.logService.trace(`ForwardedPorts: (TunnelService) Creating tunnel with provider ${remoteHost}:${remotePort} on local port ${localPort}.`);
-		const key = this.factoryInProgressKey(remoteHost, remotePort);
+		const key = remotePort;
 		this._factoryInProgress.add(key);
 		const preferredLocalPort = localPort === undefined ? remotePort : localPort;
 		const creationInfo = { elevationRequired: elevateIfNeeded ? isPortPrivileged(preferredLocalPort) : false };
