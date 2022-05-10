@@ -21,7 +21,7 @@ import { Workspace } from 'vs/platform/workspace/common/workspace';
 
 export class ConfigurationModel implements IConfigurationModel {
 
-	private isFrozen: boolean = false;
+	private frozen: boolean = false;
 	private readonly overrideConfigurations = new Map<string, ConfigurationModel>();
 
 	constructor(
@@ -45,6 +45,10 @@ export class ConfigurationModel implements IConfigurationModel {
 
 	isEmpty(): boolean {
 		return this._keys.length === 0 && Object.keys(this._contents).length === 0 && this._overrides.length === 0;
+	}
+
+	isFrozen(): boolean {
+		return this.frozen;
 	}
 
 	getValue<V>(section: string | undefined): V {
@@ -113,8 +117,12 @@ export class ConfigurationModel implements IConfigurationModel {
 	}
 
 	freeze(): ConfigurationModel {
-		this.isFrozen = true;
+		this.frozen = true;
 		return this;
+	}
+
+	clone(): ConfigurationModel {
+		return new ConfigurationModel(objects.deepClone(this.contents), [...this.keys], objects.deepClone(this.overrides));
 	}
 
 	private createOverrideConfigurationModel(identifier: string): ConfigurationModel {
@@ -161,7 +169,7 @@ export class ConfigurationModel implements IConfigurationModel {
 	}
 
 	private checkAndFreeze<T>(data: T): T {
-		if (this.isFrozen && !Object.isFrozen(data)) {
+		if (this.frozen && !Object.isFrozen(data)) {
 			return objects.deepFreeze(data);
 		}
 		return data;
