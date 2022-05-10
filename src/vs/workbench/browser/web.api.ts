@@ -44,11 +44,10 @@ export interface IWorkbench {
 		/**
 		 * Logging for embedder.
 		 *
-		 * @param id Human-readable name associated with your embedder.
 		 * @param level The log level of the message to be printed.
 		 * @param message Message to be printed.
 		 */
-		log(id: string, level: LogLevel, message: string): void;
+		log(level: LogLevel, message: string): void;
 	};
 
 	env: {

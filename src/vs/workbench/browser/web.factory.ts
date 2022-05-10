@@ -100,8 +100,8 @@ export namespace logger {
 	/**
 	 * {@linkcode IWorkbench.logger IWorkbench.logger.log}
 	 */
-	export function log(id: string, level: LogLevel, message: string) {
-		workbenchPromise.p.then(workbench => workbench.logger.log(id, level, message));
+	export function log(level: LogLevel, message: string) {
+		workbenchPromise.p.then(workbench => workbench.logger.log(level, message));
 	}
 }
 

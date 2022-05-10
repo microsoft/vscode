@@ -146,8 +146,8 @@ export class BrowserMain extends Disposable {
 					}
 				},
 				logger: {
-					log: (id, level, message) => {
-						embedderLogger.log(id, level, message);
+					log: (level, message) => {
+						embedderLogger.log(level, message);
 					}
 				},
 				window: {
