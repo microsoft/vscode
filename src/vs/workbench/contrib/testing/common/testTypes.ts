@@ -248,6 +248,10 @@ export interface ITestTagDisplayInfo {
 
 /**
  * The TestItem from .d.ts, as a plain object without children.
+ *
+ * If you want to add a new property here (new API from vscode.TestItem), make
+ * sure to also add it to `TestItemWritableProps` and ITestItemUpdate's
+ * serialization, and follow the compile errors to add it everywhere else.
  */
 export interface ITestItem {
 	/** ID of the test given by the test controller */
@@ -258,10 +262,14 @@ export interface ITestItem {
 	children?: never;
 	uri: URI | undefined;
 	range: Range | null;
+	relatedCode: { uri: URI; range: Range }[] | null;
 	description: string | null;
 	error: string | IMarkdownString | null;
 	sortText: string | null;
 }
+
+/** Subset of the ITestItem which is writable after the item's creation. */
+export type TestItemWritableProps = Pick<ITestItem, 'range' | 'label' | 'description' | 'sortText' | 'busy' | 'error' | 'tags' | 'relatedCode'>;
 
 export namespace ITestItem {
 	export interface Serialized {
@@ -272,6 +280,7 @@ export namespace ITestItem {
 		children?: never;
 		uri: UriComponents | undefined;
 		range: IRange | null;
+		relatedCode: { uri: UriComponents; range: IRange }[] | null;
 		description: string | null;
 		error: string | IMarkdownString | null;
 		sortText: string | null;
@@ -285,6 +294,7 @@ export namespace ITestItem {
 		children: undefined,
 		uri: item.uri?.toJSON(),
 		range: item.range?.toJSON() || null,
+		relatedCode: item.relatedCode || null,
 		description: item.description,
 		error: item.error,
 		sortText: item.sortText
@@ -298,6 +308,7 @@ export namespace ITestItem {
 		children: undefined,
 		uri: serialized.uri ? URI.revive(serialized.uri) : undefined,
 		range: serialized.range ? Range.lift(serialized.range) : null,
+		relatedCode: serialized.relatedCode?.map(r => ({ uri: URI.revive(r.uri), range: Range.lift(r.range) })) || null,
 		description: serialized.description,
 		error: serialized.error,
 		sortText: serialized.sortText
@@ -376,6 +387,7 @@ export namespace ITestItemUpdate {
 			if (u.item.description !== undefined) { item.description = u.item.description; }
 			if (u.item.error !== undefined) { item.error = u.item.error; }
 			if (u.item.sortText !== undefined) { item.sortText = u.item.sortText; }
+			if (u.item.relatedCode !== undefined) { item.relatedCode = u.item.relatedCode; }
 		}
 
 		return { extId: u.extId, expand: u.expand, item };
@@ -392,6 +404,7 @@ export namespace ITestItemUpdate {
 			if (u.item.description !== undefined) { item.description = u.item.description; }
 			if (u.item.error !== undefined) { item.error = u.item.error; }
 			if (u.item.sortText !== undefined) { item.sortText = u.item.sortText; }
+			if (u.item.relatedCode !== undefined) { item.relatedCode = u.item.relatedCode?.map(r => ({ uri: URI.revive(r.uri), range: Range.lift(r.range) })) || null; }
 		}
 
 		return { extId: u.extId, expand: u.expand, item };
@@ -611,6 +624,8 @@ export class IncrementalChangeCollector<T> {
  */
 export abstract class AbstractIncrementalTestCollection<T extends IncrementalTestCollectionItem>  {
 	private readonly _tags = new Map<string, ITestTagDisplayInfo>();
+	/** Map of test IDs that have related code in each file. */
+	private readonly _relatedCode = new Map</* uri */string, Set< /* test id */string>>();
 
 	/**
 	 * Map of item IDs to test item objects.
@@ -660,6 +675,12 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 						changes.add(created);
 					}
 
+					if (internalTest.item.relatedCode) {
+						for (const { uri } of internalTest.item.relatedCode) {
+							this.addTestToRelatedCode(uri.toString(), internalTest.item.extId);
+						}
+					}
+
 					if (internalTest.expand === TestItemExpandState.BusyExpanding) {
 						this.busyControllerCount++;
 					}
@@ -679,6 +700,21 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 						}
 						if (patch.expand === TestItemExpandState.BusyExpanding) {
 							this.busyControllerCount++;
+						}
+					}
+
+					if (patch.item?.relatedCode !== undefined) {
+						const previous = new Set(existing.item.relatedCode?.map(c => c.uri.toString()));
+						const current = new Set(patch.item.relatedCode?.map(c => c.uri.toString()));
+						for (const uri of previous) {
+							if (!current.has(uri)) {
+								this.removeTestFromRelatedCode(uri.toString(), patch.extId);
+							}
+						}
+						for (const uri of current) {
+							if (!previous.has(uri)) {
+								this.addTestToRelatedCode(uri.toString(), patch.extId);
+							}
 						}
 					}
 
@@ -708,6 +744,12 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 								queue.push(existing.children);
 								this.items.delete(itemId);
 								changes.remove(existing, existing !== toRemove);
+
+								if (existing.item.relatedCode) {
+									for (const { uri } of existing.item.relatedCode) {
+										this.removeTestFromRelatedCode(uri.toString(), existing.item.extId);
+									}
+								}
 
 								if (existing.expand === TestItemExpandState.BusyExpanding) {
 									this.busyControllerCount--;
@@ -766,4 +808,20 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	 * Creates a new item for the collection from the internal test item.
 	 */
 	protected abstract createItem(internal: InternalTestItem, parent?: T): T;
+
+	private removeTestFromRelatedCode(uri: string, testId: string) {
+		const s = this._relatedCode.get(uri);
+		if (s?.delete(testId) && !s.size) {
+			this._relatedCode.delete(uri);
+		}
+	}
+
+	private addTestToRelatedCode(uri: string, testId: string) {
+		const s = this._relatedCode.get(uri);
+		if (s) {
+			s.add(testId);
+		} else {
+			this._relatedCode.set(uri, new Set([testId]));
+		}
+	}
 }

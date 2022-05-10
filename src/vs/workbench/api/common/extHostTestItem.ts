@@ -6,7 +6,7 @@ import * as editorRange from 'vs/editor/common/core/range';
 import { createPrivateApiFor, getPrivateApiFor, IExtHostTestItemApi } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 import { TestId, TestIdPathParts } from 'vs/workbench/contrib/testing/common/testId';
 import { createTestItemChildren, ExtHostTestItemEvent, ITestChildrenLike, ITestItemApi, ITestItemChildren, TestItemCollection, TestItemEventOp } from 'vs/workbench/contrib/testing/common/testItemCollection';
-import { denamespaceTestTag, ITestItem, ITestItemContext } from 'vs/workbench/contrib/testing/common/testTypes';
+import { denamespaceTestTag, ITestItem, ITestItemContext, TestItemWritableProps } from 'vs/workbench/contrib/testing/common/testTypes';
 import type * as vscode from 'vscode';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { URI } from 'vs/base/common/uri';
@@ -34,7 +34,7 @@ const testItemPropAccessor = <K extends keyof vscode.TestItem>(
 	};
 };
 
-type WritableProps = Pick<vscode.TestItem, 'range' | 'label' | 'description' | 'sortText' | 'canResolveChildren' | 'busy' | 'error' | 'tags'>;
+type WritableProps = Pick<vscode.TestItem, (keyof TestItemWritableProps) | 'canResolveChildren'>;
 
 const strictEqualComparator = <T>(a: T, b: T) => a === b;
 
@@ -43,6 +43,11 @@ const propComparators: { [K in keyof Required<WritableProps>]: (a: vscode.TestIt
 		if (a === b) { return true; }
 		if (!a || !b) { return false; }
 		return a.isEqual(b);
+	},
+	relatedCode: (a, b) => {
+		if (a === b) { return true; }
+		if (!a || !b) { return false; }
+		return a.length === b.length && a.every((r, i) => r.uri.toString() === b[i].uri.toString() && r.range.isEqual(b[i].range));
 	},
 	label: strictEqualComparator,
 	description: strictEqualComparator,
@@ -68,6 +73,9 @@ const evSetProps = <T>(fn: (newValue: T) => Partial<ITestItem>): (newValue: T) =
 
 const makePropDescriptors = (api: IExtHostTestItemApi, label: string): { [K in keyof Required<WritableProps>]: PropertyDescriptor } => ({
 	range: testItemPropAccessor<'range'>(api, undefined, propComparators.range, evSetProps(r => ({ range: editorRange.Range.lift(Convert.Range.from(r)) }))),
+	relatedCode: testItemPropAccessor<'relatedCode'>(api, undefined, propComparators.relatedCode,
+		evSetProps(r => ({ relatedCode: r?.map(r2 => ({ uri: r2.uri, range: editorRange.Range.lift(Convert.Range.from(r2.range)) })) ?? null })),
+	),
 	label: testItemPropAccessor<'label'>(api, label, propComparators.label, evSetProps(label => ({ label }))),
 	description: testItemPropAccessor<'description'>(api, undefined, propComparators.description, evSetProps(description => ({ description }))),
 	sortText: testItemPropAccessor<'sortText'>(api, undefined, propComparators.sortText, evSetProps(sortText => ({ sortText }))),
@@ -111,6 +119,7 @@ export class TestItemImpl implements vscode.TestItem {
 	public readonly children!: ITestItemChildren<vscode.TestItem>;
 	public readonly parent!: TestItemImpl | undefined;
 
+	public relatedCode!: vscode.Location[] | undefined;
 	public range!: vscode.Range | undefined;
 	public description!: string | undefined;
 	public sortText!: string | undefined;
