@@ -145,10 +145,12 @@ export class BrowserMain extends Disposable {
 						return openerService.open(uri, {});
 					}
 				},
-				window: {
+				logger: {
 					log: (id, level, message) => {
 						embedderLogger.log(id, level, message);
-					},
+					}
+				},
+				window: {
 					withProgress: (options, task) => progessService.withProgress(options, task)
 				},
 				shutdown: () => lifecycleService.shutdown()
