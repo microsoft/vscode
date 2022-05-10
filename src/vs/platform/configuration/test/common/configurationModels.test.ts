@@ -487,7 +487,7 @@ suite('Configuration', () => {
 		const defaultConfigurationModel = parseConfigurationModel({ '[l1]': { 'a': 1 }, '[l2]': { 'b': 1 } });
 		const userConfigurationModel = parseConfigurationModel({ '[l3]': { 'a': 2 } });
 		const workspaceConfigurationModel = parseConfigurationModel({ '[l1]': { 'a': 3 }, '[l4]': { 'a': 3 } });
-		const testObject: Configuration = new Configuration(defaultConfigurationModel, userConfigurationModel, new ConfigurationModel(), workspaceConfigurationModel);
+		const testObject: Configuration = new Configuration(defaultConfigurationModel, new ConfigurationModel(), userConfigurationModel, workspaceConfigurationModel);
 
 		const { overrideIdentifiers } = testObject.inspect('a', {}, undefined);
 
