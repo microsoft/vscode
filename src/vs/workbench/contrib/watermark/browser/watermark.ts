@@ -179,11 +179,73 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 		this.watermarkDisposable.add(this.editorGroupsService.onDidLayout(dimension => this.handleEditorPartSize(container, dimension)));
 
 		this.handleEditorPartSize(container, this.editorGroupsService.contentDimension);
+		this.handleEditorCenteredChanges();
 
 		/* __GDPR__
 		"watermark:open" : { }
 		*/
 		this.telemetryService.publicLog('watermark:open');
+	}
+
+	private handleEditorCenteredChanges(): void {
+		let observingSashMutations = false;
+
+		const updateFromSashContainer = (container: HTMLElement) => {
+			const sashes = container.querySelectorAll<HTMLDivElement>(':scope > div');
+
+			if (!this.watermark || sashes.length !== 2) {
+				return;
+			}
+
+			this.watermark.style.left = sashes[0].style.left;
+			this.watermark.style.right = `calc(100% - ${sashes[1].style.left})`;
+		};
+
+		const mutationObserver = new MutationObserver((mutations) => {
+			const container = mutations[0].target.parentElement;
+
+			if (dom.isHTMLElement(container)) {
+				updateFromSashContainer(container);
+			}
+		});
+
+		this.layoutService.onDidChangeCenteredLayout((isCentered) => {
+			if (!this.watermark) {
+				return;
+			}
+
+			if (!isCentered) {
+				if (observingSashMutations) {
+					mutationObserver.disconnect();
+
+					this.watermark.style.left = '';
+					this.watermark.style.right = '';
+					this.watermark.style.width = '';
+
+					observingSashMutations = false;
+				}
+
+				return;
+			}
+
+			if (observingSashMutations) {
+				return;
+			}
+
+			const sashContainer = this.watermark.nextElementSibling?.querySelector<HTMLElement>('.sash-container');
+
+			if (sashContainer && sashContainer.childElementCount === 2) {
+				mutationObserver.observe(sashContainer, {
+					attributes: true,
+					attributeFilter: ['style'],
+					subtree: true
+				});
+
+				updateFromSashContainer(sashContainer);
+				this.watermark.style.width = 'unset';
+				observingSashMutations = true;
+			}
+		});
 	}
 
 	private handleEditorPartSize(container: HTMLElement, dimension: dom.IDimension): void {
