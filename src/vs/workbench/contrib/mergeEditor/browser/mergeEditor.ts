@@ -110,9 +110,13 @@ export class MergeEditor extends EditorPane {
 
 	}
 
-	override clearInput(): void {
+	// override clearInput(): void {
+	// 	super.clearInput();
+	// }
 
-	}
+	// protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	// 	console.log('VISISBLE', visible);
+	// }
 
 }
 
