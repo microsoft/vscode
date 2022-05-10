@@ -1544,14 +1544,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _lastCellWithEditorFocus: ICellViewModel | null = null;
 	private _validateCellFocusMode(cell: ICellViewModel) {
-		if (cell.focusMode === CellFocusMode.Editor) {
-			if (this._lastCellWithEditorFocus && this._lastCellWithEditorFocus !== cell) {
-				this._lastCellWithEditorFocus.focusMode = CellFocusMode.Container;
-			}
-
-			this._lastCellWithEditorFocus = cell;
+		if (cell.focusMode !== CellFocusMode.Editor) {
+			return;
 		}
 
+		if (this._lastCellWithEditorFocus && this._lastCellWithEditorFocus !== cell) {
+			this._lastCellWithEditorFocus.focusMode = CellFocusMode.Container;
+		}
+
+		this._lastCellWithEditorFocus = cell;
 	}
 
 	private async _warmupWithMarkdownRenderer(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
