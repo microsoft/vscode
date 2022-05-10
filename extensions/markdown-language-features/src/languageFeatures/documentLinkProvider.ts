@@ -87,7 +87,7 @@ function getWorkspaceFolder(document: SkinnyTextDocument) {
 		|| vscode.workspace.workspaceFolders?.[0]?.uri;
 }
 
-interface MdLinkSource {
+export interface MdLinkSource {
 	readonly text: string;
 	readonly resource: vscode.Uri;
 	readonly hrefRange: vscode.Range;
