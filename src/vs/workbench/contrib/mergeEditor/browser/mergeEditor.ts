@@ -23,6 +23,8 @@ import { ITextModel } from 'vs/editor/common/model';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
+import { Color } from 'vs/base/common/color';
 
 export class MergeEditor extends EditorPane {
 
@@ -77,7 +79,7 @@ export class MergeEditor extends EditorPane {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		this._grid = new Grid(this.inputResultView);
+		this._grid = new Grid(this.inputResultView, { styles: { separatorBorder: this.theme.getColor(settingsSashBorder) ?? Color.transparent } });
 
 		this._grid.addView(this.inputOneView, Sizing.Distribute, this.inputResultView, Direction.Up);
 		this._grid.addView(this.inputTwoView, Sizing.Distribute, this.inputOneView, Direction.Right);
