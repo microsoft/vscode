@@ -2332,7 +2332,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				if (typeof options?.focusEditorLine === 'number') {
 					await this.revealLineInViewAsync(cell, options.focusEditorLine);
 					const editor = this._renderedEditors.get(cell)!;
-					const focusEditorLine = options.focusEditorLine === -1 && editor.hasModel() ? editor.getModel()?.getLineCount() : options.focusEditorLine!;
+					const focusEditorLine = options.focusEditorLine!;
 					editor?.setSelection({
 						startLineNumber: focusEditorLine,
 						startColumn: 1,

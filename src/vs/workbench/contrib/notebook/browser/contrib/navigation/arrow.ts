@@ -118,7 +118,7 @@ registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 
 		const newCell = editor.cellAt(idx - 1);
 		const newFocusMode = newCell.cellKind === CellKind.Markup && newCell.getEditState() === CellEditState.Preview ? 'container' : 'editor';
-		await editor.focusNotebookCell(newCell, newFocusMode, { focusEditorLine: -1 });
+		await editor.focusNotebookCell(newCell, newFocusMode, { focusEditorLine: newCell.textBuffer.getLineCount() });
 		editor.cursorNavigationMode = true;
 	}
 });
