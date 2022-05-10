@@ -617,6 +617,7 @@ var requirejs = (function() {
 						const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
 						if (latestCell) {
 							latestCell.outputIsFocused = true;
+							this.notebookEditor.focusNotebookCell(latestCell, 'output', { skipReveal: true });
 						}
 					}
 					break;
@@ -1314,12 +1315,15 @@ var requirejs = (function() {
 		this.webview?.focus();
 	}
 
-	focusOutput(cellId: string) {
+	focusOutput(cellId: string, viewFocused: boolean) {
 		if (this._disposed) {
 			return;
 		}
 
-		this.webview?.focus();
+		if (!viewFocused) {
+			this.webview?.focus();
+		}
+
 		setTimeout(() => { // Need this, or focus decoration is not shown. No clue.
 			this._sendMessageToWebview({
 				type: 'focus-output',

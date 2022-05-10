@@ -1354,9 +1354,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			this._localStore.add(this._webview.webview.onDidBlur(() => {
 				this._outputFocus.set(false);
-				this.updateEditorFocus();
-
 				this._webviewFocused = false;
+
+				this.updateEditorFocus();
+				this.updateCellFocusMode();
 			}));
 
 			this._localStore.add(this._webview.webview.onDidFocus(() => {
@@ -1917,6 +1918,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this.viewModel?.setEditorFocus(focused);
 	}
 
+	updateCellFocusMode() {
+		const activeCell = this.getActiveCell();
+
+		if (activeCell?.focusMode === CellFocusMode.Output && !this._webviewFocused) {
+			// output previously has focus, but now it's blurred.
+			activeCell.focusMode = CellFocusMode.Container;
+		}
+	}
+
 	hasEditorFocus() {
 		// _editorFocus is driven by the FocusTracker, which is only guaranteed to _eventually_ fire blur.
 		// If we need to know whether we have focus at this instant, we need to check the DOM manually.
@@ -2340,15 +2350,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		} else if (focusItem === 'output') {
 			this.focusElement(cell);
 			this._cellFocusAria(cell, focusItem);
-			this._list.focusView();
+
+			if (!this.hasEditorFocus()) {
+				this._list.focusView();
+			}
 
 			if (!this._webview) {
 				return;
 			}
-			this._webview.focusOutput(cell.id);
+
+			this._webview.focusOutput(cell.id, this._webviewFocused);
 
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
-			cell.focusMode = CellFocusMode.Container;
+			cell.focusMode = CellFocusMode.Output;
 			if (!options?.skipReveal) {
 				this.revealInCenterIfOutsideViewport(cell);
 			}

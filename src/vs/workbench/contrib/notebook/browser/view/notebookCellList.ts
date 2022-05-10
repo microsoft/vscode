@@ -176,10 +176,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				}
 			});
 			this._previousFocusedElements = e.elements;
-
-			if (document.activeElement && document.activeElement.classList.contains('webview')) {
-				super.domFocus();
-			}
 		}));
 
 		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
