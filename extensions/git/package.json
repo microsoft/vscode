@@ -460,6 +460,21 @@
         "category": "Git"
       },
       {
+        "command": "git.revealFileInOS.linux",
+        "title": "%command.revealFileInOS.linux%",
+        "category": "Git"
+      },
+      {
+        "command": "git.revealFileInOS.mac",
+        "title": "%command.revealFileInOS.mac%",
+        "category": "Git"
+      },
+      {
+        "command": "git.revealFileInOS.windows",
+        "title": "%command.revealFileInOS.windows%",
+        "category": "Git"
+      },
+      {
         "command": "git.stashIncludeUntracked",
         "title": "%command.stashIncludeUntracked%",
         "category": "Git"
@@ -759,6 +774,18 @@
         },
         {
           "command": "git.revealInExplorer",
+          "when": "false"
+        },
+        {
+          "command": "git.revealFileInOS.linux",
+          "when": "false"
+        },
+        {
+          "command": "git.revealFileInOS.mac",
+          "when": "false"
+        },
+        {
+          "command": "git.revealFileInOS.windows",
           "when": "false"
         },
         {
@@ -1211,7 +1238,22 @@
         {
           "command": "git.revealInExplorer",
           "when": "scmProvider == git && scmResourceGroup == merge",
-          "group": "2_view"
+          "group": "2_view@1"
+        },
+        {
+          "command": "git.revealFileInOS.linux",
+          "when": "scmProvider == git && scmResourceGroup == merge && isLinux",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.mac",
+          "when": "scmProvider == git && scmResourceGroup == merge && isMac",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.windows",
+          "when": "scmProvider == git && scmResourceGroup == merge && isWindows",
+          "group": "2_view@2"
         },
         {
           "command": "git.openFile2",
@@ -1251,7 +1293,22 @@
         {
           "command": "git.revealInExplorer",
           "when": "scmProvider == git && scmResourceGroup == index",
-          "group": "2_view"
+          "group": "2_view@1"
+        },
+        {
+          "command": "git.revealFileInOS.linux",
+          "when": "scmProvider == git && scmResourceGroup == index && isLinux",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.mac",
+          "when": "scmProvider == git && scmResourceGroup == index && isMac",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.windows",
+          "when": "scmProvider == git && scmResourceGroup == index && isWindows",
+          "group": "2_view@2"
         },
         {
           "command": "git.openFile2",
@@ -1316,7 +1373,22 @@
         {
           "command": "git.revealInExplorer",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
-          "group": "2_view"
+          "group": "2_view@1"
+        },
+        {
+          "command": "git.revealFileInOS.linux",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && isLinux",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.mac",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && isMac",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.windows",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && isWindows",
+          "group": "2_view@2"
         },
         {
           "command": "git.openChange",
