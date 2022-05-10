@@ -1797,7 +1797,7 @@
           "description": "%config.branchRandomNameEnable%",
           "default": false
         },
-        "git.branchRandomName.Dictionary": {
+        "git.branchRandomName.dictionary": {
           "type": "array",
           "markdownDescription": "%config.branchRandomNameDictionary%",
           "items": {
