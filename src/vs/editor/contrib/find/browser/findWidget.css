@@ -166,7 +166,7 @@
 }
 
 .monaco-editor .find-widget .disabled {
-	color: var(--vscode-disabledForeground);
+	opacity: 0.4;
 	cursor: default;
 }
 
