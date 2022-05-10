@@ -1775,7 +1775,7 @@ export class CommandCenter {
 
 	private generateRandomBranchName(repository: Repository, separator: string): string {
 		const config = workspace.getConfiguration('git');
-		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary', ['adjectives', 'animals']);
+		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary')!;
 
 		const dictionaries: string[][] = [];
 		for (const dictionary of branchRandomNameDictionary) {
@@ -1816,7 +1816,7 @@ export class CommandCenter {
 
 	private async promptForBranchName(repository: Repository, defaultName?: string, initialValue?: string): Promise<string> {
 		const config = workspace.getConfiguration('git');
-		const branchPrefix = config.get<string>('branchPrefix', '');
+		const branchPrefix = config.get<string>('branchPrefix')!;
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
 		const sanitize = (name: string) => name ?
