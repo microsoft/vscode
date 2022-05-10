@@ -13,7 +13,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IShellIntegration, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellIntegration, ShellIntegrationTelemetry, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
 import { ICommandTracker, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -35,7 +35,6 @@ import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/dec
 import { ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ShellIntegrationTelemetry } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -614,7 +613,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			if (this._decorationAddon) {
 				this._decorationAddon.dispose();
 				this._decorationAddon = undefined;
-				this._telemetryService.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(ShellIntegrationTelemetry.DisabledByUser);
+				this._telemetryService.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(ShellIntegrationTelemetry.DisabledByUser
+				);
 			}
 		}
 	}
