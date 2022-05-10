@@ -357,7 +357,7 @@ steps:
         yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
         yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm"
       displayName: Build deb, rpm packages
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
     - script: |
