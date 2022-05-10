@@ -1828,7 +1828,7 @@ export class CommandCenter {
 		if (!rawBranchName) {
 			// Branch name
 			if (!initialValue) {
-				const branchRandomNameEnabled = config.get<boolean>('branchRandomName.Enable', false);
+				const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
 				initialValue = `${branchPrefix}${branchRandomNameEnabled ? this.generateRandomBranchName(repository, branchWhitespaceChar) : ''}`;
 			}
 
