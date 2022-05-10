@@ -1775,7 +1775,7 @@ export class CommandCenter {
 
 	private generateRandomBranchName(repository: Repository, separator: string): string {
 		const config = workspace.getConfiguration('git');
-		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.Dictionary', ['adjectives', 'animals']);
+		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary', ['adjectives', 'animals']);
 
 		const dictionaries: string[][] = [];
 		for (const dictionary of branchRandomNameDictionary) {
