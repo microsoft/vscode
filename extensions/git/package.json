@@ -22,7 +22,8 @@
   ],
   "activationEvents": [
     "*",
-    "onFileSystem:git"
+    "onFileSystem:git",
+    "onFileSystem:git-show"
   ],
   "extensionDependencies": [
     "vscode.git-base"

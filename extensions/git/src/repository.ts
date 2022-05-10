@@ -21,6 +21,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { ActionButtonCommand } from './actionButton';
+import { toMergeUris } from './mergeInfoProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -602,7 +603,19 @@ class ResourceCommandResolver {
 	resolveChangeCommand(resource: Resource): Command {
 		const title = this.getTitle(resource);
 
-		if (!resource.leftUri) {
+		if (!resource.leftUri && resource.rightUri && resource.type === Status.BOTH_MODIFIED) {
+			const mergeUris = toMergeUris(resource.rightUri);
+			return {
+				command: '_open.mergeEditor',
+				title: localize('open.merge', "Open Merge"),
+				arguments: [{
+					ancestor: mergeUris.base,
+					input1: mergeUris.ours,
+					input2: mergeUris.theirs,
+					output: resource.rightUri
+				}]
+			};
+		} else if (!resource.leftUri) {
 			return {
 				command: 'vscode.open',
 				title: localize('open', "Open"),

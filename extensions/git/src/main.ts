@@ -25,6 +25,7 @@ import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
 import { TerminalEnvironmentManager } from './terminal';
 import { OutputChannelLogger } from './log';
+import { GitMergeShowContentProvider } from './mergeInfoProvider';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -102,7 +103,8 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 		new GitFileSystemProvider(model),
 		new GitDecorations(model),
 		new GitProtocolHandler(),
-		new GitTimelineProvider(model, cc)
+		new GitTimelineProvider(model, cc),
+		new GitMergeShowContentProvider(model)
 	);
 
 	checkGitVersion(info);
