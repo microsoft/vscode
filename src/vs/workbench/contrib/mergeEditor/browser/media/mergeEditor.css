@@ -2,3 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .merge-editor .code-view>.title {
+	padding: 0 0 0 10px;
+	height: 30px;
+	display: flex;
+	align-content: center;
+}
+
+.monaco-workbench .merge-editor .code-view>.title .monaco-icon-label {
+	margin: auto 0;
+}

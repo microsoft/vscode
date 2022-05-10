@@ -17,7 +17,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Direction, Grid, IView, IViewSize, LayoutPriority } from 'vs/base/browser/ui/grid/grid';
+import { Direction, Grid, IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { ITextModel } from 'vs/editor/common/model';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -25,6 +25,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { Color } from 'vs/base/common/color';
+import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { localize } from 'vs/nls';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export class MergeEditor extends EditorPane {
 
@@ -40,6 +43,7 @@ export class MergeEditor extends EditorPane {
 
 	constructor(
 		@IInstantiationService private readonly instantiation: IInstantiationService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
@@ -79,6 +83,7 @@ export class MergeEditor extends EditorPane {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
+		parent.classList.add('merge-editor');
 		this._grid = new Grid(this.inputResultView, { styles: { separatorBorder: this.theme.getColor(settingsSashBorder) ?? Color.transparent } });
 
 		this._grid.addView(this.inputOneView, Sizing.Distribute, this.inputResultView, Direction.Up);
@@ -99,14 +104,10 @@ export class MergeEditor extends EditorPane {
 		this._sessionDisposables.clear();
 		const model = await input.resolve();
 
-		this.inputOneView.setModel(model.inputOne);
-		this.inputTwoView.setModel(model.inputTwo);
-		this.inputResultView.setModel(model.result);
+		this.inputOneView.setModel(model.inputOne, localize('yours', 'Yours'), undefined);
+		this.inputTwoView.setModel(model.inputTwo, localize('theirs', 'Theirs',), undefined);
+		this.inputResultView.setModel(model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }));
 
-		console.log(model);
-		// if (token.isCancellationRequested) {
-		// 	return;
-		// }
 	}
 
 	override clearInput(): void {
@@ -116,36 +117,47 @@ export class MergeEditor extends EditorPane {
 }
 
 class CodeEditorView implements IView {
-	preferredWidth?: number | undefined;
-	preferredHeight?: number | undefined;
+
+	// preferredWidth?: number | undefined;
+	// preferredHeight?: number | undefined;
 
 	element: HTMLElement = document.createElement('div');
+	private _titleElement = document.createElement('div');
+	private _editorElement = document.createElement('div');
 
 	minimumWidth: number = 10;
 	maximumWidth: number = Number.MAX_SAFE_INTEGER;
 	minimumHeight: number = 10;
 	maximumHeight: number = Number.MAX_SAFE_INTEGER;
-	priority?: LayoutPriority | undefined;
-	snap?: boolean | undefined;
+	// priority?: LayoutPriority | undefined;
+	// snap?: boolean | undefined;
 
 	private readonly _onDidChange = new Emitter<IViewSize | undefined>();
 	readonly onDidChange = this._onDidChange.event;
 
+	private _title = new IconLabel(this._titleElement, { supportIcons: true });
+
 	public readonly editor = this.instantiationService.createInstance(
 		CodeEditorWidget,
-		this.element,
+		this._editorElement,
 		{ minimap: { enabled: false } },
 		{}
 	);
+
 
 	constructor(
 		@IInstantiationService
 		private readonly instantiationService: IInstantiationService
 	) {
+		this.element.classList.add('code-view');
+		this._titleElement.classList.add('title');
+		this.element.appendChild(this._titleElement);
+		this.element.appendChild(this._editorElement);
 	}
 
-	public setModel(model: ITextModel | undefined): void {
+	public setModel(model: ITextModel, title: string, description: string | undefined): void {
 		this.editor.setModel(model);
+		this._title.setLabel(title, description);
 	}
 
 	layout(width: number, height: number, top: number, left: number): void {
@@ -153,7 +165,7 @@ class CodeEditorView implements IView {
 		this.element.style.height = `${height}px`;
 		this.element.style.top = `${top}px`;
 		this.element.style.left = `${left}px`;
-		this.editor.layout({ width, height });
+		this.editor.layout({ width, height: height - this._titleElement.clientHeight });
 	}
 }
 
