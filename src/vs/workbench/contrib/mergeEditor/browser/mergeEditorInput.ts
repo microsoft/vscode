@@ -65,6 +65,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 		};
 		textFileService.files.onDidCreate(handleDidCreate, this, modelListener);
 		textFileService.files.models.forEach(handleDidCreate);
+		this._store.add(modelListener);
 	}
 
 	override dispose(): void {
