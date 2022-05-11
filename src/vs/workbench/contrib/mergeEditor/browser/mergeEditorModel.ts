@@ -19,43 +19,43 @@ export class MergeEditorModelFactory {
 
 	public async create(
 		ancestor: ITextModel,
-		inputOne: ITextModel,
-		inputTwo: ITextModel,
+		input1: ITextModel,
+		input2: ITextModel,
 		result: ITextModel,
 	): Promise<MergeEditorModel> {
 
-		const ancestorToInputOneDiffPromise = this._editorWorkerService.computeDiff(
+		const ancestorToInput1DiffPromise = this._editorWorkerService.computeDiff(
 			ancestor.uri,
-			inputOne.uri,
+			input1.uri,
 			false,
 			1000
 		);
-		const ancestorToInputTwoDiffPromise = this._editorWorkerService.computeDiff(
+		const ancestorToInput2DiffPromise = this._editorWorkerService.computeDiff(
 			ancestor.uri,
-			inputTwo.uri,
+			input2.uri,
 			false,
 			1000
 		);
 
-		const [ancestorToInputOneDiff, ancestorToInputTwoDiff] = await Promise.all([
-			ancestorToInputOneDiffPromise,
-			ancestorToInputTwoDiffPromise,
+		const [ancestorToInput1Diff, ancestorToInput2Diff] = await Promise.all([
+			ancestorToInput1DiffPromise,
+			ancestorToInput2DiffPromise,
 		]);
 
 		const changesInput1 =
-			ancestorToInputOneDiff?.changes.map((c) =>
-				LineDiff.fromLineChange(c, ancestor, inputOne)
+			ancestorToInput1Diff?.changes.map((c) =>
+				LineDiff.fromLineChange(c, ancestor, input1)
 			) || [];
 		const changesInput2 =
-			ancestorToInputTwoDiff?.changes.map((c) =>
-				LineDiff.fromLineChange(c, ancestor, inputTwo)
+			ancestorToInput2Diff?.changes.map((c) =>
+				LineDiff.fromLineChange(c, ancestor, input2)
 			) || [];
 
 		return new MergeEditorModel(
 			InternalSymbol,
 			ancestor,
-			inputOne,
-			inputTwo,
+			input1,
+			input2,
 			result,
 			changesInput1,
 			changesInput2,
@@ -71,8 +71,8 @@ export class MergeEditorModel extends EditorModel {
 	constructor(
 		symbol: typeof InternalSymbol,
 		readonly ancestor: ITextModel,
-		readonly inputOne: ITextModel,
-		readonly inputTwo: ITextModel,
+		readonly input1: ITextModel,
+		readonly input2: ITextModel,
 		readonly result: ITextModel,
 		private readonly inputOneLinesDiffs: readonly LineDiff[],
 		private readonly inputTwoLinesDiffs: readonly LineDiff[],
@@ -108,6 +108,11 @@ export class MergeEditorModel extends EditorModel {
 	public readonly mergeableDiffs = MergeableDiff.fromDiffs(this.inputOneLinesDiffs, this.inputTwoLinesDiffs);
 
 	public getState(conflict: MergeableDiff): MergeState | undefined {
+		const existingDiff = this.resultEdits.findConflictingDiffs(conflict.originalRange);
+		if (existingDiff) {
+			//existingDiff.
+		}
+
 		return undefined;
 	}
 

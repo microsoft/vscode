@@ -35,8 +35,8 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 
 	constructor(
 		private readonly _anchestor: URI,
-		private readonly _inputOne: URI,
-		private readonly _inputTwo: URI,
+		private readonly _input1: URI,
+		private readonly _input2: URI,
 		private readonly _result: URI,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
@@ -94,21 +94,21 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 		if (!this._model) {
 
 			const anchestor = await this._textModelService.createModelReference(this._anchestor);
-			const inputOne = await this._textModelService.createModelReference(this._inputOne);
-			const inputTwo = await this._textModelService.createModelReference(this._inputTwo);
+			const input1 = await this._textModelService.createModelReference(this._input1);
+			const input2 = await this._textModelService.createModelReference(this._input2);
 			const result = await this._textModelService.createModelReference(this._result);
 
 			this._model = await this.mergeEditorModelFactory.create(
 				anchestor.object.textEditorModel,
-				inputOne.object.textEditorModel,
-				inputTwo.object.textEditorModel,
+				input1.object.textEditorModel,
+				input2.object.textEditorModel,
 				result.object.textEditorModel
 			);
 
 			this._store.add(this._model);
 			this._store.add(anchestor);
-			this._store.add(inputOne);
-			this._store.add(inputTwo);
+			this._store.add(input1);
+			this._store.add(input2);
 			this._store.add(result);
 
 			// result.object.
@@ -121,16 +121,16 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 			return false;
 		}
 		return isEqual(this._anchestor, otherInput._anchestor)
-			&& isEqual(this._inputOne, otherInput._inputOne)
-			&& isEqual(this._inputTwo, otherInput._inputTwo)
+			&& isEqual(this._input1, otherInput._input1)
+			&& isEqual(this._input2, otherInput._input2)
 			&& isEqual(this._result, otherInput._result);
 	}
 
 	toJSON(): MergeEditorInputJSON {
 		return {
 			anchestor: this._anchestor,
-			inputOne: this._inputOne,
-			inputTwo: this._inputTwo,
+			inputOne: this._input1,
+			inputTwo: this._input2,
 			result: this._result,
 		};
 	}
