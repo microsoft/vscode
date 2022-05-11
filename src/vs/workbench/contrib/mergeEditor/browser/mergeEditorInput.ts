@@ -14,7 +14,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IUntypedEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorModel';
+import { MergeEditorModel, MergeEditorModelFactory } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
@@ -31,6 +31,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 
 	private _model?: MergeEditorModel;
 	private _outTextModel?: ITextFileEditorModel;
+	private readonly mergeEditorModelFactory = this._instaService.createInstance(MergeEditorModelFactory);
 
 	constructor(
 		private readonly _anchestor: URI,
@@ -97,8 +98,7 @@ export class MergeEditorInput extends AbstractTextResourceEditorInput {
 			const inputTwo = await this._textModelService.createModelReference(this._inputTwo);
 			const result = await this._textModelService.createModelReference(this._result);
 
-			this._model = this._instaService.createInstance(
-				MergeEditorModel,
+			this._model = await this.mergeEditorModelFactory.create(
 				anchestor.object.textEditorModel,
 				inputOne.object.textEditorModel,
 				inputTwo.object.textEditorModel,

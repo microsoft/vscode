@@ -748,12 +748,28 @@ export class ArrayQueue<T> {
 	}
 
 	peek(): T | undefined {
+		if (this.length === 0) {
+			return undefined;
+		}
 		return this.items[this.firstIdx];
+	}
+
+	peekLast(): T | undefined {
+		if (this.length === 0) {
+			return undefined;
+		}
+		return this.items[this.lastIdx];
 	}
 
 	dequeue(): T | undefined {
 		const result = this.items[this.firstIdx];
 		this.firstIdx++;
+		return result;
+	}
+
+	removeLast(): T | undefined {
+		const result = this.items[this.lastIdx];
+		this.lastIdx--;
 		return result;
 	}
 
