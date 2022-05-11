@@ -112,7 +112,8 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 				const cmd = quote(args.shift()!);
 				command += (cmd[0] === '\'') ? `& ${cmd} ` : `${cmd} `;
 				for (const a of args) {
-					command += `${quote(a)} `;
+					command += (a === '<' || a === '>') ? a : quote(a);
+					command += ' ';
 				}
 			}
 			break;
@@ -145,7 +146,8 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 				}
 			}
 			for (const a of args) {
-				command += `${quote(a)} `;
+				command += (a === '<' || a === '>') ? a : quote(a);
+				command += ' ';
 			}
 			if (env) {
 				command += '"';
@@ -179,7 +181,8 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 				command += ' ';
 			}
 			for (const a of args) {
-				command += `${quote(a)} `;
+				command += (a === '<' || a === '>') ? a : quote(a);
+				command += ' ';
 			}
 			break;
 		}
