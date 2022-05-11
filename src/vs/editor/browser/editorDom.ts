@@ -166,9 +166,9 @@ export class EditorMouseEventFactory {
 		});
 	}
 
-	public onPointerDown(target: HTMLElement, callback: (e: EditorMouseEvent, pointerType: string, pointerId: number) => void): IDisposable {
+	public onPointerDown(target: HTMLElement, callback: (e: EditorMouseEvent, pointerId: number) => void): IDisposable {
 		return dom.addDisposableListener(target, dom.EventType.POINTER_DOWN, (e: PointerEvent) => {
-			callback(this._create(e), e.pointerType, e.pointerId);
+			callback(this._create(e), e.pointerId);
 		});
 	}
 
