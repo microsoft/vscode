@@ -17,8 +17,8 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Direction, Grid, IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { Sizing } from 'vs/base/browser/ui/splitview/splitview';
+import { Grid, IView, IViewSize, SerializableGrid } from 'vs/base/browser/ui/grid/grid';
+import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { ITextModel } from 'vs/editor/common/model';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -117,10 +117,29 @@ export class MergeEditor extends EditorPane {
 
 	protected createEditor(parent: HTMLElement): void {
 		parent.classList.add('merge-editor');
-		this._grid = new Grid(this.inputResultView, { styles: { separatorBorder: this.theme.getColor(settingsSashBorder) ?? Color.transparent } });
 
-		this._grid.addView(this.inputOneView, Sizing.Distribute, this.inputResultView, Direction.Up);
-		this._grid.addView(this.inputTwoView, Sizing.Distribute, this.inputOneView, Direction.Right);
+		this._grid = SerializableGrid.from<any /*TODO@jrieken*/>({
+			orientation: Orientation.VERTICAL,
+			size: 100,
+			groups: [
+				{
+					size: 38,
+					groups: [{
+						data: this.inputOneView
+					}, {
+						data: this.inputTwoView
+					}]
+				},
+				{
+					size: 62,
+					data: this.inputResultView
+				},
+			]
+		}, {
+			styles: { separatorBorder: this.theme.getColor(settingsSashBorder) ?? Color.transparent },
+			proportionalLayout: true
+		});
+
 		reset(parent, this._grid.element);
 	}
 
