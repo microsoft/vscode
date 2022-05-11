@@ -87,7 +87,7 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 			return;
 		}
 
-		context.notebookEditor.focusNotebookCell(context.cell, 'editor');
+		await context.notebookEditor.focusNotebookCell(context.cell, 'editor');
 	}
 });
 
@@ -139,7 +139,7 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 			context.cell.updateEditState(CellEditState.Preview, QUIT_EDIT_CELL_COMMAND_ID);
 		}
 
-		context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
+		await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
 	}
 });
 
@@ -499,7 +499,7 @@ async function setCellToLanguage(languageId: string, context: IChangeCellContext
 		const newCell = context.notebookEditor.cellAt(idx);
 
 		if (newCell) {
-			context.notebookEditor.focusNotebookCell(newCell, 'editor');
+			await context.notebookEditor.focusNotebookCell(newCell, 'editor');
 		}
 	} else if (languageId !== 'markdown' && context.cell?.cellKind === CellKind.Markup) {
 		await changeCellToKind(CellKind.Code, { cell: context.cell, notebookEditor: context.notebookEditor, ui: true }, languageId);
