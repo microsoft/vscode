@@ -100,5 +100,6 @@
 		"comments": "inline",
 		"strings": "inline"
 	},
-	"githubPullRequests.assignCreated": "${user}"
+	"githubPullRequests.assignCreated": "${user}",
+	"githubPullRequests.defaultMergeMethod": "squash"
 }
