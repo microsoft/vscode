@@ -13,7 +13,7 @@
 		"sideBarTitle.foreground": "#BBBBBB",
 		"input.placeholderForeground": "#A6A6A6",
 		"menu.background": "#303031",
-		"menu.foreground": "#ffffff",
+		"menu.foreground": "#CCCCCC",
 		"statusBarItem.remoteForeground": "#FFF",
 		"statusBarItem.remoteBackground": "#16825D",
 		"ports.iconRunningProcessForeground": "#369432",
