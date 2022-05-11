@@ -915,10 +915,11 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(model.normalizeIndentation('  '), '  ');
 		assert.strictEqual(model.normalizeIndentation(' '), ' ');
 		assert.strictEqual(model.normalizeIndentation(''), '');
-		assert.strictEqual(model.normalizeIndentation(' \t   '), '\t\t');
-		assert.strictEqual(model.normalizeIndentation(' \t  '), '\t   ');
-		assert.strictEqual(model.normalizeIndentation(' \t '), '\t  ');
-		assert.strictEqual(model.normalizeIndentation(' \t'), '\t ');
+		assert.strictEqual(model.normalizeIndentation(' \t    '), '\t\t');
+		assert.strictEqual(model.normalizeIndentation(' \t   '), '\t   ');
+		assert.strictEqual(model.normalizeIndentation(' \t  '), '\t  ');
+		assert.strictEqual(model.normalizeIndentation(' \t '), '\t ');
+		assert.strictEqual(model.normalizeIndentation(' \t'), '\t');
 
 		assert.strictEqual(model.normalizeIndentation('\ta'), '\ta');
 		assert.strictEqual(model.normalizeIndentation('    a'), '\ta');
@@ -926,10 +927,11 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(model.normalizeIndentation('  a'), '  a');
 		assert.strictEqual(model.normalizeIndentation(' a'), ' a');
 		assert.strictEqual(model.normalizeIndentation('a'), 'a');
-		assert.strictEqual(model.normalizeIndentation(' \t   a'), '\t\ta');
-		assert.strictEqual(model.normalizeIndentation(' \t  a'), '\t   a');
-		assert.strictEqual(model.normalizeIndentation(' \t a'), '\t  a');
-		assert.strictEqual(model.normalizeIndentation(' \ta'), '\t a');
+		assert.strictEqual(model.normalizeIndentation(' \t    a'), '\t\ta');
+		assert.strictEqual(model.normalizeIndentation(' \t   a'), '\t   a');
+		assert.strictEqual(model.normalizeIndentation(' \t  a'), '\t  a');
+		assert.strictEqual(model.normalizeIndentation(' \t a'), '\t a');
+		assert.strictEqual(model.normalizeIndentation(' \ta'), '\ta');
 
 		model.dispose();
 	});
@@ -943,10 +945,11 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(model.normalizeIndentation('  a'), '  a');
 		assert.strictEqual(model.normalizeIndentation(' a'), ' a');
 		assert.strictEqual(model.normalizeIndentation('a'), 'a');
-		assert.strictEqual(model.normalizeIndentation(' \t   a'), '        a');
-		assert.strictEqual(model.normalizeIndentation(' \t  a'), '       a');
-		assert.strictEqual(model.normalizeIndentation(' \t a'), '      a');
-		assert.strictEqual(model.normalizeIndentation(' \ta'), '     a');
+		assert.strictEqual(model.normalizeIndentation(' \t    a'), '        a');
+		assert.strictEqual(model.normalizeIndentation(' \t   a'), '       a');
+		assert.strictEqual(model.normalizeIndentation(' \t  a'), '      a');
+		assert.strictEqual(model.normalizeIndentation(' \t a'), '     a');
+		assert.strictEqual(model.normalizeIndentation(' \ta'), '    a');
 
 		model.dispose();
 	});

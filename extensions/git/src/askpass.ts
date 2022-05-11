@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, InputBoxOptions, Uri, OutputChannel, Disposable, workspace } from 'vscode';
-import { IDisposable, EmptyDisposable, toDisposable, logTimestamp } from './util';
+import { window, InputBoxOptions, Uri, Disposable, workspace } from 'vscode';
+import { IDisposable, EmptyDisposable, toDisposable } from './util';
 import * as path from 'path';
 import { IIPCHandler, IIPCServer, createIPCServer } from './ipc/ipcServer';
 import { CredentialsProvider, Credentials } from './api/git';
+import { OutputChannelLogger } from './log';
 
 export class Askpass implements IIPCHandler {
 
@@ -15,11 +16,11 @@ export class Askpass implements IIPCHandler {
 	private cache = new Map<string, Credentials>();
 	private credentialsProviders = new Set<CredentialsProvider>();
 
-	static async create(outputChannel: OutputChannel, context?: string): Promise<Askpass> {
+	static async create(outputChannelLogger: OutputChannelLogger, context?: string): Promise<Askpass> {
 		try {
 			return new Askpass(await createIPCServer(context));
 		} catch (err) {
-			outputChannel.appendLine(`${logTimestamp()} [error] Failed to create git askpass IPC: ${err}`);
+			outputChannelLogger.logError(`Failed to create git askpass IPC: ${err}`);
 			return new Askpass();
 		}
 	}

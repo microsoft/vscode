@@ -528,10 +528,12 @@ export abstract class AbstractTimerService implements ITimerService {
 		for (const [source, marks] of this.getPerformanceMarks()) {
 			type Mark = { source: string; name: string; relativeStartTime: number; startTime: number };
 			type MarkClassification = {
-				source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-				name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-				relativeStartTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-				startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				owner: 'jrieken';
+				comment: 'Information about a performance marker';
+				source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Where this marker was generated, e.g main, renderer, extension host' };
+				name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of this marker (as defined in source code)' };
+				relativeStartTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The duration between the previous and this marker' };
+				startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comments: 'The absolute timestamp (unix time)' };
 			};
 
 			let lastMark: perf.PerformanceMark = marks[0];

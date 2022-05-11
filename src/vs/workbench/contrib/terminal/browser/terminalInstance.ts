@@ -1692,6 +1692,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.xterm.raw.options.disableStdin = false;
 				this._isExiting = false;
 			}
+			this.xterm.clearDecorations();
 		}
 
 		// Dispose the environment info widget if it exists

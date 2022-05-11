@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { addDisposableListener, computeClippingRect, EventType } from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -283,14 +283,8 @@ export class WebviewViewPane extends ViewPane {
 		}
 
 		if (this._rootContainer) {
-			const containerRect = this._container.getBoundingClientRect();
-			const rootRect = this._rootContainer.getBoundingClientRect();
-
-			const clipTop = Math.max(rootRect.top - containerRect.top, 0);
-			const clipRight = Math.max(containerRect.width - (containerRect.right - rootRect.right), 0);
-			const clipBottom = Math.max(containerRect.height - (containerRect.bottom - rootRect.bottom), 0);
-			const clipLeft = Math.max(rootRect.left - containerRect.left, 0);
-			webviewEntry.container.style.clip = `rect(${clipTop}px, ${clipRight}px, ${clipBottom}px, ${clipLeft}px)`;
+			const clip = computeClippingRect(this._container, this._rootContainer);
+			webviewEntry.container.style.clip = `rect(${clip.top}px, ${clip.right}px, ${clip.bottom}px, ${clip.left}px)`;
 		}
 	}
 

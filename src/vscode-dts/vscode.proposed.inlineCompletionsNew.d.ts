@@ -35,11 +35,16 @@ declare module 'vscode' {
 		/**
 		 * Provides inline completion items for the given position and document.
 		 * If inline completions are enabled, this method will be called whenever the user stopped typing.
-		 * It will also be called when the user explicitly triggers inline completions or asks for the next or previous inline completion.
+		 * It will also be called when the user explicitly triggers inline completions or explicitly asks for the next or previous inline completion.
+		 * In that case, all available inline completions should be returned.
 		 * `context.triggerKind` can be used to distinguish between these scenarios.
+		 *
+		 * @param document The document inline completions are requested for.
+		 * @param position The position inline completions are requested for.
+		 * @param context A context object with additional information.
+		 * @param token A cancellation token.
+		 * @return An array of completion items or a thenable that resolves to an array of completion items.
 		 */
-		// TODO@API clarify "or asks for the next or previous inline completion"? Why would I return N items in the first place?
-		// TODO@API jsdoc for args, return-type
 		provideInlineCompletionItems(document: TextDocument, position: Position, context: InlineCompletionContextNew, token: CancellationToken): ProviderResult<InlineCompletionListNew | InlineCompletionItemNew[]>;
 	}
 
@@ -101,7 +106,6 @@ declare module 'vscode' {
 	 * Represents a collection of {@link InlineCompletionItemNew inline completion items} to be presented
 	 * in the editor.
 	 */
-	// TODO@API let keep this in `Additions` because of the insecurity about commands vs description
 	export class InlineCompletionListNew {
 		/**
 		 * The inline completion items.
@@ -113,7 +117,9 @@ declare module 'vscode' {
 		 */
 		commands?: Command[];
 
-		// TODO@API jsdocs
+		/**
+		 * Creates a new list of inline completion items with optionally given commands.
+		*/
 		constructor(items: InlineCompletionItemNew[], commands?: Command[]);
 	}
 
@@ -141,11 +147,7 @@ declare module 'vscode' {
 		 * The range to replace.
 		 * Must begin and end on the same line.
 		 *
-		 * TODO@API caching is an imlementation detail. drop that explanation?
-		 * Prefer replacements over insertions to avoid cache invalidation:
-		 * Instead of reporting a completion that inserts an extension at the end of a word,
-		 * the whole word (or even the whole line) should be replaced with the extended word (or extended line) to improve the UX.
-		 * That way, when the user presses backspace, the cache can be reused and there is no flickering.
+		 * Prefer replacements over insertions to provide a better experience when the user deletes typed text.
 		 */
 		range?: Range;
 

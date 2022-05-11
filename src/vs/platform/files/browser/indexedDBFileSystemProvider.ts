@@ -13,7 +13,19 @@ import { isString } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { createFileSystemProviderError, FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { IndexedDB } from 'vs/base/browser/indexedDB';
+import { DBClosedError, IndexedDB } from 'vs/base/browser/indexedDB';
+
+export type IndexedDBFileSystemProviderErrorDataClassification = {
+	readonly scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	readonly operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	readonly code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+};
+
+export type IndexedDBFileSystemProviderErrorData = {
+	readonly scheme: string;
+	readonly operation: string;
+	readonly code: string;
+};
 
 // Standard FS Errors (expected to be thrown in production when invalid FS operations are requested)
 const ERR_FILE_NOT_FOUND = createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
@@ -21,7 +33,7 @@ const ERR_FILE_IS_DIR = createFileSystemProviderError(localize('fileIsDirectory'
 const ERR_FILE_NOT_DIR = createFileSystemProviderError(localize('fileNotDirectory', "File is not a directory"), FileSystemProviderErrorCode.FileNotADirectory);
 const ERR_DIR_NOT_EMPTY = createFileSystemProviderError(localize('dirIsNotEmpty', "Directory is not empty"), FileSystemProviderErrorCode.Unknown);
 
-// Arbitrary Internal Errors (should never be thrown in production)
+// Arbitrary Internal Errors
 const ERR_UNKNOWN_INTERNAL = (message: string) => createFileSystemProviderError(localize('internal', "Internal error occurred in IndexedDB File System Provider. ({0})", message), FileSystemProviderErrorCode.Unknown);
 
 type DirEntry = [string, FileType];
@@ -44,7 +56,6 @@ class IndexedDBFileSystemNode {
 	constructor(private entry: IndexedDBFileSystemEntry) {
 		this.type = entry.type;
 	}
-
 
 	read(path: string): IndexedDBFileSystemEntry | undefined {
 		return this.doRead(path.split('/').filter(p => p.length));
@@ -237,12 +248,15 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
+	private readonly _onReportError = this._register(new Emitter<IndexedDBFileSystemProviderErrorData>());
+	readonly onReportError = this._onReportError.event;
+
 	private readonly versions = new Map<string, number>();
 
 	private cachedFiletree: Promise<IndexedDBFileSystemNode> | undefined;
 	private writeManyThrottler: Throttler;
 
-	constructor(scheme: string, private indexedDB: IndexedDB, private readonly store: string, watchCrossWindowChanges: boolean) {
+	constructor(readonly scheme: string, private indexedDB: IndexedDB, private readonly store: string, watchCrossWindowChanges: boolean) {
 		super();
 		this.writeManyThrottler = new Throttler();
 
@@ -291,46 +305,61 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 	}
 
 	async readdir(resource: URI): Promise<DirEntry[]> {
-		const entry = (await this.getFiletree()).read(resource.path);
-		if (!entry) {
-			// Dirs aren't saved to disk, so empty dirs will be lost on reload.
-			// Thus we have two options for what happens when you try to read a dir and nothing is found:
-			// - Throw FileSystemProviderErrorCode.FileNotFound
-			// - Return []
-			// We choose to return [] as creating a dir then reading it (even after reload) should not throw an error.
-			return [];
-		}
-		if (entry.type !== FileType.Directory) {
-			throw ERR_FILE_NOT_DIR;
-		}
-		else {
-			return [...entry.children.entries()].map(([name, node]) => [name, node.type]);
+		try {
+			const entry = (await this.getFiletree()).read(resource.path);
+			if (!entry) {
+				// Dirs aren't saved to disk, so empty dirs will be lost on reload.
+				// Thus we have two options for what happens when you try to read a dir and nothing is found:
+				// - Throw FileSystemProviderErrorCode.FileNotFound
+				// - Return []
+				// We choose to return [] as creating a dir then reading it (even after reload) should not throw an error.
+				return [];
+			}
+			if (entry.type !== FileType.Directory) {
+				throw ERR_FILE_NOT_DIR;
+			}
+			else {
+				return [...entry.children.entries()].map(([name, node]) => [name, node.type]);
+			}
+		} catch (error) {
+			this.reportError('readDir', error);
+			throw error;
 		}
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
-		const result = await this.indexedDB.runInTransaction(this.store, 'readonly', objectStore => objectStore.get(resource.path));
-		if (result === undefined) {
-			throw ERR_FILE_NOT_FOUND;
-		}
-		const buffer = result instanceof Uint8Array ? result : isString(result) ? VSBuffer.fromString(result).buffer : undefined;
-		if (buffer === undefined) {
-			throw ERR_UNKNOWN_INTERNAL(`IndexedDB entry at "${resource.path}" in unexpected format`);
-		}
+		try {
+			const result = await this.indexedDB.runInTransaction(this.store, 'readonly', objectStore => objectStore.get(resource.path));
+			if (result === undefined) {
+				throw ERR_FILE_NOT_FOUND;
+			}
+			const buffer = result instanceof Uint8Array ? result : isString(result) ? VSBuffer.fromString(result).buffer : undefined;
+			if (buffer === undefined) {
+				throw ERR_UNKNOWN_INTERNAL(`IndexedDB entry at "${resource.path}" in unexpected format`);
+			}
 
-		// update cache
-		const fileTree = await this.getFiletree();
-		fileTree.add(resource.path, { type: 'file', size: buffer.byteLength });
+			// update cache
+			const fileTree = await this.getFiletree();
+			fileTree.add(resource.path, { type: 'file', size: buffer.byteLength });
 
-		return buffer;
+			return buffer;
+		} catch (error) {
+			this.reportError('readFile', error);
+			throw error;
+		}
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
-		const existing = await this.stat(resource).catch(() => undefined);
-		if (existing?.type === FileType.Directory) {
-			throw ERR_FILE_IS_DIR;
+		try {
+			const existing = await this.stat(resource).catch(() => undefined);
+			if (existing?.type === FileType.Directory) {
+				throw ERR_FILE_IS_DIR;
+			}
+			await this.bulkWrite([[resource, content]]);
+		} catch (error) {
+			this.reportError('writeFile', error);
+			throw error;
 		}
-		await this.bulkWrite([[resource, content]]);
 	}
 
 	async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
@@ -480,6 +509,10 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 
 	async reset(): Promise<void> {
 		await this.indexedDB.runInTransaction(this.store, 'readwrite', objectStore => objectStore.clear());
+	}
+
+	private reportError(operation: string, error: Error): void {
+		this._onReportError.fire({ scheme: this.scheme, operation, code: error instanceof FileSystemProviderError || error instanceof DBClosedError ? error.code : 'unknown' });
 	}
 
 }

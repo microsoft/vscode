@@ -273,6 +273,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	 * It is not globally unique in order to limit it to one character.
 	 */
 	private readonly _instanceId: string;
+	private _deltaDecorationCallCnt: number = 0;
 	private _lastDecorationId: number;
 	private _decorations: { [decorationId: string]: IntervalNode };
 	private _decorationsTree: DecorationsTrees;
@@ -1613,10 +1614,16 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 
 		try {
+			this._deltaDecorationCallCnt++;
+			if (this._deltaDecorationCallCnt > 1) {
+				console.warn(`Invoking deltaDecorations recursively could lead to leaking decorations.`);
+				onUnexpectedError(new Error(`Invoking deltaDecorations recursively could lead to leaking decorations.`));
+			}
 			this._onDidChangeDecorations.beginDeferredEmit();
 			return this._deltaDecorationsImpl(ownerId, oldDecorations, newDecorations);
 		} finally {
 			this._onDidChangeDecorations.endDeferredEmit();
+			this._deltaDecorationCallCnt--;
 		}
 	}
 

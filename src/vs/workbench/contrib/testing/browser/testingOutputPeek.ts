@@ -759,7 +759,6 @@ class TestingOutputPeek extends PeekViewWidget {
 
 		this.show(dto.revealLocation.range, TestingOutputPeek.lastHeightInLines || hintMessagePeekHeight(message));
 		this.editor.revealPositionNearTop(dto.revealLocation.range.getStartPosition(), ScrollType.Smooth);
-		this.editor.focus();
 
 		return this.showInPlace(dto);
 	}
@@ -1360,6 +1359,7 @@ class OutputPeekTree extends Disposable {
 
 			this.tree.setFocus([messageNode]);
 			this.tree.setSelection([messageNode]);
+			this.tree.domFocus();
 		}));
 
 		this._register(this.tree.onDidOpen(async e => {

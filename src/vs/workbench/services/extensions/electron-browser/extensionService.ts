@@ -306,6 +306,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	private _sendExtensionHostCrashTelemetry(code: number, signal: string | null, activatedExtensions: ExtensionIdentifier[]): void {
 		type ExtensionHostCrashClassification = {
+			owner: 'alexdima';
+			comment: 'The extension host has terminated unexpectedly';
 			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			signal: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			extensionIds: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
@@ -323,6 +325,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		for (const extensionId of activatedExtensions) {
 			type ExtensionHostCrashExtensionClassification = {
+				owner: 'alexdima';
+				comment: 'The extension host has terminated unexpectedly';
 				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				signal: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };

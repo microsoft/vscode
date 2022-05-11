@@ -891,6 +891,22 @@ declare namespace monaco.editor {
 	export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): IDisposable;
 
 	/**
+	 * Emitted when an diff editor is created.
+	 * @event
+	 */
+	export function onDidCreateDiffEditor(listener: (diffEditor: IDiffEditor) => void): IDisposable;
+
+	/**
+	 * Get all the created editors.
+	 */
+	export function getEditors(): readonly ICodeEditor[];
+
+	/**
+	 * Get all the created diff editors.
+	 */
+	export function getDiffEditors(): readonly IDiffEditor[];
+
+	/**
 	 * Create a new diff editor under `domElement`.
 	 * `domElement` should be empty (not contain other dom nodes).
 	 * The editor will read the size of `domElement`.
@@ -1265,13 +1281,13 @@ declare namespace monaco.editor {
 	export interface IStandaloneCodeEditor extends ICodeEditor {
 		updateOptions(newOptions: IEditorOptions & IGlobalEditorOptions): void;
 		addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
-		createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
+		createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T>;
 		addAction(descriptor: IActionDescriptor): IDisposable;
 	}
 
 	export interface IStandaloneDiffEditor extends IDiffEditor {
 		addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
-		createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
+		createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T>;
 		addAction(descriptor: IActionDescriptor): IDisposable;
 		getOriginalEditor(): IStandaloneCodeEditor;
 		getModifiedEditor(): IStandaloneCodeEditor;
@@ -1280,11 +1296,13 @@ declare namespace monaco.editor {
 		(...args: any[]): void;
 	}
 
-	export interface IContextKey<T> {
+	export interface IContextKey<T extends ContextKeyValue = ContextKeyValue> {
 		set(value: T): void;
 		reset(): void;
 		get(): T | undefined;
 	}
+
+	export type ContextKeyValue = null | undefined | boolean | number | string | Array<null | undefined | boolean | number | string> | Record<string, null | undefined | boolean | number | string>;
 
 	export interface IEditorOverrideServices {
 		[index: string]: any;

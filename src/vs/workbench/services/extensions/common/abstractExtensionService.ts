@@ -1209,6 +1209,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		if (!this._isDev && msg.extensionId) {
 			const { type, extensionId, extensionPointId, message } = msg;
 			type ExtensionsMessageClassification = {
+				owner: 'alexdima';
+				comment: 'A validation message for an extension';
 				type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 				extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				extensionPointId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
@@ -1283,6 +1285,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	private _onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void {
 		type ExtensionActivationErrorClassification = {
+			owner: 'alexdima';
+			comment: 'An extension failed to activate';
 			extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			error: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth' };
 		};

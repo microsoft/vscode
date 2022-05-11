@@ -202,11 +202,15 @@ export interface IConfigurationDefaults {
 
 export type IRegisteredConfigurationPropertySchema = IConfigurationPropertySchema & {
 	defaultDefaultValue?: any;
-	source?: IExtensionInfo;
-	defaultValueSource?: IExtensionInfo | string;
+	source?: IExtensionInfo; // Source of the Property
+	defaultValueSource?: IExtensionInfo | string; // Source of the Default Value
 };
 
-export type IConfigurationDefaultOverride = { value: any; source?: IExtensionInfo | string };
+export type IConfigurationDefaultOverride = {
+	readonly value: any;
+	readonly source?: IExtensionInfo | string;  // Source of the default override
+	readonly valuesSources?: Map<string, IExtensionInfo | string>; // Source of each value in default language overrides
+};
 
 export const allSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 export const applicationSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
@@ -291,8 +295,15 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				properties.push(key);
 
 				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
-					const defaultValue = { ...(this.configurationDefaultsOverrides.get(key)?.value || {}), ...overrides[key] };
-					this.configurationDefaultsOverrides.set(key, { source, value: defaultValue });
+					const configurationDefaultOverride = this.configurationDefaultsOverrides.get(key);
+					const valuesSources = configurationDefaultOverride?.valuesSources ?? new Map<string, IExtensionInfo | string>();
+					if (source) {
+						for (const configuration of Object.keys(overrides[key])) {
+							valuesSources.set(configuration, source);
+						}
+					}
+					const defaultValue = { ...(configurationDefaultOverride?.value || {}), ...overrides[key] };
+					this.configurationDefaultsOverrides.set(key, { source, value: defaultValue, valuesSources });
 					const plainKey = getLanguageTagSettingPlainKey(key);
 					const property: IRegisteredConfigurationPropertySchema = {
 						type: 'object',
@@ -301,6 +312,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 						$ref: resourceLanguageSettingsSchemaId,
 						defaultDefaultValue: defaultValue,
 						source: types.isString(source) ? undefined : source,
+						defaultValueSource: source
 					};
 					overrideIdentifiers.push(...overrideIdentifiersFromKey(key));
 					this.configurationProperties[key] = property;
