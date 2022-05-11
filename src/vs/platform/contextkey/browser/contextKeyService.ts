@@ -7,11 +7,15 @@ import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { distinct } from 'vs/base/common/objects';
+import { MarshalledObject } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { cloneAndChange, distinct } from 'vs/base/common/objects';
+import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpression, ContextKeyInfo, ContextKeyValue, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, RawContextKey, SET_CONTEXT_COMMAND_ID } from 'vs/platform/contextkey/common/contextkey';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
@@ -574,9 +578,23 @@ function findContextAttr(domNode: IContextKeyServiceTarget | null): number {
 	return 0;
 }
 
-CommandsRegistry.registerCommand(SET_CONTEXT_COMMAND_ID, function (accessor, contextKey: any, contextValue: any) {
-	accessor.get(IContextKeyService).createKey(String(contextKey), contextValue);
-});
+export function setContext(accessor: ServicesAccessor, contextKey: any, contextValue: any) {
+	accessor.get(IContextKeyService).createKey(String(contextKey), stringifyURIs(contextValue));
+}
+
+function stringifyURIs(contextValue: any): any {
+	return cloneAndChange(contextValue, (obj) => {
+		if (typeof obj === 'object' && (<MarshalledObject>obj).$mid === MarshalledId.Uri) {
+			return URI.revive(obj).toString();
+		}
+		if (obj instanceof URI) {
+			return obj.toString();
+		}
+		return undefined;
+	});
+}
+
+CommandsRegistry.registerCommand(SET_CONTEXT_COMMAND_ID, setContext);
 
 CommandsRegistry.registerCommand({
 	id: 'getContextKeyInfo',
