@@ -40,6 +40,9 @@
 		Object.keys(self.webPackagePaths).map(function (key, index) {
 			self.webPackagePaths[key] = `${baseUrl}/node_modules/${key}/${self.webPackagePaths[key]}`;
 		});
+		if (!navigator.language.startsWith('en')) {
+			self.webPackagePaths[`vs/workbench/workbench.web.main.nls.${navigator.language}`] = `{{WORKBENCH_NLS_BASE_URL}}/vs/workbench/workbench.web.main.nls.${navigator.language}.js`;
+		}
 		require.config({
 			baseUrl: `${baseUrl}/out`,
 			recordStats: true,
@@ -48,7 +51,12 @@
 					return value;
 				}
 			}),
-			paths: self.webPackagePaths
+			paths: self.webPackagePaths,
+			'vs/nls': {
+				availableLanguages: {
+					'*': navigator.language
+				}
+			}
 		});
 	</script>
 	<script>

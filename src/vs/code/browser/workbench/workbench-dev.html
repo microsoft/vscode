@@ -41,6 +41,11 @@
 		Object.keys(self.webPackagePaths).map(function (key, index) {
 			self.webPackagePaths[key] = `${baseUrl}/remote/web/node_modules/${key}/${self.webPackagePaths[key]}`;
 		});
+
+		if (!navigator.language.startsWith('en')) {
+			self.webPackagePaths[`vs/workbench/workbench.web.main.nls.${navigator.language}`] = `{{WORKBENCH_NLS_BASE_URL}}/vs/code/browser/workbench/workbench.nls.${navigator.language}.js`;
+		}
+
 		require.config({
 			baseUrl: `${baseUrl}/out`,
 			recordStats: true,
@@ -52,7 +57,12 @@
 					throw new Error(`Invalid script url: ${value}`)
 				}
 			}),
-			paths: self.webPackagePaths
+			paths: self.webPackagePaths,
+			'vs/nls': {
+				availableLanguages: {
+					'*': navigator.language
+				},
+			}
 		});
 	</script>
 
