@@ -576,6 +576,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
+		// Ideally the Web caller of registerRegisterTaskSystem would use the correct key.
+		// However, the caller doesn't know about the workspace folders at the time of the call, even though we know about them here.
+		if (info.platform === Platform.Platform.Web) {
+			key = this.workspaceFolders.length ? this.workspaceFolders[0].uri.scheme : key;
+		}
 		if (!this._taskSystemInfos.has(key) || info.platform !== Platform.Platform.Web) {
 			this._taskSystemInfos.set(key, info);
 			if (this.hasTaskSystemInfo) {
