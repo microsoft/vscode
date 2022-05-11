@@ -140,7 +140,11 @@ export class PolicyConfiguration extends Disposable {
 		}
 
 		if (changed.length) {
-			this._configurationModel = this._configurationModel.isFrozen() ? this._configurationModel.clone() : this._configurationModel;
+			const old = this._configurationModel;
+			this._configurationModel = new ConfigurationModel();
+			for (const key of old.keys) {
+				this._configurationModel.setValue(key, old.getValue(key));
+			}
 			for (const [key, policyValue] of changed) {
 				if (policyValue === undefined) {
 					this._configurationModel.removeValue(key);
@@ -153,5 +157,6 @@ export class PolicyConfiguration extends Disposable {
 			}
 		}
 	}
+
 
 }

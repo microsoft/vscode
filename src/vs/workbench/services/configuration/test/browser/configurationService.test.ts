@@ -982,6 +982,15 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.strictEqual(testObject.inspect('configurationService.folder.policySetting').policyValue, undefined);
 	});
 
+	test('policy change should trigger change event ', async () => {
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policySetting": "policyValue" }'));
+		const result = await promise;
+		assert.deepStrictEqual(result.affectedKeys, ['configurationService.folder.policySetting']);
+		assert.strictEqual(testObject.getValue('configurationService.folder.policySetting'), 'policyValue');
+		assert.strictEqual(testObject.inspect('configurationService.folder.policySetting').policyValue, 'policyValue');
+	});
+
 	test('reload configuration emits events after global configuraiton changes', async () => {
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
 		const target = sinon.spy();
