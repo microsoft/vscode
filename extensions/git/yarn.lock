@@ -2,6 +2,11 @@
 # yarn lockfile v1
 
 
+"@joaomoreno/unique-names-generator@5.0.0":
+  version "5.0.0"
+  resolved "https://registry.yarnpkg.com/@joaomoreno/unique-names-generator/-/unique-names-generator-5.0.0.tgz#a67fe66e3d825c929fc97abfdf17fd80a72beab0"
+  integrity sha512-3kP6z7aoGEoM3tvhTBZioYa1QFkovOU8uxAlVclnZlXivwF/WTE5EcOzvoDdM+jtjJyWvCMDR1Q4RBjDqupD3A==
+
 "@types/byline@4.2.31":
   version "4.2.31"
   resolved "https://registry.yarnpkg.com/@types/byline/-/byline-4.2.31.tgz#0e61fcb9c03e047d21c4496554c7116297ab60cd"

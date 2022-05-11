@@ -63,10 +63,10 @@ export interface IResolvedBackLayerWebview {
 export interface INotebookDelegateForWebview {
 	readonly creationOptions: INotebookEditorCreationOptions;
 	getCellById(cellId: string): IGenericCellViewModel | undefined;
-	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
+	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): Promise<void>;
 	toggleNotebookCellSelection(cell: IGenericCellViewModel, selectFromPrevious: boolean): void;
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
-	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
+	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): Promise<void>;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
 	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
 	updateMarkupCellHeight(cellId: string, height: number, isInit: boolean): void;
@@ -560,7 +560,7 @@ var requirejs = (function() {
 			}
 		}));
 
-		this._register(this.webview.onMessage((message) => {
+		this._register(this.webview.onMessage(async (message) => {
 			const data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined } = message.message;
 			if (this._disposed) {
 				return;
@@ -617,6 +617,7 @@ var requirejs = (function() {
 						const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
 						if (latestCell) {
 							latestCell.outputIsFocused = true;
+							this.notebookEditor.focusNotebookCell(latestCell, 'output', { skipReveal: true });
 						}
 					}
 					break;
@@ -655,7 +656,7 @@ var requirejs = (function() {
 						if (data.focusNext) {
 							this.notebookEditor.focusNextNotebookCell(cell, 'editor');
 						} else {
-							this.notebookEditor.focusNotebookCell(cell, 'editor');
+							await this.notebookEditor.focusNotebookCell(cell, 'editor');
 						}
 					}
 					break;
@@ -733,7 +734,7 @@ var requirejs = (function() {
 							this.notebookEditor.toggleNotebookCellSelection(cell, /* fromPrevious */ data.shiftKey);
 						} else {
 							// Normal click
-							this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
+							await this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
 						}
 					}
 					break;
@@ -742,7 +743,7 @@ var requirejs = (function() {
 					const cell = this.notebookEditor.getCellById(data.cellId);
 					if (cell) {
 						// Focus the cell first
-						this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
+						await this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
 
 						// Then show the context menu
 						const webviewRect = this.element.getBoundingClientRect();
@@ -766,7 +767,7 @@ var requirejs = (function() {
 					const cell = this.notebookEditor.getCellById(data.cellId);
 					if (cell && !this.notebookEditor.creationOptions.isReadOnly) {
 						this.notebookEditor.setMarkupCellEditState(data.cellId, CellEditState.Editing);
-						this.notebookEditor.focusNotebookCell(cell, 'editor', { skipReveal: true });
+						await this.notebookEditor.focusNotebookCell(cell, 'editor', { skipReveal: true });
 					}
 					break;
 				}
@@ -1314,12 +1315,15 @@ var requirejs = (function() {
 		this.webview?.focus();
 	}
 
-	focusOutput(cellId: string) {
+	focusOutput(cellId: string, viewFocused: boolean) {
 		if (this._disposed) {
 			return;
 		}
 
-		this.webview?.focus();
+		if (!viewFocused) {
+			this.webview?.focus();
+		}
+
 		setTimeout(() => { // Need this, or focus decoration is not shown. No clue.
 			this._sendMessageToWebview({
 				type: 'focus-output',

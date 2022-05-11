@@ -891,6 +891,22 @@ declare namespace monaco.editor {
 	export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): IDisposable;
 
 	/**
+	 * Emitted when an diff editor is created.
+	 * @event
+	 */
+	export function onDidCreateDiffEditor(listener: (diffEditor: IDiffEditor) => void): IDisposable;
+
+	/**
+	 * Get all the created editors.
+	 */
+	export function getEditors(): readonly ICodeEditor[];
+
+	/**
+	 * Get all the created diff editors.
+	 */
+	export function getDiffEditors(): readonly IDiffEditor[];
+
+	/**
 	 * Create a new diff editor under `domElement`.
 	 * `domElement` should be empty (not contain other dom nodes).
 	 * The editor will read the size of `domElement`.

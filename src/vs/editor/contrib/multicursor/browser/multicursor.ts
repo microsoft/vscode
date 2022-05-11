@@ -986,7 +986,9 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this.state = newState;
 
 		if (!this.state) {
-			this.decorations = this.editor.deltaDecorations(this.decorations, []);
+			this.editor.changeDecorations((accessor) => {
+				this.decorations = accessor.deltaDecorations(this.decorations, []);
+			});
 			return;
 		}
 
@@ -1042,7 +1044,9 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			};
 		});
 
-		this.decorations = this.editor.deltaDecorations(this.decorations, decorations);
+		this.editor.changeDecorations((accessor) => {
+			this.decorations = accessor.deltaDecorations(this.decorations, decorations);
+		});
 	}
 
 	private static readonly _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({

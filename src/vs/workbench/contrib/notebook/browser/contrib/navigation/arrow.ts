@@ -32,7 +32,7 @@ const NOTEBOOK_CURSOR_PAGEDOWN_COMMAND_ID = 'notebook.cell.cursorPageDown';
 const NOTEBOOK_CURSOR_PAGEDOWN_SELECT_COMMAND_ID = 'notebook.cell.cursorPageDownSelect';
 
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class FocusNextCellAction extends NotebookCellAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_FOCUS_NEXT_EDITOR,
@@ -76,13 +76,13 @@ registerAction2(class extends NotebookCellAction {
 
 		const newCell = editor.cellAt(idx + 1);
 		const newFocusMode = newCell.cellKind === CellKind.Markup && newCell.getEditState() === CellEditState.Preview ? 'container' : 'editor';
-		editor.focusNotebookCell(newCell, newFocusMode);
+		await editor.focusNotebookCell(newCell, newFocusMode, { focusEditorLine: 1 });
 		editor.cursorNavigationMode = true;
 	}
 });
 
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_FOCUS_PREVIOUS_EDITOR,
@@ -118,7 +118,7 @@ registerAction2(class extends NotebookCellAction {
 
 		const newCell = editor.cellAt(idx - 1);
 		const newFocusMode = newCell.cellKind === CellKind.Markup && newCell.getEditState() === CellEditState.Preview ? 'container' : 'editor';
-		editor.focusNotebookCell(newCell, newFocusMode);
+		await editor.focusNotebookCell(newCell, newFocusMode, { focusEditorLine: newCell.textBuffer.getLineCount() });
 		editor.cursorNavigationMode = true;
 	}
 });
@@ -145,7 +145,7 @@ registerAction2(class extends NotebookAction {
 		}
 
 		const firstCell = editor.cellAt(0);
-		editor.focusNotebookCell(firstCell, 'container');
+		await editor.focusNotebookCell(firstCell, 'container');
 	}
 });
 
@@ -173,7 +173,7 @@ registerAction2(class extends NotebookAction {
 		const lastVisibleIdx = editor.getPreviousVisibleCellIndex(lastIdx);
 		if (lastVisibleIdx) {
 			const cell = editor.cellAt(lastVisibleIdx);
-			editor.focusNotebookCell(cell, 'container');
+			await editor.focusNotebookCell(cell, 'container');
 		}
 	}
 });
@@ -196,7 +196,7 @@ registerAction2(class extends NotebookCellAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
-		editor.focusNotebookCell(activeCell, 'output');
+		await editor.focusNotebookCell(activeCell, 'output');
 	}
 });
 
@@ -217,7 +217,7 @@ registerAction2(class extends NotebookCellAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
-		editor.focusNotebookCell(activeCell, 'editor');
+		await editor.focusNotebookCell(activeCell, 'editor');
 	}
 });
 
