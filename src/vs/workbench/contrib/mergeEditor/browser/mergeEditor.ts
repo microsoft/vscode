@@ -17,8 +17,8 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Grid, IView, IViewSize, SerializableGrid } from 'vs/base/browser/ui/grid/grid';
-import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { Direction, Grid, IView, IViewSize, SerializableGrid } from 'vs/base/browser/ui/grid/grid';
+import { Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { ITextModel } from 'vs/editor/common/model';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -29,13 +29,14 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { localize } from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IAction } from 'vs/base/common/actions';
 
 export const ctxIsMergeEditor = new RawContextKey<boolean>('isMergeEditor', false);
+export const ctxUsesColumnLayout = new RawContextKey<boolean>('mergeEditorUsesColumnLayout', false);
 
 export class MergeEditor extends EditorPane {
 
@@ -49,6 +50,9 @@ export class MergeEditor extends EditorPane {
 	private readonly inputTwoView = this.instantiation.createInstance(CodeEditorView, { readonly: true });
 	private readonly inputResultView = this.instantiation.createInstance(CodeEditorView, { readonly: false });
 
+	private readonly _ctxIsMergeEditor: IContextKey<boolean>;
+	private readonly _ctxUsesColumnLayout: IContextKey<boolean>;
+
 	constructor(
 		@IInstantiationService private readonly instantiation: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -60,7 +64,8 @@ export class MergeEditor extends EditorPane {
 	) {
 		super(MergeEditor.ID, telemetryService, themeService, storageService);
 
-		ctxIsMergeEditor.bindTo(_contextKeyService).set(true);
+		this._ctxIsMergeEditor = ctxIsMergeEditor.bindTo(_contextKeyService);
+		this._ctxUsesColumnLayout = ctxUsesColumnLayout.bindTo(_contextKeyService);
 
 		const reentrancyBarrier = new ReentrancyBarrier();
 		this._store.add(this.inputOneView.editor.onDidScrollChange(c => {
@@ -112,6 +117,7 @@ export class MergeEditor extends EditorPane {
 
 	override dispose(): void {
 		this._sessionDisposables.dispose();
+		this._ctxIsMergeEditor.reset();
 		super.dispose();
 	}
 
@@ -141,6 +147,7 @@ export class MergeEditor extends EditorPane {
 		});
 
 		reset(parent, this._grid.element);
+		this._ctxUsesColumnLayout.set(false);
 	}
 
 	layout(dimension: Dimension): void {
@@ -161,13 +168,9 @@ export class MergeEditor extends EditorPane {
 		this.inputResultView.setModel(model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }));
 	}
 
-	// override clearInput(): void {
-	// 	super.clearInput();
-	// }
-
-	// protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-	// 	console.log('VISISBLE', visible);
-	// }
+	protected override setEditorVisible(visible: boolean): void {
+		this._ctxIsMergeEditor.set(visible);
+	}
 
 	// ---- interact with "outside world" via `getControl`, `scopedContextKeyService`
 
@@ -185,6 +188,21 @@ export class MergeEditor extends EditorPane {
 		return isCodeEditor(control)
 			? control.invokeWithinContext(accessor => accessor.get(IContextKeyService))
 			: undefined;
+	}
+
+	// --- layout
+
+	private _usesColumnLayout = false;
+
+	toggleLayout(): void {
+		if (!this._usesColumnLayout) {
+			this._grid.moveView(this.inputResultView, Sizing.Distribute, this.inputOneView, Direction.Right);
+		} else {
+			this._grid.moveView(this.inputResultView, this._grid.height * .62, this.inputOneView, Direction.Down);
+			this._grid.moveView(this.inputTwoView, Sizing.Distribute, this.inputOneView, Direction.Right);
+		}
+		this._usesColumnLayout = !this._usesColumnLayout;
+		this._ctxUsesColumnLayout.set(this._usesColumnLayout);
 	}
 }
 

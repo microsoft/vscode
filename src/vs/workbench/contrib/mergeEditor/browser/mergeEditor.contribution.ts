@@ -6,16 +6,17 @@
 
 import { localize } from 'vs/nls';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditor';
+import { ctxIsMergeEditor, ctxUsesColumnLayout, MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditor';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { MergeEditorSerializer } from './mergeEditorSerializer';
+import { Codicon } from 'vs/base/common/codicons';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -33,7 +34,35 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 	MergeEditorSerializer
 );
 
-registerAction2(class Foo extends Action2 {
+registerAction2(class ToggleLayout extends Action2 {
+
+	constructor() {
+		super({
+			id: 'merge.toggleLayout',
+			title: localize('toggle.title', "Switch to column view"),
+			icon: Codicon.layoutCentered,
+			toggled: {
+				condition: ctxUsesColumnLayout,
+				icon: Codicon.layoutPanel,
+				title: localize('toggle.title2', "Switch to 2 by 1 view"),
+			},
+			menu: [{
+				id: MenuId.EditorTitle,
+				when: ctxIsMergeEditor,
+				group: 'navigation'
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const { activeEditorPane } = accessor.get(IEditorService);
+		if (activeEditorPane instanceof MergeEditor) {
+			activeEditorPane.toggleLayout();
+		}
+	}
+});
+
+registerAction2(class Open extends Action2 {
 
 	constructor() {
 		super({
