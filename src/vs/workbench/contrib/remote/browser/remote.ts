@@ -780,6 +780,8 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 				callback: () => {
 
 					type ReconnectReloadClassification = {
+						owner: 'alexdima';
+						comment: 'The reload button in the builtin permanent reconnection failure dialog was pressed';
 						remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 						reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 						millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
@@ -824,6 +826,8 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						reconnectionAttempts = 0;
 
 						type RemoteConnectionLostClassification = {
+							owner: 'alexdima';
+							comment: 'The remote connection state is now `ConnectionLost`';
 							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 						};
@@ -858,6 +862,8 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						reconnectionAttempts = e.attempt;
 
 						type RemoteReconnectionRunningClassification = {
+							owner: 'alexdima';
+							comment: 'The remote connection state is now `ReconnectionRunning`';
 							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
@@ -897,6 +903,8 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						reconnectionAttempts = e.attempt;
 
 						type RemoteReconnectionPermanentFailureClassification = {
+							owner: 'alexdima';
+							comment: 'The remote connection state is now `ReconnectionPermanentFailure`';
 							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
@@ -940,6 +948,8 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						reconnectionAttempts = e.attempt;
 
 						type RemoteConnectionGainClassification = {
+							owner: 'alexdima';
+							comment: 'The remote connection state is now `ConnectionGain`';
 							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };

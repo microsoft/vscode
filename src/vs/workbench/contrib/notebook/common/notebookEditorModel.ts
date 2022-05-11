@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -28,8 +27,6 @@ import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/commo
 import { StoredFileWorkingCopyState, IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CancellationError } from 'vs/base/common/errors';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { filter } from 'vs/base/common/objects';
 import { IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
@@ -59,7 +56,6 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		readonly resource: URI,
 		readonly viewType: string,
 		private readonly _contentProvider: INotebookContentProvider,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
@@ -393,7 +389,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		});
 	}
 
-	async saveAs(targetResource: URI): Promise<EditorInput | undefined> {
+	async saveAs(targetResource: URI): Promise<IUntypedEditorInput | undefined> {
 
 		if (!this.isResolved()) {
 			return undefined;
@@ -419,7 +415,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		}
 		this.setDirty(false);
 		this._onDidSave.fire({});
-		return this._instantiationService.createInstance(NotebookEditorInput, targetResource, this.viewType, {});
+		return { resource: targetResource };
 	}
 
 	private async _resolveStats(resource: URI) {
@@ -462,7 +458,6 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		private readonly _hasAssociatedFilePath: boolean,
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileService private readonly _fileService: IFileService
 	) {
 		super();
@@ -547,14 +542,14 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return this;
 	}
 
-	async saveAs(target: URI): Promise<EditorInput | undefined> {
+	async saveAs(target: URI): Promise<IUntypedEditorInput | undefined> {
 		const newWorkingCopy = await this._workingCopyManager.saveAs(this.resource, target);
 		if (!newWorkingCopy) {
 			return undefined;
 		}
 		// this is a little hacky because we leave the new working copy alone. BUT
 		// the newly created editor input will pick it up and claim ownership of it.
-		return this._instantiationService.createInstance(NotebookEditorInput, newWorkingCopy.resource, this.viewType, {});
+		return { resource: newWorkingCopy.resource };
 	}
 
 	private static _isStoredFileWorkingCopy(candidate?: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>): candidate is IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> {

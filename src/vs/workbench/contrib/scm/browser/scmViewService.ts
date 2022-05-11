@@ -5,7 +5,7 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositorySortKey } from 'vs/workbench/contrib/scm/common/scm';
 import { Iterable } from 'vs/base/common/iterator';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SCMMenus } from 'vs/workbench/contrib/scm/browser/menus';
@@ -16,6 +16,7 @@ import { compareFileNames, comparePaths } from 'vs/base/common/comparers';
 import { basename } from 'vs/base/common/resources';
 import { binarySearch } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
@@ -30,7 +31,9 @@ function getRepositoryName(workspaceContextService: IWorkspaceContextService, re
 	return folder?.uri.toString() === repository.provider.rootUri.toString() ? folder.name : basename(repository.provider.rootUri);
 }
 
-type ISCMRepositoryViewSortKey = 'discovery time' | 'name' | 'path';
+export const RepositoryContextKeys = {
+	RepositorySortKey: new RawContextKey<ISCMRepositorySortKey>('scmRepositorySortKey', ISCMRepositorySortKey.DiscoveryTime),
+};
 
 interface ISCMRepositoryView {
 	readonly repository: ISCMRepository;
@@ -41,7 +44,7 @@ interface ISCMRepositoryView {
 
 export interface ISCMViewServiceState {
 	readonly all: string[];
-	readonly sortKey: ISCMRepositoryViewSortKey;
+	readonly sortKey: ISCMRepositorySortKey;
 	readonly visible: number[];
 }
 
@@ -65,7 +68,7 @@ export class SCMViewService implements ISCMViewService {
 	get visibleRepositories(): ISCMRepository[] {
 		// In order to match the legacy behaviour, when the repositories are sorted by discovery time,
 		// the visible repositories are sorted by the selection index instead of the discovery time.
-		if (this._repositoriesSortKey === 'discovery time') {
+		if (this._repositoriesSortKey === ISCMRepositorySortKey.DiscoveryTime) {
 			return this._repositories.filter(r => r.selectionIndex !== -1)
 				.sort((r1, r2) => r1.selectionIndex - r2.selectionIndex)
 				.map(r => r.repository);
@@ -150,10 +153,12 @@ export class SCMViewService implements ISCMViewService {
 	private _onDidFocusRepository = new Emitter<ISCMRepository | undefined>();
 	readonly onDidFocusRepository = this._onDidFocusRepository.event;
 
-	private _repositoriesSortKey: ISCMRepositoryViewSortKey;
+	private _repositoriesSortKey: ISCMRepositorySortKey;
+	private _sortKeyContextKey: IContextKey<ISCMRepositorySortKey>;
 
 	constructor(
 		@ISCMService scmService: ISCMService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -168,18 +173,11 @@ export class SCMViewService implements ISCMViewService {
 		}
 
 		this._repositoriesSortKey = this.previousState?.sortKey ?? this.getViewSortOrder();
+		this._sortKeyContextKey = RepositoryContextKeys.RepositorySortKey.bindTo(contextKeyService);
+		this._sortKeyContextKey.set(this._repositoriesSortKey);
 
 		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
-
-		configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('scm.repositories.sortOrder')) {
-				this._repositoriesSortKey = this.getViewSortOrder();
-				this._repositories.sort(this.compareRepositories.bind(this));
-
-				this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
-			}
-		});
 
 		for (const repository of scmService.repositories) {
 			this.onDidAddRepository(repository);
@@ -303,6 +301,14 @@ export class SCMViewService implements ISCMViewService {
 		}
 	}
 
+	toggleSortKey(sortKey: ISCMRepositorySortKey): void {
+		this._repositoriesSortKey = sortKey;
+		this._sortKeyContextKey.set(this._repositoriesSortKey);
+		this._repositories.sort(this.compareRepositories.bind(this));
+
+		this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
+	}
+
 	focus(repository: ISCMRepository | undefined): void {
 		if (repository && !this.isVisible(repository)) {
 			return;
@@ -317,7 +323,7 @@ export class SCMViewService implements ISCMViewService {
 
 	private compareRepositories(op1: ISCMRepositoryView, op2: ISCMRepositoryView): number {
 		// Sort by discovery time
-		if (this._repositoriesSortKey === 'discovery time') {
+		if (this._repositoriesSortKey === ISCMRepositorySortKey.DiscoveryTime) {
 			return op1.discoveryTime - op2.discoveryTime;
 		}
 
@@ -343,13 +349,18 @@ export class SCMViewService implements ISCMViewService {
 			Math.max(...this._repositories.map(r => r.selectionIndex));
 	}
 
-	private getViewSortOrder(): ISCMRepositoryViewSortKey {
-		const sortOder = this.configurationService.getValue<ISCMRepositoryViewSortKey>('scm.repositories.sortOrder');
-		if (sortOder !== 'discovery time' && sortOder !== 'name' && sortOder !== 'path') {
-			return 'discovery time';
+	private getViewSortOrder(): ISCMRepositorySortKey {
+		const sortOder = this.configurationService.getValue<'discovery time' | 'name' | 'path'>('scm.repositories.sortOrder');
+		switch (sortOder) {
+			case 'discovery time':
+				return ISCMRepositorySortKey.DiscoveryTime;
+			case 'name':
+				return ISCMRepositorySortKey.Name;
+			case 'path':
+				return ISCMRepositorySortKey.Path;
+			default:
+				return ISCMRepositorySortKey.DiscoveryTime;
 		}
-
-		return sortOder;
 	}
 
 	private insertRepositoryView(repositories: ISCMRepositoryView[], repositoryView: ISCMRepositoryView): void {

@@ -160,12 +160,17 @@ export class ShowAllCommandsAction extends Action2 {
 		super({
 			id: ShowAllCommandsAction.ID,
 			title: { value: localize('showTriggerActions', "Show All Commands"), original: 'Show All Commands' },
-			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: undefined,
 				primary: !isFirefox ? (KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyP) : undefined,
 				secondary: [KeyCode.F1]
+			},
+			f1: true,
+			menu: {
+				id: MenuId.TitleMenuQuickPick,
+				group: '1/workspaceNav',
+				order: 3
 			}
 		});
 	}

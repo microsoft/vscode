@@ -12,6 +12,7 @@ import * as process from 'vs/base/common/process';
 import { format } from 'vs/base/common/strings';
 import { isString } from 'vs/base/common/types';
 import * as pfs from 'vs/base/node/pfs';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 
 export function getWindowsBuildNumber(): number {
@@ -102,7 +103,8 @@ export interface IShellIntegrationConfigInjection {
  */
 export function getShellIntegrationInjection(
 	shellLaunchConfig: IShellLaunchConfig,
-	options: ITerminalProcessOptions['shellIntegration']
+	options: ITerminalProcessOptions['shellIntegration'],
+	logService: ILogService
 ): IShellIntegrationConfigInjection | undefined {
 	// Shell integration arg injection is disabled when:
 	// - The global setting is disabled
@@ -129,12 +131,12 @@ export function getShellIntegrationInjection(
 				return undefined;
 			}
 			if (newArgs) {
-				const additionalArgs = options.showWelcome ? '' : ' -HideWelcome';
 				newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-				newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, additionalArgs);
+				newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			}
 			return { newArgs };
 		}
+		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
 		return undefined;
 	}
 
@@ -153,9 +155,6 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
-			if (!options.showWelcome) {
-				envMixin['VSCODE_SHELL_HIDE_WELCOME'] = '1';
-			}
 			return { newArgs, envMixin };
 		}
 		case 'pwsh': {
@@ -167,9 +166,8 @@ export function getShellIntegrationInjection(
 			if (!newArgs) {
 				return undefined;
 			}
-			const additionalArgs = options.showWelcome ? '' : ' -HideWelcome';
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, additionalArgs);
+			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			return { newArgs };
 		}
 		case 'zsh': {
@@ -190,7 +188,7 @@ export function getShellIntegrationInjection(
 			envMixin['ZDOTDIR'] = zdotdir;
 			const filesToCopy: IShellIntegrationConfigInjection['filesToCopy'] = [];
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh'),
 				dest: path.join(zdotdir, '.zshrc')
 			});
 			filesToCopy.push({
@@ -201,13 +199,14 @@ export function getShellIntegrationInjection(
 				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-env.zsh'),
 				dest: path.join(zdotdir, '.zshenv')
 			});
-			if (!options.showWelcome) {
-				envMixin['VSCODE_SHELL_HIDE_WELCOME'] = '1';
-			}
+			filesToCopy.push({
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-login.zsh'),
+				dest: path.join(zdotdir, '.zlogin')
+			});
 			return { newArgs, envMixin, filesToCopy };
 		}
 	}
-
+	logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
 	return undefined;
 }
 

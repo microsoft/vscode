@@ -54,7 +54,7 @@ abstract class InsertCellCommand extends NotebookAction {
 		}
 
 		if (newCell) {
-			context.notebookEditor.focusNotebookCell(newCell, this.focusEditor ? 'editor' : 'container');
+			await context.notebookEditor.focusNotebookCell(newCell, this.focusEditor ? 'editor' : 'container');
 		}
 	}
 }
@@ -189,7 +189,7 @@ registerAction2(class InsertCodeCellAtTopAction extends NotebookAction {
 		const newCell = insertCell(languageService, context.notebookEditor, 0, CellKind.Code, 'above', undefined, true);
 
 		if (newCell) {
-			context.notebookEditor.focusNotebookCell(newCell, 'editor');
+			await context.notebookEditor.focusNotebookCell(newCell, 'editor');
 		}
 	}
 });
@@ -216,7 +216,7 @@ registerAction2(class InsertMarkdownCellAtTopAction extends NotebookAction {
 		const newCell = insertCell(languageService, context.notebookEditor, 0, CellKind.Markup, 'above', undefined, true);
 
 		if (newCell) {
-			context.notebookEditor.focusNotebookCell(newCell, 'editor');
+			await context.notebookEditor.focusNotebookCell(newCell, 'editor');
 		}
 	}
 });

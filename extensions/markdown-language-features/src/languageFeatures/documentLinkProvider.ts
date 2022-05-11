@@ -87,7 +87,7 @@ function getWorkspaceFolder(document: SkinnyTextDocument) {
 		|| vscode.workspace.workspaceFolders?.[0]?.uri;
 }
 
-interface MdLinkSource {
+export interface MdLinkSource {
 	readonly text: string;
 	readonly resource: vscode.Uri;
 	readonly hrefRange: vscode.Range;
@@ -222,7 +222,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 		document: SkinnyTextDocument,
 		token: vscode.CancellationToken
 	): Promise<vscode.DocumentLink[]> {
-		const allLinks = await this.getAllLinks(document);
+		const allLinks = await this.getAllLinks(document, token);
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -256,8 +256,12 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 		}
 	}
 
-	public async getAllLinks(document: SkinnyTextDocument): Promise<MdLink[]> {
+	public async getAllLinks(document: SkinnyTextDocument, token: vscode.CancellationToken): Promise<MdLink[]> {
 		const codeInDocument = await findCode(document, this.engine);
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
 		return Array.from([
 			...this.getInlineLinks(document, codeInDocument),
 			...this.getReferenceLinks(document, codeInDocument),

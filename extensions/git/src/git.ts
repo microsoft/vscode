@@ -396,7 +396,7 @@ export class Git {
 		return Versions.compare(Versions.fromString(this.version), Versions.fromString(version));
 	}
 
-	open(repository: string, dotGit: string): Repository {
+	open(repository: string, dotGit: { path: string; commonPath?: string }): Repository {
 		return new Repository(this, repository, dotGit);
 	}
 
@@ -509,15 +509,25 @@ export class Git {
 		return repoPath;
 	}
 
-	async getRepositoryDotGit(repositoryPath: string): Promise<string> {
-		const result = await this.exec(repositoryPath, ['rev-parse', '--git-dir']);
-		let dotGitPath = result.stdout.trim();
+	async getRepositoryDotGit(repositoryPath: string): Promise<{ path: string; commonPath?: string }> {
+		const result = await this.exec(repositoryPath, ['rev-parse', '--git-dir', '--git-common-dir']);
+		let [dotGitPath, commonDotGitPath] = result.stdout.split('\n').map(r => r.trim());
 
 		if (!path.isAbsolute(dotGitPath)) {
 			dotGitPath = path.join(repositoryPath, dotGitPath);
 		}
+		dotGitPath = path.normalize(dotGitPath);
 
-		return path.normalize(dotGitPath);
+		if (commonDotGitPath) {
+			if (!path.isAbsolute(commonDotGitPath)) {
+				commonDotGitPath = path.join(repositoryPath, commonDotGitPath);
+			}
+			commonDotGitPath = path.normalize(commonDotGitPath);
+
+			return { path: dotGitPath, commonPath: commonDotGitPath !== dotGitPath ? commonDotGitPath : undefined };
+		}
+
+		return { path: dotGitPath };
 	}
 
 	async exec(cwd: string, args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
@@ -863,7 +873,7 @@ export class Repository {
 	constructor(
 		private _git: Git,
 		private repositoryRoot: string,
-		readonly dotGit: string
+		readonly dotGit: { path: string; commonPath?: string }
 	) { }
 
 	get git(): Git {

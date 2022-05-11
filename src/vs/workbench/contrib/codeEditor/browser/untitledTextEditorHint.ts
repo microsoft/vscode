@@ -106,6 +106,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 		if (!this.domNode) {
 			this.domNode = $('.untitled-hint');
 			this.domNode.style.width = 'max-content';
+
 			const language = $('a.language-mode');
 			language.style.cursor = 'pointer';
 			language.innerText = localize('selectAlanguage2', "Select a language");
@@ -120,19 +121,25 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			or.innerText = localize('or', " or ",);
 			this.domNode.appendChild(or);
 
-			const chooseEditor = $('a.choose-editor');
-			chooseEditor.style.cursor = 'pointer';
-			chooseEditor.innerText = localize('chooseEditor', "select a different editor");
-			const chooseEditorKeyBinding = this.keybindingService.lookupKeybinding('welcome.showNewFileEntries');
-			const chooseEditorKeybindingLabel = chooseEditorKeyBinding?.getLabel();
-			if (chooseEditorKeybindingLabel) {
-				chooseEditor.title = localize('chooseEditorBindingTooltip', "{0}", chooseEditorKeybindingLabel);
+			const editorType = $('a.editor-type');
+			editorType.style.cursor = 'pointer';
+			editorType.innerText = localize('openADifferentEditor', "open a different editor");
+			const selectEditorTypeKeyBinding = this.keybindingService.lookupKeybinding('welcome.showNewFileEntries');
+			const selectEditorTypeKeybindingLabel = selectEditorTypeKeyBinding?.getLabel();
+			if (selectEditorTypeKeybindingLabel) {
+				editorType.title = localize('keyboardBindingTooltip', "{0}", selectEditorTypeKeybindingLabel);
 			}
-			this.domNode.appendChild(chooseEditor);
+			this.domNode.appendChild(editorType);
 
 			const toGetStarted = $('span');
-			toGetStarted.innerText = localize('toGetStarted', " to get started. Start typing to dismiss, or ",);
+			toGetStarted.innerText = localize('toGetStarted', " to get started.");
 			this.domNode.appendChild(toGetStarted);
+
+			this.domNode.appendChild($('br'));
+
+			const startTyping = $('span');
+			startTyping.innerText = localize('startTyping', "Start typing to dismiss or ");
+			this.domNode.appendChild(startTyping);
 
 			const dontShow = $('a');
 			dontShow.style.cursor = 'pointer';
@@ -165,9 +172,9 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 					this.editorGroupsService.activeGroup.closeEditor(activeEditorInput, { preserveFocus: true });
 				}
 			};
-			this.toDispose.push(dom.addDisposableListener(chooseEditor, 'click', chooseEditorOnClickOrTap));
-			this.toDispose.push(dom.addDisposableListener(chooseEditor, GestureEventType.Tap, chooseEditorOnClickOrTap));
-			this.toDispose.push(Gesture.addTarget(chooseEditor));
+			this.toDispose.push(dom.addDisposableListener(editorType, 'click', chooseEditorOnClickOrTap));
+			this.toDispose.push(dom.addDisposableListener(editorType, GestureEventType.Tap, chooseEditorOnClickOrTap));
+			this.toDispose.push(Gesture.addTarget(editorType));
 
 			const dontShowOnClickOrTap = () => {
 				this.configurationService.updateValue(untitledTextEditorHintSetting, 'hidden');

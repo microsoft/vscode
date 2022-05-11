@@ -205,6 +205,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		const originalComment = node.element;
 
 		templateData.threadMetadata.commentPreview.innerText = '';
+		templateData.threadMetadata.commentPreview.style.height = '22px';
 		if (typeof originalComment.comment.body === 'string') {
 			templateData.threadMetadata.commentPreview.innerText = originalComment.comment.body;
 		} else {
@@ -229,9 +230,9 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 
 		templateData.repliesMetadata.container.style.display = '';
 		templateData.repliesMetadata.count.textContent = this.getCountString(commentCount);
-		templateData.repliesMetadata.lastReplyDetail.textContent = nls.localize('lastReplyFrom', "Last reply from {0}", node.element.replies[node.element.replies.length - 1].comment.userName);
-		templateData.repliesMetadata.timestamp.setTimestamp(originalComment.comment.timestamp ? new Date(originalComment.comment.timestamp) : undefined);
-
+		const lastComment = node.element.replies[node.element.replies.length - 1].comment;
+		templateData.repliesMetadata.lastReplyDetail.textContent = nls.localize('lastReplyFrom', "Last reply from {0}", lastComment.userName);
+		templateData.repliesMetadata.timestamp.setTimestamp(lastComment.timestamp ? new Date(lastComment.timestamp) : undefined);
 	}
 
 	private getCommentThreadWidgetStateColor(state: CommentThreadState | undefined, theme: IColorTheme): Color | undefined {

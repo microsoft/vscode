@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/df4829558048663156abcc4235619c773335445e",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/b068fcb2fbfa834e695505bfb02bbcc0b4edab8b",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -957,7 +957,7 @@
 			]
 		},
 		"fenced_code_block_js": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(js|jsx|javascript|es6|mjs|cjs|\\{\\.js.+?\\})((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(js|jsx|javascript|es6|mjs|cjs|dataviewjs|\\{\\.js.+?\\})((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 			"beginCaptures": {
@@ -1314,6 +1314,39 @@
 					"patterns": [
 						{
 							"include": "source.python"
+						}
+					]
+				}
+			]
+		},
+		"fenced_code_block_julia": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(julia|\\{\\.julia.+?\\})((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
+			"name": "markup.fenced_code.block.markdown",
+			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+			"beginCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				},
+				"4": {
+					"name": "fenced_code.block.language.markdown"
+				},
+				"5": {
+					"name": "fenced_code.block.language.attributes.markdown"
+				}
+			},
+			"endCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "(^|\\G)(\\s*)(.*)",
+					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.block.julia",
+					"patterns": [
+						{
+							"include": "source.julia"
 						}
 					]
 				}
@@ -1962,6 +1995,9 @@
 				},
 				{
 					"include": "#fenced_code_block_python"
+				},
+				{
+					"include": "#fenced_code_block_julia"
 				},
 				{
 					"include": "#fenced_code_block_regexp_python"

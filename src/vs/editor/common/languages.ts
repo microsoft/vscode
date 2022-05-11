@@ -19,6 +19,7 @@ import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { IDataTransfer } from 'vs/editor/common/dnd';
 
 /**
  * Open ended enum at runtime
@@ -1732,6 +1733,7 @@ export interface CommentThread<T = IRange> {
 	onDidChangeState: Event<CommentThreadState | undefined>;
 	onDidChangeCanReply: Event<boolean>;
 	isDisposed: boolean;
+	isTemplate: boolean;
 }
 
 /**
@@ -1984,18 +1986,6 @@ export enum ExternalUriOpenerPriority {
 	Preferred = 3,
 }
 
-/**
- * @internal
- */
-export interface IDataTransferItem {
-	asString(): Thenable<string>;
-	value: any;
-}
-
-/**
- * @internal
- */
-export type IDataTransfer = Map<string, IDataTransferItem>;
 
 /**
  * @internal

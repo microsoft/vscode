@@ -113,7 +113,7 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should not appear since context isnt in');
 		assert.strictEqual(target.elements.length, 0);
 
-		const key = contextKeyService.createKey('showview1', false);
+		const key = contextKeyService.createKey<boolean>('showview1', false);
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should still not appear since showview1 isnt true');
 		assert.strictEqual(target.elements.length, 0);
 
@@ -150,7 +150,7 @@ suite('ViewContainerModel', () => {
 		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1], 'only view1 should be visible');
 		assert.deepStrictEqual(target.elements, [view1], 'only view1 should be visible');
 
-		const key = contextKeyService.createKey('showview2', false);
+		const key = contextKeyService.createKey<boolean>('showview2', false);
 		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1], 'still only view1 should be visible');
 		assert.deepStrictEqual(target.elements, [view1], 'still only view1 should be visible');
 
@@ -173,7 +173,7 @@ suite('ViewContainerModel', () => {
 		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view2], 'only view2 should be visible');
 		assert.deepStrictEqual(target.elements, [view2], 'only view2 should be visible');
 
-		const key = contextKeyService.createKey('showview1', false);
+		const key = contextKeyService.createKey<boolean>('showview1', false);
 		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view2], 'still only view2 should be visible');
 		assert.deepStrictEqual(target.elements, [view2], 'still only view2 should be visible');
 
@@ -299,7 +299,7 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should not appear since context isnt in');
 		assert.strictEqual(target.elements.length, 0);
 
-		const key = contextKeyService.createKey('showview1', false);
+		const key = contextKeyService.createKey<boolean>('showview1', false);
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should still not appear since showview1 isnt true');
 		assert.strictEqual(target.elements.length, 0);
 
@@ -340,7 +340,7 @@ suite('ViewContainerModel', () => {
 		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view2], 'Only view2 should be visible');
 		assert.deepStrictEqual(target.elements, [view2]);
 
-		const key = contextKeyService.createKey('showview', false);
+		const key = contextKeyService.createKey<boolean>('showview', false);
 		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view2], 'Only view2 should be visible');
 		assert.deepStrictEqual(target.elements, [view2]);
 
@@ -369,7 +369,7 @@ suite('ViewContainerModel', () => {
 
 		ViewsRegistry.registerViews([viewDescriptor], container);
 
-		const key = contextKeyService.createKey('showview1', true);
+		const key = contextKeyService.createKey<boolean>('showview1', true);
 		await new Promise(c => setTimeout(c, 30));
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 1, 'view should appear after context is set');
 		assert.strictEqual(target.elements.length, 1);
@@ -397,7 +397,7 @@ suite('ViewContainerModel', () => {
 			canToggleVisibility: true
 		};
 
-		const key = contextKeyService.createKey('showview1', true);
+		const key = contextKeyService.createKey<boolean>('showview1', true);
 		key.set(false);
 		ViewsRegistry.registerViews([viewDescriptor], container);
 
@@ -424,7 +424,7 @@ suite('ViewContainerModel', () => {
 			canToggleVisibility: true
 		};
 
-		const key = contextKeyService.createKey('showview1', true);
+		const key = contextKeyService.createKey<boolean>('showview1', true);
 		key.set(false);
 		ViewsRegistry.registerViews([viewDescriptor], container);
 
@@ -451,7 +451,7 @@ suite('ViewContainerModel', () => {
 			canToggleVisibility: true
 		};
 
-		const key = contextKeyService.createKey('showview1', true);
+		const key = contextKeyService.createKey<boolean>('showview1', true);
 		key.set(false);
 		ViewsRegistry.registerViews([viewDescriptor], container);
 
@@ -533,7 +533,7 @@ suite('ViewContainerModel', () => {
 			canToggleVisibility: true
 		};
 
-		const key = contextKeyService.createKey('showview1', true);
+		const key = contextKeyService.createKey<boolean>('showview1', true);
 		key.set(false);
 		ViewsRegistry.registerViews([viewDescriptor], container);
 		testObject.setVisible('view1', false);
@@ -564,7 +564,7 @@ suite('ViewContainerModel', () => {
 			canToggleVisibility: true
 		};
 
-		const key = contextKeyService.createKey('showview1', true);
+		const key = contextKeyService.createKey<boolean>('showview1', true);
 		key.set(false);
 		ViewsRegistry.registerViews([viewDescriptor], container);
 
