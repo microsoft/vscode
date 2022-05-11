@@ -15,7 +15,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
-import { IPolicyService, NullPolicyService, PolicyName } from 'vs/platform/policy/common/policy';
+import { IPolicyService, NullPolicyService, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export class DefaultConfiguration extends Disposable {
@@ -86,7 +86,6 @@ export class PolicyConfiguration extends Disposable {
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	private readonly policyService: IPolicyService;
-	private readonly policyNamesToKeys = new Map<PolicyName, string>();
 
 	private _configurationModel = new ConfigurationModel();
 	get configurationModel() { return this._configurationModel; }
@@ -103,53 +102,55 @@ export class PolicyConfiguration extends Disposable {
 
 	async initialize(): Promise<ConfigurationModel> {
 		await this.policyService.initialize();
-		this.updateKeys(this.defaultConfiguration.configurationModel.keys, false);
+		this.update(this.defaultConfiguration.configurationModel.keys, false);
 		this._register(this.policyService.onDidChange(policyNames => this.onDidChangePolicies(policyNames)));
-		this._register(this.defaultConfiguration.onDidChangeConfiguration(({ properties }) => this.updateKeys(properties, true)));
+		this._register(this.defaultConfiguration.onDidChangeConfiguration(({ properties }) => this.update(properties, true)));
 		return this._configurationModel;
 	}
 
-	private updateKeys(keys: string[], trigger: boolean): void {
-		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		const keyPolicyNamePairs: [string, PolicyName][] = coalesce(keys.map(key => {
-			const policyName = configurationProperties[key].policy?.name;
-			return policyName ? [key, policyName] : undefined;
-		}));
-		this.update(keyPolicyNamePairs, trigger);
+	async reload(): Promise<ConfigurationModel> {
+		await this.policyService.refresh();
+		this.update(this.defaultConfiguration.configurationModel.keys, false);
+		return this._configurationModel;
 	}
 
 	private onDidChangePolicies(policyNames: readonly PolicyName[]): void {
-		const keyPolicyNamePairs: [string, PolicyName][] = coalesce(policyNames.map(policyName => {
-			const key = this.policyNamesToKeys.get(policyName);
-			return key ? [key, policyName] : undefined;
-		}));
-		this.update(keyPolicyNamePairs, true);
+		const policyConfigurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getPolicyConfigurations();
+		const keys = coalesce(policyNames.map(policyName => policyConfigurations.get(policyName)));
+		this.update(keys, true);
 	}
 
-	private update(keyPolicyNamePairs: [string, PolicyName][], trigger: boolean): void {
-		if (!keyPolicyNamePairs.length) {
-			return;
-		}
+	private update(keys: string[], trigger: boolean): void {
+		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+		const changed: [string, PolicyValue | undefined][] = [];
+		const wasEmpty = this._configurationModel.isEmpty();
 
-		const updated: string[] = [];
-		this._configurationModel = this._configurationModel.isFrozen() ? this._configurationModel.clone() : this._configurationModel;
-		const isEmpty = this._configurationModel.isEmpty();
-		for (const [key, policyName] of keyPolicyNamePairs) {
-			this.policyNamesToKeys.set(policyName, key);
-			const value = this.policyService.getPolicyValue(policyName);
-			if (!isEmpty && equals(this._configurationModel.getValue(key), value)) {
-				continue;
-			}
-			if (value === undefined) {
-				this._configurationModel.removeValue(key);
+		for (const key of keys) {
+			const policyName = configurationProperties[key]?.policy?.name;
+			if (policyName) {
+				const policyValue = this.policyService.getPolicyValue(policyName);
+				if (wasEmpty ? policyValue !== undefined : !equals(this._configurationModel.getValue(key), policyValue)) {
+					changed.push([key, policyValue]);
+				}
 			} else {
-				this._configurationModel.setValue(key, value);
+				if (this._configurationModel.getValue(key) !== undefined) {
+					changed.push([key, undefined]);
+				}
 			}
-			updated.push(key);
 		}
 
-		if (updated.length && trigger) {
-			this._onDidChangeConfiguration.fire(this._configurationModel);
+		if (changed.length) {
+			this._configurationModel = this._configurationModel.isFrozen() ? this._configurationModel.clone() : this._configurationModel;
+			for (const [key, policyValue] of changed) {
+				if (policyValue === undefined) {
+					this._configurationModel.removeValue(key);
+				} else {
+					this._configurationModel.setValue(key, policyValue);
+				}
+			}
+			if (trigger) {
+				this._onDidChangeConfiguration.fire(this._configurationModel);
+			}
 		}
 	}
 

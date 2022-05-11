@@ -50,8 +50,8 @@ export class FilePolicyService extends Disposable implements IPolicyService {
 		await this.doRefresh();
 	}
 
-	private refresh(): void {
-		this.throttledDelayer.trigger(() => this.doRefresh());
+	async refresh(): Promise<void> {
+		await this.throttledDelayer.trigger(() => this.doRefresh());
 	}
 
 	private async read(): Promise<Policies> {
