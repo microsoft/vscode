@@ -1135,6 +1135,12 @@ ${formatRule(Codicon.menuSubmenu)}
 	position: relative;
 }
 
+.monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .keybinding,
+.monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .keybinding,
+.monaco-menu .monaco-action-bar.vertical .action-menu-item .focused .keybinding {
+	color: unset;
+}
+
 .monaco-menu .monaco-action-bar.vertical .action-label {
 	flex: 1 1 auto;
 	text-decoration: none;

@@ -150,6 +150,11 @@ body.web {
 	padding: 0 2em;
 }
 
+.monaco-workbench .monaco-menu .monaco-action-bar.vertical .keybinding {
+	padding: 0 1.5em;
+	color: var(--vscode-descriptionForeground);
+}
+
 .monaco-workbench .monaco-menu .monaco-action-bar.vertical .menu-item-check {
 	font-size: inherit;
 	width: 2em;
@@ -168,7 +173,7 @@ body.web {
 
 .monaco-workbench .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	font-size: 60%;
-	padding: 0 1.8em;
+	padding: 0 2.2em;
 }
 
 .monaco-workbench.linux .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
