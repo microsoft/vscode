@@ -1136,8 +1136,7 @@ ${formatRule(Codicon.menuSubmenu)}
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .keybinding,
-.monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .keybinding,
-.monaco-menu .monaco-action-bar.vertical .action-menu-item .focused .keybinding {
+.monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .keybinding {
 	color: unset;
 }
 
