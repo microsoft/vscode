@@ -181,7 +181,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	update(inspectResult: IInspectResult, isWorkspaceTrusted: boolean): void {
-		const { isConfigured, inspected, targetSelector, inspectedLanguageOverrides, languageSelector } = inspectResult;
+		let { isConfigured, inspected, targetSelector, inspectedLanguageOverrides, languageSelector } = inspectResult;
 
 		switch (targetSelector) {
 			case 'workspaceFolderValue':
@@ -213,20 +213,25 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 		}
 
-		if (languageSelector && this.languageOverrideValues.has(languageSelector)) {
+		const policyValue = inspected.policyValue;
+		if (inspected.policyValue) {
+			isConfigured = false; // The user did not manually configure the setting themselves.
+			displayValue = policyValue;
+			this.scopeValue = policyValue;
+			this.defaultValue = inspected.defaultValue;
+		} else if (languageSelector && this.languageOverrideValues.has(languageSelector)) {
 			const overrideValues = this.languageOverrideValues.get(languageSelector)!;
 			// In the worst case, go back to using the previous display value.
 			// Also, sometimes the override is in the form of a default value override, so consider that second.
 			displayValue = (isConfigured ? overrideValues[targetSelector] : overrideValues.defaultValue) ?? displayValue;
-			this.value = displayValue;
 			this.scopeValue = isConfigured && overrideValues[targetSelector];
 			this.defaultValue = overrideValues.defaultValue ?? inspected.defaultValue;
 		} else {
-			this.value = displayValue;
 			this.scopeValue = isConfigured && inspected[targetSelector];
 			this.defaultValue = inspected.defaultValue;
 		}
 
+		this.value = displayValue;
 		this.isConfigured = isConfigured;
 		if (isConfigured || this.setting.tags || this.tags || this.setting.restricted) {
 			// Don't create an empty Set for all 1000 settings, only if needed

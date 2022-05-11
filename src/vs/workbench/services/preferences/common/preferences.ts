@@ -91,6 +91,7 @@ export interface ISetting {
 	isLanguageTagSetting?: boolean;
 	categoryOrder?: number;
 	categoryLabel?: string;
+	hasPolicyValue?: boolean;
 }
 
 export interface IExtensionSetting extends ISetting {

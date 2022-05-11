@@ -584,6 +584,7 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	containerElement: HTMLElement;
 	categoryElement: HTMLElement;
 	labelElement: SimpleIconLabel;
+	policyWarningElement: HTMLElement;
 	descriptionElement: HTMLElement;
 	controlElement: HTMLElement;
 	deprecationWarningElement: HTMLElement;
@@ -605,6 +606,7 @@ type ISettingNumberItemTemplate = ISettingTextItemTemplate;
 
 interface ISettingEnumItemTemplate extends ISettingItemTemplate<number> {
 	selectBox: SelectBox;
+	selectElement: HTMLSelectElement | null;
 	enumDescriptionElement: HTMLElement;
 }
 
@@ -781,9 +783,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
 		const labelElementContainer = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
 		const labelElement = new SimpleIconLabel(labelElementContainer);
-
 		const miscLabel = new SettingsTreeMiscLabel(titleElement);
-
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
 		modifiedIndicatorElement.title = localize('modified', "The setting has been configured in the current scope.");
@@ -795,6 +795,14 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const toDispose = new DisposableStore();
 
+		const policyWarningElement = DOM.append(container, $('.setting-item-policy-description'));
+		const policyIcon = DOM.append(policyWarningElement, $('span.codicon.codicon-lock'));
+		toDispose.add(attachStylerCallback(this._themeService, { editorErrorForeground }, colors => {
+			policyIcon.style.setProperty('--organization-policy-icon-color', colors.editorErrorForeground?.toString() || '');
+		}));
+		const element = DOM.append(policyWarningElement, $('span'));
+		element.textContent = localize('policyLabel', "This setting is not configurable due to your organization's policy.");
+
 		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
 		const toolbar = this.renderSettingToolbar(toolbarContainer);
 
@@ -805,6 +813,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			containerElement: container,
 			categoryElement,
 			labelElement,
+			policyWarningElement,
 			descriptionElement,
 			controlElement,
 			deprecationWarningElement,
@@ -907,6 +916,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.elementDisposables.add(this.onDidChangeIgnoredSettings(() => {
 			template.miscLabel.updateSyncIgnored(element, this.ignoredSettings);
 		}));
+
+		template.policyWarningElement.hidden = !element.setting.hasPolicyValue;
 
 		this.updateSettingTabbable(element, template);
 		template.elementDisposables.add(element.onDidChangeTabbable(() => {
@@ -1538,6 +1549,7 @@ abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer imple
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
 		template.inputBox.setAriaLabel(dataElement.setting.key);
+		template.inputBox.inputElement.disabled = !!dataElement.setting.hasPolicyValue;
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
 				onChange(value);
@@ -1633,6 +1645,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		const template: ISettingEnumItemTemplate = {
 			...common,
 			selectBox,
+			selectElement,
 			enumDescriptionElement
 		};
 
@@ -1704,6 +1717,10 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 			}
 		};
 
+		if (template.selectElement) {
+			template.selectElement.disabled = !!dataElement.setting.hasPolicyValue;
+		}
+
 		template.enumDescriptionElement.innerText = '';
 	}
 }
@@ -1757,6 +1774,7 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
 		template.inputBox.setAriaLabel(dataElement.setting.key);
+		template.inputBox.setEnabled(!dataElement.setting.hasPolicyValue);
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
 				onChange(nullNumParseFn(value));
@@ -1789,7 +1807,6 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
 		modifiedIndicatorElement.title = localize('modified', "The setting has been configured in the current scope.");
 
-
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toDispose = new DisposableStore();
@@ -1819,6 +1836,14 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const toolbar = this.renderSettingToolbar(toolbarContainer);
 		toDispose.add(toolbar);
 
+		const policyWarningElement = DOM.append(container, $('.setting-item-policy-description'));
+		const policyIcon = DOM.append(policyWarningElement, $('span.codicon.codicon-lock'));
+		toDispose.add(attachStylerCallback(this._themeService, { editorErrorForeground }, colors => {
+			policyIcon.style.setProperty('--organization-policy-icon-color', colors.editorErrorForeground?.toString() || '');
+		}));
+		const element = DOM.append(policyWarningElement, $('span'));
+		element.textContent = localize('policyLabel', "This setting is not configurable due to your organization's policy.");
+
 		const template: ISettingBoolItemTemplate = {
 			toDispose,
 			elementDisposables: new DisposableStore(),
@@ -1828,6 +1853,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 			labelElement,
 			controlElement,
 			checkbox,
+			policyWarningElement,
 			descriptionElement,
 			deprecationWarningElement,
 			miscLabel,
@@ -1852,6 +1878,11 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		template.onChange = undefined;
 		template.checkbox.checked = dataElement.value;
 		template.checkbox.setTitle(dataElement.setting.key);
+		if (dataElement.setting.hasPolicyValue) {
+			template.checkbox.disable();
+		} else {
+			template.checkbox.enable();
+		}
 		template.onChange = onChange;
 	}
 }

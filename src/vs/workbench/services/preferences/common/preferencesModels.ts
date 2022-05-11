@@ -741,6 +741,7 @@ export class DefaultSettings extends Disposable {
 					tags: prop.tags,
 					disallowSyncIgnore: prop.disallowSyncIgnore,
 					restricted: prop.restricted,
+					hasPolicyValue: !!prop.policy,
 					extensionInfo: extensionInfo,
 					deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
 					deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
