@@ -715,8 +715,8 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 		@IExtHostApiDeprecationService deprecationService: IExtHostApiDeprecationService
 	) {
 		super(extHostRpc, initData, workspaceService, editorService, configurationService, extHostTerminalService, logService, deprecationService);
-		this.registerTaskSystem(Schemas.vscodeRemote, {
-			scheme: Schemas.vscodeRemote,
+		this.registerTaskSystem(Schemas.inMemory, {
+			scheme: Schemas.inMemory,
 			authority: '',
 			platform: Platform.PlatformToString(Platform.Platform.Web)
 		});
