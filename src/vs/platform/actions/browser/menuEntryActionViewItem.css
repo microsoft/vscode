@@ -11,16 +11,6 @@
 	background-size: 16px;
 }
 
-.monaco-action-bar .action-item.menu-entry .action-label,
-.hc-light .monaco-action-bar .action-item.menu-entry .action-label {
-	background-image: var(--menu-entry-icon-light);
-}
-
-.vs-dark .monaco-action-bar .action-item.menu-entry .action-label,
-.hc-black .monaco-action-bar .action-item.menu-entry .action-label {
-	background-image: var(--menu-entry-icon-dark);
-}
-
 
 .monaco-dropdown-with-default {
 	display: flex !important;
