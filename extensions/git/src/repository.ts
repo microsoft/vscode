@@ -13,7 +13,7 @@ import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
 import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
 import { StatusBarCommands } from './statusbar';
-import { toGitUri } from './uri';
+import { toGitUri, toMergeUris } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { LogLevel, OutputChannelLogger } from './log';
@@ -21,7 +21,6 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { ActionButtonCommand } from './actionButton';
-import { toMergeUris } from './mergeInfoProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
