@@ -63,7 +63,7 @@ function generateVSCodeConfigurationTask(): Promise<string | undefined> {
 		const timer = setTimeout(() => {
 			codeProc.kill();
 			reject(new Error('export-default-configuration process timed out'));
-		}, 12 * 1000);
+		}, 30 * 1000);
 
 		codeProc.on('error', err => {
 			clearTimeout(timer);
