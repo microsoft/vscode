@@ -27,6 +27,7 @@ export interface INotebookKernelChangeEvent {
 	description?: true;
 	detail?: true;
 	kind?: true;
+	state?: true;
 	supportedLanguages?: true;
 	hasExecutionOrder?: true;
 }
@@ -34,6 +35,11 @@ export interface INotebookKernelChangeEvent {
 export const enum NotebookKernelType {
 	Resolved,
 	Proxy = 1
+}
+
+export enum NotebookControllerState {
+	Idle = 1,
+	Connecting = 2
 }
 
 export interface IResolvedNotebookKernel {
@@ -51,6 +57,7 @@ export interface IResolvedNotebookKernel {
 	description?: string;
 	detail?: string;
 	kind?: string;
+	state?: NotebookControllerState;
 	supportedLanguages: string[];
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;
@@ -74,13 +81,19 @@ export interface INotebookProxyKernel {
 	readonly id: string;
 	readonly viewType: string;
 	readonly extension: ExtensionIdentifier;
+	readonly localResourceRoot: URI;
+	readonly preloadUris: URI[];
 	readonly preloadProvides: string[];
+
 	readonly onDidChange: Event<Readonly<INotebookProxyKernelChangeEvent>>;
 	label: string;
 	description?: string;
 	detail?: string;
 	kind?: string;
+	state?: NotebookControllerState;
 	supportedLanguages: string[];
+	implementsInterrupt?: boolean;
+	implementsExecutionOrder?: boolean;
 	connectionState: ProxyKernelState;
 	resolveKernel(uri: URI): Promise<string | null>;
 }

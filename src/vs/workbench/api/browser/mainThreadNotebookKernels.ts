@@ -17,7 +17,7 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/no
 import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IResolvedNotebookKernel, INotebookKernelChangeEvent, INotebookKernelService, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape, NotebookControllerState } from '../common/extHost.protocol';
 
 abstract class MainThreadKernel implements IResolvedNotebookKernel {
 	readonly type: NotebookKernelType.Resolved = NotebookKernelType.Resolved;
@@ -35,6 +35,7 @@ abstract class MainThreadKernel implements IResolvedNotebookKernel {
 	description?: string;
 	detail?: string;
 	kind?: string;
+	state?: NotebookControllerState;
 	supportedLanguages: string[];
 	implementsExecutionOrder: boolean;
 	localResourceRoot: URI;
@@ -57,6 +58,7 @@ abstract class MainThreadKernel implements IResolvedNotebookKernel {
 		this.description = data.description;
 		this.detail = data.detail;
 		this.kind = data.kind;
+		this.state = data.state;
 		this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : _languageService.getRegisteredLanguageIds();
 		this.implementsExecutionOrder = data.supportsExecutionOrder ?? false;
 		this.localResourceRoot = URI.revive(data.extensionLocation);
@@ -82,6 +84,10 @@ abstract class MainThreadKernel implements IResolvedNotebookKernel {
 		if (data.kind !== undefined) {
 			this.kind = data.kind;
 			event.kind = true;
+		}
+		if (data.state !== undefined) {
+			this.state = data.state;
+			event.state = true;
 		}
 		if (data.supportedLanguages !== undefined) {
 			this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : this._languageService.getRegisteredLanguageIds();

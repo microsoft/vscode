@@ -28,7 +28,7 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel, INotebookKernelService, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelService, NotebookControllerState } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
@@ -205,8 +205,8 @@ registerAction2(class extends Action2 {
 				});
 			}
 
-			if (!all.find(item => item.type === NotebookKernelType.Resolved)) {
-				// there is no resolved kernel, show the install from marketplace
+			if (!all.length) {
+				// there is no kernel, show the install from marketplace
 				quickPickItems.push({
 					id: 'install',
 					label: nls.localize('installKernels', "Install kernels from the marketplace"),
@@ -379,7 +379,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 			this._kernelInfoElement.add(this._statusbarService.addEntry(
 				{
 					name: nls.localize('notebook.info', "Notebook Kernel Info"),
-					text: `$(notebook-kernel-select) ${kernel.label}`,
+					text: `$(notebook-kernel-select) ${kernel.label}` + (kernel.state === NotebookControllerState.Idle ? '' : ' Connecting...'),
 					ariaLabel: kernel.label,
 					tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
 					command: SELECT_KERNEL_ID,

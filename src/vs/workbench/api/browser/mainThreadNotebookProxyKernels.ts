@@ -7,9 +7,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { INotebookKernelService, INotebookProxyKernel, INotebookProxyKernelChangeEvent, ProxyKernelState, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelService, INotebookProxyKernel, INotebookProxyKernelChangeEvent, ProxyKernelState, NotebookKernelType, NotebookControllerState } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { ExtHostContext, ExtHostNotebookProxyKernelsShape, INotebookProxyKernelDto, MainContext, MainThreadNotebookProxyKernelsShape } from '../common/extHost.protocol';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { URI } from 'vs/base/common/uri';
 
 abstract class MainThreadProxyKernel implements INotebookProxyKernel {
 	readonly type: NotebookKernelType.Proxy = NotebookKernelType.Proxy;
@@ -19,11 +20,16 @@ abstract class MainThreadProxyKernel implements INotebookProxyKernel {
 	readonly viewType: string;
 	readonly extension: ExtensionIdentifier;
 	readonly preloadProvides: string[] = [];
+	readonly preloadUris: URI[] = [];
 	label: string;
 	description?: string;
 	detail?: string;
 	kind?: string;
 	supportedLanguages: string[] = [];
+	localResourceRoot: URI;
+	state?: NotebookControllerState | undefined;
+	implementsInterrupt?: boolean | undefined;
+	implementsExecutionOrder?: boolean | undefined;
 	connectionState: ProxyKernelState;
 
 	constructor(data: INotebookProxyKernelDto) {
@@ -35,9 +41,11 @@ abstract class MainThreadProxyKernel implements INotebookProxyKernel {
 		this.description = data.description;
 		this.detail = data.detail;
 		this.kind = data.kind;
+		this.localResourceRoot = URI.revive(data.extensionLocation);
 
 		this.connectionState = ProxyKernelState.Disconnected;
 	}
+
 
 	update(data: Partial<INotebookProxyKernel>) {
 		const event: INotebookProxyKernelChangeEvent = Object.create(null);

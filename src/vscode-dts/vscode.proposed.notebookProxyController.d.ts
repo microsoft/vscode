@@ -5,6 +5,14 @@
 
 declare module 'vscode' {
 
+	export enum NotebookControllerState {
+		Idle = 1,
+		Connecting = 2
+	}
+
+	export interface NotebookController {
+		state?: NotebookControllerState;
+	}
 
 	export interface NotebookProxyController {
 		/**
