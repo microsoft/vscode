@@ -43,7 +43,7 @@ export class FilePolicyService extends Disposable implements IPolicyService {
 
 		const onDidChangePolicyFile = Event.filter(fileService.onDidFilesChange, e => e.affects(file));
 		this._register(fileService.watch(file));
-		this._register(onDidChangePolicyFile(this.refresh, this));
+		this._register(onDidChangePolicyFile(() => this.throttledDelayer.trigger(() => this.doRefresh())));
 	}
 
 	async initialize(): Promise<void> {
@@ -51,7 +51,7 @@ export class FilePolicyService extends Disposable implements IPolicyService {
 	}
 
 	async refresh(): Promise<void> {
-		await this.throttledDelayer.trigger(() => this.doRefresh());
+		await this.doRefresh();
 	}
 
 	private async read(): Promise<Policies> {
