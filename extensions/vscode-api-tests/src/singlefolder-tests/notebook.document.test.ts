@@ -128,7 +128,6 @@ suite.skip('Notebook Document', function () {
 
 				const doc = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === cell.document.uri.toString());
 				assert.ok(doc);
-				assert.strictEqual(doc.notebook === notebook, true);
 				assert.strictEqual(doc === cell.document, true);
 				assert.strictEqual(doc?.languageId, cell.document.languageId);
 				assert.strictEqual(doc?.isDirty, false);
