@@ -624,8 +624,6 @@ export class IncrementalChangeCollector<T> {
  */
 export abstract class AbstractIncrementalTestCollection<T extends IncrementalTestCollectionItem>  {
 	private readonly _tags = new Map<string, ITestTagDisplayInfo>();
-	/** Map of test IDs that have related code in each file. */
-	private readonly _relatedCode = new Map</* uri */string, Set< /* test id */string>>();
 
 	/**
 	 * Map of item IDs to test item objects.
@@ -675,12 +673,6 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 						changes.add(created);
 					}
 
-					if (internalTest.item.relatedCode) {
-						for (const { uri } of internalTest.item.relatedCode) {
-							this.addTestToRelatedCode(uri.toString(), internalTest.item.extId);
-						}
-					}
-
 					if (internalTest.expand === TestItemExpandState.BusyExpanding) {
 						this.busyControllerCount++;
 					}
@@ -700,21 +692,6 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 						}
 						if (patch.expand === TestItemExpandState.BusyExpanding) {
 							this.busyControllerCount++;
-						}
-					}
-
-					if (patch.item?.relatedCode !== undefined) {
-						const previous = new Set(existing.item.relatedCode?.map(c => c.uri.toString()));
-						const current = new Set(patch.item.relatedCode?.map(c => c.uri.toString()));
-						for (const uri of previous) {
-							if (!current.has(uri)) {
-								this.removeTestFromRelatedCode(uri.toString(), patch.extId);
-							}
-						}
-						for (const uri of current) {
-							if (!previous.has(uri)) {
-								this.addTestToRelatedCode(uri.toString(), patch.extId);
-							}
 						}
 					}
 
@@ -744,12 +721,6 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 								queue.push(existing.children);
 								this.items.delete(itemId);
 								changes.remove(existing, existing !== toRemove);
-
-								if (existing.item.relatedCode) {
-									for (const { uri } of existing.item.relatedCode) {
-										this.removeTestFromRelatedCode(uri.toString(), existing.item.extId);
-									}
-								}
 
 								if (existing.expand === TestItemExpandState.BusyExpanding) {
 									this.busyControllerCount--;
@@ -808,20 +779,4 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	 * Creates a new item for the collection from the internal test item.
 	 */
 	protected abstract createItem(internal: InternalTestItem, parent?: T): T;
-
-	private removeTestFromRelatedCode(uri: string, testId: string) {
-		const s = this._relatedCode.get(uri);
-		if (s?.delete(testId) && !s.size) {
-			this._relatedCode.delete(uri);
-		}
-	}
-
-	private addTestToRelatedCode(uri: string, testId: string) {
-		const s = this._relatedCode.get(uri);
-		if (s) {
-			s.add(testId);
-		} else {
-			this._relatedCode.set(uri, new Set([testId]));
-		}
-	}
 }
