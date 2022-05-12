@@ -185,14 +185,17 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 				owner: 'alexdima';
 				comment: 'The initial connection succeeded';
 				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connected'; isMeasurement: true };
 				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			};
 			type RemoteConnectionSuccessEvent = {
 				web: boolean;
+				connectionTimeMs: number | undefined;
 				remoteName: string | undefined;
 			};
 			this._telemetryService.publicLog2<RemoteConnectionSuccessEvent, RemoteConnectionSuccessClassification>('remoteConnectionSuccess', {
 				web: isWeb,
+				connectionTimeMs: this.getInitialConnectLatency(),
 				remoteName: getRemoteName(this._environmentService.remoteAuthority)
 			});
 
@@ -203,20 +206,28 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 				comment: 'The initial connection failed';
 				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connection failure'; isMeasurement: true };
 				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			};
 			type RemoteConnectionFailureEvent = {
 				web: boolean;
 				remoteName: string | undefined;
+				connectionTimeMs: number | undefined;
 				message: string;
 			};
 			this._telemetryService.publicLog2<RemoteConnectionFailureEvent, RemoteConnectionFailureClassification>('remoteConnectionFailure', {
 				web: isWeb,
+				connectionTimeMs: this.getInitialConnectLatency(),
 				remoteName: getRemoteName(this._environmentService.remoteAuthority),
 				message: err ? err.message : ''
 			});
 
 		}
+	}
+
+	private getInitialConnectLatency() {
+		const [entry] = performance.getEntriesByName('code/remote/initialConnect', 'measure');
+		return entry?.duration;
 	}
 }
 

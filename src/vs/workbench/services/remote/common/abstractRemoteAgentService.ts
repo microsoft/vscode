@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IChannel, IServerChannel, getDelayedChannel, IPCLogger } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { connectRemoteAgentManagement, IConnectionOptions, ISocketFactory, PersistentConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
+import { connectRemoteAgentManagement, IConnectionOptions, ISocketFactory, ManagementPersistentConnection, PersistentConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
@@ -153,6 +153,8 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 	readonly remoteAuthority: string;
 	private _connection: Promise<Client<RemoteAgentConnectionContext>> | null;
 
+	initialConnectionLatencyMs?: number;
+
 	constructor(
 		remoteAuthority: string,
 		private readonly _commit: string | undefined,
@@ -209,7 +211,17 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 			logService: this._logService,
 			ipcLogger: false ? new IPCLogger(`Local \u2192 Remote`, `Remote \u2192 Local`) : null
 		};
-		const connection = this._register(await connectRemoteAgentManagement(options, this.remoteAuthority, `renderer`));
+		let connection: ManagementPersistentConnection;
+		let start = performance.now();
+		try {
+			connection = this._register(await connectRemoteAgentManagement(options, this.remoteAuthority, `renderer`));
+		} finally {
+			performance.measure('code/remote/initialConnect', {
+				start,
+				end: performance.now()
+			});
+		}
+
 		connection.protocol.onDidDispose(() => {
 			connection.dispose();
 		});
