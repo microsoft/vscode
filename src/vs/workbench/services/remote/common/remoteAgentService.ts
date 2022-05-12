@@ -36,6 +36,12 @@ export interface IRemoteAgentService {
 	 */
 	getExtensionHostExitInfo(reconnectionToken: string): Promise<IExtensionHostExitInfo | null>;
 
+	/**
+	 * Gets the round trip time from the remote extension host. Note that this
+	 * may be delayed if the extension host is busy.
+	 */
+	getRoundTripTime(): Promise<number | undefined>;
+
 	whenExtensionsReady(): Promise<void>;
 	/**
 	 * Scan remote extensions.

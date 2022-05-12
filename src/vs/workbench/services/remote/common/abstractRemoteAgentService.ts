@@ -125,6 +125,17 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 		);
 	}
 
+	getRoundTripTime(): Promise<number | undefined> {
+		return this._withTelemetryChannel(
+			async channel => {
+				const start = performance.now();
+				await RemoteExtensionEnvironmentChannelClient.ping(channel);
+				return performance.now() - start;
+			},
+			undefined
+		);
+	}
+
 	private _withChannel<R>(callback: (channel: IChannel, connection: IRemoteAgentConnection) => Promise<R>, fallback: R): Promise<R> {
 		const connection = this.getConnection();
 		if (!connection) {
