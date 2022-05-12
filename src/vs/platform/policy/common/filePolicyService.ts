@@ -9,7 +9,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IPolicyService, Policies, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
 
@@ -69,7 +69,9 @@ export class FilePolicyService extends Disposable implements IPolicyService {
 				policies.set(key, raw[key]);
 			}
 		} catch (error) {
-			this.logService.error(`[FilePolicyService] Failed to read policies`, error);
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+				this.logService.error(`[FilePolicyService] Failed to read policies`, error);
+			}
 		}
 
 		return policies;
