@@ -1015,6 +1015,7 @@ function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): string {
 .monaco-menu {
 	font-size: 13px;
 	border-radius: 5px;
+	min-width: 160px;
 }
 
 ${formatRule(Codicon.menuSelection)}
@@ -1266,7 +1267,7 @@ ${formatRule(Codicon.menuSubmenu)}
 /* Vertical Action Bar Styles */
 
 .monaco-menu .monaco-action-bar.vertical {
-	padding: .5em 0;
+	padding: .6em 0;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {
