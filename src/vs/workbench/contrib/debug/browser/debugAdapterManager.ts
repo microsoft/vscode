@@ -343,7 +343,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		}
 
 		picks.push({ type: 'separator', label: '' });
-		const placeHolder = nls.localize('selectDebug', "Select environment");
+		const placeHolder = nls.localize('selectDebug', "Select debugger");
 
 		picks.push({ label: languageLabel ? nls.localize('installLanguage', "Install an extension for {0}...", languageLabel) : nls.localize('installExt', "Install extension...") });
 		return this.quickInputService.pick<{ label: string; debugger?: Debugger }>(picks, { activeItem: picks[0], placeHolder })
