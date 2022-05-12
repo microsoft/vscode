@@ -113,6 +113,7 @@
 	display: inline-block;
 	width: 100%;
 	text-align: center;
+	font-size: 12px;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen .action-label:HOVER {
