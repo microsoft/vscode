@@ -292,7 +292,8 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 	constructor(
 		action: SubmenuItemAction,
 		options: IDropdownMenuActionViewItemOptions | undefined,
-		@IContextMenuService contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IThemeService protected _themeService: IThemeService
 	) {
 		const dropdownOptions = Object.assign({}, options ?? Object.create(null), {
 			menuAsChild: options?.menuAsChild ?? false,
@@ -309,12 +310,20 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 			const { icon } = (<SubmenuItemAction>this._action).item;
 			if (icon && !ThemeIcon.isThemeIcon(icon)) {
 				this.element.classList.add('icon');
-				if (icon.light) {
-					this.element.style.setProperty('--menu-entry-icon-light', asCSSUrl(icon.light));
-				}
-				if (icon.dark) {
-					this.element.style.setProperty('--menu-entry-icon-dark', asCSSUrl(icon.dark));
-				}
+				const setBackgroundImage = () => {
+					if (this.element) {
+						this.element.style.backgroundImage = (
+							isDark(this._themeService.getColorTheme().type)
+								? asCSSUrl(icon.dark)
+								: asCSSUrl(icon.light)
+						);
+					}
+				};
+				setBackgroundImage();
+				this._register(this._themeService.onDidColorThemeChange(() => {
+					// refresh when the theme changes in case we go between dark <-> light
+					setBackgroundImage();
+				}));
 			}
 		}
 	}
