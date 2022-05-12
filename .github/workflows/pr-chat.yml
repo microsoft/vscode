@@ -20,4 +20,4 @@ jobs:
         with:
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           slack_token: ${{ secrets.SLACK_TOKEN }}
-          notification_channel: build
+          notification_channel: codereview
