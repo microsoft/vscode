@@ -2489,21 +2489,9 @@ export class CommandCenter {
 	}
 
 	@command('git.revealFileInOS.linux')
-	async revealFileInOSlinux(resourceState: SourceControlResourceState): Promise<void> {
-		return this.revealFileInOS(resourceState);
-	}
-
 	@command('git.revealFileInOS.mac')
-	async revealFileInOSmac(resourceState: SourceControlResourceState): Promise<void> {
-		return this.revealFileInOS(resourceState);
-	}
-
 	@command('git.revealFileInOS.windows')
-	async revealFileInOSwindows(resourceState: SourceControlResourceState): Promise<void> {
-		return this.revealFileInOS(resourceState);
-	}
-
-	private async revealFileInOS(resourceState: SourceControlResourceState): Promise<void> {
+	async revealFileInOS(resourceState: SourceControlResourceState): Promise<void> {
 		if (!resourceState) {
 			return;
 		}
