@@ -5,6 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
+import * as minimatch from 'minimatch';
 import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
@@ -1494,6 +1495,36 @@ export class CommandCenter {
 
 		if (opts.all && config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges') !== 'mixed') {
 			opts.all = 'tracked';
+		}
+
+		// Branch protection
+		const branchProtection = config.get<string[]>('branchProtection')!;
+		const branchProtectionPrompt = config.get<'alwaysCommit' | 'alwaysCommitToNewBranch' | 'alwaysPrompt'>('branchProtectionPrompt')!;
+		const branchIsProtected = !!branchProtection.find(bp => minimatch(repository.HEAD?.name ?? '', bp));
+
+		if (branchIsProtected && (branchProtectionPrompt === 'alwaysPrompt' || branchProtectionPrompt === 'alwaysCommitToNewBranch')) {
+			const commitToNewBranch = localize('commit to branch', "Commit to a New Branch");
+
+			let pick: string | undefined = commitToNewBranch;
+
+			if (branchProtectionPrompt === 'alwaysPrompt') {
+				const message = localize('confirm branch protection commit', "You are trying to commit to a protected branch and you might not have permission to push your commits to the remote.\n\nHow would you like to proceed?");
+				const commit = localize('commit changes', "Commit Anyway");
+
+				pick = await window.showWarningMessage(message, { modal: true }, commitToNewBranch, commit);
+			}
+
+			if (!pick) {
+				return false;
+			} else if (pick === commitToNewBranch) {
+				const branchName = await this.promptForBranchName(repository);
+
+				if (!branchName) {
+					return false;
+				}
+
+				await repository.branch(branchName, true);
+			}
 		}
 
 		await repository.commit(message, opts);
