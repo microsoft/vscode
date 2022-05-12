@@ -1,0 +1,46 @@
+{
+  "name": "al",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "0.10.x"
+  },
+  "scripts": {
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin dynamics365/alsyntax-tmLanguage grammars/alsyntax.tmLanguage ./syntaxes/alsyntax.tmLanguage.json"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "al",
+        "extensions": [
+          ".al",
+          ".dal"
+        ],
+        "aliases": [
+          "AL"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "al",
+        "scopeName": "source.al",
+        "path": "./syntaxes/alsyntax.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "al",
+        "path": "./snippets/al.code-snippets"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

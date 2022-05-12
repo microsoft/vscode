@@ -1,0 +1,18 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "dynamics365/alsyntax-tmLanguage",
+					"repositoryUrl": "https://github.com/microsoft/AL",
+					"commitHash": "a98fe2cf14a212333a226077040a7258536071b3"
+				}
+			},
+			"license": "MIT",
+			"version": "0.1.0",
+			"description": "The file syntaxes/alsyntax.tmLanguage.json was derived from https://github.com/microsoft/al"
+		}
+	],
+	"version": 1
+}

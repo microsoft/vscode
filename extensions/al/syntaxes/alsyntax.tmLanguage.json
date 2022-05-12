@@ -1,0 +1,162 @@
+{
+	"information_for_contributors": [
+	"This file has been converted from https://github.com/microsoft/AL/master/grammar/alsyntax.tmlanguage",
+	"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+	"Once accepted there, we are happy to receive an update request."],
+	"version": "https://github.com/microsoft/AL/commit/a98fe2cf14a212333a226077040a7258536071b3"
+  ,
+  "fileTypes": [
+    "al",
+    "dal"
+  ],
+  "name": "al",
+  "patterns": [
+    {
+      "match": "\\b(?i:(ARRAY|ASSERTERROR|BEGIN|BREAK|CASE|DO|DOWNTO|ELSE|END|EVENT|EXIT|FOR|FOREACH|FUNCTION|IF|IMPLEMENTS|IN|INDATASET|INTERFACE|INTERNAL|LOCAL|OF|PROCEDURE|PROGRAM|PROTECTED|REPEAT|RUNONCLIENT|SECURITYFILTERING|SUPPRESSDISPOSE|TEMPORARY|THEN|TO|TRIGGER|UNTIL|VAR|WHILE|WITH|WITHEVENTS))\\b",
+      "name": "keyword.control.al"
+    },
+    {
+      "match": "\\b(?i:(AND|DIV|MOD|NOT|OR|XOR))\\b",
+      "name": "keyword.operators.al"
+    },
+    {
+      "match": "\\b(?i:(AVERAGE|CONST|COUNT|EXIST|FIELD|FILTER|LOOKUP|MAX|MIN|ORDER|SORTING|SUM|TABLEDATA|UPPERLIMIT|WHERE|ASCENDING|DESCENDING))\\b",
+      "name": "keyword.other.property.al"
+    },
+    {
+      "match": "\\b(?i:(CODEUNIT|PAGE|PAGEEXTENSION|PAGECUSTOMIZATION|DOTNET|ENUM|ENUMEXTENSION|VALUE|QUERY|REPORT|TABLE|TABLEEXTENSION|XMLPORT|PROFILE|CONTROLADDIN|REPORTEXTENSION|INTERFACE|PERMISSIONSET|PERMISSIONSETEXTENSION|ENTITLEMENT))\\b",
+      "name": "keyword.other.applicationobject.al"
+    },
+    {
+      "match": "\\b(?i:(Action|Array|Automation|BigInteger|BigText|Blob|Boolean|Byte|Char|ClientType|Code|Codeunit|CompletionTriggerErrorLevel|ConnectionType|Database|DataClassification|DataScope|Date|DateFormula|DateTime|Decimal|DefaultLayout|Dialog|Dictionary|DotNet|DotNetAssembly|DotNetTypeDeclaration|Duration|Enum|ErrorInfo|ErrorType|ExecutionContext|ExecutionMode|FieldClass|FieldRef|FieldType|File|FilterPageBuilder|Guid|InStream|Integer|Joker|KeyRef|List|ModuleDependencyInfo|ModuleInfo|None|Notification|NotificationScope|ObjectType|Option|OutStream|Page|PageResult|Query|Record|RecordId|RecordRef|Report|ReportFormat|SecurityFilter|SecurityFiltering|Table|TableConnectionType|TableFilter|TestAction|TestField|TestFilterField|TestPage|TestPermissions|TestRequestPage|Text|TextBuilder|TextConst|TextEncoding|Time|TransactionModel|TransactionType|Variant|Verbosity|Version|XmlPort|HttpContent|HttpHeaders|HttpClient|HttpRequestMessage|HttpResponseMessage|JsonToken|JsonValue|JsonArray|JsonObject|View|Views|XmlAttribute|XmlAttributeCollection|XmlComment|XmlCData|XmlDeclaration|XmlDocument|XmlDocumentType|XmlElement|XmlNamespaceManager|XmlNameTable|XmlNode|XmlNodeList|XmlProcessingInstruction|XmlReadOptions|XmlText|XmlWriteOptions|WebServiceActionContext|WebServiceActionResultCode|SessionSettings))\\b",
+      "name": "keyword.other.builtintypes.al"
+    },
+    {
+      "match": "\\b([<>]=|<>|<|>)\\b",
+      "name": "keyword.operators.comparison.al"
+    },
+    {
+      "match": "\\b(\\-|\\+|\\/|\\*)\\b",
+      "name": "keyword.operators.math.al"
+    },
+    {
+      "match": "\\s*(\\:=|\\+=|-=|\\/=|\\*=)\\s*",
+      "name": "keyword.operators.assigment.al"
+    },
+    {
+      "match": "\\b(?i:(ADD|ADDFIRST|ADDLAST|ADDAFTER|ADDBEFORE|ACTION|ACTIONS|AREA|ASSEMBLY|CHARTPART|CUEGROUP|CUSTOMIZES|COLUMN|DATAITEM|DATASET|ELEMENTS|EXTENDS|FIELD|FIELDGROUP|FIELDATTRIBUTE|FIELDELEMENT|FIELDGROUPS|FIELDS|FILTER|FIXED|GRID|GROUP|MOVEAFTER|MOVEBEFORE|KEY|KEYS|LABEL|LABELS|LAYOUT|MODIFY|MOVEFIRST|MOVELAST|MOVEBEFORE|MOVEAFTER|PART|REPEATER|USERCONTROL|REQUESTPAGE|SCHEMA|SEPARATOR|SYSTEMPART|TABLEELEMENT|TEXTATTRIBUTE|TEXTELEMENT|TYPE))\\b",
+      "name": "keyword.other.metadata.al"
+    },
+    {
+      "match": "\\s*[(\\.\\.)&\\|]\\s*",
+      "name": "keyword.operators.property.al"
+    },
+    {
+      "captures": {
+        "1": {
+          "name": "entity.name.applicationobject.al"
+        }
+      },
+      "match": "\\b(?i:(CODEUNIT|PAGE|QUERY|REPORT|TABLE|XMLPORT))\\b",
+      "name": "meta.applicationobject.al"
+    },
+    {
+      "captures": {
+        "1": {
+          "name": "entity.name.function.al"
+        }
+      },
+      "match": "\\b(?i:(trigger|procedure))\\b\\s+(\\w+(\\.\\w+)?)(\\(.*?\\))?;\\s*",
+      "name": "meta.function.al"
+    },
+    {
+      "match": "\\b((0(x|X)[0-9a-fA-F]*)|(([0-9]+\\.?[0-9]*)|(\\.[0-9]+))((e|E)(\\+|-)?[0-9]+)?)(L|l|UL|ul|u|U|F|f|ll|LL|ull|ULL)?\\b",
+      "name": "constant.numeric.al"
+    },
+    {
+      "begin": "(^[ \\t]+)?(?=//)",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.whitespace.comment.leading.al"
+        }
+      },
+      "end": "(?!\\G)",
+      "patterns": [
+        {
+          "begin": "//",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.al"
+            }
+          },
+          "end": "\\n",
+          "name": "comment.line.double-slash.al.two"
+        }
+      ]
+    },
+    {
+      "begin": "(^[ \\t]+)?(?=#)",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.whitespace.directive.leading.al"
+        }
+      },
+      "end": "(?!\\G)",
+      "patterns": [
+        {
+          "begin": "#",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.directive.al"
+            }
+          },
+          "end": "\\n",
+          "name": "comment.line.number-sign.al.two"
+        }
+      ]
+    },
+    {
+      "begin": "/\\*",
+      "captures": {
+        "0": {
+          "name": "punctuation.definition.comment.al"
+        }
+      },
+      "end": "\\*/\\n?",
+      "name": "comment.block.al.one"
+    },
+    {
+      "applyEndPatternLast": 1,
+      "begin": "'",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.begin.al"
+        }
+      },
+      "end": "'",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.al"
+        }
+      },
+      "name": "string.quoted.single.al",
+      "patterns": [
+        {
+          "match": "''",
+          "name": "constant.character.escape.apostrophe.al"
+        }
+      ]
+    },
+    {
+      "match": "[;:,]",
+      "name": "punctuation.al"
+    },
+    {
+      "applyEndPatternLast": 1,
+      "begin": "\"",
+      "end": "\""
+    }
+  ],
+  "scopeName": "source.al",
+  "uuid": "E52FB544-6C1C-11D9-A527-000D94689BF6"
+}
