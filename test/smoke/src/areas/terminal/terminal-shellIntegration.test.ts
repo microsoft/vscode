@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { basename } from 'path';
 import { Application, Terminal, SettingsEditor } from '../../../../automation';
 import { setTerminalTestSettings } from './terminal-helpers';
 
@@ -25,7 +26,7 @@ export function setup() {
 		});
 
 		describe('Shell integration', function () {
-			(process.platform === 'win32' ? describe.skip : describe)('Decorations', function () {
+			(process.platform === 'win32' || basename(process.env.SHELL ?? '') === 'sh' ? describe.skip : describe)('Decorations', function () {
 				describe('Should show default icons', function () {
 					it('Placeholder', async () => {
 						await terminal.createTerminal();
