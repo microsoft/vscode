@@ -64,7 +64,6 @@ export interface IExtensionHostExitInfo {
 
 export interface IRemoteAgentConnection {
 	readonly remoteAuthority: string;
-	readonly initialConnectionLatencyMs?: number;
 
 	readonly onReconnecting: Event<void>;
 	readonly onDidStateChange: Event<PersistentConnectionEvent>;

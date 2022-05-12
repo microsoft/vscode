@@ -164,8 +164,6 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 	readonly remoteAuthority: string;
 	private _connection: Promise<Client<RemoteAgentConnectionContext>> | null;
 
-	initialConnectionLatencyMs?: number;
-
 	constructor(
 		remoteAuthority: string,
 		private readonly _commit: string | undefined,
