@@ -1240,11 +1240,22 @@ ${formatRule(Codicon.menuSubmenu)}
 
 
 /* High Contrast Theming */
+.hc-black .monaco-menu .monaco-action-bar.vertical .action-item,
+.hc-light .monaco-menu .monaco-action-bar.vertical .action-item,
+:host-context(.hc-black) .monaco-menu .monaco-action-bar.vertical .action-item,
+:host-context(.hc-light) .monaco-menu .monaco-action-bar.vertical .action-item {
+	border: thin solid transparent; /* prevents jumping behaviour on hover or focus */
+}
+
+.hc-black .context-view.monaco-menu-container,
+.hc-light .context-view.monaco-menu-container,
 :host-context(.hc-black) .context-view.monaco-menu-container,
 :host-context(.hc-light) .context-view.monaco-menu-container {
 	box-shadow: none;
 }
 
+.hc-black .monaco-menu .monaco-action-bar.vertical .action-item.focused,
+.hc-light .monaco-menu .monaco-action-bar.vertical .action-item.focused,
 :host-context(.hc-black) .monaco-menu .monaco-action-bar.vertical .action-item.focused,
 :host-context(.hc-light) .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 	background: none;
@@ -1278,6 +1289,7 @@ ${formatRule(Codicon.menuSubmenu)}
 	border-radius: 0;
 }
 
+.linux .monaco-menu .monaco-action-bar.vertical .action-label.separator,
 :host-context(.linux) .monaco-menu .monaco-action-bar.vertical .action-label.separator {
 	margin-left: 0;
 	margin-right: 0;
@@ -1288,6 +1300,7 @@ ${formatRule(Codicon.menuSubmenu)}
 	padding: 0 1.8em;
 }
 
+.linux .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 :host-context(.linux) .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	height: 100%;
 	mask-size: 10px 10px;
