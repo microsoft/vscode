@@ -25,8 +25,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { createActionViewItem, createAndFillInContextMenuActions, DropdownWithDefaultActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, IMenu, MenuId, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { createActionViewItem, createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, IMenu, MenuId, MenuRegistry, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Codicon } from 'vs/base/common/codicons';
@@ -191,21 +191,26 @@ export class TitlebarPart extends Part implements ITitleService {
 			const titleToolbar = new ToolBar(this.title, this.contextMenuService, {
 				actionViewItemProvider: (action) => {
 
-					if (action instanceof SubmenuItemAction && action.item.submenu === MenuId.TitleMenuQuickPick) {
-						class QuickInputDropDown extends DropdownWithDefaultActionViewItem {
+					if (action instanceof MenuItemAction && action.id === 'workbench.action.quickOpen') {
+
+						class InputLikeViewItem extends MenuEntryActionViewItem {
 							override render(container: HTMLElement): void {
 								super.render(container);
 								container.classList.add('quickopen');
-								container.title = that.windowTitle.value;
-								this._store.add(that.windowTitle.onDidChange(() => container.title = that.windowTitle.value));
+								this._store.add(that.windowTitle.onDidChange(this._updateFromWindowTitle, this));
+								this._updateFromWindowTitle();
+							}
+							private _updateFromWindowTitle() {
+								if (this.label) {
+									this.label.innerText = localize('search', "Search {0}", that.windowTitle.workspaceName);
+									this.label.title = that.windowTitle.value;
+								}
 							}
 						}
-						return that.instantiationService.createInstance(QuickInputDropDown, action, {
-							keybindingProvider: action => that.keybindingService.lookupKeybinding(action.id),
-							renderKeybindingWithDefaultActionLabel: true
-						});
+						return that.instantiationService.createInstance(InputLikeViewItem, action, undefined);
 					}
-					return undefined;
+
+					return createActionViewItem(this.instantiationService, action);
 				}
 			});
 			const titleMenu = this.titleDisposables.add(this.menuService.createMenu(MenuId.TitleMenu, this.contextKeyService));
@@ -497,5 +502,6 @@ registerThemingParticipant((theme, collector) => {
 MenuRegistry.appendMenuItem(MenuId.TitleMenu, {
 	submenu: MenuId.TitleMenuQuickPick,
 	title: localize('title', "Select Mode"),
+	icon: Codicon.search,
 	order: Number.MAX_SAFE_INTEGER
 });
