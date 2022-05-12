@@ -287,9 +287,11 @@ export class Menu extends ActionBar {
 		const fgColor = style.foregroundColor ? `${style.foregroundColor}` : '';
 		const bgColor = style.backgroundColor ? `${style.backgroundColor}` : '';
 		const border = style.borderColor ? `1px solid ${style.borderColor}` : '';
+		const borderRadius = '5px';
 		const shadow = style.shadowColor ? `0 2px 8px ${style.shadowColor}` : '';
 
 		container.style.border = border;
+		container.style.borderRadius = borderRadius;
 		this.domNode.style.color = fgColor;
 		this.domNode.style.backgroundColor = bgColor;
 		container.style.boxShadow = shadow;
@@ -1012,7 +1014,7 @@ function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): string {
 	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
-
+	border-radius: 5px;
 }
 
 ${formatRule(Codicon.menuSelection)}
@@ -1268,7 +1270,7 @@ ${formatRule(Codicon.menuSubmenu)}
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {
-	height: 2.1em;
+	height: 2em;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
