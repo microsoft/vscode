@@ -20,7 +20,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { performSnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { extractEditorsDropData } from 'vs/platform/dnd/browser/dnd';
+import { extractEditorsDropData, FileAdditionalNativeProperties } from 'vs/platform/dnd/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
@@ -114,7 +114,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 					textEditorDataTransfer.set(type, {
 						asString: () => Promise.resolve(''),
 						asFile: () => {
-							const uri = file.path ? URI.parse(file.path) : undefined;
+							const uri = (file as FileAdditionalNativeProperties).path ? URI.parse((file as FileAdditionalNativeProperties).path!) : undefined;
 							return {
 								name: file.name,
 								uri: uri,

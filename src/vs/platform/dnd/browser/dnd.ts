@@ -24,6 +24,14 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { extractSelection } from 'vs/platform/opener/common/opener';
 import { Registry } from 'vs/platform/registry/common/platform';
 
+export interface FileAdditionalNativeProperties {
+	/**
+	 * The real path to the file on the users filesystem. Only available on electron.
+	 */
+	readonly path?: string;
+}
+
+
 //#region Editor / Resources DND
 
 export const CodeDataTransfers = {
@@ -76,9 +84,9 @@ export async function extractEditorsDropData(accessor: ServicesAccessor, e: Drag
 		if (e.dataTransfer?.files) {
 			for (let i = 0; i < e.dataTransfer.files.length; i++) {
 				const file = e.dataTransfer.files[i];
-				if (file?.path /* Electron only */) {
+				if (file && (file as FileAdditionalNativeProperties).path /* Electron only */) {
 					try {
-						editors.push({ resource: URI.file(file.path), isExternal: true, allowWorkspaceOpen: true });
+						editors.push({ resource: URI.file((file as FileAdditionalNativeProperties).path!), isExternal: true, allowWorkspaceOpen: true });
 					} catch (error) {
 						// Invalid URI
 					}
