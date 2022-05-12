@@ -28,6 +28,7 @@ export function setup() {
 		});
 
 		describe('Shell integration', function () {
+			console.log('process.env.SHELL', process.env.SHELL);
 			(process.platform === 'win32' ? describe.skip : describe)('Decorations', function () {
 				describe('Should show default icons', function () {
 					it('Placeholder', async () => {
