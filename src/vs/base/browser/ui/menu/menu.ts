@@ -1139,7 +1139,7 @@ ${formatRule(Codicon.menuSubmenu)}
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .keybinding,
 .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .keybinding {
-	color: unset;
+	opacity: unset;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label {

@@ -151,7 +151,7 @@ body.web {
 
 .monaco-workbench .monaco-menu .monaco-action-bar.vertical .keybinding {
 	padding: 0 1.5em;
-	color: var(--vscode-descriptionForeground);
+	opacity: 0.7;
 }
 
 .monaco-workbench .monaco-menu .monaco-action-bar.vertical .menu-item-check {
