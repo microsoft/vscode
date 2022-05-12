@@ -1,4 +1,4 @@
 {
-	"displayName": "AL Basics",
-	"description": "Provides snippets, syntax highlighting, bracket matching and folding in AL files."
+	"displayName": "Microsoft Dynamics 365 Business Central Application Language",
+	"description": "Provides snippets, syntax highlighting and bracket matching in Microsoft Dynamics 365 Business Central AL files."
 }

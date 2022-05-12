@@ -1,16 +1,193 @@
 {
-	"Region Start": {
-		"prefix": "#region",
+	"Snippet: Trigger": {
+		"prefix": "ttrigger",
 		"body": [
-			"#region $0"
+			"trigger ${1:OnWhat}(${2})",
+			"var",
+			"\t${3:myInt}: ${4:Integer};",
+			"begin",
+			"\t$0",
+			"end;"
 		],
-		"description": "Folding Region Start"
+		"description": "Snippet: Trigger"
 	},
-	"Region End": {
-		"prefix": "#endregion",
+	"Snippet: Procedure": {
+		"prefix": "tprocedure",
 		"body": [
-			"#endregion"
+			"${1:local} procedure ${2:MyProcedure}(${3})",
+			"var",
+			"\t${4:myInt}: ${5:Integer};",
+			"begin",
+			"\t$0",
+			"end;"
 		],
-		"description": "Folding Region End"
+		"description": "Snippet: Procedure"
+	},
+	"Snippet: Assert Error": {
+		"prefix": "tassert",
+		"body": [
+			"assertError ${1:AssertStatement};",
+			"if ${2:getLastErrorText} <> ${3:ErrorText} then",
+			"\terror('${4:Unexpected error: %1}', ${0:getLastErrorText});"
+		],
+		"description": "Snippet: Assert Error"
+	},
+	"Snippet: With Do": {
+		"prefix": "twithdo",
+		"body": [
+			"with ${1:RecordName} do begin",
+			"\t$0",
+			"end;"
+		],
+		"description": "Snippet: With Do"
+	},
+	"Snippet: If": {
+		"prefix": "tif",
+		"body": [
+			"if ${1:BooleanExpression} then begin",
+			"\t$0",
+			"end;"
+		],
+		"description": "Snippet: If"
+	},
+	"Snippet: If Else": {
+		"prefix": "tifelse",
+		"body": [
+			"if ${1:BooleanExpression} then begin",
+			"\t${2}",
+			"end else begin",
+			"\t$0",
+			"end;"
+		],
+		"description": "Snippet: If Else"
+	},
+	"Snippet: Case Of": {
+		"prefix": "tcaseof",
+		"body": [
+			"case ${1:Expression} of",
+			"\t${2:ExpressionOrRange}:",
+			"\t\t${3}",
+			"\t${4:ExpressionOrRange}:",
+			"\t\t$0",
+			"end;"
+		],
+		"description": "Snippet: Case Of"
+	},
+	"Snippet: Case Else": {
+		"prefix": "tcaseelse",
+		"body": [
+			"case ${1:Expression} of",
+			"\t${2:ExpressionOrRange}:",
+			"\t\t${3}",
+			"\t${4:ExpressionOrRange}:",
+			"\t\t${5}",
+			"else",
+			"\t$0",
+			"end;"
+		],
+		"description": "Snippet: Case Else"
+	},
+	"Snippet: For": {
+		"prefix": "tfor",
+		"body": [
+			"for ${1:ControlVariable} := ${2:StartNumber} to ${3:EndNumber} do begin",
+			"\t$0",
+			"end;"
+		],
+		"description": "Snippet: For"
+	},
+	"Snippet: ForEach": {
+		"prefix": "tforeach",
+		"body": [
+			"foreach ${1:Value} in ${2:EnumerableCollection} do begin",
+			"\t$0",
+			"end;"
+		],
+		"description": "Snippet: ForEach"
+	},
+	"Snippet: While": {
+		"prefix": "twhile",
+		"body": [
+			"while ${1:BooleanExpression} do begin",
+			"\t$0",
+			"end;"
+		],
+		"description": "Snippet: While"
+	},
+	"Snippet: Repeat Until": {
+		"prefix": "trepeat",
+		"body": [
+			"repeat begin",
+			"\t$0",
+			"end until ${1:BooleanExpression};"
+		],
+		"description": "Snippet: Repeat Until"
+	},
+	"Snippet: Event Subscriber": {
+		"prefix": "teventsub",
+		"body": [
+			"[EventSubscriber(ObjectType::${1|Codeunit,Page,Query,Report,Table,XmlPort|}, ${2|Codeunit::,Database::,Page::,Query::,Report::,XmlPort::|}, ${3:'OnSomeEvent'}, ${4:'ElementName'}, ${5:SkipOnMissingLicense}, ${6:SkipOnMissingPermission})]",
+			"local procedure ${7:MyProcedure}(${8})",
+			"begin",
+			"\t$0",
+			"end;"
+		],
+		"description": "Snippet: Event Subscriber"
+	},
+	"Snippet: Integration Event": {
+		"prefix": "teventint",
+		"body": [
+			"[IntegrationEvent(${1:IncludeSender}, false)]",
+			"local procedure ${0:MyProcedure}()",
+			"begin",
+			"end;"
+		],
+		"description": "Snippet: Integration Event"
+	},
+	"Snippet: Business Event": {
+		"prefix": "teventbus",
+		"body": [
+			"[BusinessEvent(${1:IncludeSender})]",
+			"local procedure ${0:MyProcedure}()",
+			"begin",
+			"end;"
+		],
+		"description": "Snippet: Business Event"
+	},
+	"Snippet: Caption ML": {
+		"prefix": "tcaptionml",
+		"body": [
+			"CaptionML = ENU = '${1:englishText}',",
+			"\t\t\t${2:languageShortcut} = '${0:languageText}';"
+		],
+		"description": "Snippet: Caption ML"
+	},
+	"Snippet: Option Caption ML": {
+		"prefix": "toptioncaptionml",
+		"body": [
+			"OptionCaptionML = ENU = '${1:englishText}',",
+			"\t\t\t${2:languageShortcut} = '${0:languageText}';"
+		],
+		"description": "Snippet: Option Caption ML"
+	},
+	"Snippet: If Table Empty Else": {
+		"prefix": "tisemptyelse",
+		"body": [
+			"if ${1:Rec}.IsEmpty then begin",
+			"\t${2}",
+			"end else begin",
+			"\t$0",
+			"end;"
+		],
+		"description": "Snippet: If Table Empty Else"
+	},
+	"Snippet: If Table Empty": {
+		"prefix": "tisempty",
+		"body": [
+			"if ${1:Rec}.IsEmpty then begin",
+			"\t$0",
+			"end;"
+		],
+		"description": "Snippet: If Table Empty"
 	}
 }

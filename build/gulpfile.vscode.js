@@ -255,6 +255,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		if (platform === 'win32') {
 			all = es.merge(all, gulp.src([
+				'resources/win32/al.ico',
 				'resources/win32/bower.ico',
 				'resources/win32/c.ico',
 				'resources/win32/config.ico',
