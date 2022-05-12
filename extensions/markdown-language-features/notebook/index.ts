@@ -179,7 +179,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			background-color: ${editorWarningBackground};
 			color: ${editorWarningForeground};
 		}
-		.alert-error {
+		.alert-danger {
 			background-color: ${editorErrorBackground};
 			color: ${editorErrorForeground};
 		}
