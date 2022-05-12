@@ -32,7 +32,6 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Codicon } from 'vs/base/common/codicons';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 
 export class TitlebarPart extends Part implements ITitleService {
@@ -83,7 +82,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle));
@@ -222,7 +220,6 @@ export class TitlebarPart extends Part implements ITitleService {
 				titleToolbar.setActions(actions);
 			};
 			this.titleDisposables.add(titleMenu.onDidChange(updateTitleMenu));
-			this.titleDisposables.add(this.keybindingService.onDidUpdateKeybindings(updateTitleMenu));
 			this.titleDisposables.add(toDisposable(() => clearNode(this.title)));
 			updateTitleMenu();
 		}
