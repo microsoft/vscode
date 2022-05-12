@@ -7,6 +7,9 @@ import * as DOMPurify from 'dompurify';
 import MarkdownIt from 'markdown-it';
 import type * as MarkdownItToken from 'markdown-it/lib/token';
 import type { ActivationFunction } from 'vscode-notebook-renderer';
+import { editorErrorForeground, editorWarningForeground, editorInfoForeground,
+         editorErrorBackground, editorWarningBackground, editorInfoBackground,} from 'vs/platform/theme/common/colorRegistry';
+
 
 const sanitizerOptions: DOMPurify.Config = {
 	ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'img', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
@@ -165,6 +168,20 @@ export const activate: ActivationFunction<void> = (ctx) => {
 
 			line-height: 1.357em;
 			white-space: pre-wrap;
+		}
+		
+		/-- Bootstrap-style alert boxes for Jupyter notebooks --/
+		.alert-info {
+			background-color: ${editorInfoBackground};
+			color: ${editorInfoForeground};
+		}
+		.alert-warning {
+			background-color: ${editorWarningBackground};
+			color: ${editorWarningForeground};
+		}
+		.alert-error {
+			background-color: ${editorErrorBackground};
+			color: ${editorErrorForeground};
 		}
 	`;
 	const template = document.createElement('template');
