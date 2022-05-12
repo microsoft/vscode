@@ -6,7 +6,7 @@
 .quick-input-widget {
 	position: absolute;
 	width: 600px;
-	z-index: 2000;
+	z-index: 4000;
 	padding: 0 1px 1px 1px;
 	left: 50%;
 	margin-left: -300px;
