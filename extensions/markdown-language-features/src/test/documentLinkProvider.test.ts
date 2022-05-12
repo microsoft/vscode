@@ -172,6 +172,16 @@ suite('markdown.DocumentLinkProvider', () => {
 		assert.strictEqual(links.length, 0);
 	});
 
+	test('Should not include reference links with escaped leading brackets', async () => {
+		const links = await getLinksForFile(joinLines(
+			`\\[bad link][good]`,
+			`\\[good]`,
+			`[good]: http://example.com`,
+		));
+		assert.strictEqual(links.length, 1);
+		assertRangeEqual(links[0].range, new vscode.Range(2, 8, 2, 26)); // Should only find the definition
+	});
+
 	test('Should not consider links in code fenced with backticks', async () => {
 		const links = await getLinksForFile(joinLines(
 			'```',
