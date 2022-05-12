@@ -80,6 +80,11 @@
 }
 
 /* Window Title Menu */
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title.title-menu {
+	z-index: 3000;
+	-webkit-app-region: no-drag;
+}
+
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title.title-menu .action-item.quickopen {
 	color: var(--vscode-input-foreground);
 	border: 1px solid var(--vscode-dropdown-border);
