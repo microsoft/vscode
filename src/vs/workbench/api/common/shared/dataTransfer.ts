@@ -5,7 +5,7 @@
 
 import { once } from 'vs/base/common/functional';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IDataTransfer, IDataTransferItem } from 'vs/editor/common/dnd';
+import { IDataTransfer, IDataTransferItem } from 'vs/base/common/dataTransfer';
 
 export interface IDataTransferFileDTO {
 	readonly name: string;
