@@ -1301,7 +1301,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private async installFromVSIX(vsix: URI, installOptions?: InstallVSIXOptions): Promise<IExtension> {
 		const manifest = await this.extensionManagementService.getManifest(vsix);
 		const existingExtension = this.local.find(local => areSameExtensions(local.identifier, { id: getGalleryExtensionId(manifest.publisher, manifest.name) }));
-		const { identifier } = await this.extensionManagementService.install(vsix, installOptions);
+		const { identifier } = await this.extensionManagementService.installVSIX(vsix, manifest, installOptions);
 
 		if (existingExtension && existingExtension.latestVersion !== manifest.version) {
 			this.ignoreAutoUpdate(new ExtensionKey(identifier, manifest.version));
