@@ -7,7 +7,6 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { Command, CommandManager } from '../commands/commandManager';
 import type * as Proto from '../protocol';
-import protocol = require('../protocol');
 import * as PConst from '../protocol.const';
 import { ClientCapability, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
@@ -717,7 +716,14 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			return undefined;
 		}
 
-		const wordRange = document.getWordRangeAtPosition(position);
+		let wordRange = document.getWordRangeAtPosition(position);
+		if (wordRange && !wordRange.isEmpty) {
+			const secondCharPosition = wordRange.start.translate(0, 1);
+			const firstChar = document.getText(new vscode.Range(wordRange.start, secondCharPosition));
+			if (firstChar === '@') {
+				wordRange = wordRange.with(secondCharPosition);
+			}
+		}
 
 		await this.client.interruptGetErr(() => this.fileConfigurationManager.ensureConfigurationForDocument(document, token));
 
