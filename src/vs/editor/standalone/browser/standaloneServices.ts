@@ -85,6 +85,7 @@ import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
+import { staticObservableValue } from 'vs/base/common/observableValue';
 
 import 'vs/editor/common/services/languageFeaturesService';
 
@@ -640,7 +641,7 @@ class StandaloneResourcePropertiesService implements ITextResourcePropertiesServ
 class StandaloneTelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
 
-	public telemetryLevel = TelemetryLevel.NONE;
+	public telemetryLevel = staticObservableValue(TelemetryLevel.NONE);
 	public sendErrorTelemetry = false;
 
 	public setEnabled(value: boolean): void {
@@ -831,6 +832,10 @@ class StandaloneUriLabelService implements ILabelService {
 
 	public registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		throw new Error('Not implemented');
+	}
+
+	public registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable {
+		return this.registerFormatter(formatter);
 	}
 
 	public getHostLabel(): string {

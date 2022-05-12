@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
-import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame, ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
@@ -44,8 +44,7 @@ import { assertIsDefined, isArray } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { posix, dirname } from 'vs/base/common/path';
-import { getBaseLabel } from 'vs/base/common/labels';
+import { posix } from 'vs/base/common/path';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/tunnel/common/tunnel';
 import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -58,11 +57,14 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { dirname } from 'vs/base/common/resources';
 
 export class NativeWindow extends Disposable {
 
@@ -114,7 +116,8 @@ export class NativeWindow extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
@@ -131,11 +134,11 @@ export class NativeWindow extends Disposable {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
 		// prevent opening a real URL inside the window
-		[EventType.DRAG_OVER, EventType.DROP].forEach(event => {
+		for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
 			window.document.body.addEventListener(event, (e: DragEvent) => {
 				EventHelper.stop(e);
 			});
-		});
+		}
 
 		// Support runAction event
 		ipcRenderer.on('vscode:runAction', async (event: unknown, request: INativeRunActionInWindowRequest) => {
@@ -194,6 +197,15 @@ export class NativeWindow extends Disposable {
 			[{
 				label: localize('learnMore', "Learn More"),
 				run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
+			}]
+		));
+
+		ipcRenderer.on('vscode:showCredentialsError', (event: unknown, message: string) => this.notificationService.prompt(
+			Severity.Error,
+			localize('keychainWriteError', "Writing login information to the keychain failed with error '{0}'.", message),
+			[{
+				label: localize('troubleshooting', "Troubleshooting Guide"),
+				run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2190713')
 			}]
 		));
 
@@ -319,10 +331,49 @@ export class NativeWindow extends Disposable {
 		// Lifecycle
 		this._register(this.lifecycleService.onBeforeShutdown(e => this.onBeforeShutdown(e)));
 		this._register(this.lifecycleService.onBeforeShutdownError(e => this.onBeforeShutdownError(e)));
-		this._register(this.lifecycleService.onWillShutdown((e) => this.onWillShutdown(e)));
+		this._register(this.lifecycleService.onWillShutdown(e => this.onWillShutdown(e)));
 	}
 
-	private onBeforeShutdown({ reason }: BeforeShutdownEvent): void {
+	private onBeforeShutdown({ veto, reason }: BeforeShutdownEvent): void {
+		if (reason === ShutdownReason.CLOSE) {
+			const confirmBeforeCloseSetting = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
+
+			const confirmBeforeClose = confirmBeforeCloseSetting === 'always' || (confirmBeforeCloseSetting === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed);
+			if (confirmBeforeClose) {
+
+				// When we need to confirm on close or quit, veto the shutdown
+				// with a long running promise to figure out whether shutdown
+				// can proceed or not.
+
+				return veto((async () => {
+					let actualReason: ShutdownReason = reason;
+					if (reason === ShutdownReason.CLOSE && !isMacintosh) {
+						const windowCount = await this.nativeHostService.getWindowCount();
+						if (windowCount === 1) {
+							actualReason = ShutdownReason.QUIT; // Windows/Linux: closing last window means to QUIT
+						}
+					}
+
+					let confirmed = true;
+					if (confirmBeforeClose) {
+						confirmed = await this.instantiationService.invokeFunction(accessor => NativeWindow.confirmOnShutdown(accessor, actualReason));
+					}
+
+					// Progress for long running shutdown
+					if (confirmed) {
+						this.progressOnBeforeShutdown(reason);
+					}
+
+					return !confirmed;
+				})(), 'veto.confirmBeforeClose');
+			}
+		}
+
+		// Progress for long running shutdown
+		this.progressOnBeforeShutdown(reason);
+	}
+
+	private progressOnBeforeShutdown(reason: ShutdownReason): void {
 		this.progressService.withProgress({
 			location: ProgressLocation.Window, 	// use window progress to not be too annoying about this operation
 			delay: 800,							// delay so that it only appears when operation takes a long time
@@ -336,25 +387,63 @@ export class NativeWindow extends Disposable {
 		});
 	}
 
+	static async confirmOnShutdown(accessor: ServicesAccessor, reason: ShutdownReason): Promise<boolean> {
+		const dialogService = accessor.get(IDialogService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		const message = reason === ShutdownReason.QUIT ?
+			(isMacintosh ? localize('quitMessageMac', "Are you sure you want to quit?") : localize('quitMessage', "Are you sure you want to exit?")) :
+			localize('closeWindowMessage', "Are you sure you want to close the window?");
+		const primaryButton = reason === ShutdownReason.QUIT ?
+			(isMacintosh ? localize({ key: 'quitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Quit") : localize({ key: 'exitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Exit")) :
+			localize({ key: 'closeWindowButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Close Window");
+
+		const res = await dialogService.confirm({
+			type: 'question',
+			message,
+			primaryButton,
+			checkbox: {
+				label: localize('doNotAskAgain', "Do not ask me again")
+			}
+		});
+
+		// Update setting if checkbox checked
+		if (res.checkboxChecked) {
+			await configurationService.updateValue('window.confirmBeforeClose', 'never');
+		}
+
+		return res.confirmed;
+	}
+
 	private onBeforeShutdownError({ error, reason }: BeforeShutdownErrorEvent): void {
 		this.dialogService.show(Severity.Error, this.toShutdownLabel(reason, true), undefined, {
 			detail: localize('shutdownErrorDetail', "Error: {0}", toErrorMessage(error))
 		});
 	}
 
-	private onWillShutdown({ reason, force }: WillShutdownEvent): void {
-		this.progressService.withProgress({
-			location: ProgressLocation.Dialog, 				// use a dialog to prevent the user from making any more interactions now
-			buttons: [this.toForceShutdownLabel(reason)],	// allow to force shutdown anyway
-			delay: 800,										// delay so that it only appears when operation takes a long time
-			cancellable: false,								// do not allow to cancel
-			sticky: true,									// do not allow to dismiss
-			title: this.toShutdownLabel(reason, false)
-		}, () => {
-			return Event.toPromise(this.lifecycleService.onDidShutdown); // dismiss this dialog when we actually shutdown
-		}, () => {
-			force();
-		});
+	private onWillShutdown({ reason, force, joiners }: WillShutdownEvent): void {
+
+		// Delay so that the dialog only appears after timeout
+		const shutdownDialogScheduler = new RunOnceScheduler(() => {
+			const pendingJoiners = joiners();
+
+			this.progressService.withProgress({
+				location: ProgressLocation.Dialog, 				// use a dialog to prevent the user from making any more interactions now
+				buttons: [this.toForceShutdownLabel(reason)],	// allow to force shutdown anyway
+				cancellable: false,								// do not allow to cancel
+				sticky: true,									// do not allow to dismiss
+				title: this.toShutdownLabel(reason, false),
+				detail: pendingJoiners.length > 0 ? localize('willShutdownDetail', "The following operations are still running: \n{0}", pendingJoiners.map(joiner => `- ${joiner.label}`).join('\n')) : undefined
+			}, () => {
+				return Event.toPromise(this.lifecycleService.onDidShutdown); // dismiss this dialog when we actually shutdown
+			}, () => {
+				force();
+			});
+		}, 1200);
+		shutdownDialogScheduler.schedule();
+
+		// Dispose scheduler when we actually shutdown
+		Event.once(this.lifecycleService.onDidShutdown)(() => shutdownDialogScheduler.dispose());
 	}
 
 	private toShutdownLabel(reason: ShutdownReason, isError: boolean): string {
@@ -373,13 +462,13 @@ export class NativeWindow extends Disposable {
 
 		switch (reason) {
 			case ShutdownReason.CLOSE:
-				return localize('shutdownTitleClose', "Closing the window is taking longer than expected...");
+				return localize('shutdownTitleClose', "Closing the window is taking a bit longer...");
 			case ShutdownReason.QUIT:
-				return localize('shutdownTitleQuit', "Quitting the application is taking longer than expected...");
+				return localize('shutdownTitleQuit', "Quitting the application is taking a bit longer...");
 			case ShutdownReason.RELOAD:
-				return localize('shutdownTitleReload', "Reloading the window is taking longer than expected...");
+				return localize('shutdownTitleReload', "Reloading the window is taking a bit longer...");
 			case ShutdownReason.LOAD:
-				return localize('shutdownTitleLoad', "Changing the workspace is taking longer than expected...");
+				return localize('shutdownTitleLoad', "Changing the workspace is taking a bit longer...");
 		}
 	}
 
@@ -508,17 +597,17 @@ export class NativeWindow extends Disposable {
 				pathOffset++; // for segments which are not the file name we want to open the folder
 			}
 
-			const path = segments.slice(0, pathOffset).join(posix.sep);
+			const path = URI.file(segments.slice(0, pathOffset).join(posix.sep));
 
 			let label: string;
 			if (!isFile) {
-				label = getBaseLabel(dirname(path));
+				label = this.labelService.getUriBasenameLabel(dirname(path));
 			} else {
-				label = getBaseLabel(path);
+				label = this.labelService.getUriBasenameLabel(path);
 			}
 
 			const commandId = `workbench.action.revealPathInFinder${i}`;
-			this.customTitleContextMenuDisposable.add(CommandsRegistry.registerCommand(commandId, () => this.nativeHostService.showItemInFolder(path)));
+			this.customTitleContextMenuDisposable.add(CommandsRegistry.registerCommand(commandId, () => this.nativeHostService.showItemInFolder(path.fsPath)));
 			this.customTitleContextMenuDisposable.add(MenuRegistry.appendMenuItem(MenuId.TitleBarContext, { command: { id: commandId, title: label || posix.sep }, order: -i }));
 		}
 	}
@@ -561,6 +650,20 @@ export class NativeWindow extends Disposable {
 				this.nativeHostService.openDevTools();
 			}
 		}
+
+		// Smoke Test Driver
+		if (this.environmentService.enableSmokeTestDriver) {
+			this.setupDriver();
+		}
+	}
+
+	private setupDriver(): void {
+		const that = this;
+		registerWindowDriver({
+			async exitApplication(): Promise<void> {
+				return that.nativeHostService.quit();
+			}
+		});
 	}
 
 	private setupOpenHandlers(): void {
@@ -711,9 +814,9 @@ export class NativeWindow extends Disposable {
 	private doAddFolders(): void {
 		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
 
-		this.pendingFoldersToAdd.forEach(folder => {
+		for (const folder of this.pendingFoldersToAdd) {
 			foldersToAdd.push(({ uri: folder }));
-		});
+		}
 
 		this.pendingFoldersToAdd = [];
 

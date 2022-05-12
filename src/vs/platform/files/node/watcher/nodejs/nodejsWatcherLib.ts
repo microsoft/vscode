@@ -7,7 +7,6 @@ import { watch } from 'fs';
 import { ThrottledDelayer, ThrottledWorker } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isEqualOrParent } from 'vs/base/common/extpath';
-import { parse } from 'vs/base/common/glob';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { basename, dirname, join } from 'vs/base/common/path';
@@ -15,7 +14,7 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { realcase } from 'vs/base/node/extpath';
 import { Promises } from 'vs/base/node/pfs';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { IDiskFileChange, ILogMessage, coalesceEvents, INonRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
+import { IDiskFileChange, ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
 
 export class NodeJSFileWatcherLibrary extends Disposable {
 
@@ -47,7 +46,8 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	private readonly fileChangesDelayer = this._register(new ThrottledDelayer<void>(NodeJSFileWatcherLibrary.FILE_CHANGES_HANDLER_DELAY));
 	private fileChangesBuffer: IDiskFileChange[] = [];
 
-	private readonly excludes = this.request.excludes.map(exclude => parse(exclude));
+	private readonly excludes = parseWatcherPatterns(this.request.path, this.request.excludes);
+	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
 
 	private readonly cts = new CancellationTokenSource();
 
@@ -99,7 +99,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 			// Correct watch path as needed
 			if (request.path !== realPath) {
-				this.warn(`correcting a path to watch that seems to be a symbolic link or wrong casing (original: ${request.path}, real: ${realPath})`);
+				this.trace(`correcting a path to watch that seems to be a symbolic link or wrong casing (original: ${request.path}, real: ${realPath})`);
 			}
 		} catch (error) {
 			// ignore
@@ -317,14 +317,14 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 							// File still exists, so emit as change event and reapply the watcher
 							if (fileExists) {
-								this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED }, true /* skip excludes (file is explicitly watched) */);
+								this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED }, true /* skip excludes/includes (file is explicitly watched) */);
 
 								disposables.add(await this.doWatch(path, false));
 							}
 
 							// File seems to be really gone, so emit a deleted event and dispose
 							else {
-								const eventPromise = this.onFileChange({ path: this.request.path, type: FileChangeType.DELETED }, true /* skip excludes (file is explicitly watched) */);
+								const eventPromise = this.onFileChange({ path: this.request.path, type: FileChangeType.DELETED }, true /* skip excludes/includes (file is explicitly watched) */);
 
 								// Important to await the event delivery
 								// before disposing the watcher, otherwise
@@ -342,7 +342,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 					// File changed
 					else {
-						this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED }, true /* skip excludes (file is explicitly watched) */);
+						this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED }, true /* skip excludes/includes (file is explicitly watched) */);
 					}
 				}
 			});
@@ -358,7 +358,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		});
 	}
 
-	private async onFileChange(event: IDiskFileChange, skipExcludes = false): Promise<void> {
+	private async onFileChange(event: IDiskFileChange, skipIncludeExcludeChecks = false): Promise<void> {
 		if (this.cts.token.isCancellationRequested) {
 			return;
 		}
@@ -368,10 +368,14 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			this.trace(`${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
 		}
 
-		// Add to buffer unless ignored (not if explicitly disabled)
-		if (!skipExcludes && this.excludes.some(exclude => exclude(event.path))) {
+		// Add to buffer unless excluded or not included (not if explicitly disabled)
+		if (!skipIncludeExcludeChecks && this.excludes.some(exclude => exclude(event.path))) {
 			if (this.verboseLogging) {
-				this.trace(` >> ignored ${event.path}`);
+				this.trace(` >> ignored (excluded) ${event.path}`);
+			}
+		} else if (!skipIncludeExcludeChecks && this.includes && this.includes.length > 0 && !this.includes.some(include => include(event.path))) {
+			if (this.verboseLogging) {
+				this.trace(` >> ignored (not included) ${event.path}`);
 			}
 		} else {
 			this.fileChangesBuffer.push(event);

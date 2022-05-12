@@ -42,9 +42,9 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	constructor(
 		protected session: IDebugSession | undefined,
-		protected threadId: number | undefined,
+		protected readonly threadId: number | undefined,
 		private _reference: number | undefined,
-		private id: string,
+		private readonly id: string,
 		public namedVariables: number | undefined = 0,
 		public indexedVariables: number | undefined = 0,
 		public memoryReference: string | undefined = undefined,
@@ -152,7 +152,7 @@ export class ExpressionContainer implements IExpressionContainer {
 			}
 
 			const nameCount = new Map<string, number>();
-			return response.body.variables.filter(v => !!v).map((v: IDebugProtocolVariableWithContext) => {
+			const vars = response.body.variables.filter(v => !!v).map((v: IDebugProtocolVariableWithContext) => {
 				if (isString(v.value) && isString(v.name) && typeof v.variablesReference === 'number') {
 					const count = nameCount.get(v.name) || 0;
 					const idDuplicationIndex = count > 0 ? count.toString() : '';
@@ -161,6 +161,12 @@ export class ExpressionContainer implements IExpressionContainer {
 				}
 				return new Variable(this.session, this.threadId, this, 0, '', undefined, nls.localize('invalidVariableAttributes', "Invalid variable attributes"), 0, 0, undefined, { kind: 'virtual' }, undefined, undefined, false);
 			});
+
+			if (this.session!.autoExpandLazyVariables) {
+				await Promise.all(vars.map(v => v.presentationHint?.lazy && v.evaluateLazy()));
+			}
+
+			return vars;
 		} catch (e) {
 			return [new Variable(this.session, this.threadId, this, 0, '', undefined, e.message, 0, 0, undefined, { kind: 'virtual' }, undefined, undefined, false)];
 		}
@@ -275,9 +281,9 @@ export class Variable extends ExpressionContainer implements IExpression {
 	constructor(
 		session: IDebugSession | undefined,
 		threadId: number | undefined,
-		public parent: IExpressionContainer,
+		public readonly parent: IExpressionContainer,
 		reference: number | undefined,
-		public name: string,
+		public readonly name: string,
 		public evaluateName: string | undefined,
 		value: string | undefined,
 		namedVariables: number | undefined,
@@ -285,8 +291,8 @@ export class Variable extends ExpressionContainer implements IExpression {
 		memoryReference: string | undefined,
 		presentationHint: DebugProtocol.VariablePresentationHint | undefined,
 		type: string | undefined = undefined,
-		public variableMenuContext: string | undefined = undefined,
-		public available = true,
+		public readonly variableMenuContext: string | undefined = undefined,
+		public readonly available = true,
 		startOfVariables = 0,
 		idDuplicationIndex = '',
 	) {
@@ -346,12 +352,12 @@ export class Scope extends ExpressionContainer implements IScope {
 	constructor(
 		stackFrame: IStackFrame,
 		index: number,
-		public name: string,
+		public readonly name: string,
 		reference: number,
 		public expensive: boolean,
 		namedVariables?: number,
 		indexedVariables?: number,
-		public range?: IRange
+		public readonly range?: IRange
 	) {
 		super(stackFrame.thread.session, stackFrame.thread.threadId, reference, `scope:${name}:${index}`, namedVariables, indexedVariables);
 	}
@@ -389,15 +395,15 @@ export class StackFrame implements IStackFrame {
 	private scopes: Promise<Scope[]> | undefined;
 
 	constructor(
-		public thread: Thread,
-		public frameId: number,
-		public source: Source,
-		public name: string,
-		public presentationHint: string | undefined,
-		public range: IRange,
-		private index: number,
-		public canRestart: boolean,
-		public instructionPointerReference?: string
+		public readonly thread: Thread,
+		public readonly frameId: number,
+		public readonly source: Source,
+		public readonly name: string,
+		public readonly presentationHint: string | undefined,
+		public readonly range: IRange,
+		private readonly index: number,
+		public readonly canRestart: boolean,
+		public readonly instructionPointerReference?: string
 	) { }
 
 	getId(): string {
@@ -482,7 +488,7 @@ export class Thread implements IThread {
 	public reachedEndOfCallStack = false;
 	public lastSteppingGranularity: DebugProtocol.SteppingGranularity | undefined;
 
-	constructor(public session: IDebugSession, public name: string, public threadId: number) {
+	constructor(public readonly session: IDebugSession, public name: string, public readonly threadId: number) {
 		this.callStack = [];
 		this.staleCallStack = [];
 		this.stopped = false;
@@ -721,7 +727,7 @@ export class MemoryRegion extends Disposable implements IMemoryRegion {
 export class Enablement implements IEnablement {
 	constructor(
 		public enabled: boolean,
-		private id: string
+		private readonly id: string
 	) { }
 
 	getId(): string {
@@ -851,7 +857,7 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 
 	constructor(
-		private _uri: uri,
+		private readonly _uri: uri,
 		private _lineNumber: number,
 		private _column: number | undefined,
 		enabled: boolean,
@@ -1006,15 +1012,15 @@ export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreak
 export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 
 	constructor(
-		public description: string,
-		public dataId: string,
-		public canPersist: boolean,
+		public readonly description: string,
+		public readonly dataId: string,
+		public readonly canPersist: boolean,
 		enabled: boolean,
 		hitCondition: string | undefined,
 		condition: string | undefined,
 		logMessage: string | undefined,
-		public accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined,
-		public accessType: DebugProtocol.DataBreakpointAccessType,
+		public readonly accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined,
+		public readonly accessType: DebugProtocol.DataBreakpointAccessType,
 		id = generateUuid()
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
@@ -1045,13 +1051,13 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBreakpoint {
 
 	constructor(
-		public filter: string,
-		public label: string,
+		public readonly filter: string,
+		public readonly label: string,
 		enabled: boolean,
-		public supportsCondition: boolean,
+		public readonly supportsCondition: boolean,
 		condition: string | undefined,
-		public description: string | undefined,
-		public conditionDescription: string | undefined
+		public readonly description: string | undefined,
+		public readonly conditionDescription: string | undefined
 	) {
 		super(enabled, undefined, condition, undefined, generateUuid());
 	}
@@ -1079,9 +1085,9 @@ export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBre
 export class InstructionBreakpoint extends BaseBreakpoint implements IInstructionBreakpoint {
 
 	constructor(
-		public instructionReference: string,
-		public offset: number,
-		public canPersist: boolean,
+		public readonly instructionReference: string,
+		public readonly offset: number,
+		public readonly canPersist: boolean,
 		enabled: boolean,
 		hitCondition: string | undefined,
 		condition: string | undefined,

@@ -8,7 +8,7 @@ import { IChannel, IServerChannel, getDelayedChannel, IPCLogger } from 'vs/base/
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { connectRemoteAgentManagement, IConnectionOptions, ISocketFactory, PersistentConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
@@ -40,7 +40,7 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 		super();
 		this.socketFactory = socketFactory;
 		if (this._environmentService.remoteAuthority) {
-			this._connection = this._register(new RemoteAgentConnection(this._environmentService.remoteAuthority, productService.commit, this.socketFactory, this._remoteAuthorityResolverService, signService, logService));
+			this._connection = this._register(new RemoteAgentConnection(this._environmentService.remoteAuthority, productService.commit, productService.quality, this.socketFactory, this._remoteAuthorityResolverService, signService, logService));
 		} else {
 			this._connection = null;
 		}
@@ -67,6 +67,13 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 			);
 		}
 		return this._environment;
+	}
+
+	getExtensionHostExitInfo(reconnectionToken: string): Promise<IExtensionHostExitInfo | null> {
+		return this._withChannel(
+			(channel, connection) => RemoteExtensionEnvironmentChannelClient.getExtensionHostExitInfo(channel, connection.remoteAuthority, reconnectionToken),
+			null
+		);
 	}
 
 	whenExtensionsReady(): Promise<void> {
@@ -149,6 +156,7 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 	constructor(
 		remoteAuthority: string,
 		private readonly _commit: string | undefined,
+		private readonly _quality: string | undefined,
 		private readonly _socketFactory: ISocketFactory,
 		private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		private readonly _signService: ISignService,
@@ -184,6 +192,7 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 		let firstCall = true;
 		const options: IConnectionOptions = {
 			commit: this._commit,
+			quality: this._quality,
 			socketFactory: this._socketFactory,
 			addressProvider: {
 				getAddress: async () => {

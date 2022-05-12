@@ -986,7 +986,9 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this.state = newState;
 
 		if (!this.state) {
-			this.decorations = this.editor.deltaDecorations(this.decorations, []);
+			this.editor.changeDecorations((accessor) => {
+				this.decorations = accessor.deltaDecorations(this.decorations, []);
+			});
 			return;
 		}
 
@@ -1042,7 +1044,9 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			};
 		});
 
-		this.decorations = this.editor.deltaDecorations(this.decorations, decorations);
+		this.editor.changeDecorations((accessor) => {
+			this.decorations = accessor.deltaDecorations(this.decorations, decorations);
+		});
 	}
 
 	private static readonly _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
@@ -1091,6 +1095,84 @@ function getValueInRange(model: ITextModel, range: Range, toLowerCase: boolean):
 	return (toLowerCase ? text.toLowerCase() : text);
 }
 
+export class FocusNextCursor extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.focusNextCursor',
+			label: nls.localize('mutlicursor.focusNextCursor', "Focus Next Cursor"),
+			description: {
+				description: nls.localize('mutlicursor.focusNextCursor.description', "Focuses the next cursor"),
+				args: [],
+			},
+			alias: 'Focus Next Cursor',
+			precondition: undefined
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const viewModel = editor._getViewModel();
+
+		if (viewModel.cursorConfig.readOnly) {
+			return;
+		}
+
+		viewModel.model.pushStackElement();
+		const previousCursorState = Array.from(viewModel.getCursorStates());
+		const firstCursor = previousCursorState.shift();
+		if (!firstCursor) {
+			return;
+		}
+		previousCursorState.push(firstCursor);
+
+		viewModel.setCursorStates(args.source, CursorChangeReason.Explicit, previousCursorState);
+		viewModel.revealPrimaryCursor(args.source, true);
+		announceCursorChange(previousCursorState, viewModel.getCursorStates());
+	}
+}
+
+export class FocusPreviousCursor extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.focusPreviousCursor',
+			label: nls.localize('mutlicursor.focusPreviousCursor', "Focus Previous Cursor"),
+			description: {
+				description: nls.localize('mutlicursor.focusPreviousCursor.description', "Focuses the previous cursor"),
+				args: [],
+			},
+			alias: 'Focus Previous Cursor',
+			precondition: undefined
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const viewModel = editor._getViewModel();
+
+		if (viewModel.cursorConfig.readOnly) {
+			return;
+		}
+
+		viewModel.model.pushStackElement();
+		const previousCursorState = Array.from(viewModel.getCursorStates());
+		const firstCursor = previousCursorState.pop();
+		if (!firstCursor) {
+			return;
+		}
+		previousCursorState.unshift(firstCursor);
+
+		viewModel.setCursorStates(args.source, CursorChangeReason.Explicit, previousCursorState);
+		viewModel.revealPrimaryCursor(args.source, true);
+		announceCursorChange(previousCursorState, viewModel.getCursorStates());
+	}
+}
+
 registerEditorContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
 registerEditorContribution(SelectionHighlighter.ID, SelectionHighlighter);
 
@@ -1105,3 +1187,5 @@ registerEditorAction(SelectHighlightsAction);
 registerEditorAction(CompatChangeAll);
 registerEditorAction(InsertCursorAtEndOfLineSelected);
 registerEditorAction(InsertCursorAtTopOfLineSelected);
+registerEditorAction(FocusNextCursor);
+registerEditorAction(FocusPreviousCursor);

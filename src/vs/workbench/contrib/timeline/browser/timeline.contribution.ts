@@ -14,7 +14,7 @@ import { TimelineHasProviderContext, TimelineService } from 'vs/workbench/contri
 import { TimelinePane } from './timelinePane';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { ISubmenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ExplorerFolderContext } from 'vs/workbench/contrib/files/common/files';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
@@ -96,5 +96,15 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
 	},
 	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.HasResource, TimelineHasProviderContext)
 }));
+
+const timelineFilter = registerIcon('timeline-filter', Codicon.filter, localize('timelineFilter', 'Icon for the filter timeline action.'));
+
+MenuRegistry.appendMenuItem(MenuId.TimelineTitle, <ISubmenuItem>{
+	submenu: MenuId.TimelineFilterSubMenu,
+	title: localize('filterTimeline', "Filter Timeline"),
+	group: 'navigation',
+	order: 100,
+	icon: timelineFilter
+});
 
 registerSingleton(ITimelineService, TimelineService, true);

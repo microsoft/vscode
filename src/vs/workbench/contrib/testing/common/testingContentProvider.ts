@@ -9,9 +9,10 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestMessageType } from 'vs/workbench/contrib/testing/common/testTypes';
 import { parseTestUri, TestUriType, TEST_DATA_SCHEME } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 
 /**
  * A content provider that returns various outputs for tests. This is used
@@ -61,12 +62,14 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 				break;
 			}
 			case TestUriType.ResultMessage: {
-				const message = test.tasks[parsed.taskIndex].messages[parsed.messageIndex]?.message;
-				if (typeof message === 'string') {
-					text = message;
-				} else if (message) {
-					text = message.value;
-					language = this.languageService.createById('markdown');
+				const message = test.tasks[parsed.taskIndex].messages[parsed.messageIndex];
+				if (message) {
+					if (typeof message.message === 'string') {
+						text = message.type === TestMessageType.Output ? removeAnsiEscapeCodes(message.message) : message.message;
+					} else {
+						text = message.message.value;
+						language = this.languageService.createById('markdown');
+					}
 				}
 				break;
 			}

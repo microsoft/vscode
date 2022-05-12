@@ -23,7 +23,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IEditorIdentifier, GroupIdentifier, isEditorIdentifier, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { addDisposableListener, DragAndDropObserver, EventType } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -33,7 +33,7 @@ import { parse, stringify } from 'vs/base/common/marshalling';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { hasWorkspaceFileExtension, isTemporaryWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { ITreeDataTransfer } from 'vs/workbench/common/views';
+import { IDataTransfer } from 'vs/editor/common/dnd';
 import { extractSelection } from 'vs/platform/opener/common/opener';
 import { IListDragAndDrop } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
@@ -41,6 +41,7 @@ import { ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 import { DeferredPromise } from 'vs/base/common/async';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 //#region Editor / Resources DND
 
@@ -132,19 +133,6 @@ export async function extractEditorsDropData(accessor: ServicesAccessor, e: Drag
 			}
 		}
 
-		// Check for terminals transfer
-		const terminals = e.dataTransfer.getData(DataTransfers.TERMINALS);
-		if (terminals) {
-			try {
-				const terminalEditors: string[] = JSON.parse(terminals);
-				for (const terminalEditor of terminalEditors) {
-					editors.push({ resource: URI.parse(terminalEditor) });
-				}
-			} catch (error) {
-				// Invalid transfer
-			}
-		}
-
 		// Web: Check for file transfer
 		if (isWeb && containsDragType(e, DataTransfers.FILES)) {
 			const files = e.dataTransfer.items;
@@ -153,6 +141,19 @@ export async function extractEditorsDropData(accessor: ServicesAccessor, e: Drag
 				const filesData = await instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, e));
 				for (const fileData of filesData) {
 					editors.push({ resource: fileData.resource, contents: fileData.contents?.toString(), isExternal: true, allowWorkspaceOpen: fileData.isDirectory });
+				}
+			}
+		}
+
+		// Workbench contributions
+		const contributions = Registry.as<IDragAndDropContributionRegistry>(Extensions.DragAndDropContribution).getAll();
+		for (const contribution of contributions) {
+			const data = e.dataTransfer.getData(contribution.dataFormatKey);
+			if (data) {
+				try {
+					editors.push(...contribution.getEditorInputs(data));
+				} catch (error) {
+					// Invalid transfer
 				}
 			}
 		}
@@ -177,7 +178,7 @@ function createDraggedEditorInputFromRawResourcesData(rawResourcesData: string |
 	return editors;
 }
 
-export async function extractTreeDropData(dataTransfer: ITreeDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
+export async function extractTreeDropData(dataTransfer: IDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
 	const editors: IDraggedResourceEditorInput[] = [];
 	const resourcesKey = Mimes.uriList.toLowerCase();
 
@@ -193,6 +194,11 @@ export async function extractTreeDropData(dataTransfer: ITreeDataTransfer): Prom
 	}
 
 	return editors;
+}
+
+export function convertResourceUrlsToUriList(resourceUrls: string): string {
+	const asJson: URI[] = JSON.parse(resourceUrls);
+	return asJson.map(uri => uri.toString()).join('\n');
 }
 
 interface IFileTransferData {
@@ -497,10 +503,10 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(files.map(({ resource }) => resource.toString())));
 	}
 
-	// Terminal URI
-	const terminalResources = resources.filter(({ resource }) => resource.scheme === Schemas.vscodeTerminal);
-	if (terminalResources.length) {
-		event.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminalResources.map(({ resource }) => resource.toString())));
+	// Contributions
+	const contributions = Registry.as<IDragAndDropContributionRegistry>(Extensions.DragAndDropContribution).getAll();
+	for (const contribution of contributions) {
+		contribution.setData(resources, event);
 	}
 
 	// Editors: enables cross window DND of editors
@@ -585,6 +591,49 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 //#endregion
 
+//#region DND contributions
+
+export interface IDragAndDropContributionRegistry {
+	/**
+	 * Registers a drag and drop contribution.
+	 */
+	register(contribution: IDragAndDropContribution): void;
+
+	/**
+	 * Returns all registered drag and drop contributions.
+	 */
+	getAll(): IterableIterator<IDragAndDropContribution>;
+}
+
+export interface IDragAndDropContribution {
+	readonly dataFormatKey: string;
+	getEditorInputs(data: string): IDraggedResourceEditorInput[];
+	setData(resources: IResourceStat[], event: DragMouseEvent | DragEvent): void;
+}
+
+class DragAndDropContributionRegistry implements IDragAndDropContributionRegistry {
+	private readonly _contributions = new Map<string, IDragAndDropContribution>();
+
+	register(contribution: IDragAndDropContribution): void {
+		if (this._contributions.has(contribution.dataFormatKey)) {
+			throw new Error(`A drag and drop contributiont with key '${contribution.dataFormatKey}' was already registered.`);
+		}
+		this._contributions.set(contribution.dataFormatKey, contribution);
+	}
+
+	getAll(): IterableIterator<IDragAndDropContribution> {
+		return this._contributions.values();
+	}
+}
+
+export const Extensions = {
+	DragAndDropContribution: 'workbench.contributions.dragAndDrop'
+};
+
+Registry.add(Extensions.DragAndDropContribution, new DragAndDropContributionRegistry());
+
+//#endregion
+
 //#region DND Utilities
 
 /**
@@ -629,64 +678,6 @@ export class LocalSelectionTransfer<T> {
 			this.data = data;
 			this.proto = proto;
 		}
-	}
-}
-
-export interface IDragAndDropObserverCallbacks {
-	readonly onDragEnter: (e: DragEvent) => void;
-	readonly onDragLeave: (e: DragEvent) => void;
-	readonly onDrop: (e: DragEvent) => void;
-	readonly onDragEnd: (e: DragEvent) => void;
-
-	readonly onDragOver?: (e: DragEvent) => void;
-}
-
-export class DragAndDropObserver extends Disposable {
-
-	// A helper to fix issues with repeated DRAG_ENTER / DRAG_LEAVE
-	// calls see https://github.com/microsoft/vscode/issues/14470
-	// when the element has child elements where the events are fired
-	// repeadedly.
-	private counter: number = 0;
-
-	constructor(private readonly element: HTMLElement, private readonly callbacks: IDragAndDropObserverCallbacks) {
-		super();
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this._register(addDisposableListener(this.element, EventType.DRAG_ENTER, (e: DragEvent) => {
-			this.counter++;
-
-			this.callbacks.onDragEnter(e);
-		}));
-
-		this._register(addDisposableListener(this.element, EventType.DRAG_OVER, (e: DragEvent) => {
-			e.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
-
-			if (this.callbacks.onDragOver) {
-				this.callbacks.onDragOver(e);
-			}
-		}));
-
-		this._register(addDisposableListener(this.element, EventType.DRAG_LEAVE, (e: DragEvent) => {
-			this.counter--;
-
-			if (this.counter === 0) {
-				this.callbacks.onDragLeave(e);
-			}
-		}));
-
-		this._register(addDisposableListener(this.element, EventType.DRAG_END, (e: DragEvent) => {
-			this.counter = 0;
-			this.callbacks.onDragEnd(e);
-		}));
-
-		this._register(addDisposableListener(this.element, EventType.DROP, (e: DragEvent) => {
-			this.counter = 0;
-			this.callbacks.onDrop(e);
-		}));
 	}
 }
 

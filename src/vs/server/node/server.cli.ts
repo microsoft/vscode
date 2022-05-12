@@ -41,7 +41,7 @@ const isSupportedForCmd = (optionId: keyof RemoteParsedArgs) => {
 		case 'extensions-dir':
 		case 'export-default-configuration':
 		case 'install-source':
-		case 'driver':
+		case 'enable-smoke-test-driver':
 		case 'extensions-download-dir':
 		case 'builtin-extensions-dir':
 		case 'telemetry':

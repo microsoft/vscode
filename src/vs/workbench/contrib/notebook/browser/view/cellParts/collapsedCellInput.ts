@@ -5,7 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 
 export class CollapsedCellInput extends CellPart {
 	constructor(

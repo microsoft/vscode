@@ -159,7 +159,7 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable {
 		let workingCopiesForResource = this.mapResourceToWorkingCopies.get(workingCopy.resource);
 		if (workingCopiesForResource?.has(workingCopy.typeId)) {
-			throw new Error(`Cannot register more than one working copy with the same resource ${workingCopy.resource.toString(true)} and type ${workingCopy.typeId}.`);
+			throw new Error(`Cannot register more than one working copy with the same resource ${workingCopy.resource.toString()} and type ${workingCopy.typeId}.`);
 		}
 
 		// Registry (all)
@@ -193,7 +193,7 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		});
 	}
 
-	private unregisterWorkingCopy(workingCopy: IWorkingCopy): void {
+	protected unregisterWorkingCopy(workingCopy: IWorkingCopy): void {
 
 		// Registry (all)
 		this._workingCopies.delete(workingCopy);

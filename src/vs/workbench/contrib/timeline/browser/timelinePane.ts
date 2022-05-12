@@ -50,6 +50,8 @@ import { isString } from 'vs/base/common/types';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const ItemHeight = 22;
 
@@ -65,6 +67,7 @@ function isTimelineItem(item: TreeElement | undefined): item is TimelineItem {
 
 function updateRelativeTime(item: TimelineItem, lastRelativeTime: string | undefined): string | undefined {
 	item.relativeTime = isTimelineItem(item) ? fromNow(item.timestamp) : undefined;
+	item.relativeTimeFullWord = isTimelineItem(item) ? fromNow(item.timestamp, false, true) : undefined;
 	if (lastRelativeTime === undefined || item.relativeTime !== lastRelativeTime) {
 		lastRelativeTime = item.relativeTime;
 		item.hideRelativeTime = false;
@@ -195,6 +198,7 @@ class LoadMoreCommand {
 	readonly iconDark = undefined;
 	readonly source = undefined;
 	readonly relativeTime = undefined;
+	readonly relativeTimeFullWord = undefined;
 	readonly hideRelativeTime = undefined;
 
 	constructor(loading: boolean) {
@@ -257,7 +261,9 @@ export class TimelinePane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super({ ...options, titleMenuId: MenuId.TimelineTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -348,13 +354,13 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private onActiveEditorChanged() {
-		if (!this.followActiveEditor) {
+		if (!this.followActiveEditor || !this.isExpanded()) {
 			return;
 		}
 
 		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
-		if ((uri?.toString(true) === this.uri?.toString(true) && uri !== undefined) ||
+		if ((this.uriIdentityService.extUri.isEqual(uri, this.uri) && uri !== undefined) ||
 			// Fallback to match on fsPath if we are dealing with files or git schemes
 			(uri?.fsPath === this.uri?.fsPath && (uri?.scheme === Schemas.file || uri?.scheme === 'git') && (this.uri?.scheme === Schemas.file || this.uri?.scheme === 'git'))) {
 
@@ -397,7 +403,7 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private onTimelineChanged(e: TimelineChangeEvent) {
-		if (e?.uri === undefined || e.uri.toString(true) === this.uri?.toString(true)) {
+		if (e?.uri === undefined || this.uriIdentityService.extUri.isEqual(e.uri, this.uri)) {
 			const timeline = this.timelinesBySource.get(e.id);
 			if (timeline === undefined) {
 				return;
@@ -567,9 +573,10 @@ export class TimelinePane extends ViewPane {
 			}
 		}
 		request?.tokenSource.dispose(true);
-
+		options.cacheResults = true;
+		options.resetCache = reset;
 		request = this.timelineService.getTimeline(
-			source, uri, options, new CancellationTokenSource(), { cacheResults: true, resetCache: reset }
+			source, uri, options, new CancellationTokenSource()
 		);
 
 		if (request === undefined) {
@@ -760,15 +767,16 @@ export class TimelinePane extends ViewPane {
 		}
 
 		this._visibleItemCount = count;
-
-		if (more) {
-			yield {
-				element: new LoadMoreCommand(this.pendingRequests.size !== 0)
-			};
-		} else if (this.pendingRequests.size !== 0) {
-			yield {
-				element: new LoadMoreCommand(true)
-			};
+		if (count > 0) {
+			if (more) {
+				yield {
+					element: new LoadMoreCommand(this.pendingRequests.size !== 0)
+				};
+			} else if (this.pendingRequests.size !== 0) {
+				yield {
+					element: new LoadMoreCommand(true)
+				};
+			}
 		}
 	}
 
@@ -824,6 +832,7 @@ export class TimelinePane extends ViewPane {
 
 	override setVisible(visible: boolean): void {
 		if (visible) {
+			this.extensionService.activateByEvent('onView:timeline');
 			this.visibilityDisposables = new DisposableStore();
 
 			this.editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this.visibilityDisposables);
@@ -882,7 +891,7 @@ export class TimelinePane extends ViewPane {
 					if (isLoadMoreCommand(element)) {
 						return element.ariaLabel;
 					}
-					return element.accessibilityInformation ? element.accessibilityInformation.label : localize('timeline.aria.item', "{0}: {1}", element.relativeTime ?? '', element.label);
+					return element.accessibilityInformation ? element.accessibilityInformation.label : localize('timeline.aria.item', "{0}: {1}", element.relativeTimeFullWord ?? '', element.label);
 				},
 				getRole(element: TreeElement): string {
 					if (isLoadMoreCommand(element)) {
@@ -895,9 +904,9 @@ export class TimelinePane extends ViewPane {
 				}
 			},
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
-			multipleSelectionSupport: true,
+			multipleSelectionSupport: false,
 			overrideStyles: {
-				listBackground: this.getBackgroundColor(),
+				listBackground: this.getBackgroundColor()
 			}
 		});
 
@@ -1169,6 +1178,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		});
 
 		template.timestamp.textContent = item.relativeTime ?? '';
+		template.timestamp.ariaLabel = item.relativeTimeFullWord ?? '';
 		template.timestamp.parentElement!.classList.toggle('timeline-timestamp--duplicate', isTimelineItem(item) && item.hideRelativeTime);
 
 		template.actionBar.context = { uri: this.uri, item: item } as TimelineActionContext;
@@ -1285,17 +1295,15 @@ class TimelinePaneCommands extends Disposable {
 		this.sourceDisposables.clear();
 
 		const excluded = new Set(this.configurationService.getValue<string[] | undefined>('timeline.excludeSources') ?? []);
-
 		for (const source of this.timelineService.getSources()) {
 			this.sourceDisposables.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
 						id: `timeline.toggleExcludeSource:${source.id}`,
-						title: { value: localize('timeline.filterSource', "Include: {0}", source.label), original: `Include: ${source.label}` },
-						category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
+						title: source.label,
 						menu: {
-							id: MenuId.TimelineTitle,
-							group: '2_sources',
+							id: MenuId.TimelineFilterSubMenu,
+							group: 'navigation',
 						},
 						toggled: ContextKeyExpr.regex(`config.timeline.excludeSources`, new RegExp(`\\b${escapeRegExpCharacters(source.id)}\\b`)).negate()
 					});

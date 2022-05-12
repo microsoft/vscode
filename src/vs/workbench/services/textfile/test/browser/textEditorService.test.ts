@@ -14,7 +14,6 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { toResource } from 'vs/base/test/common/utils';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -22,6 +21,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 suite('TextEditorService', () => {
 
@@ -50,10 +50,11 @@ suite('TextEditorService', () => {
 
 	test('createTextEditor - basics', async function () {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const languageService = instantiationService.get(ILanguageService);
 		const service = instantiationService.createInstance(TextEditorService);
 
 		const languageId = 'create-input-test';
-		ModesRegistry.registerLanguage({
+		const registration = languageService.registerLanguage({
 			id: languageId,
 		});
 
@@ -182,6 +183,8 @@ suite('TextEditorService', () => {
 		const untypedSideBySideInput = input.toUntyped() as IResourceSideBySideEditorInput;
 		assert.strictEqual(untypedSideBySideInput.primary.resource?.toString(), sideBySideResourceInput.primary.resource.toString());
 		assert.strictEqual(untypedSideBySideInput.secondary.resource?.toString(), sideBySideResourceInput.secondary.resource.toString());
+
+		registration.dispose();
 	});
 
 	test('createTextEditor- caching', function () {

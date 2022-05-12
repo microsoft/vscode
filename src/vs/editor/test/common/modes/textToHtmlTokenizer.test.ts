@@ -4,20 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EncodedTokenizationResult, ColorId, FontStyle, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { tokenizeLineToHTML, _tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 import { TestLineToken, TestLineTokens } from 'vs/editor/test/common/core/testLineToken';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { createModelServices } from 'vs/editor/test/common/testTextModel';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
+
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		instantiationService = createModelServices(disposables);
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
 	function toStr(pieces: { className: string; text: string }[]): string {
 		let resultArr = pieces.map((t) => `<span class="${t.className}">${t.text}</span>`);
 		return resultArr.join('');
 	}
 
 	test('TextToHtmlTokenizer 1', () => {
-		let mode = new Mode();
+		const mode = disposables.add(instantiationService.createInstance(Mode));
 		let support = TokenizationRegistry.get(mode.languageId)!;
 
 		let actual = _tokenizeToString('.abc..def...gh', new LanguageIdCodec(), support);
@@ -32,12 +48,10 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		let expectedStr = `<div class="monaco-tokenized-source">${toStr(expected)}</div>`;
 
 		assert.strictEqual(actual, expectedStr);
-
-		mode.dispose();
 	});
 
 	test('TextToHtmlTokenizer 2', () => {
-		let mode = new Mode();
+		const mode = disposables.add(instantiationService.createInstance(Mode));
 		let support = TokenizationRegistry.get(mode.languageId)!;
 
 		let actual = _tokenizeToString('.abc..def...gh\n.abc..def...gh', new LanguageIdCodec(), support);
@@ -62,8 +76,6 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		let expectedStr = `<div class="monaco-tokenized-source">${expectedStr1}<br/>${expectedStr2}</div>`;
 
 		assert.strictEqual(actual, expectedStr);
-
-		mode.dispose();
 	});
 
 	test('tokenizeLineToHTML', () => {
@@ -278,12 +290,15 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 });
 
-class Mode extends MockMode {
+class Mode extends Disposable {
 
-	private static readonly _id = 'textToHtmlTokenizerMode';
+	private readonly languageId = 'textToHtmlTokenizerMode';
 
-	constructor() {
-		super(Mode._id);
+	constructor(
+		@ILanguageService languageService: ILanguageService
+	) {
+		super();
+		this._register(languageService.registerLanguage({ id: this.languageId }));
 		this._register(TokenizationRegistry.register(this.languageId, {
 			getInitialState: (): IState => null!,
 			tokenize: undefined!,

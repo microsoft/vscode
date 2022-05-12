@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, MessageBoxOptions, nativeTheme, WebContents } from 'electron';
+import { app, BrowserWindow, MessageBoxOptions, WebContents } from 'electron';
 import { statSync } from 'fs';
 import { hostname, release } from 'os';
 import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
@@ -17,7 +17,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename, join, normalize, posix } from 'vs/base/common/path';
 import { getMarks, mark } from 'vs/base/common/performance';
-import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
 import { extUriBiasedIgnorePathCase, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
@@ -49,6 +49,8 @@ import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/p
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { ICodeWindow, UnloadReason } from 'vs/platform/window/electron-main/window';
+import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 //#region Helper Interfaces
 
@@ -117,23 +119,33 @@ interface IFilesToOpen {
 	filesToWait?: IPathsToWaitFor;
 }
 
-interface IPathToOpen extends IPath {
+interface IPathToOpen<T = IEditorOptions> extends IPath<T> {
 
-	// the workspace to open
+	/**
+	 * The workspace to open
+	 */
 	readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 
-	// whether the path is considered to be transient or not
-	// for example, a transient workspace should not add to
-	// the workspaces history and should never restore
+	/**
+	 * Whether the path is considered to be transient or not
+	 * for example, a transient workspace should not add to
+	 * the workspaces history and should never restore.
+	 */
 	readonly transient?: boolean;
 
-	// the backup path to use
+	/**
+	 * The backup path to use
+	 */
 	readonly backupPath?: string;
 
-	// the remote authority for the Code instance to open. Undefined if not remote.
+	/**
+	 * The remote authority for the Code instance to open. Undefined if not remote.
+	 */
 	readonly remoteAuthority?: string;
 
-	// optional label for the recent history
+	/**
+	 * Optional label for the recent history
+	 */
 	label?: string;
 }
 
@@ -190,7 +202,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
-		@IProtocolMainService private readonly protocolMainService: IProtocolMainService
+		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
+		@IThemeMainService private readonly themeMainService: IThemeMainService
 	) {
 		super();
 
@@ -754,8 +767,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					defaultId: 0,
 					message: uri.scheme === Schemas.file ? localize('pathNotExistTitle', "Path does not exist") : localize('uriInvalidTitle', "URI can not be opened"),
 					detail: uri.scheme === Schemas.file ?
-						localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", getPathLabel(uri.fsPath, this.environmentMainService)) :
-						localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString()),
+						localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", getPathLabel(uri, { os: OS, tildify: this.environmentMainService })) :
+						localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString(true)),
 					noLink: true
 				};
 
@@ -914,7 +927,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return this.doResolveRemoteOpenable(openable, options);
 	}
 
-	private doResolveRemoteOpenable(openable: IWindowOpenable, options: IPathResolveOptions): IPathToOpen | undefined {
+	private doResolveRemoteOpenable(openable: IWindowOpenable, options: IPathResolveOptions): IPathToOpen<ITextEditorOptions> | undefined {
 		let uri = this.resourceFromOpenable(openable);
 
 		// use remote authority from vscode
@@ -930,7 +943,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 				return {
 					fileUri: uri.with({ path }),
-					selection: line ? { startLineNumber: line, startColumn: column || 1 } : undefined,
+					options: {
+						selection: line ? { startLineNumber: line, startColumn: column || 1 } : undefined
+					},
 					remoteAuthority
 				};
 			}
@@ -959,7 +974,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return openable.fileUri;
 	}
 
-	private doResolveFilePath(path: string, options: IPathResolveOptions): IPathToOpen | undefined {
+	private doResolveFilePath(path: string, options: IPathResolveOptions): IPathToOpen<ITextEditorOptions> | undefined {
 
 		// Extract line/col information from path
 		let lineNumber: number | undefined;
@@ -1002,7 +1017,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					fileUri: URI.file(path),
 					type: FileType.File,
 					exists: true,
-					selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined
+					options: {
+						selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined
+					}
 				};
 			}
 
@@ -1045,7 +1062,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return undefined;
 	}
 
-	private doResolvePathRemote(path: string, options: IPathResolveOptions): IPathToOpen | undefined {
+	private doResolvePathRemote(path: string, options: IPathResolveOptions): IPathToOpen<ITextEditorOptions> | undefined {
 		const first = path.charCodeAt(0);
 		const remoteAuthority = options.remoteAuthority;
 
@@ -1079,7 +1096,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				if (options.forceOpenWorkspaceAsFile) {
 					return {
 						fileUri: uri,
-						selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined,
+						options: {
+							selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined
+						},
 						remoteAuthority: options.remoteAuthority
 					};
 				}
@@ -1091,7 +1110,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			else if (options.gotoLineMode || posix.basename(path).indexOf('.') !== -1) {
 				return {
 					fileUri: uri,
-					selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined,
+					options: {
+						selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined
+					},
 					remoteAuthority
 				};
 			}
@@ -1297,11 +1318,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			zoomLevel: typeof windowConfig?.zoomLevel === 'number' ? windowConfig.zoomLevel : undefined,
 
 			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,
+			autoDetectColorScheme: windowConfig?.autoDetectColorScheme ?? false,
 			accessibilitySupport: app.accessibilitySupportEnabled,
-			colorScheme: {
-				dark: nativeTheme.shouldUseDarkColors,
-				highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors
-			}
+			colorScheme: this.themeMainService.getColorScheme()
 		};
 
 		let window: ICodeWindow | undefined;

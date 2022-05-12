@@ -771,7 +771,7 @@ class XtermSerializer implements ITerminalSerializer {
 					data: serialized
 				}
 			],
-			commands: this._shellIntegrationAddon.serializeCommands()
+			commands: this._shellIntegrationAddon.serialize()
 		};
 	}
 

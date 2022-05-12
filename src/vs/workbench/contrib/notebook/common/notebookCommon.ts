@@ -5,7 +5,7 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
+import { IDiffResult } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
@@ -18,13 +18,14 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Command } from 'vs/editor/common/languages';
+import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
+import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -214,7 +215,10 @@ export interface ICell {
 	outputs: ICellOutput[];
 	metadata: NotebookCellMetadata;
 	internalMetadata: NotebookCellInternalMetadata;
+	getHashValue(): number;
+	textBuffer: IReadonlyTextBuffer;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice>;
+	onDidChangeOutputItems?: Event<void>;
 	onDidChangeLanguage: Event<string>;
 	onDidChangeMetadata: Event<void>;
 	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent>;
@@ -223,10 +227,14 @@ export interface ICell {
 export interface INotebookTextModel {
 	readonly viewType: string;
 	metadata: NotebookDocumentMetadata;
+	readonly transientOptions: TransientOptions;
 	readonly uri: URI;
 	readonly versionId: number;
-
+	readonly length: number;
 	readonly cells: readonly ICell[];
+	reset(cells: ICellDto2[], metadata: NotebookDocumentMetadata, transientOptions: TransientOptions): void;
+	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo?: boolean): boolean;
+	onDidChangeContent: Event<NotebookTextModelChangedEvent>;
 	onWillDispose: Event<void>;
 }
 
@@ -257,7 +265,7 @@ export interface IMainCellDto {
 export enum NotebookCellsChangeType {
 	ModelChange = 1,
 	Move = 2,
-	ChangeLanguage = 5,
+	ChangeCellLanguage = 5,
 	Initialize = 6,
 	ChangeCellMetadata = 7,
 	Output = 8,
@@ -276,6 +284,7 @@ export interface NotebookCellsInitializeEvent<T> {
 
 export interface NotebookCellContentChangeEvent {
 	readonly kind: NotebookCellsChangeType.ChangeCellContent;
+	readonly index: number;
 }
 
 export interface NotebookCellsModelChangedEvent<T> {
@@ -307,7 +316,7 @@ export interface NotebookOutputItemChangedEvent {
 }
 
 export interface NotebookCellsChangeLanguageEvent {
-	readonly kind: NotebookCellsChangeType.ChangeLanguage;
+	readonly kind: NotebookCellsChangeType.ChangeCellLanguage;
 	readonly index: number;
 	readonly language: string;
 }
@@ -762,7 +771,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly onDidChangeReadonly: Event<void>;
 	readonly resource: URI;
 	readonly viewType: string;
-	readonly notebook: NotebookTextModel | undefined;
+	readonly notebook: INotebookTextModel | undefined;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
 	isReadonly(): boolean;
@@ -770,7 +779,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	hasAssociatedFilePath(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
 	save(options?: ISaveOptions): Promise<boolean>;
-	saveAs(target: URI): Promise<EditorInput | undefined>;
+	saveAs(target: URI): Promise<IUntypedEditorInput | undefined>;
 	revert(options?: IRevertOptions): Promise<void>;
 }
 
@@ -856,20 +865,6 @@ export interface INotebookCellStatusBarItemProvider {
 	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined>;
 }
 
-export class CellSequence implements ISequence {
-
-	constructor(readonly textModel: NotebookTextModel) {
-	}
-
-	getElements(): string[] | number[] | Int32Array {
-		const hashValue = new Int32Array(this.textModel.cells.length);
-		for (let i = 0; i < this.textModel.cells.length; i++) {
-			hashValue[i] = this.textModel.cells[i].getHashValue();
-		}
-
-		return hashValue;
-	}
-}
 
 export interface INotebookDiffResult {
 	cellsDiff: IDiffResult;
@@ -917,7 +912,10 @@ export const NotebookSetting = {
 	textOutputLineLimit: 'notebook.output.textLineLimit',
 	globalToolbarShowLabel: 'notebook.globalToolbarShowLabel',
 	markupFontSize: 'notebook.markup.fontSize',
-	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode'
+	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
+	outputLineHeight: 'notebook.outputLineHeight',
+	outputFontSize: 'notebook.outputFontSize',
+	outputFontFamily: 'notebook.outputFontFamily'
 } as const;
 
 export const enum CellStatusbarAlignment {

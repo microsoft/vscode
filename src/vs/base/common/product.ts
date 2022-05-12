@@ -41,6 +41,7 @@ export interface IProductConfiguration {
 
 	readonly win32AppUserModelId?: string;
 	readonly win32MutexName?: string;
+	readonly win32RegValueName?: string;
 	readonly applicationName: string;
 	readonly embedderIdentifier?: string;
 
@@ -91,6 +92,8 @@ export interface IProductConfiguration {
 		readonly productName: string;
 	};
 
+	readonly removeTelemetryMachineId?: boolean;
+	readonly enabledTelemetryLevels?: { error: boolean; usage: boolean };
 	readonly enableTelemetry?: boolean;
 	readonly openToWelcomeMainPage?: boolean;
 	readonly aiConfig?: {

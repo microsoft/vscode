@@ -368,16 +368,14 @@ const unloadMonitor = new class {
 			}
 
 			switch (this.confirmBeforeClose) {
-				case 'always':
-					{
-						event.preventDefault();
-						event.returnValue = '';
-						return '';
-					}
-				case 'never':
-					{
-						break;
-					}
+				case 'always': {
+					event.preventDefault();
+					event.returnValue = '';
+					return '';
+				}
+				case 'never': {
+					break;
+				}
 				case 'keyboardOnly':
 				default: {
 					if (this.isModifierKeyDown) {
@@ -423,6 +421,12 @@ const initData = {
 
 	/** @type {string | undefined} */
 	themeName: undefined,
+
+	/** @type {boolean} */
+	screenReader: false,
+
+	/** @type {boolean} */
+	reduceMotion: false,
 };
 
 hostMessaging.onMessage('did-load-resource', (_event, data) => {
@@ -455,9 +459,17 @@ const applyStyles = (document, body) => {
 	}
 
 	if (body) {
-		body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
+		body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast', 'vscode-reduce-motion', 'vscode-using-screen-reader');
 		if (initData.activeTheme) {
 			body.classList.add(initData.activeTheme);
+		}
+
+		if (initData.reduceMotion) {
+			body.classList.add('vscode-reduce-motion');
+		}
+
+		if (initData.screenReader) {
+			body.classList.add('vscode-using-screen-reader');
 		}
 
 		body.dataset.vscodeThemeKind = initData.activeTheme;
@@ -666,6 +678,22 @@ const handleInnerScroll = (event) => {
 	});
 };
 
+function handleInnerDragStartEvent(/** @type {DragEvent} */ e) {
+	if (e.defaultPrevented) {
+		// Extension code has already handled this event
+		return;
+	}
+
+	if (!e.dataTransfer || e.shiftKey) {
+		return;
+	}
+
+	// Only handle drags from outside editor for now
+	if (e.dataTransfer.items.length && Array.prototype.every.call(e.dataTransfer.items, item => item.kind === 'file')) {
+		hostMessaging.postMessage('drag-start');
+	}
+}
+
 /**
  * @param {() => void} callback
  */
@@ -776,6 +804,8 @@ onDomReady(() => {
 		initData.styles = data.styles;
 		initData.activeTheme = data.activeTheme;
 		initData.themeName = data.themeName;
+		initData.reduceMotion = data.reduceMotion;
+		initData.screenReader = data.screenReader;
 
 		const target = getActiveFrame();
 		if (!target) {
@@ -1018,6 +1048,9 @@ onDomReady(() => {
 				});
 			});
 
+			contentWindow.addEventListener('dragenter', handleInnerDragStartEvent);
+			contentWindow.addEventListener('dragover', handleInnerDragStartEvent);
+
 			unloadMonitor.onIframeLoaded(newFrame);
 		}
 	});
@@ -1103,6 +1136,11 @@ onDomReady(() => {
 				break;
 		}
 	};
+
+	// Also forward events before the contents of the webview have loaded
+	window.addEventListener('keydown', handleInnerKeydown);
+	window.addEventListener('dragenter', handleInnerDragStartEvent);
+	window.addEventListener('dragover', handleInnerDragStartEvent);
 
 	hostMessaging.signalReady();
 });

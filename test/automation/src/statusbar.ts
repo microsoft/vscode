@@ -42,9 +42,9 @@ export class StatusBar {
 	private getSelector(element: StatusBarElement): string {
 		switch (element) {
 			case StatusBarElement.BRANCH_STATUS:
-				return `.statusbar-item[id="status.scm"] .codicon.codicon-git-branch`;
+				return `.statusbar-item[id^="status.scm."] .codicon.codicon-git-branch`;
 			case StatusBarElement.SYNC_STATUS:
-				return `.statusbar-item[id="status.scm"] .codicon.codicon-sync`;
+				return `.statusbar-item[id^="status.scm."] .codicon.codicon-sync`;
 			case StatusBarElement.PROBLEMS_STATUS:
 				return `.statusbar-item[id="status.problems"]`;
 			case StatusBarElement.SELECTION_STATUS:

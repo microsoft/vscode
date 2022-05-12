@@ -13,8 +13,7 @@ const util = require("../lib/util");
 const identity_1 = require("@azure/identity");
 const azure = require('gulp-azure-storage');
 const packageJson = require("../../package.json");
-const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
+const commit = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
 function generateVSCodeConfigurationTask() {
     return new Promise((resolve, reject) => {
         const buildDir = process.env['AGENT_BUILDDIRECTORY'];
@@ -53,7 +52,7 @@ function generateVSCodeConfigurationTask() {
         const timer = setTimeout(() => {
             codeProc.kill();
             reject(new Error('export-default-configuration process timed out'));
-        }, 12 * 1000);
+        }, 30 * 1000);
         codeProc.on('error', err => {
             clearTimeout(timer);
             reject(err);

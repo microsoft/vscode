@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/extensionsWidgets';
+import * as semver from 'vs/base/common/semver/semver';
 import { Disposable, toDisposable, DisposableStore, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
 import { append, $ } from 'vs/base/browser/dom';
@@ -158,29 +159,6 @@ export class RatingsWidget extends ExtensionWidget {
 	}
 }
 
-export class RunningPreReleaseVersionIndicatorWidget extends ExtensionWidget {
-
-	constructor(
-		private readonly container: HTMLElement,
-	) {
-		super();
-		container.classList.add('extension-pre-release');
-		this.render();
-	}
-
-	render(): void {
-		this.container.innerText = '';
-
-		if (!this.extension
-			|| this.extension.state !== ExtensionState.Installed
-			|| !this.extension.local?.isPreReleaseVersion) {
-			return;
-		}
-
-		append(this.container, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
-	}
-}
-
 export class RecommendationWidget extends ExtensionWidget {
 
 	private element?: HTMLElement;
@@ -251,7 +229,7 @@ export class PreReleaseBookmarkWidget extends ExtensionWidget {
 		if (!this.extension.hasPreReleaseVersion) {
 			return;
 		}
-		if (this.extension.state === ExtensionState.Installed && this.extension.local?.isPreReleaseVersion) {
+		if (this.extension.state === ExtensionState.Installed && !this.extension.local?.isPreReleaseVersion) {
 			return;
 		}
 		this.element = append(this.parent, $('div.extension-bookmark'));
@@ -480,7 +458,10 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
-		markdown.appendMarkdown(`**${this.extension.displayName}**&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${this.extension.version}_**&nbsp;</span>`);
+		markdown.appendMarkdown(`**${this.extension.displayName}**`);
+		if (semver.valid(this.extension.version)) {
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${this.extension.version}_**&nbsp;</span>`);
+		}
 		if (this.extension.state === ExtensionState.Installed ? this.extension.local?.isPreReleaseVersion : this.extension.gallery?.properties.isPreReleaseVersion) {
 			const extensionPreReleaseIcon = this.themeService.getColorTheme().getColor(extensionPreReleaseIconColor);
 			markdown.appendMarkdown(`**&nbsp;**&nbsp;<span style="color:#ffffff;background-color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">&nbsp;$(${preReleaseIcon.id})&nbsp;${localize('pre-release-label', "Pre-Release")}&nbsp;</span>`);

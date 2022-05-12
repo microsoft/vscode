@@ -20,7 +20,7 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 		return inspectValue;
 	}
 
-	protected extractGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
+	protected readGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
 		const inspect = configuration.inspect('typescript.tsdk');
 		if (inspect && typeof inspect.globalValue === 'string') {
 			return this.fixPathPrefixes(inspect.globalValue);
@@ -28,7 +28,7 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 		return null;
 	}
 
-	protected extractLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
+	protected readLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
 		const inspect = configuration.inspect('typescript.tsdk');
 		if (inspect && typeof inspect.workspaceValue === 'string') {
 			return this.fixPathPrefixes(inspect.workspaceValue);

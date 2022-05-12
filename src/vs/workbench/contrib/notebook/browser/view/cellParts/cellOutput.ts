@@ -26,7 +26,7 @@ import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -123,32 +123,43 @@ export class CellOutputElement extends Disposable {
 	}
 
 	updateOutputData() {
-		// update the content inside the domNode, do not need to worry about streaming
-		if (!this.innerContainer) {
-			if (this.renderResult) {
-				return;
-			} else {
-				// init rendering didn't happen
-				const currOutputIndex = this.cellOutputContainer.renderedOutputEntries.findIndex(entry => entry.element === this);
-				const previousSibling = currOutputIndex > 0 && !!(this.cellOutputContainer.renderedOutputEntries[currOutputIndex - 1].element.innerContainer?.parentElement)
-					? this.cellOutputContainer.renderedOutputEntries[currOutputIndex - 1].element.innerContainer
-					: undefined;
-				this.render(previousSibling);
-				this._relayoutCell();
+		if (
+			this.notebookEditor.hasModel() &&
+			this.innerContainer &&
+			this.renderResult &&
+			this.renderResult.type === RenderOutputType.Extension
+		) {
+			// Output rendered by extension renderer got an update
+			const [mimeTypes, pick] = this.output.resolveMimeTypes(this.notebookEditor.textModel, this.notebookEditor.activeKernel?.preloadProvides);
+			const pickedMimeType = mimeTypes[pick];
+			if (pickedMimeType.mimeType === this.renderResult.mimeType && pickedMimeType.rendererId === this.renderResult.renderer.id) {
+				// Same mimetype, same renderer, call the extension renderer to update
+				const index = this.viewCell.outputsViewModels.indexOf(this.output);
+				this.notebookEditor.updateOutput(this.viewCell, this.renderResult, this.viewCell.getOutputOffset(index));
 				return;
 			}
 		}
 
-		// user chooses another mimetype
-		const nextElement = this.innerContainer.nextElementSibling;
-		this._renderDisposableStore.clear();
-		const element = this.innerContainer;
-		if (element) {
-			element.parentElement?.removeChild(element);
-			this.notebookEditor.removeInset(this.output);
+		if (!this.innerContainer) {
+			// init rendering didn't happen
+			const currOutputIndex = this.cellOutputContainer.renderedOutputEntries.findIndex(entry => entry.element === this);
+			const previousSibling = currOutputIndex > 0 && !!(this.cellOutputContainer.renderedOutputEntries[currOutputIndex - 1].element.innerContainer?.parentElement)
+				? this.cellOutputContainer.renderedOutputEntries[currOutputIndex - 1].element.innerContainer
+				: undefined;
+			this.render(previousSibling);
+		} else {
+			// Another mimetype or renderer is picked, we need to clear the current output and re-render
+			const nextElement = this.innerContainer.nextElementSibling;
+			this._renderDisposableStore.clear();
+			const element = this.innerContainer;
+			if (element) {
+				element.parentElement?.removeChild(element);
+				this.notebookEditor.removeInset(this.output);
+			}
+
+			this.render(nextElement as HTMLElement);
 		}
 
-		this.render(nextElement as HTMLElement);
 		this._relayoutCell();
 	}
 

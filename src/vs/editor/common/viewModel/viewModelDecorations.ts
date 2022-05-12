@@ -204,7 +204,7 @@ export function isModelDecorationInString(model: ITextModel, decoration: IModelD
  */
 function testTokensInRange(model: ITextModel, range: Range, callback: (tokenType: StandardTokenType) => boolean): boolean {
 	for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
-		const lineTokens = model.getLineTokens(lineNumber);
+		const lineTokens = model.tokenization.getLineTokens(lineNumber);
 		const isFirstLine = lineNumber === range.startLineNumber;
 		const isEndLine = lineNumber === range.endLineNumber;
 

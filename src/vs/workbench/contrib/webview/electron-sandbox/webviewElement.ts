@@ -8,6 +8,7 @@ import { VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
 import { consumeStream } from 'vs/base/common/stream';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -60,11 +61,12 @@ export class ElectronWebviewElement extends WebviewElement {
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@INotificationService notificationService: INotificationService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider,
 			configurationService, contextMenuService, menuService, notificationService, environmentService,
-			fileService, logService, remoteAuthorityResolverService, telemetryService, tunnelService, instantiationService);
+			fileService, logService, remoteAuthorityResolverService, telemetryService, tunnelService, instantiationService, accessibilityService);
 
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, nativeHostService);
 

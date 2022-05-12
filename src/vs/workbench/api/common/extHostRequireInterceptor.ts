@@ -4,19 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as performance from 'vs/base/common/performance';
-import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { MainThreadTelemetryShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IExtensionApiFactory } from 'vs/workbench/api/common/extHost.api.impl';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionApiFactory, IExtensionRegistries } from 'vs/workbench/api/common/extHost.api.impl';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
+import { ExtensionPaths, IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { platform } from 'vs/base/common/process';
 import { ILogService } from 'vs/platform/log/common/log';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
@@ -42,7 +40,7 @@ export abstract class RequireInterceptor {
 
 	constructor(
 		private _apiFactory: IExtensionApiFactory,
-		private _extensionRegistry: ExtensionDescriptionRegistry,
+		private _extensionRegistry: IExtensionRegistries,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IExtHostConfiguration private readonly _extHostConfiguration: IExtHostConfiguration,
 		@IExtHostExtensionService private readonly _extHostExtensionService: IExtHostExtensionService,
@@ -156,8 +154,8 @@ class VSCodeNodeModuleFactory implements INodeModuleFactory {
 
 	constructor(
 		private readonly _apiFactory: IExtensionApiFactory,
-		private readonly _extensionPaths: TernarySearchTree<URI, IExtensionDescription>,
-		private readonly _extensionRegistry: ExtensionDescriptionRegistry,
+		private readonly _extensionPaths: ExtensionPaths,
+		private readonly _extensionRegistry: IExtensionRegistries,
 		private readonly _configProvider: ExtHostConfigProvider,
 		private readonly _logService: ILogService,
 	) {
@@ -208,7 +206,7 @@ class KeytarNodeModuleFactory implements INodeModuleFactory {
 	private _impl: IKeytarModule;
 
 	constructor(
-		private readonly _extensionPaths: TernarySearchTree<URI, IExtensionDescription>,
+		private readonly _extensionPaths: ExtensionPaths,
 		@IExtHostRpcService rpcService: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 
@@ -303,7 +301,7 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 	private _mainThreadTelemetry: MainThreadTelemetryShape;
 
 	constructor(
-		private readonly _extensionPaths: TernarySearchTree<URI, IExtensionDescription>,
+		private readonly _extensionPaths: ExtensionPaths,
 		private readonly _appUriScheme: string,
 		@IExtHostRpcService rpcService: IExtHostRpcService,
 	) {

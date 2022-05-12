@@ -132,7 +132,7 @@ class RenameController implements IEditorContribution {
 	}
 
 	private readonly _renameInputField: IdleValue<RenameInputField>;
-	private readonly _dispoableStore = new DisposableStore();
+	private readonly _disposableStore = new DisposableStore();
 	private _cts: CancellationTokenSource = new CancellationTokenSource();
 
 	constructor(
@@ -145,11 +145,11 @@ class RenameController implements IEditorContribution {
 		@ITextResourceConfigurationService private readonly _configService: ITextResourceConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 	) {
-		this._renameInputField = this._dispoableStore.add(new IdleValue(() => this._dispoableStore.add(this._instaService.createInstance(RenameInputField, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']))));
+		this._renameInputField = this._disposableStore.add(new IdleValue(() => this._disposableStore.add(this._instaService.createInstance(RenameInputField, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']))));
 	}
 
 	dispose(): void {
-		this._dispoableStore.dispose();
+		this._disposableStore.dispose();
 		this._cts.dispose(true);
 	}
 
@@ -236,9 +236,10 @@ class RenameController implements IEditorContribution {
 			this._bulkEditService.apply(ResourceEdit.convert(renameResult), {
 				editor: this.editor,
 				showPreview: inputFieldResult.wantsPreview,
-				label: nls.localize('label', "Renaming '{0}'", loc?.text),
+				label: nls.localize('label', "Renaming '{0}' to '{1}'", loc?.text, inputFieldResult.newName),
 				code: 'undoredo.rename',
-				quotableLabel: nls.localize('quotableLabel', "Renaming {0}", loc?.text),
+				quotableLabel: nls.localize('quotableLabel', "Renaming {0} to {1}", loc?.text, inputFieldResult.newName),
+				respectAutoSaveConfig: true
 			}).then(result => {
 				if (result.ariaSummary) {
 					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, inputFieldResult.newName, result.ariaSummary));

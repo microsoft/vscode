@@ -593,7 +593,7 @@ class CacheEntry {
 	constructor(
 		public readonly sourceFile: ts.SourceFile,
 		public readonly mtime: number
-	) {}
+	) { }
 }
 
 export class DeclarationResolver {
@@ -722,6 +722,12 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 	}
 	isDefaultLibFileName(fileName: string): boolean {
 		return fileName === this.getDefaultLibFileName(this._compilerOptions);
+	}
+	readFile(path: string, _encoding?: string): string | undefined {
+		return this._files[path] || this._libs[path];
+	}
+	fileExists(path: string): boolean {
+		return path in this._files || path in this._libs;
 	}
 }
 

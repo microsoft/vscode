@@ -386,6 +386,31 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
 	});
 
+	test('test enable an extension also enables dependencies', async () => {
+		installed.push(...[aLocalExtension2('pub.a', { extensionDependencies: ['pub.b'] }), aLocalExtension('pub.b')]);
+		const target = installed[0];
+		const dep = installed[1];
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+		await testObject.setEnablement([dep, target], EnablementState.DisabledGlobally);
+		await testObject.setEnablement([target], EnablementState.EnabledGlobally);
+		assert.ok(testObject.isEnabled(target));
+		assert.ok(testObject.isEnabled(dep));
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
+		assert.strictEqual(testObject.getEnablementState(dep), EnablementState.EnabledGlobally);
+	});
+
+	test('test enable an extension also enables packed extensions', async () => {
+		installed.push(...[aLocalExtension2('pub.a', { extensionPack: ['pub.b'] }), aLocalExtension('pub.b')]);
+		const target = installed[0];
+		const dep = installed[1];
+		await testObject.setEnablement([dep, target], EnablementState.DisabledGlobally);
+		await testObject.setEnablement([target], EnablementState.EnabledGlobally);
+		assert.ok(testObject.isEnabled(target));
+		assert.ok(testObject.isEnabled(dep));
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
+		assert.strictEqual(testObject.getEnablementState(dep), EnablementState.EnabledGlobally);
+	});
+
 	test('test remove an extension from disablement list when uninstalled', async () => {
 		const extension = aLocalExtension('pub.a');
 		installed.push(extension);
@@ -513,7 +538,7 @@ suite('ExtensionEnablementService Test', () => {
 		const extension = aLocalExtension('pub.a');
 		installed.push(extension);
 
-		testObject.setEnablement([extension], EnablementState.EnabledWorkspace);
+		await testObject.setEnablement([extension], EnablementState.EnabledWorkspace);
 		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 
@@ -525,7 +550,7 @@ suite('ExtensionEnablementService Test', () => {
 		const extension = aLocalExtension('pub.a');
 		installed.push(extension);
 
-		testObject.setEnablement([extension], EnablementState.DisabledGlobally);
+		await testObject.setEnablement([extension], EnablementState.DisabledGlobally);
 		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 
@@ -537,7 +562,7 @@ suite('ExtensionEnablementService Test', () => {
 		const extension = aLocalExtension('pub.a');
 		installed.push(extension);
 
-		testObject.setEnablement([extension], EnablementState.DisabledWorkspace);
+		await testObject.setEnablement([extension], EnablementState.DisabledWorkspace);
 		instantiationService.stub(IWorkbenchEnvironmentService, { enableExtensions: <readonly string[]>['pub.a'] } as IWorkbenchEnvironmentService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 

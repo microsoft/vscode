@@ -12,7 +12,8 @@
 
 /* Decoration */
 
-.colorpicker-color-decoration {
+.colorpicker-color-decoration,
+.hc-light .colorpicker-color-decoration {
 	border: solid 0.1em #000;
 	box-sizing: border-box;
 	margin: 0.1em 0.2em 0 0.2em;
@@ -24,7 +25,6 @@
 }
 
 .hc-black .colorpicker-color-decoration,
-.hc-light .colorpicker-color-decoration,
 .vs-dark .colorpicker-color-decoration {
 	border: solid 0.1em #eee;
 }

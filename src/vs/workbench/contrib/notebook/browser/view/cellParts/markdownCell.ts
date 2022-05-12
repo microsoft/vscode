@@ -59,8 +59,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this.constructDOM();
 		this.editorPart = templateData.editorPart;
-
-		this.cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, this.viewCell.language));
+		this.cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(viewCell.language), this.notebookEditor.notebookOptions, this.configurationService));
 		this.cellEditorOptions.setLineNumbers(this.viewCell.lineNumbers);
 		this.editorOptions = this.cellEditorOptions.getValue(this.viewCell.internalMetadata, this.viewCell.uri);
 
@@ -106,8 +105,10 @@ export class StatefulMarkdownCell extends Disposable {
 		this.markdownAccessibilityContainer.id = id;
 		// Hide the element from non-screen readers
 		this.markdownAccessibilityContainer.style.height = '1px';
+		this.markdownAccessibilityContainer.style.overflow = 'hidden';
 		this.markdownAccessibilityContainer.style.position = 'absolute';
-		this.markdownAccessibilityContainer.style.top = '10000px';
+		this.markdownAccessibilityContainer.style.top = '100000px';
+		this.markdownAccessibilityContainer.style.left = '10000px';
 		this.markdownAccessibilityContainer.ariaHidden = 'false';
 
 		this.templateData.rootContainer.setAttribute('aria-describedby', id);
@@ -222,7 +223,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 	override dispose() {
 		// move focus back to the cell list otherwise the focus goes to body
-		if (this.notebookEditor.getActiveCell() === this.viewCell && this.viewCell.focusMode === CellFocusMode.Editor) {
+		if (this.notebookEditor.getActiveCell() === this.viewCell && this.viewCell.focusMode === CellFocusMode.Editor && (this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)) {
 			this.notebookEditor.focusContainer();
 		}
 
@@ -328,6 +329,7 @@ export class StatefulMarkdownCell extends Disposable {
 					width: width,
 					height: editorHeight
 				},
+				enableDropIntoEditor: true,
 				// overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 			}, {
 				contributions: this.notebookEditor.creationOptions.cellEditorContributions

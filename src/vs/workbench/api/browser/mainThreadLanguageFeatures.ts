@@ -3,52 +3,56 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ITextModel } from 'vs/editor/common/model';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import * as languages from 'vs/editor/common/languages';
-import * as search from 'vs/workbench/contrib/search/common/search';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Position as EditorPosition } from 'vs/editor/common/core/position';
-import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, ILocationLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto, IdentifiableInlineCompletions, IdentifiableInlineCompletion, ITypeHierarchyItemDto, IInlayHintDto } from '../common/extHost.protocol';
-import { ILanguageConfigurationService, LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { URI } from 'vs/base/common/uri';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
-import { mixin } from 'vs/base/common/objects';
-import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
-import { revive } from 'vs/base/common/marshalling';
 import { CancellationError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { revive } from 'vs/base/common/marshalling';
+import { mixin } from 'vs/base/common/objects';
+import { URI } from 'vs/base/common/uri';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
+import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import * as languages from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { IndentationRule, LanguageConfiguration, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { DataTransferCache } from 'vs/workbench/api/common/shared/dataTransferCache';
+import { DataTransferConverter } from 'vs/workbench/api/common/shared/dataTransfer';
+import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
+import * as search from 'vs/workbench/contrib/search/common/search';
+import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape, reviveWorkspaceEditDto } from '../common/extHost.protocol';
+import { IDataTransfer } from 'vs/editor/common/dnd';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
-export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
+export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
 
 	private readonly _proxy: ExtHostLanguageFeaturesShape;
-	private readonly _languageService: ILanguageService;
 	private readonly _registrations = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ILanguageService languageService: ILanguageService,
-		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 	) {
+		super();
+
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageFeatures);
-		this._languageService = languageService;
 
 		if (this._languageService) {
 			const updateAllWordDefinitions = () => {
 				let wordDefinitionDtos: ILanguageWordDefinitionDto[] = [];
-				for (const languageId of languageService.getRegisteredLanguageIds()) {
-					const wordDefinition = languageConfigurationService.getLanguageConfiguration(languageId).getWordDefinition();
+				for (const languageId of _languageService.getRegisteredLanguageIds()) {
+					const wordDefinition = this._languageConfigurationService.getLanguageConfiguration(languageId).getWordDefinition();
 					wordDefinitionDtos.push({
 						languageId: languageId,
 						regexSource: wordDefinition.source,
@@ -57,11 +61,11 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				}
 				this._proxy.$setWordDefinitions(wordDefinitionDtos);
 			};
-			languageConfigurationService.onDidChange((e) => {
+			this._languageConfigurationService.onDidChange((e) => {
 				if (!e.languageId) {
 					updateAllWordDefinitions();
 				} else {
-					const wordDefinition = languageConfigurationService.getLanguageConfiguration(e.languageId).getWordDefinition();
+					const wordDefinition = this._languageConfigurationService.getLanguageConfiguration(e.languageId).getWordDefinition();
 					this._proxy.$setWordDefinitions([{
 						languageId: e.languageId,
 						regexSource: wordDefinition.source,
@@ -73,11 +77,13 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		for (const registration of this._registrations.values()) {
 			registration.dispose();
 		}
 		this._registrations.clear();
+
+		super.dispose();
 	}
 
 	$unregister(handle: number): void {
@@ -478,7 +484,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		};
 	}
 
-	$registerSuggestSupport(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, displayName: string): void {
+	$registerCompletionsProvider(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, displayName: string): void {
 		const provider: languages.CompletionItemProvider = {
 			triggerCharacters,
 			_debugDisplayName: displayName,
@@ -514,13 +520,15 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations.set(handle, this._languageFeaturesService.completionProvider.register(selector, provider));
 	}
 
-	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[]): void {
+	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleDidShowCompletionItem: boolean): void {
 		const provider: languages.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
 			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
 				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
 			},
 			handleItemDidShow: async (completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion): Promise<void> => {
-				return this._proxy.$handleInlineCompletionDidShow(handle, completions.pid, item.idx);
+				if (supportsHandleDidShowCompletionItem) {
+					await this._proxy.$handleInlineCompletionDidShow(handle, completions.pid, item.idx);
+				}
 			},
 			freeInlineCompletions: (completions: IdentifiableInlineCompletions): void => {
 				this._proxy.$freeInlineCompletionsList(handle, completions.pid);
@@ -811,7 +819,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 
 		if (this._languageService.isRegisteredLanguageId(languageId)) {
-			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageId, configuration, 100));
+			this._registrations.set(handle, this._languageConfigurationService.register(languageId, configuration, 100));
 		}
 	}
 
@@ -852,6 +860,51 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}));
 	}
 
+
+	// --- document drop Edits
+
+	private readonly _documentOnDropProviders = new Map<number, MainThreadDocumentOnDropProvider>();
+
+	$registerDocumentOnDropProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		const provider = new MainThreadDocumentOnDropProvider(handle, this._proxy);
+		this._documentOnDropProviders.set(handle, provider);
+		this._registrations.set(handle, combinedDisposable(
+			this._languageFeaturesService.documentOnDropEditProvider.register(selector, provider),
+			toDisposable(() => this._documentOnDropProviders.delete(handle)),
+		));
+	}
+
+	async $resolveDocumentOnDropFileData(handle: number, requestId: number, dataIndex: number): Promise<VSBuffer> {
+		const provider = this._documentOnDropProviders.get(handle);
+		if (!provider) {
+			throw new Error('Could not find provider');
+		}
+		return provider.resolveDocumentOnDropFileData(requestId, dataIndex);
+	}
+}
+
+class MainThreadDocumentOnDropProvider implements languages.DocumentOnDropEditProvider {
+
+	private readonly dataTransfers = new DataTransferCache();
+
+	constructor(
+		private readonly handle: number,
+		private readonly _proxy: ExtHostLanguageFeaturesShape,
+	) { }
+
+	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: IDataTransfer, token: CancellationToken): Promise<languages.SnippetTextEdit | null | undefined> {
+		const request = this.dataTransfers.add(dataTransfer);
+		try {
+			const dataTransferDto = await DataTransferConverter.toDataTransferDTO(dataTransfer);
+			return await this._proxy.$provideDocumentOnDropEdits(this.handle, request.id, model.uri, position, dataTransferDto, token);
+		} finally {
+			request.dispose();
+		}
+	}
+
+	public resolveDocumentOnDropFileData(requestId: number, dataIndex: number): Promise<VSBuffer> {
+		return this.dataTransfers.resolveDropFileData(requestId, dataIndex);
+	}
 }
 
 export class MainThreadDocumentSemanticTokensProvider implements languages.DocumentSemanticTokensProvider {

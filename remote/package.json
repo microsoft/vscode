@@ -15,26 +15,26 @@
     "https-proxy-agent": "^2.2.3",
     "jschardet": "3.0.0",
     "keytar": "7.9.0",
-    "minimist": "^1.2.5",
+    "minimist": "^1.2.6",
     "native-watchdog": "1.4.0",
     "node-pty": "0.11.0-beta11",
     "spdlog": "^0.13.0",
-    "tas-client-umd": "0.1.4",
+    "tas-client-umd": "0.1.5",
     "vscode-oniguruma": "1.6.1",
     "vscode-proxy-agent": "^0.12.0",
     "vscode-regexpp": "^3.1.0",
-    "vscode-textmate": "6.0.0",
-    "xterm": "4.19.0-beta.7",
-    "xterm-addon-search": "0.9.0-beta.11",
-    "xterm-addon-serialize": "0.7.0-beta.11",
+    "vscode-textmate": "7.0.1",
+    "xterm": "4.19.0-beta.29",
+    "xterm-addon-search": "0.9.0-beta.26",
+    "xterm-addon-serialize": "0.7.0-beta.12",
     "xterm-addon-unicode11": "0.4.0-beta.3",
-    "xterm-addon-webgl": "0.12.0-beta.24",
-    "xterm-headless": "4.19.0-beta.7",
+    "xterm-addon-webgl": "0.12.0-beta.29",
+    "xterm-headless": "4.19.0-beta.29",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
   "optionalDependencies": {
-    "@vscode/windows-registry": "1.0.5",
-    "windows-process-tree": "^0.3.2"
+    "@vscode/windows-registry": "1.0.6",
+    "windows-process-tree": "0.3.3"
   }
 }

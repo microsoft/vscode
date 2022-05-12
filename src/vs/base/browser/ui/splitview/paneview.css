@@ -77,8 +77,6 @@
 	min-width: 110px;
 	min-height: 18px;
 	padding: 2px 23px 2px 8px;
-	background-color: inherit !important;
-	color: inherit !important;
 }
 
 .linux .monaco-pane-view .pane > .pane-header .action-item .monaco-select-box,

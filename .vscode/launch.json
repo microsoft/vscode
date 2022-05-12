@@ -117,6 +117,24 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
+			"name": "VS Code Github Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceFolder}/extensions/github/testWorkspace",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/github",
+				"--extensionTestsPath=${workspaceFolder}/extensions/github/out/test"
+			],
+			"outFiles": [
+				"${workspaceFolder}/extensions/github/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 6
+			}
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
 			"name": "VS Code API Tests (single folder)",
 			"runtimeExecutable": "${execPath}",
 			"args": [

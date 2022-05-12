@@ -21,7 +21,7 @@ import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browse
 import { DeleteCellAction } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { registerStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/stickyScroll';
 
 export class BetweenCellToolbar extends CellPart {

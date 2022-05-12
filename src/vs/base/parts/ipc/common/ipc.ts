@@ -1109,7 +1109,7 @@ export namespace ProxyChannel {
 		properties?: Map<string, unknown>;
 	}
 
-	export function toService<T>(channel: IChannel, options?: ICreateProxyServiceOptions): T {
+	export function toService<T extends object>(channel: IChannel, options?: ICreateProxyServiceOptions): T {
 		const disableMarshalling = options && options.disableMarshalling;
 
 		return new Proxy({}, {

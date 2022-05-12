@@ -297,13 +297,6 @@ interface ISerializedRecentFile {
 	readonly remoteAuthority?: string;
 }
 
-interface ISerializedRecentlyOpenedLegacy {
-	readonly workspaces3: Array<{ id: string; configURIPath: string } | string>; // workspace or URI.toString() // added in 1.32
-	readonly workspaceLabels?: Array<string | null>; // added in 1.33
-	readonly files2: string[]; // files as URI.toString() // added in 1.32
-	readonly fileLabels?: Array<string | null>; // added in 1.33
-}
-
 interface ISerializedRecentlyOpened {
 	readonly entries: Array<ISerializedRecentWorkspace | ISerializedRecentFolder | ISerializedRecentFile>; // since 1.55
 }
@@ -349,26 +342,6 @@ export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefine
 					result.files.push({ label, remoteAuthority, fileUri: URI.parse(entry.fileUri) });
 				}
 			});
-		} else {
-			const storedRecents2 = data as ISerializedRecentlyOpenedLegacy;
-			if (Array.isArray(storedRecents2.workspaces3)) {
-				restoreGracefully(storedRecents2.workspaces3, (workspace, i) => {
-					const label: string | undefined = (Array.isArray(storedRecents2.workspaceLabels) && storedRecents2.workspaceLabels[i]) || undefined;
-					if (typeof workspace === 'object' && typeof workspace.id === 'string' && typeof workspace.configURIPath === 'string') {
-						result.workspaces.push({ label, workspace: { id: workspace.id, configPath: URI.parse(workspace.configURIPath) } });
-					} else if (typeof workspace === 'string') {
-						result.workspaces.push({ label, folderUri: URI.parse(workspace) });
-					}
-				});
-			}
-			if (Array.isArray(storedRecents2.files2)) {
-				restoreGracefully(storedRecents2.files2, (file, i) => {
-					const label: string | undefined = (Array.isArray(storedRecents2.fileLabels) && storedRecents2.fileLabels[i]) || undefined;
-					if (typeof file === 'string') {
-						result.files.push({ label, fileUri: URI.parse(file) });
-					}
-				});
-			}
 		}
 	}
 

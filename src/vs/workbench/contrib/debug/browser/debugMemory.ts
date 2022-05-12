@@ -9,7 +9,7 @@ import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecy
 import { clamp } from 'vs/base/common/numbers';
 import { assertNever } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { FileChangeType, FileOpenOptions, FilePermission, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileChange, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { FileChangeType, IFileOpenOptions, FilePermission, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileChange, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 import { DEBUG_MEMORY_SCHEME, IDebugService, IDebugSession, IMemoryInvalidationEvent, IMemoryRegion, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
 
 const rangeRe = /range=([0-9]+):([0-9]+)/;
@@ -102,7 +102,7 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 	}
 
 	/** @inheritdoc */
-	public open(resource: URI, _opts: FileOpenOptions): Promise<number> {
+	public open(resource: URI, _opts: IFileOpenOptions): Promise<number> {
 		const { session, memoryReference, offset } = this.parseUri(resource);
 		const fd = this.memoryFdCounter++;
 		let region = session.getMemory(memoryReference);

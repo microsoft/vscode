@@ -11,12 +11,15 @@ import { performance } from 'perf_hooks';
 import * as url from 'url';
 import { LoaderStats } from 'vs/base/common/amd';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { CharCode } from 'vs/base/common/charCode';
+import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { connectionTokenQueryName, FileAccess, Schemas } from 'vs/base/common/network';
 import { dirname, join } from 'vs/base/common/path';
 import * as perf from 'vs/base/common/performance';
 import * as platform from 'vs/base/common/platform';
+import { createRegExp, escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { findFreePort } from 'vs/base/node/ports';
@@ -27,13 +30,14 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ConnectionType, ConnectionTypeRequest, ErrorMessage, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, SignRequest } from 'vs/platform/remote/common/remoteAgentConnection';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionHostConnection } from 'vs/server/node/extensionHostConnection';
 import { ManagementConnection } from 'vs/server/node/remoteExtensionManagement';
 import { determineServerConnectionToken, requestHasValidConnectionToken as httpRequestHasValidConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
 import { IServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 import { setupServerServices, SocketServer } from 'vs/server/node/serverServices';
-import { serveError, serveFile, WebClientServer } from 'vs/server/node/webClientServer';
+import { CacheControl, serveError, serveFile, WebClientServer } from 'vs/server/node/webClientServer';
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -51,18 +55,22 @@ declare module vsda {
 	}
 }
 
-export class RemoteExtensionHostAgentServer extends Disposable {
+export class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 
 	private readonly _extHostConnections: { [reconnectionToken: string]: ExtensionHostConnection };
 	private readonly _managementConnections: { [reconnectionToken: string]: ManagementConnection };
 	private readonly _allReconnectionTokens: Set<string>;
 	private readonly _webClientServer: WebClientServer | null;
+	private readonly _webEndpointOriginChecker = WebEndpointOriginChecker.create(this._productService);
+
+	private readonly _serverRootPath: string;
 
 	private shutdownTimer: NodeJS.Timer | undefined;
 
 	constructor(
 		private readonly _socketServer: SocketServer<RemoteAgentConnectionContext>,
 		private readonly _connectionToken: ServerConnectionToken,
+		private readonly _vsdaMod: typeof vsda | null,
 		hasWebClient: boolean,
 		@IServerEnvironmentService private readonly _environmentService: IServerEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
@@ -71,6 +79,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 	) {
 		super();
 
+		this._serverRootPath = getRemoteServerRootPath(_productService);
 		this._extHostConnections = Object.create(null);
 		this._managementConnections = Object.create(null);
 		this._allReconnectionTokens = new Set<string>();
@@ -93,10 +102,15 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		}
 
 		const parsedUrl = url.parse(req.url, true);
-		const pathname = parsedUrl.pathname;
+		let pathname = parsedUrl.pathname;
 
 		if (!pathname) {
 			return serveError(req, res, 400, `Bad request.`);
+		}
+
+		// for now accept all paths, with or without server root path
+		if (pathname.startsWith(this._serverRootPath) && pathname.charCodeAt(this._serverRootPath.length) === CharCode.Slash) {
+			pathname = pathname.substring(this._serverRootPath.length);
 		}
 
 		// Version
@@ -140,7 +154,14 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 					responseHeaders['Cache-Control'] = 'public, max-age=31536000';
 				}
 			}
-			return serveFile(this._logService, req, res, filePath, responseHeaders);
+
+			// Allow cross origin requests from the web worker extension host
+			responseHeaders['Vary'] = 'Origin';
+			const requestOrigin = req.headers['origin'];
+			if (requestOrigin && this._webEndpointOriginChecker.matches(requestOrigin)) {
+				responseHeaders['Access-Control-Allow-Origin'] = requestOrigin;
+			}
+			return serveFile(filePath, CacheControl.ETAG, this._logService, req, res, responseHeaders);
 		}
 
 		// workbench web UI
@@ -266,14 +287,8 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		const logPrefix = `[${remoteAddress}][${reconnectionToken.substr(0, 8)}]`;
 		const protocol = new PersistentProtocol(socket);
 
-		let validator: vsda.validator;
-		let signer: vsda.signer;
-		try {
-			const vsdaMod = <typeof vsda>require.__$__nodeRequire('vsda');
-			validator = new vsdaMod.validator();
-			signer = new vsdaMod.signer();
-		} catch (e) {
-		}
+		const validator = this._vsdaMod ? new this._vsdaMod.validator() : null;
+		const signer = this._vsdaMod ? new this._vsdaMod.signer() : null;
 
 		const enum State {
 			WaitingForAuth,
@@ -481,7 +496,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				protocol.sendControl(VSBuffer.fromString(JSON.stringify(startParams.port ? { debugPort: startParams.port } : {})));
 				const dataChunk = protocol.readEntireBuffer();
 				protocol.dispose();
-				const con = new ExtensionHostConnection(this._environmentService, this._logService, reconnectionToken, remoteAddress, socket, dataChunk);
+				const con = this._instantiationService.createInstance(ExtensionHostConnection, reconnectionToken, remoteAddress, socket, dataChunk);
 				this._extHostConnections[reconnectionToken] = con;
 				this._allReconnectionTokens.add(reconnectionToken);
 				con.onClose(() => {
@@ -652,6 +667,29 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 	const disposables = new DisposableStore();
 	const { socketServer, instantiationService } = await setupServerServices(connectionToken, args, REMOTE_DATA_FOLDER, disposables);
 
+	// Set the unexpected error handler after the services have been initialized, to avoid having
+	// the telemetry service overwrite our handler
+	instantiationService.invokeFunction((accessor) => {
+		const logService = accessor.get(ILogService);
+		setUnexpectedErrorHandler(err => {
+			// See https://github.com/microsoft/vscode-remote-release/issues/6481
+			// In some circumstances, console.error will throw an asynchronous error. This asynchronous error
+			// will end up here, and then it will be logged again, thus creating an endless asynchronous loop.
+			// Here we try to break the loop by ignoring EPIPE errors that include our own unexpected error handler in the stack.
+			if (err && err.code === 'EPIPE' && err.syscall === 'write' && err.stack && /unexpectedErrorHandler/.test(err.stack)) {
+				return;
+			}
+			logService.error(err);
+		});
+		process.on('SIGPIPE', () => {
+			// See https://github.com/microsoft/vscode-remote-release/issues/6543
+			// We would normally install a SIGPIPE listener in bootstrap.js
+			// But in certain situations, the console itself can be in a broken pipe state
+			// so logging SIGPIPE to the console will cause an infinite async loop
+			onUnexpectedError(new Error(`Unexpected SIGPIPE`));
+		});
+	});
+
 	//
 	// On Windows, exit early with warning message to users about potential security issue
 	// if there is node_modules folder under home drive or Users folder.
@@ -684,6 +722,19 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		}
 	});
 
+	const vsdaMod = instantiationService.invokeFunction((accessor) => {
+		const logService = accessor.get(ILogService);
+		const hasVSDA = fs.existsSync(join(FileAccess.asFileUri('', require).fsPath, '../node_modules/vsda'));
+		if (hasVSDA) {
+			try {
+				return <typeof vsda>require.__$__nodeRequire('vsda');
+			} catch (err) {
+				logService.error(err);
+			}
+		}
+		return null;
+	});
+
 	const hasWebClient = fs.existsSync(FileAccess.asFileUri('vs/code/browser/workbench/workbench.html', require).fsPath);
 
 	if (hasWebClient && address && typeof address !== 'string') {
@@ -692,7 +743,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		console.log(`Web UI available at http://localhost${address.port === 80 ? '' : `:${address.port}`}/${queryPart}`);
 	}
 
-	const remoteExtensionHostAgentServer = instantiationService.createInstance(RemoteExtensionHostAgentServer, socketServer, connectionToken, hasWebClient);
+	const remoteExtensionHostAgentServer = instantiationService.createInstance(RemoteExtensionHostAgentServer, socketServer, connectionToken, vsdaMod, hasWebClient);
 
 	perf.mark('code/server/ready');
 	const currentTime = performance.now();
@@ -704,6 +755,8 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		const telemetryService = accessor.get(ITelemetryService);
 
 		type ServerStartClassification = {
+			owner: 'alexdima';
+			comment: 'The server has started up';
 			startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			startedTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			codeLoadedTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
@@ -741,4 +794,46 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		console.log(output);
 	}
 	return remoteExtensionHostAgentServer;
+}
+
+class WebEndpointOriginChecker {
+
+	public static create(productService: IProductService): WebEndpointOriginChecker {
+		const webEndpointUrlTemplate = productService.webEndpointUrlTemplate;
+		const commit = productService.commit;
+		const quality = productService.quality;
+		if (!webEndpointUrlTemplate || !commit || !quality) {
+			return new WebEndpointOriginChecker(null);
+		}
+
+		const uuid = generateUuid();
+		const exampleUrl = new URL(
+			webEndpointUrlTemplate
+				.replace('{{uuid}}', uuid)
+				.replace('{{commit}}', commit)
+				.replace('{{quality}}', quality)
+		);
+		const exampleOrigin = exampleUrl.origin;
+		const originRegExpSource = (
+			escapeRegExpCharacters(exampleOrigin)
+				.replace(uuid, '[a-zA-Z0-9\\-]+')
+		);
+		try {
+			const originRegExp = createRegExp(`^${originRegExpSource}$`, true, { matchCase: false });
+			return new WebEndpointOriginChecker(originRegExp);
+		} catch (err) {
+			return new WebEndpointOriginChecker(null);
+		}
+	}
+
+	constructor(
+		private readonly _originRegExp: RegExp | null
+	) { }
+
+	public matches(origin: string): boolean {
+		if (!this._originRegExp) {
+			return false;
+		}
+		return this._originRegExp.test(origin);
+	}
 }

@@ -395,8 +395,7 @@ export class FormatString extends Marker {
 			return value;
 		}
 		return match.map(word => {
-			return word.charAt(0).toUpperCase()
-				+ word.substr(1).toLowerCase();
+			return word.charAt(0).toUpperCase() + word.substr(1);
 		})
 			.join('');
 	}
@@ -408,11 +407,9 @@ export class FormatString extends Marker {
 		}
 		return match.map((word, index) => {
 			if (index === 0) {
-				return word.toLowerCase();
-			} else {
-				return word.charAt(0).toUpperCase()
-					+ word.substr(1).toLowerCase();
+				return word.charAt(0).toLowerCase() + word.substr(1);
 			}
+			return word.charAt(0).toUpperCase() + word.substr(1);
 		})
 			.join('');
 	}

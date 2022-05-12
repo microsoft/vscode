@@ -42,7 +42,7 @@ export interface IWorkingCopyHistoryEntry {
 	/**
 	 * The time when this history entry was created.
 	 */
-	readonly timestamp: number;
+	timestamp: number;
 
 	/**
 	 * Associated source with the history entry.
@@ -75,24 +75,34 @@ export interface IWorkingCopyHistoryService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * An event when entries are added to the history.
+	 * An event when an entry is added to the history.
 	 */
 	onDidAddEntry: Event<IWorkingCopyHistoryEvent>;
 
 	/**
-	 * An event when entries are changed in the history.
+	 * An event when an entry is changed in the history.
 	 */
 	onDidChangeEntry: Event<IWorkingCopyHistoryEvent>;
 
 	/**
-	 * An event when entries are removed from the history.
+	 * An event when an entry is replaced in the history.
+	 */
+	onDidReplaceEntry: Event<IWorkingCopyHistoryEvent>;
+
+	/**
+	 * An event when an entry is removed from the history.
 	 */
 	onDidRemoveEntry: Event<IWorkingCopyHistoryEvent>;
 
 	/**
+	 * An event when entries are moved in history.
+	 */
+	onDidMoveEntries: Event<void>;
+
+	/**
 	 * An event when all entries are removed from the history.
 	 */
-	onDidRemoveAllEntries: Event<void>;
+	onDidRemoveEntries: Event<void>;
 
 	/**
 	 * Adds a new entry to the history for the given working copy
@@ -111,6 +121,14 @@ export interface IWorkingCopyHistoryService {
 	removeEntry(entry: IWorkingCopyHistoryEntry, token: CancellationToken): Promise<boolean>;
 
 	/**
+	 * Moves entries that either match the `source` or are a child
+	 * of `source` to the `target`.
+	 *
+	 * @returns a list of resources for entries that have moved.
+	 */
+	moveEntries(source: URI, target: URI): Promise<URI[]>;
+
+	/**
 	 * Gets all history entries for the provided resource.
 	 */
 	getEntries(resource: URI, token: CancellationToken): Promise<readonly IWorkingCopyHistoryEntry[]>;
@@ -125,3 +143,10 @@ export interface IWorkingCopyHistoryService {
 	 */
 	removeAll(token: CancellationToken): Promise<void>;
 }
+
+/**
+ * A limit on how many I/O operations we allow to run in parallel.
+ * We do not want to spam the file system with too many requests
+ * at the same time, so we limit to a maximum degree of parallellism.
+ */
+export const MAX_PARALLEL_HISTORY_IO_OPS = 20;

@@ -78,7 +78,10 @@ const serverResources = [
 	// Terminal shell integration
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh',
-	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh',
+	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-env.zsh',
+	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-profile.zsh',
+	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh',
+	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-login.zsh',
 
 	'!**/test/**'
 ];
@@ -311,13 +314,13 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			);
 		} else if (platform === 'linux' || platform === 'alpine' || platform === 'darwin') {
 			result = es.merge(result,
-				gulp.src('resources/server/bin/remote-cli/code.sh', { base: '.' })
+				gulp.src(`resources/server/bin/remote-cli/${platform === 'darwin' ? 'code-darwin.sh' : 'code-linux.sh'}`, { base: '.' })
 					.pipe(replace('@@VERSION@@', version))
 					.pipe(replace('@@COMMIT@@', commit))
 					.pipe(replace('@@APPNAME@@', product.applicationName))
 					.pipe(rename(`bin/remote-cli/${product.applicationName}`))
 					.pipe(util.setExecutableBit()),
-				gulp.src('resources/server/bin/helpers/browser.sh', { base: '.' })
+				gulp.src(`resources/server/bin/helpers/${platform === 'darwin' ? 'browser-darwin.sh' : 'browser-linux.sh'}`, { base: '.' })
 					.pipe(replace('@@VERSION@@', version))
 					.pipe(replace('@@COMMIT@@', commit))
 					.pipe(replace('@@APPNAME@@', product.applicationName))
