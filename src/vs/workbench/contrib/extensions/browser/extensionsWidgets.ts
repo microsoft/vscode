@@ -117,6 +117,7 @@ export class RatingsWidget extends ExtensionWidget {
 
 	render(): void {
 		this.container.innerText = '';
+		this.container.title = '';
 
 		if (!this.extension) {
 			return;
@@ -135,7 +136,7 @@ export class RatingsWidget extends ExtensionWidget {
 		}
 
 		const rating = Math.round(this.extension.rating * 2) / 2;
-
+		this.container.title = localize('ratedLabel', "Average rating: {0} out of 5", rating);
 		if (this.small) {
 			append(this.container, $('span' + ThemeIcon.asCSSSelector(starFullIcon)));
 
