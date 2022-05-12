@@ -162,8 +162,8 @@ body.web {
 
 .monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-label.separator {
 	font-size: inherit;
-	padding: 0.2em 0 0 0;
-	margin-bottom: 0.2em;
+	padding: 0;
+	margin: 5px 0;
 }
 
 .monaco-workbench.linux .monaco-menu .monaco-action-bar.vertical .action-label.separator {

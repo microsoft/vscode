@@ -1195,8 +1195,6 @@ ${formatRule(Codicon.menuSubmenu)}
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label.separator {
-	padding: 0.5em 0 0 0;
-	margin-bottom: 0.5em;
 	width: 100%;
 	height: 0px !important;
 }
@@ -1247,11 +1245,6 @@ ${formatRule(Codicon.menuSubmenu)}
 	box-shadow: none;
 }
 
-:host-context(.hc-black) .monaco-menu .monaco-action-bar.vertical .action-item,
-:host-context(.hc-light) .monaco-menu .monaco-action-bar.vertical .action-item {
-	border: thin solid transparent; /* prevents jumping behaviour on hover or focus */
-}
-
 :host-context(.hc-black) .monaco-menu .monaco-action-bar.vertical .action-item.focused,
 :host-context(.hc-light) .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 	background: none;
@@ -1280,8 +1273,8 @@ ${formatRule(Codicon.menuSubmenu)}
 
 .monaco-menu .monaco-action-bar.vertical .action-label.separator {
 	font-size: inherit;
-	padding: 0.2em 0 0 0;
-	margin-bottom: 0.2em;
+	margin: 5px 0;
+	padding: 0;
 	border-radius: 0;
 }
 
