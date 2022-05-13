@@ -92,6 +92,7 @@
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen {
 	display: flex;
 	color: var(--vscode-titleMenu-foreground);
+	background-color: var(--vscode-titleMenu-background);
 	border: 1px solid var(--vscode-titleMenu-border);
 	border-radius: 5px;
 	height: 20px;
@@ -105,6 +106,7 @@
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen:HOVER {
+	color: var(--vscode-titleMenu-activeForeground);
 	background-color: var(--vscode-titleMenu-activeBackground);
 	line-height: 18px;
 }
@@ -114,10 +116,7 @@
 	width: 100%;
 	text-align: center;
 	font-size: 12px;
-}
-
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen .action-label:HOVER {
-	background-color: var(--vscode-titleMenu-activeBackground);
+	background-color: inherit;
 }
 
 /* Menubar */

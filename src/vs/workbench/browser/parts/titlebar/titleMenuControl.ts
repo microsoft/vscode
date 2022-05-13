@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
-import { MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_FOREGROUND } from 'vs/workbench/common/theme';
+import { MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_FOREGROUND, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 
 export class TitleMenuControl {
 
@@ -89,15 +89,23 @@ MenuRegistry.appendMenuItem(MenuId.TitleMenu, {
 
 // --- theme colors
 
+// foreground (inactive and active)
 colors.registerColor(
 	'titleMenu.foreground',
-	{ dark: colors.inputForeground, hcDark: colors.inputForeground, light: colors.inputForeground, hcLight: colors.inputForeground },
+	{ dark: TITLE_BAR_ACTIVE_FOREGROUND, hcDark: TITLE_BAR_ACTIVE_FOREGROUND, light: TITLE_BAR_ACTIVE_FOREGROUND, hcLight: TITLE_BAR_ACTIVE_FOREGROUND },
 	localize('titleMenu-foreground', "Foreground color of the title menu"),
 	false
 );
 colors.registerColor(
+	'titleMenu.activeForeground',
+	{ dark: MENUBAR_SELECTION_FOREGROUND, hcDark: MENUBAR_SELECTION_FOREGROUND, light: MENUBAR_SELECTION_FOREGROUND, hcLight: MENUBAR_SELECTION_FOREGROUND },
+	localize('titleMenu-activeForeground', "Active foreground color of the title menu"),
+	false
+);
+// background (inactive and active)
+colors.registerColor(
 	'titleMenu.background',
-	{ dark: colors.inputForeground, hcDark: colors.inputForeground, light: colors.inputForeground, hcLight: colors.inputForeground },
+	{ dark: null, hcDark: null, light: null, hcLight: null },
 	localize('titleMenu-background', "Background color of the title menu"),
 	false
 );
@@ -107,15 +115,10 @@ const activeBackground = colors.registerColor(
 	localize('titleMenu-activeBackground', "Active background color of the title menu"),
 	false
 );
+// border: defaults to active background
 colors.registerColor(
 	'titleMenu.border',
 	{ dark: activeBackground, hcDark: activeBackground, light: activeBackground, hcLight: activeBackground },
 	localize('titleMenu-border', "Border color of the title menu"),
-	false
-);
-colors.registerColor(
-	'titleMenu.activeForeground',
-	{ dark: MENUBAR_SELECTION_FOREGROUND, hcDark: MENUBAR_SELECTION_FOREGROUND, light: MENUBAR_SELECTION_FOREGROUND, hcLight: MENUBAR_SELECTION_FOREGROUND },
-	localize('titleMenu-activeForeground', "Active foreground color of the title menu"),
 	false
 );
