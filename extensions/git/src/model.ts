@@ -325,7 +325,6 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 				const result = await this.git.exec(repoPath, ['-C', repoPath, 'rev-parse', '--show-cdup']);
 				if (result.stderr.trim() === '' && result.stdout.trim() === '') {
 					this.outputChannelLogger.logTrace(`Bare repository: ${repoPath}`);
-
 					return;
 				}
 			} catch {
