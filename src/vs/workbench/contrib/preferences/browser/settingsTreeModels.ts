@@ -138,6 +138,11 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 */
 	isUntrusted = false;
 
+	/**
+	 * Whether the setting is under a policy that blocks all changes.
+	 */
+	hasPolicyValue = false;
+
 	tags?: Set<string>;
 	overriddenScopeList: string[] = [];
 	languageOverrideValues: Map<string, IConfigurationValue<unknown>> = new Map<string, IConfigurationValue<unknown>>();
@@ -213,11 +218,11 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 		}
 
-		const policyValue = inspected.policyValue;
 		if (inspected.policyValue) {
+			this.hasPolicyValue = true;
 			isConfigured = false; // The user did not manually configure the setting themselves.
-			displayValue = policyValue;
-			this.scopeValue = policyValue;
+			displayValue = inspected.policyValue;
+			this.scopeValue = inspected.policyValue;
 			this.defaultValue = inspected.defaultValue;
 		} else if (languageSelector && this.languageOverrideValues.has(languageSelector)) {
 			const overrideValues = this.languageOverrideValues.get(languageSelector)!;

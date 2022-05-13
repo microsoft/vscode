@@ -36,7 +36,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorBackground, editorErrorForeground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, editorErrorForeground, editorInfoForeground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
@@ -797,11 +797,11 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const policyWarningElement = DOM.append(container, $('.setting-item-policy-description'));
 		const policyIcon = DOM.append(policyWarningElement, $('span.codicon.codicon-lock'));
-		toDispose.add(attachStylerCallback(this._themeService, { editorErrorForeground }, colors => {
-			policyIcon.style.setProperty('--organization-policy-icon-color', colors.editorErrorForeground?.toString() || '');
+		toDispose.add(attachStylerCallback(this._themeService, { editorInfoForeground }, colors => {
+			policyIcon.style.setProperty('--organization-policy-icon-color', colors.editorInfoForeground?.toString() || '');
 		}));
 		const element = DOM.append(policyWarningElement, $('span'));
-		element.textContent = localize('policyLabel', "This setting is not configurable due to your organization's policy.");
+		element.textContent = localize('policyLabel', "This setting is managed by your organization.");
 
 		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
 		const toolbar = this.renderSettingToolbar(toolbarContainer);
@@ -917,7 +917,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			template.miscLabel.updateSyncIgnored(element, this.ignoredSettings);
 		}));
 
-		template.policyWarningElement.hidden = !element.setting.hasPolicyValue;
+		template.policyWarningElement.hidden = !element.hasPolicyValue;
 
 		this.updateSettingTabbable(element, template);
 		template.elementDisposables.add(element.onDidChangeTabbable(() => {
@@ -1549,7 +1549,7 @@ abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer imple
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
 		template.inputBox.setAriaLabel(dataElement.setting.key);
-		template.inputBox.inputElement.disabled = !!dataElement.setting.hasPolicyValue;
+		template.inputBox.inputElement.disabled = !!dataElement.hasPolicyValue;
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
 				onChange(value);
@@ -1718,7 +1718,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		};
 
 		if (template.selectElement) {
-			template.selectElement.disabled = !!dataElement.setting.hasPolicyValue;
+			template.selectElement.disabled = !!dataElement.hasPolicyValue;
 		}
 
 		template.enumDescriptionElement.innerText = '';
@@ -1774,7 +1774,7 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
 		template.inputBox.setAriaLabel(dataElement.setting.key);
-		template.inputBox.setEnabled(!dataElement.setting.hasPolicyValue);
+		template.inputBox.setEnabled(!dataElement.hasPolicyValue);
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
 				onChange(nullNumParseFn(value));
@@ -1838,11 +1838,11 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 
 		const policyWarningElement = DOM.append(container, $('.setting-item-policy-description'));
 		const policyIcon = DOM.append(policyWarningElement, $('span.codicon.codicon-lock'));
-		toDispose.add(attachStylerCallback(this._themeService, { editorErrorForeground }, colors => {
-			policyIcon.style.setProperty('--organization-policy-icon-color', colors.editorErrorForeground?.toString() || '');
+		toDispose.add(attachStylerCallback(this._themeService, { editorInfoForeground }, colors => {
+			policyIcon.style.setProperty('--organization-policy-icon-color', colors.editorInfoForeground?.toString() || '');
 		}));
 		const element = DOM.append(policyWarningElement, $('span'));
-		element.textContent = localize('policyLabel', "This setting is not configurable due to your organization's policy.");
+		element.textContent = localize('policyLabel', "This setting is managed by your organization.");
 
 		const template: ISettingBoolItemTemplate = {
 			toDispose,
@@ -1878,7 +1878,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		template.onChange = undefined;
 		template.checkbox.checked = dataElement.value;
 		template.checkbox.setTitle(dataElement.setting.key);
-		if (dataElement.setting.hasPolicyValue) {
+		if (dataElement.hasPolicyValue) {
 			template.checkbox.disable();
 		} else {
 			template.checkbox.enable();
