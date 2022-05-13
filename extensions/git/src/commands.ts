@@ -2546,6 +2546,21 @@ export class CommandCenter {
 		await commands.executeCommand('revealInExplorer', resourceState.resourceUri);
 	}
 
+	@command('git.revealFileInOS.linux')
+	@command('git.revealFileInOS.mac')
+	@command('git.revealFileInOS.windows')
+	async revealFileInOS(resourceState: SourceControlResourceState): Promise<void> {
+		if (!resourceState) {
+			return;
+		}
+
+		if (!(resourceState.resourceUri instanceof Uri)) {
+			return;
+		}
+
+		await commands.executeCommand('revealFileInOS', resourceState.resourceUri);
+	}
+
 	private async _stash(repository: Repository, includeUntracked = false): Promise<void> {
 		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0
 			&& (!includeUntracked || repository.untrackedGroup.resourceStates.length === 0);
