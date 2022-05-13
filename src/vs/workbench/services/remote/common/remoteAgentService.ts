@@ -71,4 +71,5 @@ export interface IRemoteAgentConnection {
 	getChannel<T extends IChannel>(channelName: string): T;
 	withChannel<T extends IChannel, R>(channelName: string, callback: (channel: T) => Promise<R>): Promise<R>;
 	registerChannel<T extends IServerChannel<RemoteAgentConnectionContext>>(channelName: string, channel: T): void;
+	getInitialConnectionTimeMs(): Promise<number>;
 }

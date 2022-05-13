@@ -164,6 +164,8 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 	readonly remoteAuthority: string;
 	private _connection: Promise<Client<RemoteAgentConnectionContext>> | null;
 
+	private _initialConnectionMs: number | undefined;
+
 	constructor(
 		remoteAuthority: string,
 		private readonly _commit: string | undefined,
@@ -190,6 +192,16 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 
 	registerChannel<T extends IServerChannel<RemoteAgentConnectionContext>>(channelName: string, channel: T): void {
 		this._getOrCreateConnection().then(client => client.registerChannel(channelName, channel));
+	}
+
+	async getInitialConnectionTimeMs() {
+		try {
+			await this._getOrCreateConnection();
+		} catch {
+			// ignored -- time is measured even if connection fails
+		}
+
+		return this._initialConnectionMs!;
 	}
 
 	private _getOrCreateConnection(): Promise<Client<RemoteAgentConnectionContext>> {
@@ -225,10 +237,7 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 		try {
 			connection = this._register(await connectRemoteAgentManagement(options, this.remoteAuthority, `renderer`));
 		} finally {
-			performance.measure('code/remote/initialConnect', {
-				start,
-				end: performance.now()
-			});
+			this._initialConnectionMs = performance.now() - start;
 		}
 
 		connection.protocol.onDidDispose(() => {

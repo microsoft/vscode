@@ -199,7 +199,7 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 			};
 			this._telemetryService.publicLog2<RemoteConnectionSuccessEvent, RemoteConnectionSuccessClassification>('remoteConnectionSuccess', {
 				web: isWeb,
-				connectionTimeMs: this.getInitialConnectLatency(),
+				connectionTimeMs: await this._remoteAgentService.getConnection()?.getInitialConnectionTimeMs(),
 				remoteName: getRemoteName(this._environmentService.remoteAuthority)
 			});
 
@@ -223,7 +223,7 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 			};
 			this._telemetryService.publicLog2<RemoteConnectionFailureEvent, RemoteConnectionFailureClassification>('remoteConnectionFailure', {
 				web: isWeb,
-				connectionTimeMs: this.getInitialConnectLatency(),
+				connectionTimeMs: await this._remoteAgentService.getConnection()?.getInitialConnectionTimeMs(),
 				remoteName: getRemoteName(this._environmentService.remoteAuthority),
 				message: err ? err.message : ''
 			});
@@ -261,11 +261,6 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 			remoteName: getRemoteName(this._environmentService.remoteAuthority),
 			latencyMs: bestLatency
 		});
-	}
-
-	private getInitialConnectLatency() {
-		const [entry] = performance.getEntriesByName('code/remote/initialConnect', 'measure');
-		return entry?.duration;
 	}
 }
 
