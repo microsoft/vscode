@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { createActionViewItem, createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
-import { MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_FOREGROUND } from 'vs/workbench/common/theme';
+import { MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_FOREGROUND, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 
 export class TitleMenuControl {
 
@@ -44,12 +45,28 @@ export class TitleMenuControl {
 							container.classList.add('quickopen');
 							this._store.add(windowTitle.onDidChange(this._updateFromWindowTitle, this));
 							this._updateFromWindowTitle();
+							this._renderAllQuickPickItem(container);
 						}
+
 						private _updateFromWindowTitle() {
 							if (this.label) {
+								this.label.classList.add('search');
 								this.label.innerText = localize('search', "Search {0}", windowTitle.workspaceName);
 								this.label.title = windowTitle.value;
 							}
+						}
+
+						private _renderAllQuickPickItem(parent: HTMLElement): void {
+							const container = document.createElement('span');
+							container.classList.add('all-options');
+							parent.appendChild(container);
+							const action = new Action('all', localize('all', "Show Quick Pick Options..."), Codicon.chevronDown.classNames, true, () => {
+								quickInputService.quickAccess.show('?');
+							});
+							const dropdown = new ActionViewItem(undefined, action, { icon: true, label: false });
+							dropdown.render(container);
+							this._store.add(dropdown);
+							this._store.add(action);
 						}
 					}
 					return instantiationService.createInstance(InputLikeViewItem, action, undefined);
@@ -77,27 +94,25 @@ export class TitleMenuControl {
 	}
 }
 
-// --- quick pick submenu
-
-MenuRegistry.appendMenuItem(MenuId.TitleMenu, {
-	submenu: MenuId.TitleMenuQuickPick,
-	title: localize('title', "Quick Pick"),
-	icon: Codicon.search,
-	order: Number.MAX_SAFE_INTEGER
-});
-
-
 // --- theme colors
 
+// foreground (inactive and active)
 colors.registerColor(
 	'titleMenu.foreground',
-	{ dark: colors.inputForeground, hcDark: colors.inputForeground, light: colors.inputForeground, hcLight: colors.inputForeground },
+	{ dark: TITLE_BAR_ACTIVE_FOREGROUND, hcDark: TITLE_BAR_ACTIVE_FOREGROUND, light: TITLE_BAR_ACTIVE_FOREGROUND, hcLight: TITLE_BAR_ACTIVE_FOREGROUND },
 	localize('titleMenu-foreground', "Foreground color of the title menu"),
 	false
 );
 colors.registerColor(
+	'titleMenu.activeForeground',
+	{ dark: MENUBAR_SELECTION_FOREGROUND, hcDark: MENUBAR_SELECTION_FOREGROUND, light: MENUBAR_SELECTION_FOREGROUND, hcLight: MENUBAR_SELECTION_FOREGROUND },
+	localize('titleMenu-activeForeground', "Active foreground color of the title menu"),
+	false
+);
+// background (inactive and active)
+colors.registerColor(
 	'titleMenu.background',
-	{ dark: colors.inputForeground, hcDark: colors.inputForeground, light: colors.inputForeground, hcLight: colors.inputForeground },
+	{ dark: null, hcDark: null, light: null, hcLight: null },
 	localize('titleMenu-background', "Background color of the title menu"),
 	false
 );
@@ -107,15 +122,10 @@ const activeBackground = colors.registerColor(
 	localize('titleMenu-activeBackground', "Active background color of the title menu"),
 	false
 );
+// border: defaults to active background
 colors.registerColor(
 	'titleMenu.border',
 	{ dark: activeBackground, hcDark: activeBackground, light: activeBackground, hcLight: activeBackground },
 	localize('titleMenu-border', "Border color of the title menu"),
-	false
-);
-colors.registerColor(
-	'titleMenu.activeForeground',
-	{ dark: MENUBAR_SELECTION_FOREGROUND, hcDark: MENUBAR_SELECTION_FOREGROUND, light: MENUBAR_SELECTION_FOREGROUND, hcLight: MENUBAR_SELECTION_FOREGROUND },
-	localize('titleMenu-activeForeground', "Active foreground color of the title menu"),
 	false
 );

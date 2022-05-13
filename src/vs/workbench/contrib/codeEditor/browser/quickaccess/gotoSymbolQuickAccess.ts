@@ -274,10 +274,6 @@ registerAction2(class GotoSymbolAction extends Action2 {
 				id: MenuId.MenubarGoMenu,
 				group: '4_symbol_nav',
 				order: 1
-			}, {
-				id: MenuId.TitleMenuQuickPick,
-				group: '3/editorNav',
-				order: 1
 			}]
 		});
 	}

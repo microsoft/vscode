@@ -609,11 +609,6 @@ registerAction2(class ShowAllSymbolsAction extends Action2 {
 				original: 'Go to Symbol in Workspace...'
 			},
 			f1: true,
-			menu: {
-				id: MenuId.TitleMenuQuickPick,
-				group: '1/workspaceNav',
-				order: 2
-			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyT
