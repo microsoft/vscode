@@ -3,13 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .merge-editor .code-view>.title {
+.monaco-workbench .merge-editor .code-view > .title {
 	padding: 0 0 0 10px;
 	height: 30px;
 	display: flex;
 	align-content: center;
 }
 
-.monaco-workbench .merge-editor .code-view>.title .monaco-icon-label {
+.monaco-workbench .merge-editor .code-view > .title .monaco-icon-label {
 	margin: auto 0;
+}
+
+.monaco-workbench .merge-editor .code-view > .container {
+	display: flex;
+	flex-direction: row;
+}
+
+.monaco-workbench .merge-editor .code-view > .container > .gutter {
+	min-width: 20px;
+	/* background-color: yellow; */
+	margin-right: 3px;
+	position: relative;
+}
+
+.monaco-editor .merge-accept-conflict-glyph {
+	cursor: pointer;
+}
+
+.merge-accept-foo {
+	background-color: rgb(170 175 170 / 15%);
+}
+
+.merge-accept-gutter-marker {
+	min-height: 30px;
+	min-width: 20px;
+	background-color: yellow;
+	position: absolute;
 }

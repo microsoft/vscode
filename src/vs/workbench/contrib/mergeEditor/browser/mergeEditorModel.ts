@@ -8,7 +8,7 @@ import { BugIndicatingError } from 'vs/base/common/errors';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { MergeableDiff, LineEdit, LineEdits, LineDiff, MergeState, LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model';
+import { ConflictGroup, LineEdit, LineEdits, LineDiff, MergeState, LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model';
 
 export class MergeEditorModelFactory {
 	constructor(
@@ -75,7 +75,7 @@ export class MergeEditorModel extends EditorModel {
 		readonly input2: ITextModel,
 		readonly result: ITextModel,
 		private readonly inputOneLinesDiffs: readonly LineDiff[],
-		private readonly inputTwoLinesDiffs: readonly LineDiff[],
+		private readonly inputTwoLinesDiffs: readonly LineDiff[]
 	) {
 		super();
 
@@ -105,25 +105,52 @@ export class MergeEditorModel extends EditorModel {
 		return this.resultEdits.diffs;
 	}
 
-	public readonly mergeableDiffs = MergeableDiff.fromDiffs(this.inputOneLinesDiffs, this.inputTwoLinesDiffs);
+	public readonly mergeableDiffs = ConflictGroup.partitionDiffs(
+		this.ancestor,
+		this.input1,
+		this.inputOneLinesDiffs,
+		this.input2,
+		this.inputTwoLinesDiffs
+	);
 
-	public getState(conflict: MergeableDiff): MergeState | undefined {
-		const existingDiff = this.resultEdits.findConflictingDiffs(conflict.originalRange);
-		if (existingDiff) {
-			//existingDiff.
+	public getState(conflict: ConflictGroup): MergeState | undefined {
+		const existingDiff = this.resultEdits.findConflictingDiffs(
+			conflict.totalOriginalRange
+		);
+		if (!existingDiff) {
+			return new MergeState(false, false, false);
+		}
+
+		const input1Edit = conflict.getInput1LineEdit();
+		if (input1Edit && existingDiff.getLineEdit().equals(input1Edit)) {
+			return new MergeState(true, false, false);
+		}
+
+		const input2Edit = conflict.getInput2LineEdit();
+		if (input2Edit && existingDiff.getLineEdit().equals(input2Edit)) {
+			return new MergeState(false, true, false);
 		}
 
 		return undefined;
 	}
 
 	// Undo all edits of result that conflict with the conflict!!
-	public setConflictResolutionStatus(conflict: MergeableDiff, status: MergeState): void {
-		const existingDiff = this.resultEdits.findConflictingDiffs(conflict.originalRange);
+	public setConflictResolutionStatus(
+		conflict: ConflictGroup,
+		status: MergeState
+	): void {
+		const existingDiff = this.resultEdits.findConflictingDiffs(
+			conflict.totalOriginalRange
+		);
 		if (existingDiff) {
 			this.resultEdits.removeDiff(existingDiff);
 		}
 
-		const edit = status.input1 ? conflict.getInput1LineEdit() : conflict.getInput2LineEdit();
+		const edit = status.input1
+			? conflict.getInput1LineEdit()
+			: status.input2
+				? conflict.getInput2LineEdit()
+				: undefined;
 		if (edit) {
 			this.resultEdits.applyEditRelativeToOriginal(edit);
 		}
