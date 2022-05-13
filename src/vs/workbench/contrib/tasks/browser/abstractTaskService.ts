@@ -255,7 +255,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IFileService private readonly _fileService: IFileService
 	) {
 		super();
 
@@ -716,7 +717,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		try {
 			const resolvedTask = await matchingProvider.resolveTask(configuringTask);
 			if (resolvedTask && (resolvedTask._id === configuringTask._id)) {
-				return TaskConfig.createCustomTask(resolvedTask, configuringTask);
+				return TaskConfig.createCustomTask(resolvedTask, configuringTask, this._fileService);
 			}
 		} catch (error) {
 			// Ignore errors. The task could not be provided by any of the providers.
@@ -726,7 +727,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const tasks = await this.tasks({ type: configuringTask.type });
 		for (const task of tasks) {
 			if (task._id === configuringTask._id) {
-				return TaskConfig.createCustomTask(<ContributedTask>task, configuringTask);
+				return TaskConfig.createCustomTask(<ContributedTask>task, configuringTask, this._fileService);
 			}
 		}
 
@@ -1918,14 +1919,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 									let configuringTask = configurations.byIdentifier[task.defines._key];
 									if (configuringTask) {
 										unUsedConfigurations.delete(task.defines._key);
-										result.add(key, TaskConfig.createCustomTask(task, configuringTask));
+										result.add(key, TaskConfig.createCustomTask(task, configuringTask, this._fileService));
 									} else {
 										result.add(key, task);
 									}
 								} else if (legacyTaskConfigurations) {
 									let configuringTask = legacyTaskConfigurations[task.defines._key];
 									if (configuringTask) {
-										result.add(key, TaskConfig.createCustomTask(task, configuringTask));
+										result.add(key, TaskConfig.createCustomTask(task, configuringTask, this._fileService));
 										customTasksToDelete.push(configuringTask);
 									} else {
 										result.add(key, task);
@@ -1970,7 +1971,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 										try {
 											const resolvedTask = await provider.resolveTask(configuringTask);
 											if (resolvedTask && (resolvedTask._id === configuringTask._id)) {
-												result.add(key, TaskConfig.createCustomTask(resolvedTask, configuringTask));
+												result.add(key, TaskConfig.createCustomTask(resolvedTask, configuringTask, this._fileService));
 												return;
 											}
 										} catch (error) {
@@ -2121,7 +2122,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				return ProblemMatcherRegistry.onReady().then(async (): Promise<WorkspaceFolderTaskResult> => {
 					let taskSystemInfo: TaskSystemInfo | undefined = this.getTaskSystemInfo(workspaceFolder.uri.scheme);
 					let problemReporter = new ProblemReporter(this._outputChannel);
-					let parseResult = TaskConfig.parse(workspaceFolder, undefined, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config!, problemReporter, TaskConfig.TaskConfigSource.TasksJson, this.contextKeyService);
+					let parseResult = TaskConfig.parse(workspaceFolder, undefined, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config!, problemReporter, TaskConfig.TaskConfigSource.TasksJson, this.contextKeyService, this.fileService);
 					let hasErrors = false;
 					if (!parseResult.validationStatus.isOK() && (parseResult.validationStatus.state !== ValidationState.Info)) {
 						hasErrors = true;
@@ -2220,7 +2221,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		let taskSystemInfo: TaskSystemInfo | undefined = workspaceFolder ? this.getTaskSystemInfo(workspaceFolder.uri.scheme) : undefined;
 		let problemReporter = new ProblemReporter(this._outputChannel);
-		let parseResult = TaskConfig.parse(workspaceFolder, this._workspace, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, config, problemReporter, source, this.contextKeyService, isRecentTask);
+		let parseResult = TaskConfig.parse(workspaceFolder, this._workspace, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, config, problemReporter, source, this.contextKeyService, this.fileService, isRecentTask);
 		let hasErrors = false;
 		if (!parseResult.validationStatus.isOK() && (parseResult.validationStatus.state !== ValidationState.Info)) {
 			this.showOutput(runSource);
@@ -3438,7 +3439,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		task._source.config.element = configElement;
-		const tempTask = new CustomTask(task._id, task._source, task._label, task.type, task.command, task.hasDefinedMatchers, task.runOptions, task.configurationProperties);
+		const tempTask = new CustomTask(task._id, task._source, task._label, task.type, task.command, task.hasDefinedMatchers, task.runOptions, task.configurationProperties, this._fileService);
 		const configTask = this.createCustomizableTask(tempTask);
 		if (configTask) {
 			return configTask;

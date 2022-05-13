@@ -17,6 +17,7 @@ import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDe
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
+import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false, nls.localize('tasks.taskRunningContext', "Whether a task is currently running."));
 export const TASKS_CATEGORY = { value: nls.localize('tasksCategory', "Tasks"), original: 'Tasks' };
@@ -703,7 +704,7 @@ export class CustomTask extends CommonTask {
 	command: CommandConfiguration = {};
 
 	public constructor(id: string, source: FileBasedTaskSource, label: string, type: string, command: CommandConfiguration | undefined,
-		hasDefinedMatchers: boolean, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
+		hasDefinedMatchers: boolean, runOptions: RunOptions, configurationProperties: ConfigurationProperties, private readonly _fileService: IFileService) {
 		super(id, label, undefined, runOptions, configurationProperties, source);
 		this._source = source;
 		this.hasDefinedMatchers = hasDefinedMatchers;
@@ -713,7 +714,7 @@ export class CustomTask extends CommonTask {
 	}
 
 	public override clone(): CustomTask {
-		return new CustomTask(this._id, this._source, this._label, this.type, this.command, this.hasDefinedMatchers, this.runOptions, this.configurationProperties);
+		return new CustomTask(this._id, this._source, this._label, this.type, this.command, this.hasDefinedMatchers, this.runOptions, this.configurationProperties, this._fileService);
 	}
 
 	public customizes(): KeyedTaskIdentifier | undefined {
@@ -795,8 +796,13 @@ export class CustomTask extends CommonTask {
 	}
 
 	public override updateWorkspaceFolder(resolvedCwd: string): void {
-		const folder = this._source.config.workspace?.folders.find(f => f.uri.path === resolvedCwd);
-		if (folder) {
+		let folder = this._source.config.workspace?.folders.find(f => f.uri.path.toLowerCase() === resolvedCwd.toLowerCase());
+		if (folder && this._fileService.hasProvider(folder.uri) && !this._fileService.hasCapability(folder.uri, FileSystemProviderCapabilities.PathCaseSensitive)) {
+			// case insensitive match
+			this._source.config.workspaceFolder = folder;
+		} else if (folder) {
+			// find strict match
+			folder = this._source.config.workspace?.folders.find(f => f.uri.path === resolvedCwd);
 			this._source.config.workspaceFolder = folder;
 		}
 	}
@@ -818,7 +824,7 @@ export class CustomTask extends CommonTask {
 	}
 
 	protected fromObject(object: CustomTask): CustomTask {
-		return new CustomTask(object._id, object._source, object._label, object.type, object.command, object.hasDefinedMatchers, object.runOptions, object.configurationProperties);
+		return new CustomTask(object._id, object._source, object._label, object.type, object.command, object.hasDefinedMatchers, object.runOptions, object.configurationProperties, object._fileService);
 	}
 }
 

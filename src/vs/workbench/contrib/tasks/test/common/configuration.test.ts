@@ -18,6 +18,8 @@ import { parse, ParseResult, IProblemReporter, ExternalTaskRunnerConfiguration, 
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContext } from 'vs/platform/contextkey/common/contextkey';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { FileService } from 'vs/platform/files/common/fileService';
 
 const workspaceFolder: WorkspaceFolder = new WorkspaceFolder({
 	uri: URI.file('/workspace/folderOne'),
@@ -206,7 +208,8 @@ class CustomTaskBuilder {
 				isBackground: false,
 				promptOnClose: true,
 				problemMatchers: [],
-			}
+			},
+			new FileService(new NullLogService())
 		);
 	}
 
@@ -372,7 +375,7 @@ class TasksMockContextKeyService extends MockContextKeyService {
 
 function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, resolved: number) {
 	let reporter = new ProblemReporter();
-	let result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson, new TasksMockContextKeyService());
+	let result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson, new TasksMockContextKeyService(), new FileService(new NullLogService()));
 	assert.ok(!reporter.receivedMessage);
 	assert.strictEqual(result.custom.length, 1);
 	let task = result.custom[0];
@@ -383,7 +386,7 @@ function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, re
 function testConfiguration(external: ExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): void {
 	builder.done();
 	let reporter = new ProblemReporter();
-	let result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson, new TasksMockContextKeyService());
+	let result = parse(workspaceFolder, workspace, Platform.platform, external, reporter, TaskConfigSource.TasksJson, new TasksMockContextKeyService(), new FileService(new NullLogService()));
 	if (reporter.receivedMessage) {
 		assert.ok(false, reporter.lastMessage);
 	}

@@ -25,6 +25,7 @@ import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/com
 import { URI } from 'vs/base/common/uri';
 import { USER_TASKS_GROUP_KEY, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export const enum ShellQuoting {
 	/**
@@ -1496,7 +1497,7 @@ namespace ConfiguringTask {
 }
 
 namespace CustomTask {
-	export function from(this: void, external: CustomTask, context: ParseContext, index: number, source: TaskConfigSource): Tasks.CustomTask | undefined {
+	export function from(this: void, external: CustomTask, context: ParseContext, index: number, source: TaskConfigSource, fileService: IFileService): Tasks.CustomTask | undefined {
 		if (!external) {
 			return undefined;
 		}
@@ -1544,7 +1545,8 @@ namespace CustomTask {
 			{
 				name: taskName,
 				identifier: taskName,
-			}
+			},
+			fileService
 		);
 		let configuration = ConfigurationProperties.from(external, context, false, source);
 		result.addTaskLoadMessages(configuration.errors);
@@ -1606,7 +1608,7 @@ namespace CustomTask {
 		}
 	}
 
-	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfiguringTask | Tasks.CustomTask): Tasks.CustomTask {
+	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfiguringTask | Tasks.CustomTask, fileService: IFileService): Tasks.CustomTask {
 		let result: Tasks.CustomTask = new Tasks.CustomTask(
 			configuredProps._id,
 			Object.assign({}, configuredProps._source, { customizes: contributedTask.defines }),
@@ -1618,7 +1620,8 @@ namespace CustomTask {
 			{
 				name: configuredProps.configurationProperties.name || contributedTask.configurationProperties.name,
 				identifier: configuredProps.configurationProperties.identifier || contributedTask.configurationProperties.identifier,
-			}
+			},
+			fileService
 		);
 		result.addTaskLoadMessages(configuredProps.taskLoadMessages);
 		let resultConfigProps: Tasks.ConfigurationProperties = result.configurationProperties;
@@ -1672,7 +1675,7 @@ namespace TaskParser {
 		process: ProcessExecutionSupportedContext
 	};
 
-	export function from(this: void, externals: Array<CustomTask | ConfiguringTask> | undefined, globals: Globals, context: ParseContext, source: TaskConfigSource): TaskParseResult {
+	export function from(this: void, externals: Array<CustomTask | ConfiguringTask> | undefined, globals: Globals, context: ParseContext, source: TaskConfigSource, fileService: IFileService): TaskParseResult {
 		let result: TaskParseResult = { custom: [], configured: [] };
 		if (!externals) {
 			return result;
@@ -1705,7 +1708,7 @@ namespace TaskParser {
 			}
 
 			if (isCustomTask(external)) {
-				let customTask = CustomTask.from(external, context, index, source);
+				let customTask = CustomTask.from(external, context, index, source, fileService);
 				if (customTask) {
 					CustomTask.fillGlobals(customTask, globals);
 					CustomTask.fillDefaults(customTask, context);
@@ -2016,7 +2019,7 @@ class ConfigurationParser {
 		this.uuidMap = uuidMap;
 	}
 
-	public run(fileConfig: ExternalTaskRunnerConfiguration, source: TaskConfigSource, contextKeyService: IContextKeyService): ParseResult {
+	public run(fileConfig: ExternalTaskRunnerConfiguration, source: TaskConfigSource, contextKeyService: IContextKeyService, fileService: IFileService): ParseResult {
 		let engine = ExecutionEngine.from(fileConfig);
 		let schemaVersion = JsonSchemaVersion.from(fileConfig);
 		let context: ParseContext = {
@@ -2031,7 +2034,7 @@ class ConfigurationParser {
 			taskLoadIssues: [],
 			contextKeyService
 		};
-		let taskParseResult = this.createTaskRunnerConfiguration(fileConfig, context, source);
+		let taskParseResult = this.createTaskRunnerConfiguration(fileConfig, context, source, fileService);
 		return {
 			validationStatus: this.problemReporter.status,
 			custom: taskParseResult.custom,
@@ -2040,7 +2043,7 @@ class ConfigurationParser {
 		};
 	}
 
-	private createTaskRunnerConfiguration(fileConfig: ExternalTaskRunnerConfiguration, context: ParseContext, source: TaskConfigSource): TaskParseResult {
+	private createTaskRunnerConfiguration(fileConfig: ExternalTaskRunnerConfiguration, context: ParseContext, source: TaskConfigSource, fileService: IFileService): TaskParseResult {
 		let globals = Globals.from(fileConfig, context);
 		if (this.problemReporter.status.isFatal()) {
 			return { custom: [], configured: [] };
@@ -2049,13 +2052,13 @@ class ConfigurationParser {
 		let globalTasks: Tasks.CustomTask[] | undefined = undefined;
 		let externalGlobalTasks: Array<ConfiguringTask | CustomTask> | undefined = undefined;
 		if (fileConfig.windows && context.platform === Platform.Windows) {
-			globalTasks = TaskParser.from(fileConfig.windows.tasks, globals, context, source).custom;
+			globalTasks = TaskParser.from(fileConfig.windows.tasks, globals, context, source, fileService).custom;
 			externalGlobalTasks = fileConfig.windows.tasks;
 		} else if (fileConfig.osx && context.platform === Platform.Mac) {
-			globalTasks = TaskParser.from(fileConfig.osx.tasks, globals, context, source).custom;
+			globalTasks = TaskParser.from(fileConfig.osx.tasks, globals, context, source, fileService).custom;
 			externalGlobalTasks = fileConfig.osx.tasks;
 		} else if (fileConfig.linux && context.platform === Platform.Linux) {
-			globalTasks = TaskParser.from(fileConfig.linux.tasks, globals, context, source).custom;
+			globalTasks = TaskParser.from(fileConfig.linux.tasks, globals, context, source, fileService).custom;
 			externalGlobalTasks = fileConfig.linux.tasks;
 		}
 		if (context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0 && globalTasks && globalTasks.length > 0 && externalGlobalTasks && externalGlobalTasks.length > 0) {
@@ -2072,7 +2075,7 @@ class ConfigurationParser {
 
 		let result: TaskParseResult = { custom: [], configured: [] };
 		if (fileConfig.tasks) {
-			result = TaskParser.from(fileConfig.tasks, globals, context, source);
+			result = TaskParser.from(fileConfig.tasks, globals, context, source, fileService);
 		}
 		if (globalTasks) {
 			result.custom = TaskParser.assignTasks(result.custom, globalTasks);
@@ -2101,7 +2104,8 @@ class ConfigurationParser {
 					group: Tasks.TaskGroup.Build,
 					isBackground: isBackground,
 					problemMatchers: matchers,
-				}
+				},
+				fileService
 			);
 			let taskGroupKind = GroupKind.from(fileConfig.group);
 			if (taskGroupKind !== undefined) {
@@ -2121,7 +2125,7 @@ class ConfigurationParser {
 
 let uuidMaps: Map<TaskConfigSource, Map<string, UUIDMap>> = new Map();
 let recentUuidMaps: Map<TaskConfigSource, Map<string, UUIDMap>> = new Map();
-export function parse(workspaceFolder: IWorkspaceFolder, workspace: IWorkspace | undefined, platform: Platform, configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter, source: TaskConfigSource, contextKeyService: IContextKeyService, isRecents: boolean = false): ParseResult {
+export function parse(workspaceFolder: IWorkspaceFolder, workspace: IWorkspace | undefined, platform: Platform, configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter, source: TaskConfigSource, contextKeyService: IContextKeyService, fileService: IFileService, isRecents: boolean = false): ParseResult {
 	let recentOrOtherMaps = isRecents ? recentUuidMaps : uuidMaps;
 	let selectedUuidMaps = recentOrOtherMaps.get(source);
 	if (!selectedUuidMaps) {
@@ -2135,7 +2139,7 @@ export function parse(workspaceFolder: IWorkspaceFolder, workspace: IWorkspace |
 	}
 	try {
 		uuidMap.start();
-		return (new ConfigurationParser(workspaceFolder, workspace, platform, logger, uuidMap)).run(configuration, source, contextKeyService);
+		return (new ConfigurationParser(workspaceFolder, workspace, platform, logger, uuidMap)).run(configuration, source, contextKeyService, fileService);
 	} finally {
 		uuidMap.finish();
 	}
@@ -2143,7 +2147,7 @@ export function parse(workspaceFolder: IWorkspaceFolder, workspace: IWorkspace |
 
 
 
-export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfiguringTask | Tasks.CustomTask): Tasks.CustomTask {
-	return CustomTask.createCustomTask(contributedTask, configuredProps);
+export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfiguringTask | Tasks.CustomTask, fileService: IFileService): Tasks.CustomTask {
+	return CustomTask.createCustomTask(contributedTask, configuredProps, fileService);
 }
 
