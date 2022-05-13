@@ -149,6 +149,7 @@
 
 .extension-list-item > .details > .description {
 	padding-right: 11px;
+	color: var(--vscode-descriptionForeground);
 }
 
 .extension-list-item > .details > .footer {
