@@ -9,7 +9,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { createActionViewItem, createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -76,16 +76,6 @@ export class TitleMenuControl {
 		this._disposables.dispose();
 	}
 }
-
-// --- quick pick submenu
-
-MenuRegistry.appendMenuItem(MenuId.TitleMenu, {
-	submenu: MenuId.TitleMenuQuickPick,
-	title: localize('title', "Quick Pick"),
-	icon: Codicon.search,
-	order: Number.MAX_SAFE_INTEGER
-});
-
 
 // --- theme colors
 

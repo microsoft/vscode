@@ -140,14 +140,10 @@ registerAction2(class QuickAccessAction extends Action2 {
 				mac: globalQuickAccessKeybinding.mac
 			},
 			f1: true,
-			menu: [{
-				id: MenuId.TitleMenuQuickPick,
-				group: '1/workspaceNav',
-				order: 1
-			}, {
+			menu: {
 				id: MenuId.TitleMenu,
 				order: 100
-			}]
+			}
 		});
 	}
 
