@@ -83,6 +83,7 @@
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu {
 	z-index: 3000;
 	-webkit-app-region: no-drag;
+	padding: 0 8px;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu.hide {
@@ -111,7 +112,7 @@
 	line-height: 18px;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu:HOVER .action-label{
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu:HOVER .quickopen .action-label{
 	background-color: transparent !important;
 }
 
