@@ -85,6 +85,7 @@
 	"command.revealFileInOS.windows": "Reveal in File Explorer",
 	"command.rebaseAbort": "Abort Rebase",
 	"command.stashIncludeUntracked": "Stash (Include Untracked)",
+	"command.stashFromStaged": "Stash Staged",
 	"command.stash": "Stash",
 	"command.stashPop": "Pop Stash...",
 	"command.stashPopLatest": "Pop Latest Stash",

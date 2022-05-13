@@ -105,6 +105,7 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 	);
 
 	checkGitVersion(info);
+	checkGitImplementStagedOption(git);
 
 	return model;
 }
@@ -279,4 +280,13 @@ async function checkGitVersion(info: IGit): Promise<void> {
 	if (process.platform === 'win32') {
 		await checkGitWindows(info);
 	}
+}
+
+async function checkGitImplementStagedOption(git: Git): Promise<void> {
+	// With Git 2.35 (Q1 2022), "git stash" learned the --staged option
+	// to stash away what has been added to the index (and nothing else).
+	// https://github.blog/2022-01-24-highlights-from-git-2-35/
+	const result = git.compareGitVersionTo('2.35.0');
+
+	commands.executeCommand('setContext', 'gitImplementStagedOption', result !== -1);
 }

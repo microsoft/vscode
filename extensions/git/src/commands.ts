@@ -2737,6 +2737,11 @@ export class CommandCenter {
 		return this._stash(repository, true);
 	}
 
+	@command('git.stashFromStaged', { repository: true })
+	async stashStaged(repository: Repository): Promise<void> {
+		return this._stash(repository, true);
+	}
+
 	@command('git.stashPop', { repository: true })
 	async stashPop(repository: Repository): Promise<void> {
 		const placeHolder = localize('pick stash to pop', "Pick a stash to pop");

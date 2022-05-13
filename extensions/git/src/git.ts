@@ -1820,6 +1820,24 @@ export class Repository {
 		}
 	}
 
+	async createStashFromStaged(message?: string): Promise<void> {
+		try {
+			const args = ['stash', '--staged'];
+
+			if (message) {
+				args.push('-m', message);
+			}
+
+			await this.exec(args);
+		} catch (err) {
+			if (/No local changes to save/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoLocalChanges;
+			}
+
+			throw err;
+		}
+	}
+
 	async popStash(index?: number): Promise<void> {
 		const args = ['stash', 'pop'];
 		await this.popOrApplyStash(args, index);
