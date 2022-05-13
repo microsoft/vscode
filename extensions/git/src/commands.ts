@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import * as minimatch from 'minimatch';
+import * as picomatch from 'picomatch';
 import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
@@ -1498,9 +1498,9 @@ export class CommandCenter {
 		}
 
 		// Branch protection
-		const branchProtection = config.get<string[]>('branchProtection')!;
+		const branchProtection = config.get<string[]>('branchProtection')!.filter(bp => bp.trim() !== '');
 		const branchProtectionPrompt = config.get<'alwaysCommit' | 'alwaysCommitToNewBranch' | 'alwaysPrompt'>('branchProtectionPrompt')!;
-		const branchIsProtected = !!branchProtection.find(bp => minimatch(repository.HEAD?.name ?? '', bp));
+		const branchIsProtected = branchProtection.some(bp => picomatch.isMatch(repository.HEAD?.name ?? '', bp));
 
 		if (branchIsProtected && (branchProtectionPrompt === 'alwaysPrompt' || branchProtectionPrompt === 'alwaysCommitToNewBranch')) {
 			const commitToNewBranch = localize('commit to branch', "Commit to a New Branch");
