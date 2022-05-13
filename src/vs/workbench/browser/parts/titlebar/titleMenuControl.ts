@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
@@ -11,13 +12,16 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { createActionViewItem, createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_FOREGROUND, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 export class TitleMenuControl {
 
@@ -32,14 +36,37 @@ export class TitleMenuControl {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
 		@IQuickInputService quickInputService: IQuickInputService,
+		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		this.element.classList.add('title-menu');
+
+		const hoverDelegate = new class implements IHoverDelegate {
+
+			private _lastHoverHideTime: number = 0;
+
+			readonly showHover = hoverService.showHover.bind(hoverService);
+			readonly placement = 'element';
+
+			get delay(): number {
+				return Date.now() - this._lastHoverHideTime < 200
+					? 0  // show instantly when a hover was recently shown
+					: configurationService.getValue<number>('workbench.hover.delay');
+			}
+
+			onDidHideHover() {
+				this._lastHoverHideTime = Date.now();
+			}
+		};
+
 		const titleToolbar = new ToolBar(this.element, contextMenuService, {
 			actionViewItemProvider: (action) => {
 
 				if (action instanceof MenuItemAction && action.id === 'workbench.action.quickOpen') {
 
 					class InputLikeViewItem extends MenuEntryActionViewItem {
+
 						override render(container: HTMLElement): void {
 							super.render(container);
 							container.classList.add('quickopen');
@@ -49,11 +76,17 @@ export class TitleMenuControl {
 						}
 
 						private _updateFromWindowTitle() {
-							if (this.label) {
-								this.label.classList.add('search');
-								this.label.innerText = localize('search', "Search {0}", windowTitle.workspaceName);
-								this.label.title = windowTitle.value;
+							if (!this.label) {
+								return;
 							}
+							this.label.classList.add('search');
+							this.label.innerText = localize('search', "Search {0}", windowTitle.workspaceName);
+
+							const kb = keybindingService.lookupKeybinding(action.id)?.getLabel();
+							const title = kb
+								? localize('title', "Search {0} ({1}) \u2014 {2}", windowTitle.workspaceName, kb, windowTitle.value)
+								: localize('title2', "Search {0} \u2014 {1}", windowTitle.workspaceName, windowTitle.value);
+							this._applyUpdateTooltip(title);
 						}
 
 						private _renderAllQuickPickItem(parent: HTMLElement): void {
@@ -63,16 +96,16 @@ export class TitleMenuControl {
 							const action = new Action('all', localize('all', "Show Quick Pick Options..."), Codicon.chevronDown.classNames, true, () => {
 								quickInputService.quickAccess.show('?');
 							});
-							const dropdown = new ActionViewItem(undefined, action, { icon: true, label: false });
+							const dropdown = new ActionViewItem(undefined, action, { icon: true, label: false, hoverDelegate });
 							dropdown.render(container);
 							this._store.add(dropdown);
 							this._store.add(action);
 						}
 					}
-					return instantiationService.createInstance(InputLikeViewItem, action, undefined);
+					return instantiationService.createInstance(InputLikeViewItem, action, { hoverDelegate });
 				}
 
-				return createActionViewItem(instantiationService, action);
+				return createActionViewItem(instantiationService, action, { hoverDelegate });
 			}
 		});
 		const titleMenu = this._disposables.add(menuService.createMenu(MenuId.TitleMenu, contextKeyService));
