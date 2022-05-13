@@ -170,9 +170,9 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 				}
 
 				if (path.isAbsolute(scanPath)) {
-					const notSupported = '[swsf] Absolute paths not supported in \'git.scanRepositories\' setting.';
-					this.outputChannelLogger.logWarning(notSupported);
-					console.warn(notSupported);
+					const notSupportedMessage = localize('not supported', "Absolute paths not supported in 'git.scanRepositories' setting.");
+					this.outputChannelLogger.logWarning(notSupportedMessage);
+					console.warn(notSupportedMessage);
 					continue;
 				}
 
