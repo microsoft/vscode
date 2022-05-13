@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { readFileSync } from 'fs';
 import { Application, Terminal, SettingsEditor } from '../../../../automation';
 import { setTerminalTestSettings } from './terminal-helpers';
 
@@ -27,9 +28,15 @@ export function setup() {
 			await settingsEditor.clearUserSettings();
 		});
 
+		// Don't run shell integration smoke tests on agents that lack bash
+		let linuxBashMissing = false;
+		if (process.platform === 'linux') {
+			linuxBashMissing = !readFileSync('/etc/shells').toString().includes('/bash\n');
+		}
+
 		describe('Shell integration', function () {
 			console.log('process.env.SHELL', process.env.SHELL);
-			(process.platform === 'win32' ? describe.skip : describe)('Decorations', function () {
+			(process.platform === 'win32' || linuxBashMissing ? describe.skip : describe)('Decorations', function () {
 				describe('Should show default icons', function () {
 					it('Placeholder', async () => {
 						await terminal.createTerminal();
