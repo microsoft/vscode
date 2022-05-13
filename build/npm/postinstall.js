@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 const cp = require('child_process');
-const path = require('path');
-const fs = require('fs');
 const { dirs } = require('./dirs');
+const { setupBuildYarnrc } = require('./setupBuildYarnrc');
 const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
 
 /**
@@ -48,8 +48,8 @@ for (let dir of dirs) {
 	}
 
 	if (dir === 'build') {
-		// node modules for watching, specific to host node version, not electron
-		yarnInstallBuildDependencies(dir);
+		setupBuildYarnrc();
+		yarnInstall('build');
 		continue;
 	}
 
@@ -71,23 +71,6 @@ for (let dir of dirs) {
 	}
 
 	yarnInstall(dir, opts);
-}
-
-function yarnInstallBuildDependencies(dir) {
-	// make sure we install the deps of build for the system installed
-	// node, since that is the driver of gulp
-	const yarnrcPath = path.join(dir, '.yarnrc');
-
-	const disturl = 'https://nodejs.org/download/release';
-	const target = process.versions.node;
-	const runtime = 'node';
-
-	const yarnrc = `disturl "${disturl}"
-target "${target}"
-runtime "${runtime}"`;
-
-	fs.writeFileSync(yarnrcPath, yarnrc, 'utf8');
-	yarnInstall(dir);
 }
 
 cp.execSync('git config pull.rebase merges');

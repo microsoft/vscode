@@ -1777,6 +1777,11 @@
           "markdownDescription": "%config.autofetchPeriod%",
           "default": 180
         },
+        "git.branchPrefix": {
+          "type": "string",
+          "description": "%config.branchPrefix%",
+          "default": ""
+        },
         "git.branchValidationRegex": {
           "type": "string",
           "description": "%config.branchValidationRegex%",
@@ -1786,6 +1791,22 @@
           "type": "string",
           "description": "%config.branchWhitespaceChar%",
           "default": "-"
+        },
+        "git.branchRandomName.enable": {
+          "type": "boolean",
+          "description": "%config.branchRandomNameEnable%",
+          "default": false
+        },
+        "git.branchRandomName.dictionary": {
+          "type": "array",
+          "markdownDescription": "%config.branchRandomNameDictionary%",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "adjectives",
+            "animals"
+          ]
         },
         "git.confirmSync": {
           "type": "boolean",
@@ -2503,6 +2524,7 @@
     ]
   },
   "dependencies": {
+    "@joaomoreno/unique-names-generator": "5.0.0",
     "@vscode/extension-telemetry": "0.4.10",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",

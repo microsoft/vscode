@@ -69,7 +69,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookActionC
 			};
 		}, undefined, true);
 		const newCell = notebookEditor.cellAt(idx);
-		notebookEditor.focusNotebookCell(newCell, cell.getEditState() === CellEditState.Editing ? 'editor' : 'container');
+		await notebookEditor.focusNotebookCell(newCell, cell.getEditState() === CellEditState.Editing ? 'editor' : 'container');
 	} else if (context.selectedCells) {
 		const selectedCells = context.selectedCells;
 		const rawEdits: ICellEditOperation[] = [];

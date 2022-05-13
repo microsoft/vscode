@@ -28,7 +28,10 @@ suite('markdown.DocumentLinkProvider', () => {
 	});
 
 	test('Should not return anything for simple document without links', async () => {
-		const links = await getLinksForFile('# a\nfdasfdfsafsa');
+		const links = await getLinksForFile(joinLines(
+			'# a',
+			'fdasfdfsafsa',
+		));
 		assert.strictEqual(links.length, 0);
 	});
 
@@ -61,14 +64,12 @@ suite('markdown.DocumentLinkProvider', () => {
 		assertRangeEqual(link.range, new vscode.Range(0, 6, 0, 25));
 	});
 
-	// #35245
-	test('Should handle links with escaped characters in name', async () => {
+	test('Should handle links with escaped characters in name (#35245)', async () => {
 		const links = await getLinksForFile('a [b\\]](./file)');
 		assert.strictEqual(links.length, 1);
 		const [link] = links;
 		assertRangeEqual(link.range, new vscode.Range(0, 8, 0, 14));
 	});
-
 
 	test('Should handle links with balanced parens', async () => {
 		{
@@ -101,8 +102,7 @@ suite('markdown.DocumentLinkProvider', () => {
 		assertRangeEqual(link2.range, new vscode.Range(0, 23, 0, 28));
 	});
 
-	// #49238
-	test('should handle hyperlinked images', async () => {
+	test('should handle hyperlinked images (#49238)', async () => {
 		{
 			const links = await getLinksForFile('[![alt text](image.jpg)](https://example.com)');
 			assert.strictEqual(links.length, 2);
@@ -134,10 +134,10 @@ suite('markdown.DocumentLinkProvider', () => {
 	});
 
 	test('Should find definitions links with spaces in angle brackets (#136073)', async () => {
-		const links = await getLinksForFile([
+		const links = await getLinksForFile(joinLines(
 			'[a]: <b c>',
 			'[b]: <cd>',
-		].join('\n'));
+		));
 		assert.strictEqual(links.length, 2);
 
 		const [link1, link2] = links;
@@ -146,47 +146,55 @@ suite('markdown.DocumentLinkProvider', () => {
 	});
 
 	test('Should only find one link for reference sources [a]: source (#141285)', async () => {
-		const links = await getLinksForFile([
-			'[Works]: https://microsoft.com',
-		].join('\n'));
+		const links = await getLinksForFile(joinLines(
+			'[Works]: https://example.com',
+		));
 
 		assert.strictEqual(links.length, 1);
 	});
 
-	test('Should find links for referees with only one [] (#141285)', async () => {
-		let links = await getLinksForFile([
+	test('Should find reference link shorthand (#141285)', async () => {
+		let links = await getLinksForFile(joinLines(
 			'[ref]',
-			'[ref]: https://microsoft.com',
-		].join('\n'));
+			'[ref]: https://example.com',
+		));
 		assert.strictEqual(links.length, 2);
 
-		links = await getLinksForFile([
+		links = await getLinksForFile(joinLines(
 			'[Does Not Work]',
-			'[def]: https://microsoft.com',
-		].join('\n'));
+			'[def]: https://example.com',
+		));
 		assert.strictEqual(links.length, 1);
 	});
 
-	test('Should not find link for reference using one [] when source does not exist (#141285)', async () => {
+	test('Should not include reference link shorthand when source does not exist (#141285)', async () => {
 		const links = await getLinksForFile('[Works]');
 		assert.strictEqual(links.length, 0);
 	});
 
+	test('Should not include reference links with escaped leading brackets', async () => {
+		const links = await getLinksForFile(joinLines(
+			`\\[bad link][good]`,
+			`\\[good]`,
+			`[good]: http://example.com`,
+		));
+		assert.strictEqual(links.length, 1);
+		assertRangeEqual(links[0].range, new vscode.Range(2, 8, 2, 26)); // Should only find the definition
+	});
+
 	test('Should not consider links in code fenced with backticks', async () => {
-		const text = joinLines(
+		const links = await getLinksForFile(joinLines(
 			'```',
 			'[b](https://example.com)',
-			'```');
-		const links = await getLinksForFile(text);
+			'```'));
 		assert.strictEqual(links.length, 0);
 	});
 
-	test('Should not consider links in code fenced with tilda', async () => {
-		const text = joinLines(
+	test('Should not consider links in code fenced with tilde', async () => {
+		const links = await getLinksForFile(joinLines(
 			'~~~',
 			'[b](https://example.com)',
-			'~~~');
-		const links = await getLinksForFile(text);
+			'~~~'));
 		assert.strictEqual(links.length, 0);
 	});
 
@@ -206,58 +214,52 @@ suite('markdown.DocumentLinkProvider', () => {
 	});
 
 	test('Should not consider links in multiline inline code span', async () => {
-		const text = joinLines(
+		const links = await getLinksForFile(joinLines(
 			'`` ',
 			'[b](https://example.com)',
-			'``');
-		const links = await getLinksForFile(text);
+			'``'));
 		assert.strictEqual(links.length, 0);
 	});
 
 	test('Should not consider link references in code fenced with backticks (#146714)', async () => {
-		const text = joinLines(
+		const links = await getLinksForFile(joinLines(
 			'```',
 			'[a] [bb]',
-			'```');
-		const links = await getLinksForFile(text);
+			'```'));
 		assert.strictEqual(links.length, 0);
 	});
 
 	test('Should not consider reference sources in code fenced with backticks (#146714)', async () => {
-		const text = joinLines(
+		const links = await getLinksForFile(joinLines(
 			'```',
 			'[a]: http://example.com;',
 			'[b]: <http://example.com>;',
 			'[c]: (http://example.com);',
-			'```');
-		const links = await getLinksForFile(text);
+			'```'));
 		assert.strictEqual(links.length, 0);
 	});
 
 	test('Should not consider links in multiline inline code span between between text', async () => {
-		const text = joinLines(
+		const links = await getLinksForFile(joinLines(
 			'[b](https://1.com) `[b](https://2.com)',
-			'` [b](https://3.com)');
-		const links = await getLinksForFile(text);
+			'` [b](https://3.com)'));
 		assert.deepStrictEqual(links.map(l => l.target?.authority), ['1.com', '3.com']);
 	});
 
 	test('Should not consider links in multiline inline code span with new line after the first backtick', async () => {
-		const text = joinLines(
+		const links = await getLinksForFile(joinLines(
 			'`',
-			'[b](https://example.com)`');
-		const links = await getLinksForFile(text);
+			'[b](https://example.com)`'));
 		assert.strictEqual(links.length, 0);
 	});
 
 	test('Should not miss links in invalid multiline inline code span', async () => {
-		const text = joinLines(
+		const links = await getLinksForFile(joinLines(
 			'`` ',
 			'',
 			'[b](https://example.com)',
 			'',
-			'``');
-		const links = await getLinksForFile(text);
+			'``'));
 		assert.strictEqual(links.length, 1);
 	});
 

@@ -11,7 +11,7 @@ import { ActionRunner, IAction, IRunEvent, Separator, SubmenuAction } from 'vs/b
 import { Event } from 'vs/base/common/event';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isWindows, OS } from 'vs/base/common/platform';
 import 'vs/css!./menuEntryActionViewItem';
 import { localize } from 'vs/nls';
@@ -23,7 +23,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { isDark } from 'vs/platform/theme/common/theme';
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): IDisposable {
 	const groups = menu.getActions(options);
@@ -137,7 +138,8 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		options: IMenuEntryActionViewItemOptions | undefined,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 		@INotificationService protected _notificationService: INotificationService,
-		@IContextKeyService protected _contextKeyService: IContextKeyService
+		@IContextKeyService protected _contextKeyService: IContextKeyService,
+		@IThemeService protected _themeService: IThemeService
 	) {
 		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon, draggable: options?.draggable, keybinding: options?.keybinding });
 		this._altKey = ModifierKeyEmitter.getInstance();
@@ -235,7 +237,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 				if (this._menuItemAction.alt) {
 					this._updateItemClass(this._menuItemAction.alt.item);
 				}
-			} else if (this._menuItemAction.alt) {
+			} else {
 				this._updateItemClass(this._menuItemAction.item);
 			}
 		}
@@ -265,18 +267,22 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 		} else {
 			// icon path/url
-			if (icon.light) {
-				label.style.setProperty('--menu-entry-icon-light', asCSSUrl(icon.light));
-			}
-			if (icon.dark) {
-				label.style.setProperty('--menu-entry-icon-dark', asCSSUrl(icon.dark));
-			}
+			label.style.backgroundImage = (
+				isDark(this._themeService.getColorTheme().type)
+					? asCSSUrl(icon.dark)
+					: asCSSUrl(icon.light)
+			);
 			label.classList.add('icon');
-			this._itemClassDispose.value = toDisposable(() => {
-				label.classList.remove('icon');
-				label.style.removeProperty('--menu-entry-icon-light');
-				label.style.removeProperty('--menu-entry-icon-dark');
-			});
+			this._itemClassDispose.value = combinedDisposable(
+				toDisposable(() => {
+					label.style.backgroundImage = '';
+					label.classList.remove('icon');
+				}),
+				this._themeService.onDidColorThemeChange(() => {
+					// refresh when the theme changes in case we go between dark <-> light
+					this.updateClass();
+				})
+			);
 		}
 	}
 }
@@ -286,7 +292,8 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 	constructor(
 		action: SubmenuItemAction,
 		options: IDropdownMenuActionViewItemOptions | undefined,
-		@IContextMenuService contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IThemeService protected _themeService: IThemeService
 	) {
 		const dropdownOptions = Object.assign({}, options ?? Object.create(null), {
 			menuAsChild: options?.menuAsChild ?? false,
@@ -303,12 +310,20 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 			const { icon } = (<SubmenuItemAction>this._action).item;
 			if (icon && !ThemeIcon.isThemeIcon(icon)) {
 				this.element.classList.add('icon');
-				if (icon.light) {
-					this.element.style.setProperty('--menu-entry-icon-light', asCSSUrl(icon.light));
-				}
-				if (icon.dark) {
-					this.element.style.setProperty('--menu-entry-icon-dark', asCSSUrl(icon.dark));
-				}
+				const setBackgroundImage = () => {
+					if (this.element) {
+						this.element.style.backgroundImage = (
+							isDark(this._themeService.getColorTheme().type)
+								? asCSSUrl(icon.dark)
+								: asCSSUrl(icon.light)
+						);
+					}
+				};
+				setBackgroundImage();
+				this._register(this._themeService.onDidColorThemeChange(() => {
+					// refresh when the theme changes in case we go between dark <-> light
+					setBackgroundImage();
+				}));
 			}
 		}
 	}

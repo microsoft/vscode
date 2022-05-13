@@ -13,29 +13,33 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction, toAction } from 'vs/base/common/actions';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { Color } from 'vs/base/common/color';
-import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame, prepend, clearNode } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame, prepend, reset } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { createActionViewItem, createAndFillInContextMenuActions, DropdownWithDefaultActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, IMenu, MenuId, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Codicon } from 'vs/base/common/codicons';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
+import { TitleMenuControl } from 'vs/workbench/browser/parts/titlebar/titleMenuControl';
 
 export class TitlebarPart extends Part implements ITitleService {
+
+	private static readonly configTitleMenu = 'window.experimental.titleMenu';
+
+	declare readonly _serviceBrand: undefined;
 
 	//#region IView
 
@@ -49,7 +53,8 @@ export class TitlebarPart extends Part implements ITitleService {
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
 	readonly onMenubarVisibilityChange = this._onMenubarVisibilityChange.event;
 
-	declare readonly _serviceBrand: undefined;
+	private readonly _onDidChangeTitleMenuVisibility = new Emitter<void>();
+	readonly onDidChangeTitleMenuVisibility: Event<void> = this._onDidChangeTitleMenuVisibility.event;
 
 	protected rootContainer!: HTMLElement;
 	protected windowControls: HTMLElement | undefined;
@@ -83,7 +88,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle));
@@ -96,6 +100,10 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	updateProperties(properties: ITitleProperties): void {
 		this.windowTitle.updateProperties(properties);
+	}
+
+	get titleMenuVisible() {
+		return this.configurationService.getValue<boolean>(TitlebarPart.configTitleMenu);
 	}
 
 	private registerListeners(): void {
@@ -129,9 +137,10 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.layoutControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
 		}
 
-		if (event.affectsConfiguration('window.experimental.titleMenu')) {
+		if (event.affectsConfiguration(TitlebarPart.configTitleMenu)) {
 			this.updateTitle();
 			this.adjustTitleMarginToCenter();
+			this._onDidChangeTitleMenuVisibility.fire();
 		}
 	}
 
@@ -174,10 +183,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private updateTitle(): void {
 		this.titleDisposables.clear();
-		const enableTitleMenu = this.configurationService.getValue<boolean>('window.experimental.titleMenu');
-		this.title.classList.toggle('title-menu', enableTitleMenu);
-
-		if (!enableTitleMenu) {
+		if (!this.titleMenuVisible) {
 			// Text Title
 			this.title.innerText = this.windowTitle.value;
 			this.titleDisposables.add(this.windowTitle.onDidChange(() => {
@@ -186,40 +192,9 @@ export class TitlebarPart extends Part implements ITitleService {
 			}));
 		} else {
 			// Menu Title
-			clearNode(this.title);
-			const that = this;
-			const titleToolbar = new ToolBar(this.title, this.contextMenuService, {
-				actionViewItemProvider: (action) => {
-
-					if (action instanceof SubmenuItemAction && action.item.submenu === MenuId.TitleMenuQuickPick) {
-						class QuickInputDropDown extends DropdownWithDefaultActionViewItem {
-							override render(container: HTMLElement): void {
-								super.render(container);
-								container.classList.add('quickopen');
-								container.title = that.windowTitle.value;
-								this._store.add(that.windowTitle.onDidChange(() => container.title = that.windowTitle.value));
-							}
-						}
-						return that.instantiationService.createInstance(QuickInputDropDown, action, {
-							keybindingProvider: action => that.keybindingService.lookupKeybinding(action.id),
-							renderKeybindingWithDefaultActionLabel: true
-						});
-					}
-					return undefined;
-				}
-			});
-			const titleMenu = this.titleDisposables.add(this.menuService.createMenu(MenuId.TitleMenu, this.contextKeyService));
-			const titleMenuDisposables = this.titleDisposables.add(new DisposableStore());
-			const updateTitleMenu = () => {
-				titleMenuDisposables.clear();
-				const actions: IAction[] = [];
-				titleMenuDisposables.add(createAndFillInContextMenuActions(titleMenu, undefined, actions));
-				titleToolbar.setActions(actions);
-			};
-			this.titleDisposables.add(titleMenu.onDidChange(updateTitleMenu));
-			this.titleDisposables.add(this.keybindingService.onDidUpdateKeybindings(updateTitleMenu));
-			this.titleDisposables.add(toDisposable(() => clearNode(this.title)));
-			updateTitleMenu();
+			const titleMenu = this.instantiationService.createInstance(TitleMenuControl, this.windowTitle);
+			reset(this.title, titleMenu.element);
+			this.titleDisposables.add(titleMenu);
 		}
 	}
 
@@ -492,10 +467,4 @@ registerThemingParticipant((theme, collector) => {
 			}
 		`);
 	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.TitleMenu, {
-	submenu: MenuId.TitleMenuQuickPick,
-	title: localize('title', "Select Mode"),
-	order: Number.MAX_SAFE_INTEGER
 });
