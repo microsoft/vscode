@@ -221,7 +221,7 @@ stages:
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
               - job: arm64
                 variables:
                   VSCODE_ARCH: arm64
