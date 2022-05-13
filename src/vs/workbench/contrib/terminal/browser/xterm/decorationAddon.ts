@@ -217,7 +217,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			if (beforeCommandExecution && !this._placeholderDecoration) {
 				this._placeholderDecoration = decoration;
 				this._placeholderDecoration.onDispose(() => this._placeholderDecoration = undefined);
-			} else {
+			} else if (!this._decorations.get(decoration.marker.id)) {
 				decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
 				this._decorations.set(decoration.marker.id,
 					{
