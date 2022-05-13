@@ -713,7 +713,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 	}
 
-	private executeCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>): Promise<ITaskSummary> {
+	private async executeCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>): Promise<ITaskSummary> {
 		const taskWorkspaceFolder = task.getWorkspaceFolder();
 		let workspaceFolder: IWorkspaceFolder | undefined;
 		if (taskWorkspaceFolder) {
@@ -728,10 +728,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this.collectTaskVariables(variables, task);
 		const resolvedVariables = this.acquireInput(systemInfo, workspaceFolder, task, variables, alreadyResolved);
 
-		return resolvedVariables.then((resolvedVariables) => {
+		return resolvedVariables.then(async (resolvedVariables) => {
 			if (resolvedVariables && !this.isTaskEmpty(task)) {
 				this.currentTask.resolvedVariables = resolvedVariables;
-				return this.executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, systemInfo, resolvedVariables.variables, this.configurationResolverService), workspaceFolder);
+				const resolver = new VariableResolver(workspaceFolder, systemInfo, resolvedVariables.variables, this.configurationResolverService);
+				if (task.command.options?.cwd) {
+					task.updateWorkspaceFolder(await this.resolveVariable(resolver, task.command.options.cwd));
+				}
+				return this.executeInTerminal(task, trigger, new VariableResolver(task.getWorkspaceFolder(), systemInfo, resolvedVariables.variables, this.configurationResolverService), workspaceFolder);
 			} else {
 				// Allows the taskExecutions array to be updated in the extension host
 				this.fireTaskEvent(TaskEvent.create(TaskEventKind.End, task));
@@ -1251,9 +1255,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			let resolvedResult: { command: CommandString; args: CommandString[] } = await this.resolveCommandAndArgs(resolver, task.command);
 			command = resolvedResult.command;
 			args = resolvedResult.args;
-			if (options.cwd) {
-				task.updateWorkspaceFolder(options.cwd);
-			}
 			this.currentTask.shellLaunchConfig = launchConfigs = await this.createShellLaunchConfig(task, workspaceFolder, resolver, platform, options, command, args, waitOnExit);
 			if (launchConfigs === undefined) {
 				return [undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
