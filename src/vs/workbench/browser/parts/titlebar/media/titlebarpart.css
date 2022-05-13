@@ -111,12 +111,28 @@
 	line-height: 18px;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen .action-label {
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu:HOVER .action-label{
+	background-color: transparent !important;
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen>.action-label.search {
 	display: inline-block;
 	width: 100%;
 	text-align: center;
 	font-size: 12px;
 	background-color: inherit;
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen>.all-options>.action-label {
+	text-align: center;
+	font-size: 12px;
+	border-left: 1px solid transparent;
+	padding-right: 0;
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu:HOVER .action-item.quickopen>.all-options>.action-label {
+	border-color: var(--vscode-titleMenu-border);
+	border-radius: 0;
 }
 
 /* Menubar */

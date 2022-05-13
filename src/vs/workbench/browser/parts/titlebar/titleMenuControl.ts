@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -44,12 +45,28 @@ export class TitleMenuControl {
 							container.classList.add('quickopen');
 							this._store.add(windowTitle.onDidChange(this._updateFromWindowTitle, this));
 							this._updateFromWindowTitle();
+							this._renderAllQuickPickItem(container);
 						}
+
 						private _updateFromWindowTitle() {
 							if (this.label) {
+								this.label.classList.add('search');
 								this.label.innerText = localize('search', "Search {0}", windowTitle.workspaceName);
 								this.label.title = windowTitle.value;
 							}
+						}
+
+						private _renderAllQuickPickItem(parent: HTMLElement): void {
+							const container = document.createElement('span');
+							container.classList.add('all-options');
+							parent.appendChild(container);
+							const action = new Action('all', localize('all', "Show Quick Pick Options..."), Codicon.chevronDown.classNames, true, () => {
+								quickInputService.quickAccess.show('?');
+							});
+							const dropdown = new ActionViewItem(undefined, action, { icon: true, label: false });
+							dropdown.render(container);
+							this._store.add(dropdown);
+							this._store.add(action);
 						}
 					}
 					return instantiationService.createInstance(InputLikeViewItem, action, undefined);
