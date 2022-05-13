@@ -630,6 +630,7 @@ export abstract class CommonTask {
 	}
 
 	public updateWorkspaceFolder(cwd: string): void {
+		// this gets overridden and is only needed for CustomTasks
 
 	}
 
