@@ -114,6 +114,7 @@ var NLSLoaderPlugin;
         };
         NLSPlugin.prototype.load = function (name, req, load, config) {
             var _this = this;
+            var _a;
             config = config || {};
             if (!name || name.length === 0) {
                 load({
@@ -148,7 +149,8 @@ var NLSLoaderPlugin;
                     });
                 }
                 else {
-                    req([name + suffix], messagesLoaded_1);
+                    var base = (_a = pluginConfig.baseUrl) !== null && _a !== void 0 ? _a : '';
+                    req([base + name + suffix], messagesLoaded_1);
                 }
             }
         };

@@ -40,8 +40,25 @@
 		Object.keys(self.webPackagePaths).map(function (key, index) {
 			self.webPackagePaths[key] = `${baseUrl}/node_modules/${key}/${self.webPackagePaths[key]}`;
 		});
-		if (!navigator.language.startsWith('en')) {
-			self.webPackagePaths[`vs/workbench/workbench.web.main.nls.${navigator.language}`] = `{{WORKBENCH_NLS_BASE_URL}}/vs/workbench/workbench.web.main.nls.${navigator.language}.js`;
+
+		const nlsConfig = {};
+
+		const locale = navigator.language;
+		if (!locale.startsWith('en')) {
+			// We need to correct the Chinese locales since our language packs use a different identifier
+			if (locale.toLowerCase() === 'zh-hans') {
+				locale = 'zh-cn';
+			} else if (locale.toLowerCase() === 'zh-hant') {
+				locale = 'zh-tw';
+			}
+
+			nlsConfig['vs/nls'] = {
+				availableLanguages: {
+					'*': locale
+				},
+				baseUrl: '{{WORKBENCH_NLS_BASE_URL}}'
+			};
+			// self.webPackagePaths[`vs/workbench/workbench.web.main.nls.${navigator.language}`] = `{{WORKBENCH_NLS_BASE_URL}}/vs/workbench/workbench.web.main.nls.${navigator.language}.js`;
 		}
 		require.config({
 			baseUrl: `${baseUrl}/out`,
@@ -52,11 +69,7 @@
 				}
 			}),
 			paths: self.webPackagePaths,
-			'vs/nls': {
-				availableLanguages: {
-					'*': navigator.language
-				}
-			}
+			...nlsConfig
 		});
 	</script>
 	<script>
