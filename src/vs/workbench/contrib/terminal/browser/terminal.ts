@@ -862,6 +862,8 @@ export interface IXtermTerminal {
 	 */
 	readonly shellIntegration: IShellIntegration;
 
+	readonly onDidChangeSelection: Event<void>;
+
 	/**
 	 * The position of the terminal.
 	 */
@@ -906,6 +908,11 @@ export interface IXtermTerminal {
 	 * Clears the search result decorations
 	 */
 	clearSearchDecorations(): void;
+
+	/**
+	 * Clears the active search result decorations
+	 */
+	clearActiveSearchDecoration(): void;
 }
 
 export interface IRequestAddInstanceToGroupEvent {
