@@ -8,6 +8,7 @@ import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatus
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class NotificationsStatus extends Disposable {
 
@@ -21,7 +22,8 @@ export class NotificationsStatus extends Disposable {
 
 	constructor(
 		private readonly model: INotificationsModel,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
 	) {
 		super();
 
@@ -37,7 +39,9 @@ export class NotificationsStatus extends Disposable {
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.model.onDidChangeStatusMessage(e => this.onDidChangeStatusMessage(e)));
+		this._register(this.configurationService.onDidChangeConfiguration(() => this.updateNotificationsCenterStatusItem()));
 	}
+
 
 	private onDidChangeNotification(e: INotificationChangeEvent): void {
 
@@ -56,7 +60,6 @@ export class NotificationsStatus extends Disposable {
 	}
 
 	private updateNotificationsCenterStatusItem(): void {
-
 		// Figure out how many notifications have progress only if neither
 		// toasts are visible nor center is visible. In that case we still
 		// want to give a hint to the user that something is running.
@@ -69,8 +72,9 @@ export class NotificationsStatus extends Disposable {
 			}
 		}
 
+
 		// Show the bell with a dot if there are unread or in-progress notifications
-		const statusProperties: IStatusbarEntry = {
+		const defaultStatusProperties: IStatusbarEntry = {
 			name: localize('status.notifications', "Notifications"),
 			text: `${notificationsInProgress > 0 || this.newNotificationsCount > 0 ? '$(bell-dot)' : '$(bell)'}`,
 			ariaLabel: localize('status.notifications', "Notifications"),
@@ -78,6 +82,18 @@ export class NotificationsStatus extends Disposable {
 			tooltip: this.getTooltip(notificationsInProgress),
 			showBeak: this.isNotificationsCenterVisible
 		};
+
+		const mutedStatusProperties: IStatusbarEntry = {
+			name: localize('status.notifications', "Notifications"),
+			text: '$(mute)',
+			ariaLabel: localize('status.notifications', "Notifications"),
+			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : SHOW_NOTIFICATIONS_CENTER,
+			tooltip: 'Notifications are muted',
+			showBeak: this.isNotificationsCenterVisible
+		};
+
+		let isNotificationsMuted = this.configurationService.getValue('notifications.silent');
+		const statusProperties = isNotificationsMuted ? mutedStatusProperties : defaultStatusProperties;
 
 		if (!this.notificationsCenterStatusItem) {
 			this.notificationsCenterStatusItem = this.statusbarService.addEntry(

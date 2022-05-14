@@ -35,6 +35,7 @@ const TOGGLE_NOTIFICATION = 'notification.toggle';
 export const CLEAR_NOTIFICATION = 'notification.clear';
 export const CLEAR_ALL_NOTIFICATIONS = 'notifications.clearAll';
 export const MUTE_ALL_NOTIFICATIONS = 'notifications.muteAll';
+export const UNMUTE_ALL_NOTIFICATIONS = 'notifications.unMuteAll';
 
 export interface INotificationsCenterController {
 	readonly isVisible: boolean;
@@ -42,6 +43,8 @@ export interface INotificationsCenterController {
 	show(): void;
 	hide(): void;
 
+	unMuteAll(): void;
+	muteAll(): void;
 	clearAll(): void;
 }
 
@@ -245,7 +248,10 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	CommandsRegistry.registerCommand(CLEAR_ALL_NOTIFICATIONS, () => center.clearAll());
 
 	/// Mute All Notifications
-	CommandsRegistry.registerCommand(MUTE_ALL_NOTIFICATIONS, () => center.clearAll());
+	CommandsRegistry.registerCommand(MUTE_ALL_NOTIFICATIONS, () => center.muteAll());
+
+	/// Unmute All Notifications
+	CommandsRegistry.registerCommand(UNMUTE_ALL_NOTIFICATIONS, () => center.unMuteAll());
 
 	// Commands for Command Palette
 	const category = { value: localize('notifications', "Notifications"), original: 'Notifications' };
@@ -253,6 +259,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: HIDE_NOTIFICATIONS_CENTER, title: { value: localize('hideNotifications', "Hide Notifications"), original: 'Hide Notifications' }, category }, when: NotificationsCenterVisibleContext });
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLEAR_ALL_NOTIFICATIONS, title: { value: localize('clearAllNotifications', "Clear All Notifications"), original: 'Clear All Notifications' }, category } });
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: MUTE_ALL_NOTIFICATIONS, title: { value: localize('muteAllNotifications', "Mute All Notifications"), original: 'Mute All Notifications' }, category } });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: UNMUTE_ALL_NOTIFICATIONS, title: { value: localize('unMuteAllNotifications', "Unmute All Notifications"), original: 'Unmute All Notifications' }, category } });
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: FOCUS_NOTIFICATION_TOAST, title: { value: localize('focusNotificationToasts', "Focus Notification Toast"), original: 'Focus Notification Toast' }, category }, when: NotificationsToastsVisibleContext });
 
 }

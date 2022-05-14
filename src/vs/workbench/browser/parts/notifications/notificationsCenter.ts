@@ -19,11 +19,13 @@ import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { localize } from 'vs/nls';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ClearAllNotificationsAction, HideNotificationsCenterAction, MuteAllNotificationsAction, NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
+import { ClearAllNotificationsAction, HideNotificationsCenterAction, MuteAllNotificationsAction, NotificationActionRunner, UnMuteAllNotificationsAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IAction } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { NotificationsCenterVisibleContext } from 'vs/workbench/common/contextkeys';
+import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class NotificationsCenter extends Themable implements INotificationsCenterController {
 
@@ -41,6 +43,8 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private readonly notificationsCenterVisibleContextKey = NotificationsCenterVisibleContext.bindTo(this.contextKeyService);
 	private clearAllAction: ClearAllNotificationsAction | undefined;
 	private muteAllAction: MuteAllNotificationsAction | undefined;
+	private unMuteAllAction: UnMuteAllNotificationsAction | undefined;
+
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -50,7 +54,9 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(themeService);
 
@@ -62,6 +68,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.layoutService.onDidLayout(dimension => this.layout(Dimension.lift(dimension))));
+		this._register(this.configurationService.onDidChangeConfiguration(() => this.updateMuteActions()));
 	}
 
 	get isVisible(): boolean {
@@ -110,6 +117,27 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 		// Event
 		this._onDidChangeVisibility.fire();
+
+		// Mute actions
+		this.updateMuteActions();
+	}
+
+	private updateMuteActions(): void {
+		if (this._isVisible) {
+			const [muteAllAction, unMuteAllAction] = assertAllDefined(this.muteAllAction, this.unMuteAllAction);
+
+			let isNotificationsMuted = this.configurationService.getValue('notifications.silent');
+
+			if (isNotificationsMuted) {
+				muteAllAction.enabled = false;
+				unMuteAllAction.enabled = true;
+			} else {
+				muteAllAction.enabled = true;
+				unMuteAllAction.enabled = false;
+			}
+		} else {
+			console.log('I\'m invisible!');
+		}
 	}
 
 	private updateTitle(): void {
@@ -152,12 +180,14 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			actionRunner
 		}));
 
-		this.muteAllAction = this._register(this.instantiationService.createInstance(MuteAllNotificationsAction, MuteAllNotificationsAction.ID, MuteAllNotificationsAction.LABEL));
-		notificationsToolBar.push(this.muteAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.muteAllAction) });
-
 		this.clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
 		notificationsToolBar.push(this.clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.clearAllAction) });
 
+		this.muteAllAction = this._register(this.instantiationService.createInstance(MuteAllNotificationsAction, MuteAllNotificationsAction.ID, MuteAllNotificationsAction.LABEL));
+		notificationsToolBar.push(this.muteAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.muteAllAction) });
+
+		this.unMuteAllAction = this._register(this.instantiationService.createInstance(UnMuteAllNotificationsAction, UnMuteAllNotificationsAction.ID, UnMuteAllNotificationsAction.LABEL));
+		notificationsToolBar.push(this.unMuteAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.unMuteAllAction) });
 
 		const hideAllAction = this._register(this.instantiationService.createInstance(HideNotificationsCenterAction, HideNotificationsCenterAction.ID, HideNotificationsCenterAction.LABEL));
 		notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });
@@ -321,7 +351,13 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	}
 
 	muteAll(): void {
-		console.log('Muted all');
+		this.notificationService.setFilter(NotificationsFilter.ERROR);
+		this.configurationService.updateValue('notifications.silent', true);
+	}
+
+	unMuteAll(): void {
+		this.notificationService.setFilter(NotificationsFilter.OFF);
+		this.configurationService.updateValue('notifications.silent', false);
 	}
 }
 

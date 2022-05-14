@@ -100,6 +100,11 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['zenmode.*']
 				},
 				{
+					id: 'workbench/notifications',
+					label: localize('notifications', "Notifications"),
+					settings: ['notifications.*']
+				},
+				{
 					id: 'workbench/screencastmode',
 					label: localize('screencastMode', "Screencast Mode"),
 					settings: ['screencastMode.*']

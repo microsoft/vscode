@@ -677,4 +677,19 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			}
 		}
 	});
+
+	// Notifications
+	registry.registerConfiguration({
+		'id': 'notifications',
+		'order': 10,
+		'title': localize('notificationsConfigurationTitle', "Notifications"),
+		'type': 'object',
+		'properties': {
+			'notifications.silent': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('notifications.silent', "Controls whether notifications are silenced.")
+			},
+		}
+	});
 })();
