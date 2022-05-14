@@ -13,7 +13,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { parse } from 'vs/base/common/marshalling';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { request } from 'vs/base/parts/request/browser/request';
@@ -209,6 +209,10 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 	private checkCallbacksTimeout: unknown | undefined = undefined;
 	private onDidChangeLocalStorageDisposable: IDisposable | undefined;
 
+	constructor(private readonly _callbackRoute: string) {
+		super();
+	}
+
 	create(options: Partial<UriComponents> = {}): URI {
 		const id = ++LocalStorageURLCallbackProvider.REQUEST_ID;
 		const queryParams: string[] = [`vscode-reqid=${id}`];
@@ -232,7 +236,7 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 			this.startListening();
 		}
 
-		return URI.parse(window.location.href).with({ path: '/callback', query: queryParams.join('&') });
+		return URI.parse(window.location.href).with({ path: this._callbackRoute, query: queryParams.join('&') });
 	}
 
 	private startListening(): void {
@@ -568,9 +572,12 @@ async function doStart(): Promise<IDisposable> {
 
 	const remoteAuthority = window.location.host;
 
-	const wsHostPrefix = !devMode ? info.workspaceId : remoteAuthority.substr(0, remoteAuthority.indexOf('.'));
-	const webEndpointUrlTemplate = `https://{{uuid}}.${info.workspaceClusterHost}/${wsHostPrefix}/static`;
-	const webviewEndpoint = `https://{{uuid}}.${info.workspaceClusterHost}/${wsHostPrefix}/static/out/vs/workbench/contrib/webview/browser/pre/`;
+	// To make webviews work in development, go to file src/vs/workbench/contrib/webview/browser/pre/main.js
+	// and update `signalReady` method to bypass hostname check
+	const baseUri = FileAccess.asBrowserUri('', require);
+	const uuidUri = `${baseUri.scheme}://{{uuid}}.${info.workspaceClusterHost}${baseUri.path.replace(/^\/blobserve/, '').replace(/\/out\/$/, '')}`;
+	const webEndpointUrlTemplate = uuidUri;
+	const webviewEndpoint = `${uuidUri}/out/vs/workbench/contrib/webview/browser/pre/`;
 
 	const folderUri = info.workspaceLocationFolder
 		? URI.from({
@@ -961,13 +968,9 @@ async function doStart(): Promise<IDisposable> {
 			'workbench.preferredLightColorTheme': 'Gitpod Light',
 			'workbench.preferredDarkColorTheme': 'Gitpod Dark',
 		},
-		urlCallbackProvider: new LocalStorageURLCallbackProvider(),
+		urlCallbackProvider: new LocalStorageURLCallbackProvider('/callback'),
 		credentialsProvider,
 		productConfiguration: {
-			nameShort: product.nameShort + (info.ideAlias === 'code-latest' ? ' - Insiders' : ''),
-			nameLong: product.nameLong + (info.ideAlias === 'code-latest' ? ' - Insiders' : ''),
-			version: product.version + (info.ideAlias === 'code-latest' ? '-insider' : ''),
-			quality: (info.ideAlias === 'code-latest' ? 'insider' : 'stable'),
 			linkProtectionTrustedDomains: [
 				...(product.linkProtectionTrustedDomains || []),
 				gitpodDomain
