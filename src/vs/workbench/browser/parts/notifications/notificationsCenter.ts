@@ -319,6 +319,10 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			}
 		}
 	}
+
+	muteAll(): void {
+		console.log('Muted all');
+	}
 }
 
 registerThemingParticipant((theme, collector) => {
