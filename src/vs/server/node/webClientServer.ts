@@ -323,7 +323,7 @@ export class WebClientServer {
 			WORKBENCH_WEB_CONFIGURATION: asJSON(workbenchWebConfiguration),
 			WORKBENCH_AUTH_SESSION: authSessionInfo ? asJSON(authSessionInfo) : '',
 			WORKBENCH_WEB_BASE_URL: this._staticRoute,
-			WORKBENCH_NLS_BASE_URL: nlsBaseUrl ? `${nlsBaseUrl}${this._productService.commit}/${this._productService.quality ?? 'insider'}/` : '',
+			WORKBENCH_NLS_BASE_URL: nlsBaseUrl ? `${nlsBaseUrl}${this._productService.commit}/${this._productService.version}/` : '',
 		};
 
 
