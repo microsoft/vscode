@@ -34,6 +34,7 @@ export const EXPAND_NOTIFICATION = 'notification.expand';
 const TOGGLE_NOTIFICATION = 'notification.toggle';
 export const CLEAR_NOTIFICATION = 'notification.clear';
 export const CLEAR_ALL_NOTIFICATIONS = 'notifications.clearAll';
+export const MUTE_ALL_NOTIFICATIONS = 'notifications.muteAll';
 
 export interface INotificationsCenterController {
 	readonly isVisible: boolean;
@@ -243,10 +244,15 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	/// Clear All Notifications
 	CommandsRegistry.registerCommand(CLEAR_ALL_NOTIFICATIONS, () => center.clearAll());
 
+	/// Mute All Notifications
+	CommandsRegistry.registerCommand(MUTE_ALL_NOTIFICATIONS, () => center.clearAll());
+
 	// Commands for Command Palette
 	const category = { value: localize('notifications', "Notifications"), original: 'Notifications' };
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: SHOW_NOTIFICATIONS_CENTER, title: { value: localize('showNotifications', "Show Notifications"), original: 'Show Notifications' }, category } });
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: HIDE_NOTIFICATIONS_CENTER, title: { value: localize('hideNotifications', "Hide Notifications"), original: 'Hide Notifications' }, category }, when: NotificationsCenterVisibleContext });
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLEAR_ALL_NOTIFICATIONS, title: { value: localize('clearAllNotifications', "Clear All Notifications"), original: 'Clear All Notifications' }, category } });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: MUTE_ALL_NOTIFICATIONS, title: { value: localize('muteAllNotifications', "Mute All Notifications"), original: 'Mute All Notifications' }, category } });
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: FOCUS_NOTIFICATION_TOAST, title: { value: localize('focusNotificationToasts', "Focus Notification Toast"), original: 'Focus Notification Toast' }, category }, when: NotificationsToastsVisibleContext });
+
 }

@@ -19,7 +19,7 @@ import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { localize } from 'vs/nls';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ClearAllNotificationsAction, HideNotificationsCenterAction, NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
+import { ClearAllNotificationsAction, HideNotificationsCenterAction, MuteAllNotificationsAction, NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IAction } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
@@ -40,6 +40,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private workbenchDimensions: Dimension | undefined;
 	private readonly notificationsCenterVisibleContextKey = NotificationsCenterVisibleContext.bindTo(this.contextKeyService);
 	private clearAllAction: ClearAllNotificationsAction | undefined;
+	private muteAllAction: MuteAllNotificationsAction | undefined;
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -151,8 +152,12 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			actionRunner
 		}));
 
+		this.muteAllAction = this._register(this.instantiationService.createInstance(MuteAllNotificationsAction, MuteAllNotificationsAction.ID, MuteAllNotificationsAction.LABEL));
+		notificationsToolBar.push(this.muteAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.muteAllAction) });
+
 		this.clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
 		notificationsToolBar.push(this.clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.clearAllAction) });
+
 
 		const hideAllAction = this._register(this.instantiationService.createInstance(HideNotificationsCenterAction, HideNotificationsCenterAction.ID, HideNotificationsCenterAction.LABEL));
 		notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });
