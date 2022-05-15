@@ -19,7 +19,7 @@ import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { localize } from 'vs/nls';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ClearAllNotificationsAction, HideNotificationsCenterAction, MuteAllNotificationsAction, NotificationActionRunner, UnMuteAllNotificationsAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
+import { ClearAllNotificationsAction, HideNotificationsCenterAction, NotificationActionRunner, ToggleDoNotDisturbAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IAction } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
@@ -42,9 +42,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private workbenchDimensions: Dimension | undefined;
 	private readonly notificationsCenterVisibleContextKey = NotificationsCenterVisibleContext.bindTo(this.contextKeyService);
 	private clearAllAction: ClearAllNotificationsAction | undefined;
-	private muteAllAction: MuteAllNotificationsAction | undefined;
-	private unMuteAllAction: UnMuteAllNotificationsAction | undefined;
-
+	private toggleDoNotDisturbAction: ToggleDoNotDisturbAction | undefined;
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -63,12 +61,13 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		this.notificationsCenterVisibleContextKey = NotificationsCenterVisibleContext.bindTo(contextKeyService);
 
 		this.registerListeners();
+
 	}
 
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.layoutService.onDidLayout(dimension => this.layout(Dimension.lift(dimension))));
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.updateMuteActions()));
+		this._register(this.configurationService.onDidChangeConfiguration(() => this.updateDoNotDisturbMode()));
 	}
 
 	get isVisible(): boolean {
@@ -119,32 +118,19 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		this._onDidChangeVisibility.fire();
 
 		// Mute actions
-		this.updateMuteActions();
-	}
-
-	private updateMuteActions(): void {
-		let isNotificationsMuted = this.configurationService.getValue('notifications.silent');
-
-		this.notificationService.setFilter(isNotificationsMuted ? NotificationsFilter.ERROR : NotificationsFilter.OFF);
-
-		if (this._isVisible) {
-			const [muteAllAction, unMuteAllAction] = assertAllDefined(this.muteAllAction, this.unMuteAllAction);
-
-
-			if (isNotificationsMuted) {
-				muteAllAction.enabled = false;
-				unMuteAllAction.enabled = true;
-			} else {
-				muteAllAction.enabled = true;
-				unMuteAllAction.enabled = false;
-			}
-		} else {
-			console.log('I\'m invisible!');
-		}
+		this.updateDoNotDisturbMode();
 	}
 
 	private updateTitle(): void {
-		const [notificationsCenterTitle, clearAllAction] = assertAllDefined(this.notificationsCenterTitle, this.clearAllAction);
+		const [notificationsCenterTitle, clearAllAction, toggleDoNotDisturbAction] = assertAllDefined(this.notificationsCenterTitle, this.clearAllAction, this.toggleDoNotDisturbAction);
+		const isDoNotDisturbMode = this.configurationService.getValue('notifications.doNotDisturbMode');
+
+		if (isDoNotDisturbMode === true) {
+			toggleDoNotDisturbAction.enabled = false;
+		} else {
+			toggleDoNotDisturbAction.enabled = true;
+		}
+
 
 		if (this.model.notifications.length === 0) {
 			notificationsCenterTitle.textContent = localize('notificationsEmpty', "No new notifications");
@@ -186,11 +172,8 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		this.clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
 		notificationsToolBar.push(this.clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.clearAllAction) });
 
-		this.muteAllAction = this._register(this.instantiationService.createInstance(MuteAllNotificationsAction, MuteAllNotificationsAction.ID, MuteAllNotificationsAction.LABEL));
-		notificationsToolBar.push(this.muteAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.muteAllAction) });
-
-		this.unMuteAllAction = this._register(this.instantiationService.createInstance(UnMuteAllNotificationsAction, UnMuteAllNotificationsAction.ID, UnMuteAllNotificationsAction.LABEL));
-		notificationsToolBar.push(this.unMuteAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.unMuteAllAction) });
+		this.toggleDoNotDisturbAction = this._register(this.instantiationService.createInstance(ToggleDoNotDisturbAction, ToggleDoNotDisturbAction.ID, ToggleDoNotDisturbAction.LABEL));
+		notificationsToolBar.push(this.toggleDoNotDisturbAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.toggleDoNotDisturbAction) });
 
 		const hideAllAction = this._register(this.instantiationService.createInstance(HideNotificationsCenterAction, HideNotificationsCenterAction.ID, HideNotificationsCenterAction.LABEL));
 		notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });
@@ -353,12 +336,26 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		}
 	}
 
-	muteAll(): void {
-		this.configurationService.updateValue('notifications.silent', true);
+	toggleDoNotDisturbMode(): void {
+		const isDoNotDisturbMode = this.configurationService.getValue<boolean>('notifications.doNotDisturbMode');
+		this.configurationService.updateValue('notifications.doNotDisturbMode', !isDoNotDisturbMode);
+		if (this._isVisible) {
+			this.updateTitle();
+		}
 	}
 
-	unMuteAll(): void {
-		this.configurationService.updateValue('notifications.silent', false);
+	updateDoNotDisturbMode(): void {
+		const isDoNotDisturbMode = this.configurationService.getValue<boolean>('notifications.doNotDisturbMode');
+
+		if (isDoNotDisturbMode === true) {
+			this.notificationService.setFilter(NotificationsFilter.ERROR);
+		} else {
+			this.notificationService.setFilter(NotificationsFilter.OFF);
+		}
+
+		if (this._isVisible) {
+			this.updateTitle();
+		}
 	}
 }
 

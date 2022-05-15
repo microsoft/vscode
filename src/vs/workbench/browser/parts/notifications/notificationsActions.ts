@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { Action, IAction, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER, MUTE_ALL_NOTIFICATIONS, UNMUTE_ALL_NOTIFICATIONS } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER, TOGGLE_DO_NOT_DISTURB_MODE } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { Codicon } from 'vs/base/common/codicons';
@@ -19,8 +19,7 @@ import { hash } from 'vs/base/common/hash';
 
 const clearIcon = registerIcon('notifications-clear', Codicon.close, localize('clearIcon', 'Icon for the clear action in notifications.'));
 const clearAllIcon = registerIcon('notifications-clear-all', Codicon.clearAll, localize('clearAllIcon', 'Icon for the clear all action in notifications.'));
-const muteAllIcon = registerIcon('notifications-mute-all', Codicon.mute, localize('muteAllIcon', 'Icon for the mute all all action in notifications.'));
-const unmuteAllIcon = registerIcon('notifications-unmute-all', Codicon.unmute, localize('unmuteAllIcon', 'Icon for the unmute all all action in notifications.'));
+const doNotDisturbIcon = registerIcon('doNotDisturbIcon', Codicon.mute, localize('doNotDisturbIcon', 'Icon for the mute all all action in notifications.'));
 const hideIcon = registerIcon('notifications-hide', Codicon.chevronDown, localize('hideIcon', 'Icon for the hide action in notifications.'));
 const expandIcon = registerIcon('notifications-expand', Codicon.chevronUp, localize('expandIcon', 'Icon for the expand action in notifications.'));
 const collapseIcon = registerIcon('notifications-collapse', Codicon.chevronDown, localize('collapseIcon', 'Icon for the collapse action in notifications.'));
@@ -62,39 +61,21 @@ export class ClearAllNotificationsAction extends Action {
 	}
 }
 
-export class MuteAllNotificationsAction extends Action {
+export class ToggleDoNotDisturbAction extends Action {
 
-	static readonly ID = MUTE_ALL_NOTIFICATIONS;
-	static readonly LABEL = localize('muteNotifications', "Mute All Notifications");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private readonly commandService: ICommandService
-	) {
-		super(id, label, ThemeIcon.asClassName(muteAllIcon));
-	}
-
-	override async run(): Promise<void> {
-		this.commandService.executeCommand(MUTE_ALL_NOTIFICATIONS);
-	}
-}
-
-export class UnMuteAllNotificationsAction extends Action {
-
-	static readonly ID = UNMUTE_ALL_NOTIFICATIONS;
-	static readonly LABEL = localize('unmuteNotifications', "Unmute All Notifications");
+	static readonly ID = TOGGLE_DO_NOT_DISTURB_MODE;
+	static readonly LABEL = localize('toggleDoNotDisturbMode', "Toggle Do Not Disturb Mode");
 
 	constructor(
 		id: string,
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, ThemeIcon.asClassName(unmuteAllIcon));
+		super(id, label, ThemeIcon.asClassName(doNotDisturbIcon));
 	}
 
 	override async run(): Promise<void> {
-		this.commandService.executeCommand(UNMUTE_ALL_NOTIFICATIONS);
+		this.commandService.executeCommand(TOGGLE_DO_NOT_DISTURB_MODE);
 	}
 }
 

@@ -685,10 +685,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		'title': localize('notificationsConfigurationTitle', "Notifications"),
 		'type': 'object',
 		'properties': {
-			'notifications.silent': {
+			'notifications.doNotDisturbMode': {
 				'type': 'boolean',
 				'default': false,
-				'description': localize('notifications.silent', "Controls whether notifications are silenced.")
+				'description': localize('notifications.doNotDisturbMode', "Hides information and warning toast notifications when enabled. Error toast notifications will still be shown.")
 			},
 		}
 	});

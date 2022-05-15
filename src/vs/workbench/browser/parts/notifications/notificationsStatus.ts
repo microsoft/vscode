@@ -83,17 +83,17 @@ export class NotificationsStatus extends Disposable {
 			showBeak: this.isNotificationsCenterVisible
 		};
 
-		const mutedStatusProperties: IStatusbarEntry = {
+		const isDoNotDisturbModeStatusProperties: IStatusbarEntry = {
 			name: localize('status.notifications', "Notifications"),
 			text: '$(mute)',
 			ariaLabel: localize('status.notifications', "Notifications"),
 			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : SHOW_NOTIFICATIONS_CENTER,
 			tooltip: 'Notifications are muted',
-			showBeak: this.isNotificationsCenterVisible
+			showBeak: this.isNotificationsCenterVisible,
 		};
 
-		let isNotificationsMuted = this.configurationService.getValue('notifications.silent');
-		const statusProperties = isNotificationsMuted ? mutedStatusProperties : defaultStatusProperties;
+		let isDoNotDisturbMode = this.configurationService.getValue('notifications.doNotDisturbMode');
+		const statusProperties = isDoNotDisturbMode ? isDoNotDisturbModeStatusProperties : defaultStatusProperties;
 
 		if (!this.notificationsCenterStatusItem) {
 			this.notificationsCenterStatusItem = this.statusbarService.addEntry(
