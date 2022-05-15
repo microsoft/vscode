@@ -123,10 +123,13 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	}
 
 	private updateMuteActions(): void {
+		let isNotificationsMuted = this.configurationService.getValue('notifications.silent');
+
+		this.notificationService.setFilter(isNotificationsMuted ? NotificationsFilter.ERROR : NotificationsFilter.OFF);
+
 		if (this._isVisible) {
 			const [muteAllAction, unMuteAllAction] = assertAllDefined(this.muteAllAction, this.unMuteAllAction);
 
-			let isNotificationsMuted = this.configurationService.getValue('notifications.silent');
 
 			if (isNotificationsMuted) {
 				muteAllAction.enabled = false;
@@ -351,12 +354,10 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	}
 
 	muteAll(): void {
-		this.notificationService.setFilter(NotificationsFilter.ERROR);
 		this.configurationService.updateValue('notifications.silent', true);
 	}
 
 	unMuteAll(): void {
-		this.notificationService.setFilter(NotificationsFilter.OFF);
 		this.configurationService.updateValue('notifications.silent', false);
 	}
 }
