@@ -143,8 +143,8 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			this.clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
 			this.notificationsToolBar.push(this.clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.clearAllAction) });
 
-			const turnOnNotDisturbIcon = registerIcon('turnOnDoNotDisturbIcon', Codicon.mute, localize('doNotDisturbIcon', 'Icon for the mute all action in notifications.'));
-			const turnOffNotDisturbIcon = registerIcon('turnOffDoNotDisturbIcon', Codicon.unmute, localize('doNotDisturbIcon', 'Icon for the mute all action in notifications.'));
+			const turnOnNotDisturbIcon = registerIcon('turnOnDoNotDisturbIcon', Codicon.doNotDisturb, localize('doNotDisturbIcon', 'Icon for the mute all action in notifications.'));
+			const turnOffNotDisturbIcon = registerIcon('turnOffDoNotDisturbIcon', Codicon.doNotDisturbFilled, localize('doNotDisturbOffIcon', 'Icon for the mute all action in notifications.'));
 
 			this.toggleDoNotDisturbAction = this._register(this.instantiationService.createInstance(ToggleDoNotDisturbAction, ToggleDoNotDisturbAction.ID, ToggleDoNotDisturbAction.LABEL, isDoNotDisturbMode ? turnOffNotDisturbIcon : turnOnNotDisturbIcon));
 			this.notificationsToolBar.push(this.toggleDoNotDisturbAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.toggleDoNotDisturbAction) });
@@ -186,8 +186,8 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		this.clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
 		this.notificationsToolBar.push(this.clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.clearAllAction) });
 
-		const turnOnNotDisturbIcon = registerIcon('turnOnDoNotDisturbIcon', Codicon.mute, localize('doNotDisturbIcon', 'Icon for the mute all action in notifications.'));
-		const turnOffNotDisturbIcon = registerIcon('turnOffDoNotDisturbIcon', Codicon.unmute, localize('doNotDisturbIcon', 'Icon for the mute all action in notifications.'));
+		const turnOnNotDisturbIcon = registerIcon('turnOnDoNotDisturbIcon', Codicon.doNotDisturb, localize('doNotDisturbIcon', 'Icon for the mute all action in notifications.'));
+		const turnOffNotDisturbIcon = registerIcon('turnOffDoNotDisturbIcon', Codicon.doNotDisturbFilled, localize('doNotDisturbOffIcon', 'Icon for the mute all action in notifications.'));
 
 		this.toggleDoNotDisturbAction = this._register(this.instantiationService.createInstance(ToggleDoNotDisturbAction, ToggleDoNotDisturbAction.ID, ToggleDoNotDisturbAction.LABEL, isDoNotDisturbMode ? turnOffNotDisturbIcon : turnOnNotDisturbIcon));
 		this.notificationsToolBar.push(this.toggleDoNotDisturbAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.toggleDoNotDisturbAction) });

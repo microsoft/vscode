@@ -85,7 +85,7 @@ export class NotificationsStatus extends Disposable {
 
 		const isDoNotDisturbModeStatusProperties: IStatusbarEntry = {
 			name: localize('status.notifications', "Notifications"),
-			text: '$(mute)',
+			text: '$(do-not-disturb)',
 			ariaLabel: localize('status.notifications', "Notifications"),
 			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : SHOW_NOTIFICATIONS_CENTER,
 			tooltip: 'Notifications are muted',
@@ -93,7 +93,7 @@ export class NotificationsStatus extends Disposable {
 		};
 
 		let isDoNotDisturbMode = this.configurationService.getValue('notifications.doNotDisturbMode');
-		const statusProperties = isDoNotDisturbMode ? isDoNotDisturbModeStatusProperties : defaultStatusProperties;
+		const statusProperties = isDoNotDisturbMode === true ? isDoNotDisturbModeStatusProperties : defaultStatusProperties;
 
 		if (!this.notificationsCenterStatusItem) {
 			this.notificationsCenterStatusItem = this.statusbarService.addEntry(
