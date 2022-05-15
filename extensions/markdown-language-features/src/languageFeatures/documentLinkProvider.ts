@@ -173,7 +173,7 @@ const referenceLinkPattern = /(^|[^\]\\])(?:(?:(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\
 /**
  * Matches `<http://example.com>`
  */
-const autoLinkPattern = /\<(\w+:[^\>\s]+)\>/g;
+const autoLinkPattern = /\<(\w+:\/{1,}[^\>\s]+)\>/g;
 
 /**
  * Matches `[text]: link`
