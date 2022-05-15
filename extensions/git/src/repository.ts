@@ -761,6 +761,12 @@ export class Repository implements Disposable {
 
 	private _HEAD: Branch | undefined;
 	get HEAD(): Branch | undefined {
+		if (this._HEAD && typeof this._HEAD.commit === 'undefined') {
+			commands.executeCommand('setContext', 'gitNoCommitsYet', true);
+		} else {
+			commands.executeCommand('setContext', 'gitNoCommitsYet', false);
+		}
+
 		return this._HEAD;
 	}
 

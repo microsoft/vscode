@@ -914,35 +914,35 @@
         },
         {
           "command": "git.stashIncludeUntracked",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && !gitNoCommitsYet && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stash",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && !gitNoCommitsYet && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stashPop",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && !gitNoCommitsYet && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stashPopLatest",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && !gitNoCommitsYet && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stashApply",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && !gitNoCommitsYet && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stashApplyLatest",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && !gitNoCommitsYet && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stashDrop",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && !gitNoCommitsYet && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stashDropAll",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && !gitNoCommitsYet && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.timeline.openDiff",
@@ -1045,7 +1045,7 @@
         {
           "submenu": "git.stash",
           "group": "2_main@6",
-          "when": "scmProvider == git"
+          "when": "scmProvider == git && !gitNoCommitsYet"
         },
         {
           "submenu": "git.tags",
