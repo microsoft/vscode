@@ -898,6 +898,16 @@ export class TabsTitleControl extends TitleControl {
 				this.updateDropFeedback(tab, true, index);
 			},
 
+			onDragOver: (e, dragDuration) => {
+				if (dragDuration && dragDuration >= 1500 && this.group.activeEditor !== this.group.getEditorByIndex(index)) {
+					let target = this.group.getEditorByIndex(index);
+					if (target) {
+						this.group.openEditor(target);
+					}
+				}
+				this.updateDropFeedback(tab, true, index);
+			},
+
 			onDragLeave: () => {
 				tab.classList.remove('dragged-over');
 				this.updateDropFeedback(tab, false, index);
