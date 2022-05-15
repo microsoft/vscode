@@ -19,7 +19,6 @@ import { hash } from 'vs/base/common/hash';
 
 const clearIcon = registerIcon('notifications-clear', Codicon.close, localize('clearIcon', 'Icon for the clear action in notifications.'));
 const clearAllIcon = registerIcon('notifications-clear-all', Codicon.clearAll, localize('clearAllIcon', 'Icon for the clear all action in notifications.'));
-const doNotDisturbIcon = registerIcon('doNotDisturbIcon', Codicon.mute, localize('doNotDisturbIcon', 'Icon for the mute all all action in notifications.'));
 const hideIcon = registerIcon('notifications-hide', Codicon.chevronDown, localize('hideIcon', 'Icon for the hide action in notifications.'));
 const expandIcon = registerIcon('notifications-expand', Codicon.chevronUp, localize('expandIcon', 'Icon for the expand action in notifications.'));
 const collapseIcon = registerIcon('notifications-collapse', Codicon.chevronDown, localize('collapseIcon', 'Icon for the collapse action in notifications.'));
@@ -69,9 +68,10 @@ export class ToggleDoNotDisturbAction extends Action {
 	constructor(
 		id: string,
 		label: string,
+		icon: ThemeIcon,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, ThemeIcon.asClassName(doNotDisturbIcon));
+		super(id, label, ThemeIcon.asClassName(icon));
 	}
 
 	override async run(): Promise<void> {

@@ -26,6 +26,8 @@ import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { NotificationsCenterVisibleContext } from 'vs/workbench/common/contextkeys';
 import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 export class NotificationsCenter extends Themable implements INotificationsCenterController {
 
@@ -37,6 +39,8 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private notificationsCenterContainer: HTMLElement | undefined;
 	private notificationsCenterHeader: HTMLElement | undefined;
 	private notificationsCenterTitle: HTMLSpanElement | undefined;
+	private toolbarContainer: HTMLElement | undefined;
+	private notificationsToolBar: ActionBar | undefined;
 	private notificationsList: NotificationsList | undefined;
 	private _isVisible: boolean | undefined;
 	private workbenchDimensions: Dimension | undefined;
@@ -122,15 +126,8 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	}
 
 	private updateTitle(): void {
-		const [notificationsCenterTitle, clearAllAction, toggleDoNotDisturbAction] = assertAllDefined(this.notificationsCenterTitle, this.clearAllAction, this.toggleDoNotDisturbAction);
+		const [notificationsCenterTitle, clearAllAction] = assertAllDefined(this.notificationsCenterTitle, this.clearAllAction);
 		const isDoNotDisturbMode = this.configurationService.getValue('notifications.doNotDisturbMode');
-
-		if (isDoNotDisturbMode === true) {
-			toggleDoNotDisturbAction.enabled = false;
-		} else {
-			toggleDoNotDisturbAction.enabled = true;
-		}
-
 
 		if (this.model.notifications.length === 0) {
 			notificationsCenterTitle.textContent = localize('notificationsEmpty', "No new notifications");
@@ -139,9 +136,26 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			notificationsCenterTitle.textContent = localize('notifications', "Notifications");
 			clearAllAction.enabled = this.model.notifications.some(notification => !notification.hasProgress);
 		}
+
+		if (this.notificationsToolBar) {
+			this.notificationsToolBar.clear();
+
+			this.clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
+			this.notificationsToolBar.push(this.clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.clearAllAction) });
+
+			const turnOnNotDisturbIcon = registerIcon('turnOnDoNotDisturbIcon', Codicon.mute, localize('doNotDisturbIcon', 'Icon for the mute all action in notifications.'));
+			const turnOffNotDisturbIcon = registerIcon('turnOffDoNotDisturbIcon', Codicon.unmute, localize('doNotDisturbIcon', 'Icon for the mute all action in notifications.'));
+
+			this.toggleDoNotDisturbAction = this._register(this.instantiationService.createInstance(ToggleDoNotDisturbAction, ToggleDoNotDisturbAction.ID, ToggleDoNotDisturbAction.LABEL, isDoNotDisturbMode ? turnOffNotDisturbIcon : turnOnNotDisturbIcon));
+			this.notificationsToolBar.push(this.toggleDoNotDisturbAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.toggleDoNotDisturbAction) });
+
+			const hideAllAction = this._register(this.instantiationService.createInstance(HideNotificationsCenterAction, HideNotificationsCenterAction.ID, HideNotificationsCenterAction.LABEL));
+			this.notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });
+		}
 	}
 
 	private create(): void {
+		const isDoNotDisturbMode = this.configurationService.getValue('notifications.doNotDisturbMode');
 
 		// Container
 		this.notificationsCenterContainer = document.createElement('div');
@@ -158,25 +172,28 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		this.notificationsCenterHeader.appendChild(this.notificationsCenterTitle);
 
 		// Header Toolbar
-		const toolbarContainer = document.createElement('div');
-		toolbarContainer.classList.add('notifications-center-header-toolbar');
-		this.notificationsCenterHeader.appendChild(toolbarContainer);
+		this.toolbarContainer = document.createElement('div');
+		this.toolbarContainer.classList.add('notifications-center-header-toolbar');
+		this.notificationsCenterHeader?.appendChild(this.toolbarContainer);
 
 		const actionRunner = this._register(this.instantiationService.createInstance(NotificationActionRunner));
 
-		const notificationsToolBar = this._register(new ActionBar(toolbarContainer, {
+		this.notificationsToolBar = this._register(new ActionBar(this.toolbarContainer, {
 			ariaLabel: localize('notificationsToolbar', "Notification Center Actions"),
 			actionRunner
 		}));
 
 		this.clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
-		notificationsToolBar.push(this.clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.clearAllAction) });
+		this.notificationsToolBar.push(this.clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.clearAllAction) });
 
-		this.toggleDoNotDisturbAction = this._register(this.instantiationService.createInstance(ToggleDoNotDisturbAction, ToggleDoNotDisturbAction.ID, ToggleDoNotDisturbAction.LABEL));
-		notificationsToolBar.push(this.toggleDoNotDisturbAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.toggleDoNotDisturbAction) });
+		const turnOnNotDisturbIcon = registerIcon('turnOnDoNotDisturbIcon', Codicon.mute, localize('doNotDisturbIcon', 'Icon for the mute all action in notifications.'));
+		const turnOffNotDisturbIcon = registerIcon('turnOffDoNotDisturbIcon', Codicon.unmute, localize('doNotDisturbIcon', 'Icon for the mute all action in notifications.'));
+
+		this.toggleDoNotDisturbAction = this._register(this.instantiationService.createInstance(ToggleDoNotDisturbAction, ToggleDoNotDisturbAction.ID, ToggleDoNotDisturbAction.LABEL, isDoNotDisturbMode ? turnOffNotDisturbIcon : turnOnNotDisturbIcon));
+		this.notificationsToolBar.push(this.toggleDoNotDisturbAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.toggleDoNotDisturbAction) });
 
 		const hideAllAction = this._register(this.instantiationService.createInstance(HideNotificationsCenterAction, HideNotificationsCenterAction.ID, HideNotificationsCenterAction.LABEL));
-		notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });
+		this.notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });
 
 		// Notifications List
 		this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {
