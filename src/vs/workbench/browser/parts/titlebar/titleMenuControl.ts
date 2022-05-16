@@ -177,7 +177,7 @@ const activeBackground = colors.registerColor(
 // border: defaults to active background
 colors.registerColor(
 	'titleMenu.border',
-	{ dark: activeBackground, hcDark: activeBackground, light: activeBackground, hcLight: activeBackground },
+	{ dark: activeBackground, hcDark: colors.inputBorder, light: activeBackground, hcLight: colors.inputBorder },
 	localize('titleMenu-border', "Border color of the title menu"),
 	false
 );
