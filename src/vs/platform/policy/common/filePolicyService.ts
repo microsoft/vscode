@@ -11,7 +11,7 @@ import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IPolicyService, Policies, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
+import { IPolicyService, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
 
 function keysDiff<T>(a: Map<string, T>, b: Map<string, T>): string[] {
 	const result: string[] = [];
@@ -27,7 +27,9 @@ function keysDiff<T>(a: Map<string, T>, b: Map<string, T>): string[] {
 
 export class FilePolicyService extends Disposable implements IPolicyService {
 
-	private policies: Policies = new Map();
+	readonly _serviceBrand: undefined;
+
+	private policies = new Map<PolicyName, PolicyValue>();
 
 	private readonly _onDidChange = new Emitter<readonly PolicyName[]>();
 	readonly onDidChange = this._onDidChange.event;
@@ -50,8 +52,8 @@ export class FilePolicyService extends Disposable implements IPolicyService {
 		await this.refresh();
 	}
 
-	private async read(): Promise<Policies> {
-		const policies: Policies = new Map();
+	private async read(): Promise<Map<PolicyName, PolicyValue>> {
+		const policies = new Map<PolicyName, PolicyValue>();
 
 		try {
 			const content = await this.fileService.readFile(this.file);

@@ -4,24 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export type PolicyName = string;
-export type PolicyValue = string | boolean | number;
-export type Policies = Map<PolicyName, PolicyValue>;
+export type PolicyValue = string | boolean;
+
+export const IPolicyService = createDecorator<IPolicyService>('policy');
 
 export interface IPolicyService {
+	readonly _serviceBrand: undefined;
+
 	readonly onDidChange: Event<readonly PolicyName[]>;
 	initialize(): Promise<void>;
 	getPolicyValue(name: PolicyName): PolicyValue | undefined;
 }
 
 export class NullPolicyService implements IPolicyService {
+	readonly _serviceBrand: undefined;
 	readonly onDidChange = Event.None;
 	async initialize() { }
 	getPolicyValue() { return undefined; }
 }
 
 export class MultiPolicyService implements IPolicyService {
+
+	readonly _serviceBrand: undefined;
 
 	readonly onDidChange: Event<readonly PolicyName[]>;
 

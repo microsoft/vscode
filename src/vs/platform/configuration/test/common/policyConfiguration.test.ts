@@ -8,7 +8,6 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { DefaultConfiguration, PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
@@ -17,11 +16,14 @@ import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platf
 import { Registry } from 'vs/platform/registry/common/platform';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { deepClone } from 'vs/base/common/objects';
+import { IPolicyService } from 'vs/platform/policy/common/policy';
+import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
 
 suite('PolicyConfiguration', () => {
 
 	let testObject: PolicyConfiguration;
 	let fileService: IFileService;
+	let policyService: IPolicyService;
 	const policyFile = URI.file('policyFile').with({ scheme: 'vscode-tests' });
 	const disposables = new DisposableStore();
 	const policyConfigurationNode: IConfigurationNode = {
@@ -62,7 +64,8 @@ suite('PolicyConfiguration', () => {
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		fileService.registerProvider(policyFile.scheme, diskFileSystemProvider);
-		testObject = disposables.add(new PolicyConfiguration(defaultConfiguration, fileService, { policyFile } as IEnvironmentService, new NullLogService()));
+		policyService = new FilePolicyService(policyFile, fileService, new NullLogService());
+		testObject = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService));
 	});
 
 	teardown(() => disposables.clear());

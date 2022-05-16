@@ -11,11 +11,7 @@ import { equals } from 'vs/base/common/objects';
 import { addToValueTree, IOverrides, toValuesTree } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { Extensions, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
-import { IPolicyService, NullPolicyService, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
+import { IPolicyService, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export class DefaultConfiguration extends Disposable {
@@ -85,19 +81,14 @@ export class PolicyConfiguration extends Disposable {
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
-	private readonly policyService: IPolicyService;
-
 	private _configurationModel = new ConfigurationModel();
 	get configurationModel() { return this._configurationModel; }
 
 	constructor(
 		private readonly defaultConfiguration: DefaultConfiguration,
-		fileService: IFileService,
-		environmentService: IEnvironmentService,
-		logService: ILogService
+		@IPolicyService private readonly policyService: IPolicyService
 	) {
 		super();
-		this.policyService = environmentService.policyFile ? new FilePolicyService(environmentService.policyFile, fileService, logService) : new NullPolicyService();
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
