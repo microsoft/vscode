@@ -125,7 +125,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _terminal?: Terminal;
 	readonly capabilities = new TerminalCapabilityStore();
 	private _hasUpdatedTelemetry: boolean = false;
-	private _activationTimeout!: NodeJS.Timeout;
+	private _activationTimeout!: any;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
