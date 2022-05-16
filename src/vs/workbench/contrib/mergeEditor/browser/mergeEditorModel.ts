@@ -65,7 +65,7 @@ export class MergeEditorModelFactory {
 	}
 }
 
-const InternalSymbol = Symbol();
+const InternalSymbol: unique symbol = null!;
 
 export class MergeEditorModel extends EditorModel {
 	private resultEdits = new ResultEdits([], this.base, this.result, this.editorWorkerService);
