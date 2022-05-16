@@ -2559,7 +2559,7 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.empty%",
-        "when": "config.git.enabled && workbenchState == empty",
+        "when": "config.git.enabled && !git.missing && workbenchState == empty",
         "enablement": "git.state == initialized",
         "group": "2_open@1"
       },
