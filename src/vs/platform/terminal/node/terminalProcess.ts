@@ -198,11 +198,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 
 		let injection: IShellIntegrationConfigInjection | undefined;
-		if (this._options.shellIntegration) {
-			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options.shellIntegration);
-			if (!injection) {
-				this._logService.warn(`Shell integration cannot be enabled for executable "${this.shellLaunchConfig.executable}" and args`, this.shellLaunchConfig.args);
-			} else {
+		if (this._options.shellIntegration.enabled) {
+			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options.shellIntegration, this._logService);
+			if (injection) {
 				if (injection.envMixin) {
 					for (const [key, value] of Object.entries(injection.envMixin)) {
 						this._ptyOptions.env ||= {};
@@ -222,7 +220,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (this.shellLaunchConfig.env?.['_ZDOTDIR'] === '1') {
 			const zdotdir = path.join(tmpdir(), 'vscode-zsh');
 			await fs.mkdir(zdotdir, { recursive: true });
-			const source = path.join(path.dirname(FileAccess.asFileUri('', require).fsPath), 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh');
+			const source = path.join(path.dirname(FileAccess.asFileUri('', require).fsPath), 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh');
 			await fs.copyFile(source, path.join(zdotdir, '.zshrc'));
 			this._ptyOptions.env = this._ptyOptions.env || {};
 			this._ptyOptions.env['ZDOTDIR'] = zdotdir;
@@ -305,6 +303,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 
 			// Refire the data event
+			this._logService.trace('IPty#onData', data);
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				this._queueProcessExit();
@@ -494,6 +493,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _doWrite(): void {
 		const object = this._writeQueue.shift()!;
+		this._logService.trace('IPty#write', object.data);
 		if (object.isBinary) {
 			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
 		} else {

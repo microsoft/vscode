@@ -516,7 +516,7 @@ export class ContextKeyInExpr implements IContextKeyExpression {
 		const item = context.getValue(this.key);
 
 		if (Array.isArray(source)) {
-			return (source.indexOf(item) >= 0);
+			return source.includes(item as any);
 		}
 
 		if (typeof item === 'string' && typeof source === 'object' && source !== null) {
@@ -1524,7 +1524,7 @@ export interface ContextKeyInfo {
 	readonly description?: string;
 }
 
-export class RawContextKey<T> extends ContextKeyDefinedExpr {
+export class RawContextKey<T extends ContextKeyValue> extends ContextKeyDefinedExpr {
 
 	private static _info: ContextKeyInfo[] = [];
 
@@ -1567,11 +1567,15 @@ export class RawContextKey<T> extends ContextKeyDefinedExpr {
 	}
 }
 
+export type ContextKeyValue = null | undefined | boolean | number | string
+	| Array<null | undefined | boolean | number | string>
+	| Record<string, null | undefined | boolean | number | string>;
+
 export interface IContext {
-	getValue<T>(key: string): T | undefined;
+	getValue<T extends ContextKeyValue = ContextKeyValue>(key: string): T | undefined;
 }
 
-export interface IContextKey<T> {
+export interface IContextKey<T extends ContextKeyValue = ContextKeyValue> {
 	set(value: T): void;
 	reset(): void;
 	get(): T | undefined;
@@ -1602,7 +1606,7 @@ export interface IContextKeyService {
 	onDidChangeContext: Event<IContextKeyChangeEvent>;
 	bufferChangeEvents(callback: Function): void;
 
-	createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T>;
+	createKey<T extends ContextKeyValue>(key: string, defaultValue: T | undefined): IContextKey<T>;
 	contextMatchesRules(rules: ContextKeyExpression | undefined): boolean;
 	getContextKeyValue<T>(key: string): T | undefined;
 

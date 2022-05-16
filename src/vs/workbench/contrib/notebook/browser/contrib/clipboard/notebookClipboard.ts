@@ -27,7 +27,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { rendererLogChannelId } from 'vs/workbench/contrib/logs/common/logConstants';
 import { ILogService } from 'vs/platform/log/common/log';
 

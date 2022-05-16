@@ -144,16 +144,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	get dimension(): IDimension { return this._dimension; }
 
 	get offset() {
-		return {
-			top: (() => {
-				let offset = 0;
-				if (this.isVisible(Parts.TITLEBAR_PART)) {
-					offset = this.getPart(Parts.TITLEBAR_PART).maximumHeight;
-				}
-
-				return offset;
-			})()
-		};
+		let top = 0;
+		let quickPickTop = 0;
+		if (this.isVisible(Parts.TITLEBAR_PART)) {
+			top = this.getPart(Parts.TITLEBAR_PART).maximumHeight;
+			quickPickTop = this.titleService.titleMenuVisible ? 0 : top;
+		}
+		return { top, quickPickTop };
 	}
 
 	//#endregion
@@ -270,6 +267,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService) === 'custom') {
 			this._register(this.titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
 		}
+
+		// Title Menu changes
+		this._register(this.titleService.onDidChangeTitleMenuVisibility(() => this._onDidLayout.fire(this._dimension)));
 
 		// Theme changes
 		this._register(this.themeService.onDidColorThemeChange(() => this.updateStyles()));
@@ -617,16 +617,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			return {
 				filesToOpenOrCreate: defaultLayout.editors.map<IPath>(file => {
+					const legacyOverride = file.openWith;
+					const legacySelection = file.selection && file.selection.start && isNumber(file.selection.start.line) ? {
+						startLineNumber: file.selection.start.line,
+						startColumn: isNumber(file.selection.start.column) ? file.selection.start.column : 1,
+						endLineNumber: isNumber(file.selection.end.line) ? file.selection.end.line : undefined,
+						endColumn: isNumber(file.selection.end.line) ? (isNumber(file.selection.end.column) ? file.selection.end.column : 1) : undefined,
+					} : undefined;
+
 					return {
 						fileUri: URI.revive(file.uri),
-						selection: file.selection && file.selection.start && isNumber(file.selection.start.line) ? {
-							startLineNumber: file.selection.start.line,
-							startColumn: isNumber(file.selection.start.column) ? file.selection.start.column : 1,
-							endLineNumber: isNumber(file.selection.end.line) ? file.selection.end.line : undefined,
-							endColumn: isNumber(file.selection.end.line) ? (isNumber(file.selection.end.column) ? file.selection.end.column : 1) : undefined,
-						} : undefined,
 						openOnlyIfExists: file.openOnlyIfExists,
-						editorOverrideId: file.openWith
+						options: {
+							selection: legacySelection,
+							override: legacyOverride,
+							...file.options // keep at the end to override legacy selection/override that may be `undefined`
+						}
 					};
 				})
 			};
@@ -2109,13 +2115,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		};
 
 		type StartupLayoutEventClassification = {
-			activityBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			sideBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			auxiliaryBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			panelVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			statusbarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-			sideBarPosition: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			panelPosition: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			owner: 'sbatten';
+			comment: 'Information about the layout of the workbench during statup';
+			activityBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether or the not the activity bar is visible' };
+			sideBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether or the not the primary side bar is visible' };
+			auxiliaryBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether or the not the secondary side bar is visible' };
+			panelVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether or the not the panel is visible' };
+			statusbarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether or the not the status bar is visible' };
+			sideBarPosition: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the primary side bar is on the left or right' };
+			panelPosition: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the panel is on the bottom, left, or right' };
 		};
 
 		const layoutDescriptor: StartupLayoutEvent = {

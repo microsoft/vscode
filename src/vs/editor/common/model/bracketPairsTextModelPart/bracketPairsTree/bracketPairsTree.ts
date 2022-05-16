@@ -7,18 +7,19 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { BracketInfo, BracketPairWithMinIndentationInfo } from 'vs/editor/common/textModelBracketPairs';
+import { BracketInfo, BracketPairWithMinIndentationInfo, IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { AstNode, AstNodeKind } from './ast';
 import { TextEditInfo } from './beforeEditPositionMapper';
 import { LanguageAgnosticBracketTokens } from './brackets';
-import { Length, lengthAdd, lengthGreaterThanEqual, lengthLessThanEqual, lengthOfString, lengthsToRange, lengthZero, positionToLength, toLength } from './length';
+import { Length, lengthAdd, lengthGreaterThanEqual, lengthLessThan, lengthLessThanEqual, lengthOfString, lengthsToRange, lengthZero, positionToLength, toLength } from './length';
 import { parseDocument } from './parser';
 import { DenseKeyProvider } from './smallImmutableSet';
 import { FastTokenizer, TextBufferTokenizer } from './tokenizer';
 import { BackgroundTokenizationState } from 'vs/editor/common/tokenizationTextModelPart';
+import { Position } from 'vs/editor/common/core/position';
 
 export class BracketPairsTree extends Disposable {
 	private readonly didChangeEmitter = new Emitter<void>();
@@ -145,6 +146,71 @@ export class BracketPairsTree extends Disposable {
 
 		return result;
 	}
+
+	public getFirstBracketAfter(position: Position): IFoundBracket | null {
+		const node = this.initialAstWithoutTokens || this.astWithTokens!;
+		return getFirstBracketAfter(node, lengthZero, node.length, positionToLength(position));
+	}
+
+	public getFirstBracketBefore(position: Position): IFoundBracket | null {
+		const node = this.initialAstWithoutTokens || this.astWithTokens!;
+		return getFirstBracketBefore(node, lengthZero, node.length, positionToLength(position));
+	}
+}
+
+function getFirstBracketBefore(node: AstNode, nodeOffsetStart: Length, nodeOffsetEnd: Length, position: Length): IFoundBracket | null {
+	if (node.kind === AstNodeKind.List || node.kind === AstNodeKind.Pair) {
+		const lengths: { nodeOffsetStart: Length; nodeOffsetEnd: Length }[] = [];
+		for (const child of node.children) {
+			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
+			lengths.push({ nodeOffsetStart, nodeOffsetEnd });
+			nodeOffsetStart = nodeOffsetEnd;
+		}
+		for (let i = lengths.length - 1; i >= 0; i--) {
+			const { nodeOffsetStart, nodeOffsetEnd } = lengths[i];
+			if (lengthLessThan(nodeOffsetStart, position)) {
+				const result = getFirstBracketBefore(node.children[i], nodeOffsetStart, nodeOffsetEnd, position);
+				if (result) {
+					return result;
+				}
+			}
+		}
+		return null;
+	} else if (node.kind === AstNodeKind.UnexpectedClosingBracket) {
+		return null;
+	} else if (node.kind === AstNodeKind.Bracket) {
+		const range = lengthsToRange(nodeOffsetStart, nodeOffsetEnd);
+		return {
+			bracketInfo: node.bracketInfo,
+			range
+		};
+	}
+	return null;
+}
+
+function getFirstBracketAfter(node: AstNode, nodeOffsetStart: Length, nodeOffsetEnd: Length, position: Length): IFoundBracket | null {
+	if (node.kind === AstNodeKind.List || node.kind === AstNodeKind.Pair) {
+		for (const child of node.children) {
+			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
+			if (lengthLessThan(position, nodeOffsetEnd)) {
+				const result = getFirstBracketAfter(child, nodeOffsetStart, nodeOffsetEnd, position);
+				if (result) {
+					return result;
+				}
+			}
+			nodeOffsetStart = nodeOffsetEnd;
+		}
+		return null;
+	} else if (node.kind === AstNodeKind.UnexpectedClosingBracket) {
+		return null;
+	} else if (node.kind === AstNodeKind.Bracket) {
+		const range = lengthsToRange(nodeOffsetStart, nodeOffsetEnd);
+		return {
+			bracketInfo: node.bracketInfo,
+			range
+		};
+	}
+	return null;
 }
 
 function collectBrackets(
@@ -302,6 +368,7 @@ function collectBracketPairs(
 					: undefined,
 				level,
 				levelPerBracket,
+				node,
 				minIndentation
 			)
 		);

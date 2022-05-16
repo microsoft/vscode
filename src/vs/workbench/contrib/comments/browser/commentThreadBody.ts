@@ -209,8 +209,14 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 	}
 
 	private _updateAriaLabel() {
-		this._commentsElement.ariaLabel = nls.localize('commentThreadAria', "Comment thread with {0} comments. {1}.",
-			this._commentThread.comments?.length, this._commentThread.label);
+		if (this._commentThread.isDocumentCommentThread()) {
+			this._commentsElement.ariaLabel = nls.localize('commentThreadAria.withRange', "Comment thread with {0} comments on lines {1} through {2}. {3}.",
+				this._commentThread.comments?.length, this._commentThread.range.startLineNumber, this._commentThread.range.endLineNumber,
+				this._commentThread.label);
+		} else {
+			this._commentsElement.ariaLabel = nls.localize('commentThreadAria', "Comment thread with {0} comments. {1}.",
+				this._commentThread.comments?.length, this._commentThread.label);
+		}
 	}
 
 	private _setFocusedComment(value: number | undefined) {

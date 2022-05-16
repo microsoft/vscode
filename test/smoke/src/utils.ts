@@ -87,14 +87,19 @@ export function installDiagnosticsHandler(logger: Logger, appFn?: () => Applicat
 	});
 }
 
+let logsCounter = 1;
+
+export function suiteLogsPath(options: ApplicationOptions, suiteName: string): string {
+	return join(dirname(options.logsPath), `${logsCounter++}_suite_${suiteName.replace(/[^a-z0-9\-]/ig, '_')}`);
+}
+
 function installAppBeforeHandler(optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions) {
 	before(async function () {
-		const suiteName = this.currentTest?.titlePath()[1] ?? 'unknown';
+		const suiteName = this.test?.parent?.title ?? 'unknown';
 
 		this.app = createApp({
 			...this.defaultOptions,
-			// Set a suite specific logs path
-			logsPath: join(dirname(this.defaultOptions.logsPath), `suite_${suiteName.replace(/[^a-z0-9\-]/ig, '_')}`)
+			logsPath: suiteLogsPath(this.defaultOptions, suiteName)
 		}, optionsTransform);
 		await this.app.start();
 	});
@@ -142,6 +147,27 @@ export function timeout(i: number) {
 			resolve();
 		}, i);
 	});
+}
+
+export async function retryWithRestart(app: Application, testFn: () => Promise<unknown>, retries = 3, timeoutMs = 20000): Promise<unknown> {
+	let lastError: Error | undefined = undefined;
+	for (let i = 0; i < retries; i++) {
+		const result = await Promise.race([
+			testFn().then(() => true, error => {
+				lastError = error;
+				return false;
+			}),
+			timeout(timeoutMs).then(() => false)
+		]);
+
+		if (result) {
+			return;
+		}
+
+		await app.restart();
+	}
+
+	throw lastError ?? new Error('retryWithRestart failed with an unknown error');
 }
 
 export interface ITask<T> {

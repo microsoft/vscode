@@ -45,7 +45,6 @@ const opts = minimist(args, {
 		'remote',
 		'web',
 		'headless',
-		'legacy',
 		'tracing'
 	],
 	default: {
@@ -56,7 +55,6 @@ const opts = minimist(args, {
 	remote?: boolean;
 	headless?: boolean;
 	web?: boolean;
-	legacy?: boolean;
 	tracing?: boolean;
 	build?: string;
 	'stable-build'?: string;
@@ -71,9 +69,9 @@ const logsRootPath = (() => {
 	if (opts.web) {
 		logsName = 'smoke-tests-browser';
 	} else if (opts.remote) {
-		logsName = opts.legacy ? 'smoke-tests-remote-legacy' : 'smoke-tests-remote';
+		logsName = 'smoke-tests-remote';
 	} else {
-		logsName = opts.legacy ? 'smoke-tests-electron-legacy' : 'smoke-tests-electron';
+		logsName = 'smoke-tests-electron';
 	}
 
 	return path.join(logsParentPath, logsName);
@@ -109,7 +107,7 @@ const testDataPath = path.join(os.tmpdir(), 'vscsmoke');
 if (fs.existsSync(testDataPath)) {
 	rimraf.sync(testDataPath);
 }
-fs.mkdirSync(testDataPath);
+mkdirp.sync(testDataPath);
 process.once('exit', () => {
 	try {
 		rimraf.sync(testDataPath);
@@ -139,6 +137,27 @@ function parseVersion(version: string): { major: number; minor: number; patch: n
 	return { major: parseInt(major), minor: parseInt(minor), patch: parseInt(patch) };
 }
 
+function parseQuality(): Quality {
+	if (process.env.VSCODE_DEV === '1') {
+		return Quality.Dev;
+	}
+
+	const quality = process.env.VSCODE_QUALITY ?? '';
+
+	switch (quality) {
+		case 'stable':
+			return Quality.Stable;
+		case 'insider':
+			return Quality.Insiders;
+		case 'exploration':
+			return Quality.Exploration;
+		case 'oss':
+			return Quality.OSS;
+		default:
+			return Quality.Dev;
+	}
+}
+
 //
 // #### Electron Smoke Tests ####
 //
@@ -161,13 +180,7 @@ if (!opts.web) {
 		fail(`Can't find VSCode at ${electronPath}. Please run VSCode once first (scripts/code.sh, scripts\\code.bat) and try again.`);
 	}
 
-	if (process.env.VSCODE_DEV === '1') {
-		quality = Quality.Dev;
-	} else if (electronPath.indexOf('Code - Insiders') >= 0 /* macOS/Windows */ || electronPath.indexOf('code-insiders') /* Linux */ >= 0) {
-		quality = Quality.Insiders;
-	} else {
-		quality = Quality.Stable;
-	}
+	quality = parseQuality();
 
 	if (opts.remote) {
 		logger.log(`Running desktop remote smoke tests against ${electronPath}`);
@@ -198,12 +211,10 @@ else {
 		logger.log(`Running web smoke out of sources`);
 	}
 
-	if (process.env.VSCODE_DEV === '1') {
-		quality = Quality.Dev;
-	} else {
-		quality = Quality.Insiders;
-	}
+	quality = parseQuality();
 }
+
+logger.log(`VS Code product quality: ${quality}.`);
 
 const userDataDir = path.join(testDataPath, 'd');
 
@@ -220,12 +231,15 @@ async function setupRepository(): Promise<void> {
 	} else {
 		if (!fs.existsSync(workspacePath)) {
 			logger.log('Cloning test project repository...');
-			cp.spawnSync('git', ['clone', testRepoUrl, workspacePath]);
+			const res = cp.spawnSync('git', ['clone', testRepoUrl, workspacePath], { stdio: 'inherit' });
+			if (!fs.existsSync(workspacePath)) {
+				throw new Error(`Clone operation failed: ${res.stderr.toString()}`);
+			}
 		} else {
 			logger.log('Cleaning test project repository...');
-			cp.spawnSync('git', ['fetch'], { cwd: workspacePath });
-			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath });
-			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
+			cp.spawnSync('git', ['fetch'], { cwd: workspacePath, stdio: 'inherit' });
+			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath, stdio: 'inherit' });
+			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath, stdio: 'inherit' });
 		}
 	}
 }
@@ -326,13 +340,11 @@ before(async function () {
 		workspacePath,
 		userDataDir,
 		extensionsPath,
-		waitTime: parseInt(opts['wait-time'] || '0') || 20,
 		logger,
 		logsPath: path.join(logsRootPath, 'suite_unknown'),
 		verbose: opts.verbose,
 		remote: opts.remote,
 		web: opts.web,
-		legacy: opts.legacy,
 		tracing: opts.tracing,
 		headless: opts.headless,
 		browser: opts.browser,
@@ -366,7 +378,7 @@ after(async function () {
 	}
 });
 
-describe(`VSCode Smoke Tests (${opts.web ? 'Web' : opts.legacy ? 'Electron (legacy)' : 'Electron'})`, () => {
+describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web) { setupDataLossTests(() => opts['stable-build'] /* Do not change, deferred for a reason! */, logger); }
 	setupPreferencesTests(logger);
 	setupSearchTests(logger);
@@ -374,8 +386,8 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : opts.legacy ? 'Electron (lega
 	setupLanguagesTests(logger);
 	if (opts.web) { setupTerminalTests(logger); } // Tests require playwright driver (https://github.com/microsoft/vscode/issues/146811)
 	setupStatusbarTests(logger);
-	if (quality !== Quality.Dev && !opts.remote) { setupExtensionTests(logger); } // https://github.com/microsoft/vscode/issues/146800
+	if (quality !== Quality.Dev && quality !== Quality.OSS) { setupExtensionTests(logger); }
 	setupMultirootTests(logger);
-	if (!opts.web && !opts.remote && quality !== Quality.Dev) { setupLocalizationTests(logger); }
+	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupLocalizationTests(logger); }
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
 });

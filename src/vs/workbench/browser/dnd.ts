@@ -33,7 +33,7 @@ import { parse, stringify } from 'vs/base/common/marshalling';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { hasWorkspaceFileExtension, isTemporaryWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IDataTransfer } from 'vs/workbench/common/dnd';
+import { IDataTransfer } from 'vs/editor/common/dnd';
 import { extractSelection } from 'vs/platform/opener/common/opener';
 import { IListDragAndDrop } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';

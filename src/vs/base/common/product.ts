@@ -41,6 +41,7 @@ export interface IProductConfiguration {
 
 	readonly win32AppUserModelId?: string;
 	readonly win32MutexName?: string;
+	readonly win32RegValueName?: string;
 	readonly applicationName: string;
 	readonly embedderIdentifier?: string;
 

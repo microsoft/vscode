@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
+import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 
 function _normalizeIndentationFromWhitespace(str: string, indentSize: number, insertSpaces: boolean): string {
 	let spacesCnt = 0;
 	for (let i = 0; i < str.length; i++) {
 		if (str.charAt(i) === '\t') {
-			spacesCnt += indentSize;
+			spacesCnt = CursorColumns.nextIndentTabStop(spacesCnt, indentSize);
 		} else {
 			spacesCnt++;
 		}

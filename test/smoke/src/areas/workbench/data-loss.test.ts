@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname, join } from 'path';
+import { join } from 'path';
 import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
-import { createApp, timeout, installDiagnosticsHandler, installAppAfterHandler, getRandomUserDataDir } from '../../utils';
+import { createApp, timeout, installDiagnosticsHandler, installAppAfterHandler, getRandomUserDataDir, suiteLogsPath } from '../../utils';
 
 export function setup(ensureStableCode: () => string | undefined, logger: Logger) {
 	describe('Data Loss (insiders -> insiders)', () => {
@@ -19,7 +19,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		it('verifies opened editors are restored', async function () {
 			app = createApp({
 				...this.defaultOptions,
-				logsPath: join(dirname(this.defaultOptions.logsPath), `test_verifies_opened_editors_are_restored`)
+				logsPath: suiteLogsPath(this.defaultOptions, 'test_verifies_opened_editors_are_restored')
 			});
 			await app.start();
 
@@ -44,7 +44,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		it('verifies editors can save and restore', async function () {
 			app = createApp({
 				...this.defaultOptions,
-				logsPath: join(dirname(this.defaultOptions.logsPath), `test_verifies_editors_can_save_and_restore`)
+				logsPath: suiteLogsPath(this.defaultOptions, 'test_verifies_editors_can_save_and_restore')
 			});
 			await app.start();
 
@@ -84,7 +84,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 		async function testHotExit(title: string, restartDelay: number | undefined, autoSave: boolean | undefined) {
 			app = createApp({
 				...this.defaultOptions,
-				logsPath: join(dirname(this.defaultOptions.logsPath), title)
+				logsPath: suiteLogsPath(this.defaultOptions, title)
 			});
 			await app.start();
 
@@ -152,7 +152,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			}
 
 			const userDataDir = getRandomUserDataDir(this.defaultOptions);
-			const logsPath = join(dirname(this.defaultOptions.logsPath), `test_verifies_opened_editors_are_restored_from_stable`);
+			const logsPath = suiteLogsPath(this.defaultOptions, 'test_verifies_opened_editors_are_restored_from_stable');
 
 			const stableOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			stableOptions.codePath = stableCodePath;
@@ -204,12 +204,13 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 			}
 
 			const userDataDir = getRandomUserDataDir(this.defaultOptions);
+			const logsPath = suiteLogsPath(this.defaultOptions, title);
 
 			const stableOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			stableOptions.codePath = stableCodePath;
 			stableOptions.userDataDir = userDataDir;
 			stableOptions.quality = Quality.Stable;
-			stableOptions.logsPath = join(dirname(this.defaultOptions.logsPath), title);
+			stableOptions.logsPath = logsPath;
 
 			stableApp = new Application(stableOptions);
 			await stableApp.start();
@@ -238,7 +239,7 @@ export function setup(ensureStableCode: () => string | undefined, logger: Logger
 
 			const insiderOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			insiderOptions.userDataDir = userDataDir;
-			insiderOptions.logsPath = join(dirname(this.defaultOptions.logsPath), title);
+			insiderOptions.logsPath = logsPath;
 
 			insidersApp = new Application(insiderOptions);
 			await insidersApp.start();

@@ -5,6 +5,7 @@
 
 import 'vs/css!./media/editorplaceholder';
 import { localize } from 'vs/nls';
+import Severity from 'vs/base/common/severity';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -28,6 +29,7 @@ import { editorErrorForeground, editorInfoForeground, editorWarningForeground } 
 import { Codicon } from 'vs/base/common/codicons';
 import { FileChangeType, FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export interface IEditorPlaceholderContents {
 	icon: string;
@@ -91,9 +93,6 @@ export abstract class EditorPlaceholder extends EditorPane {
 		// Reset any previous contents
 		clearNode(container);
 
-		// Update ARIA label
-		container.setAttribute('aria-label', computeEditorAriaLabel(input, undefined, this.group, undefined));
-
 		// Delegate to implementation for contents
 		const disposables = new DisposableStore();
 		const { icon, label, actions } = await this.getContents(input, options, disposables);
@@ -108,6 +107,9 @@ export abstract class EditorPlaceholder extends EditorPane {
 		const labelWidget = document.createElement('span');
 		labelWidget.textContent = label;
 		labelContainer.appendChild(labelWidget);
+
+		// ARIA label
+		container.setAttribute('aria-label', `${computeEditorAriaLabel(input, undefined, this.group, undefined)}, ${label}`);
 
 		// Actions
 		const actionsContainer = container.appendChild($('.editor-placeholder-actions-container'));
@@ -214,7 +216,8 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super(ErrorPlaceholderEditor.ID, telemetryService, themeService, storageService, instantiationService);
 	}
@@ -241,7 +244,12 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 			actions = error.actions.map(action => {
 				return {
 					label: action.label,
-					run: () => action.run()
+					run: () => {
+						const result = action.run();
+						if (result instanceof Promise) {
+							result.catch(error => this.dialogService.show(Severity.Error, toErrorMessage(error)));
+						}
+					}
 				};
 			});
 		} else if (group) {

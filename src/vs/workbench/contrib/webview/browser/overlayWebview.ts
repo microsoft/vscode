@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension } from 'vs/base/browser/dom';
+import { computeClippingRect, Dimension } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -21,7 +21,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
 	public readonly onDidWheel = this._onDidWheel.event;
 
-	private readonly _pendingMessages = new Set<{ readonly message: any; readonly transfer?: readonly ArrayBuffer[] }>();
+	private _isFirstLoad = true;
+	private readonly _firstLoadPendingMessages = new Set<{ readonly message: any; readonly transfer?: readonly ArrayBuffer[]; readonly resolve: (value: boolean) => void }>();
 	private readonly _webview = this._register(new MutableDisposable<IWebviewElement>());
 	private readonly _webviewEvents = this._register(new DisposableStore());
 
@@ -69,6 +70,11 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 		this._container?.remove();
 		this._container = undefined;
+
+		for (const msg of this._firstLoadPendingMessages) {
+			msg.resolve(false);
+		}
+		this._firstLoadPendingMessages.clear();
 
 		this._onDidDispose.fire();
 
@@ -137,7 +143,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		}
 	}
 
-	public layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension) {
+	public layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
 		if (!this._container || !this._container.parentElement) {
 			return;
 		}
@@ -152,6 +158,11 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._container.style.left = `${frameRect.left - containerRect.left - parentBorderLeft}px`;
 		this._container.style.width = `${dimension ? dimension.width : frameRect.width}px`;
 		this._container.style.height = `${dimension ? dimension.height : frameRect.height}px`;
+
+		if (clippingContainer) {
+			const clip = computeClippingRect(frameRect, clippingContainer);
+			this._container.style.clip = `rect(${clip.top}px, ${clip.right}px, ${clip.bottom}px, ${clip.left}px)`;
+		}
 	}
 
 	private show() {
@@ -200,8 +211,13 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 				this._onDidUpdateState.fire(state);
 			}));
 
-			this._pendingMessages.forEach(msg => webview.postMessage(msg.message, msg.transfer));
-			this._pendingMessages.clear();
+			if (this._isFirstLoad) {
+				this._firstLoadPendingMessages.forEach(async msg => {
+					msg.resolve(await webview.postMessage(msg.message, msg.transfer));
+				});
+			}
+			this._isFirstLoad = false;
+			this._firstLoadPendingMessages.clear();
 		}
 
 		this.container.style.visibility = 'visible';
@@ -268,12 +284,19 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
 	public readonly onMissingCsp: Event<any> = this._onMissingCsp.event;
 
-	public postMessage(message: any, transfer?: readonly ArrayBuffer[]): void {
+	public async postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean> {
 		if (this._webview.value) {
-			this._webview.value.postMessage(message, transfer);
-		} else {
-			this._pendingMessages.add({ message, transfer });
+			return this._webview.value.postMessage(message, transfer);
 		}
+
+		if (this._isFirstLoad) {
+			let resolve: (x: boolean) => void;
+			const p = new Promise<boolean>(r => resolve = r);
+			this._firstLoadPendingMessages.add({ message, transfer, resolve: resolve! });
+			return p;
+		}
+
+		return false;
 	}
 
 	focus(): void { this._webview.value?.focus(); }

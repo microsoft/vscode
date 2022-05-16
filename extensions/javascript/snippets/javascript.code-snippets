@@ -190,5 +190,14 @@
 			"console.error($1);"
 		],
 		"description": "Log error to the console"
+	},
+	"new Promise": {
+		"prefix": "newpromise",
+		"body": [
+			"new Promise((resolve, reject) => {",
+			"\t$TM_SELECTED_TEXT$0",
+			"})"
+		],
+		"description": "Create a new Promise"
 	}
 }

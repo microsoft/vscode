@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
@@ -16,7 +15,7 @@ import * as nls from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ICommandAction } from 'vs/platform/action/common/action';
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -56,6 +55,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ISearchConfiguration, SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configurationMigration';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -594,25 +594,32 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	when: ContextKeyExpr.and(ExplorerRootContext, ExplorerFolderContext.toNegated())
 });
 
-
-class ShowAllSymbolsAction extends Action {
+registerAction2(class ShowAllSymbolsAction extends Action2 {
 
 	static readonly ID = 'workbench.action.showAllSymbols';
 	static readonly LABEL = nls.localize('showTriggerActions', "Go to Symbol in Workspace...");
 	static readonly ALL_SYMBOLS_PREFIX = '#';
 
 	constructor(
-		actionId: string,
-		actionLabel: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
-		super(actionId, actionLabel);
+		super({
+			id: 'workbench.action.showAllSymbols',
+			title: {
+				value: nls.localize('showTriggerActions', "Go to Symbol in Workspace..."),
+				original: 'Go to Symbol in Workspace...'
+			},
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyT
+			}
+		});
 	}
 
-	override async run(): Promise<void> {
-		this.quickInputService.quickAccess.show(ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(IQuickInputService).quickAccess.show(ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX);
 	}
-}
+});
 
 const SEARCH_MODE_CONFIG = 'search.mode';
 
@@ -655,30 +662,11 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
 		const data = configurationService.inspect('search.location');
-
 		if (data.value === 'panel') {
 			viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Panel);
 		}
-
-		if (data.userValue) {
-			configurationService.updateValue('search.location', undefined, ConfigurationTarget.USER);
-		}
-
-		if (data.userLocalValue) {
-			configurationService.updateValue('search.location', undefined, ConfigurationTarget.USER_LOCAL);
-		}
-
-		if (data.userRemoteValue) {
-			configurationService.updateValue('search.location', undefined, ConfigurationTarget.USER_REMOTE);
-		}
-
-		if (data.workspaceFolderValue) {
-			configurationService.updateValue('search.location', undefined, ConfigurationTarget.WORKSPACE_FOLDER);
-		}
-
-		if (data.workspaceValue) {
-			configurationService.updateValue('search.location', undefined, ConfigurationTarget.WORKSPACE);
-		}
+		Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+			.registerConfigurationMigrations([{ key: 'search.location', migrateFn: (value: any) => ({ value: undefined }) }]);
 	}
 }
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterSearchViewContribution, LifecyclePhase.Starting);
@@ -793,7 +781,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowAllSymbolsAction, { primary: KeyMod.CtrlCmd | KeyCode.KeyT }), 'Go to Symbol in Workspace...');
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleSearchOnTypeAction), 'Search: Toggle Search on Type', category.value);
 
 // Register Quick Access Handler

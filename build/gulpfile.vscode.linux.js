@@ -176,7 +176,7 @@ function prepareRpmPackage(arch) {
 		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = 'BUILD/usr/share/' + product.applicationName + '/' + p.dirname; }));
 
-		const dependencies = rpmDependenciesGenerator.getDependencies(binaryDir, product.applicationName);
+		const dependencies = rpmDependenciesGenerator.getDependencies(binaryDir, product.applicationName, rpmArch);
 		const spec = gulp.src('resources/linux/rpm/code.spec.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))

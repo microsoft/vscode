@@ -7,12 +7,17 @@ import * as assert from 'assert';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
 import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { MetadataConsts, TokenMetadata, FontStyle, ColorId } from 'vs/editor/common/languages';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILanguageConfigurationService, LanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 suite('TokensStore', () => {
 
@@ -194,25 +199,42 @@ suite('TokensStore', () => {
 		}
 
 		assert.deepStrictEqual(decodedTokens, [
-			20, 0b10000000001000000000000001,
-			24, 0b10000001111000000000000001,
-			25, 0b10000000001000000000000001,
-			27, 0b10000001111000000000000001,
-			28, 0b10000000001000000000000001,
-			29, 0b10000000001000000000000001,
-			31, 0b10000010000000000000000001,
-			32, 0b10000000001000000000000001,
-			33, 0b10000000001000000000000001,
-			34, 0b10000000001000000000000001,
-			36, 0b10000000110000000000000001,
-			37, 0b10000000001000000000000001,
-			38, 0b10000000001000000000000001,
-			42, 0b10000001111000000000000001,
-			43, 0b10000000001000000000000001,
-			47, 0b10000001011000000000000001
+			20, 0b10000000001000010000000001,
+			24, 0b10000001111000010000000001,
+			25, 0b10000000001000010000000001,
+			27, 0b10000001111000010000000001,
+			28, 0b10000000001000010000000001,
+			29, 0b10000000001000010000000001,
+			31, 0b10000010000000010000000001,
+			32, 0b10000000001000010000000001,
+			33, 0b10000000001000010000000001,
+			34, 0b10000000001000010000000001,
+			36, 0b10000000110000010000000001,
+			37, 0b10000000001000010000000001,
+			38, 0b10000000001000010000000001,
+			42, 0b10000001111000010000000001,
+			43, 0b10000000001000010000000001,
+			47, 0b10000001011000010000000001
 		]);
 
 		model.dispose();
+	});
+
+	test('issue #147944: Language id "vs.editor.nullLanguage" is not configured nor known', () => {
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables, new ServiceCollection([
+			ILanguageConfigurationService, new SyncDescriptor(LanguageConfigurationService)
+		]));
+		const model = instantiateTextModel(instantiationService, '--[[\n\n]]');
+		model.tokenization.setSemanticTokens([
+			SparseMultilineTokens.create(1, new Uint32Array([
+				0, 2, 4, 0b100000000000010000,
+				1, 0, 0, 0b100000000000010000,
+				2, 0, 2, 0b100000000000010000,
+			]))
+		], true);
+		assert.strictEqual(model.getWordAtPosition(new Position(2, 1)), null);
+		disposables.dispose();
 	});
 
 	test('partial tokens 1', () => {

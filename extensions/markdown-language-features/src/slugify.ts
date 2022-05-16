@@ -24,7 +24,7 @@ export const githubSlugifier: Slugifier = new class implements Slugifier {
 				.toLowerCase()
 				.replace(/\s+/g, '-') // Replace whitespace with -
 				// allow-any-unicode-next-line
-				.replace(/[\]\[\!\'\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~\`。，、；：？！…—·ˉ¨‘’“”々～‖∶＂＇｀｜〃〔〕〈〉《》「」『』．〖〗【】（）［］｛｝]/g, '') // Remove known punctuators
+				.replace(/[\]\[\!\/\'\"\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~\`。，、；：？！…—·ˉ¨‘’“”々～‖∶＂＇｀｜〃〔〕〈〉《》「」『』．〖〗【】（）［］｛｝]/g, '') // Remove known punctuators
 				.replace(/^\-+/, '') // Remove leading -
 				.replace(/\-+$/, '') // Remove trailing -
 		);

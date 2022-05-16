@@ -8,7 +8,7 @@ import * as semver from 'vs/base/common/semver/semver';
 import { Event, Emitter } from 'vs/base/common/event';
 import { index, distinct } from 'vs/base/common/arrays';
 import { Promises, ThrottledDelayer } from 'vs/base/common/async';
-import { canceled, isCancellationError } from 'vs/base/common/errors';
+import { CancellationError, isCancellationError } from 'vs/base/common/errors';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -203,17 +203,25 @@ export class Extension implements IExtension {
 	}
 
 	get outdated(): boolean {
-		if (!this.gallery || !this.local) {
-			return false;
-		}
-		if (!this.local.preRelease && this.gallery.properties.isPreReleaseVersion) {
-			return false;
-		}
-		if (semver.gt(this.latestVersion, this.version)) {
-			return true;
-		}
-		if (this.outdatedTargetPlatform) {
-			return true;
+		try {
+			if (!this.gallery || !this.local) {
+				return false;
+			}
+			// Do not allow updating system extensions in stable
+			if (this.type === ExtensionType.System && this.productService.quality === 'stable') {
+				return false;
+			}
+			if (!this.local.preRelease && this.gallery.properties.isPreReleaseVersion) {
+				return false;
+			}
+			if (semver.gt(this.latestVersion, this.version)) {
+				return true;
+			}
+			if (this.outdatedTargetPlatform) {
+				return true;
+			}
+		} catch (error) {
+			/* Ignore */
 		}
 		return false;
 	}
@@ -1057,8 +1065,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				// Skip if check updates only for builtin extensions and current extension is not builtin.
 				continue;
 			}
-			if (installed.isBuiltin && !installed.local?.identifier.uuid) {
-				// Skip if the builtin extension does not have Marketplace id
+			if (installed.isBuiltin && (!installed.local?.identifier.uuid || this.productService.quality !== 'stable')) {
+				// Skip if the builtin extension does not have Marketplace identifier or the current quality is not stable.
 				continue;
 			}
 			infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
@@ -1293,7 +1301,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private async installFromVSIX(vsix: URI, installOptions?: InstallVSIXOptions): Promise<IExtension> {
 		const manifest = await this.extensionManagementService.getManifest(vsix);
 		const existingExtension = this.local.find(local => areSameExtensions(local.identifier, { id: getGalleryExtensionId(manifest.publisher, manifest.name) }));
-		const { identifier } = await this.extensionManagementService.install(vsix, installOptions);
+		const { identifier } = await this.extensionManagementService.installVSIX(vsix, manifest, installOptions);
 
 		if (existingExtension && existingExtension.latestVersion !== manifest.version) {
 			this.ignoreAutoUpdate(new ExtensionKey(identifier, manifest.version));
@@ -1353,7 +1361,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 								}
 							}
 						], {
-							onCancel: () => reject(canceled())
+							onCancel: () => reject(new CancellationError())
 						});
 					});
 				}

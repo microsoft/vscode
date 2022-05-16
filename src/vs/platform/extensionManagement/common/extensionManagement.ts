@@ -398,7 +398,7 @@ export interface IExtensionManagementService {
 	installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension>;
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
 	reinstallFromGallery(extension: ILocalExtension): Promise<void>;
-	getInstalled(type?: ExtensionType, donotIgnoreInvalidExtensions?: boolean): Promise<ILocalExtension[]>;
+	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;

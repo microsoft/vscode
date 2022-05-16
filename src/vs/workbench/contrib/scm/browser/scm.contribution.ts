@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
-import { VIEWLET_ID, ISCMRepository, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
+import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { SCMActiveResourceContextKeyController, SCMStatusController } from './activity';
@@ -236,7 +236,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('scm.defaultViewSortKey.path', "Sort the repository changes by path."),
 				localize('scm.defaultViewSortKey.status', "Sort the repository changes by Source Control status.")
 			],
-			description: localize('scm.defaultViewSortKey', "Controls the default Source Control repository sort mode."),
+			description: localize('scm.defaultViewSortKey', "Controls the default Source Control repository changes sort order when viewed as a list."),
 			default: 'path'
 		},
 		'scm.autoReveal': {
@@ -258,6 +258,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			markdownDescription: localize('alwaysShowRepository', "Controls whether repositories should always be visible in the Source Control view."),
 			default: false
+		},
+		'scm.repositories.sortOrder': {
+			type: 'string',
+			enum: ['discovery time', 'name', 'path'],
+			enumDescriptions: [
+				localize('scm.repositoriesSortOrder.discoveryTime', "Repositories in the Source Control Repositories view are sorted by discovery time. Repositories in the Source Control view are sorted in the order that they were selected."),
+				localize('scm.repositoriesSortOrder.name', "Repositories in the Source Control Repositories and Source Control views are sorted by repository name."),
+				localize('scm.repositoriesSortOrder.path', "Repositories in the Source Control Repositories and Source Control views are sorted by repository path.")
+			],
+			description: localize('repositoriesSortOrder', "Controls the sort order of the repositories in the source control repositories view."),
+			default: 'discovery time'
 		},
 		'scm.repositories.visible': {
 			type: 'number',
@@ -281,15 +292,23 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: accessor => {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const context = contextKeyService.getContext(document.activeElement);
-		const repository = context.getValue<ISCMRepository>('scmRepository');
+		const repositoryId = context.getValue<string | undefined>('scmRepository');
 
-		if (!repository || !repository.provider.acceptInputCommand) {
+		if (!repositoryId) {
 			return Promise.resolve(null);
 		}
+
+		const scmService = accessor.get(ISCMService);
+		const repository = scmService.getRepository(repositoryId);
+
+		if (!repository?.provider.acceptInputCommand) {
+			return Promise.resolve(null);
+		}
+
 		const id = repository.provider.acceptInputCommand.id;
 		const args = repository.provider.acceptInputCommand.arguments;
-
 		const commandService = accessor.get(ICommandService);
+
 		return commandService.executeCommand(id, ...(args || []));
 	}
 });
@@ -299,8 +318,10 @@ const viewNextCommitCommand = {
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: (accessor: ServicesAccessor) => {
 		const contextKeyService = accessor.get(IContextKeyService);
+		const scmService = accessor.get(ISCMService);
 		const context = contextKeyService.getContext(document.activeElement);
-		const repository = context.getValue<ISCMRepository>('scmRepository');
+		const repositoryId = context.getValue<string | undefined>('scmRepository');
+		const repository = repositoryId ? scmService.getRepository(repositoryId) : undefined;
 		repository?.input.showNextHistoryValue();
 	}
 };
@@ -310,8 +331,10 @@ const viewPreviousCommitCommand = {
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: (accessor: ServicesAccessor) => {
 		const contextKeyService = accessor.get(IContextKeyService);
+		const scmService = accessor.get(ISCMService);
 		const context = contextKeyService.getContext(document.activeElement);
-		const repository = context.getValue<ISCMRepository>('scmRepository');
+		const repositoryId = context.getValue<string | undefined>('scmRepository');
+		const repository = repositoryId ? scmService.getRepository(repositoryId) : undefined;
 		repository?.input.showPreviousHistoryValue();
 	}
 };

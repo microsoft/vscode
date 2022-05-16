@@ -15,7 +15,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
+import { Command, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
 import { BaseGhostTextWidgetModel, GhostText, GhostTextReplacement, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
@@ -403,10 +403,14 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		if (!currentCompletion) {
 			return undefined;
 		}
+		const cursorPosition = this.editor.getPosition();
+		if (currentCompletion.range.getEndPosition().isBefore(cursorPosition)) {
+			return undefined;
+		}
 
 		const mode = this.editor.getOptions().get(EditorOption.inlineSuggest).mode;
 
-		const ghostText = inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, this.editor.getPosition());
+		const ghostText = inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, cursorPosition);
 		if (ghostText) {
 			if (ghostText.isEmpty()) {
 				return undefined;
@@ -543,6 +547,11 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 
 		this.onDidChangeEmitter.fire();
 	}
+
+	public get commands(): Command[] {
+		const lists = new Set(this.cache.value?.completions.map(c => c.inlineCompletion.sourceInlineCompletions) || []);
+		return [...lists].flatMap(l => l.commands || []);
+	}
 }
 
 export class UpdateOperation implements IDisposable {
@@ -560,6 +569,7 @@ export class UpdateOperation implements IDisposable {
 */
 export class SynchronizedInlineCompletionsCache extends Disposable {
 	public readonly completions: readonly CachedInlineCompletion[];
+	private isDisposing = false;
 
 	constructor(
 		completionsSource: TrackedInlineCompletions,
@@ -579,6 +589,7 @@ export class SynchronizedInlineCompletionsCache extends Disposable {
 			}))
 		);
 		this._register(toDisposable(() => {
+			this.isDisposing = true;
 			editor.deltaDecorations(decorationIds, []);
 		}));
 
@@ -591,7 +602,11 @@ export class SynchronizedInlineCompletionsCache extends Disposable {
 		this._register(completionsSource);
 	}
 
-	public updateRanges() {
+	public updateRanges(): void {
+		if (this.isDisposing) {
+			return;
+		}
+
 		let hasChanged = false;
 		const model = this.editor.getModel();
 		for (const c of this.completions) {

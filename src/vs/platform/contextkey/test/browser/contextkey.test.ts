@@ -3,8 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+import { ContextKeyService, setContext } from 'vs/platform/contextkey/browser/contextKeyService';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 suite('ContextKeyService', () => {
 	test('updateParent', () => {
@@ -49,5 +55,22 @@ suite('ContextKeyService', () => {
 		child.updateParent(parent2);
 
 		return p;
+	});
+
+	test('issue #147732: URIs as context values', () => {
+		const disposables = new DisposableStore();
+		const configurationService: IConfigurationService = new TestConfigurationService();
+		const contextKeyService: IContextKeyService = disposables.add(new ContextKeyService(configurationService));
+		const instantiationService = new TestInstantiationService(new ServiceCollection(
+			[IConfigurationService, configurationService],
+			[IContextKeyService, contextKeyService]
+		));
+
+		const uri = URI.parse('test://abc');
+		contextKeyService.createKey<string>('notebookCellResource', undefined).set(uri.toString());
+		instantiationService.invokeFunction(setContext, 'jupyter.runByLineCells', JSON.parse(JSON.stringify([uri])));
+
+		const expr = ContextKeyExpr.in('notebookCellResource', 'jupyter.runByLineCells');
+		assert.deepStrictEqual(contextKeyService.contextMatchesRules(expr), true);
 	});
 });

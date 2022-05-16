@@ -74,8 +74,8 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
 
-export const allWalkthroughsHiddenContext = new RawContextKey('allWalkthroughsHidden', false);
-export const inWelcomeContext = new RawContextKey('inWelcome', false);
+export const allWalkthroughsHiddenContext = new RawContextKey<boolean>('allWalkthroughsHidden', false);
+export const inWelcomeContext = new RawContextKey<boolean>('inWelcome', false);
 export const embedderIdentifierContext = new RawContextKey<string | undefined>('embedderIdentifier', undefined);
 
 export interface IWelcomePageStartEntry {
@@ -99,9 +99,11 @@ const parsedStartEntries: IWelcomePageStartEntry[] = startEntries.map((e, i) => 
 }));
 
 type GettingStartedActionClassification = {
-	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; owner: 'JacksonKearl'; comment: 'Help understand what actions are most commonly taken on the getting started page' };
-	walkthroughId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; owner: 'JacksonKearl'; comment: 'As above' };
-	argument: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; owner: 'JacksonKearl'; comment: 'As above' };
+	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The command being executed on the getting started page.' };
+	walkthroughId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The walkthrough which the command is in' };
+	argument: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The arguments being passed to the command' };
+	owner: 'lramos15';
+	comment: 'Help understand what actions are most commonly taken on the getting started page';
 };
 
 type GettingStartedActionEvent = {

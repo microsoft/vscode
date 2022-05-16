@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { TestNativePathService, TestNativeWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { TestContextService, TestProductService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestProductService, TestStorageService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -17,13 +17,12 @@ import { dirname, join } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
 import { existsSync, readFileSync, unlinkSync } from 'fs';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor, IWorkingCopyHistoryEvent } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { IFileService } from 'vs/platform/files/common/files';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { TestLifecycleService, TestWillShutdownEvent } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLifecycleService, TestRemoteAgentService, TestWillShutdownEvent } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { NativeWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistoryService';
 import { joinPath, dirname as resourcesDirname, basename } from 'vs/base/common/resources';
@@ -58,7 +57,7 @@ export class TestWorkingCopyHistoryService extends NativeWorkingCopyHistoryServi
 
 		const uriIdentityService = new UriIdentityService(fileService);
 
-		const labelService = new LabelService(environmentService, new TestContextService(), new TestNativePathService());
+		const labelService = new LabelService(environmentService, new TestContextService(), new TestNativePathService(), new TestRemoteAgentService(), new TestStorageService(), new TestLifecycleService());
 
 		const lifecycleService = new TestLifecycleService();
 

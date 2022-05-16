@@ -9,6 +9,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
+import 'vs/workbench/common/configurationMigration';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -110,6 +111,23 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				default: false,
 				tags: ['experimental'],
 				description: localize('workbench.editor.preferBasedLanguageDetection', "When enabled, a language detection model that takes into account editor history will be given higher precedence."),
+			},
+			'workbench.editor.languageDetectionHints': {
+				type: 'object',
+				default: { 'untitledEditors': true, 'notebookEditors': true },
+				tags: ['experimental'],
+				description: localize('workbench.editor.showLanguageDetectionHints', "When enabled, shows a status bar quick fix when the editor language doesn't match detected content language."),
+				additionalProperties: false,
+				properties: {
+					untitledEditors: {
+						type: 'boolean',
+						description: localize('workbench.editor.showLanguageDetectionHints.editors', "Show in untitled text editors"),
+					},
+					notebookEditors: {
+						type: 'boolean',
+						description: localize('workbench.editor.showLanguageDetectionHints.notebook', "Show in notebook editors"),
+					}
+				}
 			},
 			'workbench.editor.tabCloseButton': {
 				'type': 'string',
@@ -464,9 +482,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
 				'markdownDeprecationMessage': localize({ key: 'layoutControlTypeDeprecation', comment: ['{0} is a placeholder for a setting identifier.'] }, "This setting has been deprecated in favor of {0}", '`#workbench.layoutControl.type#`')
 			},
-			'workbench.editor.dropIntoEditor.enabled': {
+			'workbench.experimental.editor.dropIntoEditor.enabled': {
 				'type': 'boolean',
 				'default': true,
+				'tags': ['experimental'],
 				'markdownDescription': localize('dropIntoEditor', "Controls whether you can drag and drop a file into a text editor by holding down `shift` (instead of opening the file in an editor)."),
 			}
 		}
@@ -518,6 +537,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'default': isMacintosh ? ' \u2014 ' : ' - ',
 				'markdownDescription': localize("window.titleSeparator", "Separator used by `window.title`.")
+			},
+			'window.experimental.titleMenu': {
+				type: 'boolean',
+				default: false,
+				description: localize('window.experimental.titleMenu', "Show window title as menu")
 			},
 			'window.menuBarVisibility': {
 				'type': 'string',
@@ -585,14 +609,21 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['always', 'keyboardOnly', 'never'],
 				'enumDescriptions': [
-					localize('window.confirmBeforeClose.always', "Always try to ask for confirmation. Note that browsers may still decide to close a tab or window without confirmation."),
-					localize('window.confirmBeforeClose.keyboardOnly', "Only ask for confirmation if a keybinding was detected. Note that detection may not be possible in some cases."),
-					localize('window.confirmBeforeClose.never', "Never explicitly ask for confirmation unless data loss is imminent.")
+					isWeb ?
+						localize('window.confirmBeforeClose.always.web', "Always try to ask for confirmation. Note that browsers may still decide to close a tab or window without confirmation.") :
+						localize('window.confirmBeforeClose.always', "Always ask for confirmation."),
+					isWeb ?
+						localize('window.confirmBeforeClose.keyboardOnly.web', "Only ask for confirmation if a keybinding was used to close the window. Note that detection may not be possible in some cases.") :
+						localize('window.confirmBeforeClose.keyboardOnly', "Only ask for confirmation if a keybinding was used."),
+					isWeb ?
+						localize('window.confirmBeforeClose.never.web', "Never explicitly ask for confirmation unless data loss is imminent.") :
+						localize('window.confirmBeforeClose.never', "Never explicitly ask for confirmation.")
 				],
-				'default': isWeb && !isStandalone() ? 'keyboardOnly' : 'never', // on by default in web, unless PWA
-				'description': localize('confirmBeforeCloseWeb', "Controls whether to show a confirmation dialog before closing the browser tab or window. Note that even if enabled, browsers may still decide to close a tab or window without confirmation and that this setting is only a hint that may not work in all cases."),
-				'scope': ConfigurationScope.APPLICATION,
-				'included': isWeb
+				'default': (isWeb && !isStandalone()) ? 'keyboardOnly' : 'never', // on by default in web, unless PWA, never on desktop
+				'markdownDescription': isWeb ?
+					localize('confirmBeforeCloseWeb', "Controls whether to show a confirmation dialog before closing the browser tab or window. Note that even if enabled, browsers may still decide to close a tab or window without confirmation and that this setting is only a hint that may not work in all cases.") :
+					localize('confirmBeforeClose', "Controls whether to show a confirmation dialog before closing the window or quitting the application."),
+				'scope': ConfigurationScope.APPLICATION
 			}
 		}
 	});
