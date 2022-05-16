@@ -7,8 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export type PolicyName = string;
-export type PolicyValue = string | boolean | number;
-export type Policies = Map<PolicyName, PolicyValue>;
+export type PolicyValue = string | boolean;
 
 export const IPolicyService = createDecorator<IPolicyService>('policy');
 

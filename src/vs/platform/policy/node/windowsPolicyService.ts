@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IPolicyService, Policies, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
+import { IPolicyService, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -16,7 +16,7 @@ export class WindowsPolicyService extends Disposable implements IPolicyService {
 
 	readonly _serviceBrand: undefined;
 
-	private policies: Policies = new Map();
+	private readonly policies = new Map<PolicyName, PolicyValue>();
 	private init: Promise<void> | undefined;
 
 	private readonly _onDidChange = new Emitter<readonly PolicyName[]>();
@@ -58,7 +58,7 @@ export class WindowsPolicyService extends Disposable implements IPolicyService {
 
 				let first = true;
 
-				this._register(createWatcher(this.productService.win32RegValueName, policies, update => () => {
+				this._register(createWatcher(this.productService.win32RegValueName, policies, update => {
 					for (const key in update) {
 						this.policies.set(key, update[key]!);
 					}
