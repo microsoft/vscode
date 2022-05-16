@@ -41,7 +41,6 @@
 		Object.keys(self.webPackagePaths).map(function (key, index) {
 			self.webPackagePaths[key] = `${baseUrl}/remote/web/node_modules/${key}/${self.webPackagePaths[key]}`;
 		});
-
 		require.config({
 			baseUrl: `${baseUrl}/out`,
 			recordStats: true,
@@ -53,7 +52,7 @@
 					throw new Error(`Invalid script url: ${value}`)
 				}
 			}),
-			paths: self.webPackagePaths,
+			paths: self.webPackagePaths
 		});
 	</script>
 
