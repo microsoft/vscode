@@ -32,18 +32,12 @@ export interface INotebookKernelChangeEvent {
 	hasExecutionOrder?: true;
 }
 
-export const enum NotebookKernelType {
-	Resolved,
-	Proxy = 1
-}
-
 export enum NotebookControllerState {
 	Idle = 1,
 	Connecting = 2
 }
 
-export interface IResolvedNotebookKernel {
-	readonly type: NotebookKernelType.Resolved;
+export interface INotebookKernel {
 	readonly id: string;
 	readonly viewType: string;
 	readonly onDidChange: Event<Readonly<INotebookKernelChangeEvent>>;
@@ -76,33 +70,6 @@ export const enum ProxyKernelState {
 export interface INotebookProxyKernelChangeEvent extends INotebookKernelChangeEvent {
 	connectionState?: true;
 }
-
-export interface INotebookProxyKernel {
-	readonly type: NotebookKernelType.Proxy;
-	readonly id: string;
-	readonly viewType: string;
-	readonly extension: ExtensionIdentifier;
-	readonly localResourceRoot: URI;
-	readonly preloadUris: URI[];
-	readonly preloadProvides: string[];
-
-	readonly onDidChange: Event<Readonly<INotebookProxyKernelChangeEvent>>;
-	label: string;
-	description?: string;
-	detail?: string;
-	kind?: string;
-	state?: NotebookControllerState;
-	supportedLanguages: string[];
-	implementsInterrupt?: boolean;
-	implementsExecutionOrder?: boolean;
-	connectionState: ProxyKernelState;
-	resolveKernel(uri: URI): Promise<string | null>;
-	executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
-	cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
-	onDispose: Event<void>;
-}
-
-export type INotebookKernel = IResolvedNotebookKernel | INotebookProxyKernel;
 
 export interface INotebookTextModelLike { uri: URI; viewType: string }
 

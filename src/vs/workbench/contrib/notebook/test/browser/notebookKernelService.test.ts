@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookKernelService, IResolvedNotebookKernel, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelService, NotebookControllerState } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { mock } from 'vs/base/test/common/mock';
@@ -159,8 +159,7 @@ suite('NotebookKernelService', () => {
 	});
 });
 
-class TestNotebookKernel implements IResolvedNotebookKernel {
-	type: NotebookKernelType.Resolved = NotebookKernelType.Resolved;
+class TestNotebookKernel implements INotebookKernel {
 	id: string = Math.random() + 'kernel';
 	label: string = 'test-label';
 	viewType = '*';
@@ -172,6 +171,8 @@ class TestNotebookKernel implements IResolvedNotebookKernel {
 	preloadUris: URI[] = [];
 	preloadProvides: string[] = [];
 	supportedLanguages: string[] = [];
+	state?: NotebookControllerState | undefined = undefined;
+	onDispose = Event.None;
 	executeNotebookCellsRequest(): Promise<void> {
 		throw new Error('Method not implemented.');
 	}

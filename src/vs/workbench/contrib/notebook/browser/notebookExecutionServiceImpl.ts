@@ -14,7 +14,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { CellKind, INotebookTextModel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernelService, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 export class NotebookExecutionService implements INotebookExecutionService, IDisposable {
 	declare _serviceBrand: undefined;
@@ -91,11 +91,7 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 		this._logService.debug(`NotebookExecutionService#cancelNotebookCellHandles ${JSON.stringify(cellsArr)}`);
 		const kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
 		if (kernel) {
-			if (kernel.type === NotebookKernelType.Proxy) {
-				this._activeProxyKernelExecutionToken?.dispose(true);
-			} else {
-				await kernel.cancelNotebookCellExecution(notebook.uri, cellsArr);
-			}
+			await kernel.cancelNotebookCellExecution(notebook.uri, cellsArr);
 
 		}
 	}
