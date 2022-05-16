@@ -125,6 +125,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _terminal?: Terminal;
 	readonly capabilities = new TerminalCapabilityStore();
 	private _hasUpdatedTelemetry: boolean = false;
+	private _activationTimeout!: NodeJS.Timeout;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -145,6 +146,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (!this._hasUpdatedTelemetry && didHandle) {
 			this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(ShellIntegrationTelemetry.Success);
 			this._hasUpdatedTelemetry = true;
+			clearTimeout(this._activationTimeout);
 		}
 		return didHandle;
 	}
@@ -225,11 +227,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	}
 
 	private async _ensureCapabilitiesOrAddFailureTelemetry(): Promise<void> {
-		setTimeout(() => {
+		this._activationTimeout = setTimeout(() => {
 			if (!this.capabilities.get(TerminalCapability.CommandDetection) && !this.capabilities.get(TerminalCapability.CwdDetection)) {
 				this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(ShellIntegrationTelemetry.ActivationTimeout);
 				this._logService.warn('Shell integration failed to add capabilities within 10 seconds');
 			}
+			this._hasUpdatedTelemetry = true;
 		}, 10000);
 	}
 

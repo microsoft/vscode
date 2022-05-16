@@ -247,8 +247,7 @@ export const enum ShellIntegrationTelemetry {
 	ActivationTimeout = 'terminal/shellIntegrationActivationTimeout',
 	FailureProcessExit = 'terminal/shellIntegrationFailureProcessExit',
 	FailureCustomArgs = 'terminal/shellIntegrationActivationFailureCustomArgs',
-	Success = 'terminal/shellIntegrationActivationSucceeded',
-	DisabledByUser = 'terminal/shellIntegrationDisabledByUser'
+	Success = 'terminal/shellIntegrationActivationSucceeded'
 }
 
 export interface IPtyHostController {

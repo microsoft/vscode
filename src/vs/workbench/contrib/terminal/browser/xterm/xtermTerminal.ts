@@ -13,7 +13,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IShellIntegration, ShellIntegrationTelemetry, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellIntegration, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
 import { ICommandTracker, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -60,7 +60,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	// Always on addons
 	private _commandNavigationAddon: CommandNavigationAddon;
-	private _shellIntegrationAddon: ShellIntegrationAddon | undefined;
+	private _shellIntegrationAddon: ShellIntegrationAddon;
 	private _decorationAddon: DecorationAddon | undefined;
 
 	// Optional addons
@@ -80,7 +80,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
 	get commandTracker(): ICommandTracker { return this._commandNavigationAddon; }
-	get shellIntegration(): IShellIntegration | undefined { return this._shellIntegrationAddon; }
+	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
 
 	private _target: TerminalLocation | undefined;
 	set target(location: TerminalLocation | undefined) {
@@ -175,6 +175,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this._updateUnicodeVersion();
 		this._commandNavigationAddon = this._instantiationService.createInstance(CommandNavigationAddon, _capabilities);
 		this.raw.loadAddon(this._commandNavigationAddon);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(this._logService, this._telemetryService);
+		this.raw.loadAddon(this._shellIntegrationAddon);
 		this._updateShellIntegrationAddons();
 	}
 
@@ -610,9 +612,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		const shellIntegrationEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled);
 		const decorationsEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled);
 		if (shellIntegrationEnabled) {
-			if (!this._shellIntegrationAddon) {
-				this._createShellIntegrationAddon();
-			}
 			if (decorationsEnabled && !this._decorationAddon) {
 				this._createDecorationAddon();
 			} else if (this._decorationAddon && !decorationsEnabled) {
@@ -624,14 +623,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			if (this._decorationAddon) {
 				this._decorationAddon.dispose();
 				this._decorationAddon = undefined;
-				this._telemetryService.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>(ShellIntegrationTelemetry.DisabledByUser
-				);
 			}
 		}
-	}
-
-	private _createShellIntegrationAddon(): void {
-		this._shellIntegrationAddon = new ShellIntegrationAddon(this._logService, this._telemetryService);
-		this.raw.loadAddon(this._shellIntegrationAddon);
 	}
 }
