@@ -11,7 +11,7 @@ import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -238,7 +238,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 		this.value = displayValue;
 		this.isConfigured = isConfigured;
-		if (isConfigured || this.setting.tags || this.tags || this.setting.restricted) {
+		if (isConfigured || this.setting.tags || this.tags || this.setting.restricted || this.hasPolicyValue) {
 			// Don't create an empty Set for all 1000 settings, only if needed
 			this.tags = new Set<string>();
 			if (isConfigured) {
@@ -251,6 +251,10 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 			if (this.setting.restricted) {
 				this.tags.add(REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG);
+			}
+
+			if (this.hasPolicyValue) {
+				this.tags.add(POLICY_SETTING_TAG);
 			}
 		}
 
@@ -902,6 +906,11 @@ export function parseQuery(query: string): IParsedQuery {
 
 	query = query.replace(`@${MODIFIED_SETTING_TAG}`, () => {
 		tags.push(MODIFIED_SETTING_TAG);
+		return '';
+	});
+
+	query = query.replace(`@${POLICY_SETTING_TAG}`, () => {
+		tags.push(POLICY_SETTING_TAG);
 		return '';
 	});
 

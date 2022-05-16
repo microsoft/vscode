@@ -43,7 +43,7 @@ import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerg
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { inspectSetting, ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, ObjectSettingDropdownWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, ObjectSettingCheckboxWidget } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
-import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
+import { LANGUAGE_SETTING_TAG, POLICY_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
@@ -740,8 +740,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	protected readonly _onDidChangeSettingHeight = this._register(new Emitter<HeightChangeParams>());
 	readonly onDidChangeSettingHeight: Event<HeightChangeParams> = this._onDidChangeSettingHeight.event;
 
-	protected readonly _onApplyLanguageFilter = this._register(new Emitter<string>());
-	readonly onApplyLanguageFilter: Event<string> = this._onApplyLanguageFilter.event;
+	protected readonly _onApplyFilter = this._register(new Emitter<string>());
+	readonly onApplyFilter: Event<string> = this._onApplyFilter.event;
 
 	private readonly markdownRenderer: MarkdownRenderer;
 
@@ -794,14 +794,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toDispose = new DisposableStore();
-
-		const policyWarningElement = DOM.append(container, $('.setting-item-policy-description'));
-		const policyIcon = DOM.append(policyWarningElement, $('span.codicon.codicon-lock'));
-		toDispose.add(attachStylerCallback(this._themeService, { editorInfoForeground }, colors => {
-			policyIcon.style.setProperty('--organization-policy-icon-color', colors.editorInfoForeground?.toString() || '');
-		}));
-		const element = DOM.append(policyWarningElement, $('span'));
-		element.textContent = localize('policyLabel', "This setting is managed by your organization.");
+		const policyWarningElement = this.renderPolicyLabel(container, toDispose);
 
 		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
 		const toolbar = this.renderSettingToolbar(toolbarContainer);
@@ -846,6 +839,33 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 				this._onDidFocusSetting.fire(template.context);
 			}
 		});
+	}
+
+	protected renderPolicyLabel(container: HTMLElement, toDispose: DisposableStore): HTMLElement {
+		const policyWarningElement = DOM.append(container, $('.setting-item-policy-description'));
+		const policyIcon = DOM.append(policyWarningElement, $('span.codicon.codicon-lock'));
+		toDispose.add(attachStylerCallback(this._themeService, { editorInfoForeground }, colors => {
+			policyIcon.style.setProperty('--organization-policy-icon-color', colors.editorInfoForeground?.toString() || '');
+		}));
+		const element = DOM.append(policyWarningElement, $('span'));
+		element.textContent = localize('policyLabel', "This setting is managed by your organization.");
+		const viewPolicyLabel = localize('viewPolicySettings', "View policy settings");
+		const linkElement: HTMLAnchorElement = DOM.append(policyWarningElement, $('a'));
+		linkElement.textContent = viewPolicyLabel;
+		linkElement.setAttribute('tabindex', '0');
+		linkElement.href = '#';
+		toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.CLICK, (e: MouseEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this._onApplyFilter.fire(`@${POLICY_SETTING_TAG}`);
+		}));
+		toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+				e.stopPropagation();
+				this._onApplyFilter.fire(`@${POLICY_SETTING_TAG}`);
+			}
+		}));
+		return policyWarningElement;
 	}
 
 	protected renderSettingToolbar(container: HTMLElement): ToolBar {
@@ -1098,7 +1118,7 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 
 		template.elementDisposables.add(template.button.onDidClick(() => {
 			if (isLanguageTagSetting) {
-				this._onApplyLanguageFilter.fire(plainKey);
+				this._onApplyFilter.fire(`@${LANGUAGE_SETTING_TAG}:${plainKey}`);
 			} else {
 				this._onDidOpenSettings.fire(dataElement.setting.key);
 			}
@@ -1836,13 +1856,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const toolbar = this.renderSettingToolbar(toolbarContainer);
 		toDispose.add(toolbar);
 
-		const policyWarningElement = DOM.append(container, $('.setting-item-policy-description'));
-		const policyIcon = DOM.append(policyWarningElement, $('span.codicon.codicon-lock'));
-		toDispose.add(attachStylerCallback(this._themeService, { editorInfoForeground }, colors => {
-			policyIcon.style.setProperty('--organization-policy-icon-color', colors.editorInfoForeground?.toString() || '');
-		}));
-		const element = DOM.append(policyWarningElement, $('span'));
-		element.textContent = localize('policyLabel', "This setting is managed by your organization.");
+		const policyWarningElement = this.renderPolicyLabel(container, toDispose);
 
 		const template: ISettingBoolItemTemplate = {
 			toDispose,
@@ -1943,7 +1957,7 @@ export class SettingTreeRenderers {
 
 	readonly onDidChangeSettingHeight: Event<HeightChangeParams>;
 
-	readonly onApplyLanguageFilter: Event<string>;
+	readonly onApplyFilter: Event<string>;
 
 	readonly allRenderers: ITreeRenderer<SettingsTreeElement, never, any>[];
 
@@ -1992,7 +2006,7 @@ export class SettingTreeRenderers {
 		this.onDidClickSettingLink = Event.any(...settingRenderers.map(r => r.onDidClickSettingLink));
 		this.onDidFocusSetting = Event.any(...settingRenderers.map(r => r.onDidFocusSetting));
 		this.onDidChangeSettingHeight = Event.any(...settingRenderers.map(r => r.onDidChangeSettingHeight));
-		this.onApplyLanguageFilter = Event.any(...settingRenderers.map(r => r.onApplyLanguageFilter));
+		this.onApplyFilter = Event.any(...settingRenderers.map(r => r.onApplyFilter));
 
 		this.allRenderers = [
 			...settingRenderers,
