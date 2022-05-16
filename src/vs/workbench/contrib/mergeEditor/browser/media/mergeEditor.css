@@ -20,10 +20,12 @@
 }
 
 .monaco-workbench .merge-editor .code-view > .container > .gutter {
-	min-width: 20px;
-	/* background-color: yellow; */
-	margin-right: 3px;
+	width: 24px;
 	position: relative;
+	overflow: hidden;
+
+	flex-shrink: 0;
+	flex-grow: 0;
 }
 
 .monaco-editor .merge-accept-conflict-glyph {
@@ -34,9 +36,42 @@
 	background-color: rgb(170 175 170 / 15%);
 }
 
-.merge-accept-gutter-marker {
-	min-height: 30px;
-	min-width: 20px;
-	background-color: yellow;
+.gutter-item {
 	position: absolute;
+}
+
+.merge-accept-gutter-marker {
+	width: 28px;
+	/* background-color: yellow; */
+
+
+	margin-left: 4px;
+}
+
+.merge-accept-gutter-marker .background {
+	height: 100%;
+	width: 50%;
+	position: absolute;
+}
+
+.merge-accept-gutter-marker.multi-line .background {
+	border: 2px solid #323232FF;
+	border-right: 0;
+	left: 8px;
+	width: 10px;
+}
+
+.merge-accept-gutter-marker .checkbox {
+	height: 100%;
+	width: 100%;
+	position: absolute;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+}
+
+.merge-accept-gutter-marker .checkbox .accept-conflict-group.monaco-custom-toggle.monaco-checkbox {
+	margin: 0;
+	padding: 0;
+	background-color: #3C3C3CFF;
 }

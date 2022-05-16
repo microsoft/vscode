@@ -9,10 +9,23 @@ import { Range } from 'vs/editor/common/core/range';
 import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 import { ITextModel } from 'vs/editor/common/model';
 
-export class LineEdits {
-	constructor(public readonly edits: readonly LineEdit[]) {
+export class LineEdit {
+	constructor(
+		public readonly range: LineRange,
+		public readonly newLines: string[]
+	) { }
 
+	public equals(other: LineEdit): boolean {
+		return this.range.equals(other.range) && equals(this.newLines, other.newLines);
 	}
+
+	public apply(model: ITextModel): void {
+		new LineEdits([this]).apply(model);
+	}
+}
+
+export class LineEdits {
+	constructor(public readonly edits: readonly LineEdit[]) { }
 
 	public apply(model: ITextModel): void {
 		model.pushEditOperations(
@@ -23,188 +36,6 @@ export class LineEdits {
 			})),
 			() => null
 		);
-	}
-}
-
-export class LineEdit<T = void> {
-	equals(other: LineEdit<any>) {
-		return this.range.equals(other.range) && equals(this.newLines, other.newLines);
-	}
-
-	constructor(
-		public readonly range: LineRange,
-		public readonly newLines: string[],
-		public readonly data: T
-	) { }
-}
-
-export class ConflictGroup {
-	/**
-	 * diffs1 and diffs2 together with the conflict relation form a bipartite graph.
-	 * This method computes strongly connected components of that graph while maintaining the side of each diff.
-	*/
-	public static partitionDiffs(
-		originalTextModel: ITextModel,
-		input1TextModel: ITextModel,
-		diffs1: readonly LineDiff[],
-		input2TextModel: ITextModel,
-		diffs2: readonly LineDiff[]
-	): ConflictGroup[] {
-		const compareByStartLineNumber = compareBy<LineDiff, number>(
-			(d) => d.originalRange.startLineNumber,
-			numberComparator
-		);
-
-		const queueDiffs1 = new ArrayQueue(
-			diffs1.slice().sort(compareByStartLineNumber)
-		);
-		const queueDiffs2 = new ArrayQueue(
-			diffs2.slice().sort(compareByStartLineNumber)
-		);
-
-		const result = new Array<ConflictGroup>();
-
-		while (true) {
-			const lastDiff1 = queueDiffs1.peekLast();
-			const lastDiff2 = queueDiffs2.peekLast();
-
-			if (
-				lastDiff1 &&
-				(!lastDiff2 ||
-					lastDiff1.originalRange.startLineNumber >=
-					lastDiff2.originalRange.startLineNumber)
-			) {
-				queueDiffs1.removeLast();
-
-				const otherConflictingWith =
-					queueDiffs2.takeFromEndWhile((d) => d.conflicts(lastDiff1)) || [];
-
-				const singleLinesDiff = LineDiff.hull(otherConflictingWith);
-
-				const moreConflictingWith =
-					(singleLinesDiff &&
-						queueDiffs1.takeFromEndWhile((d) =>
-							d.conflicts(singleLinesDiff)
-						)) ||
-					[];
-				moreConflictingWith.push(lastDiff1);
-
-				result.push(
-					new ConflictGroup(
-						originalTextModel,
-						input1TextModel,
-						moreConflictingWith,
-						queueDiffs1.peekLast()?.resultingDeltaFromOriginalToModified ?? 0,
-						input2TextModel,
-						otherConflictingWith,
-						queueDiffs2.peekLast()?.resultingDeltaFromOriginalToModified ?? 0,
-					)
-				);
-			} else if (lastDiff2) {
-				queueDiffs2.removeLast();
-
-				const otherConflictingWith =
-					queueDiffs1.takeFromEndWhile((d) => d.conflicts(lastDiff2)) || [];
-
-				const singleLinesDiff = LineDiff.hull(otherConflictingWith);
-
-				const moreConflictingWith =
-					(singleLinesDiff &&
-						queueDiffs2.takeFromEndWhile((d) =>
-							d.conflicts(singleLinesDiff)
-						)) ||
-					[];
-				moreConflictingWith.push(lastDiff2);
-
-				result.push(
-					new ConflictGroup(
-						originalTextModel,
-						input1TextModel,
-						otherConflictingWith,
-						queueDiffs1.peekLast()?.resultingDeltaFromOriginalToModified ?? 0,
-						input2TextModel,
-						moreConflictingWith,
-						queueDiffs2.peekLast()?.resultingDeltaFromOriginalToModified ?? 0,
-					)
-				);
-			} else {
-				break;
-			}
-		}
-
-		result.reverse();
-
-		return result;
-	}
-
-	public readonly input1FullDiff = LineDiff.hull(this.input1Diffs);
-	public readonly input2FullDiff = LineDiff.hull(this.input2Diffs);
-
-	public readonly totalOriginalRange: LineRange;
-	public readonly totalInput1Range: LineRange;
-	public readonly totalInput2Range: LineRange;
-
-	constructor(
-		public readonly originalTextModel: ITextModel,
-		public readonly input1TextModel: ITextModel,
-		public readonly input1Diffs: readonly LineDiff[],
-		public readonly input1DeltaLineCount: number,
-		public readonly input2TextModel: ITextModel,
-		public readonly input2Diffs: readonly LineDiff[],
-		public readonly input2DeltaLineCount: number,
-	) {
-		if (this.input1Diffs.length === 0 && this.input2Diffs.length === 0) {
-			throw new BugIndicatingError('must have at least one diff');
-		}
-
-		const input1Diff =
-			this.input1FullDiff ||
-			new LineDiff(
-				originalTextModel,
-				this.input2FullDiff!.originalRange,
-				input1TextModel,
-				this.input2FullDiff!.originalRange.delta(input1DeltaLineCount)
-			);
-
-		const input2Diff =
-			this.input2FullDiff ||
-			new LineDiff(
-				originalTextModel,
-				this.input1FullDiff!.originalRange,
-				input1TextModel,
-				this.input1FullDiff!.originalRange.delta(input2DeltaLineCount)
-			);
-
-		const results = LineDiff.alignOriginalRegion([input1Diff, input2Diff]);
-		this.totalOriginalRange = results[0].originalRange;
-		this.totalInput1Range = results[0].modifiedRange;
-		this.totalInput2Range = results[1].modifiedRange;
-	}
-
-	public get isConflicting(): boolean {
-		return this.input1Diffs.length > 0 && this.input2Diffs.length > 0;
-	}
-
-	public getInput1LineEdit(): LineEdit | undefined {
-		if (this.input1Diffs.length === 0) {
-			return undefined;
-		}
-		if (this.input1Diffs.length === 1) {
-			return this.input1Diffs[0].getLineEdit();
-		} else {
-			throw new Error('Method not implemented.');
-		}
-	}
-
-	public getInput2LineEdit(): LineEdit | undefined {
-		if (this.input2Diffs.length === 0) {
-			return undefined;
-		}
-		if (this.input2Diffs.length === 1) {
-			return this.input2Diffs[0].getLineEdit();
-		} else {
-			throw new Error('Method not implemented.');
-		}
 	}
 }
 
@@ -240,7 +71,10 @@ export class LineRange {
 		return this.lineCount === 0;
 	}
 
-	public intersects(other: LineRange): boolean {
+	/**
+	 * Returns false if there is at least one line between `this` and `other`.
+	*/
+	public touches(other: LineRange): boolean {
 		return (
 			this.endLineNumberExclusive >= other.startLineNumber &&
 			other.endLineNumberExclusive >= this.startLineNumber
@@ -303,7 +137,7 @@ export class LineDiff {
 		);
 	}
 
-	public static alignOriginalRegion(lineDiffs: readonly LineDiff[]): LineDiff[] {
+	public static alignOriginalRange(lineDiffs: readonly LineDiff[]): LineDiff[] {
 		if (lineDiffs.length === 0) {
 			return [];
 		}
@@ -344,7 +178,7 @@ export class LineDiff {
 
 	public conflicts(other: LineDiff): boolean {
 		this.ensureSameOriginalModel(other);
-		return this.originalRange.intersects(other.originalRange);
+		return this.originalRange.touches(other.originalRange);
 	}
 
 	public isStrictBefore(other: LineDiff): boolean {
@@ -355,16 +189,14 @@ export class LineDiff {
 	public getLineEdit(): LineEdit {
 		return new LineEdit(
 			this.originalRange,
-			this.getModifiedLines(),
-			undefined
+			this.getModifiedLines()
 		);
 	}
 
 	public getReverseLineEdit(): LineEdit {
 		return new LineEdit(
 			this.modifiedRange,
-			this.getOriginalLines(),
-			undefined
+			this.getOriginalLines()
 		);
 	}
 
@@ -386,34 +218,212 @@ export class LineDiff {
 }
 
 
-export class MergeState {
+/**
+ * Describes modifications in input 1 and input 2 for a specific range in base.
+ *
+ * The UI offers a mechanism to either apply all changes from input 1 or input 2 or both.
+ *
+ * Immutable.
+*/
+export class ModifiedBaseRange {
+	/**
+	 * diffs1 and diffs2 together with the conflict relation form a bipartite graph.
+	 * This method computes strongly connected components of that graph while maintaining the side of each diff.
+	*/
+	public static fromDiffs(
+		originalTextModel: ITextModel,
+		input1TextModel: ITextModel,
+		diffs1: readonly LineDiff[],
+		input2TextModel: ITextModel,
+		diffs2: readonly LineDiff[]
+	): ModifiedBaseRange[] {
+		const compareByStartLineNumber = compareBy<LineDiff, number>(
+			(d) => d.originalRange.startLineNumber,
+			numberComparator
+		);
+
+		const queueDiffs1 = new ArrayQueue(
+			diffs1.slice().sort(compareByStartLineNumber)
+		);
+		const queueDiffs2 = new ArrayQueue(
+			diffs2.slice().sort(compareByStartLineNumber)
+		);
+
+		const result = new Array<ModifiedBaseRange>();
+
+		while (true) {
+			const lastDiff1 = queueDiffs1.peekLast();
+			const lastDiff2 = queueDiffs2.peekLast();
+
+			if (
+				lastDiff1 &&
+				(!lastDiff2 ||
+					lastDiff1.originalRange.startLineNumber >=
+					lastDiff2.originalRange.startLineNumber)
+			) {
+				queueDiffs1.removeLast();
+
+				const otherConflictingWith =
+					queueDiffs2.takeFromEndWhile((d) => d.conflicts(lastDiff1)) || [];
+
+				const singleLinesDiff = LineDiff.hull(otherConflictingWith);
+
+				const moreConflictingWith =
+					(singleLinesDiff &&
+						queueDiffs1.takeFromEndWhile((d) =>
+							d.conflicts(singleLinesDiff)
+						)) ||
+					[];
+				moreConflictingWith.push(lastDiff1);
+
+				result.push(
+					new ModifiedBaseRange(
+						originalTextModel,
+						input1TextModel,
+						moreConflictingWith,
+						queueDiffs1.peekLast()?.resultingDeltaFromOriginalToModified ?? 0,
+						input2TextModel,
+						otherConflictingWith,
+						queueDiffs2.peekLast()?.resultingDeltaFromOriginalToModified ?? 0,
+					)
+				);
+			} else if (lastDiff2) {
+				queueDiffs2.removeLast();
+
+				const otherConflictingWith =
+					queueDiffs1.takeFromEndWhile((d) => d.conflicts(lastDiff2)) || [];
+
+				const singleLinesDiff = LineDiff.hull(otherConflictingWith);
+
+				const moreConflictingWith =
+					(singleLinesDiff &&
+						queueDiffs2.takeFromEndWhile((d) =>
+							d.conflicts(singleLinesDiff)
+						)) ||
+					[];
+				moreConflictingWith.push(lastDiff2);
+
+				result.push(
+					new ModifiedBaseRange(
+						originalTextModel,
+						input1TextModel,
+						otherConflictingWith,
+						queueDiffs1.peekLast()?.resultingDeltaFromOriginalToModified ?? 0,
+						input2TextModel,
+						moreConflictingWith,
+						queueDiffs2.peekLast()?.resultingDeltaFromOriginalToModified ?? 0,
+					)
+				);
+			} else {
+				break;
+			}
+		}
+
+		result.reverse();
+
+		return result;
+	}
+
+	private readonly input1FullDiff = LineDiff.hull(this.input1Diffs);
+	private readonly input2FullDiff = LineDiff.hull(this.input2Diffs);
+
+	public readonly baseRange: LineRange;
+	public readonly input1Range: LineRange;
+	public readonly input2Range: LineRange;
+
+	constructor(
+		public readonly baseTextModel: ITextModel,
+		public readonly input1TextModel: ITextModel,
+		public readonly input1Diffs: readonly LineDiff[],
+		public readonly input1DeltaLineCount: number,
+		public readonly input2TextModel: ITextModel,
+		public readonly input2Diffs: readonly LineDiff[],
+		public readonly input2DeltaLineCount: number,
+	) {
+		if (this.input1Diffs.length === 0 && this.input2Diffs.length === 0) {
+			throw new BugIndicatingError('must have at least one diff');
+		}
+
+		const input1Diff =
+			this.input1FullDiff ||
+			new LineDiff(
+				baseTextModel,
+				this.input2FullDiff!.originalRange,
+				input1TextModel,
+				this.input2FullDiff!.originalRange.delta(input1DeltaLineCount)
+			);
+
+		const input2Diff =
+			this.input2FullDiff ||
+			new LineDiff(
+				baseTextModel,
+				this.input1FullDiff!.originalRange,
+				input1TextModel,
+				this.input1FullDiff!.originalRange.delta(input2DeltaLineCount)
+			);
+
+		const results = LineDiff.alignOriginalRange([input1Diff, input2Diff]);
+		this.baseRange = results[0].originalRange;
+		this.input1Range = results[0].modifiedRange;
+		this.input2Range = results[1].modifiedRange;
+	}
+
+	public get isConflicting(): boolean {
+		return this.input1Diffs.length > 0 && this.input2Diffs.length > 0;
+	}
+
+	public getInput1LineEdit(): LineEdit | undefined {
+		if (this.input1Diffs.length === 0) {
+			return undefined;
+		}
+		//new LineDiff(this.baseTextModel, this.tota)
+		if (this.input1Diffs.length === 1) {
+			return this.input1Diffs[0].getLineEdit();
+		} else {
+			throw new Error('Method not implemented.');
+		}
+	}
+
+	public getInput2LineEdit(): LineEdit | undefined {
+		if (this.input2Diffs.length === 0) {
+			return undefined;
+		}
+		if (this.input2Diffs.length === 1) {
+			return this.input2Diffs[0].getLineEdit();
+		} else {
+			throw new Error('Method not implemented.');
+		}
+	}
+}
+
+export class ModifiedBaseRangeState {
 	constructor(
 		public readonly input1: boolean,
 		public readonly input2: boolean,
 		public readonly input2First: boolean
 	) { }
 
-	public withInput1(value: boolean): MergeState {
-		return new MergeState(
+	public withInput1(value: boolean): ModifiedBaseRangeState {
+		return new ModifiedBaseRangeState(
 			value,
 			this.input2,
 			value && this.isEmpty ? false : this.input2First
 		);
 	}
 
-	public withInput2(value: boolean): MergeState {
-		return new MergeState(
+	public withInput2(value: boolean): ModifiedBaseRangeState {
+		return new ModifiedBaseRangeState(
 			this.input1,
 			value,
 			value && this.isEmpty ? true : this.input2First
 		);
 	}
 
-	public toggleInput1(): MergeState {
+	public toggleInput1(): ModifiedBaseRangeState {
 		return this.withInput1(!this.input1);
 	}
 
-	public toggleInput2(): MergeState {
+	public toggleInput2(): ModifiedBaseRangeState {
 		return this.withInput2(!this.input2);
 	}
 
@@ -433,5 +443,33 @@ export class MergeState {
 			arr.reverse();
 		}
 		return arr.join(',');
+	}
+}
+
+export class ReentrancyBarrier {
+	private isActive = false;
+
+	public runExclusively(fn: () => void): void {
+		if (this.isActive) {
+			return;
+		}
+		this.isActive = true;
+		try {
+			fn();
+		} finally {
+			this.isActive = false;
+		}
+	}
+
+	public runExclusivelyOrThrow(fn: () => void): void {
+		if (this.isActive) {
+			throw new BugIndicatingError();
+		}
+		this.isActive = true;
+		try {
+			fn();
+		} finally {
+			this.isActive = false;
+		}
 	}
 }
