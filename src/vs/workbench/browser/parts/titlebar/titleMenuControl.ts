@@ -81,6 +81,8 @@ export class TitleMenuControl {
 
 							const searchIcon = renderIcon(Codicon.search);
 							searchIcon.classList.add('search-icon');
+
+							this.workspaceTitle.classList.add('search-label');
 							this._updateFromWindowTitle();
 							reset(this.label, searchIcon, this.workspaceTitle);
 							this._renderAllQuickPickItem(container);
