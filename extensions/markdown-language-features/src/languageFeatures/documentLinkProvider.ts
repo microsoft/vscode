@@ -47,6 +47,11 @@ function parseLink(
 		return { kind: 'external', uri: externalSchemeUri };
 	}
 
+	if (/^[a-z\-][a-z\-]+:/i.test(cleanLink)) {
+		// Looks like a uri
+		return { kind: 'external', uri: vscode.Uri.parse(cleanLink) };
+	}
+
 	// Assume it must be an relative or absolute file path
 	// Use a fake scheme to avoid parse warnings
 	const tempUri = vscode.Uri.parse(`vscode-resource:${link}`);
