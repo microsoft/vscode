@@ -21,7 +21,11 @@ export class MergeEditorModelFactory {
 	public async create(
 		base: ITextModel,
 		input1: ITextModel,
+		input1Detail: string | undefined,
+		input1Description: string | undefined,
 		input2: ITextModel,
+		input2Detail: string | undefined,
+		input2Description: string | undefined,
 		result: ITextModel,
 	): Promise<MergeEditorModel> {
 
@@ -56,7 +60,11 @@ export class MergeEditorModelFactory {
 			InternalSymbol,
 			base,
 			input1,
+			input1Detail,
+			input1Description,
 			input2,
+			input2Detail,
+			input2Description,
 			result,
 			changesInput1,
 			changesInput2,
@@ -71,10 +79,14 @@ export class MergeEditorModel extends EditorModel {
 	private resultEdits = new ResultEdits([], this.base, this.result, this.editorWorkerService);
 
 	constructor(
-		symbol: typeof InternalSymbol,
+		_symbol: typeof InternalSymbol,
 		readonly base: ITextModel,
 		readonly input1: ITextModel,
+		readonly input1Detail: string | undefined,
+		readonly input1Description: string | undefined,
 		readonly input2: ITextModel,
+		readonly input2Detail: string | undefined,
+		readonly input2Description: string | undefined,
 		readonly result: ITextModel,
 		private readonly inputOneLinesDiffs: readonly LineDiff[],
 		private readonly inputTwoLinesDiffs: readonly LineDiff[],

@@ -170,8 +170,8 @@ export class MergeEditor extends EditorPane {
 		this._sessionDisposables.clear();
 		const model = await input.resolve();
 
-		this.input1View.setModel(model.input1, localize('yours', 'Yours'), undefined);
-		this.input2View.setModel(model.input2, localize('theirs', 'Theirs',), undefined);
+		this.input1View.setModel(model.input1, localize('yours', 'Yours'), model.input1Detail);
+		this.input2View.setModel(model.input2, localize('theirs', 'Theirs',), model.input2Detail);
 		this.inputResultView.setModel(model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }));
 
 		let input1Decorations = new Array<IModelDeltaDecoration>();

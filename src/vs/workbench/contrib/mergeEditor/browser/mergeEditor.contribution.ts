@@ -13,7 +13,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { ctxIsMergeEditor, ctxUsesColumnLayout, MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditor';
-import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { MergeEditorSerializer } from './mergeEditorSerializer';
 import { Codicon } from 'vs/base/common/codicons';
@@ -71,38 +71,84 @@ registerAction2(class Open extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor, ...args: any[]): void {
-		const validatedArgs = ITestMergeEditorArgs.validate(args[0]);
-
-		function normalize(uri: URI | UriComponents | string): URI {
-			if (typeof uri === 'string') {
-				return URI.parse(uri);
-			} else {
-				return URI.revive(uri);
-			}
-		}
+		const validatedArgs = IRelaxedOpenArgs.validate(args[0]);
 
 		const instaService = accessor.get(IInstantiationService);
 		const input = instaService.createInstance(
 			MergeEditorInput,
-			normalize(validatedArgs.ancestor),
-			normalize(validatedArgs.input1),
-			normalize(validatedArgs.input2),
-			normalize(validatedArgs.output),
+			validatedArgs.ancestor,
+			validatedArgs.input1,
+			validatedArgs.input2,
+			validatedArgs.output,
 		);
 		accessor.get(IEditorService).openEditor(input);
 	}
 
 });
 
-namespace ITestMergeEditorArgs {
-	export function validate(args: any): ITestMergeEditorArgs {
-		return args as ITestMergeEditorArgs;
+namespace IRelaxedOpenArgs {
+	function toUri(obj: unknown): URI {
+		if (typeof obj === 'string') {
+			return URI.parse(obj, true);
+		} else if (obj && typeof obj === 'object') {
+			return URI.revive(<UriComponents>obj);
+		}
+		throw new TypeError('invalid argument');
+	}
+
+	function isUriComponents(obj: unknown): obj is UriComponents {
+		if (!obj || typeof obj !== 'object') {
+			return false;
+		}
+		return typeof (<UriComponents>obj).scheme === 'string'
+			&& typeof (<UriComponents>obj).authority === 'string'
+			&& typeof (<UriComponents>obj).path === 'string'
+			&& typeof (<UriComponents>obj).query === 'string'
+			&& typeof (<UriComponents>obj).fragment === 'string';
+	}
+
+	function toInputResource(obj: unknown): MergeEditorInputData {
+		if (typeof obj === 'string') {
+			return new MergeEditorInputData(URI.parse(obj, true), undefined, undefined);
+		}
+		if (!obj || typeof obj !== 'object') {
+			throw new TypeError('invalid argument');
+		}
+
+		if (isUriComponents(obj)) {
+			return new MergeEditorInputData(URI.revive(obj), undefined, undefined);
+		}
+
+		let uri = toUri((<IRelaxedInputData>obj).uri);
+		let detail = (<IRelaxedInputData>obj).detail;
+		let description = (<IRelaxedInputData>obj).description;
+		return new MergeEditorInputData(uri, detail, description);
+	}
+
+	export function validate(obj: unknown): IOpenEditorArgs {
+		if (!obj || typeof obj !== 'object') {
+			throw new TypeError('invalid argument');
+		}
+		const ancestor = toUri((<IRelaxedOpenArgs>obj).ancestor);
+		const output = toUri((<IRelaxedOpenArgs>obj).output);
+		const input1 = toInputResource((<IRelaxedOpenArgs>obj).input1);
+		const input2 = toInputResource((<IRelaxedOpenArgs>obj).input2);
+		return { ancestor, input1, input2, output };
 	}
 }
 
-interface ITestMergeEditorArgs {
-	ancestor: URI | string;
-	input1: URI | string;
-	input2: URI | string;
-	output: URI | string;
+type IRelaxedInputData = { uri: UriComponents; detail?: string; description?: string };
+
+type IRelaxedOpenArgs = {
+	ancestor: UriComponents | string;
+	input1: IRelaxedInputData | string;
+	input2: IRelaxedInputData | string;
+	output: UriComponents | string;
+};
+
+interface IOpenEditorArgs {
+	ancestor: URI;
+	input1: MergeEditorInputData;
+	input2: MergeEditorInputData;
+	output: URI;
 }
