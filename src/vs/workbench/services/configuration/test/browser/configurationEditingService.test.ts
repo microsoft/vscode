@@ -6,6 +6,7 @@
 import * as sinon from 'sinon';
 import * as assert from 'assert';
 import * as json from 'vs/base/common/json';
+import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -195,8 +196,9 @@ suite('ConfigurationEditingService', () => {
 	});
 
 	test('errors cases - ERROR_POLICY_CONFIGURATION', async () => {
+		const promise = Event.toPromise(instantiationService.get(IConfigurationService).onDidChangeConfiguration);
 		await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationEditing.service.policySetting": "policyValue" }'));
-		await instantiationService.get(IConfigurationService).reloadConfiguration();
+		await promise;
 		try {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.policySetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {

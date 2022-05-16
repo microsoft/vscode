@@ -12,14 +12,12 @@ export type Policies = Map<PolicyName, PolicyValue>;
 export interface IPolicyService {
 	readonly onDidChange: Event<readonly PolicyName[]>;
 	initialize(): Promise<void>;
-	refresh(): Promise<void>;
 	getPolicyValue(name: PolicyName): PolicyValue | undefined;
 }
 
 export class NullPolicyService implements IPolicyService {
 	readonly onDidChange = Event.None;
 	async initialize() { }
-	async refresh() { }
 	getPolicyValue() { return undefined; }
 }
 
@@ -33,10 +31,6 @@ export class MultiPolicyService implements IPolicyService {
 
 	async initialize() {
 		await Promise.all(this.policyServices.map(p => p.initialize()));
-	}
-
-	async refresh() {
-		await Promise.all(this.policyServices.map(p => p.refresh()));
 	}
 
 	getPolicyValue(name: PolicyName) {

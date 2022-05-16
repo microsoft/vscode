@@ -108,12 +108,6 @@ export class PolicyConfiguration extends Disposable {
 		return this._configurationModel;
 	}
 
-	async reload(): Promise<ConfigurationModel> {
-		await this.policyService.refresh();
-		this.update(this.defaultConfiguration.configurationModel.keys, false);
-		return this._configurationModel;
-	}
-
 	private onDidChangePolicies(policyNames: readonly PolicyName[]): void {
 		const policyConfigurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getPolicyConfigurations();
 		const keys = coalesce(policyNames.map(policyName => policyConfigurations.get(policyName)));

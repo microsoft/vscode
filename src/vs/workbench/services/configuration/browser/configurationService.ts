@@ -343,7 +343,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	async reloadConfiguration(target?: ConfigurationTarget | IWorkspaceFolder): Promise<void> {
 		if (target === undefined) {
 			this.reloadDefaultConfiguration();
-			await this.reloadPolicyConfiguration();
 			const { local, remote } = await this.reloadUserConfiguration();
 			await this.reloadWorkspaceConfiguration();
 			await this.loadConfiguration(local, remote);
@@ -358,7 +357,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		switch (target) {
 			case ConfigurationTarget.DEFAULT:
 				this.reloadDefaultConfiguration();
-				await this.reloadPolicyConfiguration();
 				return;
 
 			case ConfigurationTarget.USER: {
@@ -601,10 +599,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	private reloadDefaultConfiguration(): void {
 		this.onDefaultConfigurationChanged(this.defaultConfiguration.reload());
-	}
-
-	private async reloadPolicyConfiguration(): Promise<void> {
-		this.onPolicyConfigurationChanged(await this.policyConfiguration.reload());
 	}
 
 	private async reloadUserConfiguration(): Promise<{ local: ConfigurationModel; remote: ConfigurationModel }> {

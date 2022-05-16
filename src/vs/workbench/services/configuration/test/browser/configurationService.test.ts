@@ -966,10 +966,10 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('policy value override all', async () => {
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
 		await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policySetting": "policyValue" }'));
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.policySetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.policySetting": "workspaceValue" }'));
-		await testObject.reloadConfiguration();
+		const result = await promise;
+		assert.deepStrictEqual(result.affectedKeys, ['configurationService.folder.policySetting']);
 		assert.strictEqual(testObject.getValue('configurationService.folder.policySetting'), 'policyValue');
 		assert.strictEqual(testObject.inspect('configurationService.folder.policySetting').policyValue, 'policyValue');
 	});
@@ -980,15 +980,6 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		await testObject.reloadConfiguration();
 		assert.strictEqual(testObject.getValue('configurationService.folder.policySetting'), 'workspaceValue');
 		assert.strictEqual(testObject.inspect('configurationService.folder.policySetting').policyValue, undefined);
-	});
-
-	test('policy change should trigger change event ', async () => {
-		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policySetting": "policyValue" }'));
-		const result = await promise;
-		assert.deepStrictEqual(result.affectedKeys, ['configurationService.folder.policySetting']);
-		assert.strictEqual(testObject.getValue('configurationService.folder.policySetting'), 'policyValue');
-		assert.strictEqual(testObject.inspect('configurationService.folder.policySetting').policyValue, 'policyValue');
 	});
 
 	test('reload configuration emits events after global configuraiton changes', async () => {
