@@ -16,6 +16,8 @@ abstract class MainThreadProxyKernel implements INotebookProxyKernel {
 	readonly type: NotebookKernelType.Proxy = NotebookKernelType.Proxy;
 	protected readonly _onDidChange = new Emitter<INotebookProxyKernelChangeEvent>();
 	readonly onDidChange: Event<INotebookProxyKernelChangeEvent> = this._onDidChange.event;
+	private readonly _onDispose = new Emitter<void>();
+	readonly onDispose = this._onDispose.event;
 	readonly id: string;
 	readonly viewType: string;
 	readonly extension: ExtensionIdentifier;
@@ -69,7 +71,13 @@ abstract class MainThreadProxyKernel implements INotebookProxyKernel {
 		this._onDidChange.fire(event);
 	}
 
+	dispose() {
+		this._onDispose.fire();
+	}
+
 	abstract resolveKernel(): Promise<string | null>;
+	abstract executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
+	abstract cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
 }
 
 @extHostNamedCustomer(MainContext.MainThreadNotebookProxyKernels)
@@ -115,6 +123,8 @@ export class MainThreadNotebookProxyKernels implements MainThreadNotebookProxyKe
 					return null;
 				}
 			}
+			async executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void> { }
+			async cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void> { }
 		}(data);
 
 		const registration = this._notebookKernelService.registerKernel(proxyKernel);
@@ -134,5 +144,11 @@ export class MainThreadNotebookProxyKernels implements MainThreadNotebookProxyKe
 			tuple[1].dispose();
 			this._proxyKernels.delete(handle);
 		}
+	}
+
+	async executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void> {
+	}
+
+	async cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void> {
 	}
 }

@@ -48,29 +48,6 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 			return;
 		}
 
-		if (kernel.type === NotebookKernelType.Proxy) {
-			this._activeProxyKernelExecutionToken?.dispose(true);
-			const tokenSource = this._activeProxyKernelExecutionToken = new CancellationTokenSource();
-			const resolved = await kernel.resolveKernel(notebook.uri);
-			const kernels = this._notebookKernelService.getMatchingKernel(notebook);
-			const newlyMatchedKernel = kernels.all.find(k => k.id === resolved);
-
-			if (!newlyMatchedKernel) {
-				return;
-			}
-
-			kernel = newlyMatchedKernel;
-			if (tokenSource.token.isCancellationRequested) {
-				// execution was cancelled but we still need to update the active kernel
-				this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
-				return;
-			}
-		}
-
-		if (kernel.type === NotebookKernelType.Proxy) {
-			return;
-		}
-
 		const executeCells: NotebookCellTextModel[] = [];
 		for (const cell of cellsArr) {
 			const cellExe = this._notebookExecutionStateService.getCellExecution(cell.uri);
@@ -83,11 +60,24 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 			executeCells.push(cell);
 		}
 
+		if (kernel.state !== undefined) {
+			// kernel has connection state management
+			const kernelId = kernel.id;
+			kernel.onDispose(() => {
+				// proxy kernel scenario, kernel disposed, we should now make way for new preferred kernel
+				const exes = executeCells.map(c => this._notebookExecutionStateService.createCellExecution(kernelId, notebook.uri, c.handle));
+				exes.forEach(e => e.complete({}));
+
+				this.executeNotebookCells(notebook, executeCells);
+			});
+		}
+
 		if (executeCells.length > 0) {
 			this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
 
 			const exes = executeCells.map(c => this._notebookExecutionStateService.createCellExecution(kernel!.id, notebook.uri, c.handle));
 			await kernel.executeNotebookCellsRequest(notebook.uri, executeCells.map(c => c.handle));
+			// the connecting state can change before the kernel resolves executeNotebookCellsRequest
 			const unconfirmed = exes.filter(exe => exe.state === NotebookCellExecutionState.Unconfirmed);
 			if (unconfirmed.length) {
 				this._logService.debug(`NotebookExecutionService#executeNotebookCells completing unconfirmed executions ${JSON.stringify(unconfirmed.map(exe => exe.cellHandle))}`);

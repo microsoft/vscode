@@ -64,6 +64,7 @@ export interface IResolvedNotebookKernel {
 
 	executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
 	cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
+	onDispose: Event<void>;
 }
 
 export const enum ProxyKernelState {
@@ -96,6 +97,9 @@ export interface INotebookProxyKernel {
 	implementsExecutionOrder?: boolean;
 	connectionState: ProxyKernelState;
 	resolveKernel(uri: URI): Promise<string | null>;
+	executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
+	cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
+	onDispose: Event<void>;
 }
 
 export type INotebookKernel = IResolvedNotebookKernel | INotebookProxyKernel;

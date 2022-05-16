@@ -25,7 +25,8 @@ abstract class MainThreadKernel implements IResolvedNotebookKernel {
 	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
 	private readonly preloads: { uri: URI; provides: string[] }[];
 	readonly onDidChange: Event<INotebookKernelChangeEvent> = this._onDidChange.event;
-
+	private readonly _onDispose = new Emitter<void>();
+	readonly onDispose = this._onDispose.event;
 	readonly id: string;
 	readonly viewType: string;
 	readonly extension: ExtensionIdentifier;
@@ -98,6 +99,10 @@ abstract class MainThreadKernel implements IResolvedNotebookKernel {
 			event.hasExecutionOrder = true;
 		}
 		this._onDidChange.fire(event);
+	}
+
+	dispose() {
+		this._onDispose.fire();
 	}
 
 	abstract executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
@@ -225,7 +230,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		});
 
 		const registration = this._notebookKernelService.registerKernel(kernel);
-		this._kernels.set(handle, [kernel, combinedDisposable(listener, registration)]);
+		this._kernels.set(handle, [kernel, combinedDisposable(kernel, listener, registration)]);
 	}
 
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void {
