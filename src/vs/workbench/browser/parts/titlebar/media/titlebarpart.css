@@ -129,7 +129,12 @@
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen>.action-label.search>.search-icon {
 	font-size: 14px;
 	opacity: .8;
-	padding-right: 3px;
+	padding: 0 3px;
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen>.action-label.search>.search-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen>.all-options>.action-label {
