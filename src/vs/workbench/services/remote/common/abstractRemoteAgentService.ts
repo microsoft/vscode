@@ -128,9 +128,9 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 	getRoundTripTime(): Promise<number | undefined> {
 		return this._withTelemetryChannel(
 			async channel => {
-				const start = performance.now();
+				const start = Date.now();
 				await RemoteExtensionEnvironmentChannelClient.ping(channel);
-				return performance.now() - start;
+				return Date.now() - start;
 			},
 			undefined
 		);
@@ -233,11 +233,11 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 			ipcLogger: false ? new IPCLogger(`Local \u2192 Remote`, `Remote \u2192 Local`) : null
 		};
 		let connection: ManagementPersistentConnection;
-		let start = performance.now();
+		let start = Date.now();
 		try {
 			connection = this._register(await connectRemoteAgentManagement(options, this.remoteAuthority, `renderer`));
 		} finally {
-			this._initialConnectionMs = performance.now() - start;
+			this._initialConnectionMs = Date.now() - start;
 		}
 
 		connection.protocol.onDidDispose(() => {
