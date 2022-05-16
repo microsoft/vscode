@@ -554,6 +554,8 @@ export class Codicon implements CSSIcon {
 	public static readonly arrowCircleUp = new Codicon('arrow-circle-up', { fontCharacter: '\\ebff' });
 	public static readonly doNotDisturb = new Codicon('do-not-disturb', { fontCharacter: '\\F102' });
 	public static readonly doNotDisturbFilled = new Codicon('do-not-disturb-filled', { fontCharacter: '\\F101' });
+	public static readonly notificationsMuted = new Codicon('notifications-muted', { fontCharacter: '\\F103' });
+
 
 
 
