@@ -91,7 +91,7 @@ export class NotificationsStatus extends Disposable {
 			tooltip: 'Do Not Disturb Mode is Enabled',
 		};
 
-		let isDoNotDisturbMode = this.configurationService.getValue('notifications.doNotDisturbMode');
+		let isDoNotDisturbMode = this.configurationService.getValue('notifications.experimental.doNotDisturbMode');
 		const statusProperties = isDoNotDisturbMode === true ? isDoNotDisturbModeStatusProperties : defaultStatusProperties;
 
 		if (!this.notificationsCenterStatusItem) {

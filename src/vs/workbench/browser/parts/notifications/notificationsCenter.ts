@@ -127,7 +127,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 	private updateTitle(): void {
 		const [notificationsCenterTitle, clearAllAction] = assertAllDefined(this.notificationsCenterTitle, this.clearAllAction);
-		const isDoNotDisturbMode = this.configurationService.getValue('notifications.doNotDisturbMode');
+		const isDoNotDisturbMode = this.configurationService.getValue('notifications.experimental.doNotDisturbMode');
 
 		if (this.model.notifications.length === 0) {
 			notificationsCenterTitle.textContent = localize('notificationsEmpty', "No new notifications");
@@ -156,7 +156,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	}
 
 	private create(): void {
-		const isDoNotDisturbMode = this.configurationService.getValue('notifications.doNotDisturbMode');
+		const isDoNotDisturbMode = this.configurationService.getValue('notifications.experimental.doNotDisturbMode');
 
 		// Container
 		this.notificationsCenterContainer = document.createElement('div');
@@ -355,15 +355,15 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	}
 
 	toggleDoNotDisturbMode(): void {
-		const isDoNotDisturbMode = this.configurationService.getValue<boolean>('notifications.doNotDisturbMode');
-		this.configurationService.updateValue('notifications.doNotDisturbMode', !isDoNotDisturbMode);
+		const isDoNotDisturbMode = this.configurationService.getValue<boolean>('notifications.experimental.doNotDisturbModee');
+		this.configurationService.updateValue('notifications.experimental.doNotDisturbMode', !isDoNotDisturbMode);
 		if (this._isVisible) {
 			this.updateTitle();
 		}
 	}
 
 	updateDoNotDisturbMode(): void {
-		const isDoNotDisturbMode = this.configurationService.getValue<boolean>('notifications.doNotDisturbMode');
+		const isDoNotDisturbMode = this.configurationService.getValue<boolean>('notifications.experimental.doNotDisturbMode');
 
 		if (isDoNotDisturbMode === true) {
 			this.notificationService.setFilter(NotificationsFilter.ERROR);
