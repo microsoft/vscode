@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/106744
+	// https://github.com/microsoft/vscode/issues/149271
 
 	/**
 	 * Represents a notebook editor that is attached to a {@link NotebookDocument notebook}.
@@ -40,7 +40,6 @@ declare module 'vscode' {
 		/**
 		 * The document associated with this notebook editor.
 		 */
-		//todo@api rename to notebook?
 		readonly document: NotebookDocument;
 
 		/**
@@ -69,38 +68,125 @@ declare module 'vscode' {
 		readonly viewColumn?: ViewColumn;
 	}
 
+	/**
+	 * Represents an event describing the change in a {@link NotebookEditor.selections notebook editor's selections}.
+	 */
 	export interface NotebookEditorSelectionChangeEvent {
 		/**
 		 * The {@link NotebookEditor notebook editor} for which the selections have changed.
 		 */
 		readonly notebookEditor: NotebookEditor;
+
+		/**
+		 * The new value for the {@link NotebookEditor.selections notebook editor's selections}.
+		 */
 		readonly selections: readonly NotebookRange[];
 	}
 
+	/**
+	 * Represents an event describing the change in a {@link NotebookEditor.visibleRanges notebook editor's visibleRanges}.
+	 */
 	export interface NotebookEditorVisibleRangesChangeEvent {
 		/**
 		 * The {@link NotebookEditor notebook editor} for which the visible ranges have changed.
 		 */
 		readonly notebookEditor: NotebookEditor;
+
+		/**
+		 * The new value for the {@link NotebookEditor.visibleRanges notebook editor's visibleRanges}.
+		 */
 		readonly visibleRanges: readonly NotebookRange[];
 	}
 
+	/**
+	 * Represents options to configure the behavior of showing a {@link NotebookDocument notebook document} in an {@link NotebookEditor notebook editor}.
+	 */
 	export interface NotebookDocumentShowOptions {
+		/**
+		 * An optional view column in which the {@link NotebookEditor notebook editor} should be shown.
+		 * The default is the {@link ViewColumn.Active active}, other values are adjusted to
+		 * be `Min(column, columnCount + 1)`, the {@link ViewColumn.Active active}-column is
+		 * not adjusted. Use {@linkcode ViewColumn.Beside} to open the
+		 * editor to the side of the currently active one.
+		 */
 		readonly viewColumn?: ViewColumn;
+
+		/**
+		 * An optional flag that when `true` will stop the {@link NotebookEditor notebook editor} from taking focus.
+		 */
 		readonly preserveFocus?: boolean;
+
+		/**
+		 * An optional flag that controls if an {@link NotebookEditor notebook editor}-tab shows as preview. Preview tabs will
+		 * be replaced and reused until set to stay - either explicitly or through editing. The default behaviour depends
+		 * on the `workbench.editor.enablePreview`-setting.
+		 */
 		readonly preview?: boolean;
+
+		/**
+		 * An optional selection to apply for the document in the {@link NotebookEditor notebook editor}.
+		 */
 		readonly selections?: readonly NotebookRange[];
 	}
 
 	export namespace window {
+		/**
+		 * The currently visible {@link NotebookEditor notebook editors} or an empty array.
+		 */
 		export const visibleNotebookEditors: readonly NotebookEditor[];
+
+		/**
+		 * An {@link Event} which fires when the {@link window.visibleNotebookEditors visible notebook editors}
+		 * has changed.
+		 */
 		export const onDidChangeVisibleNotebookEditors: Event<readonly NotebookEditor[]>;
+
+		/**
+		 * The currently active {@link NotebookEditor notebook editor} or `undefined`. The active editor is the one
+		 * that currently has focus or, when none has focus, the one that has changed
+		 * input most recently.
+		 */
 		export const activeNotebookEditor: NotebookEditor | undefined;
+
+		/**
+		 * An {@link Event} which fires when the {@link window.activeNotebookEditor active notebook editor}
+		 * has changed. *Note* that the event also fires when the active editor changes
+		 * to `undefined`.
+		 */
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
+
+		/**
+		 * An {@link Event} which fires when the {@link NotebookEditor.selections notebook editor selections}
+		 * have changed.
+		 */
 		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
+
+		/**
+		 * An {@link Event} which fires when the {@link NotebookEditor.visibleRanges notebook editor visible ranges}
+		 * have changed.
+		 */
 		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
 
-		export function showNotebookDocument(uri: Uri, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
+		/**
+		 * Show the given {@link NotebookDocument} in a {@link NotebookEditor notebook editor}.
+		 *
+		 * @param document A text document to be shown.
+		 * @param options {@link NotebookDocumentShowOptions Editor options} to configure the behavior of showing the {@link NotebookEditor notebook editor}.
+		 *
+		 * @return A promise that resolves to an {@link NotebookEditor notebook editor}.
+		 */
 		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
+
+		/**
+		 * A short-hand for `openNotebookDocument(uri).then(document => showNotebookDocument(document, options))`.
+		 *
+		 * @see {@link workspace.openNotebookDocument}
+		 *
+		 * @param uri The resource to open.
+		 * @param options {@link NotebookDocumentShowOptions Editor options} to configure the behavior of showing the {@link NotebookEditor notebook editor}.
+		 *
+		 * @return A promise that resolves to an {@link NotebookEditor notebook editor}.
+		 */
+		export function showNotebookDocument(uri: Uri, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
 	}
 }

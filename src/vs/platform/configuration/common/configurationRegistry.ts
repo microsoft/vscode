@@ -127,6 +127,19 @@ export const enum ConfigurationScope {
 	MACHINE_OVERRIDABLE,
 }
 
+export interface PolicyConfiguration {
+
+	/**
+	 * The policy name.
+	 */
+	readonly name: string;
+
+	/**
+	 * The Code version in which this policy was introduced.
+	 */
+	readonly minimumVersion: `${number}.${number}`;
+}
+
 export interface IConfigurationPropertySchema extends IJSONSchema {
 
 	scope?: ConfigurationScope;
@@ -175,6 +188,12 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 * within the settings editor. Otherwise, the setting is placed at the end.
 	 */
 	order?: number;
+
+	/**
+	 * When specified, this setting's value can always be overwritten by
+	 * a system-wide policy.
+	 */
+	policy?: PolicyConfiguration;
 }
 
 export interface IExtensionInfo {

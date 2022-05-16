@@ -58,6 +58,10 @@ export class WindowTitle extends Disposable {
 		return this.title ?? '';
 	}
 
+	get workspaceName() {
+		return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace());
+	}
+
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));

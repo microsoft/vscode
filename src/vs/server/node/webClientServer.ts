@@ -98,6 +98,7 @@ export class WebClientServer {
 
 	private readonly _staticRoute: string;
 	private readonly _callbackRoute: string;
+	private readonly _webExtensionRoute: string;
 
 	constructor(
 		private readonly _connectionToken: ServerConnectionToken,
@@ -110,6 +111,7 @@ export class WebClientServer {
 		const serverRootPath = getRemoteServerRootPath(_productService);
 		this._staticRoute = `${serverRootPath}/static`;
 		this._callbackRoute = `${serverRootPath}/callback`;
+		this._webExtensionRoute = `${serverRootPath}/web-extension-resource`;
 	}
 
 	/**
@@ -131,7 +133,7 @@ export class WebClientServer {
 				// callback support
 				return this._handleCallback(res);
 			}
-			if (/^\/web-extension-resource\//.test(pathname)) {
+			if (pathname.startsWith(this._webExtensionRoute) && pathname.charCodeAt(this._webExtensionRoute.length) === CharCode.Slash) {
 				// extension resource support
 				return this._handleWebExtensionResource(req, res, parsedUrl);
 			}
@@ -177,7 +179,7 @@ export class WebClientServer {
 
 		// Strip `/web-extension-resource/` from the path
 		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
-		const path = normalize(normalizedPathname.substr('/web-extension-resource/'.length));
+		const path = normalize(normalizedPathname.substring(this._webExtensionRoute.length + 1));
 		const uri = URI.parse(path).with({
 			scheme: this._webExtensionResourceUrlTemplate.scheme,
 			authority: path.substring(0, path.indexOf('/')),
@@ -311,7 +313,7 @@ export class WebClientServer {
 					'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({
 						scheme: 'http',
 						authority: remoteAuthority,
-						path: `web-extension-resource/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
+						path: `${this._webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
 					}).toString(true)
 				} : undefined
 			},

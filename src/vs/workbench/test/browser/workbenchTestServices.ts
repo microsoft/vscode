@@ -159,6 +159,7 @@ import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -567,6 +568,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	openedDefaultEditors = false;
 
 	dimension: IDimension = { width: 800, height: 600 };
+	offset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 
 	hasContainer = true;
 	container: HTMLElement = window.document.body;
