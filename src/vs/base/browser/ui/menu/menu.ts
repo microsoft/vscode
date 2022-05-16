@@ -292,8 +292,8 @@ export class Menu extends ActionBar {
 
 		container.style.border = border;
 		container.style.borderRadius = borderRadius;
-		this.domNode.style.color = fgColor;
-		this.domNode.style.backgroundColor = bgColor;
+		container.style.color = fgColor;
+		container.style.backgroundColor = bgColor;
 		container.style.boxShadow = shadow;
 
 		if (this.viewItems) {
