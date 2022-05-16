@@ -686,7 +686,7 @@
         },
         "js/ts.implicitProjectConfig.checkJs": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "%configuration.implicitProjectConfig.checkJs%",
           "scope": "window"
         },
