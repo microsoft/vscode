@@ -2139,10 +2139,36 @@ class EditorDecorationsCollection implements editorCommon.IEditorDecorationsColl
 
 	private _decorationIds: string[];
 
+	public get length(): number {
+		return this._decorationIds.length;
+	}
+
 	constructor(
 		private readonly _editor: editorBrowser.ICodeEditor
 	) {
 		this._decorationIds = [];
+	}
+
+	public getRange(index: number): Range | null {
+		if (!this._editor.hasModel()) {
+			return null;
+		}
+		return this._editor.getModel().getDecorationRange(this._decorationIds[index]);
+	}
+
+	public getRanges(): Range[] {
+		if (!this._editor.hasModel()) {
+			return [];
+		}
+		const model = this._editor.getModel();
+		const result: Range[] = [];
+		for (const decorationId of this._decorationIds) {
+			const range = model.getDecorationRange(decorationId);
+			if (range) {
+				result.push(range);
+			}
+		}
+		return result;
 	}
 
 	public clear(): void {
@@ -2153,9 +2179,9 @@ class EditorDecorationsCollection implements editorCommon.IEditorDecorationsColl
 		this.set([]);
 	}
 
-	public set(decorations: IModelDeltaDecoration[]): void {
+	public set(newDecorations: IModelDeltaDecoration[]): void {
 		this._editor.changeDecorations((accessor) => {
-			this._decorationIds = accessor.deltaDecorations(this._decorationIds, decorations);
+			this._decorationIds = accessor.deltaDecorations(this._decorationIds, newDecorations);
 		});
 	}
 }

@@ -521,9 +521,21 @@ export interface ICompositeCodeEditor {
  */
 export interface IEditorDecorationsCollection {
 	/**
-	 * Remove all previous decorations and add `decorations`.
+	 * Get the decorations count.
 	 */
-	set(decorations: IModelDeltaDecoration[]): void;
+	length: number;
+	/**
+	 * Get the range for a decoration.
+	 */
+	getRange(index: number): Range | null;
+	/**
+	 * Get all ranges for decorations.
+	 */
+	getRanges(): Range[];
+	/**
+	 * Replace all previous decorations with `newDecorations`.
+	 */
+	set(newDecorations: IModelDeltaDecoration[]): void;
 	/**
 	 * Remove all previous decorations.
 	 */
