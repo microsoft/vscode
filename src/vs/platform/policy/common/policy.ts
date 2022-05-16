@@ -15,14 +15,14 @@ export interface IPolicyService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChange: Event<readonly PolicyName[]>;
-	initialize(): Promise<void>;
+	initialize(): Promise<{ [name: PolicyName]: PolicyValue }>;
 	getPolicyValue(name: PolicyName): PolicyValue | undefined;
 }
 
 export class NullPolicyService implements IPolicyService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange = Event.None;
-	async initialize() { }
+	async initialize() { return {}; }
 	getPolicyValue() { return undefined; }
 }
 
@@ -37,7 +37,8 @@ export class MultiPolicyService implements IPolicyService {
 	}
 
 	async initialize() {
-		await Promise.all(this.policyServices.map(p => p.initialize()));
+		const result = await Promise.all(this.policyServices.map(p => p.initialize()));
+		return result.reduce((r, o) => ({ ...r, ...o }), {});
 	}
 
 	getPolicyValue(name: PolicyName) {

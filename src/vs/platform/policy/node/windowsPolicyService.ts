@@ -11,13 +11,14 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { createWatcher } from 'vscode-policy-watcher';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { Iterable } from 'vs/base/common/iterator';
 
 export class WindowsPolicyService extends Disposable implements IPolicyService {
 
 	readonly _serviceBrand: undefined;
 
 	private readonly policies = new Map<PolicyName, PolicyValue>();
-	private init: Promise<void> | undefined;
+	private init: Promise<{ [name: PolicyName]: PolicyValue }> | undefined;
 
 	private readonly _onDidChange = new Emitter<readonly PolicyName[]>();
 	readonly onDidChange = this._onDidChange.event;
@@ -28,7 +29,7 @@ export class WindowsPolicyService extends Disposable implements IPolicyService {
 		super();
 	}
 
-	initialize(): Promise<void> {
+	initialize(): Promise<{ [name: PolicyName]: PolicyValue }> {
 		if (!this.init) {
 			this.init = new Promise(c => {
 				if (!this.productService.win32RegValueName) {
@@ -65,7 +66,7 @@ export class WindowsPolicyService extends Disposable implements IPolicyService {
 
 					if (first) {
 						first = false;
-						c();
+						c(Iterable.reduce(this.policies.entries(), (r, [name, value]) => ({ ...r, [name]: value }), {}));
 					} else {
 						this._onDidChange.fire(Object.keys(update));
 					}

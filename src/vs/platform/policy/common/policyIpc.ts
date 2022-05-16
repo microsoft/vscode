@@ -61,11 +61,19 @@ export class PolicyChannelClient implements IPolicyService {
 					this.policies.set(name, value);
 				}
 			}
+
+			this._onDidChange.fire(Object.keys(policies));
 		});
 	}
 
-	initialize(): Promise<void> {
-		return this.channel.call('initialize');
+	async initialize(): Promise<{ [name: PolicyName]: PolicyValue }> {
+		const result = await this.channel.call<{ [name: PolicyName]: PolicyValue }>('initialize');
+
+		for (const name in result) {
+			this.policies.set(name, result[name]);
+		}
+
+		return result;
 	}
 
 	getPolicyValue(name: PolicyName): PolicyValue | undefined {

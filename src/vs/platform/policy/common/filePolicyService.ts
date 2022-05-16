@@ -48,8 +48,9 @@ export class FilePolicyService extends Disposable implements IPolicyService {
 		this._register(onDidChangePolicyFile(() => this.throttledDelayer.trigger(() => this.refresh())));
 	}
 
-	async initialize(): Promise<void> {
+	async initialize(): Promise<{ [name: PolicyName]: PolicyValue }> {
 		await this.refresh();
+		return Iterable.reduce(this.policies.entries(), (r, [name, value]) => ({ ...r, [name]: value }), {});
 	}
 
 	private async read(): Promise<Map<PolicyName, PolicyValue>> {
