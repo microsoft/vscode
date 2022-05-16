@@ -331,6 +331,7 @@ export class CodeCell extends Disposable {
 		}
 
 		this.templateData.container.classList.toggle('cell-editor-focus', this.viewCell.focusMode === CellFocusMode.Editor);
+		this.templateData.container.classList.toggle('cell-output-focus', this.viewCell.focusMode === CellFocusMode.Output);
 	}
 
 	private updateForCollapseState(): boolean {

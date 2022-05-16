@@ -42,7 +42,7 @@ import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/w
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IndexedDBFileSystemProvider } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
+import { IndexedDBFileSystemProviderErrorDataClassification, IndexedDBFileSystemProvider, IndexedDBFileSystemProviderErrorData } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 import { BrowserRequestService } from 'vs/workbench/services/request/browser/requestService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
@@ -50,7 +50,7 @@ import { UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/com
 import { IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { localize } from 'vs/nls';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -71,10 +71,13 @@ import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostServic
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { DelayedLogChannel } from 'vs/workbench/services/output/common/delayedLogChannel';
+import { dirname, joinPath } from 'vs/base/common/resources';
 
 export class BrowserMain extends Disposable {
 
 	private readonly onWillShutdownDisposables = this._register(new DisposableStore());
+	private readonly indexedDBFileSystemProviders: IndexedDBFileSystemProvider[] = [];
 
 	constructor(
 		private readonly domElement: HTMLElement,
@@ -111,6 +114,13 @@ export class BrowserMain extends Disposable {
 		// Logging
 		services.logService.trace('workbench#open with configuration', safeStringify(this.configuration));
 
+		instantiationService.invokeFunction(accessor => {
+			const telemetryService = accessor.get(ITelemetryService);
+			for (const indexedDbFileSystemProvider of this.indexedDBFileSystemProviders) {
+				this._register(indexedDbFileSystemProvider.onReportError(e => telemetryService.publicLog2<IndexedDBFileSystemProviderErrorData, IndexedDBFileSystemProviderErrorDataClassification>('indexedDBFileSystemProviderError', e)));
+			}
+		});
+
 		// Return API Facade
 		return instantiationService.invokeFunction(accessor => {
 			const commandService = accessor.get(ICommandService);
@@ -120,6 +130,10 @@ export class BrowserMain extends Disposable {
 			const productService = accessor.get(IProductService);
 			const telemetryService = accessor.get(ITelemetryService);
 			const progessService = accessor.get(IProgressService);
+			const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
+			const instantiationService = accessor.get(IInstantiationService);
+
+			const embedderLogger = instantiationService.createInstance(DelayedLogChannel, 'webEmbedder', productService.embedderIdentifier || localize('vscode.dev', "vscode.dev"), joinPath(dirname(environmentService.logFile), `webEmbedder.log`));
 
 			return {
 				commands: {
@@ -137,6 +151,11 @@ export class BrowserMain extends Disposable {
 					},
 					async openUri(uri: URI): Promise<boolean> {
 						return openerService.open(uri, {});
+					}
+				},
+				logger: {
+					log: (level, message) => {
+						embedderLogger.log(level, message);
 					}
 				},
 				window: {
@@ -320,10 +339,13 @@ export class BrowserMain extends Disposable {
 
 		// Logger
 		if (indexedDB) {
-			fileService.registerProvider(logsPath.scheme, new IndexedDBFileSystemProvider(logsPath.scheme, indexedDB, logsStore, false));
+			const logFileSystemProvider = new IndexedDBFileSystemProvider(logsPath.scheme, indexedDB, logsStore, false);
+			this.indexedDBFileSystemProviders.push(logFileSystemProvider);
+			fileService.registerProvider(logsPath.scheme, logFileSystemProvider);
 		} else {
 			fileService.registerProvider(logsPath.scheme, new InMemoryFileSystemProvider());
 		}
+
 		logService.logger = new MultiplexLogService(coalesce([
 			new ConsoleLogger(logService.getLevel()),
 			new FileLogger('window', environmentService.logFile, logService.getLevel(), false, fileService),
@@ -335,6 +357,7 @@ export class BrowserMain extends Disposable {
 		let userDataProvider;
 		if (indexedDB) {
 			userDataProvider = new IndexedDBFileSystemProvider(Schemas.vscodeUserData, indexedDB, userDataStore, true);
+			this.indexedDBFileSystemProviders.push(userDataProvider);
 			this.registerDeveloperActions(<IndexedDBFileSystemProvider>userDataProvider);
 		} else {
 			logService.info('Using in-memory user data provider');

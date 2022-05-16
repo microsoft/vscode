@@ -10,6 +10,7 @@ import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class CodiconActionViewItem extends MenuEntryActionViewItem {
 	constructor(
@@ -17,8 +18,9 @@ export class CodiconActionViewItem extends MenuEntryActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
 	) {
-		super(_action, undefined, keybindingService, notificationService, contextKeyService);
+		super(_action, undefined, keybindingService, notificationService, contextKeyService, themeService);
 	}
 	override updateLabel(): void {
 		if (this.options.label && this.label) {
@@ -35,8 +37,9 @@ export class ActionViewWithLabel extends MenuEntryActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
 	) {
-		super(_action, undefined, keybindingService, notificationService, contextKeyService);
+		super(_action, undefined, keybindingService, notificationService, contextKeyService, themeService);
 	}
 
 	override render(container: HTMLElement): void {

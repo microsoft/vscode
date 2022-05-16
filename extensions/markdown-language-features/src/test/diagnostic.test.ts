@@ -158,4 +158,23 @@ suite('markdown: Diagnostics', () => {
 		const diagnostics = await manager.getDiagnostics(doc1, noopToken);
 		assert.deepStrictEqual(diagnostics.length, 0);
 	});
+
+	test('Should not generate diagnostics for email autolink', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`a <user@example.com> c`,
+		));
+
+		const diagnostics = await getComputedDiagnostics(doc1, new InMemoryWorkspaceMarkdownDocuments([doc1]));
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('Should not generate diagnostics for html tag that looks like an autolink', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`a <tag>b</tag> c`,
+			`a <scope:tag>b</scope:tag> c`,
+		));
+
+		const diagnostics = await getComputedDiagnostics(doc1, new InMemoryWorkspaceMarkdownDocuments([doc1]));
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
 });

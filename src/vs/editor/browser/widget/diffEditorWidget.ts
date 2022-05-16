@@ -920,6 +920,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._modifiedEditor.trigger(source, handlerId, payload);
 	}
 
+	public createDecorationsCollection(): editorCommon.IEditorDecorationsCollection {
+		return this._modifiedEditor.createDecorationsCollection();
+	}
+
 	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
 		return this._modifiedEditor.changeDecorations(callback);
 	}
