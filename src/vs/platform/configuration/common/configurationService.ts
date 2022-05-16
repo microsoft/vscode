@@ -11,9 +11,8 @@ import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationChangeEvent, ConfigurationModel, UserSettings } from 'vs/platform/configuration/common/configurationModels';
 import { DefaultConfiguration, PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
+import { IPolicyService } from 'vs/platform/policy/common/policy';
 
 export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
 
@@ -31,12 +30,11 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	constructor(
 		private readonly settingsResource: URI,
 		fileService: IFileService,
-		environmentService: IEnvironmentService,
-		logService: ILogService,
+		policyService: IPolicyService,
 	) {
 		super();
 		this.defaultConfiguration = this._register(new DefaultConfiguration());
-		this.policyConfiguration = this._register(new PolicyConfiguration(this.defaultConfiguration, fileService, environmentService, logService));
+		this.policyConfiguration = this._register(new PolicyConfiguration(this.defaultConfiguration, policyService));
 		this.userConfiguration = this._register(new UserSettings(this.settingsResource, undefined, extUriBiasedIgnorePathCase, fileService));
 		this.configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, new ConfigurationModel());
 

@@ -62,6 +62,8 @@ import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
+import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
+import { WindowsPolicyService } from 'vs/platform/policy/node/windowsPolicyService';
 
 /**
  * The main VS Code entry point.
@@ -89,13 +91,13 @@ class CodeMain {
 		setUnexpectedErrorHandler(err => console.error(err));
 
 		// Create services
-		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService] = this.createServices();
+		const [instantiationService, instanceEnvironment, environmentMainService, policyService, configurationService, stateMainService, bufferLogService, productService] = this.createServices();
 
 		try {
 
 			// Init services
 			try {
-				await this.initServices(environmentMainService, configurationService, stateMainService);
+				await this.initServices(environmentMainService, policyService, configurationService, stateMainService);
 			} catch (error) {
 
 				// Show a dialog for errors that can be resolved by the user
@@ -137,7 +139,7 @@ class CodeMain {
 		}
 	}
 
-	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateMainService, BufferLogService, IProductService] {
+	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, IPolicyService, ConfigurationService, StateMainService, BufferLogService, IProductService] {
 		const services = new ServiceCollection();
 
 		// Product
@@ -166,8 +168,12 @@ class CodeMain {
 		// Logger
 		services.set(ILoggerService, new LoggerService(logService, fileService));
 
+		// Policy
+		const policyService = isWindows ? new WindowsPolicyService(productService) : new NullPolicyService();
+		services.set(IPolicyService, policyService);
+
 		// Configuration
-		const configurationService = new ConfigurationService(environmentMainService.settingsResource, fileService, environmentMainService, logService);
+		const configurationService = new ConfigurationService(environmentMainService.settingsResource, fileService, policyService);
 		services.set(IConfigurationService, configurationService);
 
 		// Lifecycle
@@ -192,7 +198,7 @@ class CodeMain {
 		// Protocol
 		services.set(IProtocolMainService, new SyncDescriptor(ProtocolMainService));
 
-		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService];
+		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, policyService, configurationService, stateMainService, bufferLogService, productService];
 	}
 
 	private patchEnvironment(environmentMainService: IEnvironmentMainService): IProcessEnvironment {
@@ -212,7 +218,7 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private initServices(environmentMainService: IEnvironmentMainService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<unknown> {
+	private initServices(environmentMainService: IEnvironmentMainService, policyService: IPolicyService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<unknown> {
 		return Promises.settled<unknown>([
 
 			// Environment service (paths)
@@ -225,6 +231,8 @@ class CodeMain {
 				environmentMainService.localHistoryHome.fsPath,
 				environmentMainService.backupHome
 			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
+
+			policyService.initialize(),
 
 			// Configuration service
 			configurationService.initialize(),

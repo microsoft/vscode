@@ -40,6 +40,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { isUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
+import { IPolicyService } from 'vs/platform/policy/common/policy';
 
 class Workspace extends BaseWorkspace {
 	initialized: boolean = false;
@@ -104,6 +105,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		remoteAgentService: IRemoteAgentService,
 		uriIdentityService: IUriIdentityService,
 		logService: ILogService,
+		policyService: IPolicyService
 	) {
 		super();
 
@@ -112,7 +114,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		this.initRemoteUserConfigurationBarrier = new Barrier();
 		this.completeWorkspaceBarrier = new Barrier();
 		this.defaultConfiguration = this._register(new DefaultConfiguration(configurationCache, environmentService));
-		this.policyConfiguration = this._register(new PolicyConfiguration(this.defaultConfiguration, fileService, environmentService, logService));
+		this.policyConfiguration = this._register(new PolicyConfiguration(this.defaultConfiguration, policyService));
 		this.configurationCache = configurationCache;
 		this.fileService = fileService;
 		this.uriIdentityService = uriIdentityService;

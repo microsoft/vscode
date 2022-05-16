@@ -27,6 +27,8 @@ function keysDiff<T>(a: Map<string, T>, b: Map<string, T>): string[] {
 
 export class FilePolicyService extends Disposable implements IPolicyService {
 
+	readonly _serviceBrand: undefined;
+
 	private policies: Policies = new Map();
 
 	private readonly _onDidChange = new Emitter<readonly PolicyName[]>();
