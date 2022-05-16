@@ -2365,19 +2365,6 @@
           "default": 10000,
           "description": "%config.statusLimit%"
         },
-        "git.experimental.installGuide": {
-          "type": "string",
-          "enum": [
-            "default",
-            "download"
-          ],
-          "tags": [
-            "experimental"
-          ],
-          "scope": "machine",
-          "description": "%config.experimental.installGuide%",
-          "default": "default"
-        },
         "git.repositoryScanIgnoredFolders": {
           "type": "array",
           "items": {
@@ -2551,28 +2538,23 @@
       },
       {
         "view": "scm",
-        "contents": "%view.workbench.scm.missing.guide%",
-        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download"
-      },
-      {
-        "view": "scm",
-        "contents": "%view.workbench.scm.missing.guide.mac%",
-        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download && isMac"
-      },
-      {
-        "view": "scm",
-        "contents": "%view.workbench.scm.missing.guide.windows%",
-        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download && isWindows"
-      },
-      {
-        "view": "scm",
-        "contents": "%view.workbench.scm.missing.guide.linux%",
-        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download && isLinux"
-      },
-      {
-        "view": "scm",
         "contents": "%view.workbench.scm.missing%",
-        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == default"
+        "when": "config.git.enabled && git.missing"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.missing.mac%",
+        "when": "config.git.enabled && git.missing && isMac"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.missing.windows%",
+        "when": "config.git.enabled && git.missing && isWindows"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.missing.linux%",
+        "when": "config.git.enabled && git.missing && isLinux"
       },
       {
         "view": "scm",
@@ -2584,21 +2566,21 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.folder%",
-        "when": "config.git.enabled && workbenchState == folder",
+        "when": "config.git.enabled && !git.missing && workbenchState == folder",
         "enablement": "git.state == initialized",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && workbenchState == workspace && workspaceFolderCount != 0",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0",
         "enablement": "git.state == initialized",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.emptyWorkspace%",
-        "when": "config.git.enabled && workbenchState == workspace && workspaceFolderCount == 0",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount == 0",
         "enablement": "git.state == initialized",
         "group": "2_open@1"
       },

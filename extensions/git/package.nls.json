@@ -255,15 +255,7 @@
 	"colors.ignored": "Color for ignored resources.",
 	"colors.conflict": "Color for resources with conflicts.",
 	"colors.submodule": "Color for submodule resources.",
-	"view.workbench.scm.missing": {
-		"message": "A valid git installation was not detected, more details can be found in the [git output](command:git.showOutput).\nPlease [install git](https://git-scm.com/), or learn more about how to use git and source control in VS Code in [our docs](https://aka.ms/vscode-scm).\nIf you're using a different version control system, you can [search the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22) for additional extensions.",
-		"comment": [
-			"{Locked='](command:git.showOutput'}",
-			"Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
-			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
-		]
-	},
-	"view.workbench.scm.missing.guide.windows": {
+	"view.workbench.scm.missing.windows": {
 		"message": "[Download Git for Windows](https://git-scm.com/download/win)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
 		"comment": [
 			"{Locked='](command:workbench.action.reloadWindow'}",
@@ -271,7 +263,7 @@
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]
 	},
-	"view.workbench.scm.missing.guide.mac": {
+	"view.workbench.scm.missing.mac": {
 		"message": "[Download Git for macOS](https://git-scm.com/download/mac)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
 		"comment": [
 			"{Locked='](command:workbench.action.reloadWindow'}",
@@ -279,7 +271,7 @@
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]
 	},
-	"view.workbench.scm.missing.guide.linux": {
+	"view.workbench.scm.missing.linux": {
 		"message": "Source control depends on Git being installed.\n[Download Git for Linux](https://git-scm.com/download/linux)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
 		"comment": [
 			"{Locked='](command:workbench.action.reloadWindow'}",
@@ -287,7 +279,7 @@
 			"Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
 		]
 	},
-	"view.workbench.scm.missing.guide": "Install Git, a popular source control system, to track code changes and collaborate with others. Learn more in our [Git guides](https://aka.ms/vscode-scm).",
+	"view.workbench.scm.missing": "Install Git, a popular source control system, to track code changes and collaborate with others. Learn more in our [Git guides](https://aka.ms/vscode-scm).",
 	"view.workbench.scm.disabled": {
 		"message": "If you would like to use git features, please enable git in your [settings](command:workbench.action.openSettings?%5B%22git.enabled%22%5D).\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
 		"comment": [
