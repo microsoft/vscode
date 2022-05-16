@@ -1,0 +1,23 @@
+name: PR Chat
+on:
+  pull_request_target:
+    types: [opened, ready_for_review]
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions
+        uses: actions/checkout@v2
+        with:
+          repository: "microsoft/vscode-github-triage-actions"
+          ref: stable
+          path: ./actions
+      - name: Install Actions
+        run: npm install --production --prefix ./actions
+      - name: Run Code Review Chat
+        uses: ./actions/code-review-chat
+        with:
+          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
+          slack_token: ${{ secrets.SLACK_TOKEN }}
+          notification_channel: codereview

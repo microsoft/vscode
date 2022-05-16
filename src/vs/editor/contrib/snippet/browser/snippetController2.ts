@@ -142,22 +142,22 @@ export class SnippetController2 implements IEditorContribution {
 						return undefined;
 					}
 					const { activeChoice } = this._session;
-					if (!activeChoice || activeChoice.options.length === 0) {
+					if (!activeChoice || activeChoice.choice.options.length === 0) {
 						return undefined;
 					}
 
-					const info = model.getWordUntilPosition(position);
-					const isAnyOfOptions = Boolean(activeChoice.options.find(o => o.value === info.word));
+					const word = model.getValueInRange(activeChoice.range);
+					const isAnyOfOptions = Boolean(activeChoice.choice.options.find(o => o.value === word));
 					const suggestions: CompletionItem[] = [];
-					for (let i = 0; i < activeChoice.options.length; i++) {
-						const option = activeChoice.options[i];
+					for (let i = 0; i < activeChoice.choice.options.length; i++) {
+						const option = activeChoice.choice.options[i];
 						suggestions.push({
 							kind: CompletionItemKind.Value,
 							label: option.value,
 							insertText: option.value,
 							sortText: 'a'.repeat(i + 1),
-							range: new Range(position.lineNumber, info.startColumn, position.lineNumber, info.endColumn),
-							filterText: isAnyOfOptions ? `${info.word}_${option.value}` : undefined,
+							range: activeChoice.range,
+							filterText: isAnyOfOptions ? `${word}_${option.value}` : undefined,
 							command: { id: 'jumpToNextSnippetPlaceholder', title: localize('next', 'Go to next placeholder...') }
 						});
 					}
@@ -223,8 +223,8 @@ export class SnippetController2 implements IEditorContribution {
 			return;
 		}
 
-		if (this._currentChoice !== activeChoice) {
-			this._currentChoice = activeChoice;
+		if (this._currentChoice !== activeChoice.choice) {
+			this._currentChoice = activeChoice.choice;
 
 			// trigger suggest with the special choice completion provider
 			queueMicrotask(() => {

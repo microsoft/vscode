@@ -73,9 +73,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	private readonly _onDidRequestRunCommand = new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean }>();
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
-
 	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number } | undefined>();
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
+	private readonly _onDidChangeSelection = new Emitter<void>();
+	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
 	get commandTracker(): ICommandTracker { return this._commandNavigationAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
@@ -165,6 +166,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			}
 		}));
 
+		// Refire events
+		this.add(this.raw.onSelectionChange(() => this._onDidChangeSelection.fire()));
+
 		// Load addons
 		this._updateUnicodeVersion();
 		this._commandNavigationAddon = this._instantiationService.createInstance(CommandNavigationAddon, _capabilities);
@@ -173,6 +177,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.loadAddon(this._shellIntegrationAddon);
 		this._updateDecorationAddon();
 	}
+
 	private _createDecorationAddon(): void {
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
 		this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e));
@@ -287,6 +292,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		// The mapping is as follows:
 		// - findMatch -> activeMatch
 		// - findMatchHighlight -> match
+		const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
 		const findMatchBackground = theme.getColor(TERMINAL_FIND_MATCH_BACKGROUND_COLOR);
 		const findMatchBorder = theme.getColor(TERMINAL_FIND_MATCH_BORDER_COLOR);
 		const findMatchOverviewRuler = theme.getColor(TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR);
@@ -294,10 +300,11 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		const findMatchHighlightBorder = theme.getColor(TERMINAL_FIND_MATCH_HIGHLIGHT_BORDER_COLOR);
 		const findMatchHighlightOverviewRuler = theme.getColor(TERMINAL_OVERVIEW_RULER_FIND_MATCH_FOREGROUND_COLOR);
 		searchOptions.decorations = {
-			activeMatchBackground: findMatchBackground?.toString() || 'transparent',
+			activeMatchBackground: findMatchBackground?.toString(),
 			activeMatchBorder: findMatchBorder?.toString() || 'transparent',
 			activeMatchColorOverviewRuler: findMatchOverviewRuler?.toString() || 'transparent',
-			matchBackground: findMatchHighlightBackground?.toString() || 'transparent',
+			// decoration bgs don't support the alpha channel so blend it with the regular bg
+			matchBackground: terminalBackground ? findMatchHighlightBackground?.blend(terminalBackground).toString() : undefined,
 			matchBorder: findMatchHighlightBorder?.toString() || 'transparent',
 			matchOverviewRuler: findMatchHighlightOverviewRuler?.toString() || 'transparent'
 		};
@@ -319,6 +326,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	clearSearchDecorations(): void {
 		this._searchAddon?.clearDecorations();
+	}
+
+	clearActiveSearchDecoration(): void {
+		this._searchAddon?.clearActiveDecoration();
 	}
 
 	getFont(): ITerminalFont {

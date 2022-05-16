@@ -67,6 +67,12 @@
 		}
 	],
 	"git.ignoreLimitWarning": true,
+	"git.branchProtection": [
+		"main",
+		"release/*"
+	],
+	"git.branchProtectionPrompt": "alwaysCommitToNewBranch",
+	"git.branchRandomName.enable": true,
 	"remote.extensionKind": {
 		"msjsdiag.debugger-for-chrome": "workspace"
 	},
@@ -100,5 +106,6 @@
 		"comments": "inline",
 		"strings": "inline"
 	},
-	"githubPullRequests.assignCreated": "${user}"
+	"githubPullRequests.assignCreated": "${user}",
+	"githubPullRequests.defaultMergeMethod": "squash"
 }

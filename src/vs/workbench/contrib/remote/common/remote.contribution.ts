@@ -11,7 +11,7 @@ import { OperatingSystem, isWeb, OS } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
+import { LogLevelChannel, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/services/output/common/output';
 import { localize } from 'vs/nls';
 import { joinPath } from 'vs/base/common/resources';
@@ -29,6 +29,8 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 import { PersistentConnection } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
+import { IDownloadService } from 'vs/platform/download/common/download';
+import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -67,6 +69,7 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 	constructor(
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IDownloadService downloadService: IDownloadService
 	) {
 		super();
 		const updateRemoteLogLevel = () => {
@@ -78,6 +81,11 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 		};
 		updateRemoteLogLevel();
 		this._register(logService.onDidChangeLogLevel(updateRemoteLogLevel));
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
+			connection.registerChannel('logger', new LogLevelChannel(logService));
+		}
 	}
 }
 

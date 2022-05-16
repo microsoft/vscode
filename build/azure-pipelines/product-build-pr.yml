@@ -1,0 +1,106 @@
+trigger: none
+
+pr:
+  branches:
+    include: ["main", "release/*"]
+
+resources:
+  containers:
+    - container: centos7-devtoolset8-x64
+      image: vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-x64
+      options: --user 0:0 --cap-add SYS_ADMIN
+    - container: vscode-bionic-x64
+      image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-x64
+      options: --user 0:0 --cap-add SYS_ADMIN
+
+variables:
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+  - name: skipComponentGovernanceDetection
+    value: true
+  - name: ENABLE_TERRAPIN
+    value: true
+  - name: VSCODE_PUBLISH
+    value: false
+  - name: VSCODE_QUALITY
+    value: oss
+  - name: VSCODE_STEP_ON_IT
+    value: false
+
+stages:
+  - stage: Compile
+    jobs:
+      - job: Compile
+        pool:
+          vmImage: ubuntu-18.04
+        variables:
+          VSCODE_ARCH: x64
+        steps:
+          - template: product-compile.yml
+            parameters:
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+  - stage: LinuxServerDependencies
+    dependsOn: []
+    pool:
+      vmImage: ubuntu-18.04
+    jobs:
+      - job: x64
+        container: centos7-devtoolset8-x64
+        variables:
+          VSCODE_ARCH: x64
+          NPM_ARCH: x64
+        steps:
+          - template: linux/product-build-linux-server.yml
+            parameters:
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+  - stage: Windows
+    dependsOn:
+      - Compile
+    pool:
+      vmImage: windows-2019
+    jobs:
+      - job: Windows
+        timeoutInMinutes: 120
+        variables:
+          VSCODE_ARCH: x64
+        steps:
+          - template: win32/product-build-win32.yml
+            parameters:
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+  - stage: Linux
+    dependsOn:
+      - Compile
+      - LinuxServerDependencies
+    pool:
+      vmImage: ubuntu-18.04
+    jobs:
+      - job: Linuxx64
+        container: vscode-bionic-x64
+        variables:
+          VSCODE_ARCH: x64
+          NPM_ARCH: x64
+          DISPLAY: ":10"
+        steps:
+          - template: linux/product-build-linux-client.yml
+            parameters:
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+  - stage: macOS
+    dependsOn:
+      - Compile
+    pool:
+      vmImage: macOS-latest
+    variables:
+      BUILDSECMON_OPT_IN: true
+    jobs:
+      - job: macOSTest
+        timeoutInMinutes: 90
+        variables:
+          VSCODE_ARCH: x64
+        steps:
+          - template: darwin/product-build-darwin-test.yml
+            parameters:
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}

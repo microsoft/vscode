@@ -462,6 +462,21 @@
         "category": "Git"
       },
       {
+        "command": "git.revealFileInOS.linux",
+        "title": "%command.revealFileInOS.linux%",
+        "category": "Git"
+      },
+      {
+        "command": "git.revealFileInOS.mac",
+        "title": "%command.revealFileInOS.mac%",
+        "category": "Git"
+      },
+      {
+        "command": "git.revealFileInOS.windows",
+        "title": "%command.revealFileInOS.windows%",
+        "category": "Git"
+      },
+      {
         "command": "git.stashIncludeUntracked",
         "title": "%command.stashIncludeUntracked%",
         "category": "Git"
@@ -766,6 +781,18 @@
         },
         {
           "command": "git.revealInExplorer",
+          "when": "false"
+        },
+        {
+          "command": "git.revealFileInOS.linux",
+          "when": "false"
+        },
+        {
+          "command": "git.revealFileInOS.mac",
+          "when": "false"
+        },
+        {
+          "command": "git.revealFileInOS.windows",
           "when": "false"
         },
         {
@@ -1218,7 +1245,22 @@
         {
           "command": "git.revealInExplorer",
           "when": "scmProvider == git && scmResourceGroup == merge",
-          "group": "2_view"
+          "group": "2_view@1"
+        },
+        {
+          "command": "git.revealFileInOS.linux",
+          "when": "scmProvider == git && scmResourceGroup == merge && isLinux",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.mac",
+          "when": "scmProvider == git && scmResourceGroup == merge && isMac",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.windows",
+          "when": "scmProvider == git && scmResourceGroup == merge && isWindows",
+          "group": "2_view@2"
         },
         {
           "command": "git.openFile2",
@@ -1258,7 +1300,22 @@
         {
           "command": "git.revealInExplorer",
           "when": "scmProvider == git && scmResourceGroup == index",
-          "group": "2_view"
+          "group": "2_view@1"
+        },
+        {
+          "command": "git.revealFileInOS.linux",
+          "when": "scmProvider == git && scmResourceGroup == index && isLinux",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.mac",
+          "when": "scmProvider == git && scmResourceGroup == index && isMac",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.windows",
+          "when": "scmProvider == git && scmResourceGroup == index && isWindows",
+          "group": "2_view@2"
         },
         {
           "command": "git.openFile2",
@@ -1323,7 +1380,22 @@
         {
           "command": "git.revealInExplorer",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
-          "group": "2_view"
+          "group": "2_view@1"
+        },
+        {
+          "command": "git.revealFileInOS.linux",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && isLinux",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.mac",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && isMac",
+          "group": "2_view@2"
+        },
+        {
+          "command": "git.revealFileInOS.windows",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && isWindows",
+          "group": "2_view@2"
         },
         {
           "command": "git.openChange",
@@ -1794,6 +1866,29 @@
           "type": "string",
           "description": "%config.branchPrefix%",
           "default": ""
+        },
+        "git.branchProtection": {
+          "type": "array",
+          "markdownDescription": "%config.branchProtection%",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "git.branchProtectionPrompt": {
+          "type": "string",
+          "description": "%config.branchProtectionPrompt%",
+          "enum": [
+            "alwaysCommit",
+            "alwaysCommitToNewBranch",
+            "alwaysPrompt"
+          ],
+          "enumDescriptions": [
+            "%config.branchProtectionPrompt.alwaysCommit%",
+            "%config.branchProtectionPrompt.alwaysCommitToNewBranch%",
+            "%config.branchProtectionPrompt.alwaysPrompt%"
+          ],
+          "default": "alwaysPrompt"
         },
         "git.branchValidationRegex": {
           "type": "string",
@@ -2543,6 +2638,7 @@
     "byline": "^5.0.0",
     "file-type": "^7.2.0",
     "jschardet": "3.0.0",
+    "picomatch": "2.3.1",
     "vscode-nls": "^4.0.0",
     "vscode-uri": "^2.0.0",
     "which": "^1.3.0"
@@ -2552,6 +2648,7 @@
     "@types/file-type": "^5.2.1",
     "@types/mocha": "^9.1.1",
     "@types/node": "16.x",
+    "@types/picomatch": "2.3.0",
     "@types/which": "^1.0.28"
   },
   "repository": {

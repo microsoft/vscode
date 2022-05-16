@@ -58,10 +58,8 @@ function renderAllMarkdownCells(context: INotebookActionContext): void {
 	}
 }
 
-async function runCell(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-
-	const editorGroupService = accessor.get(IEditorGroupsService);
-	const group = editorGroupService.activeGroup;
+async function runCell(editorGroupsService: IEditorGroupsService, context: INotebookActionContext): Promise<void> {
+	const group = editorGroupsService.activeGroup;
 
 	if (group) {
 		if (group.activeEditor) {
@@ -193,11 +191,13 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+
 		if (context.ui) {
 			await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
 		}
 
-		return runCell(accessor, context);
+		return runCell(editorGroupsService, context);
 	}
 });
 
@@ -314,6 +314,8 @@ registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction 
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+
 		if (context.ui) {
 			await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
 		} else {
@@ -324,7 +326,7 @@ registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction 
 			}
 		}
 
-		await runCell(accessor, context);
+		await runCell(editorGroupsService, context);
 	}
 });
 
@@ -413,6 +415,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const idx = context.notebookEditor.getCellIndex(context.cell);
 		if (typeof idx !== 'number') {
 			return;
@@ -445,7 +448,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 				}
 			}
 
-			return runCell(accessor, context);
+			return runCell(editorGroupsService, context);
 		}
 	}
 });
@@ -465,6 +468,7 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const idx = context.notebookEditor.getCellIndex(context.cell);
 		const languageService = accessor.get(ILanguageService);
 		const newFocusMode = context.cell.focusMode === CellFocusMode.Editor ? 'editor' : 'container';
@@ -477,7 +481,7 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 		if (context.cell.cellKind === CellKind.Markup) {
 			context.cell.updateEditState(CellEditState.Preview, EXECUTE_CELL_INSERT_BELOW);
 		} else {
-			runCell(accessor, context);
+			runCell(editorGroupsService, context);
 		}
 	}
 });

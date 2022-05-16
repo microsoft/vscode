@@ -1289,7 +1289,7 @@ RemoteAuthorities.setPreferredWebSchema(/^https:/.test(window.location.href) ? '
 /**
  * returns url('...')
  */
-export function asCSSUrl(uri: URI): string {
+export function asCSSUrl(uri: URI | null | undefined): string {
 	if (!uri) {
 		return `url('')`;
 	}
