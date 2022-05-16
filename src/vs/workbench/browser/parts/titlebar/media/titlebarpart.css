@@ -117,23 +117,32 @@
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen>.action-label.search {
-	display: inline-block;
-	width: 100%;
+	display: inline-flex;
 	text-align: center;
 	font-size: 12px;
+	line-height: 14px;
 	background-color: inherit;
+	justify-content: center;
+	width: calc(100% - 16px);
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen>.action-label.search>.search-icon {
+	font-size: 14px;
+	opacity: .8;
+	padding-right: 3px;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen>.all-options>.action-label {
 	text-align: center;
 	font-size: 12px;
+	width: 16px;
 	border-left: 1px solid transparent;
+	border-radius: 0;
 	padding-right: 0;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu:HOVER .action-item.quickopen>.all-options>.action-label {
 	border-color: var(--vscode-titleMenu-border);
-	border-radius: 0;
 }
 
 /* Menubar */
