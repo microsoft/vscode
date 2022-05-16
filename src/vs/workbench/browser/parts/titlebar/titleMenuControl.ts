@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { reset } from 'vs/base/browser/dom';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { assertType } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { createActionViewItem, createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -67,21 +70,26 @@ export class TitleMenuControl {
 
 					class InputLikeViewItem extends MenuEntryActionViewItem {
 
+						private readonly workspaceTitle = document.createElement('span');
+
 						override render(container: HTMLElement): void {
 							super.render(container);
 							container.classList.add('quickopen');
-							this._store.add(windowTitle.onDidChange(this._updateFromWindowTitle, this));
+
+							assertType(this.label);
+							this.label.classList.add('search');
+
+							const searchIcon = renderIcon(Codicon.search);
+							searchIcon.classList.add('search-icon');
 							this._updateFromWindowTitle();
+							reset(this.label, searchIcon, this.workspaceTitle);
 							this._renderAllQuickPickItem(container);
+
+							this._store.add(windowTitle.onDidChange(this._updateFromWindowTitle, this));
 						}
 
 						private _updateFromWindowTitle() {
-							if (!this.label) {
-								return;
-							}
-							this.label.classList.add('search');
-							this.label.innerText = localize('search', "Search {0}", windowTitle.workspaceName);
-
+							this.workspaceTitle.innerText = windowTitle.workspaceName;
 							const kb = keybindingService.lookupKeybinding(action.id)?.getLabel();
 							const title = kb
 								? localize('title', "Search {0} ({1}) \u2014 {2}", windowTitle.workspaceName, kb, windowTitle.value)
