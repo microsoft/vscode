@@ -2524,6 +2524,43 @@ declare namespace monaco.editor {
 		 * It is safe to call setModel(null) to simply detach the current model from the editor.
 		 */
 		setModel(model: IEditorModel | null): void;
+		/**
+		 * Create a collection of decorations. All decorations added through this collection
+		 * will get the ownerId of the editor (meaning they will not show up in other editors).
+		 * These decorations will be automatically cleared when the editor's model changes.
+		 */
+		createDecorationsCollection(): IEditorDecorationsCollection;
+	}
+
+	/**
+	 * A collection of decorations
+	 */
+	export interface IEditorDecorationsCollection {
+		/**
+		 * An event emitted when decorations change in the editor,
+		 * but the change is not caused by us setting or clearing the collection.
+		 */
+		onDidChange: IEvent<IModelDecorationsChangedEvent>;
+		/**
+		 * Get the decorations count.
+		 */
+		length: number;
+		/**
+		 * Get the range for a decoration.
+		 */
+		getRange(index: number): Range | null;
+		/**
+		 * Get all ranges for decorations.
+		 */
+		getRanges(): Range[];
+		/**
+		 * Replace all previous decorations with `newDecorations`.
+		 */
+		set(newDecorations: IModelDeltaDecoration[]): void;
+		/**
+		 * Remove all previous decorations.
+		 */
+		clear(): void;
 	}
 
 	/**
