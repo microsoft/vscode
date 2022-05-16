@@ -11,7 +11,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness, IValidEditOperation } from 'vs/editor/common/model';
+import { IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness, IValidEditOperation, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDimension } from 'vs/editor/common/core/dimension';
 
@@ -460,6 +460,13 @@ export interface IEditor {
 	setModel(model: IEditorModel | null): void;
 
 	/**
+	 * Create a collection of decorations. All decorations added through this collection
+	 * will get the ownerId of the editor (meaning they will not show up in other editors).
+	 * These decorations will be automatically cleared when the editor's model changes.
+	 */
+	createDecorationsCollection(): IEditorDecorationsCollection;
+
+	/**
 	 * Change the decorations. All decorations added through this changeAccessor
 	 * will get the ownerId of the editor (meaning they will not show up in other
 	 * editors).
@@ -509,6 +516,19 @@ export interface ICompositeCodeEditor {
 	// readonly editors: readonly ICodeEditor[] maybe supported with uris
 }
 
+/**
+ * A collection of decorations
+ */
+export interface IEditorDecorationsCollection {
+	/**
+	 * Remove all previous decorations and add `decorations`.
+	 */
+	set(decorations: IModelDeltaDecoration[]): void;
+	/**
+	 * Remove all previous decorations.
+	 */
+	clear(): void;
+}
 
 /**
  * An editor contribution that gets created every time a new editor gets created and gets disposed when the editor gets disposed.

@@ -1255,6 +1255,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.viewModel.executeCommands(commands, source);
 	}
 
+	public createDecorationsCollection(): EditorDecorationsCollection {
+		return new EditorDecorationsCollection(this);
+	}
+
 	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
 		if (!this._modelData) {
 			// callback will not be called
@@ -2128,6 +2132,31 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 		if (this._domFocusTracker.refreshState) {
 			this._domFocusTracker.refreshState();
 		}
+	}
+}
+
+class EditorDecorationsCollection implements editorCommon.IEditorDecorationsCollection {
+
+	private _decorationIds: string[];
+
+	constructor(
+		private readonly _editor: editorBrowser.ICodeEditor
+	) {
+		this._decorationIds = [];
+	}
+
+	public clear(): void {
+		if (this._decorationIds.length === 0) {
+			// nothing to do
+			return;
+		}
+		this.set([]);
+	}
+
+	public set(decorations: IModelDeltaDecoration[]): void {
+		this._editor.changeDecorations((accessor) => {
+			this._decorationIds = accessor.deltaDecorations(this._decorationIds, decorations);
+		});
 	}
 }
 
