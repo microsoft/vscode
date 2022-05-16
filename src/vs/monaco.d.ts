@@ -2537,6 +2537,11 @@ declare namespace monaco.editor {
 	 */
 	export interface IEditorDecorationsCollection {
 		/**
+		 * An event emitted when decorations change in the editor,
+		 * but the change is not caused by us setting or clearing the collection.
+		 */
+		onDidChange: IEvent<IModelDecorationsChangedEvent>;
+		/**
 		 * Get the decorations count.
 		 */
 		length: number;

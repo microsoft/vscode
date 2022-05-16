@@ -14,7 +14,7 @@ import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, EmitterOptions, Event, EventDeliveryQueue } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { EditorConfiguration, IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
@@ -2137,7 +2137,8 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 
 class EditorDecorationsCollection implements editorCommon.IEditorDecorationsCollection {
 
-	private _decorationIds: string[];
+	private _decorationIds: string[] = [];
+	private _isChangingDecorations: boolean = false;
 
 	public get length(): number {
 		return this._decorationIds.length;
@@ -2145,8 +2146,15 @@ class EditorDecorationsCollection implements editorCommon.IEditorDecorationsColl
 
 	constructor(
 		private readonly _editor: editorBrowser.ICodeEditor
-	) {
-		this._decorationIds = [];
+	) { }
+
+	public onDidChange(listener: (e: IModelDecorationsChangedEvent) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable {
+		return this._editor.onDidChangeModelDecorations((e) => {
+			if (this._isChangingDecorations) {
+				return;
+			}
+			listener.call(thisArgs, e);
+		}, disposables);
 	}
 
 	public getRange(index: number): Range | null {
@@ -2180,9 +2188,14 @@ class EditorDecorationsCollection implements editorCommon.IEditorDecorationsColl
 	}
 
 	public set(newDecorations: IModelDeltaDecoration[]): void {
-		this._editor.changeDecorations((accessor) => {
-			this._decorationIds = accessor.deltaDecorations(this._decorationIds, newDecorations);
-		});
+		try {
+			this._isChangingDecorations = true;
+			this._editor.changeDecorations((accessor) => {
+				this._decorationIds = accessor.deltaDecorations(this._decorationIds, newDecorations);
+			});
+		} finally {
+			this._isChangingDecorations = false;
+		}
 	}
 }
 

@@ -14,6 +14,7 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness, IValidEditOperation, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDimension } from 'vs/editor/common/core/dimension';
+import { IModelDecorationsChangedEvent } from 'vs/editor/common/textModelEvents';
 
 /**
  * A builder and helper for edit operations for a command.
@@ -520,6 +521,11 @@ export interface ICompositeCodeEditor {
  * A collection of decorations
  */
 export interface IEditorDecorationsCollection {
+	/**
+	 * An event emitted when decorations change in the editor,
+	 * but the change is not caused by us setting or clearing the collection.
+	 */
+	onDidChange: Event<IModelDecorationsChangedEvent>;
 	/**
 	 * Get the decorations count.
 	 */

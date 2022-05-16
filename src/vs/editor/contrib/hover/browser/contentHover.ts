@@ -14,7 +14,7 @@ import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IConte
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IModelDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
@@ -25,8 +25,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { Emitter } from 'vs/base/common/event';
-import { IModelDecorationsChangedEvent } from 'vs/editor/common/textModelEvents';
 
 const $ = dom.$;
 
@@ -34,7 +32,7 @@ export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
 	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
-	private readonly _decorationsChangerListener = this._register(new EditorDecorationsChangerListener(this._editor));
+	private readonly _decorations = this._editor.createDecorationsCollection();
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
@@ -64,7 +62,7 @@ export class ContentHoverController extends Disposable {
 		this._register(this._hoverOperation.onResult((result) => {
 			this._withResult(result.value, result.isComplete, result.hasLoadingMessage);
 		}));
-		this._register(this._decorationsChangerListener.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
+		this._register(this._decorations.onDidChange(() => this._onModelDecorationsChanged()));
 		this._register(dom.addStandardDisposableListener(this._widget.getDomNode(), 'keydown', (e) => {
 			if (e.equals(KeyCode.Escape)) {
 				this.hide();
@@ -238,12 +236,12 @@ export class ContentHoverController extends Disposable {
 
 		if (fragment.hasChildNodes()) {
 			if (highlightRange) {
-				const highlightDecorations = this._decorationsChangerListener.deltaDecorations([], [{
+				this._decorations.set([{
 					range: highlightRange,
 					options: ContentHoverController._DECORATION_OPTIONS
 				}]);
 				disposables.add(toDisposable(() => {
-					this._decorationsChangerListener.deltaDecorations(highlightDecorations, []);
+					this._decorations.clear();
 				}));
 			}
 
@@ -264,38 +262,6 @@ export class ContentHoverController extends Disposable {
 		description: 'content-hover-highlight',
 		className: 'hoverHighlight'
 	});
-}
-
-/**
- * Allows listening to `ICodeEditor.onDidChangeModelDecorations` and ignores the change caused by itself.
- */
-class EditorDecorationsChangerListener extends Disposable {
-
-	private readonly _onDidChangeModelDecorations = this._register(new Emitter<IModelDecorationsChangedEvent>());
-	public readonly onDidChangeModelDecorations = this._onDidChangeModelDecorations.event;
-
-	private _isChangingDecorations: boolean = false;
-
-	constructor(
-		private readonly _editor: ICodeEditor
-	) {
-		super();
-		this._register(this._editor.onDidChangeModelDecorations((e) => {
-			if (this._isChangingDecorations) {
-				return;
-			}
-			this._onDidChangeModelDecorations.fire(e);
-		}));
-	}
-
-	public deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[] {
-		try {
-			this._isChangingDecorations = true;
-			return this._editor.deltaDecorations(oldDecorations, newDecorations);
-		} finally {
-			this._isChangingDecorations = false;
-		}
-	}
 }
 
 class ContentHoverVisibleData {
