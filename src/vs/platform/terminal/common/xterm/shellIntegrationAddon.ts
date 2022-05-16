@@ -125,11 +125,11 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _terminal?: Terminal;
 	readonly capabilities = new TerminalCapabilityStore();
 	private _hasUpdatedTelemetry: boolean = false;
-	private _activationTimeout!: any;
+	private _activationTimeout: number | undefined;
 
 	constructor(
-		@ILogService private readonly _logService: ILogService,
-		private readonly _telemetryService?: ITelemetryService
+		private readonly _telemetryService: ITelemetryService | undefined,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 	}
@@ -230,7 +230,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	}
 
 	private async _ensureCapabilitiesOrAddFailureTelemetry(): Promise<void> {
-		this._activationTimeout = setTimeout(() => {
+		this._activationTimeout = window.setTimeout(() => {
 			if (!this.capabilities.get(TerminalCapability.CommandDetection) && !this.capabilities.get(TerminalCapability.CwdDetection)) {
 				this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivationTimeout');
 				this._logService.warn('Shell integration failed to add capabilities within 10 seconds');

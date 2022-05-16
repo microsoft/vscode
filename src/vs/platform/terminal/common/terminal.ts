@@ -241,6 +241,7 @@ export interface IFixedTerminalDimensions {
 	 */
 	rows?: number;
 }
+
 export interface IPtyHostController {
 	readonly onPtyHostExit?: Event<number>;
 	readonly onPtyHostStart?: Event<void>;
