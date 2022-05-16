@@ -119,7 +119,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	async resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, config: IConfig, token: CancellationToken): Promise<IConfig | null | undefined> {
-		await this.activateDebuggers('onDebugResolve', type);
+		await this.adapterManager.activateDebuggers('onDebugResolve', type);
 		// pipe the config through the promises sequentially. Append at the end the '*' types
 		const providers = this.configProviders.filter(p => p.type === type && p.resolveDebugConfiguration)
 			.concat(this.configProviders.filter(p => p.type === '*' && p.resolveDebugConfiguration));
@@ -134,7 +134,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 		// The resolver can change the type, ensure activation happens, #135090
 		if (result?.type && result.type !== config.type) {
-			await this.activateDebuggers('onDebugResolve', result.type);
+			await this.adapterManager.activateDebuggers('onDebugResolve', result.type);
 		}
 
 		return result;
@@ -157,7 +157,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	async provideDebugConfigurations(folderUri: uri | undefined, type: string, token: CancellationToken): Promise<any[]> {
-		await this.activateDebuggers('onDebugInitialConfigurations');
+		await this.adapterManager.activateDebuggers('onDebugInitialConfigurations');
 		const results = await Promise.all(this.configProviders.filter(p => p.type === type && p.triggerKind === DebugConfigurationProviderTriggerKind.Initial && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations!(folderUri, token)));
 
 		return results.reduce((first, second) => first.concat(second), []);
@@ -197,13 +197,13 @@ export class ConfigurationManager implements IConfigurationManager {
 			return {
 				label: this.adapterManager.getDebuggerLabel(type)!,
 				getProvider: async () => {
-					await this.activateDebuggers(onDebugDynamicConfigurationsName, type);
+					await this.adapterManager.activateDebuggers(onDebugDynamicConfigurationsName, type);
 					return this.configProviders.find(p => p.type === type && p.triggerKind === DebugConfigurationProviderTriggerKind.Dynamic && p.provideDebugConfigurations);
 				},
 				type,
 				pick: async () => {
 					// Do a late 'onDebugDynamicConfigurationsName' activation so extensions are not activated too early #108578
-					await this.activateDebuggers(onDebugDynamicConfigurationsName, type);
+					await this.adapterManager.activateDebuggers(onDebugDynamicConfigurationsName, type);
 					const disposables = new DisposableStore();
 					const input = disposables.add(this.quickInputService.createQuickPick<IDynamicPickItem>());
 					input.busy = true;
@@ -447,17 +447,6 @@ export class ConfigurationManager implements IConfigurationManager {
 		if (this.selectedLaunch !== previousLaunch || this.selectedName !== previousName) {
 			this._onDidSelectConfigurationName.fire();
 		}
-	}
-
-	async activateDebuggers(activationEvent: string, debugType?: string): Promise<void> {
-		const promises: Promise<any>[] = [
-			this.extensionService.activateByEvent(activationEvent),
-			this.extensionService.activateByEvent('onDebug')
-		];
-		if (debugType) {
-			promises.push(this.extensionService.activateByEvent(`${activationEvent}:${debugType}`));
-		}
-		await Promise.all(promises);
 	}
 
 	private setSelectedLaunchName(selectedName: string | undefined): void {
