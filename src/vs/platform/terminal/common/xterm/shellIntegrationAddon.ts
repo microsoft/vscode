@@ -146,7 +146,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (!this._hasUpdatedTelemetry && didHandle) {
 			this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivationSucceeded');
 			this._hasUpdatedTelemetry = true;
-			clearTimeout(this._activationTimeout);
+			if (this._activationTimeout !== undefined) {
+				clearTimeout(this._activationTimeout);
+				this._activationTimeout = undefined;
+			}
 		}
 		return didHandle;
 	}
