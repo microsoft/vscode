@@ -858,9 +858,9 @@ export interface IXtermTerminal {
 	readonly commandTracker: ICommandTracker;
 
 	/**
-	 * Reports the status of shell integration and fires events relating to it when enabled.
+	 * Reports the status of shell integration and fires events relating to it.
 	 */
-	readonly shellIntegration: IShellIntegration | undefined;
+	readonly shellIntegration: IShellIntegration;
 
 	readonly onDidChangeSelection: Event<void>;
 
