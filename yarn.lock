@@ -12209,20 +12209,20 @@ xterm-addon-unicode11@0.4.0-beta.3:
   resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.4.0-beta.3.tgz#f350184155fafd5ad0d6fbf31d13e6ca7dea1efa"
   integrity sha512-FryZAVwbUjKTmwXnm1trch/2XO60F5JsDvOkZhzobV1hm10sFLVuZpFyHXiUx7TFeeFsvNP+S77LAtWoeT5z+Q==
 
-xterm-addon-webgl@0.12.0-beta.33:
-  version "0.12.0-beta.33"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.12.0-beta.33.tgz#cb539db9e41f06087b692f0f42491a73bc4bd013"
-  integrity sha512-seOm06exR36U0/EvR/CUNGuy99RAndoyWEdXg6S16rgEZ4G2Yj9iov/QdCtc4gwq9hFzVETFPlDW+Ge8xeHIzA==
+xterm-addon-webgl@0.12.0-beta.34:
+  version "0.12.0-beta.34"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.12.0-beta.34.tgz#51cac31cc7a78377be5d481b624ee82948360de1"
+  integrity sha512-TTIwun+a45oDN54sHhdUxsEx6VflgF2p9YGqS5+gVzpvPrEqP6GoDr6XFCDsZcSqi0ZT2FNGAKWlh7XSxsKQQw==
 
-xterm-headless@4.19.0-beta.41:
-  version "4.19.0-beta.41"
-  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-4.19.0-beta.41.tgz#f495ff173c7952aafa0c785acf15f20942c6fdc7"
-  integrity sha512-j09IFsM4tBSpjgY5OQSB1llojwEGyFFxgD36MYXZtopmB8p9+0l5GFq5hYfJojGfHCNaB/RwWAexGUxBK2ABRA==
+xterm-headless@4.19.0-beta.43:
+  version "4.19.0-beta.43"
+  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-4.19.0-beta.43.tgz#12fe4abe624265240a7de8a922bfc4fd28c5f92a"
+  integrity sha512-4T8TlWy5u+sS23aPtd8gBHJ0BVljbNQRPMFHzLigDNOMCwc4uWa9JsxYmKteKifcG5aMm11ALPUTxWZCgpATww==
 
-xterm@4.19.0-beta.41:
-  version "4.19.0-beta.41"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.19.0-beta.41.tgz#acb6009028898e9cfac41d4aa2865f81f6f56c5f"
-  integrity sha512-WY1NuxF/yUVN3l0TgzQGjrGM26eOu5g0Dbfam8GCkgdK5yrsgPF0xwM7UEj8sDjp5FbxEkSm//X86IIsgzqqFw==
+xterm@4.19.0-beta.43:
+  version "4.19.0-beta.43"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.19.0-beta.43.tgz#f2113c8ce303d22c5cfad1a4a119b81c103285fa"
+  integrity sha512-eQ3fzkUApGdl4/rrhzK4OIdMb3+qO0c2iCZIMbeP9SqqDltZnhWncz+3lGa0tnxKizVoUV9kmGaP7orsQ/IavQ==
 
 y18n@^3.2.1:
   version "3.2.2"
