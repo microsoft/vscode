@@ -1287,7 +1287,7 @@ ${formatRule(Codicon.menuSubmenu)}
 
 .monaco-menu .monaco-action-bar.vertical .action-label.separator {
 	font-size: inherit;
-	margin: 5px 0;
+	margin: 5px 0 !important;
 	padding: 0;
 	border-radius: 0;
 }
