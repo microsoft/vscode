@@ -10,6 +10,7 @@ import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
+import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
@@ -29,6 +30,9 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 export class TitleMenuControl {
 
 	private readonly _disposables = new DisposableStore();
+
+	private readonly _onDidChangeVisibility = new Emitter<void>();
+	readonly onDidChangeVisibility: Event<void> = this._onDidChangeVisibility.event;
 
 	readonly element: HTMLElement = document.createElement('div');
 
@@ -128,8 +132,13 @@ export class TitleMenuControl {
 		};
 		updateTitleMenu();
 		this._disposables.add(titleMenu.onDidChange(updateTitleMenu));
-		this._disposables.add(quickInputService.onShow(() => this.element.classList.toggle('hide', true)));
-		this._disposables.add(quickInputService.onHide(() => this.element.classList.toggle('hide', false)));
+		this._disposables.add(quickInputService.onShow(this._setVisibility.bind(this, false)));
+		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));
+	}
+
+	private _setVisibility(show: boolean): void {
+		this.element.classList.toggle('hide', !show);
+		this._onDidChangeVisibility.fire();
 	}
 
 	dispose(): void {
