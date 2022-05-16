@@ -320,7 +320,10 @@ export class WebClientServer {
 			callbackRoute: this._callbackRoute
 		};
 
-		const nlsBaseUrl = this._productService.extensionsGallery?.nlsBaseUrl;
+		let nlsBaseUrl = this._productService.extensionsGallery?.nlsBaseUrl;
+		if (!nlsBaseUrl?.endsWith('/')) {
+			nlsBaseUrl += '/';
+		}
 		const values: { [key: string]: string } = {
 			WORKBENCH_WEB_CONFIGURATION: asJSON(workbenchWebConfiguration),
 			WORKBENCH_AUTH_SESSION: authSessionInfo ? asJSON(authSessionInfo) : '',
