@@ -10,7 +10,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { IObservable, ITransaction, ObservableValue, transaction } from 'vs/workbench/contrib/audioCues/browser/observable';
-import { ModifiedBaseRange, LineEdit, LineEdits, LineDiff, ModifiedBaseRangeState, LineRange, ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/model';
+import { ModifiedBaseRange, LineEdit, LineDiff, ModifiedBaseRangeState, LineRange, ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/model';
 
 export class MergeEditorModelFactory {
 	constructor(
