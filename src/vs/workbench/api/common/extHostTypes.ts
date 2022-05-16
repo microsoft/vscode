@@ -598,6 +598,43 @@ export class TextEdit {
 	}
 }
 
+@es5ClassCompat
+export class NotebookEdit implements vscode.NotebookEdit {
+
+	static isNotebookCellEdit(thing: any): thing is NotebookEdit {
+		if (thing instanceof NotebookEdit) {
+			return true;
+		}
+		if (!thing) {
+			return false;
+		}
+		return NotebookRange.isNotebookRange((<NotebookEdit>thing))
+			&& Array.isArray((<NotebookEdit>thing).newCells);
+	}
+
+	static replaceCells(range: NotebookRange, newCells: NotebookCellData[]): NotebookEdit {
+		return new NotebookEdit(range, newCells);
+	}
+
+	static deleteCells(range: NotebookRange): NotebookEdit {
+		return new NotebookEdit(range, []);
+	}
+
+	static updateCellMetadata(index: number, newMetadata: { [key: string]: any }): NotebookEdit {
+		return new NotebookEdit(new NotebookRange(index, index), [], newMetadata);
+	}
+
+	readonly range: NotebookRange;
+	readonly newCells: NotebookCellData[];
+	readonly newCellMetadata?: { [key: string]: any };
+
+	constructor(range: NotebookRange, newCells: NotebookCellData[], newCellMetadata?: { [key: string]: any }) {
+		this.range = range;
+		this.newCells = newCells;
+		this.newCellMetadata = newCellMetadata;
+	}
+}
+
 export class SnippetTextEdit implements vscode.SnippetTextEdit {
 
 	range: vscode.Range;
@@ -741,7 +778,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return this._edits.some(edit => edit._type === FileEditType.Text && edit.uri.toString() === uri.toString());
 	}
 
-	set(uri: URI, edits: TextEdit[]): void {
+	set(uri: URI, edits: TextEdit[] | unknown): void {
 		if (!edits) {
 			// remove all text edits for `uri`
 			for (let i = 0; i < this._edits.length; i++) {
@@ -753,9 +790,17 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 			coalesceInPlace(this._edits);
 		} else {
 			// append edit to the end
-			for (const edit of edits) {
+			for (const edit of edits as TextEdit[] | NotebookEdit[]) {
 				if (edit) {
-					this._edits.push({ _type: FileEditType.Text, uri, edit });
+					if (NotebookEdit.isNotebookCellEdit(edit)) {
+						if (edit.newCellMetadata) {
+							this.replaceNotebookCellMetadata(uri, edit.range.start, edit.newCellMetadata);
+						} else {
+							this.replaceNotebookCells(uri, edit.range, edit.newCells);
+						}
+					} else {
+						this._edits.push({ _type: FileEditType.Text, uri, edit });
+					}
 				}
 			}
 		}
