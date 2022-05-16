@@ -1830,6 +1830,7 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	getFindState(): FindReplaceState { throw new Error('Method not implemented.'); }
 	findNext(): void { throw new Error('Method not implemented.'); }
 	findPrevious(): void { throw new Error('Method not implemented.'); }
+	updateVisibility(): void { throw new Error('Method not implemented.'); }
 }
 
 export class TestTerminalProfileService implements ITerminalProfileService {

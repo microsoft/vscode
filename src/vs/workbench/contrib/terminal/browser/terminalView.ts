@@ -171,12 +171,8 @@ export class TerminalViewPane extends ViewPane {
 				// defer focusing the panel to the focus() call
 				// to prevent overriding preserveFocus for extensions
 				this._terminalGroupService.showPanel(false);
-				if (hadTerminals) {
-					this._terminalGroupService.activeGroup?.setVisible(visible);
-				}
-			} else {
-				this._terminalGroupService.activeGroup?.setVisible(false);
 			}
+			this._terminalGroupService.updateVisibility();
 		}));
 		this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 	}
