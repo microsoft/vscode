@@ -123,7 +123,7 @@
 	line-height: 14px;
 	background-color: inherit;
 	justify-content: center;
-	width: calc(100% - 16px);
+	width: calc(100% - 19px);
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen>.action-label.search>.search-icon {
