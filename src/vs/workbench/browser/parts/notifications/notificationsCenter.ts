@@ -137,6 +137,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			clearAllAction.enabled = this.model.notifications.some(notification => !notification.hasProgress);
 		}
 
+		// TODO: Replace this hack to update the toolbar actions.
 		if (this.notificationsToolBar) {
 			this.notificationsToolBar.clear();
 
