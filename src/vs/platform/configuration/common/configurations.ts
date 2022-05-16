@@ -109,7 +109,10 @@ export class PolicyConfiguration extends Disposable {
 	}
 
 	async reload(): Promise<ConfigurationModel> {
-		await this.policyService.refresh();
+		if (this.policyService instanceof FilePolicyService) {
+			await this.policyService.refresh();
+		}
+
 		this.update(this.defaultConfiguration.configurationModel.keys, false);
 		return this._configurationModel;
 	}
