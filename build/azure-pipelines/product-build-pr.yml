@@ -31,8 +31,7 @@ stages:
   - stage: Compile
     jobs:
       - job: Compile
-        pool:
-          vmImage: ubuntu-18.04
+        pool: vscode-1es-vscode-linux-18.04
         variables:
           VSCODE_ARCH: x64
         steps:
@@ -42,8 +41,7 @@ stages:
 
   - stage: LinuxServerDependencies
     dependsOn: []
-    pool:
-      vmImage: ubuntu-18.04
+    pool: vscode-1es-vscode-linux-18.04
     jobs:
       - job: x64
         container: centos7-devtoolset8-x64
@@ -58,8 +56,7 @@ stages:
   - stage: Windows
     dependsOn:
       - Compile
-    pool:
-      vmImage: windows-2019
+    pool: vscode-1es-vscode-windows-2019
     jobs:
       - job: Windows
         timeoutInMinutes: 120
@@ -74,8 +71,7 @@ stages:
     dependsOn:
       - Compile
       - LinuxServerDependencies
-    pool:
-      vmImage: ubuntu-18.04
+    pool: vscode-1es-vscode-linux-18.04
     jobs:
       - job: Linuxx64
         container: vscode-bionic-x64
