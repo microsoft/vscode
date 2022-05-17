@@ -170,9 +170,9 @@ export class MergeEditor extends EditorPane {
 		this._sessionDisposables.clear();
 		const model = await input.resolve();
 
-		this.input1View.setModel(model.input1, localize('yours', 'Yours'), model.input1Detail);
-		this.input2View.setModel(model.input2, localize('theirs', 'Theirs',), model.input2Detail);
-		this.inputResultView.setModel(model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }));
+		this.input1View.setModel(model.input1, localize('yours', 'Yours'), model.input1Detail, model.input1Description);
+		this.input2View.setModel(model.input2, localize('theirs', 'Theirs',), model.input2Detail, model.input1Description);
+		this.inputResultView.setModel(model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }), undefined);
 
 		let input1Decorations = new Array<IModelDeltaDecoration>();
 		let input2Decorations = new Array<IModelDeltaDecoration>();
@@ -364,9 +364,9 @@ class CodeEditorView implements IView {
 	// preferredHeight?: number | undefined;
 
 	element: HTMLElement;
-	private _titleElement: HTMLElement;
-	private _editorElement: HTMLElement;
-	public _gutterDiv: HTMLElement;
+	private readonly _titleElement: HTMLElement;
+	private readonly _editorElement: HTMLElement;
+	public readonly _gutterDiv: HTMLElement;
 
 	minimumWidth: number = 10;
 	maximumWidth: number = Number.MAX_SAFE_INTEGER;
@@ -378,7 +378,8 @@ class CodeEditorView implements IView {
 	private readonly _onDidChange = new Emitter<IViewSize | undefined>();
 	readonly onDidChange = this._onDidChange.event;
 
-	private _title: IconLabel;
+	private readonly _title: IconLabel;
+	private readonly _detail: IconLabel;
 
 	public readonly editor: CodeEditorWidget;
 	// private readonly gutter: EditorGutterWidget;
@@ -406,11 +407,13 @@ class CodeEditorView implements IView {
 		);
 
 		this._title = new IconLabel(this._titleElement, { supportIcons: true });
+		this._detail = new IconLabel(this._titleElement, { supportIcons: true });
 	}
 
-	public setModel(model: ITextModel, title: string, description: string | undefined): void {
+	public setModel(model: ITextModel, title: string, description: string | undefined, detail: string | undefined): void {
 		this.editor.setModel(model);
 		this._title.setLabel(title, description);
+		this._detail.setLabel('', detail);
 	}
 
 	layout(width: number, height: number, top: number, left: number): void {

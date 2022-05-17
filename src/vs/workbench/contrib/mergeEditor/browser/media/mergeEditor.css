@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .merge-editor .code-view > .title {
-	padding: 0 0 0 10px;
+	padding: 0 10px;
 	height: 30px;
 	display: flex;
 	align-content: center;
+	justify-content: space-between;
 }
 
 .monaco-workbench .merge-editor .code-view > .title .monaco-icon-label {
