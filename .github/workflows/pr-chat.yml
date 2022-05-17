@@ -1,7 +1,7 @@
 name: PR Chat
 on:
   pull_request_target:
-    types: [opened, ready_for_review]
+    types: [opened, ready_for_review, closed]
 
 jobs:
   main:
@@ -20,4 +20,5 @@ jobs:
         with:
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           slack_token: ${{ secrets.SLACK_TOKEN }}
+          slack_bot_name: "VSCodeBot"
           notification_channel: codereview
