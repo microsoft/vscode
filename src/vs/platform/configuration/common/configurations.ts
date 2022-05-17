@@ -108,19 +108,26 @@ export class PolicyConfiguration extends Disposable {
 
 		for (const key of properties) {
 			const config = configurationProperties[key];
-			const policy = config.policy;
-			if (policy) {
+			if (!config) {
+				// Config is removed. So add it to the list if in case it was registered as policy before
+				keys.push(key);
+				continue;
+			}
+			if (config.policy) {
 				if (config.type !== 'string' && config.type !== 'number') {
-					this.logService.warn(`Policy ${policy.name} has unsupported type ${config.type}`);
+					this.logService.warn(`Policy ${config.policy.name} has unsupported type ${config.type}`);
 					continue;
 				}
 				keys.push(key);
-				policyDefinitions[policy.name] = { type: config.type };
+				policyDefinitions[config.policy.name] = { type: config.type };
 			}
 		}
 
 		if (!isEmptyObject(policyDefinitions)) {
 			await this.policyService.registerPolicyDefinitions(policyDefinitions);
+		}
+
+		if (keys.length) {
 			this.update(keys, trigger);
 		}
 	}

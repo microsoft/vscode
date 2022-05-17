@@ -33,16 +33,16 @@ suite('PolicyConfiguration', () => {
 		'type': 'object',
 		'properties': {
 			'policy.settingA': {
-				'type': 'boolean',
-				'default': true,
+				'type': 'string',
+				'default': 'defaultValueA',
 				policy: {
 					name: 'PolicySettingA',
 					minimumVersion: '1.0.0',
 				}
 			},
 			'policy.settingB': {
-				'type': 'boolean',
-				'default': true,
+				'type': 'string',
+				'default': 'defaultValueB',
 				policy: {
 					name: 'PolicySettingB',
 					minimumVersion: '1.0.0',
@@ -71,12 +71,12 @@ suite('PolicyConfiguration', () => {
 	teardown(() => disposables.clear());
 
 	test('initialize: with policies', async () => {
-		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': false })));
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA' })));
 
 		await testObject.initialize();
 		const acutal = testObject.configurationModel;
 
-		assert.strictEqual(acutal.getValue('policy.settingA'), false);
+		assert.strictEqual(acutal.getValue('policy.settingA'), 'policyValueA');
 		assert.strictEqual(acutal.getValue('policy.settingB'), undefined);
 		assert.strictEqual(acutal.getValue('nonPolicy.setting'), undefined);
 		assert.deepStrictEqual(acutal.keys, ['policy.settingA']);
@@ -95,44 +95,44 @@ suite('PolicyConfiguration', () => {
 	});
 
 	test('initialize: with policies but not registered', async () => {
-		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': false, 'PolicySettingB': false, 'PolicySettingC': false })));
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA', 'PolicySettingB': 'policyValueB', 'PolicySettingC': 'policyValueC' })));
 
 		await testObject.initialize();
 		const acutal = testObject.configurationModel;
 
-		assert.strictEqual(acutal.getValue('policy.settingA'), false);
-		assert.strictEqual(acutal.getValue('policy.settingB'), false);
+		assert.strictEqual(acutal.getValue('policy.settingA'), 'policyValueA');
+		assert.strictEqual(acutal.getValue('policy.settingB'), 'policyValueB');
 		assert.strictEqual(acutal.getValue('nonPolicy.setting'), undefined);
 		assert.deepStrictEqual(acutal.keys, ['policy.settingA', 'policy.settingB']);
 		assert.deepStrictEqual(acutal.overrides, []);
 	});
 
 	test('change: when policy is added', async () => {
-		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': false })));
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA' })));
 		await testObject.initialize();
 
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': false, 'PolicySettingB': false, 'PolicySettingC': false })));
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA', 'PolicySettingB': 'policyValueB', 'PolicySettingC': 'policyValueC' })));
 		await promise;
 
 		const acutal = testObject.configurationModel;
-		assert.strictEqual(acutal.getValue('policy.settingA'), false);
-		assert.strictEqual(acutal.getValue('policy.settingB'), false);
+		assert.strictEqual(acutal.getValue('policy.settingA'), 'policyValueA');
+		assert.strictEqual(acutal.getValue('policy.settingB'), 'policyValueB');
 		assert.strictEqual(acutal.getValue('nonPolicy.setting'), undefined);
 		assert.deepStrictEqual(acutal.keys, ['policy.settingA', 'policy.settingB']);
 		assert.deepStrictEqual(acutal.overrides, []);
 	});
 
 	test('change: when policy is updated', async () => {
-		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': false })));
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA' })));
 		await testObject.initialize();
 
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': true })));
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueAChanged' })));
 		await promise;
 
 		const acutal = testObject.configurationModel;
-		assert.strictEqual(acutal.getValue('policy.settingA'), true);
+		assert.strictEqual(acutal.getValue('policy.settingA'), 'policyValueAChanged');
 		assert.strictEqual(acutal.getValue('policy.settingB'), undefined);
 		assert.strictEqual(acutal.getValue('nonPolicy.setting'), undefined);
 		assert.deepStrictEqual(acutal.keys, ['policy.settingA']);
@@ -140,7 +140,7 @@ suite('PolicyConfiguration', () => {
 	});
 
 	test('change: when policy is removed', async () => {
-		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': false })));
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA' })));
 		await testObject.initialize();
 
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
@@ -156,13 +156,13 @@ suite('PolicyConfiguration', () => {
 	});
 
 	test('change: when policy setting is registered', async () => {
-		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingC': false })));
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingC': 'policyValueC' })));
 		await testObject.initialize();
 
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
 		policyConfigurationNode.properties!['policy.settingC'] = {
-			'type': 'boolean',
-			'default': true,
+			'type': 'string',
+			'default': 'defaultValueC',
 			policy: {
 				name: 'PolicySettingC',
 				minimumVersion: '1.0.0',
@@ -172,7 +172,7 @@ suite('PolicyConfiguration', () => {
 		await promise;
 
 		const acutal = testObject.configurationModel;
-		assert.strictEqual(acutal.getValue('policy.settingC'), false);
+		assert.strictEqual(acutal.getValue('policy.settingC'), 'policyValueC');
 		assert.strictEqual(acutal.getValue('policy.settingA'), undefined);
 		assert.strictEqual(acutal.getValue('policy.settingB'), undefined);
 		assert.strictEqual(acutal.getValue('nonPolicy.setting'), undefined);
@@ -181,7 +181,7 @@ suite('PolicyConfiguration', () => {
 	});
 
 	test('change: when policy setting is deregistered', async () => {
-		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': false })));
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA' })));
 		await testObject.initialize();
 
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
