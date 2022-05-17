@@ -71,6 +71,8 @@
 	display: block;
 	border-bottom: 1px solid #bbb;
 	padding-top: 1px;
+	margin-left: .8em;
+	margin-right: .8em;
 }
 
 .monaco-action-bar .action-item .action-label.separator {
