@@ -44,7 +44,6 @@ import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelPrivacyId, TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
-import { DataTransferDTO } from 'vs/workbench/api/common/shared/dataTransfer';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
@@ -1367,6 +1366,20 @@ export interface IDocumentsAndEditorsDelta {
 
 export interface ExtHostDocumentsAndEditorsShape {
 	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void;
+}
+
+export interface IDataTransferFileDTO {
+	readonly name: string;
+	readonly uri?: UriComponents;
+}
+
+export interface DataTransferItemDTO {
+	readonly asString: string;
+	readonly fileData: IDataTransferFileDTO | undefined;
+}
+
+export interface DataTransferDTO {
+	readonly items: Array<[/* type */string, DataTransferItemDTO]>;
 }
 
 export interface ExtHostTreeViewsShape {

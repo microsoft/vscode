@@ -10,7 +10,7 @@ import { IListDragAndDrop } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { coalesce } from 'vs/base/common/arrays';
-import { IDataTransfer } from 'vs/base/common/dataTransfer';
+import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { stringify } from 'vs/base/common/marshalling';
@@ -52,7 +52,7 @@ export class DraggedTreeItemsIdentifier {
 	constructor(readonly identifier: string) { }
 }
 
-export async function extractTreeDropData(dataTransfer: IDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
+export async function extractTreeDropData(dataTransfer: VSDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
 	const editors: IDraggedResourceEditorInput[] = [];
 	const resourcesKey = Mimes.uriList.toLowerCase();
 
