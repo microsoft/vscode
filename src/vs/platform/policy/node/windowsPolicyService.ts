@@ -18,7 +18,7 @@ export class WindowsPolicyService extends Disposable implements IPolicyService {
 	readonly _serviceBrand: undefined;
 
 	private readonly policies = new Map<PolicyName, PolicyValue>();
-	private init: Promise<{ [name: PolicyName]: PolicyValue }> | undefined;
+	private init: Promise<void> | undefined;
 
 	private readonly _onDidChange = new Emitter<readonly PolicyName[]>();
 	readonly onDidChange = this._onDidChange.event;
@@ -29,7 +29,7 @@ export class WindowsPolicyService extends Disposable implements IPolicyService {
 		super();
 	}
 
-	initialize(): Promise<{ [name: PolicyName]: PolicyValue }> {
+	async initialize(): Promise<{ [name: PolicyName]: PolicyValue }> {
 		if (!this.init) {
 			this.init = new Promise(c => {
 				if (!this.productService.win32RegValueName) {
@@ -66,7 +66,7 @@ export class WindowsPolicyService extends Disposable implements IPolicyService {
 
 					if (first) {
 						first = false;
-						c(Iterable.reduce(this.policies.entries(), (r, [name, value]) => ({ ...r, [name]: value }), {}));
+						c();
 					} else {
 						this._onDidChange.fire(Object.keys(update));
 					}
@@ -74,7 +74,8 @@ export class WindowsPolicyService extends Disposable implements IPolicyService {
 			});
 		}
 
-		return this.init;
+		await this.init;
+		return Iterable.reduce(this.policies.entries(), (r, [name, value]) => ({ ...r, [name]: value }), {});
 	}
 
 	getPolicyValue(name: PolicyName): PolicyValue | undefined {
