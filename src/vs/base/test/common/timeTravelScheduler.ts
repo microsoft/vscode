@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { setTimeout0 } from 'vs/base/common/platform';
 
 interface PriorityQueue<T> {
 	length: number;
@@ -178,7 +179,7 @@ export class AsyncSchedulerProcessor extends Disposable {
 			if (this.useSetImmediate) {
 				originalGlobalValues.setImmediate(() => this.process());
 			} else {
-				originalGlobalValues.setTimeout(() => this.process());
+				setTimeout0(() => this.process());
 			}
 		});
 	}
