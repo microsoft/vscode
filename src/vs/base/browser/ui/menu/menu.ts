@@ -1199,6 +1199,7 @@ ${formatRule(Codicon.menuSubmenu)}
 .monaco-menu .monaco-action-bar.vertical .action-label.separator {
 	width: 100%;
 	height: 0px !important;
+	opacity: 1;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label.separator.text {
