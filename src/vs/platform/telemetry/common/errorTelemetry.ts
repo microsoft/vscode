@@ -10,16 +10,16 @@ import { safeStringify } from 'vs/base/common/objects';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 type ErrorEventFragment = {
-	owner: 'lramos15, sbatten'
-	comment: 'Whenever an error in VS Code is thrown.'
-	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth', comment: 'The callstack of the error.' };
-	msg?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth', comment: 'The message of the error. Normally the first line int the callstack.' };
-	file?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth', comment: 'The file the error originated from.'};
-	line?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; isMeasurement: true, comment: 'The line the error originate on.' };
-	column?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; isMeasurement: true, comment: 'The column of the line which the error orginated on.'};
-	uncaught_error_name?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth', comment: 'If the error is uncaught what is the error type' };
-	uncaught_error_msg?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth', comment: 'If the error is uncaught this is just msg but for uncaught errors.' };
-	count?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; isMeasurement: true, comment: 'How many times this error has been thrown' };
+	owner: 'lramos15, sbatten';
+	comment: 'Whenever an error in VS Code is thrown.';
+	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The callstack of the error.' };
+	msg?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The message of the error. Normally the first line int the callstack.' };
+	file?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The file the error originated from.' };
+	line?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The line the error originate on.' };
+	column?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The column of the line which the error orginated on.' };
+	uncaught_error_name?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'If the error is uncaught what is the error type' };
+	uncaught_error_msg?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'If the error is uncaught this is just msg but for uncaught errors.' };
+	count?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'How many times this error has been thrown' };
 };
 export interface ErrorEvent {
 	callstack: string;
