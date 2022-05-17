@@ -693,19 +693,18 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		const isSelected = this.element && this.element.classList.contains('focused');
 		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
 		const bgColor = isSelected && this.menuStyle.selectionBackgroundColor ? this.menuStyle.selectionBackgroundColor : undefined;
-		const border = isSelected && this.menuStyle.selectionBorderColor ? `thin solid ${this.menuStyle.selectionBorderColor}` : '';
+		const outline = isSelected && this.menuStyle.selectionBorderColor ? `1px solid ${this.menuStyle.selectionBorderColor}` : '';
+		const outlineOffset = isSelected && this.menuStyle.selectionBorderColor ? `-1px` : '';
 
 		if (this.item) {
 			this.item.style.color = fgColor ? fgColor.toString() : '';
 			this.item.style.backgroundColor = bgColor ? bgColor.toString() : '';
+			this.item.style.outline = outline;
+			this.item.style.outlineOffset = outlineOffset;
 		}
 
 		if (this.check) {
 			this.check.style.color = fgColor ? fgColor.toString() : '';
-		}
-
-		if (this.container) {
-			this.container.style.border = border;
 		}
 	}
 
@@ -1239,15 +1238,6 @@ ${formatRule(Codicon.menuSubmenu)}
 .context-view.monaco-menu-container .monaco-action-bar.vertical:focus,
 .context-view.monaco-menu-container .monaco-action-bar.vertical :focus {
 	outline: 0;
-}
-
-
-/* High Contrast Theming */
-.hc-black .monaco-menu .monaco-action-bar.vertical .action-item,
-.hc-light .monaco-menu .monaco-action-bar.vertical .action-item,
-:host-context(.hc-black) .monaco-menu .monaco-action-bar.vertical .action-item,
-:host-context(.hc-light) .monaco-menu .monaco-action-bar.vertical .action-item {
-	border: thin solid transparent; /* prevents jumping behaviour on hover or focus */
 }
 
 .hc-black .context-view.monaco-menu-container,
