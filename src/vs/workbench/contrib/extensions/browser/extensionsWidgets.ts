@@ -185,7 +185,7 @@ export class RecommendationWidget extends ExtensionWidget {
 
 	render(): void {
 		this.clear();
-		if (!this.extension || this.extension.state === ExtensionState.Installed) {
+		if (!this.extension || this.extension.state === ExtensionState.Installed || this.extension.deprecated) {
 			return;
 		}
 		const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
@@ -547,6 +547,9 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 	private getRecommendationMessage(extension: IExtension): string | undefined {
 		if (extension.state === ExtensionState.Installed) {
+			return undefined;
+		}
+		if (extension.deprecated) {
 			return undefined;
 		}
 		const recommendation = this.extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()];

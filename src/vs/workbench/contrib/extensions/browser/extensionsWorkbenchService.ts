@@ -188,7 +188,7 @@ export class Extension implements IExtension {
 	}
 
 	public isMalicious: boolean = false;
-	public isUnsupported: boolean | { preReleaseExtension: { id: string; displayName: string } } = false;
+	public deprecated: boolean | { id: string; displayName: string } = false;
 
 	get installCount(): number | undefined {
 		return this.gallery ? this.gallery.installCount : undefined;
@@ -390,17 +390,9 @@ class Extensions extends Disposable {
 
 	static updateExtensionFromControlManifest(extension: Extension, extensionsControlManifest: IExtensionsControlManifest): void {
 		const isMalicious = extensionsControlManifest.malicious.some(identifier => areSameExtensions(extension.identifier, identifier));
-		if (extension.isMalicious !== isMalicious) {
-			extension.isMalicious = isMalicious;
-		}
-		const unsupportedPreRelease = extensionsControlManifest.unsupportedPreReleaseExtensions ? extensionsControlManifest.unsupportedPreReleaseExtensions[extension.identifier.id.toLowerCase()] : undefined;
-		if (unsupportedPreRelease) {
-			if (isBoolean(extension.isUnsupported) || !areSameExtensions({ id: extension.isUnsupported.preReleaseExtension.id }, { id: unsupportedPreRelease.id })) {
-				extension.isUnsupported = { preReleaseExtension: unsupportedPreRelease };
-			}
-		} else if (extension.isUnsupported) {
-			extension.isUnsupported = false;
-		}
+		extension.isMalicious = isMalicious;
+		const deprecated = extensionsControlManifest.deprecated ? extensionsControlManifest.deprecated[extension.identifier.id.toLowerCase()] : undefined;
+		extension.deprecated = deprecated ?? false;
 	}
 
 	private readonly _onChange: Emitter<{ extension: Extension; operation?: InstallOperation } | undefined> = this._register(new Emitter<{ extension: Extension; operation?: InstallOperation } | undefined>());
@@ -1155,7 +1147,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return false;
 		}
 
-		if (extension.isUnsupported) {
+		if (extension.deprecated && !isBoolean(extension.deprecated)) {
 			return false;
 		}
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { isBoolean } from 'vs/base/common/types';
 import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
@@ -20,18 +21,22 @@ import { ILogService } from 'vs/platform/log/common/log';
 export async function migrateUnsupportedExtensions(extensionManagementService: IExtensionManagementService, galleryService: IExtensionGalleryService, extensionStorageService: IExtensionStorageService, extensionEnablementService: IGlobalExtensionEnablementService, logService: ILogService): Promise<void> {
 	try {
 		const extensionsControlManifest = await extensionManagementService.getExtensionsControlManifest();
-		if (!extensionsControlManifest.unsupportedPreReleaseExtensions) {
+		if (!extensionsControlManifest.deprecated) {
 			return;
 		}
 		const installed = await extensionManagementService.getInstalled(ExtensionType.User);
-		for (const [unsupportedExtensionId, { id: preReleaseExtensionId, migrateStorage }] of Object.entries(extensionsControlManifest.unsupportedPreReleaseExtensions)) {
+		for (const [unsupportedExtensionId, deprecated] of Object.entries(extensionsControlManifest.deprecated)) {
+			if (isBoolean(deprecated)) {
+				continue;
+			}
+			const { id: preReleaseExtensionId, migrateStorage, preRelease } = deprecated;
 			const unsupportedExtension = installed.find(i => areSameExtensions(i.identifier, { id: unsupportedExtensionId }));
 			// Unsupported Extension is not installed
 			if (!unsupportedExtension) {
 				continue;
 			}
 
-			const gallery = (await galleryService.getExtensions([{ id: preReleaseExtensionId, preRelease: true }], { targetPlatform: await extensionManagementService.getTargetPlatform(), compatible: true }, CancellationToken.None))[0];
+			const gallery = (await galleryService.getExtensions([{ id: preReleaseExtensionId, preRelease }], { targetPlatform: await extensionManagementService.getTargetPlatform(), compatible: true }, CancellationToken.None))[0];
 			if (!gallery) {
 				logService.info(`Skipping migrating '${unsupportedExtension.identifier.id}' extension because, the comaptible target '${preReleaseExtensionId}' extension is not found`);
 				continue;
