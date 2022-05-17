@@ -5,19 +5,24 @@
 
 import * as resources from 'vs/base/common/resources';
 import * as assert from 'assert';
-import { TestEnvironmentService, TestPathService, TestRemoteAgentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemoteAgentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { isWindows } from 'vs/base/common/platform';
+import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Memento } from 'vs/workbench/common/memento';
+import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
 
 suite('URI Label', () => {
 	let labelService: LabelService;
+	let storageService: TestStorageService;
 
 	setup(() => {
-		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestPathService(), new TestRemoteAgentService());
+		storageService = new TestStorageService();
+		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestPathService(), new TestRemoteAgentService(), storageService, new TestLifecycleService());
 	});
 
 	test('custom scheme', function () {
@@ -158,6 +163,41 @@ suite('URI Label', () => {
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
 		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: /END');
 	});
+
+
+	test('label caching', () => {
+		const m = new Memento('cachedResourceFormatters', storageService).getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		const makeFormatter = (scheme: string): ResourceLabelFormatter => ({ formatting: { label: `\${path} (${scheme})`, separator: '/' }, scheme });
+		assert.deepStrictEqual(m, {});
+
+		// registers a new formatter:
+		labelService.registerCachedFormatter(makeFormatter('a'));
+		assert.deepStrictEqual(m, { formatters: [makeFormatter('a')] });
+
+		// registers a 2nd formatter:
+		labelService.registerCachedFormatter(makeFormatter('b'));
+		assert.deepStrictEqual(m, { formatters: [makeFormatter('b'), makeFormatter('a')] });
+
+		// promotes a formatter on re-register:
+		labelService.registerCachedFormatter(makeFormatter('a'));
+		assert.deepStrictEqual(m, { formatters: [makeFormatter('a'), makeFormatter('b')] });
+
+		// no-ops if already in first place:
+		labelService.registerCachedFormatter(makeFormatter('a'));
+		assert.deepStrictEqual(m, { formatters: [makeFormatter('a'), makeFormatter('b')] });
+
+		// limits the cache:
+		for (let i = 0; i < 100; i++) {
+			labelService.registerCachedFormatter(makeFormatter(`i${i}`));
+		}
+		let expected: ResourceLabelFormatter[] = [];
+		for (let i = 50; i < 100; i++) {
+			expected.unshift(makeFormatter(`i${i}`));
+		}
+		assert.deepStrictEqual(m, { formatters: expected });
+
+		delete (m as any).formatters;
+	});
 });
 
 
@@ -178,7 +218,9 @@ suite('multi-root workspace', () => {
 					new WorkspaceFolder({ uri: other, index: 2, name: resources.basename(other) }),
 				])),
 			new TestPathService(),
-			new TestRemoteAgentService()
+			new TestRemoteAgentService(),
+			new TestStorageService(),
+			new TestLifecycleService()
 		);
 	});
 
@@ -263,7 +305,9 @@ suite('multi-root workspace', () => {
 					new WorkspaceFolder({ uri: rootFolder, index: 0, name: 'FSProotFolder' }),
 				])),
 			new TestPathService(undefined, rootFolder.scheme),
-			new TestRemoteAgentService()
+			new TestRemoteAgentService(),
+			new TestStorageService(),
+			new TestLifecycleService()
 		);
 
 		const generated = labelService.getUriLabel(URI.parse('myscheme://myauthority/some/folder/test.txt'), { relative: true });
@@ -288,7 +332,9 @@ suite('workspace at FSP root', () => {
 					new WorkspaceFolder({ uri: rootFolder, index: 0, name: 'FSProotFolder' }),
 				])),
 			new TestPathService(),
-			new TestRemoteAgentService()
+			new TestRemoteAgentService(),
+			new TestStorageService(),
+			new TestLifecycleService()
 		);
 		labelService.registerFormatter({
 			scheme: 'myscheme',

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from 'vs/base/common/async';
+import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -35,16 +36,17 @@ export interface ICurrentPartialCommand {
 	continuations?: { marker: IMarker; end: number }[];
 
 	command?: string;
+
+	/**
+	 * Something invalidated the command before it finished, this will prevent the onCommandFinished
+	 * event from firing.
+	 */
+	isInvalid?: boolean;
 }
 
 interface ITerminalDimensions {
 	cols: number;
 	rows: number;
-}
-
-interface IBeforeCommandFinishedEvent {
-	command: ITerminalCommand;
-	veto?: boolean;
 }
 
 export class CommandDetectionCapability implements ICommandDetectionCapability {
@@ -72,12 +74,14 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 	private readonly _onCommandStarted = new Emitter<ITerminalCommand>();
 	readonly onCommandStarted = this._onCommandStarted.event;
-	private readonly _onBeforeCommandFinished = new Emitter<IBeforeCommandFinishedEvent>();
+	private readonly _onBeforeCommandFinished = new Emitter<ITerminalCommand>();
 	readonly onBeforeCommandFinished = this._onBeforeCommandFinished.event;
 	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();
 	readonly onCommandFinished = this._onCommandFinished.event;
 	private readonly _onCommandInvalidated = new Emitter<ITerminalCommand[]>();
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
+	private readonly _onCurrentCommandInvalidated = new Emitter<void>();
+	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
 
 	constructor(
 		private readonly _terminal: Terminal,
@@ -88,6 +92,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			rows: this._terminal.rows
 		};
 		this._terminal.onResize(e => this._handleResize(e));
+		this._terminal.onCursorMove(() => this._handleCursorMove());
 		this._setupClearListeners();
 	}
 
@@ -99,6 +104,27 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._dimensions.rows = e.rows;
 	}
 
+	@debounce(500)
+	private _handleCursorMove() {
+		// Early versions of conpty do not have real support for an alt buffer, in addition certain
+		// commands such as tsc watch will write to the top of the normal buffer. The following
+		// checks when the cursor has moved while the normal buffer is empty and if it is above the
+		// current command, all decorations within the viewport will be invalidated.
+		//
+		// This function is debounced so that the cursor is only checked when it is stable so
+		// conpty's screen reprinting will not trigger decoration clearing.
+		//
+		// This is mostly a workaround for Windows but applies to all OS' because of the tsc watch
+		// case.
+		if (this._terminal.buffer.active === this._terminal.buffer.normal && this._currentCommand.commandStartMarker) {
+			if (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY < this._currentCommand.commandStartMarker.line) {
+				this._clearCommandsInViewport();
+				this._currentCommand.isInvalid = true;
+				this._onCurrentCommandInvalidated.fire();
+			}
+		}
+	}
+
 	private _setupClearListeners() {
 		// Setup listeners for when clear is run in the shell. Since we don't know immediately if
 		// this is a Windows pty, listen to both routes and do the Windows check inside them
@@ -106,12 +132,12 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		// For a Windows backend we cannot listen to CSI J, instead we assume running clear or
 		// cls will clear all commands in the viewport. This is not perfect but it's right most
 		// of the time.
-		this.onBeforeCommandFinished(event => {
+		this.onBeforeCommandFinished(command => {
 			if (this._isWindowsPty) {
-				if (event.command.command.trim().toLowerCase() === 'clear' || event.command.command.trim().toLowerCase() === 'cls') {
+				if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
 					this._clearCommandsInViewport();
-					// Prevent current command to get to command finished listeners
-					event.veto = true;
+					this._currentCommand.isInvalid = true;
+					this._onCurrentCommandInvalidated.fire();
 				}
 			}
 		});
@@ -403,10 +429,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 
-			// Fire the command finished event provided there is no veto
-			const beforeEvent: IBeforeCommandFinishedEvent = { command: newCommand };
-			this._onBeforeCommandFinished.fire(beforeEvent);
-			if (!beforeEvent.veto) {
+			this._onBeforeCommandFinished.fire(newCommand);
+			if (!this._currentCommand.isInvalid) {
 				this._onCommandFinished.fire(newCommand);
 			}
 		}

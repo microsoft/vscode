@@ -95,6 +95,7 @@ namespace ServerState {
 export default class TypeScriptServiceClient extends Disposable implements ITypeScriptServiceClient {
 
 	private readonly pathSeparator: string;
+	private readonly emptyAuthority = 'ts-nul-authority';
 	private readonly inMemoryResourcePrefix = '^';
 
 	private readonly workspaceState: vscode.Memento;
@@ -676,7 +677,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				{
 					return this.inMemoryResourcePrefix
 						+ '/' + resource.scheme
-						+ '/' + resource.authority
+						+ '/' + (resource.authority || this.emptyAuthority)
 						+ (resource.path.startsWith('/') ? resource.path : '/' + resource.path)
 						+ (resource.fragment ? '#' + resource.fragment : '');
 				}
@@ -724,9 +725,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		if (filepath.startsWith(this.inMemoryResourcePrefix)) {
-			const parts = filepath.match(/^\^\/([^\/]+)\/(.+)$/);
+			const parts = filepath.match(/^\^\/([^\/]+)\/([^\/]*)\/(.+)$/);
 			if (parts) {
-				const resource = vscode.Uri.parse(parts[1] + '://' + parts[2]);
+				const resource = vscode.Uri.parse(parts[1] + '://' + (parts[2] === this.emptyAuthority ? '' : parts[2]) + '/' + parts[3]);
 				return this.bufferSyncSupport.toVsCodeResource(resource);
 			}
 		}

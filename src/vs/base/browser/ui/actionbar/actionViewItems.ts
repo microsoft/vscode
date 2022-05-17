@@ -9,6 +9,8 @@ import { $, addDisposableListener, append, EventHelper, EventLike, EventType } f
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { ISelectBoxOptions, ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separator } from 'vs/base/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -28,7 +30,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	element: HTMLElement | undefined;
 
 	_context: unknown;
-	_action: IAction;
+	readonly _action: IAction;
 
 	get action() {
 		return this._action;
@@ -234,6 +236,7 @@ export interface IActionViewItemOptions extends IBaseActionViewItemOptions {
 	icon?: boolean;
 	label?: boolean;
 	keybinding?: string | null;
+	hoverDelegate?: IHoverDelegate;
 }
 
 export class ActionViewItem extends BaseActionViewItem {
@@ -242,6 +245,7 @@ export class ActionViewItem extends BaseActionViewItem {
 	protected override options: IActionViewItemOptions;
 
 	private cssClass?: string;
+	private customHover?: ICustomHover;
 
 	constructor(context: unknown, action: IAction, options: IActionViewItemOptions = {}) {
 		super(context, action, options);
@@ -326,10 +330,23 @@ export class ActionViewItem extends BaseActionViewItem {
 				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding'] }, "{0} ({1})", title, this.options.keybinding);
 			}
 		}
+		this._applyUpdateTooltip(title);
+	}
 
+	protected _applyUpdateTooltip(title: string | undefined | null): void {
 		if (title && this.label) {
-			this.label.title = title;
 			this.label.setAttribute('aria-label', title);
+			if (!this.options.hoverDelegate) {
+				this.label.title = title;
+			} else {
+				this.label.title = '';
+				if (!this.customHover) {
+					this.customHover = setupCustomHover(this.options.hoverDelegate, this.label, title);
+					this._store.add(this.customHover);
+				} else {
+					this.customHover.update(title);
+				}
+			}
 		}
 	}
 

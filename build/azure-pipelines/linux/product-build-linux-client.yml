@@ -1,14 +1,19 @@
+parameters:
+  - name: VSCODE_QUALITY
+    type: string
+
 steps:
   - task: NodeTool@0
     inputs:
       versionSpec: "16.x"
 
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
-    inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
-      SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - task: AzureKeyVault@1
+      displayName: "Azure Key Vault: Get Secrets"
+      inputs:
+        azureSubscription: "vscode-builds-subscription"
+        KeyVaultName: vscode
+        SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -38,30 +43,33 @@ steps:
       tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
     displayName: Extract compilation output
 
-  - script: |
-      set -e
-      cat << EOF > ~/.netrc
-      machine github.com
-      login vscode
-      password $(github-distro-mixin-password)
-      EOF
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        cat << EOF > ~/.netrc
+        machine github.com
+        login vscode
+        password $(github-distro-mixin-password)
+        EOF
 
-      git config user.email "vscode@microsoft.com"
-      git config user.name "VSCode"
-    displayName: Prepare tooling
+        git config user.email "vscode@microsoft.com"
+        git config user.name "VSCode"
+      displayName: Prepare tooling
 
-  - script: |
-      set -e
-      git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
-      echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-      git checkout FETCH_HEAD
-    condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-    displayName: Checkout override commit
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
+        echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
+        git checkout FETCH_HEAD
+      condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
+      displayName: Checkout override commit
 
-  - script: |
-      set -e
-      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-    displayName: Merge distro
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
+      displayName: Merge distro
 
   - script: |
       mkdir -p .build
@@ -91,6 +99,7 @@ steps:
 
   - script: |
       set -e
+      node build/npm/setupBuildYarnrc
       for i in {1..3}; do # try 3 times, for Terrapin
         yarn --cwd build --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then
@@ -168,10 +177,11 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
-  - script: |
-      set -e
-      node build/azure-pipelines/mixin
-    displayName: Mix in quality
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        node build/azure-pipelines/mixin
+      displayName: Mix in quality
 
   - script: |
       set -e
@@ -179,10 +189,11 @@ steps:
         yarn gulp vscode-linux-$(VSCODE_ARCH)-min-ci
     displayName: Build
 
-  - script: |
-      set -e
-      node build/azure-pipelines/mixin --server
-    displayName: Mix in server quality
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        node build/azure-pipelines/mixin --server
+      displayName: Mix in server quality
 
   - script: |
       set -e
@@ -342,93 +353,109 @@ steps:
       searchFolder: "$(Build.ArtifactStagingDirectory)/test-results"
     condition: and(succeededOrFailed(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-  - script: |
-      set -e
-      yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
-      yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm"
-    displayName: Build deb, rpm packages
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
+        yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm"
+      displayName: Build deb, rpm packages
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - script: |
-      set -e
-      yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
-    displayName: Prepare snap package
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
+      displayName: Prepare snap package
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - task: UseDotNet@2
-    inputs:
-      version: 2.x
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - task: UseDotNet@2
+      inputs:
+        version: 2.x
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - task: EsrpClientTool@1
-    displayName: Download ESRPClient
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - task: EsrpClientTool@1
+      displayName: Download ESRPClient
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - script: |
-      set -e
-      node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" rpm $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
-    displayName: Codesign rpm
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" rpm $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
+      displayName: Codesign rpm
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - script: |
-      set -e
-      VSCODE_ARCH="$(VSCODE_ARCH)" \
-      ./build/azure-pipelines/linux/prepare-publish.sh
-    displayName: Prepare for Publish
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        VSCODE_ARCH="$(VSCODE_ARCH)" \
+        ./build/azure-pipelines/linux/prepare-publish.sh
+      displayName: Prepare for Publish
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - publish: $(DEB_PATH)
-    artifact: vscode_client_linux_$(VSCODE_ARCH)_deb-package
-    displayName: Publish deb package
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - publish: $(DEB_PATH)
+      artifact: vscode_client_linux_$(VSCODE_ARCH)_deb-package
+      displayName: Publish deb package
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - publish: $(RPM_PATH)
-    artifact: vscode_client_linux_$(VSCODE_ARCH)_rpm-package
-    displayName: Publish rpm package
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - publish: $(RPM_PATH)
+      artifact: vscode_client_linux_$(VSCODE_ARCH)_rpm-package
+      displayName: Publish rpm package
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - publish: $(TARBALL_PATH)
-    artifact: vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
-    displayName: Publish client archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - publish: $(TARBALL_PATH)
+      artifact: vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
+      displayName: Publish client archive
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH).tar.gz
-    artifact: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
-    displayName: Publish server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH).tar.gz
+      artifact: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
+      displayName: Publish server archive
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
-    artifact: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
-    displayName: Publish web server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
+      artifact: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
+      displayName: Publish web server archive
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - task: PublishPipelineArtifact@0
-    displayName: "Publish Pipeline Artifact"
-    inputs:
-      artifactName: "snap-$(VSCODE_ARCH)"
-      targetPath: .build/linux/snap-tarball
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - task: PublishPipelineArtifact@0
+      displayName: "Publish Pipeline Artifact"
+      inputs:
+        artifactName: "snap-$(VSCODE_ARCH)"
+        targetPath: .build/linux/snap-tarball
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-    displayName: Generate SBOM (client)
-    inputs:
-      BuildDropPath: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-      PackageName: Visual Studio Code
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+      displayName: Generate SBOM (client)
+      inputs:
+        BuildDropPath: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+        PackageName: Visual Studio Code
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - publish: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/_manifest
-    displayName: Publish SBOM (client)
-    artifact: vscode_client_linux_$(VSCODE_ARCH)_sbom
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - publish: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/_manifest
+      displayName: Publish SBOM (client)
+      artifact: vscode_client_linux_$(VSCODE_ARCH)_sbom
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-    displayName: Generate SBOM (server)
-    inputs:
-      BuildDropPath: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
-      PackageName: Visual Studio Code Server
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+      displayName: Generate SBOM (server)
+      inputs:
+        BuildDropPath: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
+        PackageName: Visual Studio Code Server
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - publish: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)/_manifest
-    displayName: Publish SBOM (server)
-    artifact: vscode_server_linux_$(VSCODE_ARCH)_sbom
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - publish: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)/_manifest
+      displayName: Publish SBOM (server)
+      artifact: vscode_server_linux_$(VSCODE_ARCH)_sbom
+      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))

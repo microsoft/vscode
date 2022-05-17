@@ -24,7 +24,7 @@ const imageFileExtensions = new Set<string>([
 ]);
 
 export function registerDropIntoEditor(selector: vscode.DocumentSelector) {
-	return vscode.languages.registerDocumentOnDropProvider(selector, new class implements vscode.DocumentOnDropProvider {
+	return vscode.languages.registerDocumentOnDropEditProvider(selector, new class implements vscode.DocumentOnDropEditProvider {
 		async provideDocumentOnDropEdits(document: vscode.TextDocument, position: vscode.Position, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.SnippetTextEdit | undefined> {
 			const enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.drop.enabled', true);
 			if (!enabled) {
@@ -57,7 +57,7 @@ export function registerDropIntoEditor(selector: vscode.DocumentSelector) {
 			const snippet = new vscode.SnippetString();
 			uris.forEach((uri, i) => {
 				const mdPath = document.uri.scheme === uri.scheme
-					? encodeURI(path.relative(URI.Utils.dirname(document.uri).fsPath, uri.fsPath))
+					? encodeURI(path.relative(URI.Utils.dirname(document.uri).fsPath, uri.fsPath).replace(/\\/g, '/'))
 					: uri.toString(false);
 
 				const ext = URI.Utils.extname(uri).toLowerCase();

@@ -85,6 +85,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/mar
 import { Button, ButtonWithDescription } from 'vs/base/browser/ui/button/button';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RepositoryContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewService';
+import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/browser/dropIntoEditorContribution';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -1935,7 +1936,8 @@ class SCMInputWidget extends Disposable {
 			quickSuggestions: false,
 			scrollbar: { alwaysConsumeMouseWheel: false },
 			overflowWidgetsDomNode,
-			renderWhitespace: 'none'
+			renderWhitespace: 'none',
+			enableDropIntoEditor: true,
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -1948,7 +1950,8 @@ class SCMInputWidget extends Disposable {
 				ContextMenuController.ID,
 				ColorDetector.ID,
 				ModesHoverController.ID,
-				LinkDetector.ID
+				LinkDetector.ID,
+				DropIntoEditorController.ID
 			])
 		};
 

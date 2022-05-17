@@ -48,7 +48,7 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
+import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
@@ -80,6 +80,7 @@ import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import type { ITerminalAddon, Terminal as XTermTerminal } from 'xterm';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const enum Constants {
 	/**
@@ -361,7 +362,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IHistoryService private readonly _historyService: IHistoryService
+		@IHistoryService private readonly _historyService: IHistoryService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -1579,7 +1581,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * @param exitCode The exit code of the process, this is undefined when the terminal was exited
 	 * through user action.
 	 */
-	private async _onProcessExit(exitCodeOrError?: number | ITerminalLaunchError, shellIntegrationAttempted?: boolean): Promise<void> {
+	private async _onProcessExit(exitCodeOrError?: number | ITerminalLaunchError, failedShellIntegrationInjection?: boolean): Promise<void> {
 		// Prevent dispose functions being triggered multiple times
 		if (this._isExiting) {
 			return;
@@ -1590,7 +1592,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		await this._flushXtermData();
 		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) with code ${this._exitCode}`);
 
-		const parsedExitResult = parseExitResult(exitCodeOrError, this.shellLaunchConfig, this._processManager.processState, this._initialCwd, shellIntegrationAttempted);
+		const parsedExitResult = parseExitResult(exitCodeOrError, this.shellLaunchConfig, this._processManager.processState, this._initialCwd, failedShellIntegrationInjection);
 		this._exitCode = parsedExitResult?.code;
 		const exitMessage = parsedExitResult?.message;
 
@@ -1629,6 +1631,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._logService.warn(exitMessage);
 				}
 			}
+		}
+
+		if (failedShellIntegrationInjection) {
+			this._telemetryService.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationFailureProcessExit');
 		}
 
 		// First onExit to consumers, this can happen after the terminal has already been disposed.
@@ -2577,7 +2583,7 @@ export function parseExitResult(
 	shellLaunchConfig: IShellLaunchConfig,
 	processState: ProcessState,
 	initialCwd: string | undefined,
-	shellIntegrationAttempted?: boolean
+	failedShellIntegrationInjection?: boolean
 ): { code: number | undefined; message: string | undefined } | undefined {
 	// Only return a message if the exit code is non-zero
 	if (exitCodeOrError === undefined || exitCodeOrError === 0) {
@@ -2599,7 +2605,7 @@ export function parseExitResult(
 					commandLine += shellLaunchConfig.args.map(a => ` '${a}'`).join();
 				}
 			}
-			if (shellIntegrationAttempted) {
+			if (failedShellIntegrationInjection) {
 				if (commandLine) {
 					message = nls.localize('launchFailed.exitCodeAndCommandLineShellIntegration', "The terminal process \"{0}\" failed to launch (exit code: {1}). Disabling shell integration with `terminal.integrated.shellIntegration.enabled` might help.", commandLine, code);
 				} else {

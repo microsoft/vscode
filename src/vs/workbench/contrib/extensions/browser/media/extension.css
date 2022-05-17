@@ -149,6 +149,12 @@
 
 .extension-list-item > .details > .description {
 	padding-right: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.hc-black .extension-list-item > .details > .description,
+.hc-light .extension-list-item > .details > .description {
+	color: unset;
 }
 
 .extension-list-item > .details > .footer {

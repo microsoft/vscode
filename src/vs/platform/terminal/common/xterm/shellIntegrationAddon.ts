@@ -15,6 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 // eslint-disable-next-line code-import-patterns
 import type { ITerminalAddon, Terminal } from 'xterm-headless';
 import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -123,8 +124,11 @@ const enum VSCodeOscPt {
 export class ShellIntegrationAddon extends Disposable implements IShellIntegration, ITerminalAddon {
 	private _terminal?: Terminal;
 	readonly capabilities = new TerminalCapabilityStore();
+	private _hasUpdatedTelemetry: boolean = false;
+	private _activationTimeout: any;
 
 	constructor(
+		private readonly _telemetryService: ITelemetryService | undefined,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
@@ -134,9 +138,23 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this._terminal = xterm;
 		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
+		this._ensureCapabilitiesOrAddFailureTelemetry();
 	}
 
 	private _handleVSCodeSequence(data: string): boolean {
+		const didHandle = this._doHandleVSCodeSequence(data);
+		if (!this._hasUpdatedTelemetry && didHandle) {
+			this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivationSucceeded');
+			this._hasUpdatedTelemetry = true;
+			if (this._activationTimeout !== undefined) {
+				clearTimeout(this._activationTimeout);
+				this._activationTimeout = undefined;
+			}
+		}
+		return didHandle;
+	}
+
+	private _doHandleVSCodeSequence(data: string): boolean {
 		if (!this._terminal) {
 			return false;
 		}
@@ -209,6 +227,16 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 		// Unrecognized sequence
 		return false;
+	}
+
+	private async _ensureCapabilitiesOrAddFailureTelemetry(): Promise<void> {
+		this._activationTimeout = setTimeout(() => {
+			if (!this.capabilities.get(TerminalCapability.CommandDetection) && !this.capabilities.get(TerminalCapability.CwdDetection)) {
+				this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivationTimeout');
+				this._logService.warn('Shell integration failed to add capabilities within 10 seconds');
+			}
+			this._hasUpdatedTelemetry = true;
+		}, 10000);
 	}
 
 	serialize(): ISerializedCommandDetectionCapability {

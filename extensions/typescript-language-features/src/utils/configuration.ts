@@ -82,7 +82,7 @@ export class ImplicitProjectConfiguration {
 
 	private static readCheckJs(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('js/ts.implicitProjectConfig.checkJs')
-			?? configuration.get<boolean>('javascript.implicitProjectConfig.checkJs', false);
+			?? configuration.get<boolean>('javascript.implicitProjectConfig.checkJs', true);
 	}
 
 	private static readExperimentalDecorators(configuration: vscode.WorkspaceConfiguration): boolean {

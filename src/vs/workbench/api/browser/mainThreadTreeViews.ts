@@ -15,7 +15,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ILogService } from 'vs/platform/log/common/log';
 import { DataTransferConverter } from 'vs/workbench/api/common/shared/dataTransfer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDataTransfer } from 'vs/editor/common/dnd';
+import { IDataTransfer } from 'vs/base/common/dataTransfer';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { DataTransferCache } from 'vs/workbench/api/common/shared/dataTransferCache';
 

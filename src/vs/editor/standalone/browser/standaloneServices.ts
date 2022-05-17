@@ -834,6 +834,10 @@ class StandaloneUriLabelService implements ILabelService {
 		throw new Error('Not implemented');
 	}
 
+	public registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable {
+		return this.registerFormatter(formatter);
+	}
+
 	public getHostLabel(): string {
 		return '';
 	}

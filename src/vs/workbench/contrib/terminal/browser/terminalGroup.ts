@@ -121,12 +121,14 @@ class SplitPaneContainer extends Disposable {
 		}
 	}
 
-	getRelativePaneSize(instance: ITerminalInstance): number {
+	getPaneSize(instance: ITerminalInstance): number {
 		const paneForInstance = this._terminalToPane.get(instance);
 		if (!paneForInstance) {
 			return 0;
 		}
-		return ((this.orientation === Orientation.HORIZONTAL ? paneForInstance.element.clientWidth : paneForInstance.element.clientHeight) / (this.orientation === Orientation.HORIZONTAL ? this._width : this._height));
+
+		const index = this._children.indexOf(paneForInstance);
+		return this._splitView.getViewSize(index);
 	}
 
 	private _addChild(instance: ITerminalInstance, index: number): void {
@@ -337,12 +339,13 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 
 	getLayoutInfo(isActive: boolean): ITerminalTabLayoutInfoById {
 		const instances = this.terminalInstances.filter(instance => typeof instance.persistentProcessId === 'number' && instance.shouldPersist);
+		const totalSize = instances.map(t => this._splitPaneContainer?.getPaneSize(t) || 0).reduce((total, size) => total += size, 0);
 		return {
 			isActive: isActive,
 			activePersistentProcessId: this.activeInstance ? this.activeInstance.persistentProcessId : undefined,
 			terminals: instances.map(t => {
 				return {
-					relativeSize: this._splitPaneContainer?.getRelativePaneSize(t) || 0,
+					relativeSize: totalSize > 0 ? this._splitPaneContainer!.getPaneSize(t) / totalSize : 0,
 					terminal: t.persistentProcessId || 0
 				};
 			})

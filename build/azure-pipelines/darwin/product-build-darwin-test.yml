@@ -1,14 +1,19 @@
+parameters:
+  - name: VSCODE_QUALITY
+    type: string
+
 steps:
   - task: NodeTool@0
     inputs:
       versionSpec: "16.x"
 
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
-    inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
-      SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - task: AzureKeyVault@1
+      displayName: "Azure Key Vault: Get Secrets"
+      inputs:
+        azureSubscription: "vscode-builds-subscription"
+        KeyVaultName: vscode
+        SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -21,32 +26,35 @@ steps:
       tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
     displayName: Extract compilation output
 
-  # Set up the credentials to retrieve distro repo and setup git persona
-  # to create a merge commit for when we merge distro into oss
-  - script: |
-      set -e
-      cat << EOF > ~/.netrc
-      machine github.com
-      login vscode
-      password $(github-distro-mixin-password)
-      EOF
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    # Set up the credentials to retrieve distro repo and setup git persona
+    # to create a merge commit for when we merge distro into oss
+    - script: |
+        set -e
+        cat << EOF > ~/.netrc
+        machine github.com
+        login vscode
+        password $(github-distro-mixin-password)
+        EOF
 
-      git config user.email "vscode@microsoft.com"
-      git config user.name "VSCode"
-    displayName: Prepare tooling
+        git config user.email "vscode@microsoft.com"
+        git config user.name "VSCode"
+      displayName: Prepare tooling
 
-  - script: |
-      set -e
-      git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
-      echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-      git checkout FETCH_HEAD
-    condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-    displayName: Checkout override commit
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
+        echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
+        git checkout FETCH_HEAD
+      condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
+      displayName: Checkout override commit
 
-  - script: |
-      set -e
-      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-    displayName: Merge distro
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
+      displayName: Merge distro
 
   - script: |
       mkdir -p .build
@@ -109,11 +117,12 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
-  # This script brings in the right resources (images, icons, etc) based on the quality (insiders, stable, exploration)
-  - script: |
-      set -e
-      node build/azure-pipelines/mixin
-    displayName: Mix in quality
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    # This script brings in the right resources (images, icons, etc) based on the quality (insiders, stable, exploration)
+    - script: |
+        set -e
+        node build/azure-pipelines/mixin
+      displayName: Mix in quality
 
   - script: |
       set -e
@@ -121,10 +130,11 @@ steps:
         yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
     displayName: Build client
 
-  - script: |
-      set -e
-      node build/azure-pipelines/mixin --server
-    displayName: Mix in server quality
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+        node build/azure-pipelines/mixin --server
+      displayName: Mix in server quality
 
   - script: |
       set -e
@@ -141,18 +151,19 @@ steps:
     displayName: Download Electron and Playwright
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-  # Setting hardened entitlements is a requirement for:
-  # * Running tests on Big Sur (because Big Sur has additional security precautions)
-  - script: |
-      set -e
-      security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
-      security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
-      security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
-      echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
-      security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
-      security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
-      VSCODE_ARCH=$(VSCODE_ARCH) DEBUG=electron-osx-sign* node build/darwin/sign.js
-    displayName: Set Hardened Entitlements
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    # Setting hardened entitlements is a requirement for:
+    # * Running tests on Big Sur (because Big Sur has additional security precautions)
+    - script: |
+        set -e
+        security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+        security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
+        security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+        echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
+        security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
+        VSCODE_ARCH=$(VSCODE_ARCH) DEBUG=electron-osx-sign* node build/darwin/sign.js
+      displayName: Set Hardened Entitlements
 
   - script: |
       set -e

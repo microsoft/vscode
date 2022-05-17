@@ -245,8 +245,23 @@ export class OneSnippet {
 		return result;
 	}
 
-	get activeChoice(): Choice | undefined {
-		return this._placeholderGroups[this._placeholderGroupsIdx][0].choice;
+	get activeChoice(): { choice: Choice; range: Range } | undefined {
+		if (!this._placeholderDecorations) {
+			return undefined;
+		}
+		const placeholder = this._placeholderGroups[this._placeholderGroupsIdx][0];
+		if (!placeholder?.choice) {
+			return undefined;
+		}
+		const id = this._placeholderDecorations.get(placeholder);
+		if (!id) {
+			return undefined;
+		}
+		const range = this._editor.getModel().getDecorationRange(id);
+		if (!range) {
+			return undefined;
+		}
+		return { range, choice: placeholder.choice };
 	}
 
 	get hasChoice(): boolean {
@@ -628,7 +643,7 @@ export class SnippetSession {
 		return this._snippets[0].hasChoice;
 	}
 
-	get activeChoice(): Choice | undefined {
+	get activeChoice(): { choice: Choice; range: Range } | undefined {
 		return this._snippets[0].activeChoice;
 	}
 
