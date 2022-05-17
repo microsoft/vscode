@@ -58,7 +58,7 @@ stages:
       - Compile
     pool: vscode-1es-vscode-windows-2019
     jobs:
-      - job: Windows
+      - job: WindowsUnitTests
         timeoutInMinutes: 120
         variables:
           VSCODE_ARCH: x64
@@ -66,6 +66,31 @@ stages:
           - template: win32/product-build-win32.yml
             parameters:
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_RUN_UNIT_TESTS: true
+              VSCODE_RUN_INTEGRATION_TESTS: false
+              VSCODE_RUN_SMOKE_TESTS: false
+      - job: WindowsIntegrationTests
+        timeoutInMinutes: 120
+        variables:
+          VSCODE_ARCH: x64
+        steps:
+          - template: win32/product-build-win32.yml
+            parameters:
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_RUN_UNIT_TESTS: false
+              VSCODE_RUN_INTEGRATION_TESTS: true
+              VSCODE_RUN_SMOKE_TESTS: false
+      - job: WindowsSmokeTests
+        timeoutInMinutes: 120
+        variables:
+          VSCODE_ARCH: x64
+        steps:
+          - template: win32/product-build-win32.yml
+            parameters:
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_RUN_UNIT_TESTS: false
+              VSCODE_RUN_INTEGRATION_TESTS: false
+              VSCODE_RUN_SMOKE_TESTS: true
 
   - stage: Linux
     dependsOn:
