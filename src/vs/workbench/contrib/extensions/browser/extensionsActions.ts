@@ -2178,7 +2178,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 			} else {
 				const link = `[${this.extension.deprecated.displayName}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.deprecated.id]))}`)})`;
 				if (this.extension.state !== ExtensionState.Installed) {
-					this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('unsupported prerelease switch tooltip', "This extension has been deprecated. Instead use {0}.", link)) }, true);
+					this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('unsupported prerelease switch tooltip', "This extension has been deprecated. Use {0} instead.", link)) }, true);
 				}
 			}
 			return;

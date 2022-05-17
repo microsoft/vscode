@@ -366,7 +366,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		const deprecated = report.deprecated ? report.deprecated[extension.identifier.id.toLowerCase()] : undefined;
 		if (deprecated && !isBoolean(deprecated)) {
-			throw new ExtensionManagementError(nls.localize('unsupported prerelease extension', "Can't install '{0}' extension because it is deprecated. Instead use '{1}' extension.", extension.identifier.id, deprecated.displayName), ExtensionManagementErrorCode.UnsupportedPreRelease);
+			throw new ExtensionManagementError(nls.localize('unsupported prerelease extension', "Can't install '{0}' extension because it is deprecated. Use '{1}' extension instead.", extension.identifier.id, deprecated.displayName), ExtensionManagementErrorCode.UnsupportedPreRelease);
 		}
 
 		if (!await this.canInstall(extension)) {
