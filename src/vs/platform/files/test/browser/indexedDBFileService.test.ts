@@ -11,7 +11,6 @@ import { Schemas } from 'vs/base/common/network';
 import { basename, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { flakySuite } from 'vs/base/test/common/testUtils';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { IndexedDBFileSystemProvider } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -273,24 +272,22 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 	});
 
 	test('createFile (mixed parallel/sequential)', async () => {
-		runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const single1 = makeBatchTester(1, 'single1');
-			const single2 = makeBatchTester(1, 'single2');
+		const single1 = makeBatchTester(1, 'single1');
+		const single2 = makeBatchTester(1, 'single2');
 
-			const batch1 = makeBatchTester(20, 'batch1');
-			const batch2 = makeBatchTester(20, 'batch2');
+		const batch1 = makeBatchTester(20, 'batch1');
+		const batch2 = makeBatchTester(20, 'batch2');
 
-			single1.create();
-			batch1.create();
-			await Promise.all([single1.assertContentsCorrect(), batch1.assertContentsCorrect()]);
-			single2.create();
-			batch2.create();
-			await Promise.all([single2.assertContentsCorrect(), batch2.assertContentsCorrect()]);
-			await Promise.all([single1.assertContentsCorrect(), batch1.assertContentsCorrect()]);
+		single1.create();
+		batch1.create();
+		await Promise.all([single1.assertContentsCorrect(), batch1.assertContentsCorrect()]);
+		single2.create();
+		batch2.create();
+		await Promise.all([single2.assertContentsCorrect(), batch2.assertContentsCorrect()]);
+		await Promise.all([single1.assertContentsCorrect(), batch1.assertContentsCorrect()]);
 
-			await (Promise.all([single1.delete(), single2.delete(), batch1.delete(), batch2.delete()]));
-			await (Promise.all([single1.assertContentsEmpty(), single2.assertContentsEmpty(), batch1.assertContentsEmpty(), batch2.assertContentsEmpty()]));
-		});
+		await (Promise.all([single1.delete(), single2.delete(), batch1.delete(), batch2.delete()]));
+		await (Promise.all([single1.assertContentsEmpty(), single2.assertContentsEmpty(), batch1.assertContentsEmpty(), batch2.assertContentsEmpty()]));
 	});
 
 	test('rename not existing resource', async () => {
