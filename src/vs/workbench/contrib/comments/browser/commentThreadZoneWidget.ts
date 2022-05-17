@@ -313,6 +313,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this.show({ lineNumber: lineNumber, column: 1 }, 2);
 		}
 
+		// If this is a new comment thread awaiting user input then we need to reveal it.
+		if (this._commentThread.canReply && this._commentThread.isTemplate && (!this._commentThread.comments || (this._commentThread.comments.length === 0))) {
+			this.reveal();
+		}
+
 		this.bindCommentThreadListeners();
 	}
 

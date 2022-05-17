@@ -3225,6 +3225,33 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #148256: Pressing Enter creates line with bad indent with insertSpaces: true', () => {
+		usingCursor({
+			text: [
+				'  \t'
+			],
+		}, (editor, model, viewModel) => {
+			moveTo(editor, viewModel, 1, 4, false);
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), '  \t\n    ');
+		});
+	});
+
+	test('issue #148256: Pressing Enter creates line with bad indent with insertSpaces: false', () => {
+		usingCursor({
+			text: [
+				'  \t'
+			]
+		}, (editor, model, viewModel) => {
+			model.updateOptions({
+				insertSpaces: false
+			});
+			moveTo(editor, viewModel, 1, 4, false);
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), '  \t\n\t');
+		});
+	});
+
 	test('removeAutoWhitespace off', () => {
 		usingCursor({
 			text: [
@@ -4551,8 +4578,8 @@ suite('Editor Controller', () => {
 				['(', ')']
 			],
 			indentationRules: {
-				increaseIndentPattern: new RegExp('^.*\\{[^}\"\\\']*$|^.*\\([^\\)\"\\\']*$|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$|^\\s*\\{\\}$'),
-				decreaseIndentPattern: new RegExp('^\\s*(\\s*/[*].*[*]/\\s*)*\\}|^\\s*(\\s*/[*].*[*]/\\s*)*\\)|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$'),
+				increaseIndentPattern: new RegExp("(^.*\\{[^}]*$)"),
+				decreaseIndentPattern: new RegExp("^\\s*\\}")
 			}
 		}));
 
@@ -4636,8 +4663,8 @@ suite('Editor Controller', () => {
 				['(', ')']
 			],
 			indentationRules: {
-				increaseIndentPattern: new RegExp('^.*\\{[^}\"\\\']*$|^.*\\([^\\)\"\\\']*$|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$|^\\s*\\{\\}$'),
-				decreaseIndentPattern: new RegExp('^\\s*(\\s*/[*].*[*]/\\s*)*\\}|^\\s*(\\s*/[*].*[*]/\\s*)*\\)|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$'),
+				increaseIndentPattern: new RegExp("({+(?=([^\"]*\"[^\"]*\")*[^\"}]*$))|(\\[+(?=([^\"]*\"[^\"]*\")*[^\"\\]]*$))"),
+				decreaseIndentPattern: new RegExp("^\\s*[}\\]],?\\s*$")
 			}
 		}));
 

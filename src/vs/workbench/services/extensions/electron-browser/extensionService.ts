@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalProcessExtensionHostDataProvider, LocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-browser/localProcessExtensionHost';
+import { ILocalProcessExtensionHostDataProvider, ILocalProcessExtensionHostInitData, LocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-browser/localProcessExtensionHost';
 
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-sandbox/cachedExtensionScanner';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -35,7 +35,7 @@ import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remo
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IWebWorkerExtensionHostDataProvider, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
+import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CATEGORIES } from 'vs/workbench/common/actions';
@@ -157,7 +157,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	private _createLocalExtensionHostDataProvider(isInitialStart: boolean, desiredRunningLocation: ExtensionRunningLocation): ILocalProcessExtensionHostDataProvider & IWebWorkerExtensionHostDataProvider {
 		return {
-			getInitData: async () => {
+			getInitData: async (): Promise<ILocalProcessExtensionHostInitData & IWebWorkerExtensionHostInitData> => {
 				if (isInitialStart) {
 					// Here we load even extensions that would be disabled by workspace trust
 					const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions(), /* ignore workspace trust */true);
@@ -306,6 +306,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	private _sendExtensionHostCrashTelemetry(code: number, signal: string | null, activatedExtensions: ExtensionIdentifier[]): void {
 		type ExtensionHostCrashClassification = {
+			owner: 'alexdima';
+			comment: 'The extension host has terminated unexpectedly';
 			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			signal: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			extensionIds: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
@@ -323,6 +325,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		for (const extensionId of activatedExtensions) {
 			type ExtensionHostCrashExtensionClassification = {
+				owner: 'alexdima';
+				comment: 'The extension host has terminated unexpectedly';
 				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				signal: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };

@@ -57,7 +57,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return {
 			forceNewWindow: options.forceNewWindow,
 			telemetryExtraData: options.telemetryExtraData,
-			defaultPath: options.defaultUri && options.defaultUri.fsPath
+			defaultPath: options.defaultUri?.fsPath
 		};
 	}
 
@@ -142,7 +142,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	private toNativeSaveDialogOptions(options: ISaveDialogOptions): SaveDialogOptions {
 		options.defaultUri = options.defaultUri ? URI.file(options.defaultUri.path) : undefined;
 		return {
-			defaultPath: options.defaultUri && options.defaultUri.fsPath,
+			defaultPath: options.defaultUri?.fsPath,
 			buttonLabel: options.saveLabel,
 			filters: options.filters,
 			title: options.title
@@ -169,11 +169,9 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.showOpenDialogSimplified(schema, options);
 		}
 
-		const defaultUri = options.defaultUri;
-
 		const newOptions: OpenDialogOptions & { properties: string[] } = {
 			title: options.title,
-			defaultPath: defaultUri && defaultUri.fsPath,
+			defaultPath: options.defaultUri?.fsPath,
 			buttonLabel: options.openLabel,
 			filters: options.filters,
 			properties: []

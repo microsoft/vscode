@@ -15,6 +15,10 @@
 	padding: 0 10px 10px;
 }
 
+.simple-find-part .monaco-inputbox > .ibwrapper > input {
+	text-overflow: clip;
+}
+
 .monaco-workbench .simple-find-part {
 	visibility: hidden;		/* Use visibility to maintain flex layout while hidden otherwise interferes with transition */
 	z-index: 10;
@@ -57,7 +61,11 @@
 	cursor: pointer;
 }
 
-.monaco-workbench .simple-find-part .button.disabled {
-	opacity: 0.3;
+.monaco-workbench div.simple-find-part div.button.disabled {
+	opacity: 0.3 !important;
 	cursor: default;
+}
+
+div.simple-find-part-wrapper div.button {
+	border-radius: 5px;
 }

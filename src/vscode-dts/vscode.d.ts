@@ -1914,6 +1914,32 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Impacts the behavior and appearance of the validation message.
+	 */
+	export enum InputBoxValidationSeverity {
+		Info = 1,
+		Warning = 2,
+		Error = 3
+	}
+
+	/**
+	 * Object to configure the behavior of the validation message.
+	 */
+	export interface InputBoxValidationMessage {
+		/**
+		 * The validation message to display.
+		 */
+		readonly message: string;
+
+		/**
+		 * The severity of the validation message.
+		 * NOTE: When using `InputBoxValidationSeverity.Error`, the user will not be allowed to accept (hit ENTER) the input.
+		 * `Info` and `Warning` will still allow the InputBox to accept the input.
+		 */
+		readonly severity: InputBoxValidationSeverity;
+	}
+
+	/**
 	 * Options to configure the behavior of the input box UI.
 	 */
 	export interface InputBoxOptions {
@@ -1965,7 +1991,8 @@ declare module 'vscode' {
 		 * @return A human-readable string which is presented as diagnostic message.
 		 * Return `undefined`, `null`, or the empty string when 'value' is valid.
 		 */
-		validateInput?(value: string): string | undefined | null | Thenable<string | undefined | null>;
+		validateInput?(value: string): string | InputBoxValidationMessage | undefined | null |
+			Thenable<string | InputBoxValidationMessage | undefined | null>;
 	}
 
 	/**
@@ -10852,7 +10879,7 @@ declare module 'vscode' {
 		/**
 		 * An optional validation message indicating a problem with the current input value.
 		 */
-		validationMessage: string | undefined;
+		validationMessage: string | InputBoxValidationMessage | undefined;
 	}
 
 	/**
@@ -14724,7 +14751,10 @@ declare module 'vscode' {
 		 * If true, a modal dialog will be shown asking the user to sign in again. This is mostly used for scenarios
 		 * where the token needs to be re minted because it has lost some authorization.
 		 *
-		 * Defaults to false.
+		 * If there are no existing sessions and forceNewSession is true, it will behave identically to
+		 * {@link AuthenticationGetSessionOptions.createIfNone createIfNone}.
+		 *
+		 * This defaults to false.
 		 */
 		forceNewSession?: boolean | { detail: string };
 
@@ -15452,7 +15482,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The tab represents a single text based resource
+	 * The tab represents a single text based resource.
 	 */
 	export class TabInputText {
 		/**
@@ -15492,7 +15522,7 @@ declare module 'vscode' {
 	 */
 	export class TabInputCustom {
 		/**
-		 * The uri which the tab is representing.
+		 * The uri that the tab is representing.
 		 */
 		readonly uri: Uri;
 		/**
@@ -15500,9 +15530,9 @@ declare module 'vscode' {
 		 */
 		readonly viewType: string;
 		/**
-		 * Constructs a custom editor tab input
-		 * @param uri The uri of the tab
-		 * @param viewType The viewtpye of the custom editor
+		 * Constructs a custom editor tab input.
+		 * @param uri The uri of the tab.
+		 * @param viewType The viewtype of the custom editor.
 		 */
 		constructor(uri: Uri, viewType: string);
 	}
@@ -15527,7 +15557,7 @@ declare module 'vscode' {
 	 */
 	export class TabInputNotebook {
 		/**
-		 * The uri which the tab is representing.
+		 * The uri that the tab is representing.
 		 */
 		readonly uri: Uri;
 		/**
@@ -15585,12 +15615,12 @@ declare module 'vscode' {
 	export interface Tab {
 
 		/**
-		 * The text displayed on the tab
+		 * The text displayed on the tab.
 		 */
 		readonly label: string;
 
 		/**
-		 * The group which the tab belongs to
+		 * The group which the tab belongs to.
 		 */
 		readonly group: TabGroup;
 
@@ -15602,17 +15632,17 @@ declare module 'vscode' {
 
 		/**
 		 * Whether or not the tab is currently active.
-		 * This is dictated by being the selected tab in the group
+		 * This is dictated by being the selected tab in the group.
 		 */
 		readonly isActive: boolean;
 
 		/**
-		 * Whether or not the dirty indicator is present on the tab
+		 * Whether or not the dirty indicator is present on the tab.
 		 */
 		readonly isDirty: boolean;
 
 		/**
-		 * Whether or not the tab is pinned (pin icon is present)
+		 * Whether or not the tab is pinned (pin icon is present).
 		 */
 		readonly isPinned: boolean;
 
@@ -15627,11 +15657,11 @@ declare module 'vscode' {
 	 */
 	export interface TabChangeEvent {
 		/**
-		 * The tabs that have been opened
+		 * The tabs that have been opened.
 		 */
 		readonly opened: readonly Tab[];
 		/**
-		 * The tabs that have been closed
+		 * The tabs that have been closed.
 		 */
 		readonly closed: readonly Tab[];
 		/**
@@ -15675,12 +15705,12 @@ declare module 'vscode' {
 		readonly isActive: boolean;
 
 		/**
-		 * The view column of the group
+		 * The view column of the group.
 		 */
 		readonly viewColumn: ViewColumn;
 
 		/**
-		 * The active {@link Tab tab} in the group. This is the tab whose contents are currently
+		 * The active {@link Tab tab} in the group. This is the tab which contents are currently
 		 * being rendered.
 		 *
 		 * *Note* that there can be one active tab per group but there can only be one {@link TabGroups.activeTabGroup active group}.
@@ -15699,12 +15729,12 @@ declare module 'vscode' {
 	 */
 	export interface TabGroups {
 		/**
-		 * All the groups within the group container
+		 * All the groups within the group container.
 		 */
 		readonly all: readonly TabGroup[];
 
 		/**
-		 * The currently active group
+		 * The currently active group.
 		 */
 		readonly activeTabGroup: TabGroup;
 
@@ -15725,16 +15755,16 @@ declare module 'vscode' {
 		 *
 		 * @param tab The tab to close.
 		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
-		 * @returns A promise that resolves to `true` when all tabs have been closed
+		 * @returns A promise that resolves to `true` when all tabs have been closed.
 		 */
 		close(tab: Tab | readonly Tab[], preserveFocus?: boolean): Thenable<boolean>;
 
 		/**
 		 * Closes the tab group. This makes the tab group object invalid and the tab group
-		 * should no longer be used for furhter actions.
+		 * should no longer be used for further actions.
 		 * @param tabGroup The tab group to close.
 		 * @param preserveFocus When `true` focus will remain in its current position.
-		 * @returns A promise that resolves to `true` when all tab groups have been closed
+		 * @returns A promise that resolves to `true` when all tab groups have been closed.
 		 */
 		close(tabGroup: TabGroup | readonly TabGroup[], preserveFocus?: boolean): Thenable<boolean>;
 	}

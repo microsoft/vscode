@@ -131,9 +131,8 @@ export function getShellIntegrationInjection(
 				return undefined;
 			}
 			if (newArgs) {
-				const additionalArgs = options.showWelcome ? '' : ' -HideWelcome';
 				newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-				newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, additionalArgs);
+				newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			}
 			return { newArgs };
 		}
@@ -156,9 +155,6 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
-			if (!options.showWelcome) {
-				envMixin['VSCODE_SHELL_HIDE_WELCOME'] = '1';
-			}
 			return { newArgs, envMixin };
 		}
 		case 'pwsh': {
@@ -170,9 +166,8 @@ export function getShellIntegrationInjection(
 			if (!newArgs) {
 				return undefined;
 			}
-			const additionalArgs = options.showWelcome ? '' : ' -HideWelcome';
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, additionalArgs);
+			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			return { newArgs };
 		}
 		case 'zsh': {
@@ -193,7 +188,7 @@ export function getShellIntegrationInjection(
 			envMixin['ZDOTDIR'] = zdotdir;
 			const filesToCopy: IShellIntegrationConfigInjection['filesToCopy'] = [];
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh'),
 				dest: path.join(zdotdir, '.zshrc')
 			});
 			filesToCopy.push({
@@ -204,9 +199,10 @@ export function getShellIntegrationInjection(
 				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-env.zsh'),
 				dest: path.join(zdotdir, '.zshenv')
 			});
-			if (!options.showWelcome) {
-				envMixin['VSCODE_SHELL_HIDE_WELCOME'] = '1';
-			}
+			filesToCopy.push({
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-login.zsh'),
+				dest: path.join(zdotdir, '.zlogin')
+			});
 			return { newArgs, envMixin, filesToCopy };
 		}
 	}

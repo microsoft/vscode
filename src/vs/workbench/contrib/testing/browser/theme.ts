@@ -91,7 +91,7 @@ export const testMessageSeverityColors: {
 			localize('testing.message.error.marginBackground', 'Margin color beside error messages shown inline in the editor.')
 		),
 	},
-	[TestMessageType.Info]: {
+	[TestMessageType.Output]: {
 		decorationForeground: registerColor(
 			'testing.message.info.decorationForeground',
 			{ dark: transparent(editorForeground, 0.5), light: transparent(editorForeground, 0.5), hcDark: transparent(editorForeground, 0.5), hcLight: transparent(editorForeground, 0.5) },

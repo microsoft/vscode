@@ -29,7 +29,7 @@ import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext } fr
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
 	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, CustomExecutionDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
-	RunOptionsDTO
+	RunOptionsDTO, TaskGroupDTO
 } from 'vs/workbench/api/common/shared/tasks';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -320,7 +320,7 @@ namespace TaskDTO {
 			hasDefinedMatchers: ContributedTask.is(task) ? task.hasDefinedMatchers : false,
 			runOptions: RunOptionsDTO.from(task.runOptions),
 		};
-		result.group = TaskGroup.from(task.configurationProperties.group);
+		result.group = TaskGroupDTO.from(task.configurationProperties.group);
 
 		if (task.configurationProperties.detail) {
 			result.detail = task.configurationProperties.detail;
@@ -386,6 +386,18 @@ namespace TaskDTO {
 			}
 		);
 		return result;
+	}
+}
+
+namespace TaskGroupDTO {
+	export function from(value: string | TaskGroup | undefined): TaskGroupDTO | undefined {
+		if (value === undefined) {
+			return undefined;
+		}
+		return {
+			_id: (typeof value === 'string') ? value : value._id,
+			isDefault: (typeof value === 'string') ? false : ((typeof value.isDefault === 'string') ? false : value.isDefault)
+		};
 	}
 }
 

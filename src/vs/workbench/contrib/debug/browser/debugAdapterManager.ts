@@ -46,6 +46,9 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	private breakpointContributions: Breakpoints[] = [];
 	private debuggerWhenKeys = new Set<string>();
 
+	/** Extensions that were already active before any debugger activation events */
+	private earlyActivatedExtensions: Set<string> | undefined;
+
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -326,10 +329,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 				.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider());
 		}
 
-		candidates.sort((first, second) => first.label.localeCompare(second.label));
-		const picks: { label: string; debugger?: Debugger; type?: string }[] = candidates.map(c => ({ label: c.label, debugger: c }));
-
-		if (picks.length === 0 && languageLabel) {
+		if (candidates.length === 0 && languageLabel) {
 			if (languageLabel.indexOf(' ') >= 0) {
 				languageLabel = `'${languageLabel}'`;
 			}
@@ -342,10 +342,41 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			return undefined;
 		}
 
-		picks.push({ type: 'separator', label: '' });
-		const placeHolder = nls.localize('selectDebug', "Select environment");
+		this.initExtensionActivationsIfNeeded();
 
-		picks.push({ label: languageLabel ? nls.localize('installLanguage', "Install an extension for {0}...", languageLabel) : nls.localize('installExt', "Install extension...") });
+		candidates.sort((first, second) => first.label.localeCompare(second.label));
+
+		const suggestedCandidates: Debugger[] = [];
+		const otherCandidates: Debugger[] = [];
+		candidates.forEach(d => {
+			const descriptor = d.getMainExtensionDescriptor();
+			if (descriptor.id && !!this.earlyActivatedExtensions?.has(descriptor.id)) {
+				suggestedCandidates.push(d);
+			} else {
+				otherCandidates.push(d);
+			}
+		});
+
+		const picks: { label: string; debugger?: Debugger; type?: string }[] = [];
+		if (suggestedCandidates.length > 0) {
+			picks.push(
+				{ type: 'separator', label: 'Suggested' },
+				...suggestedCandidates.map(c => ({ label: c.label, debugger: c })));
+		}
+
+		if (otherCandidates.length > 0) {
+			if (picks.length > 0) {
+				picks.push({ type: 'separator', label: '' });
+			}
+
+			picks.push(...otherCandidates.map(c => ({ label: c.label, debugger: c })));
+		}
+
+		picks.push(
+			{ type: 'separator', label: '' },
+			{ label: languageLabel ? nls.localize('installLanguage', "Install an extension for {0}...", languageLabel) : nls.localize('installExt', "Install extension...") });
+
+		const placeHolder = nls.localize('selectDebug', "Select debugger");
 		return this.quickInputService.pick<{ label: string; debugger?: Debugger }>(picks, { activeItem: picks[0], placeHolder })
 			.then(picked => {
 				if (picked && picked.debugger) {
@@ -358,7 +389,22 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			});
 	}
 
+	private initExtensionActivationsIfNeeded(): void {
+		if (!this.earlyActivatedExtensions) {
+			this.earlyActivatedExtensions = new Set<string>();
+
+			const status = this.extensionService.getExtensionsStatus();
+			for (const id in status) {
+				if (!!status[id].activationTimes) {
+					this.earlyActivatedExtensions.add(id);
+				}
+			}
+		}
+	}
+
 	async activateDebuggers(activationEvent: string, debugType?: string): Promise<void> {
+		this.initExtensionActivationsIfNeeded();
+
 		const promises: Promise<any>[] = [
 			this.extensionService.activateByEvent(activationEvent),
 			this.extensionService.activateByEvent('onDebug')

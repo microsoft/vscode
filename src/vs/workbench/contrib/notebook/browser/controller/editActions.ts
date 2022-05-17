@@ -28,6 +28,7 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
@@ -86,7 +87,7 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 			return;
 		}
 
-		context.notebookEditor.focusNotebookCell(context.cell, 'editor');
+		await context.notebookEditor.focusNotebookCell(context.cell, 'editor');
 	}
 });
 
@@ -138,7 +139,7 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 			context.cell.updateEditState(CellEditState.Preview, QUIT_EDIT_CELL_COMMAND_ID);
 		}
 
-		context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
+		await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
 	}
 });
 
@@ -471,14 +472,16 @@ registerAction2(class DetectCellLanguageAction extends NotebookCellAction {
 			title: localize('detectLanguage', 'Accept Detected Language for Cell'),
 			f1: true,
 			precondition: ContextKeyExpr.and(NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
-			keybinding: { primary: KeyCode.KeyE | KeyMod.CtrlCmd, weight: KeybindingWeight.WorkbenchContrib }
+			keybinding: { primary: KeyCode.KeyD | KeyMod.Alt | KeyMod.Shift, weight: KeybindingWeight.WorkbenchContrib }
 		});
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const languageDetectionService = accessor.get(ILanguageDetectionService);
 		const notificationService = accessor.get(INotificationService);
-		const providerLanguages = [...context.notebookEditor.activeKernel?.supportedLanguages ?? []];
+		const kernelService = accessor.get(INotebookKernelService);
+		const kernel = kernelService.getSelectedOrSuggestedKernel(context.notebookEditor.textModel);
+		const providerLanguages = [...kernel?.supportedLanguages ?? []];
 		providerLanguages.push('markdown');
 		const detection = await languageDetectionService.detectLanguage(context.cell.uri, providerLanguages);
 		if (detection) {
@@ -496,7 +499,7 @@ async function setCellToLanguage(languageId: string, context: IChangeCellContext
 		const newCell = context.notebookEditor.cellAt(idx);
 
 		if (newCell) {
-			context.notebookEditor.focusNotebookCell(newCell, 'editor');
+			await context.notebookEditor.focusNotebookCell(newCell, 'editor');
 		}
 	} else if (languageId !== 'markdown' && context.cell?.cellKind === CellKind.Markup) {
 		await changeCellToKind(CellKind.Code, { cell: context.cell, notebookEditor: context.notebookEditor, ui: true }, languageId);
