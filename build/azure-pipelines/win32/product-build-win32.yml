@@ -227,19 +227,8 @@ steps:
         $ErrorActionPreference = "Stop"
         exec { yarn gulp compile-extension:vscode-api-tests }
         exec { yarn gulp compile-extension:vscode-colorize-tests }
-        exec { yarn gulp compile-extension:markdown-language-features }
-        exec { yarn gulp compile-extension:typescript-language-features }
         exec { yarn gulp compile-extension:vscode-custom-editor-tests }
         exec { yarn gulp compile-extension:vscode-notebook-tests }
-        exec { yarn gulp compile-extension:emmet }
-        exec { yarn gulp compile-extension:css-language-features-server }
-        exec { yarn gulp compile-extension:html-language-features-server }
-        exec { yarn gulp compile-extension:json-language-features-server }
-        exec { yarn gulp compile-extension:git }
-        exec { yarn gulp compile-extension:ipynb }
-        exec { yarn gulp compile-extension-media }
-        exec { yarn gulp compile-extension:microsoft-authentication }
-        exec { yarn gulp compile-extension:github-authentication }
         exec { yarn gulp compile-extension:vscode-test-resolver }
       displayName: Build built-in extensions
 
