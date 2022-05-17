@@ -275,6 +275,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/sessionSync",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/views",
 			"project": "vscode-workbench"
 		},

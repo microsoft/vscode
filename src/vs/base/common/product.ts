@@ -151,6 +151,8 @@ export interface IProductConfiguration {
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
+	readonly 'sessionSync.store'?: ConfigurationSyncStore;
+
 	readonly darwinUniversalAssetId?: string;
 }
 
