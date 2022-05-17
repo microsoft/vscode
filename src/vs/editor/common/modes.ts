@@ -572,6 +572,10 @@ export interface CompletionItem {
 	 * A command that should be run upon acceptance of this item.
 	 */
 	command?: Command;
+	/**
+	* Custom icon to be used (instead of those ones that depend on the completionItem kind)
+	*/
+	customIcon?: HTMLElement;
 
 	/**
 	 * @internal

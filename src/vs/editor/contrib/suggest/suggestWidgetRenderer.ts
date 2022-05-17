@@ -171,8 +171,16 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			matches: createMatches(element.score)
 		};
 
+		if (data.iconContainer.firstChild) {
+			data.iconContainer.removeChild(data.iconContainer.firstChild);
+		}
+
 		let color: string[] = [];
-		if (completion.kind === CompletionItemKind.Color && _completionItemColor.extract(element, color)) {
+		if (completion.customIcon) {
+			data.icon.className = 'icon hide';
+			data.iconContainer.className = 'suggest-icon custom-icon';
+			append(data.iconContainer, completion.customIcon);
+		} else if (completion.kind === CompletionItemKind.Color && _completionItemColor.extract(element, color)) {
 			// special logic for 'color' completion items
 			data.icon.className = 'icon customcolor';
 			data.iconContainer.className = 'icon hide';

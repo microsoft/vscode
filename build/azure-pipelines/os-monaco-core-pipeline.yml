@@ -1,0 +1,63 @@
+pool:
+  vmImage: 'windows-latest'
+
+trigger:
+  branches:
+    include:
+    - main-os
+pr: none
+
+variables:
+  TagName: 'v$(Build.BuildNumber)'
+
+stages:
+- stage: Build
+  displayName: 'Build'
+  jobs:
+  - job: Build
+    displayName: 'Build Job'
+    steps:
+    - task: NodeTool@0
+      inputs:
+        versionSpec: "12.14.1"
+    - script: |
+        yarn
+    - script: |
+       ./node_modules/.bin/gulp editor-distro
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: './out-monaco-editor-core'
+        artifact: 'artifacts'
+        publishLocation: 'pipeline'
+
+
+- stage: Deploy
+  displayName: 'Deploy'
+  jobs:
+  - deployment: Deploy
+    displayName: 'Deploy to npm private repository and creates a git release'
+    pool:
+      vmImage: 'windows-latest'
+    environment: Automatic-Release
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          #Creates a Github release
+          - task: GitHubRelease@1
+            inputs:
+              gitHubConnection: 'GitHub Release'
+              repositoryName: '$(Build.Repository.Name)'
+              action: 'create'
+              target: '$(Build.SourceVersion)'
+              tagSource: 'userSpecifiedTag'
+              tag: '$(TagName)'
+              changeLogCompareToRelease: 'lastFullRelease'
+              changeLogType: 'commitBased'
+          #Publishes the package into the private artifact repository
+          - task: Npm@1
+            inputs:
+              command: 'publish'
+              workingDir: '$(Pipeline.Workspace)/artifacts/'
+              publishRegistry: 'useFeed'
+              publishFeed: 'd8b4d1eb-aeb3-4b5b-9b43-37b4fc985e2f'
