@@ -290,7 +290,7 @@ export class Menu extends ActionBar {
 		const borderRadius = '5px';
 		const shadow = style.shadowColor ? `0 2px 8px ${style.shadowColor}` : '';
 
-		container.style.border = border;
+		container.style.outline = border;
 		container.style.borderRadius = borderRadius;
 		container.style.color = fgColor;
 		container.style.backgroundColor = bgColor;
