@@ -24,7 +24,7 @@ const imageFileExtensions = new Set<string>([
 ]);
 
 export function registerDropIntoEditor(selector: vscode.DocumentSelector) {
-	return vscode.languages.registerDocumentOnDropProvider(selector, new class implements vscode.DocumentOnDropProvider {
+	return vscode.languages.registerDocumentOnDropEditProvider(selector, new class implements vscode.DocumentOnDropEditProvider {
 		async provideDocumentOnDropEdits(document: vscode.TextDocument, position: vscode.Position, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.SnippetTextEdit | undefined> {
 			const enabled = vscode.workspace.getConfiguration('markdown', document).get('editor.drop.enabled', true);
 			if (!enabled) {
