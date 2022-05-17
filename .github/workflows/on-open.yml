@@ -28,6 +28,7 @@ jobs:
         uses: ./actions/new-release
         with:
           label: new release
+          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           appInsightsKey: ${{secrets.TRIAGE_ACTIONS_APP_INSIGHTS}}
           labelColor: "006b75"
           labelDescription: Issues found in a recent release of VS Code
