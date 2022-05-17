@@ -169,7 +169,7 @@ class CodeMain {
 		services.set(ILoggerService, new LoggerService(logService, fileService));
 
 		// Policy
-		const policyService = isWindows ? new WindowsPolicyService(productService) : new NullPolicyService();
+		const policyService = isWindows && productService.win32RegValueName ? new WindowsPolicyService(productService.win32RegValueName) : new NullPolicyService();
 		services.set(IPolicyService, policyService);
 
 		// Configuration
@@ -231,8 +231,6 @@ class CodeMain {
 				environmentMainService.localHistoryHome.fsPath,
 				environmentMainService.backupHome
 			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
-
-			policyService.initialize(),
 
 			// Configuration service
 			configurationService.initialize(),

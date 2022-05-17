@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ThrottledDelayer } from 'vs/base/common/async';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -11,7 +12,7 @@ import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IPolicyService, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
+import { IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
 
 function keysDiff<T>(a: Map<string, T>, b: Map<string, T>): string[] {
 	const result: string[] = [];
@@ -48,7 +49,8 @@ export class FilePolicyService extends Disposable implements IPolicyService {
 		this._register(onDidChangePolicyFile(() => this.throttledDelayer.trigger(() => this.refresh())));
 	}
 
-	async initialize(): Promise<{ [name: PolicyName]: PolicyValue }> {
+	// TODO@sandeep respect only registered policy definitions
+	async registerPolicyDefinitions(policies: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>> {
 		await this.refresh();
 		return Iterable.reduce(this.policies.entries(), (r, [name, value]) => ({ ...r, [name]: value }), {});
 	}

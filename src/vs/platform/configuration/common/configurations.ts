@@ -11,7 +11,7 @@ import { equals } from 'vs/base/common/objects';
 import { addToValueTree, IOverrides, toValuesTree } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { Extensions, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
-import { IPolicyService, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
+import { IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export class DefaultConfiguration extends Disposable {
@@ -91,10 +91,38 @@ export class PolicyConfiguration extends Disposable {
 		super();
 	}
 
+	// TODO@sandy: make nice
+	private getPolicyDefinitions(): IStringDictionary<PolicyDefinition> {
+		const result: IStringDictionary<PolicyDefinition> = {};
+		const configRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+
+		for (const configuration of configRegistry.getConfigurations()) {
+			if (configuration.properties) {
+				for (const key in configuration.properties) {
+					const config = configuration.properties[key];
+					const policy = config.policy;
+
+					if (policy) {
+						if (config.type !== 'string' && config.type !== 'number') {
+							console.warn(`Policy ${policy.name} has unsupported type ${config.type}`);
+							continue;
+						}
+
+						result[policy.name] = { type: config.type };
+					}
+				}
+			}
+		}
+
+		return result;
+	}
+
 	async initialize(): Promise<ConfigurationModel> {
-		await this.policyService.initialize();
+		// TODO@sandy: go through registry
+		await this.policyService.registerPolicyDefinitions(this.getPolicyDefinitions());
 		this.update(this.defaultConfiguration.configurationModel.keys, false);
 		this._register(this.policyService.onDidChange(policyNames => this.onDidChangePolicies(policyNames)));
+		// TODO@sandy: also make sure that policy configurations that are registered after initialize() also call registerPolicyDefinitions()
 		this._register(this.defaultConfiguration.onDidChangeConfiguration(({ properties }) => this.update(properties, true)));
 		return this._configurationModel;
 	}

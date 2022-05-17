@@ -132,7 +132,7 @@ class CliMain extends Disposable {
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// Policy
-		const policyService = isWindows ? new WindowsPolicyService(productService) : new NullPolicyService();
+		const policyService = isWindows && productService.win32RegValueName ? new WindowsPolicyService(productService.win32RegValueName) : new NullPolicyService();
 		services.set(IPolicyService, policyService);
 
 		// Configuration

@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IPolicyService, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
+import { IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
 
 export class PolicyChannel implements IServerChannel {
 
@@ -26,9 +27,9 @@ export class PolicyChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_: unknown, command: string): Promise<any> {
+	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'initialize': return this.service.initialize();
+			case 'initialize': return this.service.registerPolicyDefinitions(arg as IStringDictionary<PolicyDefinition>);
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -64,8 +65,8 @@ export class PolicyChannelClient implements IPolicyService {
 		});
 	}
 
-	async initialize(): Promise<{ [name: PolicyName]: PolicyValue }> {
-		const result = await this.channel.call<{ [name: PolicyName]: PolicyValue }>('initialize');
+	async registerPolicyDefinitions(policies: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>> {
+		const result = await this.channel.call<{ [name: PolicyName]: PolicyValue }>('initialize', policies);
 
 		for (const name in result) {
 			this.policies.set(name, result[name]);
