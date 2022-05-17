@@ -2554,6 +2554,10 @@ declare namespace monaco.editor {
 		 */
 		getRanges(): Range[];
 		/**
+		 * Determine if a decoration is in this collection.
+		 */
+		has(decoration: IModelDecoration): boolean;
+		/**
 		 * Replace all previous decorations with `newDecorations`.
 		 */
 		set(newDecorations: IModelDeltaDecoration[]): void;

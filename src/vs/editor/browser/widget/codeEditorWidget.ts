@@ -2179,6 +2179,10 @@ class EditorDecorationsCollection implements editorCommon.IEditorDecorationsColl
 		return result;
 	}
 
+	public has(decoration: IModelDecoration): boolean {
+		return this._decorationIds.includes(decoration.id);
+	}
+
 	public clear(): void {
 		if (this._decorationIds.length === 0) {
 			// nothing to do

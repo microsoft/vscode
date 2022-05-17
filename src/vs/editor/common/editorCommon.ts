@@ -11,7 +11,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness, IValidEditOperation, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness, IValidEditOperation, IModelDeltaDecoration, IModelDecoration } from 'vs/editor/common/model';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/textModelEvents';
@@ -538,6 +538,10 @@ export interface IEditorDecorationsCollection {
 	 * Get all ranges for decorations.
 	 */
 	getRanges(): Range[];
+	/**
+	 * Determine if a decoration is in this collection.
+	 */
+	has(decoration: IModelDecoration): boolean;
 	/**
 	 * Replace all previous decorations with `newDecorations`.
 	 */
