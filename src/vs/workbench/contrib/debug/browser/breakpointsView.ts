@@ -399,6 +399,7 @@ interface IFunctionBreakpointInputTemplateData {
 	breakpoint: IFunctionBreakpoint;
 	toDispose: IDisposable[];
 	type: 'hitCount' | 'condition' | 'name';
+	updating?: boolean;
 }
 
 interface IExceptionBreakpointInputTemplateData {
@@ -802,25 +803,30 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 		const toDispose: IDisposable[] = [inputBox, styler];
 
 		const wrapUp = (success: boolean) => {
-			this.view.breakpointInputFocused.set(false);
-			const id = template.breakpoint.getId();
+			template.updating = true;
+			try {
+				this.view.breakpointInputFocused.set(false);
+				const id = template.breakpoint.getId();
 
-			if (success) {
-				if (template.type === 'name') {
-					this.debugService.updateFunctionBreakpoint(id, { name: inputBox.value });
-				}
-				if (template.type === 'condition') {
-					this.debugService.updateFunctionBreakpoint(id, { condition: inputBox.value });
-				}
-				if (template.type === 'hitCount') {
-					this.debugService.updateFunctionBreakpoint(id, { hitCondition: inputBox.value });
-				}
-			} else {
-				if (template.type === 'name' && !template.breakpoint.name) {
-					this.debugService.removeFunctionBreakpoints(id);
+				if (success) {
+					if (template.type === 'name') {
+						this.debugService.updateFunctionBreakpoint(id, { name: inputBox.value });
+					}
+					if (template.type === 'condition') {
+						this.debugService.updateFunctionBreakpoint(id, { condition: inputBox.value });
+					}
+					if (template.type === 'hitCount') {
+						this.debugService.updateFunctionBreakpoint(id, { hitCondition: inputBox.value });
+					}
 				} else {
-					this.view.renderInputBox(undefined);
+					if (template.type === 'name' && !template.breakpoint.name) {
+						this.debugService.removeFunctionBreakpoints(id);
+					} else {
+						this.view.renderInputBox(undefined);
+					}
 				}
+			} finally {
+				template.updating = false;
 			}
 		};
 
@@ -834,10 +840,9 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 			}
 		}));
 		toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
-			// Need to react with a timeout on the blur event due to possible concurent splices #56443
-			setTimeout(() => {
+			if (!template.updating) {
 				wrapUp(!!inputBox.value);
-			});
+			}
 		}));
 
 		template.inputBox = inputBox;

@@ -43,19 +43,13 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		super(extensionManagementServerService, extensionGalleryService, configurationService, productService, downloadService, userDataSyncEnablementService, dialogService, workspaceTrustRequestService, extensionManifestPropertiesService, fileService, logService, instantiationService);
 	}
 
-	protected override async installVSIX(vsix: URI, server: IExtensionManagementServer, options: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
+	protected override async installVSIXInServer(vsix: URI, server: IExtensionManagementServer, options: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
 		if (vsix.scheme === Schemas.vscodeRemote && server === this.extensionManagementServerService.localExtensionManagementServer) {
 			const downloadedLocation = joinPath(this.environmentService.tmpDir, generateUuid());
 			await this.downloadService.download(vsix, downloadedLocation);
 			vsix = downloadedLocation;
 		}
-		const manifest = await this.getManifest(vsix);
-		if (manifest) {
-			await this.checkForWorkspaceTrust(manifest);
-			return server.extensionManagementService.install(vsix, options);
-		}
-
-		return Promise.reject('Unable to get the extension manifest.');
+		return super.installVSIXInServer(vsix, server, options);
 	}
 }
 

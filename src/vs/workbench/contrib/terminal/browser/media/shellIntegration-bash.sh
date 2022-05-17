@@ -25,8 +25,7 @@ else
 fi
 
 if [[ "$PROMPT_COMMAND" =~ .*(' '.*\;)|(\;.*' ').* ]]; then
-	builtin echo -e "\033[1;33mShell integration cannot be activated due to complex PROMPT_COMMAND: $PROMPT_COMMAND\033[0m"
-	VSCODE_SHELL_HIDE_WELCOME=""
+	VSCODE_SHELL_INTEGRATION=""
 	builtin return
 fi
 
@@ -88,7 +87,16 @@ __vsc_precmd() {
 		__vsc_update_prompt
 	fi
 }
+
+# capture any debug trap so it is not overwritten
+__vsc_original_trap="$(trap -p DEBUG)"
+if [[ -n "$__vsc_original_trap" ]]; then
+	__vsc_original_trap=${__vsc_original_trap#'trap -- '*}
+	__vsc_original_trap=${__vsc_original_trap%'DEBUG'}
+fi
+
 __vsc_preexec() {
+	eval ${__vsc_original_trap}
 	PS1="$__vsc_prior_prompt"
 	if [ -z "${__vsc_in_command_execution-}" ]; then
 		__vsc_in_command_execution="1"
@@ -142,8 +150,3 @@ else
 fi
 
 trap '__vsc_preexec' DEBUG
-if [ -z "$VSCODE_SHELL_HIDE_WELCOME" ]; then
-	builtin echo -e "\033[1;32mShell integration activated\033[0m"
-else
-	VSCODE_SHELL_HIDE_WELCOME=""
-fi

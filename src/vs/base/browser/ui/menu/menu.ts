@@ -287,11 +287,13 @@ export class Menu extends ActionBar {
 		const fgColor = style.foregroundColor ? `${style.foregroundColor}` : '';
 		const bgColor = style.backgroundColor ? `${style.backgroundColor}` : '';
 		const border = style.borderColor ? `1px solid ${style.borderColor}` : '';
-		const shadow = style.shadowColor ? `0 2px 4px ${style.shadowColor}` : '';
+		const borderRadius = '5px';
+		const shadow = style.shadowColor ? `0 2px 8px ${style.shadowColor}` : '';
 
-		container.style.border = border;
-		this.domNode.style.color = fgColor;
-		this.domNode.style.backgroundColor = bgColor;
+		container.style.outline = border;
+		container.style.borderRadius = borderRadius;
+		container.style.color = fgColor;
+		container.style.backgroundColor = bgColor;
 		container.style.boxShadow = shadow;
 
 		if (this.viewItems) {
@@ -691,19 +693,18 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		const isSelected = this.element && this.element.classList.contains('focused');
 		const fgColor = isSelected && this.menuStyle.selectionForegroundColor ? this.menuStyle.selectionForegroundColor : this.menuStyle.foregroundColor;
 		const bgColor = isSelected && this.menuStyle.selectionBackgroundColor ? this.menuStyle.selectionBackgroundColor : undefined;
-		const border = isSelected && this.menuStyle.selectionBorderColor ? `thin solid ${this.menuStyle.selectionBorderColor}` : '';
+		const outline = isSelected && this.menuStyle.selectionBorderColor ? `1px solid ${this.menuStyle.selectionBorderColor}` : '';
+		const outlineOffset = isSelected && this.menuStyle.selectionBorderColor ? `-1px` : '';
 
 		if (this.item) {
 			this.item.style.color = fgColor ? fgColor.toString() : '';
 			this.item.style.backgroundColor = bgColor ? bgColor.toString() : '';
+			this.item.style.outline = outline;
+			this.item.style.outlineOffset = outlineOffset;
 		}
 
 		if (this.check) {
 			this.check.style.color = fgColor ? fgColor.toString() : '';
-		}
-
-		if (this.container) {
-			this.container.style.border = border;
 		}
 	}
 
@@ -1012,7 +1013,8 @@ function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): string {
 	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
-
+	border-radius: 5px;
+	min-width: 160px;
 }
 
 ${formatRule(Codicon.menuSelection)}
@@ -1087,10 +1089,9 @@ ${formatRule(Codicon.menuSubmenu)}
 
 .monaco-menu .monaco-action-bar.vertical .action-label.separator {
 	display: block;
-	border-bottom: 1px solid #bbb;
+	border-bottom: 1px solid var(--vscode-menu-separatorBackground);
 	padding-top: 1px;
-	margin-left: .8em;
-	margin-right: .8em;
+	padding: 30px;
 }
 
 .monaco-menu .secondary-actions .monaco-action-bar .action-label {
@@ -1134,6 +1135,11 @@ ${formatRule(Codicon.menuSubmenu)}
 	height: 2em;
 	align-items: center;
 	position: relative;
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .keybinding,
+.monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .keybinding {
+	opacity: unset;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label {
@@ -1191,12 +1197,9 @@ ${formatRule(Codicon.menuSubmenu)}
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label.separator {
-	padding: 0.5em 0 0 0;
-	margin-bottom: 0.5em;
 	width: 100%;
 	height: 0px !important;
-	margin-left: .8em !important;
-	margin-right: .8em !important;
+	opacity: 1;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label.separator.text {
@@ -1238,17 +1241,15 @@ ${formatRule(Codicon.menuSubmenu)}
 	outline: 0;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item {
-	border: thin solid transparent; /* prevents jumping behaviour on hover or focus */
-}
-
-
-/* High Contrast Theming */
+.hc-black .context-view.monaco-menu-container,
+.hc-light .context-view.monaco-menu-container,
 :host-context(.hc-black) .context-view.monaco-menu-container,
 :host-context(.hc-light) .context-view.monaco-menu-container {
 	box-shadow: none;
 }
 
+.hc-black .monaco-menu .monaco-action-bar.vertical .action-item.focused,
+.hc-light .monaco-menu .monaco-action-bar.vertical .action-item.focused,
 :host-context(.hc-black) .monaco-menu .monaco-action-bar.vertical .action-item.focused,
 :host-context(.hc-light) .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 	background: none;
@@ -1257,11 +1258,11 @@ ${formatRule(Codicon.menuSubmenu)}
 /* Vertical Action Bar Styles */
 
 .monaco-menu .monaco-action-bar.vertical {
-	padding: .5em 0;
+	padding: .6em 0;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {
-	height: 1.8em;
+	height: 2em;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
@@ -1277,10 +1278,12 @@ ${formatRule(Codicon.menuSubmenu)}
 
 .monaco-menu .monaco-action-bar.vertical .action-label.separator {
 	font-size: inherit;
-	padding: 0.2em 0 0 0;
-	margin-bottom: 0.2em;
+	margin: 5px 0 !important;
+	padding: 0;
+	border-radius: 0;
 }
 
+.linux .monaco-menu .monaco-action-bar.vertical .action-label.separator,
 :host-context(.linux) .monaco-menu .monaco-action-bar.vertical .action-label.separator {
 	margin-left: 0;
 	margin-right: 0;
@@ -1291,6 +1294,7 @@ ${formatRule(Codicon.menuSubmenu)}
 	padding: 0 1.8em;
 }
 
+.linux .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 :host-context(.linux) .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	height: 100%;
 	mask-size: 10px 10px;

@@ -303,6 +303,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 
 			// Refire the data event
+			this._logService.trace('IPty#onData', data);
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				this._queueProcessExit();
@@ -492,6 +493,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _doWrite(): void {
 		const object = this._writeQueue.shift()!;
+		this._logService.trace('IPty#write', object.data);
 		if (object.isBinary) {
 			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
 		} else {

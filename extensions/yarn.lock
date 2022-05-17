@@ -42,10 +42,10 @@ node-gyp-build@^4.3.0:
   resolved "https://registry.yarnpkg.com/node-gyp-build/-/node-gyp-build-4.3.0.tgz#9f256b03e5826150be39c764bf51e993946d71a3"
   integrity sha512-iWjXZvmboq0ja1pUGULQBexmxq8CV4xBhX7VDOTbL7ZR4FOowwY/VOtRxBN/yKxmdGoIp4j5ysNT4u3S2pDQ3Q==
 
-typescript@^4.7.0-dev.20220502:
-  version "4.7.0-dev.20220502"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.7.0-dev.20220502.tgz#cd36e6036cc49368aa054182314cb3e070814d4d"
-  integrity sha512-a3YKUJyJ+XBGPsp9NwlqombKF+8Oplg565LaHNYL8p5VdhGJ5M+UR0H6wmLzCx4OhzpT1A8uQtC+f7Fi6TAYsA==
+typescript@4.7.1-rc:
+  version "4.7.1-rc"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.7.1-rc.tgz#23a0517d36c56de887b4457f29e2d265647bbd7c"
+  integrity sha512-EQd2NVelDe6ZVc2sO1CSpuSs+RHzY8c2n/kTNQAHw4um/eAXY+ZY4IKoUpNK0wO6C5hN+XcUXR7yqT8VbwwNIQ==
 
 vscode-grammar-updater@^1.0.4:
   version "1.0.4"

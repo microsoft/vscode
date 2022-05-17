@@ -166,6 +166,8 @@ stages:
           VSCODE_ARCH: x64
         steps:
           - template: product-compile.yml
+            parameters:
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true)) }}:
       - stage: Windows
@@ -180,6 +182,8 @@ stages:
                   VSCODE_ARCH: x64
                 steps:
                   - template: win32/product-build-win32.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
           - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true)) }}:
               - job: Windows32
@@ -188,6 +192,8 @@ stages:
                   VSCODE_ARCH: ia32
                 steps:
                   - template: win32/product-build-win32.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
           - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - job: WindowsARM64
@@ -196,6 +202,8 @@ stages:
                   VSCODE_ARCH: arm64
                 steps:
                   - template: win32/product-build-win32.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
       - stage: LinuxServerDependencies
@@ -210,13 +218,17 @@ stages:
                   NPM_ARCH: x64
                 steps:
                   - template: linux/product-build-linux-server.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
               - job: arm64
                 variables:
                   VSCODE_ARCH: arm64
                 steps:
                   - template: linux/product-build-linux-server.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
       - stage: Linux
@@ -234,6 +246,8 @@ stages:
                   DISPLAY: ":10"
                 steps:
                   - template: linux/product-build-linux-client.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
           - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true), ne(variables['VSCODE_PUBLISH'], 'false')) }}:
               - job: LinuxSnap
@@ -253,6 +267,8 @@ stages:
                   NPM_ARCH: armv7l
                 steps:
                   - template: linux/product-build-linux-client.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
           # TODO@joaomoreno: We don't ship ARM snaps for now
           - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
@@ -273,6 +289,8 @@ stages:
                   NPM_ARCH: arm64
                 steps:
                   - template: linux/product-build-linux-client.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
           # TODO@joaomoreno: We don't ship ARM snaps for now
           - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
@@ -323,6 +341,9 @@ stages:
                   VSCODE_ARCH: x64
                 steps:
                   - template: darwin/product-build-darwin-test.yml
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
               - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
                   - job: macOS
                     timeoutInMinutes: 90

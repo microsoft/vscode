@@ -78,7 +78,7 @@ export interface IExtension {
 	readonly local?: ILocalExtension;
 	gallery?: IGalleryExtension;
 	readonly isMalicious: boolean;
-	readonly isUnsupported: boolean | { preReleaseExtension: { id: string; displayName: string } };
+	readonly deprecated: boolean | { id: string; displayName: string };
 }
 
 export const SERVICE_ID = 'extensionsWorkbenchService';

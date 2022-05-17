@@ -343,7 +343,7 @@ export class ExtensionEditor extends EditorPane {
 				]
 			]),
 			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction, false),
-			this.instantiationService.createInstance(SwitchToReleasedVersionAction),
+			this.instantiationService.createInstance(SwitchToReleasedVersionAction, false),
 			this.instantiationService.createInstance(ToggleSyncExtensionAction),
 			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),
 		];
@@ -658,7 +658,7 @@ export class ExtensionEditor extends EditorPane {
 			}
 		};
 		reset(template.recommendation);
-		if (extension.state === ExtensionState.Installed) {
+		if (extension.deprecated || extension.state === ExtensionState.Installed) {
 			return;
 		}
 		updateRecommendationText(false);

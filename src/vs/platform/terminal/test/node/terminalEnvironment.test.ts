@@ -8,8 +8,8 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { getShellIntegrationInjection, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
 
-const enabledProcessOptions: ITerminalProcessOptions['shellIntegration'] = { enabled: true, showWelcome: true };
-const disabledProcessOptions: ITerminalProcessOptions['shellIntegration'] = { enabled: false, showWelcome: true };
+const enabledProcessOptions: ITerminalProcessOptions['shellIntegration'] = { enabled: true };
+const disabledProcessOptions: ITerminalProcessOptions['shellIntegration'] = { enabled: false };
 const pwshExe = process.platform === 'win32' ? 'pwsh.exe' : 'pwsh';
 const repoRoot = process.platform === 'win32' ? process.cwd()[0].toLowerCase() + process.cwd().substring(1) : process.cwd();
 const logService = new NullLogService();

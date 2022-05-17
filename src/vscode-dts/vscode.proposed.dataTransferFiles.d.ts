@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/TODO
+	// https://github.com/microsoft/vscode/issues/147481
 
 	/**
 	 * A file associated with a {@linkcode DataTransferItem}.

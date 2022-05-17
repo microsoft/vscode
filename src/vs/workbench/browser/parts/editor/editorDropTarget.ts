@@ -349,8 +349,9 @@ class DropOverlay extends Themable {
 						editors.push(...treeDropData.map(editor => ({ ...editor, options: { ...editor.options, pinned: true } })));
 					}
 				}
-
-				this.editorService.openEditors(editors, ensureTargetGroup(), { validateTrust: true });
+				if (editors.length) {
+					this.editorService.openEditors(editors, ensureTargetGroup(), { validateTrust: true });
+				}
 			}
 
 			this.treeItemsTransfer.clearData(DraggedTreeItemsIdentifier.prototype);

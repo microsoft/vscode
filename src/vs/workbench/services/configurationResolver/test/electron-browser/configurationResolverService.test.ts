@@ -700,6 +700,9 @@ class MockLabelService implements ILabelService {
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		throw new Error('Method not implemented.');
 	}
+	registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable {
+		throw new Error('Method not implemented.');
+	}
 	onDidChangeFormatters: Event<IFormatterChangeEvent> = new Emitter<IFormatterChangeEvent>().event;
 }
 
