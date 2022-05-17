@@ -291,6 +291,7 @@ steps:
         $ErrorActionPreference = "Stop"
         $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
         $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"
+        exec { yarn gulp compile-extension:vscode-test-resolver }
         exec { yarn smoketest-no-compile --tracing --remote --build "$AppRoot" }
       displayName: Run smoke tests (Remote)
       timeoutInMinutes: 20
