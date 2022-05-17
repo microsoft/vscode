@@ -12,6 +12,7 @@ import { ConfigurationTarget, IConfigurationChange, IConfigurationChangeEvent, I
 import { Configuration, ConfigurationChangeEvent, ConfigurationModel, UserSettings } from 'vs/platform/configuration/common/configurationModels';
 import { DefaultConfiguration, PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
 import { IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 
 export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
@@ -31,10 +32,11 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		private readonly settingsResource: URI,
 		fileService: IFileService,
 		policyService: IPolicyService,
+		logService: ILogService,
 	) {
 		super();
 		this.defaultConfiguration = this._register(new DefaultConfiguration());
-		this.policyConfiguration = this._register(new PolicyConfiguration(this.defaultConfiguration, policyService));
+		this.policyConfiguration = this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
 		this.userConfiguration = this._register(new UserSettings(this.settingsResource, undefined, extUriBiasedIgnorePathCase, fileService));
 		this.configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, new ConfigurationModel());
 

@@ -170,11 +170,13 @@ class CodeMain {
 		services.set(ILoggerService, new LoggerService(logService, fileService));
 
 		// Policy
-		const policyService = isWindows && productService.win32RegValueName ? new WindowsPolicyService(productService.win32RegValueName) : environmentMainService.policyFile ? new FilePolicyService(environmentMainService.policyFile, fileService, logService) : new NullPolicyService();
+		const policyService = isWindows && productService.win32RegValueName ? new WindowsPolicyService(productService.win32RegValueName)
+			: environmentMainService.policyFile ? new FilePolicyService(environmentMainService.policyFile, fileService, logService)
+				: new NullPolicyService();
 		services.set(IPolicyService, policyService);
 
 		// Configuration
-		const configurationService = new ConfigurationService(environmentMainService.settingsResource, fileService, policyService);
+		const configurationService = new ConfigurationService(environmentMainService.settingsResource, fileService, policyService, logService);
 		services.set(IConfigurationService, configurationService);
 
 		// Lifecycle

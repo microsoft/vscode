@@ -65,7 +65,7 @@ suite('PolicyConfiguration', () => {
 		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		fileService.registerProvider(policyFile.scheme, diskFileSystemProvider);
 		policyService = new FilePolicyService(policyFile, fileService, new NullLogService());
-		testObject = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService));
+		testObject = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
 	});
 
 	teardown(() => disposables.clear());

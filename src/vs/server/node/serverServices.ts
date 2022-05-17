@@ -108,7 +108,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IFileService, fileService);
 	fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService)));
 
-	const configurationService = new ConfigurationService(environmentService.machineSettingsResource, fileService, new NullPolicyService());
+	const configurationService = new ConfigurationService(environmentService.machineSettingsResource, fileService, new NullPolicyService(), logService);
 	services.set(IConfigurationService, configurationService);
 
 	const extensionHostStatusService = new ExtensionHostStatusService();

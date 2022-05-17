@@ -30,6 +30,7 @@ export class FilePolicyService extends Disposable implements IPolicyService {
 
 	readonly _serviceBrand: undefined;
 
+	private readonly policyNames: Set<PolicyName> = new Set<PolicyName>();
 	private policies = new Map<PolicyName, PolicyValue>();
 
 	private readonly _onDidChange = new Emitter<readonly PolicyName[]>();
@@ -49,9 +50,17 @@ export class FilePolicyService extends Disposable implements IPolicyService {
 		this._register(onDidChangePolicyFile(() => this.throttledDelayer.trigger(() => this.refresh())));
 	}
 
-	// TODO@sandeep respect only registered policy definitions
 	async registerPolicyDefinitions(policies: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>> {
-		await this.refresh();
+		let hasNewPolicies = false;
+		for (const key of Object.keys(policies)) {
+			if (!this.policyNames.has(key)) {
+				hasNewPolicies = true;
+				this.policyNames.add(key);
+			}
+		}
+		if (hasNewPolicies) {
+			await this.refresh();
+		}
 		return Iterable.reduce(this.policies.entries(), (r, [name, value]) => ({ ...r, [name]: value }), {});
 	}
 
@@ -67,7 +76,9 @@ export class FilePolicyService extends Disposable implements IPolicyService {
 			}
 
 			for (const key of Object.keys(raw)) {
-				policies.set(key, raw[key]);
+				if (this.policyNames.has(key)) {
+					policies.set(key, raw[key]);
+				}
 			}
 		} catch (error) {
 			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {

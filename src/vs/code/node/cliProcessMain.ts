@@ -137,7 +137,7 @@ class CliMain extends Disposable {
 		services.set(IPolicyService, policyService);
 
 		// Configuration
-		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService, policyService));
+		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService, policyService, logService));
 		services.set(IConfigurationService, configurationService);
 
 		// Init config

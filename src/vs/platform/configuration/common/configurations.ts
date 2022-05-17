@@ -8,9 +8,11 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
+import { isEmptyObject } from 'vs/base/common/types';
 import { addToValueTree, IOverrides, toValuesTree } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { Extensions, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -86,45 +88,41 @@ export class PolicyConfiguration extends Disposable {
 
 	constructor(
 		private readonly defaultConfiguration: DefaultConfiguration,
-		@IPolicyService private readonly policyService: IPolicyService
+		@IPolicyService private readonly policyService: IPolicyService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 	}
 
-	// TODO@sandy: make nice
-	private getPolicyDefinitions(): IStringDictionary<PolicyDefinition> {
-		const result: IStringDictionary<PolicyDefinition> = {};
-		const configRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	async initialize(): Promise<ConfigurationModel> {
+		await this.registerPolicyDefinitionsAndUpdate(this.defaultConfiguration.configurationModel.keys, false);
+		this._register(this.policyService.onDidChange(policyNames => this.onDidChangePolicies(policyNames)));
+		this._register(this.defaultConfiguration.onDidChangeConfiguration(({ properties }) => this.registerPolicyDefinitionsAndUpdate(properties, true)));
+		return this._configurationModel;
+	}
 
-		for (const configuration of configRegistry.getConfigurations()) {
-			if (configuration.properties) {
-				for (const key in configuration.properties) {
-					const config = configuration.properties[key];
-					const policy = config.policy;
+	private async registerPolicyDefinitionsAndUpdate(properties: string[], trigger: boolean): Promise<void> {
+		const policyDefinitions: IStringDictionary<PolicyDefinition> = {};
+		const keys: string[] = [];
+		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 
-					if (policy) {
-						if (config.type !== 'string' && config.type !== 'number') {
-							console.warn(`Policy ${policy.name} has unsupported type ${config.type}`);
-							continue;
-						}
-
-						result[policy.name] = { type: config.type };
-					}
+		for (const key of properties) {
+			const config = configurationProperties[key];
+			const policy = config.policy;
+			if (policy) {
+				if (config.type !== 'string' && config.type !== 'number') {
+					this.logService.warn(`Policy ${policy.name} has unsupported type ${config.type}`);
+					continue;
 				}
+				keys.push(key);
+				policyDefinitions[policy.name] = { type: config.type };
 			}
 		}
 
-		return result;
-	}
-
-	async initialize(): Promise<ConfigurationModel> {
-		// TODO@sandy: go through registry
-		await this.policyService.registerPolicyDefinitions(this.getPolicyDefinitions());
-		this.update(this.defaultConfiguration.configurationModel.keys, false);
-		this._register(this.policyService.onDidChange(policyNames => this.onDidChangePolicies(policyNames)));
-		// TODO@sandy: also make sure that policy configurations that are registered after initialize() also call registerPolicyDefinitions()
-		this._register(this.defaultConfiguration.onDidChangeConfiguration(({ properties }) => this.update(properties, true)));
-		return this._configurationModel;
+		if (!isEmptyObject(policyDefinitions)) {
+			await this.policyService.registerPolicyDefinitions(policyDefinitions);
+			this.update(keys, trigger);
+		}
 	}
 
 	private onDidChangePolicies(policyNames: readonly PolicyName[]): void {

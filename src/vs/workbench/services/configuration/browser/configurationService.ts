@@ -114,7 +114,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		this.initRemoteUserConfigurationBarrier = new Barrier();
 		this.completeWorkspaceBarrier = new Barrier();
 		this.defaultConfiguration = this._register(new DefaultConfiguration(configurationCache, environmentService));
-		this.policyConfiguration = this._register(new PolicyConfiguration(this.defaultConfiguration, policyService));
+		this.policyConfiguration = this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
 		this.configurationCache = configurationCache;
 		this.fileService = fileService;
 		this.uriIdentityService = uriIdentityService;
