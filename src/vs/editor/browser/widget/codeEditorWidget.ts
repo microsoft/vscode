@@ -1255,8 +1255,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.viewModel.executeCommands(commands, source);
 	}
 
-	public createDecorationsCollection(): EditorDecorationsCollection {
-		return new EditorDecorationsCollection(this);
+	public createDecorationsCollection(decorations?: IModelDeltaDecoration[]): EditorDecorationsCollection {
+		return new EditorDecorationsCollection(this, decorations);
 	}
 
 	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
@@ -2145,8 +2145,13 @@ class EditorDecorationsCollection implements editorCommon.IEditorDecorationsColl
 	}
 
 	constructor(
-		private readonly _editor: editorBrowser.ICodeEditor
-	) { }
+		private readonly _editor: editorBrowser.ICodeEditor,
+		decorations: IModelDeltaDecoration[] | undefined
+	) {
+		if (Array.isArray(decorations) && decorations.length > 0) {
+			this.set(decorations);
+		}
+	}
 
 	public onDidChange(listener: (e: IModelDecorationsChangedEvent) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable {
 		return this._editor.onDidChangeModelDecorations((e) => {
@@ -2159,6 +2164,9 @@ class EditorDecorationsCollection implements editorCommon.IEditorDecorationsColl
 
 	public getRange(index: number): Range | null {
 		if (!this._editor.hasModel()) {
+			return null;
+		}
+		if (index >= this._decorationIds.length) {
 			return null;
 		}
 		return this._editor.getModel().getDecorationRange(this._decorationIds[index]);

@@ -2529,7 +2529,7 @@ declare namespace monaco.editor {
 		 * will get the ownerId of the editor (meaning they will not show up in other editors).
 		 * These decorations will be automatically cleared when the editor's model changes.
 		 */
-		createDecorationsCollection(): IEditorDecorationsCollection;
+		createDecorationsCollection(decorations?: IModelDeltaDecoration[]): IEditorDecorationsCollection;
 	}
 
 	/**
