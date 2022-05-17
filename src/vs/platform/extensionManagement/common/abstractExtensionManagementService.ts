@@ -10,6 +10,7 @@ import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
+import { isBoolean } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import {
@@ -363,8 +364,9 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), ExtensionManagementErrorCode.Malicious);
 		}
 
-		if (!!report.unsupportedPreReleaseExtensions && !!report.unsupportedPreReleaseExtensions[extension.identifier.id]) {
-			throw new ExtensionManagementError(nls.localize('unsupported prerelease extension', "Can't install '{0}' extension because it is no longer supported. It is now part of the '{1}' extension as a pre-release version.", extension.identifier.id, report.unsupportedPreReleaseExtensions[extension.identifier.id].displayName), ExtensionManagementErrorCode.UnsupportedPreRelease);
+		const deprecated = report.deprecated ? report.deprecated[extension.identifier.id.toLowerCase()] : undefined;
+		if (deprecated && !isBoolean(deprecated)) {
+			throw new ExtensionManagementError(nls.localize('unsupported prerelease extension', "Can't install '{0}' extension because it is deprecated. Use '{1}' extension instead.", extension.identifier.id, deprecated.displayName), ExtensionManagementErrorCode.UnsupportedPreRelease);
 		}
 
 		if (!await this.canInstall(extension)) {
