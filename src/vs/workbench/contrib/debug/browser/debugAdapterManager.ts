@@ -360,7 +360,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		const picks: { label: string; debugger?: Debugger; type?: string }[] = [];
 		if (suggestedCandidates.length > 0) {
 			picks.push(
-				{ type: 'separator', label: 'Suggested' },
+				{ type: 'separator', label: nls.localize('suggestedDebuggers', "Suggested") },
 				...suggestedCandidates.map(c => ({ label: c.label, debugger: c })));
 		}
 
