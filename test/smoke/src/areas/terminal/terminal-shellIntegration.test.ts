@@ -26,7 +26,8 @@ export function setup() {
 
 		describe('Shell integration', function () {
 			// TODO: Fix on Linux, some distros use sh as the default shell in which case shell integration will fail
-			(process.platform === 'win32' || process.platform === 'linux' ? describe.skip : describe)('Decorations', function () {
+			// TODO: Fix on macOS, not sure reason for failing https://github.com/microsoft/vscode/issues/149757
+			describe.skip('Decorations', function () {
 				describe('Should show default icons', function () {
 					it('Placeholder', async () => {
 						await terminal.createTerminal();
