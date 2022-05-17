@@ -12,7 +12,7 @@ import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { Limiter } from '../util/limiter';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
-import { LinkDefinitionSet, MdLink, MdLinkProvider, MdLinkSource } from './documentLinkProvider';
+import { InternalHref, LinkDefinitionSet, MdLink, MdLinkProvider, MdLinkSource } from './documentLinkProvider';
 import { tryFindMdDocumentForLink } from './references';
 
 const localize = nls.loadMessageBundle();
@@ -118,6 +118,94 @@ class InflightDiagnosticRequests {
 	}
 }
 
+class LinkWatcher extends Disposable {
+
+	private readonly _onDidChangeLinkedToFile = this._register(new vscode.EventEmitter<Iterable<vscode.Uri>>);
+	/**
+	 * Event fired with a list of document uri when one of the links in the document changes
+	 */
+	public readonly onDidChangeLinkedToFile = this._onDidChangeLinkedToFile.event;
+
+	private readonly _watchers = new Map</* link path */ string, {
+		/**
+		 * Watcher for this link path
+		 */
+		readonly watcher: vscode.Disposable;
+
+		/**
+		 * List of documents that reference the link
+		 */
+		readonly documents: Map</* document resource as string */ string, /* document resource*/ vscode.Uri>;
+	}>();
+
+	override dispose() {
+		super.dispose();
+
+		for (const entry of this._watchers.values()) {
+			entry.watcher.dispose();
+		}
+		this._watchers.clear();
+	}
+
+	/**
+	 * Set the known links in a markdown document, adding and removing file watchers as needed
+	 */
+	updateLinksForDocument(document: vscode.Uri, links: readonly MdLink[]) {
+		const linkedToResource = new Set<vscode.Uri>(
+			links
+				.filter(link => link.href.kind === 'internal')
+				.map(link => (link.href as InternalHref).path));
+
+		// First decrement watcher counter for previous document state
+		for (const entry of this._watchers.values()) {
+			entry.documents.delete(document.toString());
+		}
+
+		// Then create/update watchers for new document state
+		for (const path of linkedToResource) {
+			let entry = this._watchers.get(path.toString());
+			if (!entry) {
+				entry = {
+					watcher: this.startWatching(path),
+					documents: new Map(),
+				};
+				this._watchers.set(path.toString(), entry);
+			}
+
+			entry.documents.set(document.toString(), document);
+		}
+
+		// Finally clean up watchers for links that are no longer are referenced anywhere
+		for (const [key, value] of this._watchers) {
+			if (value.documents.size === 0) {
+				value.watcher.dispose();
+				this._watchers.delete(key);
+			}
+		}
+	}
+
+	deleteDocument(resource: vscode.Uri) {
+		this.updateLinksForDocument(resource, []);
+	}
+
+	private startWatching(path: vscode.Uri): vscode.Disposable {
+		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(path, '*'), false, true, false);
+		const handler = (resource: vscode.Uri) => this.onLinkedResourceChanged(resource);
+		return vscode.Disposable.from(
+			watcher,
+			watcher.onDidDelete(handler),
+			watcher.onDidCreate(handler),
+		);
+	}
+
+	private onLinkedResourceChanged(resource: vscode.Uri) {
+		const entry = this._watchers.get(resource.toString());
+		if (entry) {
+			this._onDidChangeLinkedToFile.fire(entry.documents.values());
+		}
+	}
+}
+
 export class DiagnosticManager extends Disposable {
 
 	private readonly collection: vscode.DiagnosticCollection;
@@ -125,6 +213,8 @@ export class DiagnosticManager extends Disposable {
 	private readonly diagnosticDelayer: Delayer<void>;
 	private readonly pendingDiagnostics = new Set<vscode.Uri>();
 	private readonly inFlightDiagnostics = this._register(new InflightDiagnosticRequests());
+
+	private readonly linkWatcher = this._register(new LinkWatcher());
 
 	constructor(
 		private readonly computer: DiagnosticComputer,
@@ -148,10 +238,20 @@ export class DiagnosticManager extends Disposable {
 			this.triggerDiagnostics(e.document);
 		}));
 
-		this._register(vscode.workspace.onDidCloseTextDocument(doc => {
-			this.pendingDiagnostics.delete(doc.uri);
-			this.inFlightDiagnostics.cancel(doc.uri);
-			this.collection.delete(doc.uri);
+		this._register(vscode.workspace.onDidCloseTextDocument(({ uri }) => {
+			this.pendingDiagnostics.delete(uri);
+			this.inFlightDiagnostics.cancel(uri);
+			this.linkWatcher.deleteDocument(uri);
+			this.collection.delete(uri);
+		}));
+
+		this._register(this.linkWatcher.onDidChangeLinkedToFile(changedDocuments => {
+			for (const resource of changedDocuments) {
+				const doc = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === resource.toString());
+				if (doc) {
+					this.triggerDiagnostics(doc);
+				}
+			}
 		}));
 
 		this.rebuild();
@@ -162,12 +262,12 @@ export class DiagnosticManager extends Disposable {
 		this.pendingDiagnostics.clear();
 	}
 
-	public async getDiagnostics(doc: SkinnyTextDocument, token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
+	public async recomputeDiagnosticState(doc: SkinnyTextDocument, token: vscode.CancellationToken): Promise<{ diagnostics: readonly vscode.Diagnostic[]; links: readonly MdLink[]; config: DiagnosticOptions }> {
 		const config = this.configuration.getOptions(doc.uri);
 		if (!config.enabled) {
-			return [];
+			return { diagnostics: [], links: [], config };
 		}
-		return this.computer.getDiagnostics(doc, config, token);
+		return { ...await this.computer.getDiagnostics(doc, config, token), config };
 	}
 
 	private async recomputePendingDiagnostics(): Promise<void> {
@@ -178,8 +278,9 @@ export class DiagnosticManager extends Disposable {
 			const doc = vscode.workspace.textDocuments.find(doc => doc.uri.fsPath === resource.fsPath);
 			if (doc) {
 				this.inFlightDiagnostics.trigger(doc.uri, async (token) => {
-					const diagnostics = await this.getDiagnostics(doc, token);
-					this.collection.set(doc.uri, diagnostics);
+					const state = await this.recomputeDiagnosticState(doc, token);
+					this.linkWatcher.updateLinksForDocument(doc.uri, state.config.enabled && state.config.validateFilePaths ? state.links : []);
+					this.collection.set(doc.uri, state.diagnostics);
 				});
 			}
 		}
@@ -269,17 +370,20 @@ export class DiagnosticComputer {
 		private readonly linkProvider: MdLinkProvider,
 	) { }
 
-	public async getDiagnostics(doc: SkinnyTextDocument, options: DiagnosticOptions, token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
+	public async getDiagnostics(doc: SkinnyTextDocument, options: DiagnosticOptions, token: vscode.CancellationToken): Promise<{ readonly diagnostics: vscode.Diagnostic[]; readonly links: MdLink[] }> {
 		const links = await this.linkProvider.getAllLinks(doc, token);
 		if (token.isCancellationRequested) {
-			return [];
+			return { links, diagnostics: [] };
 		}
 
-		return (await Promise.all([
-			this.validateFileLinks(doc, options, links, token),
-			Array.from(this.validateReferenceLinks(options, links)),
-			this.validateOwnHeaderLinks(doc, options, links, token),
-		])).flat();
+		return {
+			links,
+			diagnostics: (await Promise.all([
+				this.validateFileLinks(doc, options, links, token),
+				Array.from(this.validateReferenceLinks(options, links)),
+				this.validateOwnHeaderLinks(doc, options, links, token),
+			])).flat()
+		};
 	}
 
 	private async validateOwnHeaderLinks(doc: SkinnyTextDocument, options: DiagnosticOptions, links: readonly MdLink[], token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
