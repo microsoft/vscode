@@ -1,4 +1,5 @@
-trigger: none
+trigger:
+  - main
 
 pr:
   branches:
