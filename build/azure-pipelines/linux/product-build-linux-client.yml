@@ -3,13 +3,13 @@ parameters:
     type: string
   - name: VSCODE_RUN_UNIT_TESTS
     type: boolean
-    value: true
+    default: true
   - name: VSCODE_RUN_INTEGRATION_TESTS
     type: boolean
-    value: true
+    default: true
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
-    value: true
+    default: true
 
 steps:
   - task: NodeTool@0
