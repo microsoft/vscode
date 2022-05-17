@@ -146,7 +146,7 @@ stages:
     variables:
       BUILDSECMON_OPT_IN: true
     jobs:
-      - job: macOSTest
+      - job: macOSUnitTest
         timeoutInMinutes: 90
         variables:
           VSCODE_ARCH: x64
@@ -154,3 +154,28 @@ stages:
           - template: darwin/product-build-darwin-test.yml
             parameters:
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_RUN_UNIT_TESTS: true
+              VSCODE_RUN_INTEGRATION_TESTS: false
+              VSCODE_RUN_SMOKE_TESTS: false
+      - job: macOSIntegrationTest
+        timeoutInMinutes: 90
+        variables:
+          VSCODE_ARCH: x64
+        steps:
+          - template: darwin/product-build-darwin-test.yml
+            parameters:
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_RUN_UNIT_TESTS: false
+              VSCODE_RUN_INTEGRATION_TESTS: true
+              VSCODE_RUN_SMOKE_TESTS: false
+      - job: macOSSmokeTest
+        timeoutInMinutes: 90
+        variables:
+          VSCODE_ARCH: x64
+        steps:
+          - template: darwin/product-build-darwin-test.yml
+            parameters:
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_RUN_UNIT_TESTS: false
+              VSCODE_RUN_INTEGRATION_TESTS: false
+              VSCODE_RUN_SMOKE_TESTS: true
