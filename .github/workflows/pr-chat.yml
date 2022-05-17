@@ -1,7 +1,7 @@
 name: PR Chat
 on:
   pull_request_target:
-    types: [opened, ready_for_review]
+    types: [opened, ready_for_review, closed]
 
 jobs:
   main:
