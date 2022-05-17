@@ -1852,7 +1852,8 @@
         "git.branchPrefix": {
           "type": "string",
           "description": "%config.branchPrefix%",
-          "default": ""
+          "default": "",
+          "scope": "resource"
         },
         "git.branchProtection": {
           "type": "array",
@@ -1860,7 +1861,8 @@
           "items": {
             "type": "string"
           },
-          "default": []
+          "default": [],
+          "scope": "resource"
         },
         "git.branchProtectionPrompt": {
           "type": "string",
@@ -1875,7 +1877,8 @@
             "%config.branchProtectionPrompt.alwaysCommitToNewBranch%",
             "%config.branchProtectionPrompt.alwaysPrompt%"
           ],
-          "default": "alwaysPrompt"
+          "default": "alwaysPrompt",
+          "scope": "resource"
         },
         "git.branchValidationRegex": {
           "type": "string",
@@ -1890,7 +1893,8 @@
         "git.branchRandomName.enable": {
           "type": "boolean",
           "description": "%config.branchRandomNameEnable%",
-          "default": false
+          "default": false,
+          "scope": "resource"
         },
         "git.branchRandomName.dictionary": {
           "type": "array",
@@ -1901,7 +1905,8 @@
           "default": [
             "adjectives",
             "animals"
-          ]
+          ],
+          "scope": "resource"
         },
         "git.confirmSync": {
           "type": "boolean",
