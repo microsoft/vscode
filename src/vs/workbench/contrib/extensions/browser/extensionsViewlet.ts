@@ -58,7 +58,7 @@ import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/act
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { coalesce } from 'vs/base/common/arrays';
-import { extractEditorsDropData } from 'vs/workbench/browser/dnd';
+import { extractEditorsDropData } from 'vs/platform/dnd/browser/dnd';
 import { extname } from 'vs/base/common/resources';
 
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
