@@ -64,6 +64,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { WindowsPolicyService } from 'vs/platform/policy/node/windowsPolicyService';
+import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
 
 /**
  * The main VS Code entry point.
@@ -169,7 +170,7 @@ class CodeMain {
 		services.set(ILoggerService, new LoggerService(logService, fileService));
 
 		// Policy
-		const policyService = isWindows && productService.win32RegValueName ? new WindowsPolicyService(productService.win32RegValueName) : new NullPolicyService();
+		const policyService = isWindows && productService.win32RegValueName ? new WindowsPolicyService(productService.win32RegValueName) : environmentMainService.policyFile ? new FilePolicyService(environmentMainService.policyFile, fileService, logService) : new NullPolicyService();
 		services.set(IPolicyService, policyService);
 
 		// Configuration

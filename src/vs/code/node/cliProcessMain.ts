@@ -40,6 +40,7 @@ import { ILocalizationsService } from 'vs/platform/localizations/common/localiza
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { ConsoleLogger, getLogLevel, ILogger, ILogService, LogLevel, MultiplexLogService } from 'vs/platform/log/common/log';
 import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
+import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { WindowsPolicyService } from 'vs/platform/policy/node/windowsPolicyService';
 import product from 'vs/platform/product/common/product';
@@ -132,7 +133,7 @@ class CliMain extends Disposable {
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// Policy
-		const policyService = isWindows && productService.win32RegValueName ? new WindowsPolicyService(productService.win32RegValueName) : new NullPolicyService();
+		const policyService = isWindows && productService.win32RegValueName ? new WindowsPolicyService(productService.win32RegValueName) : environmentService.policyFile ? new FilePolicyService(environmentService.policyFile, fileService, logService) : new NullPolicyService();
 		services.set(IPolicyService, policyService);
 
 		// Configuration
