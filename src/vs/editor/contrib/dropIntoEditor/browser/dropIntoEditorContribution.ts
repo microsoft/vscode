@@ -27,7 +27,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 
 export class DropIntoEditorController extends Disposable implements IEditorContribution {
 
-	public static readonly ID = 'editor.contrib.`dropIntoEditorController`';
+	public static readonly ID = 'editor.contrib.dropIntoEditorController';
 
 	constructor(
 		editor: ICodeEditor,
