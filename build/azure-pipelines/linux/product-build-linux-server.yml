@@ -3,6 +3,12 @@ parameters:
     type: string
 
 steps:
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+    - checkout: self
+      clean: true
+      fetchDepth: 1
+      retryCountOnTaskFailure: 3
+
   - task: NodeTool@0
     inputs:
       versionSpec: "16.x"
