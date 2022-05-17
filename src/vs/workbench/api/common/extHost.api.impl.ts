@@ -779,7 +779,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			showNotebookDocument(uriOrDocument, options?) {
 				if (URI.isUri(uriOrDocument)) {
 					extHostApiDeprecation.report('window.showNotebookDocument(uri)', extension,
-						`Please use 'window.openNotebookDocument' and ''window.showTextDocument'`);
+						`Please use 'window.openNotebookDocument' and 'window.showTextDocument'`);
 				}
 				return extHostNotebook.showNotebookDocument(uriOrDocument, options);
 			},
