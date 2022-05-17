@@ -8,8 +8,6 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IPolicyService, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
 
-type Policies = { [name: PolicyName]: PolicyValue | undefined };
-
 export class PolicyChannel implements IServerChannel {
 
 	private readonly disposables = new DisposableStore();
@@ -20,7 +18,7 @@ export class PolicyChannel implements IServerChannel {
 		switch (event) {
 			case 'onDidChange': return Event.map(
 				this.service.onDidChange,
-				names => names.reduce<Policies>((r, name) => ({ ...r, [name]: this.service.getPolicyValue(name) }), {}),
+				names => names.reduce<object>((r, name) => ({ ...r, [name]: this.service.getPolicyValue(name) ?? null }), {}),
 				this.disposables
 			);
 		}
@@ -51,11 +49,11 @@ export class PolicyChannelClient implements IPolicyService {
 	readonly onDidChange: Event<readonly string[]> = this._onDidChange.event;
 
 	constructor(private readonly channel: IChannel) {
-		this.channel.listen<Policies>('onDidChange')(policies => {
+		this.channel.listen<object>('onDidChange')(policies => {
 			for (const name in policies) {
-				const value = policies[name];
+				const value = policies[name as keyof typeof policies];
 
-				if (value === undefined) {
+				if (value === null) {
 					this.policies.delete(name);
 				} else {
 					this.policies.set(name, value);
