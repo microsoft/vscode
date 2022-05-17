@@ -13,7 +13,7 @@ import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
 import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
 import { StatusBarCommands } from './statusbar';
-import { toGitUri, toMergeUris } from './uri';
+import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { LogLevel, OutputChannelLogger } from './log';
@@ -603,16 +603,10 @@ class ResourceCommandResolver {
 		const title = this.getTitle(resource);
 
 		if (!resource.leftUri && resource.rightUri && resource.type === Status.BOTH_MODIFIED) {
-			const mergeUris = toMergeUris(resource.rightUri);
 			return {
-				command: '_open.mergeEditor',
+				command: '_git.openMergeEditor',
 				title: localize('open.merge', "Open Merge"),
-				arguments: [{
-					ancestor: mergeUris.base,
-					input1: mergeUris.ours,
-					input2: mergeUris.theirs,
-					output: resource.rightUri
-				}]
+				arguments: [resource.rightUri]
 			};
 		} else if (!resource.leftUri) {
 			return {
