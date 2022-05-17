@@ -144,7 +144,7 @@ stages:
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_RUN_UNIT_TESTS: false
               VSCODE_RUN_INTEGRATION_TESTS: false
-              VSCODE_RUN_SMOKE_TESTS: false
+              VSCODE_RUN_SMOKE_TESTS: true
 
   - stage: macOS
     dependsOn:
