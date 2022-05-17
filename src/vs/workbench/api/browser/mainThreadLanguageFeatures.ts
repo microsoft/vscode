@@ -863,19 +863,19 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	// --- document drop Edits
 
-	private readonly _documentOnDropProviders = new Map<number, MainThreadDocumentOnDropProvider>();
+	private readonly _documentOnDropEditProviders = new Map<number, MainThreadDocumentOnDropEditProvider>();
 
-	$registerDocumentOnDropProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		const provider = new MainThreadDocumentOnDropProvider(handle, this._proxy);
-		this._documentOnDropProviders.set(handle, provider);
+	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		const provider = new MainThreadDocumentOnDropEditProvider(handle, this._proxy);
+		this._documentOnDropEditProviders.set(handle, provider);
 		this._registrations.set(handle, combinedDisposable(
 			this._languageFeaturesService.documentOnDropEditProvider.register(selector, provider),
-			toDisposable(() => this._documentOnDropProviders.delete(handle)),
+			toDisposable(() => this._documentOnDropEditProviders.delete(handle)),
 		));
 	}
 
 	async $resolveDocumentOnDropFileData(handle: number, requestId: number, dataIndex: number): Promise<VSBuffer> {
-		const provider = this._documentOnDropProviders.get(handle);
+		const provider = this._documentOnDropEditProviders.get(handle);
 		if (!provider) {
 			throw new Error('Could not find provider');
 		}
@@ -883,7 +883,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	}
 }
 
-class MainThreadDocumentOnDropProvider implements languages.DocumentOnDropEditProvider {
+class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEditProvider {
 
 	private readonly dataTransfers = new DataTransferCache();
 
