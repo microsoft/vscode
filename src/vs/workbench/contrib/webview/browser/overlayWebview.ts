@@ -147,17 +147,17 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	}
 
 	public layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
-    this.doLayoutWebviewOverElement(element.dimension, clippingContainer);
-    
-    // Temporary fix for https://github.com/microsoft/vscode/issues/110450
+		this.doLayoutWebviewOverElement(element.dimension, clippingContainer);
+
+		// Temporary fix for https://github.com/microsoft/vscode/issues/110450
 		// There is an animation that lasts about 200ms, update the webview positioning once this animation is complete.
-    clearTimeout(this._repositionTimeout);
+		clearTimeout(this._repositionTimeout);
 		this._repositionTimeout = setTimeout(() => {
-		  this.doLayoutWebviewOverElement(element, dimension, clippingContainer);
+			this.doLayoutWebviewOverElement(element, dimension, clippingContainer);
 		}, 200);
-  }
-    
-  public doLayoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
+	}
+
+	public doLayoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
 		if (!this._container || !this._container.parentElement) {
 			return;
 		}
