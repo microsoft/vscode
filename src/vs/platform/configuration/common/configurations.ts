@@ -95,13 +95,13 @@ export class PolicyConfiguration extends Disposable {
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
-		await this.registerPolicyDefinitionsAndUpdate(this.defaultConfiguration.configurationModel.keys, false);
+		this.update(await this.registerPolicyDefinitions(this.defaultConfiguration.configurationModel.keys), false);
 		this._register(this.policyService.onDidChange(policyNames => this.onDidChangePolicies(policyNames)));
-		this._register(this.defaultConfiguration.onDidChangeConfiguration(({ properties }) => this.registerPolicyDefinitionsAndUpdate(properties, true)));
+		this._register(this.defaultConfiguration.onDidChangeConfiguration(async ({ properties }) => this.update(await this.registerPolicyDefinitions(properties), true)));
 		return this._configurationModel;
 	}
 
-	private async registerPolicyDefinitionsAndUpdate(properties: string[], trigger: boolean): Promise<void> {
+	private async registerPolicyDefinitions(properties: string[]): Promise<string[]> {
 		const policyDefinitions: IStringDictionary<PolicyDefinition> = {};
 		const keys: string[] = [];
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
@@ -127,9 +127,7 @@ export class PolicyConfiguration extends Disposable {
 			await this.policyService.registerPolicyDefinitions(policyDefinitions);
 		}
 
-		if (keys.length) {
-			this.update(keys, trigger);
-		}
+		return keys;
 	}
 
 	private onDidChangePolicies(policyNames: readonly PolicyName[]): void {

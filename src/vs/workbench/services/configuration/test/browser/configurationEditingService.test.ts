@@ -42,6 +42,7 @@ import { getSingleFolderWorkspaceIdentifier } from 'vs/workbench/services/worksp
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { hash } from 'vs/base/common/hash';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -197,9 +198,11 @@ suite('ConfigurationEditingService', () => {
 	});
 
 	test('errors cases - ERROR_POLICY_CONFIGURATION', async () => {
-		const promise = Event.toPromise(instantiationService.get(IConfigurationService).onDidChangeConfiguration);
-		await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationEditing.service.policySetting": "policyValue" }'));
-		await promise;
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const promise = Event.toPromise(instantiationService.get(IConfigurationService).onDidChangeConfiguration);
+			await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationEditing.service.policySetting": "policyValue" }'));
+			await promise;
+		});
 		try {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.policySetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {

@@ -18,6 +18,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { deepClone } from 'vs/base/common/objects';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 
 suite('PolicyConfiguration', () => {
 
@@ -111,9 +112,11 @@ suite('PolicyConfiguration', () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA' })));
 		await testObject.initialize();
 
-		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA', 'PolicySettingB': 'policyValueB', 'PolicySettingC': 'policyValueC' })));
-		await promise;
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+			await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA', 'PolicySettingB': 'policyValueB', 'PolicySettingC': 'policyValueC' })));
+			await promise;
+		});
 
 		const acutal = testObject.configurationModel;
 		assert.strictEqual(acutal.getValue('policy.settingA'), 'policyValueA');
@@ -127,9 +130,11 @@ suite('PolicyConfiguration', () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA' })));
 		await testObject.initialize();
 
-		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueAChanged' })));
-		await promise;
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+			await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueAChanged' })));
+			await promise;
+		});
 
 		const acutal = testObject.configurationModel;
 		assert.strictEqual(acutal.getValue('policy.settingA'), 'policyValueAChanged');
@@ -143,9 +148,11 @@ suite('PolicyConfiguration', () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA' })));
 		await testObject.initialize();
 
-		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({})));
-		await promise;
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+			await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({})));
+			await promise;
+		});
 
 		const acutal = testObject.configurationModel;
 		assert.strictEqual(acutal.getValue('policy.settingA'), undefined);

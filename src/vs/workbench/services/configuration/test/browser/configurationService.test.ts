@@ -46,6 +46,7 @@ import { hash } from 'vs/base/common/hash';
 import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 
 function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceIdentifier {
 	return {
@@ -968,9 +969,11 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('policy value override all', async () => {
-		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policySetting": "policyValue" }'));
-		const result = await promise;
+		const result = await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+			await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationService.folder.policySetting": "policyValue" }'));
+			return promise;
+		});
 		assert.deepStrictEqual(result.affectedKeys, ['configurationService.folder.policySetting']);
 		assert.strictEqual(testObject.getValue('configurationService.folder.policySetting'), 'policyValue');
 		assert.strictEqual(testObject.inspect('configurationService.folder.policySetting').policyValue, 'policyValue');
