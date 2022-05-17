@@ -61,7 +61,13 @@ export class WindowsPolicyService extends Disposable implements IPolicyService {
 
 				this._register(createWatcher(this.productService.win32RegValueName, policies, update => {
 					for (const key in update) {
-						this.policies.set(key, update[key]!);
+						const value = update[key] as any;
+
+						if (value === undefined) {
+							this.policies.delete(key);
+						} else {
+							this.policies.set(key, value);
+						}
 					}
 
 					if (first) {
