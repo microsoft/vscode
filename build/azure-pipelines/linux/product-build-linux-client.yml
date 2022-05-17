@@ -16,6 +16,12 @@ steps:
     inputs:
       versionSpec: "16.x"
 
+  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+    - checkout: self
+      clean: true
+      fetchDepth: 1
+      retryCountOnTaskFailure: 3
+
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - task: AzureKeyVault@1
       displayName: "Azure Key Vault: Get Secrets"
