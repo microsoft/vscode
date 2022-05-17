@@ -73,7 +73,7 @@ stages:
       - LinuxServerDependencies
     pool: vscode-1es-vscode-linux-18.04
     jobs:
-      - job: Linuxx64
+      - job: Linuxx64UnitTest
         container: vscode-bionic-x64
         variables:
           VSCODE_ARCH: x64
@@ -83,6 +83,35 @@ stages:
           - template: linux/product-build-linux-client.yml
             parameters:
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_RUN_UNIT_TESTS: true
+              VSCODE_RUN_INTEGRATION_TESTS: false
+              VSCODE_RUN_SMOKE_TESTS: false
+      - job: Linuxx64IntegrationTest
+        container: vscode-bionic-x64
+        variables:
+          VSCODE_ARCH: x64
+          NPM_ARCH: x64
+          DISPLAY: ":10"
+        steps:
+          - template: linux/product-build-linux-client.yml
+            parameters:
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_RUN_UNIT_TESTS: false
+              VSCODE_RUN_INTEGRATION_TESTS: true
+              VSCODE_RUN_SMOKE_TESTS: false
+      - job: Linuxx64SmokeTest
+        container: vscode-bionic-x64
+        variables:
+          VSCODE_ARCH: x64
+          NPM_ARCH: x64
+          DISPLAY: ":10"
+        steps:
+          - template: linux/product-build-linux-client.yml
+            parameters:
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_RUN_UNIT_TESTS: false
+              VSCODE_RUN_INTEGRATION_TESTS: false
+              VSCODE_RUN_SMOKE_TESTS: false
 
   - stage: macOS
     dependsOn:
