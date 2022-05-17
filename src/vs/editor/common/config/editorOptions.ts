@@ -659,6 +659,13 @@ export interface IEditorOptions {
 	 * Configures bracket pair colorization (disabled by default).
 	*/
 	bracketPairColorization?: IBracketPairColorizationOptions;
+
+	/**
+	 * Enables dropping into the editor from an external source.
+	 *
+	 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
+	 */
+	enableDropIntoEditor?: boolean;
 }
 
 /**
@@ -4431,6 +4438,7 @@ export const enum EditorOption {
 	disableMonospaceOptimizations,
 	domReadOnly,
 	dragAndDrop,
+	enableDropIntoEditor,
 	emptySelectionClipboard,
 	extraEditorClassName,
 	fastScrollSensitivity,
@@ -4739,6 +4747,9 @@ export const EditorOptions = {
 		{ description: nls.localize('dragAndDrop', "Controls whether the editor should allow moving selections via drag and drop.") }
 	)),
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
+	enableDropIntoEditor: register(new EditorBooleanOption(
+		EditorOption.enableDropIntoEditor, 'enableDropIntoEditor', true
+	)),
 	extraEditorClassName: register(new EditorStringOption(
 		EditorOption.extraEditorClassName, 'extraEditorClassName', '',
 	)),

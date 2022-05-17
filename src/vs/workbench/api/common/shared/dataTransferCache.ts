@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IDataTransfer, IDataTransferItem } from 'vs/editor/common/dnd';
+import { IDataTransfer, IDataTransferItem } from 'vs/base/common/dataTransfer';
 
 export class DataTransferCache {
 

@@ -30,12 +30,6 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 	 * Defaults to an internal DOM node.
 	 */
 	overflowWidgetsDomNode?: HTMLElement;
-	/**
-	 * Enables dropping into the editor.
-	 *
-	 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
-	 */
-	enableDropIntoEditor?: boolean;
 }
 
 export class EditorConfiguration extends Disposable implements IEditorConfiguration {
