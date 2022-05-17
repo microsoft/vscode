@@ -1,5 +1,6 @@
 trigger:
   - main
+  - release/*
 
 pr:
   branches:
