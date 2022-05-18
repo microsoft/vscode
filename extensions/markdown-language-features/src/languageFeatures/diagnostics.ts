@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import * as picomatch from 'picomatch';
 import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContents } from '../tableOfContents';
 import { Delayer } from '../util/async';
@@ -14,6 +15,7 @@ import { Limiter } from '../util/limiter';
 import { MdWorkspaceContents, SkinnyTextDocument } from '../workspaceContents';
 import { InternalHref, LinkDefinitionSet, MdLink, MdLinkProvider, MdLinkSource } from './documentLinkProvider';
 import { tryFindMdDocumentForLink } from './references';
+import { CommandManager } from '../commandManager';
 
 const localize = nls.loadMessageBundle();
 
@@ -37,6 +39,7 @@ export interface DiagnosticOptions {
 	readonly validateReferences: DiagnosticLevel;
 	readonly validateOwnHeaders: DiagnosticLevel;
 	readonly validateFilePaths: DiagnosticLevel;
+	readonly skipPaths: readonly string[];
 }
 
 function toSeverity(level: DiagnosticLevel): vscode.DiagnosticSeverity | undefined {
@@ -56,7 +59,13 @@ class VSCodeDiagnosticConfiguration extends Disposable implements DiagnosticConf
 		super();
 
 		this._register(vscode.workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('markdown.experimental.validate.enabled')) {
+			if (
+				e.affectsConfiguration('markdown.experimental.validate.enabled')
+				|| e.affectsConfiguration('markdown.experimental.validate.referenceLinks.enabled')
+				|| e.affectsConfiguration('markdown.experimental.validate.headerLinks.enabled')
+				|| e.affectsConfiguration('markdown.experimental.validate.fileLinks.enabled')
+				|| e.affectsConfiguration('markdown.experimental.validate.fileLinks.skipPaths')
+			) {
 				this._onDidChange.fire();
 			}
 		}));
@@ -66,9 +75,10 @@ class VSCodeDiagnosticConfiguration extends Disposable implements DiagnosticConf
 		const config = vscode.workspace.getConfiguration('markdown', resource);
 		return {
 			enabled: config.get<boolean>('experimental.validate.enabled', false),
-			validateReferences: config.get<DiagnosticLevel>('experimental.validate.referenceLinks', DiagnosticLevel.ignore),
-			validateOwnHeaders: config.get<DiagnosticLevel>('experimental.validate.headerLinks', DiagnosticLevel.ignore),
-			validateFilePaths: config.get<DiagnosticLevel>('experimental.validate.fileLinks', DiagnosticLevel.ignore),
+			validateReferences: config.get<DiagnosticLevel>('experimental.validate.referenceLinks.enabled', DiagnosticLevel.ignore),
+			validateOwnHeaders: config.get<DiagnosticLevel>('experimental.validate.headerLinks.enabled', DiagnosticLevel.ignore),
+			validateFilePaths: config.get<DiagnosticLevel>('experimental.validate.fileLinks.enabled', DiagnosticLevel.ignore),
+			skipPaths: config.get('experimental.validate.fileLinks.skipPaths', []),
 		};
 	}
 }
@@ -203,6 +213,16 @@ class LinkWatcher extends Disposable {
 		if (entry) {
 			this._onDidChangeLinkedToFile.fire(entry.documents.values());
 		}
+	}
+}
+
+class FileDoesNotExistDiagnostic extends vscode.Diagnostic {
+
+	public readonly path: string;
+
+	constructor(range: vscode.Range, message: string, severity: vscode.DiagnosticSeverity, path: string) {
+		super(range, message, severity);
+		this.path = path;
 	}
 }
 
@@ -459,9 +479,11 @@ export class DiagnosticComputer {
 					}
 
 					if (!hrefDoc && !await this.workspaceContents.pathExists(path)) {
-						const msg = localize('invalidPathLink', 'File does not exist at path: {0}', path.toString(true));
+						const msg = localize('invalidPathLink', 'File does not exist at path: {0}', path.fsPath);
 						for (const link of links) {
-							diagnostics.push(new vscode.Diagnostic(link.source.hrefRange, msg, severity));
+							if (!options.skipPaths.some(glob => picomatch.isMatch(link.source.pathText, glob))) {
+								diagnostics.push(new FileDoesNotExistDiagnostic(link.source.hrefRange, msg, severity, link.source.pathText));
+							}
 						}
 					} else if (hrefDoc) {
 						// Validate each of the links to headers in the file
@@ -482,12 +504,64 @@ export class DiagnosticComputer {
 	}
 }
 
+class AddToSkipPathsQuickFixProvider implements vscode.CodeActionProvider {
+
+	private static readonly _addToSkipPathsCommandId = '_markdown.addToSkipPaths';
+
+	private static readonly metadata: vscode.CodeActionProviderMetadata = {
+		providedCodeActionKinds: [
+			vscode.CodeActionKind.QuickFix
+		],
+	};
+
+	public static register(selector: vscode.DocumentSelector, commandManager: CommandManager): vscode.Disposable {
+		const reg = vscode.languages.registerCodeActionsProvider(selector, new AddToSkipPathsQuickFixProvider(), AddToSkipPathsQuickFixProvider.metadata);
+		const commandReg = commandManager.register({
+			id: AddToSkipPathsQuickFixProvider._addToSkipPathsCommandId,
+			execute(resource: vscode.Uri, path: string) {
+				const settingId = 'experimental.validate.fileLinks.skipPaths';
+				const config = vscode.workspace.getConfiguration('markdown', resource);
+				const paths = new Set(config.get<string[]>(settingId, []));
+				paths.add(path);
+				config.update(settingId, [...paths], vscode.ConfigurationTarget.WorkspaceFolder);
+			}
+		});
+		return vscode.Disposable.from(reg, commandReg);
+	}
+
+	provideCodeActions(document: vscode.TextDocument, _range: vscode.Range | vscode.Selection, context: vscode.CodeActionContext, _token: vscode.CancellationToken): vscode.ProviderResult<(vscode.CodeAction | vscode.Command)[]> {
+		const fixes: vscode.CodeAction[] = [];
+
+		for (const diagnostic of context.diagnostics) {
+			if (diagnostic instanceof FileDoesNotExistDiagnostic) {
+				const fix = new vscode.CodeAction(
+					localize('skipPathsQuickFix.title', "Add '{0}' to paths that skip link validation.", diagnostic.path),
+					vscode.CodeActionKind.QuickFix);
+
+				fix.command = {
+					command: AddToSkipPathsQuickFixProvider._addToSkipPathsCommandId,
+					title: '',
+					arguments: [document.uri, diagnostic.path]
+				};
+				fixes.push(fix);
+			}
+		}
+
+		return fixes;
+	}
+}
+
 export function register(
+	selector: vscode.DocumentSelector,
 	engine: MarkdownEngine,
 	workspaceContents: MdWorkspaceContents,
 	linkProvider: MdLinkProvider,
+	commandManager: CommandManager,
 ): vscode.Disposable {
 	const configuration = new VSCodeDiagnosticConfiguration();
 	const manager = new DiagnosticManager(new DiagnosticComputer(engine, workspaceContents, linkProvider), configuration);
-	return vscode.Disposable.from(configuration, manager);
+	return vscode.Disposable.from(
+		configuration,
+		manager,
+		AddToSkipPathsQuickFixProvider.register(selector, commandManager));
 }
