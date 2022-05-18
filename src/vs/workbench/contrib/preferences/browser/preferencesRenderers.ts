@@ -668,7 +668,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 class WorkspaceConfigurationRenderer extends Disposable {
 	private static readonly supportedKeys = ['folders', 'tasks', 'launch', 'extensions', 'settings', 'remoteAuthority', 'transient'];
 
-	private decorationIds: string[] = [];
+	private readonly decorations = this.editor.createDecorationsCollection();
 	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
 
 	constructor(private editor: ICodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
@@ -697,7 +697,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 					}
 				}
 			}
-			this.decorationIds = this.editor.deltaDecorations(this.decorationIds, ranges.map(range => this.createDecoration(range)));
+			this.decorations.set(ranges.map(range => this.createDecoration(range)));
 		}
 		if (markerData.length) {
 			this.markerService.changeOne('WorkspaceConfigurationRenderer', this.workspaceSettingsEditorModel.uri, markerData);
@@ -721,7 +721,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 
 	override dispose(): void {
 		this.markerService.remove('WorkspaceConfigurationRenderer', [this.workspaceSettingsEditorModel.uri]);
-		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
+		this.decorations.clear();
 		super.dispose();
 	}
 }

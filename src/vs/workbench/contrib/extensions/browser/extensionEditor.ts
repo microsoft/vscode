@@ -658,7 +658,7 @@ export class ExtensionEditor extends EditorPane {
 			}
 		};
 		reset(template.recommendation);
-		if (extension.state === ExtensionState.Installed) {
+		if (extension.deprecated || extension.state === ExtensionState.Installed) {
 			return;
 		}
 		updateRecommendationText(false);

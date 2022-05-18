@@ -284,7 +284,7 @@ export const enum StatisticType {
 
 export interface IExtensionsControlManifest {
 	malicious: IExtensionIdentifier[];
-	unsupportedPreReleaseExtensions?: IStringDictionary<{ id: string; displayName: string; migrateStorage?: boolean }>;
+	deprecated?: IStringDictionary<boolean | { id: string; displayName: string; migrateStorage?: boolean; preRelease?: boolean }>;
 }
 
 export const enum InstallOperation {

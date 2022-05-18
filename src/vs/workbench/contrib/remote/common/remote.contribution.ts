@@ -31,6 +31,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
+import { timeout } from 'vs/base/common/async';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -165,6 +166,9 @@ class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchCon
 	}
 }
 
+const EXT_HOST_LATENCY_SAMPLES = 5;
+const EXT_HOST_LATENCY_DELAY = 2_000;
+
 class InitialRemoteConnectionHealthContribution implements IWorkbenchContribution {
 
 	constructor(
@@ -185,16 +189,21 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 				owner: 'alexdima';
 				comment: 'The initial connection succeeded';
 				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connected'; isMeasurement: true };
 				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			};
 			type RemoteConnectionSuccessEvent = {
 				web: boolean;
+				connectionTimeMs: number | undefined;
 				remoteName: string | undefined;
 			};
 			this._telemetryService.publicLog2<RemoteConnectionSuccessEvent, RemoteConnectionSuccessClassification>('remoteConnectionSuccess', {
 				web: isWeb,
+				connectionTimeMs: await this._remoteAgentService.getConnection()?.getInitialConnectionTimeMs(),
 				remoteName: getRemoteName(this._environmentService.remoteAuthority)
 			});
+
+			await this._measureExtHostLatency();
 
 		} catch (err) {
 
@@ -203,20 +212,55 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 				comment: 'The initial connection failed';
 				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connection failure'; isMeasurement: true };
 				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			};
 			type RemoteConnectionFailureEvent = {
 				web: boolean;
 				remoteName: string | undefined;
+				connectionTimeMs: number | undefined;
 				message: string;
 			};
 			this._telemetryService.publicLog2<RemoteConnectionFailureEvent, RemoteConnectionFailureClassification>('remoteConnectionFailure', {
 				web: isWeb,
+				connectionTimeMs: await this._remoteAgentService.getConnection()?.getInitialConnectionTimeMs(),
 				remoteName: getRemoteName(this._environmentService.remoteAuthority),
 				message: err ? err.message : ''
 			});
 
 		}
+	}
+
+	private async _measureExtHostLatency() {
+		// Get the minimum latency, since latency spikes could be caused by a busy extension host.
+		let bestLatency = Infinity;
+		for (let i = 0; i < EXT_HOST_LATENCY_SAMPLES; i++) {
+			const rtt = await this._remoteAgentService.getRoundTripTime();
+			if (rtt === undefined) {
+				return;
+			}
+			bestLatency = Math.min(bestLatency, rtt / 2);
+			await timeout(EXT_HOST_LATENCY_DELAY);
+		}
+
+		type RemoteConnectionFailureClassification = {
+			owner: 'connor4312';
+			comment: 'The latency to the remote extension host';
+			web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether this is running on web' };
+			remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Anonymized remote name' };
+			latencyMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Latency to the remote, in milliseconds'; isMeasurement: true };
+		};
+		type RemoteConnectionFailureEvent = {
+			web: boolean;
+			remoteName: string | undefined;
+			latencyMs: number;
+		};
+
+		this._telemetryService.publicLog2<RemoteConnectionFailureEvent, RemoteConnectionFailureClassification>('remoteConnectionFailure', {
+			web: isWeb,
+			remoteName: getRemoteName(this._environmentService.remoteAuthority),
+			latencyMs: bestLatency
+		});
 	}
 }
 

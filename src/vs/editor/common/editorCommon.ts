@@ -11,9 +11,10 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness, IValidEditOperation } from 'vs/editor/common/model';
+import { IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness, IValidEditOperation, IModelDeltaDecoration, IModelDecoration } from 'vs/editor/common/model';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDimension } from 'vs/editor/common/core/dimension';
+import { IModelDecorationsChangedEvent } from 'vs/editor/common/textModelEvents';
 
 /**
  * A builder and helper for edit operations for a command.
@@ -460,6 +461,13 @@ export interface IEditor {
 	setModel(model: IEditorModel | null): void;
 
 	/**
+	 * Create a collection of decorations. All decorations added through this collection
+	 * will get the ownerId of the editor (meaning they will not show up in other editors).
+	 * These decorations will be automatically cleared when the editor's model changes.
+	 */
+	createDecorationsCollection(decorations?: IModelDeltaDecoration[]): IEditorDecorationsCollection;
+
+	/**
 	 * Change the decorations. All decorations added through this changeAccessor
 	 * will get the ownerId of the editor (meaning they will not show up in other
 	 * editors).
@@ -509,6 +517,40 @@ export interface ICompositeCodeEditor {
 	// readonly editors: readonly ICodeEditor[] maybe supported with uris
 }
 
+/**
+ * A collection of decorations
+ */
+export interface IEditorDecorationsCollection {
+	/**
+	 * An event emitted when decorations change in the editor,
+	 * but the change is not caused by us setting or clearing the collection.
+	 */
+	onDidChange: Event<IModelDecorationsChangedEvent>;
+	/**
+	 * Get the decorations count.
+	 */
+	length: number;
+	/**
+	 * Get the range for a decoration.
+	 */
+	getRange(index: number): Range | null;
+	/**
+	 * Get all ranges for decorations.
+	 */
+	getRanges(): Range[];
+	/**
+	 * Determine if a decoration is in this collection.
+	 */
+	has(decoration: IModelDecoration): boolean;
+	/**
+	 * Replace all previous decorations with `newDecorations`.
+	 */
+	set(newDecorations: IModelDeltaDecoration[]): void;
+	/**
+	 * Remove all previous decorations.
+	 */
+	clear(): void;
+}
 
 /**
  * An editor contribution that gets created every time a new editor gets created and gets disposed when the editor gets disposed.

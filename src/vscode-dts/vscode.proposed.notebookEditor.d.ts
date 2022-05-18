@@ -39,11 +39,23 @@ declare module 'vscode' {
 	export interface NotebookEditor {
 		/**
 		 * The document associated with this notebook editor.
+		 *
+		 * @deprecated Use {@linkcode NotebookEditor.notebook} instead.
 		 */
 		readonly document: NotebookDocument;
 
 		/**
-		 * The selections on this notebook editor.
+		 * The {@link NotebookDocument notebook document} associated with this notebook editor.
+		 */
+		readonly notebook: NotebookDocument;
+
+		/**
+		 * The primary selection in this notebook editor.
+		 */
+		selection: NotebookRange;
+
+		/**
+		 * All selections in this notebook editor.
 		 *
 		 * The primary selection (or focused range) is `selections[0]`. When the document has no cells, the primary selection is empty `{ start: 0, end: 0 }`;
 		 */
@@ -55,17 +67,17 @@ declare module 'vscode' {
 		readonly visibleRanges: readonly NotebookRange[];
 
 		/**
+		 * The column in which this editor shows.
+		 */
+		readonly viewColumn?: ViewColumn;
+
+		/**
 		 * Scroll as indicated by `revealType` in order to reveal the given range.
 		 *
 		 * @param range A range.
 		 * @param revealType The scrolling strategy for revealing `range`.
 		 */
 		revealRange(range: NotebookRange, revealType?: NotebookEditorRevealType): void;
-
-		/**
-		 * The column in which this editor shows.
-		 */
-		readonly viewColumn?: ViewColumn;
 	}
 
 	/**
@@ -179,6 +191,8 @@ declare module 'vscode' {
 
 		/**
 		 * A short-hand for `openNotebookDocument(uri).then(document => showNotebookDocument(document, options))`.
+		 *
+		 * @deprecated Will not be finalized.
 		 *
 		 * @see {@link workspace.openNotebookDocument}
 		 *

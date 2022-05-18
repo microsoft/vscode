@@ -195,6 +195,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			const titleMenu = this.instantiationService.createInstance(TitleMenuControl, this.windowTitle);
 			reset(this.title, titleMenu.element);
 			this.titleDisposables.add(titleMenu);
+			this.titleDisposables.add(titleMenu.onDidChangeVisibility(this.adjustTitleMarginToCenter, this));
 		}
 	}
 
