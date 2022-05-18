@@ -12,20 +12,16 @@ import { basename, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { flakySuite } from 'vs/base/test/common/testUtils';
 import { IndexedDBFileSystemProvider } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
-import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileSystemProviderError, FileSystemProviderErrorCode, FileType } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 
 flakySuite('IndexedDBFileSystemProvider', function () {
 
-	const logSchema = 'logs';
-
 	let service: FileService;
-	let logFileProvider: IndexedDBFileSystemProvider;
 	let userdataFileProvider: IndexedDBFileSystemProvider;
 	const testDir = '/';
 
-	const logfileURIFromPaths = (paths: string[]) => joinPath(URI.from({ scheme: logSchema, path: testDir }), ...paths);
 	const userdataURIFromPaths = (paths: readonly string[]) => joinPath(URI.from({ scheme: Schemas.vscodeUserData, path: testDir }), ...paths);
 
 	const disposables = new DisposableStore();
@@ -69,10 +65,6 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 
 		const indexedDB = await IndexedDB.create('vscode-web-db-test', 1, ['vscode-userdata-store', 'vscode-logs-store']);
 
-		logFileProvider = new IndexedDBFileSystemProvider(logSchema, indexedDB, 'vscode-logs-store', false);
-		disposables.add(service.registerProvider(logSchema, logFileProvider));
-		disposables.add(logFileProvider);
-
 		userdataFileProvider = new IndexedDBFileSystemProvider(Schemas.vscodeUserData, indexedDB, 'vscode-userdata-store', true);
 		disposables.add(service.registerProvider(Schemas.vscodeUserData, userdataFileProvider));
 		disposables.add(userdataFileProvider);
@@ -84,8 +76,7 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 	});
 
 	teardown(async () => {
-		await logFileProvider.delete(logfileURIFromPaths([]), { recursive: true, useTrash: false });
-		await userdataFileProvider.delete(userdataURIFromPaths([]), { recursive: true, useTrash: false });
+		await userdataFileProvider.reset();
 		disposables.clear();
 	});
 
@@ -234,60 +225,43 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 		assert.strictEqual(event!.target!.resource.path, resource.path);
 	}
 
-	const makeBatchTester = (size: number, name: string) => {
+	const fileCreateBatchTester = (size: number, name: string) => {
 		const batch = Array.from({ length: size }).map((_, i) => ({ contents: `Hello${i}`, resource: userdataURIFromPaths(['batched', name, `Hello${i}.txt`]) }));
-		let stats: Promise<IFileStatWithMetadata[]> | undefined = undefined;
+		let creationPromises: Promise<any> | undefined = undefined;
 		return {
 			async create() {
-				return stats = Promise.all(batch.map(entry => service.createFile(entry.resource, VSBuffer.fromString(entry.contents))));
+				return creationPromises = Promise.all(batch.map(entry => userdataFileProvider.writeFile(entry.resource, VSBuffer.fromString(entry.contents).buffer, { create: true, overwrite: true, unlock: false })));
 			},
 			async assertContentsCorrect() {
+				if (!creationPromises) { throw Error('read called before create'); }
+				await creationPromises;
 				await Promise.all(batch.map(async (entry, i) => {
-					if (!stats) { throw Error('read called before create'); }
-					const stat = (await stats!)[i];
-					assert.strictEqual(stat.name, `Hello${i}.txt`);
-					assert.strictEqual((await userdataFileProvider.stat(stat.resource)).type, FileType.File);
-					assert.strictEqual(new TextDecoder().decode(await userdataFileProvider.readFile(stat.resource)), entry.contents);
-				}));
-			},
-			async delete() {
-				await service.del(userdataURIFromPaths(['batched', name]), { recursive: true, useTrash: false });
-			},
-			async assertContentsEmpty() {
-				if (!stats) { throw Error('assertContentsEmpty called before create'); }
-				await Promise.all((await stats).map(async stat => {
-					const newStat = await userdataFileProvider.stat(stat.resource).catch(e => e.code);
-					assert.strictEqual(newStat, FileSystemProviderErrorCode.FileNotFound);
+					assert.strictEqual((await userdataFileProvider.stat(entry.resource)).type, FileType.File);
+					assert.strictEqual(new TextDecoder().decode(await userdataFileProvider.readFile(entry.resource)), entry.contents);
 				}));
 			}
 		};
 	};
 
-	test('createFile (small batch)', async () => {
-		const tester = makeBatchTester(50, 'smallBatch');
+	test('createFile - batch', async () => {
+		const tester = fileCreateBatchTester(20, 'batch');
 		await tester.create();
 		await tester.assertContentsCorrect();
-		await tester.delete();
-		await tester.assertContentsEmpty();
 	});
 
-	test('createFile (mixed parallel/sequential)', async () => {
-		const single1 = makeBatchTester(1, 'single1');
-		const single2 = makeBatchTester(1, 'single2');
+	test('createFile - batch (mixed parallel/sequential)', async () => {
+		const batch1 = fileCreateBatchTester(1, 'batch1');
+		const batch2 = fileCreateBatchTester(20, 'batch2');
+		const batch3 = fileCreateBatchTester(1, 'batch3');
+		const batch4 = fileCreateBatchTester(20, 'batch4');
 
-		const batch1 = makeBatchTester(20, 'batch1');
-		const batch2 = makeBatchTester(20, 'batch2');
-
-		single1.create();
 		batch1.create();
-		await Promise.all([single1.assertContentsCorrect(), batch1.assertContentsCorrect()]);
-		single2.create();
 		batch2.create();
-		await Promise.all([single2.assertContentsCorrect(), batch2.assertContentsCorrect()]);
-		await Promise.all([single1.assertContentsCorrect(), batch1.assertContentsCorrect()]);
-
-		await (Promise.all([single1.delete(), single2.delete(), batch1.delete(), batch2.delete()]));
-		await (Promise.all([single1.assertContentsEmpty(), single2.assertContentsEmpty(), batch1.assertContentsEmpty(), batch2.assertContentsEmpty()]));
+		await Promise.all([batch1.assertContentsCorrect(), batch2.assertContentsCorrect()]);
+		batch3.create();
+		batch4.create();
+		await Promise.all([batch3.assertContentsCorrect(), batch4.assertContentsCorrect()]);
+		await Promise.all([batch1.assertContentsCorrect(), batch2.assertContentsCorrect()]);
 	});
 
 	test('rename not existing resource', async () => {
@@ -392,10 +366,12 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 	test('rename to an existing file with overwrite', async () => {
 		const parent = await service.resolve(userdataURIFromPaths([]));
 		const sourceFile = joinPath(parent.resource, 'sourceFile');
-		await service.writeFile(sourceFile, VSBuffer.fromString('This is source file'));
-
 		const targetFile = joinPath(parent.resource, 'targetFile');
-		await service.writeFile(targetFile, VSBuffer.fromString('This is target file'));
+
+		await Promise.all([
+			service.writeFile(sourceFile, VSBuffer.fromString('This is source file')),
+			service.writeFile(targetFile, VSBuffer.fromString('This is target file'))
+		]);
 
 		await service.move(sourceFile, targetFile, true);
 
@@ -434,11 +410,14 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 
 		const sourceFolder = joinPath(parent.resource, 'sourceFolder');
 		const sourceFile1 = joinPath(sourceFolder, 'folder1', 'file1');
-		await service.writeFile(sourceFile1, VSBuffer.fromString('Source File 1'));
 		const sourceFile2 = joinPath(sourceFolder, 'folder2', 'file1');
-		await service.writeFile(sourceFile2, VSBuffer.fromString('Source File 2'));
 		const sourceEmptyFolder = joinPath(sourceFolder, 'folder3');
-		await service.createFolder(sourceEmptyFolder);
+
+		await Promise.all([
+			service.writeFile(sourceFile1, VSBuffer.fromString('Source File 1')),
+			service.writeFile(sourceFile2, VSBuffer.fromString('Source File 2')),
+			service.createFolder(sourceEmptyFolder)
+		]);
 
 		const targetFolder = joinPath(parent.resource, 'targetFolder');
 		const targetFile1 = joinPath(targetFolder, 'folder1', 'file1');
@@ -459,14 +438,17 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 
 		const sourceFolder = joinPath(parent.resource, 'sourceFolder');
 		const sourceFile1 = joinPath(sourceFolder, 'folder1', 'file1');
-		await service.writeFile(sourceFile1, VSBuffer.fromString('Source File 1'));
 
 		const targetFolder = joinPath(parent.resource, 'targetFolder');
 		const targetFile1 = joinPath(targetFolder, 'folder1', 'file1');
 		const targetFile2 = joinPath(targetFolder, 'folder1', 'file2');
-		await service.writeFile(targetFile2, VSBuffer.fromString('Target File 2'));
 		const targetFile3 = joinPath(targetFolder, 'folder2', 'file1');
-		await service.writeFile(targetFile3, VSBuffer.fromString('Target File 3'));
+
+		await Promise.all([
+			service.writeFile(sourceFile1, VSBuffer.fromString('Source File 1')),
+			service.writeFile(targetFile2, VSBuffer.fromString('Target File 2')),
+			service.writeFile(targetFile3, VSBuffer.fromString('Target File 3'))
+		]);
 
 		await service.move(sourceFolder, targetFolder, true);
 

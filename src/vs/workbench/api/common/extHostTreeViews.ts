@@ -25,7 +25,7 @@ import { Command } from 'vs/editor/common/languages';
 import { DataTransferConverter, DataTransferDTO } from 'vs/workbench/api/common/shared/dataTransfer';
 import { ITreeViewsService, TreeviewsService } from 'vs/workbench/services/views/common/treeViewsService';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { IDataTransfer } from 'vs/editor/common/dnd';
+import { IDataTransfer } from 'vs/base/common/dataTransfer';
 
 type TreeItemHandle = string;
 

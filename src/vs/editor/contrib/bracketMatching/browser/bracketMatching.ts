@@ -13,7 +13,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -105,7 +105,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 
 	private _lastBracketsData: BracketsData[];
 	private _lastVersionId: number;
-	private _decorations: string[];
+	private readonly _decorations: IEditorDecorationsCollection;
 	private readonly _updateBracketsSoon: RunOnceScheduler;
 	private _matchBrackets: 'never' | 'near' | 'always';
 
@@ -116,7 +116,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 		this._editor = editor;
 		this._lastBracketsData = [];
 		this._lastVersionId = 0;
-		this._decorations = [];
+		this._decorations = this._editor.createDecorationsCollection();
 		this._updateBracketsSoon = this._register(new RunOnceScheduler(() => this._updateBrackets(), 50));
 		this._matchBrackets = this._editor.getOption(EditorOption.matchBrackets);
 
@@ -136,7 +136,6 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 		}));
 		this._register(editor.onDidChangeModel((e) => {
 			this._lastBracketsData = [];
-			this._decorations = [];
 			this._updateBracketsSoon.schedule();
 		}));
 		this._register(editor.onDidChangeModelLanguageConfiguration((e) => {
@@ -146,7 +145,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 		this._register(editor.onDidChangeConfiguration((e) => {
 			if (e.hasChanged(EditorOption.matchBrackets)) {
 				this._matchBrackets = this._editor.getOption(EditorOption.matchBrackets);
-				this._decorations = this._editor.deltaDecorations(this._decorations, []);
+				this._decorations.clear();
 				this._lastBracketsData = [];
 				this._lastVersionId = 0;
 				this._updateBracketsSoon.schedule();
@@ -285,7 +284,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			}
 		}
 
-		this._decorations = this._editor.deltaDecorations(this._decorations, newDecorations);
+		this._decorations.set(newDecorations);
 	}
 
 	private _recomputeBrackets(): void {

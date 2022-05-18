@@ -7,10 +7,10 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-16.11.6.tgz#6bef7a2a0ad684cf6e90fcfe31cecabd9ce0a3ae"
   integrity sha512-ua7PgUoeQFjmWPcoo9khiPum3Pd60k4/2ZGXt18sm2Slk0W0xZTqt5Y0Ny1NyBiN1EVQ/+FaF9NcY4Qe6rwk5w==
 
-"@vscode/extension-telemetry@0.5.0":
-  version "0.5.0"
-  resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.5.0.tgz#8214171e550393d577fc56326fa986c6800b831b"
-  integrity sha512-27FsgeVJvC4zVw7Ar3Ub+7vJswDt8RoBFpbgBwf8Xq/B2gaT8G6a+gkw3s2pQmjWGIqyu7TRA8e9rS8/vxv6NQ==
+"@vscode/extension-telemetry@0.5.1":
+  version "0.5.1"
+  resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.5.1.tgz#20150976629663b3d33799a4ad25944a1535f7db"
+  integrity sha512-cvFq8drxdLRF8KN72WcV4lTEa9GqDiRwy9EbnYuoSCD9Jdk8zHFF49MmACC1qs4R9Ko/C1uMOmeLJmVi8EA0rQ==
 
 balanced-match@^1.0.0:
   version "1.0.0"

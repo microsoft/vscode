@@ -47,6 +47,11 @@ function parseLink(
 		return { kind: 'external', uri: externalSchemeUri };
 	}
 
+	if (/^[a-z\-][a-z\-]+:/i.test(cleanLink)) {
+		// Looks like a uri
+		return { kind: 'external', uri: vscode.Uri.parse(cleanLink) };
+	}
+
 	// Assume it must be an relative or absolute file path
 	// Use a fake scheme to avoid parse warnings
 	const tempUri = vscode.Uri.parse(`vscode-resource:${link}`);
@@ -182,35 +187,38 @@ const definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)([^<]\S*|<[^>
 
 const inlineCodePattern = /(?:^|[^`])(`+)(?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?\1(?:$|[^`])/gm;
 
-interface CodeInDocument {
-	/**
-	 * code blocks and fences each represented by [line_start,line_end).
-	 */
-	readonly multiline: ReadonlyArray<[number, number]>;
+class NoLinkRanges {
+	public static async compute(document: SkinnyTextDocument, engine: MarkdownEngine): Promise<NoLinkRanges> {
+		const tokens = await engine.parse(document);
+		const multiline = tokens.filter(t => (t.type === 'code_block' || t.type === 'fence' || t.type === 'html_block') && !!t.map).map(t => t.map) as [number, number][];
 
-	/**
-	 * inline code spans each represented by {@link vscode.Range}.
-	 */
-	readonly inline: readonly vscode.Range[];
+		const text = document.getText();
+		const inline = [...text.matchAll(inlineCodePattern)].map(match => {
+			const start = match.index || 0;
+			return new vscode.Range(document.positionAt(start), document.positionAt(start + match[0].length));
+		});
+
+		return new NoLinkRanges(multiline, inline);
+	}
+
+	private constructor(
+		/**
+		 * code blocks and fences each represented by [line_start,line_end).
+		 */
+		public readonly multiline: ReadonlyArray<[number, number]>,
+
+		/**
+		 * Inline code spans where links should not be detected
+		 */
+		public readonly inline: readonly vscode.Range[]
+	) { }
+
+	contains(range: vscode.Range): boolean {
+		return this.multiline.some(interval => range.start.line >= interval[0] && range.start.line < interval[1]) ||
+			this.inline.some(position => position.intersection(range));
+	}
 }
 
-async function findCode(document: SkinnyTextDocument, engine: MarkdownEngine): Promise<CodeInDocument> {
-	const tokens = await engine.parse(document);
-	const multiline = tokens.filter(t => (t.type === 'code_block' || t.type === 'fence') && !!t.map).map(t => t.map) as [number, number][];
-
-	const text = document.getText();
-	const inline = [...text.matchAll(inlineCodePattern)].map(match => {
-		const start = match.index || 0;
-		return new vscode.Range(document.positionAt(start), document.positionAt(start + match[0].length));
-	});
-
-	return { multiline, inline };
-}
-
-function isLinkInsideCode(code: CodeInDocument, linkHrefRange: vscode.Range) {
-	return code.multiline.some(interval => linkHrefRange.start.line >= interval[0] && linkHrefRange.start.line < interval[1]) ||
-		code.inline.some(position => position.intersection(linkHrefRange));
-}
 
 export class MdLinkProvider implements vscode.DocumentLinkProvider {
 
@@ -257,35 +265,35 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 	}
 
 	public async getAllLinks(document: SkinnyTextDocument, token: vscode.CancellationToken): Promise<MdLink[]> {
-		const codeInDocument = await findCode(document, this.engine);
+		const noLinkRanges = await NoLinkRanges.compute(document, this.engine);
 		if (token.isCancellationRequested) {
 			return [];
 		}
 
 		return Array.from([
-			...this.getInlineLinks(document, codeInDocument),
-			...this.getReferenceLinks(document, codeInDocument),
-			...this.getLinkDefinitions2(document, codeInDocument),
-			...this.getAutoLinks(document, codeInDocument),
+			...this.getInlineLinks(document, noLinkRanges),
+			...this.getReferenceLinks(document, noLinkRanges),
+			...this.getLinkDefinitions2(document, noLinkRanges),
+			...this.getAutoLinks(document, noLinkRanges),
 		]);
 	}
 
-	private *getInlineLinks(document: SkinnyTextDocument, codeInDocument: CodeInDocument): Iterable<MdLink> {
+	private *getInlineLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
 
 		for (const match of text.matchAll(linkPattern)) {
 			const matchImageData = match[4] && extractDocumentLink(document, match[3].length + 1, match[4], match.index);
-			if (matchImageData && !isLinkInsideCode(codeInDocument, matchImageData.source.hrefRange)) {
+			if (matchImageData && !noLinkRanges.contains(matchImageData.source.hrefRange)) {
 				yield matchImageData;
 			}
 			const matchLinkData = extractDocumentLink(document, match[1].length, match[5], match.index);
-			if (matchLinkData && !isLinkInsideCode(codeInDocument, matchLinkData.source.hrefRange)) {
+			if (matchLinkData && !noLinkRanges.contains(matchLinkData.source.hrefRange)) {
 				yield matchLinkData;
 			}
 		}
 	}
 
-	private *getAutoLinks(document: SkinnyTextDocument, codeInDocument: CodeInDocument): Iterable<MdLink> {
+	private *getAutoLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
 
 		for (const match of text.matchAll(autoLinkPattern)) {
@@ -296,7 +304,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				const linkStart = document.positionAt(offset);
 				const linkEnd = document.positionAt(offset + link.length);
 				const hrefRange = new vscode.Range(linkStart, linkEnd);
-				if (isLinkInsideCode(codeInDocument, hrefRange)) {
+				if (noLinkRanges.contains(hrefRange)) {
 					continue;
 				}
 				yield {
@@ -313,7 +321,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 		}
 	}
 
-	private *getReferenceLinks(document: SkinnyTextDocument, codeInDocument: CodeInDocument): Iterable<MdLink> {
+	private *getReferenceLinks(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLink> {
 		const text = document.getText();
 		for (const match of text.matchAll(referenceLinkPattern)) {
 			let linkStart: vscode.Position;
@@ -334,7 +342,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 			}
 
 			const hrefRange = new vscode.Range(linkStart, linkEnd);
-			if (isLinkInsideCode(codeInDocument, hrefRange)) {
+			if (noLinkRanges.contains(hrefRange)) {
 				continue;
 			}
 
@@ -355,11 +363,11 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 	}
 
 	public async getLinkDefinitions(document: SkinnyTextDocument): Promise<Iterable<MdLinkDefinition>> {
-		const codeInDocument = await findCode(document, this.engine);
-		return this.getLinkDefinitions2(document, codeInDocument);
+		const noLinkRanges = await NoLinkRanges.compute(document, this.engine);
+		return this.getLinkDefinitions2(document, noLinkRanges);
 	}
 
-	private *getLinkDefinitions2(document: SkinnyTextDocument, codeInDocument: CodeInDocument): Iterable<MdLinkDefinition> {
+	private *getLinkDefinitions2(document: SkinnyTextDocument, noLinkRanges: NoLinkRanges): Iterable<MdLinkDefinition> {
 		const text = document.getText();
 		for (const match of text.matchAll(definitionPattern)) {
 			const pre = match[1];
@@ -383,7 +391,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				text = link;
 			}
 			const hrefRange = new vscode.Range(linkStart, linkEnd);
-			if (isLinkInsideCode(codeInDocument, hrefRange)) {
+			if (noLinkRanges.contains(hrefRange)) {
 				continue;
 			}
 			const target = parseLink(document, text);

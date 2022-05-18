@@ -2524,6 +2524,47 @@ declare namespace monaco.editor {
 		 * It is safe to call setModel(null) to simply detach the current model from the editor.
 		 */
 		setModel(model: IEditorModel | null): void;
+		/**
+		 * Create a collection of decorations. All decorations added through this collection
+		 * will get the ownerId of the editor (meaning they will not show up in other editors).
+		 * These decorations will be automatically cleared when the editor's model changes.
+		 */
+		createDecorationsCollection(decorations?: IModelDeltaDecoration[]): IEditorDecorationsCollection;
+	}
+
+	/**
+	 * A collection of decorations
+	 */
+	export interface IEditorDecorationsCollection {
+		/**
+		 * An event emitted when decorations change in the editor,
+		 * but the change is not caused by us setting or clearing the collection.
+		 */
+		onDidChange: IEvent<IModelDecorationsChangedEvent>;
+		/**
+		 * Get the decorations count.
+		 */
+		length: number;
+		/**
+		 * Get the range for a decoration.
+		 */
+		getRange(index: number): Range | null;
+		/**
+		 * Get all ranges for decorations.
+		 */
+		getRanges(): Range[];
+		/**
+		 * Determine if a decoration is in this collection.
+		 */
+		has(decoration: IModelDecoration): boolean;
+		/**
+		 * Replace all previous decorations with `newDecorations`.
+		 */
+		set(newDecorations: IModelDeltaDecoration[]): void;
+		/**
+		 * Remove all previous decorations.
+		 */
+		clear(): void;
 	}
 
 	/**
@@ -3372,6 +3413,12 @@ declare namespace monaco.editor {
 		 * Configures bracket pair colorization (disabled by default).
 		*/
 		bracketPairColorization?: IBracketPairColorizationOptions;
+		/**
+		 * Enables dropping into the editor from an external source.
+		 *
+		 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
+		 */
+		enableDropIntoEditor?: boolean;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -4273,107 +4320,108 @@ declare namespace monaco.editor {
 		disableMonospaceOptimizations = 29,
 		domReadOnly = 30,
 		dragAndDrop = 31,
-		emptySelectionClipboard = 32,
-		extraEditorClassName = 33,
-		fastScrollSensitivity = 34,
-		find = 35,
-		fixedOverflowWidgets = 36,
-		folding = 37,
-		foldingStrategy = 38,
-		foldingHighlight = 39,
-		foldingImportsByDefault = 40,
-		foldingMaximumRegions = 41,
-		unfoldOnClickAfterEndOfLine = 42,
-		fontFamily = 43,
-		fontInfo = 44,
-		fontLigatures = 45,
-		fontSize = 46,
-		fontWeight = 47,
-		formatOnPaste = 48,
-		formatOnType = 49,
-		glyphMargin = 50,
-		gotoLocation = 51,
-		hideCursorInOverviewRuler = 52,
-		hover = 53,
-		inDiffEditor = 54,
-		inlineSuggest = 55,
-		letterSpacing = 56,
-		lightbulb = 57,
-		lineDecorationsWidth = 58,
-		lineHeight = 59,
-		lineNumbers = 60,
-		lineNumbersMinChars = 61,
-		linkedEditing = 62,
-		links = 63,
-		matchBrackets = 64,
-		minimap = 65,
-		mouseStyle = 66,
-		mouseWheelScrollSensitivity = 67,
-		mouseWheelZoom = 68,
-		multiCursorMergeOverlapping = 69,
-		multiCursorModifier = 70,
-		multiCursorPaste = 71,
-		occurrencesHighlight = 72,
-		overviewRulerBorder = 73,
-		overviewRulerLanes = 74,
-		padding = 75,
-		parameterHints = 76,
-		peekWidgetDefaultFocus = 77,
-		definitionLinkOpensInPeek = 78,
-		quickSuggestions = 79,
-		quickSuggestionsDelay = 80,
-		readOnly = 81,
-		renameOnType = 82,
-		renderControlCharacters = 83,
-		renderFinalNewline = 84,
-		renderLineHighlight = 85,
-		renderLineHighlightOnlyWhenFocus = 86,
-		renderValidationDecorations = 87,
-		renderWhitespace = 88,
-		revealHorizontalRightPadding = 89,
-		roundedSelection = 90,
-		rulers = 91,
-		scrollbar = 92,
-		scrollBeyondLastColumn = 93,
-		scrollBeyondLastLine = 94,
-		scrollPredominantAxis = 95,
-		selectionClipboard = 96,
-		selectionHighlight = 97,
-		selectOnLineNumbers = 98,
-		showFoldingControls = 99,
-		showUnused = 100,
-		snippetSuggestions = 101,
-		smartSelect = 102,
-		smoothScrolling = 103,
-		stickyTabStops = 104,
-		stopRenderingLineAfter = 105,
-		suggest = 106,
-		suggestFontSize = 107,
-		suggestLineHeight = 108,
-		suggestOnTriggerCharacters = 109,
-		suggestSelection = 110,
-		tabCompletion = 111,
-		tabIndex = 112,
-		unicodeHighlighting = 113,
-		unusualLineTerminators = 114,
-		useShadowDOM = 115,
-		useTabStops = 116,
-		wordSeparators = 117,
-		wordWrap = 118,
-		wordWrapBreakAfterCharacters = 119,
-		wordWrapBreakBeforeCharacters = 120,
-		wordWrapColumn = 121,
-		wordWrapOverride1 = 122,
-		wordWrapOverride2 = 123,
-		wrappingIndent = 124,
-		wrappingStrategy = 125,
-		showDeprecated = 126,
-		inlayHints = 127,
-		editorClassName = 128,
-		pixelRatio = 129,
-		tabFocusMode = 130,
-		layoutInfo = 131,
-		wrappingInfo = 132
+		enableDropIntoEditor = 32,
+		emptySelectionClipboard = 33,
+		extraEditorClassName = 34,
+		fastScrollSensitivity = 35,
+		find = 36,
+		fixedOverflowWidgets = 37,
+		folding = 38,
+		foldingStrategy = 39,
+		foldingHighlight = 40,
+		foldingImportsByDefault = 41,
+		foldingMaximumRegions = 42,
+		unfoldOnClickAfterEndOfLine = 43,
+		fontFamily = 44,
+		fontInfo = 45,
+		fontLigatures = 46,
+		fontSize = 47,
+		fontWeight = 48,
+		formatOnPaste = 49,
+		formatOnType = 50,
+		glyphMargin = 51,
+		gotoLocation = 52,
+		hideCursorInOverviewRuler = 53,
+		hover = 54,
+		inDiffEditor = 55,
+		inlineSuggest = 56,
+		letterSpacing = 57,
+		lightbulb = 58,
+		lineDecorationsWidth = 59,
+		lineHeight = 60,
+		lineNumbers = 61,
+		lineNumbersMinChars = 62,
+		linkedEditing = 63,
+		links = 64,
+		matchBrackets = 65,
+		minimap = 66,
+		mouseStyle = 67,
+		mouseWheelScrollSensitivity = 68,
+		mouseWheelZoom = 69,
+		multiCursorMergeOverlapping = 70,
+		multiCursorModifier = 71,
+		multiCursorPaste = 72,
+		occurrencesHighlight = 73,
+		overviewRulerBorder = 74,
+		overviewRulerLanes = 75,
+		padding = 76,
+		parameterHints = 77,
+		peekWidgetDefaultFocus = 78,
+		definitionLinkOpensInPeek = 79,
+		quickSuggestions = 80,
+		quickSuggestionsDelay = 81,
+		readOnly = 82,
+		renameOnType = 83,
+		renderControlCharacters = 84,
+		renderFinalNewline = 85,
+		renderLineHighlight = 86,
+		renderLineHighlightOnlyWhenFocus = 87,
+		renderValidationDecorations = 88,
+		renderWhitespace = 89,
+		revealHorizontalRightPadding = 90,
+		roundedSelection = 91,
+		rulers = 92,
+		scrollbar = 93,
+		scrollBeyondLastColumn = 94,
+		scrollBeyondLastLine = 95,
+		scrollPredominantAxis = 96,
+		selectionClipboard = 97,
+		selectionHighlight = 98,
+		selectOnLineNumbers = 99,
+		showFoldingControls = 100,
+		showUnused = 101,
+		snippetSuggestions = 102,
+		smartSelect = 103,
+		smoothScrolling = 104,
+		stickyTabStops = 105,
+		stopRenderingLineAfter = 106,
+		suggest = 107,
+		suggestFontSize = 108,
+		suggestLineHeight = 109,
+		suggestOnTriggerCharacters = 110,
+		suggestSelection = 111,
+		tabCompletion = 112,
+		tabIndex = 113,
+		unicodeHighlighting = 114,
+		unusualLineTerminators = 115,
+		useShadowDOM = 116,
+		useTabStops = 117,
+		wordSeparators = 118,
+		wordWrap = 119,
+		wordWrapBreakAfterCharacters = 120,
+		wordWrapBreakBeforeCharacters = 121,
+		wordWrapColumn = 122,
+		wordWrapOverride1 = 123,
+		wordWrapOverride2 = 124,
+		wrappingIndent = 125,
+		wrappingStrategy = 126,
+		showDeprecated = 127,
+		inlayHints = 128,
+		editorClassName = 129,
+		pixelRatio = 130,
+		tabFocusMode = 131,
+		layoutInfo = 132,
+		wrappingInfo = 133
 	}
 
 	export const EditorOptions: {
@@ -4411,6 +4459,7 @@ declare namespace monaco.editor {
 		domReadOnly: IEditorOption<EditorOption.domReadOnly, boolean>;
 		dragAndDrop: IEditorOption<EditorOption.dragAndDrop, boolean>;
 		emptySelectionClipboard: IEditorOption<EditorOption.emptySelectionClipboard, boolean>;
+		enableDropIntoEditor: IEditorOption<EditorOption.enableDropIntoEditor, boolean>;
 		extraEditorClassName: IEditorOption<EditorOption.extraEditorClassName, string>;
 		fastScrollSensitivity: IEditorOption<EditorOption.fastScrollSensitivity, number>;
 		find: IEditorOption<EditorOption.find, Readonly<Required<IEditorFindOptions>>>;
@@ -4532,12 +4581,6 @@ declare namespace monaco.editor {
 		 * Defaults to an internal DOM node.
 		 */
 		overflowWidgetsDomNode?: HTMLElement;
-		/**
-		 * Enables dropping into the editor.
-		 *
-		 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
-		 */
-		enableDropIntoEditor?: boolean;
 	}
 
 	/**

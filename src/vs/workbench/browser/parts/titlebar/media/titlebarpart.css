@@ -83,6 +83,7 @@
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu {
 	z-index: 3000;
 	-webkit-app-region: no-drag;
+	padding: 0 8px;
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu.hide {
@@ -92,6 +93,7 @@
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen {
 	display: flex;
 	color: var(--vscode-titleMenu-foreground);
+	background-color: var(--vscode-titleMenu-background);
 	border: 1px solid var(--vscode-titleMenu-border);
 	border-radius: 5px;
 	height: 20px;
@@ -105,19 +107,48 @@
 }
 
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen:HOVER {
+	color: var(--vscode-titleMenu-activeForeground);
 	background-color: var(--vscode-titleMenu-activeBackground);
 	line-height: 18px;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen .action-label {
-	display: inline-block;
-	width: 100%;
-	text-align: center;
-	font-size: 12px;
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu:HOVER .quickopen .action-label {
+	background-color: transparent !important;
+	outline-color: transparent !important;
 }
 
-.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen .action-label:HOVER {
-	background-color: var(--vscode-titleMenu-activeBackground);
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen>.action-label.search {
+	display: inline-flex;
+	text-align: center;
+	font-size: 12px;
+	line-height: 14px;
+	background-color: inherit;
+	justify-content: center;
+	width: calc(100% - 19px);
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen>.action-label.search>.search-icon {
+	font-size: 14px;
+	opacity: .8;
+	padding: 0 3px;
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen>.action-label.search>.search-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu .action-item.quickopen>.all-options>.action-label {
+	text-align: center;
+	font-size: 12px;
+	width: 16px;
+	border-left: 1px solid transparent;
+	border-radius: 0;
+	padding-right: 0;
+}
+
+.monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu:HOVER .action-item.quickopen>.all-options>.action-label {
+	border-color: var(--vscode-titleMenu-border);
 }
 
 /* Menubar */

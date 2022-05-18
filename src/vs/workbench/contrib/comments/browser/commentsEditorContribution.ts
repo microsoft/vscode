@@ -241,8 +241,10 @@ class CommentingRangeDecorator {
 			});
 		}
 
-		this.decorationIds = editor.deltaDecorations(this.decorationIds, commentingRangeDecorations);
-		commentingRangeDecorations.forEach((decoration, index) => decoration.id = this.decorationIds[index]);
+		editor.changeDecorations((accessor) => {
+			this.decorationIds = accessor.deltaDecorations(this.decorationIds, commentingRangeDecorations);
+			commentingRangeDecorations.forEach((decoration, index) => decoration.id = this.decorationIds[index]);
+		});
 
 		const rangesDifference = this.commentingRangeDecorations.length - commentingRangeDecorations.length;
 		this.commentingRangeDecorations = commentingRangeDecorations;
