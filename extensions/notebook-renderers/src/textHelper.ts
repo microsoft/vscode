@@ -25,7 +25,7 @@ function generateViewMoreElement(outputId: string) {
 }
 
 export function truncatedArrayOfString(id: string, outputs: string[], linesLimit: number, container: HTMLElement) {
-	let buffer = outputs.join('\n').split(/\r|\n|\r\n/g);
+	let buffer = outputs.join('\n').split(/\r\n|\r|\n/g);
 	let lineCount = buffer.length;
 
 	if (lineCount < linesLimit) {
