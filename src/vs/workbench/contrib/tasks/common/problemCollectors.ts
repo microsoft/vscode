@@ -363,7 +363,7 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 		});
 	}
 
-	protected async processLineInternal(line: string): Promise<void> {
+	protected async processLineInternal(line: string, forceApplyMatch?: boolean): Promise<void> {
 		let markerMatch = this.tryFindMarker(line);
 		if (!markerMatch) {
 			return;
@@ -373,7 +373,7 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 		let resource = await markerMatch.resource;
 		let resourceAsString = resource.toString();
 		this.removeResourceToClean(owner, resourceAsString);
-		let shouldApplyMatch = await this.shouldApplyMatch(markerMatch);
+		let shouldApplyMatch = await this.shouldApplyMatch(markerMatch) || forceApplyMatch;
 		if (shouldApplyMatch) {
 			this.recordMarker(markerMatch.marker, owner, resourceAsString);
 			if (this.currentOwner !== owner || this.currentResource !== resourceAsString) {
@@ -436,7 +436,8 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 					}
 					const oldLines = Array.from(this.lines);
 					for (const line of oldLines) {
-						await this.processLineInternal(line);
+						// we know that the model was removed, so apply the match
+						await this.processLineInternal(line, true);
 					}
 				});
 			setTimeout(async () => {
@@ -456,7 +457,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		}
 	}
 
-	protected async processLineInternal(line: string): Promise<void> {
+	protected async processLineInternal(line: string, forceApplyMatch?: boolean): Promise<void> {
 		if (await this.tryBegin(line) || this.tryFinish(line)) {
 			return;
 		}
@@ -469,7 +470,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		let owner = markerMatch.description.owner;
 		let resourceAsString = resource.toString();
 		this.removeResourceToClean(owner, resourceAsString);
-		let shouldApplyMatch = await this.shouldApplyMatch(markerMatch);
+		let shouldApplyMatch = await this.shouldApplyMatch(markerMatch) || forceApplyMatch;
 		if (shouldApplyMatch) {
 			this.recordMarker(markerMatch.marker, owner, resourceAsString);
 			if (this.currentOwner !== owner || this.currentResource !== resourceAsString) {
