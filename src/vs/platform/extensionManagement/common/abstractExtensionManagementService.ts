@@ -10,7 +10,6 @@ import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
-import { isBoolean } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import {
@@ -364,9 +363,11 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), ExtensionManagementErrorCode.Malicious);
 		}
 
-		const deprecated = report.deprecated ? report.deprecated[extension.identifier.id.toLowerCase()] : undefined;
-		if (deprecated && !isBoolean(deprecated)) {
-			throw new ExtensionManagementError(nls.localize('unsupported prerelease extension', "Can't install '{0}' extension because it is deprecated. Use '{1}' extension instead.", extension.identifier.id, deprecated.displayName), ExtensionManagementErrorCode.UnsupportedPreRelease);
+		const deprecated = report.deprecated[extension.identifier.id.toLowerCase()];
+		if (deprecated?.disallowInstall) {
+			const message = deprecated.extension ? nls.localize('unsupported extension with alternative', "Can't install '{0}' extension because it is deprecated. Use {1} extension instead.", extension.identifier.id, deprecated.extension.displayName)
+				: nls.localize('unsupported extension without alternative and no message', "Can't install '{0}' extension because it is deprecated.", extension.identifier.id);
+			throw new ExtensionManagementError(message, ExtensionManagementErrorCode.Deprecated);
 		}
 
 		if (!await this.canInstall(extension)) {
@@ -581,7 +582,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			return manifest;
 		} catch (err) {
 			this.logService.trace('ExtensionManagementService.refreshControlCache - failed to get extension control manifest');
-			return { malicious: [] };
+			return { malicious: [], deprecated: {} };
 		}
 	}
 
