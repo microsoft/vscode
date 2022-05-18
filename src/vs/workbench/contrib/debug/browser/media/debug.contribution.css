@@ -70,6 +70,12 @@
 
 /* Expressions */
 
+
+.monaco-workbench .debug-pane .monaco-list-row .expression,
+.monaco-workbench .debug-hover-widget .monaco-list-row .expression {
+	display: flex;
+}
+
 .monaco-workbench .debug-pane .monaco-list-row .expression,
 .monaco-workbench .debug-hover-widget .monaco-list-row .expression {
 	font-size: 13px;
@@ -90,6 +96,13 @@
 
 .monaco-workbench .monaco-list-row .expression .lazy-button {
 	margin-left: 3px;
+	display: none;
+	border-radius: 5px;
+	align-self: center;
+}
+
+.monaco-workbench .monaco-list-row .expression.lazy .lazy-button {
+	display: inline;
 }
 
 /* Links */
@@ -118,16 +131,6 @@
 
 .monaco-workbench .monaco-list-row .expression .unavailable {
 	font-style: italic;
-}
-
-.monaco-workbench .monaco-list-row .expression .lazy-button {
-	display: none;
-	border-radius: 5px;
-	padding: 3px;
-}
-
-.monaco-workbench .monaco-list-row .expression.lazy .lazy-button {
-	display: inline;
 }
 
 .monaco-workbench .debug-inline-value {

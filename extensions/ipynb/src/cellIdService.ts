@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, NotebookDocument, NotebookDocumentChangeEvent, workspace, WorkspaceEdit } from 'vscode';
+import { ExtensionContext, NotebookDocument, NotebookDocumentChangeEvent, NotebookEdit, workspace, WorkspaceEdit } from 'vscode';
 import { v4 as uuid } from 'uuid';
 import { getCellMetadata } from './serializers';
 import { CellMetadata } from './common';
@@ -34,7 +34,7 @@ function onDidChangeNotebookCells(e: NotebookDocumentChangeEvent) {
 			// Don't edit the metadata directly, always get a clone (prevents accidental singletons and directly editing the objects).
 			const updatedMetadata: CellMetadata = { ...JSON.parse(JSON.stringify(cellMetadata || {})) };
 			updatedMetadata.id = id;
-			edit.replaceNotebookCellMetadata(cell.notebook.uri, cell.index, { ...(cell.metadata), custom: updatedMetadata });
+			edit.set(cell.notebook.uri, [NotebookEdit.updateCellMetadata(cell.index, { ...(cell.metadata), custom: updatedMetadata })]);
 			workspace.applyEdit(edit);
 		});
 	});

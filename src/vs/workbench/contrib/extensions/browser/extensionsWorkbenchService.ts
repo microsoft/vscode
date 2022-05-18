@@ -34,7 +34,7 @@ import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, TargetPlatform, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { FileAccess } from 'vs/base/common/network';
@@ -46,9 +46,19 @@ import { IExtensionManifestPropertiesService } from 'vs/workbench/services/exten
 import { IExtensionService, IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
 import { isWeb } from 'vs/base/common/platform';
+import { GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
+}
+
+interface InstalledExtensionsEvent {
+	readonly extensionIds: string;
+	readonly count: number;
+}
+interface ExtensionsLoadClassification extends GDPRClassification<InstalledExtensionsEvent> {
+	readonly extensionIds: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+	readonly count: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 }
 
 export class Extension implements IExtension {
@@ -716,6 +726,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.queryLocal().then(() => {
 			this.resetIgnoreAutoUpdateExtensions();
 			this.eventuallyCheckForUpdates(true);
+			this._reportTelemetry();
 			// Always auto update builtin extensions in web
 			if (isWeb && !this.isAutoUpdateEnabled()) {
 				this.autoUpdateBuiltinExtensions();
@@ -726,6 +737,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.updateContexts();
 			this.updateActivity();
 		}));
+	}
+	private _reportTelemetry() {
+		const extensionIds = this.installed.filter(extension =>
+			extension.type === ExtensionType.User &&
+			(extension.enablementState === EnablementState.EnabledWorkspace ||
+				extension.enablementState === EnablementState.EnabledGlobally))
+			.map(extension => ExtensionIdentifier.toKey(extension.identifier.id));
+		this.telemetryService.publicLog2<InstalledExtensionsEvent, ExtensionsLoadClassification>('installedExtensions', { extensionIds: extensionIds.join(';'), count: extensionIds.length });
 	}
 
 	get local(): IExtension[] {

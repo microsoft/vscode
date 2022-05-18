@@ -53,10 +53,10 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	:: Run from a built: need to compile all test extensions
 	:: because we run extension tests from their source folders
 	:: and the build bundles extensions into .build webpacked
-	call yarn gulp 	compile-extension:vscode-api-tests^
-					compile-extension:microsoft-authentication^
-					compile-extension:github-authentication^
-					compile-extension:vscode-test-resolver
+	:: call yarn gulp 	compile-extension:vscode-api-tests^
+	::				compile-extension:microsoft-authentication^
+	::				compile-extension:github-authentication^
+	::				compile-extension:vscode-test-resolver
 
 	:: Configuration for more verbose output
 	set VSCODE_CLI=1

@@ -1,6 +1,15 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_RUN_UNIT_TESTS
+    type: boolean
+    default: true
+  - name: VSCODE_RUN_INTEGRATION_TESTS
+    type: boolean
+    default: true
+  - name: VSCODE_RUN_SMOKE_TESTS
+    type: boolean
+    default: true
 
 steps:
   - task: NodeTool@0
@@ -184,105 +193,142 @@ steps:
     displayName: Download Playwright
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { yarn electron $(VSCODE_ARCH) }
-      exec { .\scripts\test.bat --build --tfs "Unit Tests" }
-    displayName: Run unit tests (Electron)
-    timeoutInMinutes: 15
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+  - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { yarn electron $(VSCODE_ARCH) }
+        exec { .\scripts\test.bat --build --tfs "Unit Tests" }
+      displayName: Run unit tests (Electron)
+      timeoutInMinutes: 15
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { yarn test-node --build }
-    displayName: Run unit tests (node.js)
-    timeoutInMinutes: 15
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+  - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { yarn test-node --build }
+      displayName: Run unit tests (node.js)
+      timeoutInMinutes: 15
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { yarn test-browser-no-install --sequential --build --browser chromium --browser firefox --tfs "Browser Unit Tests" }
-    displayName: Run unit tests (Browser, Chromium & Firefox)
-    timeoutInMinutes: 20
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+  - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { yarn test-browser-no-install --sequential --build --browser chromium --browser firefox --tfs "Browser Unit Tests" }
+      displayName: Run unit tests (Browser, Chromium & Firefox)
+      timeoutInMinutes: 20
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
-  - powershell: |
-      # Figure out the full absolute path of the product we just built
-      # including the remote server and configure the integration tests
-      # to run with these builds instead of running out of sources.
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-      $AppProductJson = Get-Content -Raw -Path "$AppRoot\resources\app\product.json" | ConvertFrom-Json
-      $AppNameShort = $AppProductJson.nameShort
-      exec { $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"; $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"; .\scripts\test-integration.bat --build --tfs "Integration Tests" }
-    displayName: Run integration tests (Electron)
-    timeoutInMinutes: 20
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+  - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { yarn gulp `
+          compile-extension:css-language-features-server `
+          compile-extension:emmet `
+          compile-extension:git `
+          compile-extension:github-authentication `
+          compile-extension:html-language-features-server `
+          compile-extension:ipynb `
+          compile-extension:json-language-features-server `
+          compile-extension:markdown-language-features `
+          compile-extension-media `
+          compile-extension:microsoft-authentication `
+          compile-extension:typescript-language-features `
+          compile-extension:vscode-api-tests `
+          compile-extension:vscode-colorize-tests `
+          compile-extension:vscode-custom-editor-tests `
+          compile-extension:vscode-notebook-tests `
+          compile-extension:vscode-test-resolver `
+        }
+      displayName: Build integration tests
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"; .\scripts\test-web-integration.bat --browser firefox }
-    displayName: Run integration tests (Browser, Firefox)
-    timeoutInMinutes: 20
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+  - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
+    - powershell: |
+        # Figure out the full absolute path of the product we just built
+        # including the remote server and configure the integration tests
+        # to run with these builds instead of running out of sources.
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+        $AppProductJson = Get-Content -Raw -Path "$AppRoot\resources\app\product.json" | ConvertFrom-Json
+        $AppNameShort = $AppProductJson.nameShort
+        exec { $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"; $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"; .\scripts\test-integration.bat --build --tfs "Integration Tests" }
+      displayName: Run integration tests (Electron)
+      timeoutInMinutes: 20
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-      $AppProductJson = Get-Content -Raw -Path "$AppRoot\resources\app\product.json" | ConvertFrom-Json
-      $AppNameShort = $AppProductJson.nameShort
-      exec { $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"; $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"; .\scripts\test-remote-integration.bat }
-    displayName: Run integration tests (Remote)
-    timeoutInMinutes: 20
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+  - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"; .\scripts\test-web-integration.bat --browser firefox }
+      displayName: Run integration tests (Browser, Firefox)
+      timeoutInMinutes: 20
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      exec {.\build\azure-pipelines\win32\listprocesses.bat }
-    displayName: Diagnostics before smoke test run
-    continueOnError: true
-    condition: and(succeededOrFailed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+        $AppProductJson = Get-Content -Raw -Path "$AppRoot\resources\app\product.json" | ConvertFrom-Json
+        $AppNameShort = $AppProductJson.nameShort
+        exec { $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"; $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"; .\scripts\test-remote-integration.bat }
+      displayName: Run integration tests (Remote)
+      timeoutInMinutes: 20
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --web --tracing --headless }
-    displayName: Run smoke tests (Browser, Chromium)
-    timeoutInMinutes: 20
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+  - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        exec {.\build\azure-pipelines\win32\listprocesses.bat }
+      displayName: Diagnostics before smoke test run
+      continueOnError: true
+      condition: and(succeededOrFailed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --tracing --build "$AppRoot" }
-    displayName: Run smoke tests (Electron)
-    timeoutInMinutes: 20
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+  - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"
+        exec { yarn smoketest-no-compile --web --tracing --headless }
+      displayName: Run smoke tests (Browser, Chromium)
+      timeoutInMinutes: 20
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-      $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"
-      exec { yarn smoketest-no-compile --tracing --remote --build "$AppRoot" }
-    displayName: Run smoke tests (Remote)
-    timeoutInMinutes: 20
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+  - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+        exec { yarn smoketest-no-compile --tracing --build "$AppRoot" }
+      displayName: Run smoke tests (Electron)
+      timeoutInMinutes: 20
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      exec {.\build\azure-pipelines\win32\listprocesses.bat }
-    displayName: Diagnostics after smoke test run
-    continueOnError: true
-    condition: and(succeededOrFailed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+        $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"
+        exec { yarn gulp compile-extension:vscode-test-resolver }
+        exec { yarn smoketest-no-compile --tracing --remote --build "$AppRoot" }
+      displayName: Run smoke tests (Remote)
+      timeoutInMinutes: 20
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        exec {.\build\azure-pipelines\win32\listprocesses.bat }
+      displayName: Diagnostics after smoke test run
+      continueOnError: true
+      condition: and(succeededOrFailed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - task: PublishPipelineArtifact@0
     inputs:
