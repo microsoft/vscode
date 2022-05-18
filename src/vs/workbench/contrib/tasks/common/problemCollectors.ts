@@ -15,6 +15,7 @@ import { IMarkerService, IMarkerData, MarkerSeverity } from 'vs/platform/markers
 import { generateUuid } from 'vs/base/common/uuid';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isWindows } from 'vs/base/common/platform';
+import { ITextModel } from 'vs/editor/common/model';
 
 export const enum ProblemCollectorEventKind {
 	BackgroundProcessingBegins = 'backgroundProcessingBegins',
@@ -93,12 +94,13 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		this.modelService.onModelAdded((model) => {
 			this.openModels[model.uri.toString()] = true;
 		}, this, this.modelListeners);
-		this.modelService.onModelRemoved((model) => {
-			delete this.openModels[model.uri.toString()];
-		}, this, this.modelListeners);
 		this.modelService.getModels().forEach(model => this.openModels[model.uri.toString()] = true);
 
 		this._onDidStateChange = new Emitter();
+	}
+
+	public handleModelRemoved(model: ITextModel): void {
+		delete this.openModels[model.uri.toString()];
 	}
 
 	public get onDidStateChange(): Event<ProblemCollectorEvent> {
@@ -363,7 +365,7 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 		});
 	}
 
-	protected async processLineInternal(line: string, forceApplyMatch?: boolean): Promise<void> {
+	protected async processLineInternal(line: string): Promise<void> {
 		let markerMatch = this.tryFindMarker(line);
 		if (!markerMatch) {
 			return;
@@ -373,7 +375,7 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 		let resource = await markerMatch.resource;
 		let resourceAsString = resource.toString();
 		this.removeResourceToClean(owner, resourceAsString);
-		let shouldApplyMatch = await this.shouldApplyMatch(markerMatch) || forceApplyMatch;
+		let shouldApplyMatch = await this.shouldApplyMatch(markerMatch);
 		if (shouldApplyMatch) {
 			this.recordMarker(markerMatch.marker, owner, resourceAsString);
 			if (this.currentOwner !== owner || this.currentResource !== resourceAsString) {
@@ -425,6 +427,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		});
 
 		this.modelListeners.add(this.modelService.onModelRemoved(modelEvent => {
+			super.handleModelRemoved(modelEvent);
 			let markerChanged: IDisposable | undefined =
 				Event.debounce(this.markerService.onMarkerChanged, (last: readonly URI[] | undefined, e: readonly URI[]) => {
 					return (last ?? []).concat(e);
@@ -436,8 +439,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 					}
 					const oldLines = Array.from(this.lines);
 					for (const line of oldLines) {
-						// we know that the model was removed, so apply the match
-						await this.processLineInternal(line, true);
+						await this.processLineInternal(line);
 					}
 				});
 			setTimeout(async () => {
@@ -457,7 +459,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		}
 	}
 
-	protected async processLineInternal(line: string, forceApplyMatch?: boolean): Promise<void> {
+	protected async processLineInternal(line: string): Promise<void> {
 		if (await this.tryBegin(line) || this.tryFinish(line)) {
 			return;
 		}
@@ -470,7 +472,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		let owner = markerMatch.description.owner;
 		let resourceAsString = resource.toString();
 		this.removeResourceToClean(owner, resourceAsString);
-		let shouldApplyMatch = await this.shouldApplyMatch(markerMatch) || forceApplyMatch;
+		let shouldApplyMatch = await this.shouldApplyMatch(markerMatch);
 		if (shouldApplyMatch) {
 			this.recordMarker(markerMatch.marker, owner, resourceAsString);
 			if (this.currentOwner !== owner || this.currentResource !== resourceAsString) {
