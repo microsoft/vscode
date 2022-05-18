@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ArrayQueue, compareBy, equals, numberComparator } from 'vs/base/common/arrays';
+import { Comparator, compareBy, equals, numberComparator } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { Range } from 'vs/editor/common/core/range';
 import { ILineChange } from 'vs/editor/common/diff/diffComputer';
@@ -40,7 +40,9 @@ export class LineEdits {
 }
 
 export class LineRange {
-	public static hull(ranges: LineRange[]): LineRange | undefined {
+	public static readonly compareByStart: Comparator<LineRange> = compareBy(l => l.startLineNumber, numberComparator);
+
+	public static join(ranges: LineRange[]): LineRange | undefined {
 		if (ranges.length === 0) {
 			return undefined;
 		}
@@ -61,6 +63,10 @@ export class LineRange {
 		if (lineCount < 0) {
 			throw new BugIndicatingError();
 		}
+	}
+
+	public join(other: LineRange): LineRange {
+		return new LineRange(Math.min(this.startLineNumber, other.startLineNumber), Math.max(this.endLineNumberExclusive, other.endLineNumberExclusive) - this.startLineNumber);
 	}
 
 	public get endLineNumberExclusive(): number {
@@ -131,9 +137,9 @@ export class LineDiff {
 
 		return new LineDiff(
 			lineDiffs[0].originalTextModel,
-			LineRange.hull(lineDiffs.map((d) => d.originalRange))!,
+			LineRange.join(lineDiffs.map((d) => d.originalRange))!,
 			lineDiffs[0].modifiedTextModel,
-			LineRange.hull(lineDiffs.map((d) => d.modifiedRange))!,
+			LineRange.join(lineDiffs.map((d) => d.modifiedRange))!,
 		);
 	}
 
@@ -141,7 +147,7 @@ export class LineDiff {
 		if (lineDiffs.length === 0) {
 			return [];
 		}
-		const originalRange = LineRange.hull(lineDiffs.map((d) => d.originalRange))!;
+		const originalRange = LineRange.join(lineDiffs.map((d) => d.originalRange))!;
 		return lineDiffs.map(l => {
 			const startDelta = originalRange.startLineNumber - l.originalRange.startLineNumber;
 			const endDelta = originalRange.endLineNumberExclusive - l.originalRange.endLineNumberExclusive;
@@ -231,7 +237,7 @@ export class ModifiedBaseRange {
 	 * This method computes strongly connected components of that graph while maintaining the side of each diff.
 	*/
 	public static fromDiffs(
-		originalTextModel: ITextModel,
+		baseTextModel: ITextModel,
 		input1TextModel: ITextModel,
 		diffs1: readonly LineDiff[],
 		input2TextModel: ITextModel,
@@ -242,90 +248,52 @@ export class ModifiedBaseRange {
 			numberComparator
 		);
 
-		const queueDiffs1 = new ArrayQueue(
-			diffs1.slice().sort(compareByStartLineNumber)
-		);
-		const queueDiffs2 = new ArrayQueue(
-			diffs2.slice().sort(compareByStartLineNumber)
-		);
+		const diffs = diffs1
+			.map((diff) => ({ source: 0 as 0 | 1, diff }))
+			.concat(diffs2.map((diff) => ({ source: 1 as const, diff })));
+
+		diffs.sort(compareBy(d => d.diff, compareByStartLineNumber));
+
+		const currentDiffs = [
+			new Array<LineDiff>(),
+			new Array<LineDiff>(),
+		];
+		let deltaFromBaseToInput = [0, 0];
 
 		const result = new Array<ModifiedBaseRange>();
 
-		while (true) {
-			const lastDiff1 = queueDiffs1.peekLast();
-			const lastDiff2 = queueDiffs2.peekLast();
-
-			if (
-				lastDiff1 &&
-				(!lastDiff2 ||
-					lastDiff1.originalRange.startLineNumber >=
-					lastDiff2.originalRange.startLineNumber)
-			) {
-				queueDiffs1.removeLast();
-
-				const otherConflictingWith =
-					queueDiffs2.takeFromEndWhile((d) => d.conflicts(lastDiff1)) || [];
-
-				const singleLinesDiff = LineDiff.hull(otherConflictingWith);
-
-				const moreConflictingWith =
-					(singleLinesDiff &&
-						queueDiffs1.takeFromEndWhile((d) =>
-							d.conflicts(singleLinesDiff)
-						)) ||
-					[];
-				moreConflictingWith.push(lastDiff1);
-
-				result.push(
-					new ModifiedBaseRange(
-						originalTextModel,
-						input1TextModel,
-						moreConflictingWith,
-						queueDiffs1.peekLast()?.resultingDeltaFromOriginalToModified ?? 0,
-						input2TextModel,
-						otherConflictingWith,
-						queueDiffs2.peekLast()?.resultingDeltaFromOriginalToModified ?? 0,
-					)
-				);
-			} else if (lastDiff2) {
-				queueDiffs2.removeLast();
-
-				const otherConflictingWith =
-					queueDiffs1.takeFromEndWhile((d) => d.conflicts(lastDiff2)) || [];
-
-				const singleLinesDiff = LineDiff.hull(otherConflictingWith);
-
-				const moreConflictingWith =
-					(singleLinesDiff &&
-						queueDiffs2.takeFromEndWhile((d) =>
-							d.conflicts(singleLinesDiff)
-						)) ||
-					[];
-				moreConflictingWith.push(lastDiff2);
-
-				result.push(
-					new ModifiedBaseRange(
-						originalTextModel,
-						input1TextModel,
-						otherConflictingWith,
-						queueDiffs1.peekLast()?.resultingDeltaFromOriginalToModified ?? 0,
-						input2TextModel,
-						moreConflictingWith,
-						queueDiffs2.peekLast()?.resultingDeltaFromOriginalToModified ?? 0,
-					)
-				);
-			} else {
-				break;
-			}
+		function pushAndReset() {
+			result.push(new ModifiedBaseRange(
+				baseTextModel,
+				input1TextModel,
+				currentDiffs[0],
+				deltaFromBaseToInput[0],
+				input2TextModel,
+				currentDiffs[1],
+				deltaFromBaseToInput[1],
+			));
+			currentDiffs[0] = [];
+			currentDiffs[1] = [];
 		}
 
-		result.reverse();
+		let currentRange: LineRange | undefined;
+
+		for (const diff of diffs) {
+			const range = diff.diff.originalRange;
+			if (currentRange && !currentRange.touches(range)) {
+				pushAndReset();
+			}
+			deltaFromBaseToInput[diff.source] = diff.diff.resultingDeltaFromOriginalToModified;
+			currentRange = currentRange ? currentRange.join(range) : range;
+			currentDiffs[diff.source].push(diff.diff);
+		}
+		pushAndReset();
 
 		return result;
 	}
 
-	private readonly input1FullDiff = LineDiff.hull(this.input1Diffs);
-	private readonly input2FullDiff = LineDiff.hull(this.input2Diffs);
+	public readonly input1CombinedDiff = LineDiff.hull(this.input1Diffs);
+	public readonly input2CombinedDiff = LineDiff.hull(this.input2Diffs);
 
 	public readonly baseRange: LineRange;
 	public readonly input1Range: LineRange;
@@ -335,31 +303,31 @@ export class ModifiedBaseRange {
 		public readonly baseTextModel: ITextModel,
 		public readonly input1TextModel: ITextModel,
 		public readonly input1Diffs: readonly LineDiff[],
-		public readonly input1DeltaLineCount: number,
+		input1DeltaLineCount: number,
 		public readonly input2TextModel: ITextModel,
 		public readonly input2Diffs: readonly LineDiff[],
-		public readonly input2DeltaLineCount: number,
+		input2DeltaLineCount: number,
 	) {
 		if (this.input1Diffs.length === 0 && this.input2Diffs.length === 0) {
 			throw new BugIndicatingError('must have at least one diff');
 		}
 
 		const input1Diff =
-			this.input1FullDiff ||
+			this.input1CombinedDiff ||
 			new LineDiff(
 				baseTextModel,
-				this.input2FullDiff!.originalRange,
+				this.input2CombinedDiff!.originalRange,
 				input1TextModel,
-				this.input2FullDiff!.originalRange.delta(input1DeltaLineCount)
+				this.input2CombinedDiff!.originalRange.delta(input1DeltaLineCount)
 			);
 
 		const input2Diff =
-			this.input2FullDiff ||
+			this.input2CombinedDiff ||
 			new LineDiff(
 				baseTextModel,
-				this.input1FullDiff!.originalRange,
+				this.input1CombinedDiff!.originalRange,
 				input1TextModel,
-				this.input1FullDiff!.originalRange.delta(input2DeltaLineCount)
+				this.input1CombinedDiff!.originalRange.delta(input2DeltaLineCount)
 			);
 
 		const results = LineDiff.alignOriginalRange([input1Diff, input2Diff]);
@@ -368,54 +336,57 @@ export class ModifiedBaseRange {
 		this.input2Range = results[1].modifiedRange;
 	}
 
+	public getInputRange(inputNumber: 1 | 2): LineRange {
+		return inputNumber === 1 ? this.input1Range : this.input2Range;
+	}
+
+	public getInputDiffs(inputNumber: 1 | 2): readonly LineDiff[] {
+		return inputNumber === 1 ? this.input1Diffs : this.input2Diffs;
+	}
+
 	public get isConflicting(): boolean {
 		return this.input1Diffs.length > 0 && this.input2Diffs.length > 0;
-	}
-
-	public getInput1LineEdit(): LineEdit | undefined {
-		if (this.input1Diffs.length === 0) {
-			return undefined;
-		}
-		//new LineDiff(this.baseTextModel, this.tota)
-		if (this.input1Diffs.length === 1) {
-			return this.input1Diffs[0].getLineEdit();
-		} else {
-			throw new Error('Method not implemented.');
-		}
-	}
-
-	public getInput2LineEdit(): LineEdit | undefined {
-		if (this.input2Diffs.length === 0) {
-			return undefined;
-		}
-		if (this.input2Diffs.length === 1) {
-			return this.input2Diffs[0].getLineEdit();
-		} else {
-			throw new Error('Method not implemented.');
-		}
 	}
 }
 
 export class ModifiedBaseRangeState {
-	constructor(
+	public static readonly default = new ModifiedBaseRangeState(false, false, false, false);
+	public static readonly conflicting = new ModifiedBaseRangeState(false, false, false, true);
+
+	private constructor(
 		public readonly input1: boolean,
 		public readonly input2: boolean,
-		public readonly input2First: boolean
+		public readonly input2First: boolean,
+		public readonly conflicting: boolean,
 	) { }
+
+	public getInput(inputNumber: 1 | 2): boolean {
+		if (inputNumber === 1) {
+			return this.input1;
+		} else {
+			return this.input2;
+		}
+	}
+
+	public withInputValue(inputNumber: 1 | 2, value: boolean): ModifiedBaseRangeState {
+		return inputNumber === 1 ? this.withInput1(value) : this.withInput2(value);
+	}
 
 	public withInput1(value: boolean): ModifiedBaseRangeState {
 		return new ModifiedBaseRangeState(
 			value,
-			this.input2,
-			value && this.isEmpty ? false : this.input2First
+			false,
+			value && this.isEmpty ? false : this.input2First,
+			false,
 		);
 	}
 
 	public withInput2(value: boolean): ModifiedBaseRangeState {
 		return new ModifiedBaseRangeState(
-			this.input1,
+			false,
 			value,
-			value && this.isEmpty ? true : this.input2First
+			value && this.isEmpty ? true : this.input2First,
+			false
 		);
 	}
 
@@ -443,33 +414,5 @@ export class ModifiedBaseRangeState {
 			arr.reverse();
 		}
 		return arr.join(',');
-	}
-}
-
-export class ReentrancyBarrier {
-	private isActive = false;
-
-	public runExclusively(fn: () => void): void {
-		if (this.isActive) {
-			return;
-		}
-		this.isActive = true;
-		try {
-			fn();
-		} finally {
-			this.isActive = false;
-		}
-	}
-
-	public runExclusivelyOrThrow(fn: () => void): void {
-		if (this.isActive) {
-			throw new BugIndicatingError();
-		}
-		this.isActive = true;
-		try {
-			fn();
-		} finally {
-			this.isActive = false;
-		}
 	}
 }

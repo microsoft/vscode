@@ -15,13 +15,17 @@ import { Color } from 'vs/base/common/color';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { deepClone } from 'vs/base/common/objects';
 import { noBreakWhitespace } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/mergeEditor';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -36,11 +40,12 @@ import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorControl, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { autorun, derivedObservable, IObservable, ITransaction } from 'vs/workbench/contrib/audioCues/browser/observable';
+import { autorun, derivedObservable, IObservable, ITransaction, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
-import { ModifiedBaseRangeState, ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/model';
+import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorModel';
+import { applyObservableDecorations, n, ReentrancyBarrier, setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 import { settingsSashBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
-import { EditorGutterWidget, IGutterItemInfo, IGutterItemView } from './editorGutterWidget';
+import { EditorGutter, IGutterItemInfo, IGutterItemView } from './editorGutter';
 
 export const ctxIsMergeEditor = new RawContextKey<boolean>('isMergeEditor', false);
 export const ctxUsesColumnLayout = new RawContextKey<boolean>('mergeEditorUsesColumnLayout', false);
@@ -51,11 +56,11 @@ export class MergeEditor extends EditorPane {
 
 	private readonly _sessionDisposables = new DisposableStore();
 
-	private _grid!: Grid<CodeEditorView>;
+	private _grid!: Grid<IView>;
 
-	private readonly input1View = this.instantiation.createInstance(CodeEditorView, { readonly: true });
-	private readonly input2View = this.instantiation.createInstance(CodeEditorView, { readonly: true });
-	private readonly inputResultView = this.instantiation.createInstance(CodeEditorView, { readonly: false });
+	private readonly input1View = this.instantiation.createInstance(InputCodeEditorView, 1, { readonly: true });
+	private readonly input2View = this.instantiation.createInstance(InputCodeEditorView, 2, { readonly: true });
+	private readonly inputResultView = this.instantiation.createInstance(ResultCodeEditorView, { readonly: false });
 
 	private readonly _ctxIsMergeEditor: IContextKey<boolean>;
 	private readonly _ctxUsesColumnLayout: IContextKey<boolean>;
@@ -68,6 +73,7 @@ export class MergeEditor extends EditorPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
+		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 	) {
 		super(MergeEditor.ID, telemetryService, themeService, storageService);
 
@@ -75,6 +81,7 @@ export class MergeEditor extends EditorPane {
 		this._ctxUsesColumnLayout = ctxUsesColumnLayout.bindTo(_contextKeyService);
 
 		const reentrancyBarrier = new ReentrancyBarrier();
+
 		this._store.add(this.input1View.editor.onDidScrollChange(c => {
 			if (c.scrollTopChanged) {
 				reentrancyBarrier.runExclusively(() => {
@@ -99,6 +106,7 @@ export class MergeEditor extends EditorPane {
 				});
 			}
 		}));
+
 
 		// TODO@jrieken make this proper: add menu id and allow extensions to contribute
 		const toolbarMenu = this._menuService.createMenu(MenuId.MergeToolbar, this._contextKeyService);
@@ -128,6 +136,11 @@ export class MergeEditor extends EditorPane {
 		super.dispose();
 	}
 
+	// TODO use this method & make it private
+	getEditorOptions(resource: URI): IEditorConfiguration {
+		return deepClone(this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource));
+	}
+
 	protected createEditor(parent: HTMLElement): void {
 		parent.classList.add('merge-editor');
 
@@ -138,14 +151,14 @@ export class MergeEditor extends EditorPane {
 				{
 					size: 38,
 					groups: [{
-						data: this.input1View
+						data: this.input1View.view
 					}, {
-						data: this.input2View
+						data: this.input2View.view
 					}]
 				},
 				{
 					size: 62,
-					data: this.inputResultView
+					data: this.inputResultView.view
 				},
 			]
 		}, {
@@ -170,113 +183,48 @@ export class MergeEditor extends EditorPane {
 		this._sessionDisposables.clear();
 		const model = await input.resolve();
 
-		this.input1View.setModel(model.input1, localize('yours', 'Yours'), model.input1Detail, model.input1Description);
-		this.input2View.setModel(model.input2, localize('theirs', 'Theirs',), model.input2Detail, model.input1Description);
-		this.inputResultView.setModel(model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }), undefined);
+		this.input1View.setModel(model, model.input1, localize('yours', 'Yours'), model.input1Detail, model.input1Description);
+		this.input2View.setModel(model, model.input2, localize('theirs', 'Theirs',), model.input2Detail, model.input1Description);
+		this.inputResultView.setModel(model, model.result, localize('result', 'Result',), this._labelService.getUriLabel(model.result.uri, { relative: true }), undefined);
 
-		let input1Decorations = new Array<IModelDeltaDecoration>();
-		let input2Decorations = new Array<IModelDeltaDecoration>();
+		// TODO: Update editor options!
 
+		const input1ViewZoneIds: string[] = [];
+		const input2ViewZoneIds: string[] = [];
 		for (const m of model.modifiedBaseRanges) {
-			if (!m.input1Range.isEmpty) {
-				input1Decorations.push({
-					range: new Range(m.input1Range.startLineNumber, 1, m.input1Range.endLineNumberExclusive - 1, 1),
-					options: {
-						isWholeLine: true,
-						className: 'merge-accept-foo',
-						description: 'foo2'
-					}
-				});
-			}
-
-			if (!m.input2Range.isEmpty) {
-				input2Decorations.push({
-					range: new Range(m.input2Range.startLineNumber, 1, m.input2Range.endLineNumberExclusive - 1, 1),
-					options: {
-						isWholeLine: true,
-						className: 'merge-accept-foo',
-						description: 'foo2'
-					}
-				});
-			}
-
 			const max = Math.max(m.input1Range.lineCount, m.input2Range.lineCount, 1);
 
 			this.input1View.editor.changeViewZones(a => {
-				a.addZone({
+				input1ViewZoneIds.push(a.addZone({
 					afterLineNumber: m.input1Range.endLineNumberExclusive - 1,
 					heightInLines: max - m.input1Range.lineCount,
 					domNode: $('div.diagonal-fill'),
-				});
+				}));
 			});
 
 			this.input2View.editor.changeViewZones(a => {
-				a.addZone({
+				input2ViewZoneIds.push(a.addZone({
 					afterLineNumber: m.input2Range.endLineNumberExclusive - 1,
 					heightInLines: max - m.input2Range.lineCount,
 					domNode: $('div.diagonal-fill'),
-				});
+				}));
 			});
 		}
 
-		this.input1View.editor.deltaDecorations([], input1Decorations);
-		this.input2View.editor.deltaDecorations([], input2Decorations);
-
-		new EditorGutterWidget(this.input1View.editor, this.input1View._gutterDiv, {
-			getIntersectingGutterItems: (range) =>
-				model.modifiedBaseRanges
-					.filter((r) => r.input1Diffs.length > 0)
-					.map<ButtonViewData>((baseRange, idx) => ({
-						id: idx.toString(),
-						additionalHeightInPx: 0,
-						offsetInPx: 0,
-						range: baseRange.input1Range,
-						toggleState: derivedObservable(
-							'toggle',
-							(reader) => model.getState(baseRange).read(reader)?.input1
-						),
-						setState(value, tx) {
-							model.setState(
-								baseRange,
-								(
-									model.getState(baseRange).get() ||
-									new ModifiedBaseRangeState(false, false, false)
-								).withInput1(value),
-								tx
-							);
-						},
-					})),
-			createView: (item, target) => new ButtonView(item, target),
+		this._sessionDisposables.add({
+			dispose: () => {
+				this.input1View.editor.changeViewZones(a => {
+					for (const zone of input1ViewZoneIds) {
+						a.removeZone(zone);
+					}
+				});
+				this.input2View.editor.changeViewZones(a => {
+					for (const zone of input2ViewZoneIds) {
+						a.removeZone(zone);
+					}
+				});
+			}
 		});
-
-		new EditorGutterWidget(this.input2View.editor, this.input2View._gutterDiv, {
-			getIntersectingGutterItems: (range) =>
-				model.modifiedBaseRanges
-					.filter((r) => r.input2Diffs.length > 0)
-					.map<ButtonViewData>((baseRange, idx) => ({
-						id: idx.toString(),
-						additionalHeightInPx: 0,
-						offsetInPx: 0,
-						range: baseRange.input2Range,
-						baseRange,
-						toggleState: derivedObservable(
-							'toggle',
-							(reader) => model.getState(baseRange).read(reader)?.input2
-						),
-						setState(value, tx) {
-							model.setState(
-								baseRange,
-								(
-									model.getState(baseRange).get() ||
-									new ModifiedBaseRangeState(false, false, false)
-								).withInput2(value),
-								tx
-							);
-						},
-					})),
-			createView: (item, target) => new ButtonView(item, target),
-		});
-
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
@@ -307,23 +255,170 @@ export class MergeEditor extends EditorPane {
 
 	toggleLayout(): void {
 		if (!this._usesColumnLayout) {
-			this._grid.moveView(this.inputResultView, Sizing.Distribute, this.input1View, Direction.Right);
+			this._grid.moveView(this.inputResultView.view, Sizing.Distribute, this.input1View.view, Direction.Right);
 		} else {
-			this._grid.moveView(this.inputResultView, this._grid.height * .62, this.input1View, Direction.Down);
-			this._grid.moveView(this.input2View, Sizing.Distribute, this.input1View, Direction.Right);
+			this._grid.moveView(this.inputResultView.view, this._grid.height * .62, this.input1View.view, Direction.Down);
+			this._grid.moveView(this.input2View.view, Sizing.Distribute, this.input1View.view, Direction.Right);
 		}
 		this._usesColumnLayout = !this._usesColumnLayout;
 		this._ctxUsesColumnLayout.set(this._usesColumnLayout);
 	}
 }
 
-interface ButtonViewData extends IGutterItemInfo {
+interface ICodeEditorViewOptions {
+	readonly: boolean;
+}
+
+
+abstract class CodeEditorView extends Disposable {
+	private readonly _model = new ObservableValue<undefined | MergeEditorModel>(undefined, 'model');
+	protected readonly model: IObservable<undefined | MergeEditorModel> = this._model;
+
+	protected readonly htmlElements = n('div.code-view', [
+		n('div.title', { $: 'title' }),
+		n('div.container', [
+			n('div.gutter', { $: 'gutterDiv' }),
+			n('div', { $: 'editor' }),
+		]),
+	]);
+
+	private readonly _onDidViewChange = new Emitter<IViewSize | undefined>();
+
+	public readonly view: IView = {
+		element: this.htmlElements.root,
+		minimumWidth: 10,
+		maximumWidth: Number.MAX_SAFE_INTEGER,
+		minimumHeight: 10,
+		maximumHeight: Number.MAX_SAFE_INTEGER,
+		onDidChange: this._onDidViewChange.event,
+
+		layout: (width: number, height: number, top: number, left: number) => {
+			setStyle(this.htmlElements.root, { width, height, top, left });
+			this.editor.layout({
+				width: width - this.htmlElements.gutterDiv.clientWidth,
+				height: height - this.htmlElements.title.clientHeight,
+			});
+		}
+
+		// preferredWidth?: number | undefined;
+		// preferredHeight?: number | undefined;
+		// priority?: LayoutPriority | undefined;
+		// snap?: boolean | undefined;
+	};
+
+	private readonly _title = new IconLabel(this.htmlElements.title, { supportIcons: true });
+	private readonly _detail = new IconLabel(this.htmlElements.title, { supportIcons: true });
+
+	public readonly editor = this.instantiationService.createInstance(
+		CodeEditorWidget,
+		this.htmlElements.editor,
+		{
+			minimap: { enabled: false },
+			readOnly: this._options.readonly,
+			glyphMargin: false,
+			lineNumbersMinChars: 2,
+		},
+		{ contributions: [] }
+	);
+
+	constructor(
+		private readonly _options: ICodeEditorViewOptions,
+		@IInstantiationService
+		private readonly instantiationService: IInstantiationService
+	) {
+		super();
+	}
+
+	public setModel(
+		model: MergeEditorModel,
+		textModel: ITextModel,
+		title: string,
+		description: string | undefined,
+		detail: string | undefined
+	): void {
+		this.editor.setModel(textModel);
+		this._title.setLabel(title, description);
+		this._detail.setLabel('', detail);
+
+		this._model.set(model, undefined);
+	}
+}
+
+class InputCodeEditorView extends CodeEditorView {
+	private readonly decorations = derivedObservable('decorations', reader => {
+		const model = this.model.read(reader);
+		if (!model) {
+			return [];
+		}
+		const result = new Array<IModelDeltaDecoration>();
+		for (const m of model.modifiedBaseRanges) {
+			const range = m.getInputRange(this.inputNumber);
+			if (!range.isEmpty) {
+				result.push({
+					range: new Range(range.startLineNumber, 1, range.endLineNumberExclusive - 1, 1),
+					options: {
+						isWholeLine: true,
+						className: 'merge-accept-foo',
+						description: 'foo2'
+					}
+				});
+			}
+		}
+		return result;
+	});
+
+	constructor(
+		public readonly inputNumber: 1 | 2,
+		options: ICodeEditorViewOptions,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		super(options, instantiationService);
+
+		this._register(applyObservableDecorations(this.editor, this.decorations));
+
+		this._register(
+			new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
+				getIntersectingGutterItems: (range, reader) => {
+					const model = this.model.read(reader);
+					if (!model) { return []; }
+					return model.modifiedBaseRanges
+						.filter((r) => r.getInputDiffs(this.inputNumber).length > 0)
+						.map<MergeConflictData>((baseRange, idx) => ({
+							id: idx.toString(),
+							additionalHeightInPx: 0,
+							offsetInPx: 0,
+							range: baseRange.getInputRange(this.inputNumber),
+							toggleState: derivedObservable('toggle', (reader) =>
+								model
+									.getState(baseRange)
+									.read(reader)
+									.getInput(this.inputNumber)
+							),
+							setState: (value, tx) =>
+								model.setState(
+									baseRange,
+									model
+										.getState(baseRange)
+										.get()
+										.withInputValue(this.inputNumber, value),
+									tx
+								),
+						}));
+				},
+				createView: (item, target) =>
+					new MergeConflictGutterItemView(item, target),
+			})
+		);
+	}
+}
+
+interface MergeConflictData extends IGutterItemInfo {
 	toggleState: IObservable<boolean | undefined>;
 	setState(value: boolean, tx: ITransaction | undefined): void;
 }
 
-class ButtonView extends Disposable implements IGutterItemView<ButtonViewData> {
-	constructor(item: ButtonViewData, target: HTMLElement) {
+class MergeConflictGutterItemView extends Disposable implements IGutterItemView<MergeConflictData> {
+	constructor(private item: MergeConflictData, target: HTMLElement) {
 		super();
 
 		target.classList.add('merge-accept-gutter-marker');
@@ -334,93 +429,57 @@ class ButtonView extends Disposable implements IGutterItemView<ButtonViewData> {
 
 		this._register(
 			autorun((reader) => {
-				const value = item.toggleState.read(reader);
+				const value = this.item.toggleState.read(reader);
 				checkBox.checked = value === true;
 			}, 'Update Toggle State')
 		);
 
 		this._register(checkBox.onChange(() => {
-			item.setState(checkBox.checked, undefined);
+			this.item.setState(checkBox.checked, undefined);
 		}));
 
 		target.appendChild($('div.background', {}, noBreakWhitespace));
 		target.appendChild($('div.checkbox', {}, checkBox.domNode));
 	}
+
 	layout(top: number, height: number, viewTop: number, viewHeight: number): void {
 
 	}
 
-	update(baseRange: ButtonViewData): void {
+	update(baseRange: MergeConflictData): void {
+		this.item = baseRange;
 	}
 }
 
-interface ICodeEditorViewOptions {
-	readonly: boolean;
-}
-
-class CodeEditorView implements IView {
-
-	// preferredWidth?: number | undefined;
-	// preferredHeight?: number | undefined;
-
-	element: HTMLElement;
-	private readonly _titleElement: HTMLElement;
-	private readonly _editorElement: HTMLElement;
-	public readonly _gutterDiv: HTMLElement;
-
-	minimumWidth: number = 10;
-	maximumWidth: number = Number.MAX_SAFE_INTEGER;
-	minimumHeight: number = 10;
-	maximumHeight: number = Number.MAX_SAFE_INTEGER;
-	// priority?: LayoutPriority | undefined;
-	// snap?: boolean | undefined;
-
-	private readonly _onDidChange = new Emitter<IViewSize | undefined>();
-	readonly onDidChange = this._onDidChange.event;
-
-	private readonly _title: IconLabel;
-	private readonly _detail: IconLabel;
-
-	public readonly editor: CodeEditorWidget;
-	// private readonly gutter: EditorGutterWidget;
-
+class ResultCodeEditorView extends CodeEditorView {
+	private readonly decorations = derivedObservable('decorations', reader => {
+		const model = this.model.read(reader);
+		if (!model) {
+			return [];
+		}
+		const result = new Array<IModelDeltaDecoration>();
+		for (const m of model.resultDiffs.read(reader)) {
+			const range = m.modifiedRange;
+			if (!range.isEmpty) {
+				result.push({
+					range: new Range(range.startLineNumber, 1, range.endLineNumberExclusive - 1, 1),
+					options: {
+						isWholeLine: true,
+						className: 'merge-accept-foo',
+						description: 'foo2'
+					}
+				});
+			}
+		}
+		return result;
+	});
 
 	constructor(
-		private readonly _options: ICodeEditorViewOptions,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		options: ICodeEditorViewOptions,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		this.element = $(
-			'div.code-view',
-			{},
-			this._titleElement = $('div.title'),
-			$('div.container', {},
-				this._gutterDiv = $('div.gutter'),
-				this._editorElement = $('div'),
-			),
-		);
+		super(options, instantiationService);
 
-		this.editor = this.instantiationService.createInstance(
-			CodeEditorWidget,
-			this._editorElement,
-			{ minimap: { enabled: false }, readOnly: this._options.readonly, glyphMargin: false, lineNumbersMinChars: 2 },
-			{ contributions: [] }
-		);
-
-		this._title = new IconLabel(this._titleElement, { supportIcons: true });
-		this._detail = new IconLabel(this._titleElement, { supportIcons: true });
-	}
-
-	public setModel(model: ITextModel, title: string, description: string | undefined, detail: string | undefined): void {
-		this.editor.setModel(model);
-		this._title.setLabel(title, description);
-		this._detail.setLabel('', detail);
-	}
-
-	layout(width: number, height: number, top: number, left: number): void {
-		this.element.style.width = `${width}px`;
-		this.element.style.height = `${height}px`;
-		this.element.style.top = `${top}px`;
-		this.element.style.left = `${left}px`;
-		this.editor.layout({ width: width - this._gutterDiv.clientWidth, height: height - this._titleElement.clientHeight });
+		this._register(applyObservableDecorations(this.editor, this.decorations));
 	}
 }
