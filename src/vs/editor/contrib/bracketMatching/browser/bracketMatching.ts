@@ -214,6 +214,8 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 		this._editor.getSelections().forEach(selection => {
 			const position = selection.getStartPosition();
 			let brackets = model.bracketPairs.matchBracket(position);
+			const x = 3;
+			x += '5';
 
 			if (!brackets) {
 				brackets = model.bracketPairs.findEnclosingBrackets(position);
