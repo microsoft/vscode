@@ -37,7 +37,7 @@ abstract class MainThreadKernel implements IResolvedNotebookKernel {
 	kind?: string;
 	supportedLanguages: string[];
 	implementsExecutionOrder: boolean;
-	localResourceRoot: URI;
+	localResourceRoots: URI[];
 
 	public get preloadUris() {
 		return this.preloads.map(p => p.uri);
@@ -59,7 +59,7 @@ abstract class MainThreadKernel implements IResolvedNotebookKernel {
 		this.kind = data.kind;
 		this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : _languageService.getRegisteredLanguageIds();
 		this.implementsExecutionOrder = data.supportsExecutionOrder ?? false;
-		this.localResourceRoot = URI.revive(data.extensionLocation);
+		this.localResourceRoots = data.additionalLocalResourceRoots ? [URI.revive(data.extensionLocation), ...data.additionalLocalResourceRoots.map(u => URI.revive(u))] : [URI.revive(data.extensionLocation)];
 		this.preloads = data.preloads?.map(u => ({ uri: URI.revive(u.uri), provides: u.provides })) ?? [];
 	}
 

@@ -43,7 +43,7 @@ export interface IResolvedNotebookKernel {
 	readonly onDidChange: Event<Readonly<INotebookKernelChangeEvent>>;
 	readonly extension: ExtensionIdentifier;
 
-	readonly localResourceRoot: URI;
+	readonly localResourceRoots: URI[];
 	readonly preloadUris: URI[];
 	readonly preloadProvides: string[];
 

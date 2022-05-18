@@ -983,6 +983,7 @@ export interface INotebookKernelDto2 {
 	supportsInterrupt?: boolean;
 	supportsExecutionOrder?: boolean;
 	preloads?: { uri: UriComponents; provides: string[] }[];
+	additionalLocalResourceRoots?: UriComponents[];
 }
 
 export interface INotebookProxyKernelDto {

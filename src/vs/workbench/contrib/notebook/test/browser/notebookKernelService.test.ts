@@ -166,7 +166,7 @@ class TestNotebookKernel implements IResolvedNotebookKernel {
 	viewType = '*';
 	onDidChange = Event.None;
 	extension: ExtensionIdentifier = new ExtensionIdentifier('test');
-	localResourceRoot: URI = URI.file('/test');
+	localResourceRoots: URI[] = [URI.file('/test')];
 	description?: string | undefined;
 	detail?: string | undefined;
 	preloadUris: URI[] = [];

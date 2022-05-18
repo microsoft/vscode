@@ -1440,7 +1440,7 @@ var requirejs = (function() {
 
 		const mixedResourceRoots = [
 			...(this.localResourceRootsCache || []),
-			...(this._currentKernel?.type === NotebookKernelType.Resolved ? [this._currentKernel.localResourceRoot] : []),
+			...(this._currentKernel?.type === NotebookKernelType.Resolved ? this._currentKernel.localResourceRoots : []),
 		];
 
 		this.webview.localResourcesRoot = mixedResourceRoots;

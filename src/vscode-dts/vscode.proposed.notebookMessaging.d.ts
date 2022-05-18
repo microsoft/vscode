@@ -63,6 +63,6 @@ declare module 'vscode' {
 
 	export namespace notebooks {
 
-		export function createNotebookController(id: string, viewType: string, label: string, handler?: (cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController) => void | Thenable<void>, rendererScripts?: NotebookRendererScript[]): NotebookController;
+		export function createNotebookController(id: string, viewType: string, label: string, handler?: (cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController) => void | Thenable<void>, rendererScripts?: NotebookRendererScript[], additionalLocalResourceRoots?: Uri[]): NotebookController;
 	}
 }

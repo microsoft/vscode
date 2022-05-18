@@ -85,7 +85,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		this._commands.registerApiCommand(selectKernelApiCommand);
 	}
 
-	createNotebookController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler?: (cells: vscode.NotebookCell[], notebook: vscode.NotebookDocument, controller: vscode.NotebookController) => void | Thenable<void>, preloads?: vscode.NotebookRendererScript[]): vscode.NotebookController {
+	createNotebookController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler?: (cells: vscode.NotebookCell[], notebook: vscode.NotebookDocument, controller: vscode.NotebookController) => void | Thenable<void>, preloads?: vscode.NotebookRendererScript[], additionalLocalResourceRoots?: vscode.Uri[]): vscode.NotebookController {
 
 		for (const data of this._kernelData.values()) {
 			if (data.controller.id === id && ExtensionIdentifier.equals(extension.identifier, data.extensionId)) {
@@ -113,7 +113,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
 			label: label || extension.identifier.value,
-			preloads: preloads ? preloads.map(extHostTypeConverters.NotebookRendererScript.from) : []
+			preloads: preloads ? preloads.map(extHostTypeConverters.NotebookRendererScript.from) : [],
+			additionalLocalResourceRoots: additionalLocalResourceRoots ? additionalLocalResourceRoots : []
 		};
 
 		//
