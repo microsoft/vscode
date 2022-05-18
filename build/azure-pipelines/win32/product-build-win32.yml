@@ -225,7 +225,7 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { yarn yarn gulp `
+        exec { yarn gulp `
           compile-extension:css-language-features-server `
           compile-extension:emmet `
           compile-extension:git `

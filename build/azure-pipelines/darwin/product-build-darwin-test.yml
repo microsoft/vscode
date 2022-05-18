@@ -197,6 +197,29 @@ steps:
 
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - script: |
+        set -e
+        yarn gulp \
+          compile-extension:css-language-features-server \
+          compile-extension:emmet \
+          compile-extension:git \
+          compile-extension:github-authentication \
+          compile-extension:html-language-features-server \
+          compile-extension:ipynb \
+          compile-extension:json-language-features-server \
+          compile-extension:markdown-language-features \
+          compile-extension-media \
+          compile-extension:microsoft-authentication \
+          compile-extension:typescript-language-features \
+          compile-extension:vscode-api-tests \
+          compile-extension:vscode-colorize-tests \
+          compile-extension:vscode-custom-editor-tests \
+          compile-extension:vscode-notebook-tests \
+          compile-extension:vscode-test-resolver
+      displayName: Build integration tests
+      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
+    - script: |
         # Figure out the full absolute path of the product we just built
         # including the remote server and configure the integration tests
         # to run with these builds instead of running out of sources.
