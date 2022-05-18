@@ -1,4 +1,6 @@
-trigger: none
+trigger:
+  - main
+  - release/*
 
 pr:
   branches:
