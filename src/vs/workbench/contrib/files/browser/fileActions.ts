@@ -66,6 +66,7 @@ export const DOWNLOAD_LABEL = nls.localize('download', "Download...");
 export const UPLOAD_COMMAND_ID = 'explorer.upload';
 export const UPLOAD_LABEL = nls.localize('upload', "Upload...");
 const CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
+const CONFIRM_DELETE_PERMANENTLY_SETTING_KEY = 'explorer.confirmDeletePermanently';
 const MAX_UNDO_FILE_SIZE = 5000000; // 5mb
 
 function onError(notificationService: INotificationService, error: any): void {
@@ -139,7 +140,9 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 		distinctElements.length > 1 ? nls.localize('restorePlural', "You can restore these files using the Undo command") : nls.localize('restore', "You can restore this file using the Undo command");
 
 	// Check if we need to ask for confirmation at all
-	if (skipConfirm || (useTrash && configurationService.getValue<boolean>(CONFIRM_DELETE_SETTING_KEY) === false)) {
+	if (skipConfirm
+		|| (useTrash && configurationService.getValue<boolean>(CONFIRM_DELETE_SETTING_KEY) === false)
+		|| (!useTrash && configurationService.getValue<boolean>(CONFIRM_DELETE_PERMANENTLY_SETTING_KEY) === false)) {
 		confirmation = { confirmed: true };
 	}
 

@@ -384,6 +384,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('confirmDelete', "Controls whether the explorer should ask for confirmation when deleting a file via the trash."),
 			'default': true
 		},
+		'explorer.confirmDeletePermanently': {
+			'type': 'boolean',
+			'description': nls.localize('confirmDeletePermanently', "Controls whether the explorer should ask for confirmation when permanently deleting a file."),
+			'default': true
+		},
 		'explorer.enableUndo': {
 			'type': 'boolean',
 			'description': nls.localize('enableUndo', "Controls whether the explorer should support undoing file and folder operations."),
