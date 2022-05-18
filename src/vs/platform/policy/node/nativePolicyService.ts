@@ -8,35 +8,34 @@ import { IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from 'vs/pl
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Iterable } from 'vs/base/common/iterator';
 import { Throttler } from 'vs/base/common/async';
-import type { Watcher } from 'vscode-policy-watcher';
+import { createWatcher, Watcher } from 'vscode-policy-watcher';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 
-export class NativePolicyService implements IPolicyService {
+export class NativePolicyService extends Disposable implements IPolicyService {
 
 	readonly _serviceBrand: undefined;
 
 	private policyDefinitions: IStringDictionary<PolicyDefinition> = {};
 	private readonly policies = new Map<PolicyName, PolicyValue>();
 
-	private readonly _onDidChange = new Emitter<readonly PolicyName[]>();
+	private readonly _onDidChange = this._register(new Emitter<readonly PolicyName[]>());
 	readonly onDidChange = this._onDidChange.event;
 
 	private throttler = new Throttler();
-	private watcher: Watcher | undefined;
+	private watcher = this._register(new MutableDisposable<Watcher>());
 
-	constructor(private readonly productName: string) { }
+	constructor(private readonly productName: string) {
+		super();
+	}
 
 	async registerPolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>> {
 		const size = Object.keys(this.policyDefinitions).length;
 		this.policyDefinitions = { ...policyDefinitions, ...this.policyDefinitions };
 
 		if (size !== Object.keys(this.policyDefinitions).length) {
-			await this.throttler.queue(async () => {
-				this.watcher?.dispose();
-
-				const { createWatcher } = await import('vscode-policy-watcher');
-
-				await new Promise<void>(c => {
-					this.watcher = createWatcher(this.productName, policyDefinitions, update => {
+			await this.throttler.queue(() => new Promise<void>((c, e) => {
+				try {
+					this.watcher.value = createWatcher(this.productName, policyDefinitions, update => {
 						for (const key in update) {
 							const value = update[key] as any;
 
@@ -50,8 +49,10 @@ export class NativePolicyService implements IPolicyService {
 						this._onDidChange.fire(Object.keys(update));
 						c();
 					});
-				});
-			});
+				} catch (err) {
+					e(err);
+				}
+			}));
 		}
 
 		return Iterable.reduce(this.policies.entries(), (r, [name, value]) => ({ ...r, [name]: value }), {});
@@ -59,10 +60,5 @@ export class NativePolicyService implements IPolicyService {
 
 	getPolicyValue(name: PolicyName): PolicyValue | undefined {
 		return this.policies.get(name);
-	}
-
-	dispose(): void {
-		this._onDidChange.dispose();
-		this.watcher?.dispose();
 	}
 }
