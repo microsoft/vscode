@@ -24,8 +24,6 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
 
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ITerminalProfileResolverService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalService, ITerminalInstance, ITerminalGroupService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -37,7 +35,7 @@ import {
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
-	TelemetryEvent, Triggers, TaskTerminateResponse, TaskSystemInfoResolver, TaskSystemInfo, ResolveSet, ResolvedVariables
+	Triggers, TaskTerminateResponse, TaskSystemInfoResolver, TaskSystemInfo, ResolveSet, ResolvedVariables
 } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -213,7 +211,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		private viewsService: IViewsService,
 		private markerService: IMarkerService, private modelService: IModelService,
 		private configurationResolverService: IConfigurationResolverService,
-		private telemetryService: ITelemetryService,
 		private contextService: IWorkspaceContextService,
 		private environmentService: IWorkbenchEnvironmentService,
 		private outputChannelId: string,
@@ -787,7 +784,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private async executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<ITaskSummary> {
 		let terminal: ITerminalInstance | undefined = undefined;
-		let executedCommand: string | undefined = undefined;
 		let error: TaskError | undefined = undefined;
 		let promise: Promise<ITaskSummary> | undefined = undefined;
 		if (task.configurationProperties.isBackground) {
@@ -828,7 +824,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}));
 			watchingProblemMatcher.aboutToStart();
 			let delayer: Async.Delayer<any> | undefined = undefined;
-			[terminal, executedCommand, error] = await this.createTerminal(task, resolver, workspaceFolder);
+			[terminal, error] = await this.createTerminal(task, resolver, workspaceFolder);
 
 			if (error) {
 				return Promise.reject(new Error((<TaskError>error).message));
@@ -910,7 +906,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				});
 			});
 		} else {
-			[terminal, executedCommand, error] = await this.createTerminal(task, resolver, workspaceFolder);
+			[terminal, error] = await this.createTerminal(task, resolver, workspaceFolder);
 
 			if (error) {
 				return Promise.reject(new Error((<TaskError>error).message));
@@ -1002,48 +998,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		this.activeTasks[task.getMapKey()] = { terminal, task, promise };
 		this.fireTaskEvent(TaskEvent.create(TaskEventKind.Changed));
-		return promise.then((summary) => {
-			try {
-				let telemetryEvent: TelemetryEvent = {
-					trigger: trigger,
-					runner: 'terminal',
-					taskKind: task.getTelemetryKind(),
-					command: this.getSanitizedCommand(executedCommand!),
-					success: true,
-					exitCode: summary.exitCode
-				};
-				/* __GDPR__
-					"taskService" : {
-						"${include}": [
-							"${TelemetryEvent}"
-						]
-					}
-				*/
-				this.telemetryService.publicLog(TerminalTaskSystem.TelemetryEventName, telemetryEvent);
-			} catch (error) {
-			}
-			return summary;
-		}, (error) => {
-			try {
-				let telemetryEvent: TelemetryEvent = {
-					trigger: trigger,
-					runner: 'terminal',
-					taskKind: task.getTelemetryKind(),
-					command: this.getSanitizedCommand(executedCommand!),
-					success: false
-				};
-				/* __GDPR__
-					"taskService" : {
-						"${include}": [
-							"${TelemetryEvent}"
-						]
-					}
-				*/
-				this.telemetryService.publicLog(TerminalTaskSystem.TelemetryEventName, telemetryEvent);
-			} catch (error) {
-			}
-			return Promise.reject<ITaskSummary>(error);
-		});
+		return promise;
 	}
 
 	private createTerminalName(task: CustomTask | ContributedTask): string {
@@ -1253,7 +1208,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return createdTerminal;
 	}
 
-	private async createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<[ITerminalInstance | undefined, string | undefined, TaskError | undefined]> {
+	private async createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<[ITerminalInstance | undefined, TaskError | undefined]> {
 		let platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		let options = await this.resolveOptions(resolver, task.command.options);
 		const presentationOptions = task.command.presentation;
@@ -1277,7 +1232,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			waitOnExit = !presentationOptions.close;
 		}
 
-		let commandExecutable: string | undefined;
 		let command: CommandString | undefined;
 		let args: CommandString[] | undefined;
 		let launchConfigs: IShellLaunchConfig | undefined;
@@ -1294,11 +1248,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			let resolvedResult: { command: CommandString; args: CommandString[] } = await this.resolveCommandAndArgs(resolver, task.command);
 			command = resolvedResult.command;
 			args = resolvedResult.args;
-			commandExecutable = CommandString.value(command);
 
 			this.currentTask.shellLaunchConfig = launchConfigs = await this.createShellLaunchConfig(task, workspaceFolder, resolver, platform, options, command, args, waitOnExit);
 			if (launchConfigs === undefined) {
-				return [undefined, undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
+				return [undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
 			}
 		}
 
@@ -1345,7 +1298,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				terminalToReuse.terminal.clearBuffer();
 			}
 			this.terminals[terminalToReuse.terminal.instanceId.toString()].lastTask = taskKey;
-			return [terminalToReuse.terminal, commandExecutable, undefined];
+			return [terminalToReuse.terminal, undefined];
 		}
 
 		this.terminalCreationQueue = this.terminalCreationQueue.then(() => this.doCreateTerminal(group, launchConfigs!));
@@ -1370,7 +1323,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 		});
 		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey, group };
-		return [result, commandExecutable, undefined];
+		return [result, undefined];
 	}
 
 	private buildShellCommandLine(platform: Platform.Platform, shellExecutable: string, shellOptions: ShellConfiguration | undefined, command: CommandString, originalCommand: CommandString | undefined, args: CommandString[]): string {

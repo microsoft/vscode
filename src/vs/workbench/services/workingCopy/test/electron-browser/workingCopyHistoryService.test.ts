@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { TestNativePathService, TestNativeWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { TestContextService, TestProductService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestProductService, TestStorageService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -57,7 +57,7 @@ export class TestWorkingCopyHistoryService extends NativeWorkingCopyHistoryServi
 
 		const uriIdentityService = new UriIdentityService(fileService);
 
-		const labelService = new LabelService(environmentService, new TestContextService(), new TestNativePathService(), new TestRemoteAgentService());
+		const labelService = new LabelService(environmentService, new TestContextService(), new TestNativePathService(), new TestRemoteAgentService(), new TestStorageService(), new TestLifecycleService());
 
 		const lifecycleService = new TestLifecycleService();
 

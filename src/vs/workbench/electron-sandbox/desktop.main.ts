@@ -187,7 +187,7 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(ISharedProcessWorkerWorkbenchService, sharedProcessWorkerWorkbenchService);
 
 		// Remote
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(productService);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 

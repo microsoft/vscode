@@ -90,7 +90,7 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 
 		// Add opened files (such as untitled files)
 		const openTextDocumentResults = await Promise.all(vscode.workspace.textDocuments
-			.filter(doc => !foundFiles.has(doc.uri.toString()) && isMarkdownFile(doc)));
+			.filter(doc => !foundFiles.has(doc.uri.toString()) && this.isRelevantMarkdownDocument(doc)));
 
 		return coalesce([...onDiskResults, ...openTextDocumentResults]);
 	}
@@ -136,14 +136,18 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 		}));
 
 		this._register(vscode.workspace.onDidChangeTextDocument(e => {
-			if (isMarkdownFile(e.document)) {
+			if (this.isRelevantMarkdownDocument(e.document)) {
 				this._onDidChangeMarkdownDocumentEmitter.fire(e.document);
 			}
 		}));
 	}
 
+	private isRelevantMarkdownDocument(doc: vscode.TextDocument) {
+		return isMarkdownFile(doc) && doc.uri.scheme !== 'vscode-bulkeditpreview';
+	}
+
 	public async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
-		const matchingDocument = vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === resource.toString());
+		const matchingDocument = vscode.workspace.textDocuments.find((doc) => this.isRelevantMarkdownDocument(doc) && doc.uri.toString() === resource.toString());
 		if (matchingDocument) {
 			return matchingDocument;
 		}

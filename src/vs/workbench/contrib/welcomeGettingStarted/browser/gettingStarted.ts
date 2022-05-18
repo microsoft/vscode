@@ -74,8 +74,8 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
 
-export const allWalkthroughsHiddenContext = new RawContextKey('allWalkthroughsHidden', false);
-export const inWelcomeContext = new RawContextKey('inWelcome', false);
+export const allWalkthroughsHiddenContext = new RawContextKey<boolean>('allWalkthroughsHidden', false);
+export const inWelcomeContext = new RawContextKey<boolean>('inWelcome', false);
 export const embedderIdentifierContext = new RawContextKey<string | undefined>('embedderIdentifier', undefined);
 
 export interface IWelcomePageStartEntry {

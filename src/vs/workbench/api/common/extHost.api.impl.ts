@@ -29,7 +29,7 @@ import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocu
 import { Extension, IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtHostFileSystem } from 'vs/workbench/api/common/extHostFileSystem';
 import { ExtHostFileSystemEventService } from 'vs/workbench/api/common/extHostFileSystemEventService';
-import { ExtHostLanguageFeatures, InlineCompletionController } from 'vs/workbench/api/common/extHostLanguageFeatures';
+import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { ExtHostLanguages } from 'vs/workbench/api/common/extHostLanguages';
 import { ExtHostMessageService } from 'vs/workbench/api/common/extHostMessageService';
 import { IExtHostOutputService } from 'vs/workbench/api/common/extHostOutput';
@@ -453,7 +453,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguages.changeLanguage(document.uri, languageId);
 			},
 			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
-				return score(typeConverters.LanguageSelector.from(selector), document.uri, document.languageId, true, document.notebook?.notebookType);
+				const notebook = extHostDocuments.getDocumentData(document.uri)?.notebook;
+				return score(typeConverters.LanguageSelector.from(selector), document.uri, document.languageId, true, notebook?.uri, notebook?.notebookType);
 			},
 			registerCodeActionsProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
 				return extHostLanguageFeatures.registerCodeActionProvider(extension, checkSelector(selector), provider, metadata);
@@ -526,6 +527,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerInlineCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'inlineCompletions');
+				if (provider.handleDidShowCompletionItem) {
+					checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
+				}
 				return extHostLanguageFeatures.registerInlineCompletionsProvider(extension, checkSelector(selector), provider);
 			},
 			registerInlineCompletionItemProviderNew(selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProviderNew): vscode.Disposable {
@@ -566,9 +570,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createLanguageStatusItem(id: string, selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
 				return extHostLanguages.createLanguageStatusItem(extension, id, selector);
 			},
-			registerDocumentOnDropProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentOnDropProvider): vscode.Disposable {
+			registerDocumentOnDropEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentOnDropEditProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'textEditorDrop');
-				return extHostLanguageFeatures.registerDocumentOnDropProvider(extension, selector, provider);
+				return extHostLanguageFeatures.registerDocumentOnDropEditProvider(extension, selector, provider);
 			}
 		};
 
@@ -656,9 +660,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostQuickOpen.showWorkspaceFolderPick(options);
 			},
 			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
-				if (options?.validateInput2) {
-					checkProposedApiEnabled(extension, 'inputBoxSeverity');
-				}
 				return extHostQuickOpen.showInput(options, token);
 			},
 			showOpenDialog(options) {
@@ -791,10 +792,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get tabGroups(): vscode.TabGroups {
 				return extHostEditorTabs.tabGroups;
-			},
-			getInlineCompletionItemController<T extends vscode.InlineCompletionItem>(provider: vscode.InlineCompletionItemProvider<T>): vscode.InlineCompletionController<T> {
-				checkProposedApiEnabled(extension, 'inlineCompletions');
-				return InlineCompletionController.get(provider);
 			},
 		};
 
@@ -1244,7 +1241,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			FunctionBreakpoint: extHostTypes.FunctionBreakpoint,
 			InlineCompletionItem: extHostTypes.InlineSuggestion,
 			InlineCompletionItemNew: extHostTypes.InlineSuggestionNew,
-			InlineCompletionList: extHostTypes.InlineSuggestions,
+			InlineCompletionList: extHostTypes.InlineSuggestionList,
 			InlineCompletionListNew: extHostTypes.InlineSuggestionsNew,
 			Hover: extHostTypes.Hover,
 			IndentAction: languageConfiguration.IndentAction,
@@ -1324,6 +1321,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookCellOutputItem: extHostTypes.NotebookCellOutputItem,
 			NotebookCellStatusBarItem: extHostTypes.NotebookCellStatusBarItem,
 			NotebookControllerAffinity: extHostTypes.NotebookControllerAffinity,
+			NotebookEdit: extHostTypes.NotebookEdit,
 			PortAttributes: extHostTypes.PortAttributes,
 			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
 			TestResultState: extHostTypes.TestResultState,

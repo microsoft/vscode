@@ -32,7 +32,8 @@ import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/m
 import { IMenuService, MenuId, IMenu, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { ResourcesDropHandler, fillEditorsDragData, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
+import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
+import { ResourcesDropHandler, fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';

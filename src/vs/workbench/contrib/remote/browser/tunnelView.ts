@@ -737,7 +737,8 @@ const TunnelViewSelectionKeyName = 'tunnelViewSelection';
 // host:port
 const TunnelViewSelectionContextKey = new RawContextKey<string | undefined>(TunnelViewSelectionKeyName, undefined, true);
 const TunnelViewMultiSelectionKeyName = 'tunnelViewMultiSelection';
-const TunnelViewMultiSelectionContextKey = new RawContextKey<ITunnelItem[] | undefined>(TunnelViewMultiSelectionKeyName, undefined, true);
+// host:port[]
+const TunnelViewMultiSelectionContextKey = new RawContextKey<string[] | undefined>(TunnelViewMultiSelectionKeyName, undefined, true);
 const PortChangableContextKey = new RawContextKey<boolean>('portChangable', false, true);
 const WebContextKey = new RawContextKey<boolean>('isWeb', isWeb, true);
 
@@ -754,7 +755,7 @@ export class TunnelPanel extends ViewPane {
 	private tunnelProtocolContext: IContextKey<TunnelProtocol | undefined>;
 	private tunnelViewFocusContext: IContextKey<boolean>;
 	private tunnelViewSelectionContext: IContextKey<string | undefined>;
-	private tunnelViewMultiSelectionContext: IContextKey<ITunnelItem[] | undefined>;
+	private tunnelViewMultiSelectionContext: IContextKey<string[] | undefined>;
 	private portChangableContextKey: IContextKey<boolean>;
 	private isEditing: boolean = false;
 	private titleActions: IAction[] = [];
@@ -992,7 +993,7 @@ export class TunnelPanel extends ViewPane {
 	private onSelectionChanged(event: ITableEvent<ITunnelItem>) {
 		const elements = event.elements;
 		if (elements.length > 1) {
-			this.tunnelViewMultiSelectionContext.set(elements);
+			this.tunnelViewMultiSelectionContext.set(elements.map(element => makeAddress(element.remoteHost, element.remotePort)));
 		} else {
 			this.tunnelViewMultiSelectionContext.set(undefined);
 		}
@@ -1237,20 +1238,26 @@ namespace ClosePortAction {
 		return async (accessor, arg) => {
 			const contextKeyService = accessor.get(IContextKeyService);
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
-
-			let ports: (ITunnelItem | Tunnel)[] | undefined = contextKeyService.getContextKeyValue<ITunnelItem[] | undefined>(TunnelViewMultiSelectionKeyName);
-			if (!ports) {
-				if (isITunnelItem(arg)) {
-					ports = [arg];
-				} else {
-					const context = contextKeyService.getContextKeyValue<string | undefined>(TunnelViewSelectionKeyName);
-					const tunnel = context ? remoteExplorerService.tunnelModel.forwarded.get(context) : undefined;
+			let ports: (ITunnelItem | Tunnel)[] = [];
+			const multiSelectContext = contextKeyService.getContextKeyValue<string[] | undefined>(TunnelViewMultiSelectionKeyName);
+			if (multiSelectContext) {
+				multiSelectContext.forEach(context => {
+					const tunnel = remoteExplorerService.tunnelModel.forwarded.get(context);
 					if (tunnel) {
-						ports = [tunnel];
+						ports?.push(tunnel);
 					}
+				});
+			} else if (isITunnelItem(arg)) {
+				ports = [arg];
+			} else {
+				const context = contextKeyService.getContextKeyValue<string | undefined>(TunnelViewSelectionKeyName);
+				const tunnel = context ? remoteExplorerService.tunnelModel.forwarded.get(context) : undefined;
+				if (tunnel) {
+					ports = [tunnel];
 				}
 			}
-			if (!ports) {
+
+			if (!ports || ports.length === 0) {
 				return;
 			}
 			return Promise.all(ports.map(port => remoteExplorerService.close({ host: port.remoteHost, port: port.remotePort })));

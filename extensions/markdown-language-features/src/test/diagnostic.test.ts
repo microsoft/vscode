@@ -4,27 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as vscode from 'vscode';
 import 'mocha';
+import * as vscode from 'vscode';
 import { DiagnosticComputer, DiagnosticConfiguration, DiagnosticLevel, DiagnosticManager, DiagnosticOptions } from '../languageFeatures/diagnostics';
 import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
+import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
-import { assertRangeEqual, joinLines, noopToken, workspacePath } from './util';
+import { assertRangeEqual, joinLines, workspacePath } from './util';
 
 
-function getComputedDiagnostics(doc: InMemoryDocument, workspaceContents: MdWorkspaceContents) {
+async function getComputedDiagnostics(doc: InMemoryDocument, workspaceContents: MdWorkspaceContents): Promise<vscode.Diagnostic[]> {
 	const engine = createNewMarkdownEngine();
 	const linkProvider = new MdLinkProvider(engine);
 	const computer = new DiagnosticComputer(engine, workspaceContents, linkProvider);
-	return computer.getDiagnostics(doc, {
-		enabled: true,
-		validateFilePaths: DiagnosticLevel.warning,
-		validateOwnHeaders: DiagnosticLevel.warning,
-		validateReferences: DiagnosticLevel.warning,
-	}, noopToken);
+	return (
+		await computer.getDiagnostics(doc, {
+			enabled: true,
+			validateFilePaths: DiagnosticLevel.warning,
+			validateOwnHeaders: DiagnosticLevel.warning,
+			validateReferences: DiagnosticLevel.warning,
+		}, noopToken)
+	).diagnostics;
 }
 
 function createDiagnosticsManager(workspaceContents: MdWorkspaceContents, configuration = new MemoryDiagnosticConfiguration()) {
@@ -154,7 +157,26 @@ suite('markdown: Diagnostics', () => {
 		));
 
 		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration(false));
-		const diagnostics = await manager.getDiagnostics(doc1, noopToken);
+		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('Should not generate diagnostics for email autolink', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`a <user@example.com> c`,
+		));
+
+		const diagnostics = await getComputedDiagnostics(doc1, new InMemoryWorkspaceMarkdownDocuments([doc1]));
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('Should not generate diagnostics for html tag that looks like an autolink', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`a <tag>b</tag> c`,
+			`a <scope:tag>b</scope:tag> c`,
+		));
+
+		const diagnostics = await getComputedDiagnostics(doc1, new InMemoryWorkspaceMarkdownDocuments([doc1]));
 		assert.deepStrictEqual(diagnostics.length, 0);
 	});
 });

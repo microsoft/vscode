@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from 'vs/base/common/async';
+import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -35,6 +36,12 @@ export interface ICurrentPartialCommand {
 	continuations?: { marker: IMarker; end: number }[];
 
 	command?: string;
+
+	/**
+	 * Something invalidated the command before it finished, this will prevent the onCommandFinished
+	 * event from firing.
+	 */
+	isInvalid?: boolean;
 }
 
 interface ITerminalDimensions {
@@ -67,8 +74,14 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 	private readonly _onCommandStarted = new Emitter<ITerminalCommand>();
 	readonly onCommandStarted = this._onCommandStarted.event;
+	private readonly _onBeforeCommandFinished = new Emitter<ITerminalCommand>();
+	readonly onBeforeCommandFinished = this._onBeforeCommandFinished.event;
 	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();
 	readonly onCommandFinished = this._onCommandFinished.event;
+	private readonly _onCommandInvalidated = new Emitter<ITerminalCommand[]>();
+	readonly onCommandInvalidated = this._onCommandInvalidated.event;
+	private readonly _onCurrentCommandInvalidated = new Emitter<void>();
+	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
 
 	constructor(
 		private readonly _terminal: Terminal,
@@ -79,6 +92,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			rows: this._terminal.rows
 		};
 		this._terminal.onResize(e => this._handleResize(e));
+		this._terminal.onCursorMove(() => this._handleCursorMove());
+		this._setupClearListeners();
 	}
 
 	private _handleResize(e: { cols: number; rows: number }) {
@@ -87,6 +102,57 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 		this._dimensions.cols = e.cols;
 		this._dimensions.rows = e.rows;
+	}
+
+	@debounce(500)
+	private _handleCursorMove() {
+		// Early versions of conpty do not have real support for an alt buffer, in addition certain
+		// commands such as tsc watch will write to the top of the normal buffer. The following
+		// checks when the cursor has moved while the normal buffer is empty and if it is above the
+		// current command, all decorations within the viewport will be invalidated.
+		//
+		// This function is debounced so that the cursor is only checked when it is stable so
+		// conpty's screen reprinting will not trigger decoration clearing.
+		//
+		// This is mostly a workaround for Windows but applies to all OS' because of the tsc watch
+		// case.
+		if (this._terminal.buffer.active === this._terminal.buffer.normal && this._currentCommand.commandStartMarker) {
+			if (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY < this._currentCommand.commandStartMarker.line) {
+				this._clearCommandsInViewport();
+				this._currentCommand.isInvalid = true;
+				this._onCurrentCommandInvalidated.fire();
+			}
+		}
+	}
+
+	private _setupClearListeners() {
+		// Setup listeners for when clear is run in the shell. Since we don't know immediately if
+		// this is a Windows pty, listen to both routes and do the Windows check inside them
+
+		// For a Windows backend we cannot listen to CSI J, instead we assume running clear or
+		// cls will clear all commands in the viewport. This is not perfect but it's right most
+		// of the time.
+		this.onBeforeCommandFinished(command => {
+			if (this._isWindowsPty) {
+				if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
+					this._clearCommandsInViewport();
+					this._currentCommand.isInvalid = true;
+					this._onCurrentCommandInvalidated.fire();
+				}
+			}
+		});
+
+		// For non-Windows backends we can just listen to CSI J which is what the clear command
+		// typically emits.
+		this._terminal.parser.registerCsiHandler({ final: 'J' }, params => {
+			if (!this._isWindowsPty) {
+				if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
+					this._clearCommandsInViewport();
+				}
+			}
+			// We don't want to override xterm.js' default behavior, just augment it
+			return false;
+		});
 	}
 
 	private _preHandleResizeWindows(e: { cols: number; rows: number }) {
@@ -135,6 +201,22 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 					});
 				}
 			});
+		}
+	}
+
+	private _clearCommandsInViewport(): void {
+		// Find the number of commands on the tail end of the array that are within the viewport
+		let count = 0;
+		for (let i = this._commands.length - 1; i >= 0; i--) {
+			const line = this._commands[i].marker?.line;
+			if (line && line < this._terminal.buffer.active.baseY) {
+				break;
+			}
+			count++;
+		}
+		// Remove them
+		if (count > 0) {
+			this._onCommandInvalidated.fire(this._commands.splice(this._commands.length - count, count));
 		}
 	}
 
@@ -346,7 +428,11 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
-			this._onCommandFinished.fire(newCommand);
+
+			this._onBeforeCommandFinished.fire(newCommand);
+			if (!this._currentCommand.isInvalid) {
+				this._onCommandFinished.fire(newCommand);
+			}
 		}
 		this._currentCommand.previousCommandMarker = this._currentCommand.commandStartMarker;
 		this._currentCommand = {};

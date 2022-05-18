@@ -3,17 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, Terminal } from '../../../../automation';
+import { Application, Terminal, SettingsEditor } from '../../../../automation';
+import { setTerminalTestSettings } from './terminal-helpers';
 
 export function setup() {
 	describe('Terminal splitCwd', () => {
 		// Acquire automation API
 		let terminal: Terminal;
+		let settingsEditor: SettingsEditor;
 		before(async function () {
 			const app = this.app as Application;
 			terminal = app.workbench.terminal;
-			await app.workbench.settingsEditor.addUserSetting('terminal.integrated.splitCwd', '"inherited"');
-			await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
+			settingsEditor = app.workbench.settingsEditor;
+			await settingsEditor.addUserSetting('terminal.integrated.splitCwd', '"inherited"');
+			await setTerminalTestSettings(app);
+		});
+
+		after(async function () {
+			await settingsEditor.clearUserSettings();
 		});
 
 		it('should inherit cwd when split and update the tab description - alt click', async () => {

@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { ILayoutService, ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
@@ -40,9 +40,12 @@ class StandaloneLayoutService implements ILayoutService {
 		this._codeEditorService.getFocusedCodeEditor()?.focus();
 	}
 
+	readonly offset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
+
 	constructor(
 		@ICodeEditorService private _codeEditorService: ICodeEditorService
 	) { }
+
 }
 
 export class EditorScopedLayoutService extends StandaloneLayoutService {

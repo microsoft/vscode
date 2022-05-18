@@ -458,3 +458,9 @@
 .hc-light .xterm-find-result-decoration {
 	outline-style: dotted !important;
 }
+
+.hc-black .xterm-find-active-result-decoration,
+.hc-light .xterm-find-active-result-decoration {
+	outline-style: solid !important;
+	outline-width: 2px !important;
+}

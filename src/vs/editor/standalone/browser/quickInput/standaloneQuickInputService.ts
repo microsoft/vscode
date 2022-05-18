@@ -44,7 +44,8 @@ export class EditorScopedQuickInputService extends QuickInputService {
 				get container() { return widget.getDomNode(); },
 				get dimension() { return editor.getLayoutInfo(); },
 				get onDidLayout() { return editor.onDidLayoutChange; },
-				focus: () => editor.focus()
+				focus: () => editor.focus(),
+				offset: { top: 0, quickPickTop: 0 }
 			};
 		} else {
 			this.host = undefined;
