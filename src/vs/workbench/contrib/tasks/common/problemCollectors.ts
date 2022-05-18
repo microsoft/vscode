@@ -95,7 +95,9 @@ export abstract class AbstractProblemCollector implements IDisposable {
 			this.openModels[model.uri.toString()] = true;
 		}, this, this.modelListeners);
 		this.modelService.getModels().forEach(model => this.openModels[model.uri.toString()] = true);
-
+		this.modelService.onModelRemoved((model) => {
+			this.handleModelRemoved(model);
+		}, this, this.modelListeners);
 		this._onDidStateChange = new Emitter();
 	}
 
