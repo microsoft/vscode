@@ -179,8 +179,7 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-      exec { yarn gulp "vscode-reh-win32-$(VSCODE_ARCH)-min-ci" }
-      exec { yarn gulp "vscode-reh-web-win32-$(VSCODE_ARCH)-min-ci" }
+      exec { yarn gulp "vscode-reh-win32-$(VSCODE_ARCH)-min-ci" "vscode-reh-web-win32-$(VSCODE_ARCH)-min-ci" }
       echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(agent.builddirectory)/vscode-reh-win32-$(VSCODE_ARCH)"
     displayName: Build Server
     condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
