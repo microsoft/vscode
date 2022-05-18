@@ -118,9 +118,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	public readonly id: string;
 
 	/**
-	 * Unique identifier of this webview element.
+	 * Unique identifier of this webview iframe element.
 	 */
-	private readonly frameId: string;
+	private readonly iframeId: string;
 
 	private readonly encodedWebviewOriginPromise: Promise<string>;
 	private encodedWebviewOrigin: string | undefined;
@@ -193,8 +193,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		super();
 
 		this.id = initInfo.id;
-		this.frameId = generateUuid();
-		this.encodedWebviewOriginPromise = parentOriginHash(window.origin, this.frameId).then(id => this.encodedWebviewOrigin = id);
+		this.iframeId = generateUuid();
+		this.encodedWebviewOriginPromise = parentOriginHash(window.origin, this.iframeId).then(id => this.encodedWebviewOrigin = id);
 
 		this.options = initInfo.options;
 		this.extension = initInfo.extension;
@@ -215,7 +215,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 
 		const subscription = this._register(addDisposableListener(window, 'message', (e: MessageEvent) => {
-			if (!this.encodedWebviewOrigin || e?.data?.target !== this.frameId) {
+			if (!this.encodedWebviewOrigin || e?.data?.target !== this.iframeId) {
 				return;
 			}
 
@@ -483,7 +483,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	private initElement(encodedWebviewOrigin: string, extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
 		// The extensionId and purpose in the URL are used for filtering in js-debug:
 		const params: { [key: string]: string } = {
-			id: this.frameId,
+			id: this.iframeId,
 			swVersion: String(this._expectedServiceWorkerVersion),
 			extensionId: extension?.id.value ?? '',
 			platform: this.platform,
