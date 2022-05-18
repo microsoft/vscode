@@ -42,7 +42,7 @@ import { ConsoleLogger, getLogLevel, ILogger, ILogService, LogLevel, MultiplexLo
 import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
-import { WindowsPolicyService } from 'vs/platform/policy/node/windowsPolicyService';
+import { NativePolicyService } from 'vs/platform/policy/node/nativePolicyService';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -133,7 +133,9 @@ class CliMain extends Disposable {
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// Policy
-		const policyService = isWindows && productService.win32RegValueName ? new WindowsPolicyService(productService.win32RegValueName) : environmentService.policyFile ? new FilePolicyService(environmentService.policyFile, fileService, logService) : new NullPolicyService();
+		const policyService = isWindows && productService.win32RegValueName ? new NativePolicyService(productService.win32RegValueName)
+			: environmentService.policyFile ? new FilePolicyService(environmentService.policyFile, fileService, logService)
+				: new NullPolicyService();
 		services.set(IPolicyService, policyService);
 
 		// Configuration

@@ -11796,10 +11796,10 @@ vscode-oniguruma@1.6.1:
   resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.6.1.tgz#2bf4dfcfe3dd2e56eb549a3068c8ee39e6c30ce5"
   integrity sha512-vc4WhSIaVpgJ0jJIejjYxPvURJavX6QG41vu0mGhqywMkQqulezEqEQ3cO3gc8GvcOpX6ycmKGqRoROEMBNXTQ==
 
-vscode-policy-watcher@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/vscode-policy-watcher/-/vscode-policy-watcher-1.0.0.tgz#08138a5ab15a1d6c021df51716a4daa97d74b471"
-  integrity sha512-j9nWBInu9wPW+3Uw/flYXP0kTewTqTfM6ADC24stqxURCAGOWxYz3ArBo21o+3zOrxpfCjc5mCbUNfLk+6IHuA==
+vscode-policy-watcher@^1.1.0:
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/vscode-policy-watcher/-/vscode-policy-watcher-1.1.0.tgz#2921353c5080b3452929f1e350b9fab9ff852cc9"
+  integrity sha512-yPvy3Or66H0l8/FyWbJeGxpWW3GDZf65EIT7fqp1Ethdz4ecEnHThuHti7SlfdRJTf5qnifrX7af02INiHqDMA==
   dependencies:
     bindings "^1.5.0"
     node-addon-api "*"

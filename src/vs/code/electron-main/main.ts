@@ -63,7 +63,7 @@ import { StateMainService } from 'vs/platform/state/electron-main/stateMainServi
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
-import { WindowsPolicyService } from 'vs/platform/policy/node/windowsPolicyService';
+import { NativePolicyService } from 'vs/platform/policy/node/nativePolicyService';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
 
 /**
@@ -170,7 +170,7 @@ class CodeMain {
 		services.set(ILoggerService, new LoggerService(logService, fileService));
 
 		// Policy
-		const policyService = isWindows && productService.win32RegValueName ? new WindowsPolicyService(productService.win32RegValueName)
+		const policyService = isWindows && productService.win32RegValueName ? new NativePolicyService(productService.win32RegValueName)
 			: environmentMainService.policyFile ? new FilePolicyService(environmentMainService.policyFile, fileService, logService)
 				: new NullPolicyService();
 		services.set(IPolicyService, policyService);

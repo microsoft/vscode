@@ -81,6 +81,7 @@
     "tas-client-umd": "0.1.5",
     "v8-inspect-profiler": "^0.1.0",
     "vscode-oniguruma": "1.6.1",
+    "vscode-policy-watcher": "^1.1.0",
     "vscode-proxy-agent": "^0.12.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "7.0.1",
@@ -221,7 +222,6 @@
   },
   "optionalDependencies": {
     "@vscode/windows-registry": "1.0.6",
-    "vscode-policy-watcher": "^1.0.0",
     "windows-foreground-love": "0.4.0",
     "windows-mutex": "0.4.1",
     "windows-process-tree": "0.3.3"
