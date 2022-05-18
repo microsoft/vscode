@@ -355,7 +355,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	}
 
 	toggleDoNotDisturbMode(): void {
-		const isDoNotDisturbMode = this.configurationService.getValue<boolean>('notifications.experimental.doNotDisturbModee');
+		const isDoNotDisturbMode = this.configurationService.getValue<boolean>('notifications.experimental.doNotDisturbMode');
 		this.configurationService.updateValue('notifications.experimental.doNotDisturbMode', !isDoNotDisturbMode);
 		if (this._isVisible) {
 			this.updateTitle();
