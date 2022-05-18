@@ -113,14 +113,14 @@ export interface WebviewInitInfo {
 export class WebviewElement extends Disposable implements IWebview, WebviewFindDelegate {
 
 	/**
-	 * Unique identifier of this webview.
+	 * External identifier of this webview.
 	 */
 	public readonly id: string;
 
 	/**
-	 * The webview's origin (the origin where the webview itself is served from). May be shared by multiple webviews.
+	 * Unique identifier of this webview element.
 	 */
-	public readonly origin: string;
+	private readonly frameId: string;
 
 	private readonly encodedWebviewOriginPromise: Promise<string>;
 	private encodedWebviewOrigin: string | undefined;
@@ -193,8 +193,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		super();
 
 		this.id = initInfo.id;
-		this.origin = generateUuid();
-		this.encodedWebviewOriginPromise = parentOriginHash(window.origin, this.origin).then(id => this.encodedWebviewOrigin = id);
+		this.frameId = generateUuid();
+		this.encodedWebviewOriginPromise = parentOriginHash(window.origin, this.frameId).then(id => this.encodedWebviewOrigin = id);
 
 		this.options = initInfo.options;
 		this.extension = initInfo.extension;
@@ -215,7 +215,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 
 		const subscription = this._register(addDisposableListener(window, 'message', (e: MessageEvent) => {
-			if (!this.encodedWebviewOrigin || e?.data?.target !== this.origin) {
+			if (!this.encodedWebviewOrigin || e?.data?.target !== this.frameId) {
 				return;
 			}
 
@@ -483,7 +483,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	private initElement(encodedWebviewOrigin: string, extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
 		// The extensionId and purpose in the URL are used for filtering in js-debug:
 		const params: { [key: string]: string } = {
-			id: this.origin,
+			id: this.frameId,
 			swVersion: String(this._expectedServiceWorkerVersion),
 			extensionId: extension?.id.value ?? '',
 			platform: this.platform,
