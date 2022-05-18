@@ -221,7 +221,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private configurationWidget: FloatingClickWidget | undefined;
 	private altListener: IDisposable | undefined;
 	private altPressed = false;
-	private oldDecorations: string[] = [];
+	private oldDecorations = this.editor.createDecorationsCollection();
 	private readonly debounceInfo: IFeatureDebounceInformation;
 
 	constructor(
@@ -605,7 +605,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private get removeInlineValuesScheduler(): RunOnceScheduler {
 		return new RunOnceScheduler(
 			() => {
-				this.oldDecorations = this.editor.deltaDecorations(this.oldDecorations, []);
+				this.oldDecorations.clear();
 			},
 			100
 		);
@@ -759,7 +759,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				decoration => `${decoration.range.startLineNumber}:${decoration?.options.after?.content}`);
 		}
 
-		this.oldDecorations = this.editor.deltaDecorations(this.oldDecorations, allDecorations);
+		this.oldDecorations.set(allDecorations);
 	}
 
 	dispose(): void {
@@ -771,6 +771,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 		this.toDispose = dispose(this.toDispose);
 
-		this.oldDecorations = this.editor.deltaDecorations(this.oldDecorations, []);
+		this.oldDecorations.clear();
 	}
 }

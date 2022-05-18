@@ -90,13 +90,12 @@ export class Menu extends ActionBar {
 			context: options.context,
 			actionRunner: options.actionRunner,
 			ariaLabel: options.ariaLabel,
+			ariaRole: 'menu',
 			focusOnlyEnabledItems: true,
 			triggerKeys: { keys: [KeyCode.Enter, ...(isMacintosh || isLinux ? [KeyCode.Space] : [])], keyDown: true }
 		});
 
 		this.menuElement = menuElement;
-
-		this.actionsList.setAttribute('role', 'menu');
 
 		this.actionsList.tabIndex = 0;
 
