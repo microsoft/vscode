@@ -518,14 +518,13 @@ export class EditPreferenceWidget<T> extends Disposable {
 	private _line: number = -1;
 	private _preferences: T[] = [];
 
-	private _editPreferenceDecoration: string[];
+	private readonly _editPreferenceDecoration = this.editor.createDecorationsCollection();
 
 	private readonly _onClick = this._register(new Emitter<IEditorMouseEvent>());
 	readonly onClick: Event<IEditorMouseEvent> = this._onClick.event;
 
 	constructor(private editor: ICodeEditor) {
 		super();
-		this._editPreferenceDecoration = [];
 		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => {
 			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.detail.isAfterLines || !this.isVisible()) {
 				return;
@@ -560,11 +559,11 @@ export class EditPreferenceWidget<T> extends Disposable {
 				endColumn: 1
 			}
 		});
-		this._editPreferenceDecoration = this.editor.deltaDecorations(this._editPreferenceDecoration, newDecoration);
+		this._editPreferenceDecoration.set(newDecoration);
 	}
 
 	hide(): void {
-		this._editPreferenceDecoration = this.editor.deltaDecorations(this._editPreferenceDecoration, []);
+		this._editPreferenceDecoration.clear();
 	}
 
 	isVisible(): boolean {
