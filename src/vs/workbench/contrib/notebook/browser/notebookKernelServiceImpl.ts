@@ -12,6 +12,9 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { URI } from 'vs/base/common/uri';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { runWhenIdle } from 'vs/base/common/async';
+import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IAction } from 'vs/base/common/actions';
 
 class KernelInfo {
 
@@ -56,18 +59,25 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	private readonly _onDidAddKernel = this._register(new Emitter<INotebookKernel>());
 	private readonly _onDidRemoveKernel = this._register(new Emitter<INotebookKernel>());
 	private readonly _onDidChangeNotebookAffinity = this._register(new Emitter<void>());
+	private readonly _onDidChangeSourceActions = this._register(new Emitter<void>());
+	private readonly _sourceMenu: IMenu;
+	private _sourceActions: IAction[];
 
 	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent> = this._onDidChangeNotebookKernelBinding.event;
 	readonly onDidAddKernel: Event<INotebookKernel> = this._onDidAddKernel.event;
 	readonly onDidRemoveKernel: Event<INotebookKernel> = this._onDidRemoveKernel.event;
 	readonly onDidChangeNotebookAffinity: Event<void> = this._onDidChangeNotebookAffinity.event;
+	readonly onDidChangeSourceActions: Event<void> = this._onDidChangeSourceActions.event;
 
 	private static _storageNotebookBinding = 'notebook.controller2NotebookBindings';
 	private static _storageTypeBinding = 'notebook.controller2TypeBindings';
 
+
 	constructor(
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IMenuService readonly _menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -80,6 +90,10 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 				this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel: kernelId, newKernel: undefined });
 			}
 		}));
+		this._sourceMenu = this._register(this._menuService.createMenu(MenuId.NotebookKernelSource, contextKeyService));
+		this._sourceActions = [];
+
+		this._initSourceActions();
 
 		// restore from storage
 		try {
@@ -94,6 +108,24 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		} catch {
 			// ignore
 		}
+	}
+
+	private _initSourceActions() {
+		const loadActions = (menu: IMenu) => {
+			const groups = menu.getActions({ shouldForwardArgs: true });
+			const actions: IAction[] = [];
+			groups.forEach(group => {
+				actions.push(...group[1]);
+			});
+			this._sourceActions = actions;
+			this._onDidChangeSourceActions.fire();
+		};
+
+		this._register(this._sourceMenu.onDidChange(() => {
+			loadActions(this._sourceMenu);
+		}));
+
+		loadActions(this._sourceMenu);
 	}
 
 	override dispose() {
@@ -254,5 +286,23 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 			info.notebookPriorities.set(notebook, preference);
 		}
 		this._onDidChangeNotebookAffinity.fire();
+	}
+
+	private _runningAction: IAction | undefined = undefined;
+
+	getRunningSourceAction() {
+		return this._runningAction;
+	}
+
+	getSourceActions(): IAction[] {
+		return this._sourceActions;
+	}
+
+	async runSourceAction(action: IAction): Promise<void> {
+		this._runningAction = action;
+		this._onDidChangeSourceActions.fire();
+		await action.run();
+		this._runningAction = undefined;
+		this._onDidChangeSourceActions.fire();
 	}
 }

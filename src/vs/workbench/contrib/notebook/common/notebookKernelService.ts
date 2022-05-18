@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -82,6 +83,7 @@ export interface INotebookKernelService {
 	readonly onDidRemoveKernel: Event<INotebookKernel>;
 	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent>;
 	readonly onDidChangeNotebookAffinity: Event<void>;
+	readonly onDidChangeSourceActions: Event<void>;
 
 	registerKernel(kernel: INotebookKernel): IDisposable;
 
@@ -115,4 +117,8 @@ export interface INotebookKernelService {
 	 */
 	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void;
 
+	getSourceActions(): IAction[];
+	getRunningSourceAction(): IAction | undefined;
+
+	runSourceAction(action: IAction): Promise<void>;
 }

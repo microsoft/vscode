@@ -172,6 +172,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('notebook.toolbar', "The contributed notebook toolbar menu")
 	},
 	{
+		key: 'notebook/kernelSource',
+		id: MenuId.NotebookKernelSource,
+		description: localize('notebook.kernelSource', "The contributed notebook kernel sources menu")
+	},
+	{
 		key: 'notebook/cell/title',
 		id: MenuId.NotebookCellTitle,
 		description: localize('notebook.cell.title', "The contributed notebook cell title menu")

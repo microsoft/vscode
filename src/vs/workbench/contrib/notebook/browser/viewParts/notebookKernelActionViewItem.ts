@@ -9,7 +9,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { executingStateIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookKernel, INotebookKernelMatchResult, INotebookKernelService, NotebookControllerState } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { Event } from 'vs/base/common/event';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -33,6 +33,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		this._register(_editor.onDidChangeModel(this._update, this));
 		this._register(_notebookKernelService.onDidChangeNotebookAffinity(this._update, this));
 		this._register(_notebookKernelService.onDidChangeSelectedNotebooks(this._update, this));
+		this._register(_notebookKernelService.onDidChangeSourceActions(this._update, this));
 		this._kernelDisposable = this._register(new DisposableStore());
 	}
 
@@ -61,8 +62,22 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 			return;
 		}
 
-		const info = this._notebookKernelService.getMatchingKernel(notebook);
-		this._updateActionFromKernelInfo(info);
+		const runningAction = this._notebookKernelService.getRunningSourceAction();
+		if (runningAction) {
+			this._updateActionFromSourceAction(runningAction);
+			return;
+		} else {
+			this.action.class = ThemeIcon.asClassName(selectKernelIcon);
+			const info = this._notebookKernelService.getMatchingKernel(notebook);
+			this._updateActionFromKernelInfo(info);
+		}
+	}
+
+	private _updateActionFromSourceAction(sourceAction: IAction) {
+		this.action.class = ThemeIcon.asClassName(ThemeIcon.modify(executingStateIcon, 'spin'));
+		this.updateClass();
+		this._action.label = sourceAction.label;
+		this._action.enabled = true;
 	}
 
 	private _updateActionFromKernelInfo(info: INotebookKernelMatchResult): void {
