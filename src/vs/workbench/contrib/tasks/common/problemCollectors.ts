@@ -429,6 +429,8 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 		});
 
 		this.modelListeners.add(this.modelService.onModelRemoved(modelEvent => {
+                         // if a race condition happened, make sure the open models are updated
+                         // before proceeding 
 			super.handleModelRemoved(modelEvent);
 			let markerChanged: IDisposable | undefined =
 				Event.debounce(this.markerService.onMarkerChanged, (last: readonly URI[] | undefined, e: readonly URI[]) => {
