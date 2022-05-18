@@ -9,7 +9,8 @@
 		"vscode": "^1.57.0"
 	},
 	"enabledApiProposals": [
-		"notebookEditor"
+		"notebookEditor",
+    "notebookWorkspaceEdit"
 	],
 	"activationEvents": [
 		"*"
