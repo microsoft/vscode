@@ -1,8 +1,10 @@
 name: Basic checks
 
-on: workflow_dispatch
-
 on:
+  # push:
+  #   branches:
+  #     - main
+  #     - release/*
   pull_request:
     branches:
       - main
