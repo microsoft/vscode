@@ -32,10 +32,19 @@
 }
 
 .monaco-icon-label > .monaco-icon-label-container {
+	display: flex;
+	flex-flow: row nowrap;
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	flex: 1;
+}
+
+.monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex-shrink: 1;
 }
 
 .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name {
@@ -46,6 +55,13 @@
 .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name > .label-separator {
 	margin: 0 2px;
 	opacity: 0.5;
+}
+
+.monaco-icon-label > .monaco-icon-label-container > .monaco-icon-description-container {
+	white-space: pre;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex-shrink: 1000000; /* needs to be huge compared with .monaco-icon-name-container */
 }
 
 .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
@@ -66,6 +82,11 @@
 .monaco-icon-label.italic > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,
 .monaco-icon-label.italic > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
 	font-style: italic;
+}
+
+.monaco-icon-label > .monaco-icon-label-container > .monaco-icon-label-second-child {
+	order: 2;
+	margin-left: 0.5em;
 }
 
 .monaco-icon-label.deprecated {

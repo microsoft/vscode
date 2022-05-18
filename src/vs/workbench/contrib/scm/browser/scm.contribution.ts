@@ -239,6 +239,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('scm.defaultViewSortKey', "Controls the default Source Control repository changes sort order when viewed as a list."),
 			default: 'path'
 		},
+		'scm.showPathFirstInListView': {
+			type: 'boolean',
+			markdownDescription: localize('showPathFirstInListView', "Controls whether the file path is shown before the filename when the repository view is in list mode."),
+			default: false
+		},
 		'scm.autoReveal': {
 			type: 'boolean',
 			description: localize('autoReveal', "Controls whether the Source Control view should automatically reveal and select files when opening them."),

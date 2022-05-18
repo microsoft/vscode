@@ -88,6 +88,11 @@ export interface IResourceLabel extends IDisposable {
 	setFile(resource: URI, options?: IFileLabelOptions): void;
 
 	/**
+	 * Convenient method to configure if the description should be shown before or after the label.
+	 */
+	setDescriptionFirst?(descriptionFirst: boolean): void;
+
+	/**
 	 * Resets the label to be empty.
 	 */
 	clear(): void;
@@ -202,6 +207,7 @@ export class ResourceLabels extends Disposable {
 			setLabel: (label: string, description?: string, options?: IIconLabelValueOptions) => widget.setLabel(label, description, options),
 			setResource: (label: IResourceLabelProps, options?: IResourceLabelOptions) => widget.setResource(label, options),
 			setFile: (resource: URI, options?: IFileLabelOptions) => widget.setFile(resource, options),
+			setDescriptionFirst: (descriptionFirst: boolean) => widget.setDescriptionFirst(descriptionFirst),
 			clear: () => widget.clear(),
 			dispose: () => this.disposeWidget(widget)
 		};

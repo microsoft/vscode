@@ -386,6 +386,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 	private disposables = new DisposableStore();
 	private renderedResources = new Map<ResourceTemplate, RenderedResourceData>();
+	private showPathFirstInListView = false;
 
 	constructor(
 		private viewModelProvider: () => ViewModel,
@@ -394,15 +395,18 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		private actionRunner: ActionRunner,
 		@ILabelService private labelService: ILabelService,
 		@ISCMViewService private scmViewService: ISCMViewService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		themeService.onDidColorThemeChange(this.onDidColorThemeChange, this, this.disposables);
+		configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
+		this.onDidChangeConfiguration();
 	}
 
 	renderTemplate(container: HTMLElement): ResourceTemplate {
 		const element = append(container, $('.resource'));
 		const name = append(element, $('.name'));
-		const fileLabel = this.labels.create(name, { supportDescriptionHighlights: true, supportHighlights: true });
+		const fileLabel = this.labels.create(name, { supportDescriptionHighlights: true, supportHighlights: true, descriptionFirst: this.showPathFirstInListView });
 		const actionsContainer = append(fileLabel.element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionViewItemProvider: this.actionViewItemProvider,
@@ -574,6 +578,15 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 	private onDidColorThemeChange(): void {
 		for (const [template, data] of this.renderedResources) {
 			this.renderIcon(template, data);
+		}
+	}
+
+	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
+		if (!e || e.affectsConfiguration('scm.showPathFirstInListView')) {
+			this.showPathFirstInListView = this.configurationService.getValue<boolean>('scm.showPathFirstInListView');
+			for (const template of this.renderedResources.keys()) {
+				template.fileLabel.setDescriptionFirst?.(this.showPathFirstInListView);
+			}
 		}
 	}
 

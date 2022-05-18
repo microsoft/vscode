@@ -18,6 +18,7 @@ export interface IIconLabelCreationOptions {
 	supportDescriptionHighlights?: boolean;
 	supportIcons?: boolean;
 	hoverDelegate?: IHoverDelegate;
+	descriptionFirst?: boolean;
 }
 
 export interface IIconLabelValueOptions {
@@ -90,6 +91,7 @@ export class IconLabel extends Disposable {
 	private readonly descriptionNodeFactory: () => FastLabelNode | HighlightedLabel;
 
 	private readonly labelContainer: HTMLElement;
+	private readonly labels: { name: HTMLElement; description: HTMLElement };
 
 	private readonly hoverDelegate: IHoverDelegate | undefined;
 	private readonly customHovers: Map<HTMLElement, IDisposable> = new Map();
@@ -101,13 +103,17 @@ export class IconLabel extends Disposable {
 
 		this.labelContainer = dom.append(this.domNode.element, dom.$('.monaco-icon-label-container'));
 
-		const nameContainer = dom.append(this.labelContainer, dom.$('span.monaco-icon-name-container'));
-		this.descriptionContainer = this._register(new FastLabelNode(dom.append(this.labelContainer, dom.$('span.monaco-icon-description-container'))));
+		this.labels = {
+			name: dom.append(this.labelContainer, dom.$('span.monaco-icon-name-container')),
+			description: dom.append(this.labelContainer, dom.$('span.monaco-icon-description-container')),
+		};
+		this.setDescriptionFirst(options?.descriptionFirst);
+		this.descriptionContainer = this._register(new FastLabelNode(this.labels.description));
 
 		if (options?.supportHighlights || options?.supportIcons) {
-			this.nameNode = new LabelWithHighlights(nameContainer, !!options.supportIcons);
+			this.nameNode = new LabelWithHighlights(this.labels.name, !!options.supportIcons);
 		} else {
-			this.nameNode = new Label(nameContainer);
+			this.nameNode = new Label(this.labels.name);
 		}
 
 		if (options?.supportDescriptionHighlights) {
@@ -157,6 +163,16 @@ export class IconLabel extends Disposable {
 				this.setupHover(this.descriptionNode.element, options?.descriptionTitle || '');
 				this.descriptionNode.empty = !description;
 			}
+		}
+	}
+
+	setDescriptionFirst(descriptionFirst?: boolean) {
+		if (descriptionFirst) {
+			this.labels.name.classList.add('monaco-icon-label-second-child');
+			this.labels.description.classList.remove('monaco-icon-label-second-child');
+		} else {
+			this.labels.name.classList.remove('monaco-icon-label-second-child');
+			this.labels.description.classList.add('monaco-icon-label-second-child');
 		}
 	}
 
