@@ -32,10 +32,6 @@
 	outline: 0;
 }
 
-.menubar-menu-title {
-	line-height: 22px;
-}
-
 .menubar.compact {
 	flex-shrink: 0;
 	overflow: visible; /* to avoid the compact menu to be repositioned when clicking */
