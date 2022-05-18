@@ -420,10 +420,10 @@
           "description": "%configuration.markdown.experimental.validate.enabled.description%",
           "default": false
         },
-        "markdown.experimental.validate.referenceLinks": {
+        "markdown.experimental.validate.referenceLinks.enabled": {
           "type": "string",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.referenceLinks.description%",
+          "markdownDescription": "%configuration.markdown.experimental.validate.referenceLinks.enabled.description%",
           "default": "warning",
           "enum": [
             "ignore",
@@ -431,10 +431,10 @@
             "error"
           ]
         },
-        "markdown.experimental.validate.headerLinks": {
+        "markdown.experimental.validate.headerLinks.enabled": {
           "type": "string",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.headerLinks.description%",
+          "markdownDescription": "%configuration.markdown.experimental.validate.headerLinks.enabled.description%",
           "default": "warning",
           "enum": [
             "ignore",
@@ -442,16 +442,24 @@
             "error"
           ]
         },
-        "markdown.experimental.validate.fileLinks": {
+        "markdown.experimental.validate.fileLinks.enabled": {
           "type": "string",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.fileLinks.description%",
+          "markdownDescription": "%configuration.markdown.experimental.validate.fileLinks.enabled.description%",
           "default": "warning",
           "enum": [
             "ignore",
             "warning",
             "error"
           ]
+        },
+        "markdown.experimental.validate.fileLinks.skipPaths": {
+          "type": "array",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.experimental.validate.fileLinks.skipPaths.description%",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -504,6 +512,7 @@
     "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.1",
     "morphdom": "^2.6.1",
+    "picomatch": "^2.3.1",
     "vscode-languageserver-textdocument": "^1.0.4",
     "vscode-nls": "^5.0.0",
     "vscode-uri": "^3.0.3"
@@ -512,6 +521,7 @@
     "@types/dompurify": "^2.3.1",
     "@types/lodash.throttle": "^4.1.3",
     "@types/markdown-it": "12.2.3",
+    "@types/picomatch": "^2.3.0",
     "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",
     "lodash.throttle": "^4.1.1"

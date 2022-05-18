@@ -93,7 +93,16 @@ function getWorkspaceFolder(document: SkinnyTextDocument) {
 }
 
 export interface MdLinkSource {
+	/**
+	 * The original text of the link destination in code.
+	 */
 	readonly text: string;
+
+	/**
+	 * The original text of just the link's path in code.
+	 */
+	readonly pathText: string;
+
 	readonly resource: vscode.Uri;
 	readonly hrefRange: vscode.Range;
 	readonly fragmentRange: vscode.Range | undefined;
@@ -138,7 +147,7 @@ function extractDocumentLink(
 				text: link,
 				resource: document.uri,
 				hrefRange: new vscode.Range(linkStart, linkEnd),
-				fragmentRange: getFragmentRange(link, linkStart, linkEnd),
+				...getLinkSourceFragmentInfo(document, link, linkStart, linkEnd),
 			}
 		};
 	} catch {
@@ -152,6 +161,14 @@ function getFragmentRange(text: string, start: vscode.Position, end: vscode.Posi
 		return undefined;
 	}
 	return new vscode.Range(start.translate({ characterDelta: index + 1 }), end);
+}
+
+function getLinkSourceFragmentInfo(document: SkinnyTextDocument, link: string, linkStart: vscode.Position, linkEnd: vscode.Position): { fragmentRange: vscode.Range | undefined; pathText: string } {
+	const fragmentRange = getFragmentRange(link, linkStart, linkEnd);
+	return {
+		pathText: document.getText(new vscode.Range(linkStart, fragmentRange ? fragmentRange.start.translate(0, -1) : linkEnd)),
+		fragmentRange,
+	};
 }
 
 const angleBracketLinkRe = /^<(.*)>$/;
@@ -314,7 +331,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 						text: link,
 						resource: document.uri,
 						hrefRange: new vscode.Range(linkStart, linkEnd),
-						fragmentRange: getFragmentRange(link, linkStart, linkEnd),
+						...getLinkSourceFragmentInfo(document, link, linkStart, linkEnd),
 					}
 				};
 			}
@@ -350,6 +367,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 				kind: 'link',
 				source: {
 					text: reference,
+					pathText: reference,
 					resource: document.uri,
 					hrefRange,
 					fragmentRange: undefined,
@@ -402,7 +420,7 @@ export class MdLinkProvider implements vscode.DocumentLinkProvider {
 						text: link,
 						resource: document.uri,
 						hrefRange,
-						fragmentRange: getFragmentRange(link, linkStart, linkEnd),
+						...getLinkSourceFragmentInfo(document, link, linkStart, linkEnd),
 					},
 					ref: { text: reference, range: refRange },
 					href: target,
