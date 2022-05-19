@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
 
 export class PolicyChannel implements IServerChannel {
 
@@ -29,7 +29,7 @@ export class PolicyChannel implements IServerChannel {
 
 	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'initialize': return this.service.registerPolicyDefinitions(arg as IStringDictionary<PolicyDefinition>);
+			case 'registerPolicyDefinitions': return this.service.registerPolicyDefinitions(arg as IStringDictionary<PolicyDefinition>);
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -40,16 +40,17 @@ export class PolicyChannel implements IServerChannel {
 	}
 }
 
-export class PolicyChannelClient implements IPolicyService {
+export class PolicyChannelClient extends AbstractPolicyService implements IPolicyService {
 
-	declare readonly _serviceBrand: undefined;
-
-	private policies = new Map<PolicyName, PolicyValue>();
-
-	private readonly _onDidChange = new Emitter<readonly string[]>();
-	readonly onDidChange: Event<readonly string[]> = this._onDidChange.event;
-
-	constructor(private readonly channel: IChannel) {
+	constructor(policiesData: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>, private readonly channel: IChannel) {
+		super();
+		for (const name in policiesData) {
+			const { definition, value } = policiesData[name];
+			this.policyDefinitions[name] = definition;
+			if (value !== undefined) {
+				this.policies.set(name, value);
+			}
+		}
 		this.channel.listen<object>('onDidChange')(policies => {
 			for (const name in policies) {
 				const value = policies[name as keyof typeof policies];
@@ -65,17 +66,11 @@ export class PolicyChannelClient implements IPolicyService {
 		});
 	}
 
-	async registerPolicyDefinitions(policies: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>> {
-		const result = await this.channel.call<{ [name: PolicyName]: PolicyValue }>('initialize', policies);
-
+	protected async initializePolicies(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
+		const result = await this.channel.call<{ [name: PolicyName]: PolicyValue }>('registerPolicyDefinitions', policyDefinitions);
 		for (const name in result) {
 			this.policies.set(name, result[name]);
 		}
-
-		return result;
 	}
 
-	getPolicyValue(name: PolicyName): PolicyValue | undefined {
-		return this.policies.get(name);
-	}
 }

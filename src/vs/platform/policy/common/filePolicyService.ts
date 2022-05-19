@@ -5,14 +5,13 @@
 
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
 
 function keysDiff<T>(a: Map<string, T>, b: Map<string, T>): string[] {
 	const result: string[] = [];
@@ -26,15 +25,7 @@ function keysDiff<T>(a: Map<string, T>, b: Map<string, T>): string[] {
 	return result;
 }
 
-export class FilePolicyService extends Disposable implements IPolicyService {
-
-	readonly _serviceBrand: undefined;
-
-	private readonly policyNames: Set<PolicyName> = new Set<PolicyName>();
-	private policies = new Map<PolicyName, PolicyValue>();
-
-	private readonly _onDidChange = new Emitter<readonly PolicyName[]>();
-	readonly onDidChange = this._onDidChange.event;
+export class FilePolicyService extends AbstractPolicyService implements IPolicyService {
 
 	private readonly throttledDelayer = this._register(new ThrottledDelayer(500));
 
@@ -50,18 +41,8 @@ export class FilePolicyService extends Disposable implements IPolicyService {
 		this._register(onDidChangePolicyFile(() => this.throttledDelayer.trigger(() => this.refresh())));
 	}
 
-	async registerPolicyDefinitions(policies: IStringDictionary<PolicyDefinition>): Promise<IStringDictionary<PolicyValue>> {
-		let hasNewPolicies = false;
-		for (const key of Object.keys(policies)) {
-			if (!this.policyNames.has(key)) {
-				hasNewPolicies = true;
-				this.policyNames.add(key);
-			}
-		}
-		if (hasNewPolicies) {
-			await this.refresh();
-		}
-		return Iterable.reduce(this.policies.entries(), (r, [name, value]) => ({ ...r, [name]: value }), {});
+	protected async initializePolicies(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
+		await this.refresh();
 	}
 
 	private async read(): Promise<Map<PolicyName, PolicyValue>> {
@@ -76,7 +57,7 @@ export class FilePolicyService extends Disposable implements IPolicyService {
 			}
 
 			for (const key of Object.keys(raw)) {
-				if (this.policyNames.has(key)) {
+				if (this.policyDefinitions[key]) {
 					policies.set(key, raw[key]);
 				}
 			}
@@ -97,9 +78,5 @@ export class FilePolicyService extends Disposable implements IPolicyService {
 		if (diff.length > 0) {
 			this._onDidChange.fire(diff);
 		}
-	}
-
-	getPolicyValue(name: PolicyName): PolicyValue | undefined {
-		return this.policies.get(name);
 	}
 }

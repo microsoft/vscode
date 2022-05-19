@@ -51,7 +51,7 @@ import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/electron-sandbox/diskFileSystemProvider';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
-import { IPolicyService } from 'vs/platform/policy/common/policy';
+import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 
 export class DesktopMain extends Disposable {
 
@@ -158,7 +158,7 @@ export class DesktopMain extends Disposable {
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
 		// Policies
-		const policyService = new PolicyChannelClient(mainProcessService.getChannel('policy'));
+		const policyService = this.configuration.policiesData ? new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy')) : new NullPolicyService();
 		serviceCollection.set(IPolicyService, policyService);
 
 		// Product

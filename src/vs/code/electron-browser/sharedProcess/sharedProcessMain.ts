@@ -101,7 +101,7 @@ import { IV8InspectProfilingService } from 'vs/platform/profiling/common/profili
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
-import { IPolicyService } from 'vs/platform/policy/common/policy';
+import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 
 class SharedProcessMain extends Disposable {
 
@@ -183,7 +183,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IMainProcessService, mainProcessService);
 
 		// Policies
-		const policyService = new PolicyChannelClient(mainProcessService.getChannel('policy'));
+		const policyService = this.configuration.policiesData ? new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy')) : new NullPolicyService();
 		services.set(IPolicyService, policyService);
 
 		// Environment
