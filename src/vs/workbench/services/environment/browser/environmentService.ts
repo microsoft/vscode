@@ -56,13 +56,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.vscodeUserData }); }
 
 	@memoize
-	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
-
-	@memoize
 	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
-
-	@memoize
-	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
 
 	@memoize
 	get cacheHome(): URI { return joinPath(this.userRoamingDataHome, 'caches'); }
@@ -91,9 +85,6 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get sync(): 'on' | 'off' | undefined { return undefined; }
-
-	@memoize
-	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
 
 	@memoize
 	get keyboardLayoutResource(): URI { return joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }

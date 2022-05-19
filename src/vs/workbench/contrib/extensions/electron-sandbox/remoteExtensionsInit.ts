@@ -14,6 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, IS_NEW_KEY, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractExtensionsInitializer } from 'vs/platform/userDataSync/common/extensionsSync';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IRemoteUserData, IUserDataSyncStoreManagementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
@@ -99,13 +100,14 @@ class RemoteExtensionsInitializer extends AbstractExtensionsInitializer {
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@IIgnoredExtensionsManagementService ignoredExtensionsManagementService: IIgnoredExtensionsManagementService,
 		@IFileService fileService: IFileService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
-		super(extensionManagementService, ignoredExtensionsManagementService, fileService, environmentService, logService, uriIdentityService);
+		super(extensionManagementService, ignoredExtensionsManagementService, fileService, userDataProfilesService, environmentService, logService, uriIdentityService);
 	}
 
 	protected override async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {

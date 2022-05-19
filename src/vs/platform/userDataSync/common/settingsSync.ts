@@ -16,6 +16,7 @@ import { FileOperationError, FileOperationResult, IFileService } from 'vs/platfo
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { edit } from 'vs/platform/userDataSync/common/content';
 import { getIgnoredSettings, isEmpty, merge, updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
@@ -51,6 +52,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 	constructor(
 		@IFileService fileService: IFileService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
@@ -63,7 +65,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(environmentService.settingsResource, SyncResource.Settings, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService, uriIdentityService);
+		super(userDataProfilesService.defaultProfile.settingsResource, SyncResource.Settings, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService, uriIdentityService);
 	}
 
 	async getRemoteUserDataSyncConfiguration(manifest: IUserDataManifest | null): Promise<IUserDataSyncConfiguration> {
@@ -351,11 +353,12 @@ export class SettingsInitializer extends AbstractInitializer {
 
 	constructor(
 		@IFileService fileService: IFileService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.Settings, environmentService, logService, fileService, uriIdentityService);
+		super(SyncResource.Settings, userDataProfilesService, environmentService, logService, fileService, uriIdentityService);
 	}
 
 	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
@@ -371,14 +374,14 @@ export class SettingsInitializer extends AbstractInitializer {
 			return;
 		}
 
-		await this.fileService.writeFile(this.environmentService.settingsResource, VSBuffer.fromString(settingsSyncContent.settings));
+		await this.fileService.writeFile(this.userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(settingsSyncContent.settings));
 
 		await this.updateLastSyncUserData(remoteUserData);
 	}
 
 	private async isEmpty(): Promise<boolean> {
 		try {
-			const fileContent = await this.fileService.readFile(this.environmentService.settingsResource);
+			const fileContent = await this.fileService.readFile(this.userDataProfilesService.defaultProfile.settingsResource);
 			return isEmpty(fileContent.value.toString().trim());
 		} catch (error) {
 			return (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;

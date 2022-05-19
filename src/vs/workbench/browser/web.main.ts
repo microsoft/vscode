@@ -73,6 +73,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { DelayedLogChannel } from 'vs/workbench/services/output/common/delayedLogChannel';
 import { dirname, joinPath } from 'vs/base/common/resources';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export class BrowserMain extends Disposable {
 
@@ -202,6 +203,10 @@ export class BrowserMain extends Disposable {
 		const logService = new BufferLogService(getLogLevel(environmentService));
 		serviceCollection.set(ILogService, logService);
 
+		// User Data Profiles
+		const userDataProfilesService = new UserDataProfilesService(environmentService, logService);
+		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
+
 		// Remote
 		const connectionToken = environmentService.options.connectionToken || getCookieValue(connectionTokenCookieName);
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(productService, connectionToken, this.configuration.resourceUriProvider);
@@ -237,7 +242,7 @@ export class BrowserMain extends Disposable {
 
 		// Long running services (workspace, config, storage)
 		const [configurationService, storageService] = await Promise.all([
-			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
+			this.createWorkspaceService(payload, environmentService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -302,7 +307,7 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(ICredentialsService, credentialsService);
 
 		// Userdata Initialize Service
-		const userDataInitializationService = new UserDataInitializationService(environmentService, credentialsService, userDataSyncStoreManagementService, fileService, storageService, productService, requestService, logService, uriIdentityService);
+		const userDataInitializationService = new UserDataInitializationService(environmentService, credentialsService, userDataSyncStoreManagementService, fileService, userDataProfilesService, storageService, productService, requestService, logService, uriIdentityService);
 		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
 
 		if (await userDataInitializationService.requiresInitialization()) {
@@ -438,9 +443,9 @@ export class BrowserMain extends Disposable {
 		}
 	}
 
-	private async createWorkspaceService(payload: IAnyWorkspaceIdentifier, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
+	private async createWorkspaceService(payload: IAnyWorkspaceIdentifier, environmentService: IWorkbenchEnvironmentService, userDataProfilesService: IUserDataProfilesService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
 		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData, Schemas.tmp] /* Cache all non native resources */, environmentService, fileService);
-		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache }, environmentService, fileService, remoteAgentService, uriIdentityService, logService);
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache }, environmentService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService);
 
 		try {
 			await workspaceService.initialize(payload);

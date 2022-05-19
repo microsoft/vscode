@@ -62,6 +62,7 @@ import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 /**
  * The main VS Code entry point.
@@ -166,8 +167,12 @@ class CodeMain {
 		// Logger
 		services.set(ILoggerService, new LoggerService(logService, fileService));
 
+		// User Data Profiles
+		const userDataProfilesService = new UserDataProfilesService(environmentMainService, logService);
+		services.set(IUserDataProfilesService, userDataProfilesService);
+
 		// Configuration
-		const configurationService = new ConfigurationService(environmentMainService.settingsResource, fileService);
+		const configurationService = new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService);
 		services.set(IConfigurationService, configurationService);
 
 		// Lifecycle

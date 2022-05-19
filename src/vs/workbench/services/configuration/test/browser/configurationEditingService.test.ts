@@ -39,6 +39,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentService';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { getSingleFolderWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -53,6 +54,7 @@ suite('ConfigurationEditingService', () => {
 
 	let instantiationService: TestInstantiationService;
 	let environmentService: BrowserWorkbenchEnvironmentService;
+	let userDataProfilesService: IUserDataProfilesService;
 	let fileService: IFileService;
 	let workspaceService: WorkspaceService;
 	let testObject: ConfigurationEditingService;
@@ -93,11 +95,12 @@ suite('ConfigurationEditingService', () => {
 		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		instantiationService.stub(IEnvironmentService, environmentService);
+		userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, logService));
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService, null));
 		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, logService))));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfilesService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 
 		await workspaceService.initialize(getSingleFolderWorkspaceIdentifier(workspaceFolder));
@@ -133,7 +136,7 @@ suite('ConfigurationEditingService', () => {
 	});
 
 	test('errors cases - invalid configuration', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
 		try {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
@@ -182,36 +185,36 @@ suite('ConfigurationEditingService', () => {
 
 	test('write one setting - empty file', async () => {
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
-		const contents = await fileService.readFile(environmentService.settingsResource);
+		const contents = await fileService.readFile(userDataProfilesService.defaultProfile.settingsResource);
 		const parsed = json.parse(contents.value.toString());
 		assert.strictEqual(parsed['configurationEditing.service.testSetting'], 'value');
 	});
 
 	test('write one setting - existing file', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
 
-		const contents = await fileService.readFile(environmentService.settingsResource);
+		const contents = await fileService.readFile(userDataProfilesService.defaultProfile.settingsResource);
 		const parsed = json.parse(contents.value.toString());
 		assert.strictEqual(parsed['configurationEditing.service.testSetting'], 'value');
 		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
 	});
 
 	test('remove an existing setting - existing file', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value", "configurationEditing.service.testSetting": "value" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value", "configurationEditing.service.testSetting": "value" }'));
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: undefined });
 
-		const contents = await fileService.readFile(environmentService.settingsResource);
+		const contents = await fileService.readFile(userDataProfilesService.defaultProfile.settingsResource);
 		const parsed = json.parse(contents.value.toString());
 		assert.deepStrictEqual(Object.keys(parsed), ['my.super.setting']);
 		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
 	});
 
 	test('remove non existing setting - existing file', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: undefined });
 
-		const contents = await fileService.readFile(environmentService.settingsResource);
+		const contents = await fileService.readFile(userDataProfilesService.defaultProfile.settingsResource);
 		const parsed = json.parse(contents.value.toString());
 		assert.deepStrictEqual(Object.keys(parsed), ['my.super.setting']);
 		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
@@ -222,7 +225,7 @@ suite('ConfigurationEditingService', () => {
 		const value = { 'configurationEditing.service.testSetting': 'overridden value' };
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key, value });
 
-		const contents = await fileService.readFile(environmentService.settingsResource);
+		const contents = await fileService.readFile(userDataProfilesService.defaultProfile.settingsResource);
 		const parsed = json.parse(contents.value.toString());
 		assert.deepStrictEqual(parsed[key], value);
 	});

@@ -49,11 +49,8 @@ export interface IEnvironmentService {
 
 	// --- user roaming data
 	userRoamingDataHome: URI;
-	settingsResource: URI;
-	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	argvResource: URI;
-	snippetsHome: URI;
 
 	// --- data paths
 	untitledWorkspacesHome: URI;

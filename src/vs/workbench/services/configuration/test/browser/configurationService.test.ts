@@ -44,6 +44,7 @@ import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteA
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { hash } from 'vs/base/common/hash';
 import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceIdentifier {
 	return {
@@ -77,7 +78,7 @@ suite('WorkspaceContextService - Folder', () => {
 
 		const environmentService = TestEnvironmentService;
 		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, new RemoteAgentService(null, environmentService, TestProductService, new RemoteAuthorityResolverService(TestProductService, undefined, undefined), new SignService(undefined), new NullLogService()), new UriIdentityService(fileService), new NullLogService()));
+		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, new UserDataProfilesService(environmentService, logService), fileService, new RemoteAgentService(null, environmentService, TestProductService, new RemoteAuthorityResolverService(TestProductService, undefined, undefined), new SignService(undefined), new NullLogService()), new UriIdentityService(fileService), new NullLogService()));
 		await (<WorkspaceService>testObject).initialize(convertToWorkspacePayload(folder));
 	});
 
@@ -117,7 +118,7 @@ suite('WorkspaceContextService - Folder', () => {
 
 		const environmentService = TestEnvironmentService;
 		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		const testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, new RemoteAgentService(null, environmentService, TestProductService, new RemoteAuthorityResolverService(TestProductService, undefined, undefined), new SignService(undefined), new NullLogService()), new UriIdentityService(fileService), new NullLogService()));
+		const testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, new UserDataProfilesService(environmentService, logService), fileService, new RemoteAgentService(null, environmentService, TestProductService, new RemoteAuthorityResolverService(TestProductService, undefined, undefined), new SignService(undefined), new NullLogService()), new UriIdentityService(fileService), new NullLogService()));
 		await (<WorkspaceService>testObject).initialize(convertToWorkspacePayload(folder));
 
 		const actual = testObject.getWorkspaceFolder(joinPath(folder, 'a'));
@@ -137,7 +138,7 @@ suite('WorkspaceContextService - Folder', () => {
 
 		const environmentService = TestEnvironmentService;
 		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		const testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, new RemoteAgentService(null, environmentService, TestProductService, new RemoteAuthorityResolverService(TestProductService, undefined, undefined), new SignService(undefined), new NullLogService()), new UriIdentityService(fileService), new NullLogService()));
+		const testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, new UserDataProfilesService(environmentService, logService), fileService, new RemoteAgentService(null, environmentService, TestProductService, new RemoteAuthorityResolverService(TestProductService, undefined, undefined), new SignService(undefined), new NullLogService()), new UriIdentityService(fileService), new NullLogService()));
 		await (<WorkspaceService>testObject).initialize(convertToWorkspacePayload(folder));
 
 
@@ -184,7 +185,7 @@ suite('WorkspaceContextService - Workspace', () => {
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService, null));
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, new UserDataProfilesService(environmentService, logService), fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 
 		instantiationService.stub(IWorkspaceContextService, testObject);
 		instantiationService.stub(IConfigurationService, testObject);
@@ -242,7 +243,7 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, new UserDataProfilesService(environmentService, logService), fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IWorkspaceContextService, testObject);
@@ -440,7 +441,7 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 suite('WorkspaceService - Initialization', () => {
 
-	let configResource: URI, testObject: WorkspaceService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService;
+	let configResource: URI, testObject: WorkspaceService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService, userDataProfilesService: IUserDataProfilesService;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	const disposables = new DisposableStore();
 
@@ -484,8 +485,9 @@ suite('WorkspaceService - Initialization', () => {
 		environmentService = TestEnvironmentService;
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
+		userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, logService));
 		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfilesService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IWorkspaceContextService, testObject);
 		instantiationService.stub(IConfigurationService, testObject);
@@ -501,7 +503,7 @@ suite('WorkspaceService - Initialization', () => {
 
 	(isMacintosh ? test.skip : test)('initialize a folder workspace from an empty workspace with no configuration changes', async () => {
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 
 		await testObject.reloadConfiguration();
 		const target = sinon.spy();
@@ -526,7 +528,7 @@ suite('WorkspaceService - Initialization', () => {
 
 	(isMacintosh ? test.skip : test)('initialize a folder workspace from an empty workspace with configuration changes', async () => {
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 
 		await testObject.reloadConfiguration();
 		const target = sinon.spy();
@@ -553,7 +555,7 @@ suite('WorkspaceService - Initialization', () => {
 
 	(isMacintosh ? test.skip : test)('initialize a multi root workspace from an empty workspace with no configuration changes', async () => {
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 
 		await testObject.reloadConfiguration();
 		const target = sinon.spy();
@@ -576,7 +578,7 @@ suite('WorkspaceService - Initialization', () => {
 
 	(isMacintosh ? test.skip : test)('initialize a multi root workspace from an empty workspace with configuration changes', async () => {
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 
 		await testObject.reloadConfiguration();
 		const target = sinon.spy();
@@ -603,7 +605,7 @@ suite('WorkspaceService - Initialization', () => {
 	(isMacintosh ? test.skip : test)('initialize a folder workspace from a folder workspace with no configuration changes', async () => {
 
 		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 		await testObject.reloadConfiguration();
 		const target = sinon.spy();
 		testObject.onDidChangeWorkbenchState(target);
@@ -669,7 +671,7 @@ suite('WorkspaceService - Initialization', () => {
 
 suite('WorkspaceConfigurationService - Folder', () => {
 
-	let testObject: WorkspaceService, workspaceService: WorkspaceService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService;
+	let testObject: WorkspaceService, workspaceService: WorkspaceService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService, userDataProfilesService: IUserDataProfilesService;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	const disposables: DisposableStore = new DisposableStore();
 
@@ -734,7 +736,8 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		workspaceService = testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, logService));
+		workspaceService = testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfilesService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IWorkspaceContextService, testObject);
 		instantiationService.stub(IConfigurationService, testObject);
@@ -754,13 +757,13 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('globals override defaults', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
 		await testObject.reloadConfiguration();
 		assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'userValue');
 	});
 
 	test('globals', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
 		await testObject.reloadConfiguration();
 		assert.strictEqual(testObject.getValue('testworkbench.editor.tabs'), true);
 	});
@@ -772,21 +775,21 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('workspace settings override user settings', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 		assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'workspaceValue');
 	});
 
 	test('machine overridable settings override user Settings', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineOverridableSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineOverridableSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.machineOverridableSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 		assert.strictEqual(testObject.getValue('configurationService.folder.machineOverridableSetting'), 'workspaceValue');
 	});
 
 	test('workspace settings override user settings after defaults are registered ', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.newSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.newSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.newSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 		configurationRegistry.registerConfiguration({
@@ -803,7 +806,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('machine overridable settings override user settings after defaults are registered ', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.newMachineOverridableSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.newMachineOverridableSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.newMachineOverridableSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 		configurationRegistry.registerConfiguration({
@@ -821,7 +824,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('application settings are not read from workspace', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "workspaceValue" }'));
 
 		await testObject.reloadConfiguration();
@@ -830,7 +833,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('application settings are not read from workspace when workspace folder uri is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "workspaceValue" }'));
 
 		await testObject.reloadConfiguration();
@@ -839,7 +842,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('machine settings are not read from workspace', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.machineSetting": "workspaceValue" }'));
 
 		await testObject.reloadConfiguration();
@@ -848,7 +851,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('machine settings are not read from workspace when workspace folder uri is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.machineSetting": "workspaceValue" }'));
 
 		await testObject.reloadConfiguration();
@@ -857,7 +860,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('get application scope settings are not loaded after defaults are registered', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting-2": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting-2": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationSetting-2": "workspaceValue" }'));
 
 		await testObject.reloadConfiguration();
@@ -882,7 +885,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('get application scope settings are not loaded after defaults are registered when workspace folder uri is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting-3": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting-3": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationSetting-3": "workspaceValue" }'));
 
 		await testObject.reloadConfiguration();
@@ -907,7 +910,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('get machine scope settings are not loaded after defaults are registered', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting-2": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting-2": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.machineSetting-2": "workspaceValue" }'));
 
 		await testObject.reloadConfiguration();
@@ -932,7 +935,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('get machine scope settings are not loaded after defaults are registered when workspace folder uri is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting-3": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting-3": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.machineSetting-3": "workspaceValue" }'));
 
 		await testObject.reloadConfiguration();
@@ -957,7 +960,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('reload configuration emits events after global configuraiton changes', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
 		const target = sinon.spy();
 		testObject.onDidChangeConfiguration(target);
 		await testObject.reloadConfiguration();
@@ -973,7 +976,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('reload configuration should not emit event if no changes', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 		const target = sinon.spy();
@@ -997,7 +1000,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.strictEqual(actual.workspaceFolderValue, undefined);
 		assert.strictEqual(actual.value, 'isSet');
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
 		await testObject.reloadConfiguration();
 		actual = testObject.inspect('configurationService.folder.testSetting');
 		assert.strictEqual(actual.defaultValue, 'isSet');
@@ -1023,7 +1026,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.deepStrictEqual(actual.workspace, []);
 		assert.deepStrictEqual(actual.workspaceFolder, []);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
 		await testObject.reloadConfiguration();
 		actual = testObject.keys();
 		assert.ok(actual.default.indexOf('configurationService.folder.testSetting') !== -1);
@@ -1178,7 +1181,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('creating workspace settings', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
 		await testObject.reloadConfiguration();
 		await new Promise<void>((c, e) => {
 			const disposable = testObject.onDidChangeConfiguration(e => {
@@ -1192,7 +1195,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('deleting workspace settings', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
 		const workspaceSettingsResource = joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json');
 		await fileService.writeFile(workspaceSettingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
@@ -1207,7 +1210,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	test('restricted setting is read from workspace when workspace is trusted', async () => {
 		testObject.updateWorkspaceTrust(true);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
@@ -1223,7 +1226,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	test('restricted setting is not read from workspace when workspace is changed to trusted', async () => {
 		testObject.updateWorkspaceTrust(true);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
@@ -1241,7 +1244,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	test('change event is triggered when workspace is changed to untrusted', async () => {
 		testObject.updateWorkspaceTrust(true);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
@@ -1256,7 +1259,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	test('restricted setting is not read from workspace when workspace is not trusted', async () => {
 		testObject.updateWorkspaceTrust(false);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
@@ -1272,7 +1275,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	test('restricted setting is read when workspace is changed to trusted', async () => {
 		testObject.updateWorkspaceTrust(false);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
@@ -1290,7 +1293,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	test('change event is triggered when workspace is changed to trusted', async () => {
 		testObject.updateWorkspaceTrust(false);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
@@ -1303,7 +1306,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('adding an restricted setting triggers change event', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
 		testObject.updateWorkspaceTrust(false);
 
 		const promise = Event.toPromise(testObject.onDidChangeRestrictedSettings);
@@ -1314,7 +1317,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 	test('remove an unregistered setting', async () => {
 		const key = 'configurationService.folder.unknownSetting';
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.unknownSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.unknownSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.unknownSetting": "workspaceValue" }'));
 
 		await testObject.reloadConfiguration();
@@ -1329,7 +1332,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 suite('WorkspaceConfigurationService-Multiroot', () => {
 
-	let workspaceContextService: IWorkspaceContextService, jsonEditingServce: IJSONEditingService, testObject: WorkspaceService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService;
+	let workspaceContextService: IWorkspaceContextService, jsonEditingServce: IJSONEditingService, testObject: WorkspaceService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService, userDataProfilesService: IUserDataProfilesService;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	const disposables = new DisposableStore();
 
@@ -1405,7 +1408,8 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
-		const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, logService));
+		const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, userDataProfilesService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
@@ -1427,7 +1431,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	teardown(() => disposables.clear());
 
 	test('application settings are not read from workspace', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "userValue" }'));
 		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.applicationSetting': 'workspaceValue' } }], true);
 
 		await testObject.reloadConfiguration();
@@ -1436,7 +1440,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('application settings are not read from workspace when folder is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "userValue" }'));
 		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.applicationSetting': 'workspaceValue' } }], true);
 
 		await testObject.reloadConfiguration();
@@ -1445,7 +1449,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('machine settings are not read from workspace', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting": "userValue" }'));
 		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.machineSetting': 'workspaceValue' } }], true);
 
 		await testObject.reloadConfiguration();
@@ -1454,7 +1458,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('machine settings are not read from workspace when folder is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting": "userValue" }'));
 		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.machineSetting': 'workspaceValue' } }], true);
 
 		await testObject.reloadConfiguration();
@@ -1463,7 +1467,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('get application scope settings are not loaded after defaults are registered', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.newSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.newSetting": "userValue" }'));
 		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.newSetting': 'workspaceValue' } }], true);
 
 		await testObject.reloadConfiguration();
@@ -1488,7 +1492,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('get application scope settings are not loaded after defaults are registered when workspace folder is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.newSetting-2": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.newSetting-2": "userValue" }'));
 		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.newSetting-2': 'workspaceValue' } }], true);
 
 		await testObject.reloadConfiguration();
@@ -1513,7 +1517,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('workspace settings override user settings after defaults are registered for machine overridable settings ', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.newMachineOverridableSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.newMachineOverridableSetting": "userValue" }'));
 		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.newMachineOverridableSetting': 'workspaceValue' } }], true);
 
 		await testObject.reloadConfiguration();
@@ -1539,7 +1543,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('application settings are not read from workspace folder', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.applicationSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.applicationSetting": "userValue" }'));
 		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.applicationSetting": "workspaceFolderValue" }'));
 
 		await testObject.reloadConfiguration();
@@ -1548,7 +1552,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('application settings are not read from workspace folder when workspace folder is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.applicationSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.applicationSetting": "userValue" }'));
 		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.applicationSetting": "workspaceFolderValue" }'));
 
 		await testObject.reloadConfiguration();
@@ -1557,7 +1561,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('machine settings are not read from workspace folder', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.machineSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.machineSetting": "userValue" }'));
 		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.machineSetting": "workspaceFolderValue" }'));
 
 		await testObject.reloadConfiguration();
@@ -1566,7 +1570,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('machine settings are not read from workspace folder when workspace folder is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.machineSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.machineSetting": "userValue" }'));
 		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.machineSetting": "workspaceFolderValue" }'));
 
 		await testObject.reloadConfiguration();
@@ -1575,7 +1579,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('application settings are not read from workspace folder after defaults are registered', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testNewApplicationSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testNewApplicationSetting": "userValue" }'));
 		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testNewApplicationSetting": "workspaceFolderValue" }'));
 
 		await testObject.reloadConfiguration();
@@ -1600,7 +1604,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('application settings are not read from workspace folder after defaults are registered', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testNewMachineSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testNewMachineSetting": "userValue" }'));
 		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testNewMachineSetting": "workspaceFolderValue" }'));
 		await testObject.reloadConfiguration();
 
@@ -1693,7 +1697,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		assert.strictEqual(actual.workspaceFolderValue, undefined);
 		assert.strictEqual(actual.value, 'isSet');
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testResourceSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testResourceSetting": "userValue" }'));
 		await testObject.reloadConfiguration();
 		actual = testObject.inspect('configurationService.workspace.testResourceSetting');
 		assert.strictEqual(actual.defaultValue, 'isSet');
@@ -1948,7 +1952,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	test('restricted setting is read from workspace folders when workspace is trusted', async () => {
 		testObject.updateWorkspaceTrust(true);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testRestrictedSetting1": "userValue", "configurationService.workspace.testRestrictedSetting2": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testRestrictedSetting1": "userValue", "configurationService.workspace.testRestrictedSetting2": "userValue" }'));
 		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testRestrictedSetting1': 'workspaceValue' } }], true);
 		await fileService.writeFile(joinPath(testObject.getWorkspace().folders[1].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testRestrictedSetting2": "workspaceFolder2Value" }'));
 		await testObject.reloadConfiguration();
@@ -1968,7 +1972,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	test('restricted setting is not read from workspace when workspace is not trusted', async () => {
 		testObject.updateWorkspaceTrust(false);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testRestrictedSetting1": "userValue", "configurationService.workspace.testRestrictedSetting2": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testRestrictedSetting1": "userValue", "configurationService.workspace.testRestrictedSetting2": "userValue" }'));
 		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testRestrictedSetting1': 'workspaceValue' } }], true);
 		await fileService.writeFile(joinPath(testObject.getWorkspace().folders[1].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testRestrictedSetting2": "workspaceFolder2Value" }'));
 		await testObject.reloadConfiguration();
@@ -1987,7 +1991,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 	test('remove an unregistered setting', async () => {
 		const key = 'configurationService.workspace.unknownSetting';
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.unknownSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.unknownSetting": "userValue" }'));
 		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.unknownSetting': 'workspaceValue' } }], true);
 		await fileService.writeFile(joinPath(workspaceContextService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.workspace.unknownSetting": "workspaceFolderValue1" }'));
 		await fileService.writeFile(joinPath(workspaceContextService.getWorkspace().folders[1].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.workspace.unknownSetting": "workspaceFolderValue2" }'));
@@ -2013,7 +2017,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 
 	let testObject: WorkspaceService, folder: URI,
 		machineSettingsResource: URI, remoteSettingsResource: URI, fileSystemProvider: InMemoryFileSystemProvider, resolveRemoteEnvironment: () => void,
-		instantiationService: TestInstantiationService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService;
+		instantiationService: TestInstantiationService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService, userDataProfilesService: IUserDataProfilesService;
 	const remoteAuthority = 'configuraiton-tests';
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	const disposables = new DisposableStore();
@@ -2066,7 +2070,8 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		const remoteAgentService = instantiationService.stub(IRemoteAgentService, <Partial<IRemoteAgentService>>{ getEnvironment: () => remoteEnvironmentPromise });
 		fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService())));
 		const configurationCache: IConfigurationCache = { read: () => Promise.resolve(''), write: () => Promise.resolve(), remove: () => Promise.resolve(), needsCaching: () => false };
-		testObject = disposables.add(new WorkspaceService({ configurationCache, remoteAuthority }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, logService));
+		testObject = disposables.add(new WorkspaceService({ configurationCache, remoteAuthority }, environmentService, userDataProfilesService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
 		instantiationService.stub(IWorkspaceContextService, testObject);
 		instantiationService.stub(IConfigurationService, testObject);
 		instantiationService.stub(IEnvironmentService, environmentService);
@@ -2152,7 +2157,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 	});
 
 	test('machine settings in local user settings does not override defaults', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.remote.machineSetting": "globalValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.remote.machineSetting": "globalValue" }'));
 		registerRemoteFileSystemProvider();
 		resolveRemoteEnvironment();
 		await initialize();
@@ -2160,7 +2165,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 	});
 
 	test('machine overridable settings in local user settings does not override defaults', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.remote.machineOverridableSetting": "globalValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.remote.machineOverridableSetting": "globalValue" }'));
 		registerRemoteFileSystemProvider();
 		resolveRemoteEnvironment();
 		await initialize();
@@ -2195,7 +2200,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 	});
 
 	test('machine settings in local user settings does not override defaults after defalts are registered ', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.remote.newMachineSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.remote.newMachineSetting": "userValue" }'));
 		registerRemoteFileSystemProvider();
 		resolveRemoteEnvironment();
 		await initialize();
@@ -2214,7 +2219,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 	});
 
 	test('machine overridable settings in local user settings does not override defaults after defaults are registered ', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.remote.newMachineOverridableSetting": "userValue" }'));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.remote.newMachineOverridableSetting": "userValue" }'));
 		registerRemoteFileSystemProvider();
 		resolveRemoteEnvironment();
 		await initialize();

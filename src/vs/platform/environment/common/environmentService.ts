@@ -63,9 +63,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get userRoamingDataHome(): URI { return this.appSettingsHome; }
 
 	@memoize
-	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
-
-	@memoize
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync'); }
 
 	get logsPath(): string {
@@ -96,9 +93,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get localHistoryHome(): URI { return joinPath(this.appSettingsHome, 'History'); }
 
 	@memoize
-	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
-
-	@memoize
 	get keyboardLayoutResource(): URI { return joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
 
 	@memoize
@@ -110,9 +104,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 		return joinPath(this.userHome, this.productService.dataFolderName, 'argv.json');
 	}
-
-	@memoize
-	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
 
 	@memoize
 	get isExtensionDevelopment(): boolean { return !!this.args.extensionDevelopmentPath; }

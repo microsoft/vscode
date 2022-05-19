@@ -100,6 +100,7 @@ import { InspectProfilingService as V8InspectProfilingService } from 'vs/platfor
 import { IV8InspectProfilingService } from 'vs/platform/profiling/common/profiling';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 class SharedProcessMain extends Disposable {
 
@@ -221,8 +222,12 @@ class SharedProcessMain extends Disposable {
 		));
 		fileService.registerProvider(Schemas.vscodeUserData, userDataFileSystemProvider);
 
+		// User Data Profiles
+		const userDataProfilesService = this._register(new UserDataProfilesService(environmentService, logService));
+		services.set(IUserDataProfilesService, userDataProfilesService);
+
 		// Configuration
-		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
+		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService));
 		services.set(IConfigurationService, configurationService);
 
 		// Storage (global access only)

@@ -51,6 +51,7 @@ import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppen
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 class CliMain extends Disposable {
 
@@ -128,8 +129,12 @@ class CliMain extends Disposable {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
+		// User Data Profiles
+		const userDataProfilesService = new UserDataProfilesService(environmentService, logService);
+		services.set(IUserDataProfilesService, userDataProfilesService);
+
 		// Configuration
-		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
+		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService));
 		services.set(IConfigurationService, configurationService);
 
 		// Init config

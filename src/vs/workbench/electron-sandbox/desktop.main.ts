@@ -50,6 +50,7 @@ import { isCI, isMacintosh } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/electron-sandbox/diskFileSystemProvider';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export class DesktopMain extends Disposable {
 
@@ -178,6 +179,10 @@ export class DesktopMain extends Disposable {
 			logService.trace('workbench#open(): with configuration', safeStringify(this.configuration));
 		}
 
+		// User Data Profiles
+		const userDataProfilesService = new UserDataProfilesService(environmentService, logService);
+		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
+
 		// Shared Process
 		const sharedProcessService = new SharedProcessService(this.configuration.windowId, logService);
 		serviceCollection.set(ISharedProcessService, sharedProcessService);
@@ -247,7 +252,7 @@ export class DesktopMain extends Disposable {
 		const payload = this.resolveWorkspaceInitializationPayload(environmentService);
 
 		const [configurationService, storageService] = await Promise.all([
-			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
+			this.createWorkspaceService(payload, environmentService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -325,9 +330,9 @@ export class DesktopMain extends Disposable {
 		return workspaceInitializationPayload;
 	}
 
-	private async createWorkspaceService(payload: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
+	private async createWorkspaceService(payload: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, userDataProfilesService: IUserDataProfilesService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
 		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData] /* Cache all non native resources */, environmentService, fileService);
-		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache }, environmentService, fileService, remoteAgentService, uriIdentityService, logService);
+		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache }, environmentService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService);
 
 		try {
 			await workspaceService.initialize(payload);

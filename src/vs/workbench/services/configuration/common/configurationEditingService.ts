@@ -11,7 +11,6 @@ import { Queue } from 'vs/base/common/async';
 import { Edit, FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService, IConfigurationUpdateOverrides } from 'vs/platform/configuration/common/configuration';
 import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS, TASKS_DEFAULT, FOLDER_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
@@ -29,6 +28,7 @@ import { IReference } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export const enum ConfigurationEditingErrorCode {
 
@@ -148,7 +148,7 @@ export class ConfigurationEditingService {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IFileService private readonly fileService: IFileService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -604,9 +604,9 @@ export class ConfigurationEditingService {
 	private getConfigurationFileResource(target: EditableConfigurationTarget, relativePath: string, resource: URI | null | undefined): URI | null {
 		if (target === EditableConfigurationTarget.USER_LOCAL) {
 			if (relativePath) {
-				return this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(this.environmentService.settingsResource), relativePath);
+				return this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(this.userDataProfilesService.defaultProfile.settingsResource), relativePath);
 			} else {
-				return this.environmentService.settingsResource;
+				return this.userDataProfilesService.defaultProfile.settingsResource;
 			}
 		}
 		if (target === EditableConfigurationTarget.USER_REMOTE) {
