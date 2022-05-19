@@ -58,8 +58,6 @@ export function registerDiagnosticsPushSupport(documents: TextDocuments<TextDocu
 		}, validationDelayMs);
 	}
 
-	documents.all().forEach(triggerValidation);
-
 	return {
 		requestRefresh: () => {
 			documents.all().forEach(triggerValidation);
@@ -85,7 +83,7 @@ export function registerDiagnosticsPullSupport(documents: TextDocuments<TextDocu
 		};
 	}
 
-	connection.languages.diagnostics.on(async (params: DocumentDiagnosticParams, token: CancellationToken) => {
+	const registration = connection.languages.diagnostics.on(async (params: DocumentDiagnosticParams, token: CancellationToken) => {
 		return runSafeAsync(runtime, async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
@@ -103,6 +101,7 @@ export function registerDiagnosticsPullSupport(documents: TextDocuments<TextDocu
 	return {
 		requestRefresh,
 		dispose: () => {
+			registration.dispose();
 		}
 	};
 

@@ -9,7 +9,7 @@ import {
 	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind, TextEdit, DocumentFormattingRequest, TextDocumentIdentifier, FormattingOptions, Diagnostic
 } from 'vscode-languageserver';
 
-import { formatError, runSafe, runSafeAsync } from './utils/runner';
+import { runSafe, runSafeAsync } from './utils/runner';
 import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation';
 import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Range, Position } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
@@ -114,7 +114,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	let resultLimit = Number.MAX_VALUE;
 	let formatterMaxNumberOfEdits = Number.MAX_VALUE;
 
-	let diagnosticSupport: DiagnosticsSupport | undefined;
+	let diagnosticsSupport: DiagnosticsSupport | undefined;
 
 
 	// After the server has started the client sends an initialize request. The server receives
@@ -154,9 +154,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 		const pullDiagnosticSupport = getClientCapability('textDocument.diagnostic', undefined);
 		if (pullDiagnosticSupport === undefined) {
-			diagnosticSupport = registerDiagnosticsPushSupport(documents, connection, runtime, validateTextDocument);
+			diagnosticsSupport = registerDiagnosticsPushSupport(documents, connection, runtime, validateTextDocument);
 		} else {
-			diagnosticSupport = registerDiagnosticsPullSupport(documents, connection, runtime, validateTextDocument);
+			diagnosticsSupport = registerDiagnosticsPullSupport(documents, connection, runtime, validateTextDocument);
 		}
 
 
@@ -301,25 +301,18 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			needsRevalidation = languageService.resetSchema(uriOrUris);
 		}
 		if (needsRevalidation) {
-			for (const doc of documents.all()) {
-				triggerValidation(doc);
-			}
+			diagnosticsSupport?.requestRefresh();
 		}
 	});
 
 	// Retry schema validation on all open documents
-	connection.onRequest(ForceValidateRequest.type, uri => {
-		return new Promise<Diagnostic[]>(resolve => {
-			const document = documents.get(uri);
-			if (document) {
-				updateConfiguration();
-				validateTextDocument(document, diagnostics => {
-					resolve(diagnostics);
-				});
-			} else {
-				resolve([]);
-			}
-		});
+	connection.onRequest(ForceValidateRequest.type, async uri => {
+		const document = documents.get(uri);
+		if (document) {
+			updateConfiguration();
+			return await validateTextDocument(document);
+		}
+		return [];
 	});
 
 	connection.onRequest(LanguageStatusRequest.type, async uri => {
@@ -365,8 +358,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}
 		languageService.configure(languageSettings);
 
-		// Revalidate any open text documents
-		documents.all().forEach(triggerValidation);
+		diagnosticsSupport?.requestRefresh();
 	}
 
 	async function validateTextDocument(textDocument: TextDocument): Promise<Diagnostic[]> {
@@ -387,7 +379,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			}
 		});
 		if (hasChanges) {
-			documents.all().forEach(triggerValidation);
+			diagnosticsSupport?.requestRefresh();
 		}
 	});
 

@@ -57,7 +57,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	let dataProvidersReady: Promise<any> = Promise.resolve();
 
-	let diagnosticPushSupport: DiagnosticsSupport | undefined;
+	let diagnosticsSupport: DiagnosticsSupport | undefined;
 
 	const languageServices: { [id: string]: LanguageService } = {};
 
@@ -103,9 +103,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 		const pullDiagnosticSupport = getClientCapability('textDocument.diagnostic', undefined);
 		if (pullDiagnosticSupport === undefined) {
-			diagnosticPushSupport = registerDiagnosticsPushSupport(documents, connection, runtime, validateTextDocument);
+			diagnosticsSupport = registerDiagnosticsPushSupport(documents, connection, runtime, validateTextDocument);
 		} else {
-			diagnosticPushSupport = registerDiagnosticsPullSupport(documents, connection, runtime, validateTextDocument);
+			diagnosticsSupport = registerDiagnosticsPullSupport(documents, connection, runtime, validateTextDocument);
 		}
 
 		const capabilities: ServerCapabilities = {
@@ -173,7 +173,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}
 		// reset all document settings
 		documentSettings = {};
-		diagnosticPushSupport?.requestRefresh();
+		diagnosticsSupport?.requestRefresh();
 	}
 
 	async function validateTextDocument(textDocument: TextDocument): Promise<Diagnostic[]> {
