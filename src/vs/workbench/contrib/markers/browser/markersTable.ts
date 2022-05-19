@@ -436,8 +436,31 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 		this.table.splice(0, Number.POSITIVE_INFINITY, items.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity)));
 	}
 
-	revealMarkers(activeResource: ResourceMarkers | null, focus: boolean): void {
-		console.log('revealMarkers');
+	revealMarkers(activeResource: ResourceMarkers | null, focus: boolean, lastSelectedRelativeTop: number): void {
+		if (activeResource) {
+			const activeResourceIndex = this.resourceMarkers.indexOf(activeResource);
+
+			if (activeResourceIndex !== -1) {
+				if (this.hasSelectedMarkerFor(activeResource)) {
+					const tableSelection = this.table.getSelection();
+					this.table.reveal(tableSelection[0], lastSelectedRelativeTop);
+
+					if (focus) {
+						this.table.setFocus(tableSelection);
+					}
+				} else {
+					this.table.reveal(activeResourceIndex, 0);
+
+					if (focus) {
+						this.table.setFocus([activeResourceIndex]);
+						this.table.setSelection([activeResourceIndex]);
+					}
+				}
+			}
+		} else if (focus) {
+			this.table.setSelection([]);
+			this.table.focusFirst();
+		}
 	}
 
 	setAriaLabel(label: string): void {
@@ -464,6 +487,19 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 	}
 
 	updateMarker(marker: Marker): void {
-		console.log('updateMarker');
+		this.table.rerender();
+	}
+
+	private hasSelectedMarkerFor(resource: ResourceMarkers): boolean {
+		let selectedElement = this.getSelection();
+		if (selectedElement && selectedElement.length > 0) {
+			if (selectedElement[0] instanceof Marker) {
+				if (resource.has((<Marker>selectedElement[0]).marker.resource)) {
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 }

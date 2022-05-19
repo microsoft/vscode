@@ -165,7 +165,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		this.panelState = new Memento(Constants.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
 
 		this.markersModel = this._register(instantiationService.createInstance(MarkersModel));
-		this.markersViewModel = this._register(instantiationService.createInstance(MarkersViewModel, this.panelState['multiline'], this.panelState['viewMode']));
+		this.markersViewModel = this._register(instantiationService.createInstance(MarkersViewModel, this.panelState['multiline'], this.panelState['viewMode'] ?? this.getDefaultViewMode()));
 		this._register(this.onDidChangeVisibility(visible => this.onDidChangeMarkersViewVisibility(visible)));
 		this._register(this.markersViewModel.onDidChangeViewMode(_ => this.onDidChangeViewMode()));
 
@@ -354,6 +354,17 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		this.renderMessage();
 
 		this._onDidChangeFilterStats.fire(this.getFilterStats());
+	}
+
+	private getDefaultViewMode(): MarkersViewMode {
+		switch (this.configurationService.getValue<string>('problems.defaultViewMode')) {
+			case 'table':
+				return MarkersViewMode.Table;
+			case 'tree':
+				return MarkersViewMode.Tree;
+			default:
+				return MarkersViewMode.Tree;
+		}
 	}
 
 	private getFilesExcludeExpressions(): { root: URI; expression: IExpression }[] | IExpression {

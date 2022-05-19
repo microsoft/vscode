@@ -97,6 +97,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'type': 'boolean',
 			'default': true
 		},
+		'problems.defaultViewMode': {
+			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_VIEW_MODE,
+			'type': 'string',
+			'default': 'tree',
+			'enum': ['table', 'tree'],
+		},
 		'problems.showCurrentInStatus': {
 			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_SHOW_CURRENT_STATUS,
 			'type': 'boolean',
