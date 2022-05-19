@@ -227,17 +227,4 @@ suite('markdown: Diagnostics', () => {
 		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
 		assert.deepStrictEqual(diagnostics.length, 0);
 	});
-
-	test('skipPaths should resolve relative to file', async () => {
-		const doc1 = new InMemoryDocument(workspacePath('sub', 'doc1.md'), joinLines(
-			`![i](images/aaa.png)`,
-			`![i](images/sub/bbb.png)`,
-			`![i](images/sub/sub2/ccc.png)`,
-			`![i](/images/sub/sub2/ccc.png)`,
-		));
-
-		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration(true, ['images/**/*.png']));
-		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
-		assert.deepStrictEqual(diagnostics.length, 0);
-	});
 });
