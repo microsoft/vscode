@@ -13,7 +13,6 @@ import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskServic
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -22,7 +21,7 @@ interface TerminalData {
 }
 
 const TASK_TERMINAL_STATUS_ID = 'task_terminal_status';
-const ACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: spinningLoading, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.active', "Task is running") };
+const ACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.loading, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.active', "Task is running") };
 const SUCCEEDED_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.check, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.succeeded', "Task succeeded") };
 const SUCCEEDED_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.check, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.succeededInactive', "Task succeeded and waiting...") };
 const FAILED_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.error, severity: Severity.Error, tooltip: nls.localize('taskTerminalStatus.errors', "Task has errors") };
@@ -72,7 +71,7 @@ export class TaskTerminalStatus extends Disposable {
 		terminalData.terminal.statusList.remove(terminalData.status);
 		if ((event.exitCode === 0) && (terminalData.problemMatcher.numberOfMatches === 0)) {
 			terminalData.terminal.statusList.add(SUCCEEDED_TASK_STATUS);
-		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Error) {
+		} else if (event.exitCode || terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Error) {
 			terminalData.terminal.statusList.add(FAILED_TASK_STATUS);
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Warning) {
 			terminalData.terminal.statusList.add(WARNING_TASK_STATUS);
