@@ -14,6 +14,7 @@ import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWebviewPortMapping } from 'vs/platform/webview/common/webviewPortMapping';
+import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewElement';
 
 /**
  * Set when the find widget in a webview in a webview is visible.
@@ -53,12 +54,7 @@ export interface IWebviewService {
 	/**
 	 * Create a basic webview dom element.
 	 */
-	createWebviewElement(
-		id: string,
-		options: WebviewOptions,
-		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
-	): IWebviewElement;
+	createWebviewElement(initInfo: WebviewInitInfo): IWebviewElement;
 
 	/**
 	 * Create a lazily created webview element that is overlaid on top of another element.
@@ -66,12 +62,7 @@ export interface IWebviewService {
 	 * Allows us to avoid re-parenting the webview (which destroys its contents) when
 	 * moving webview around the workbench.
 	 */
-	createWebviewOverlay(
-		id: string,
-		options: WebviewOptions,
-		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
-	): IOverlayWebview;
+	createWebviewOverlay(initInfo: WebviewInitInfo): IOverlayWebview;
 }
 
 export const enum WebviewContentPurpose {
