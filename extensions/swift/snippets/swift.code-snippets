@@ -4,11 +4,6 @@
 		"body": "print(\"$1\")\n$0",
 		"description": "print(\"...\")"
 	},
-	"print value": {
-		"prefix": "printv",
-		"body": "print(\"\\($1)\")\n$0",
-		"description": "print(\"\\(...)\")"
-	},
 	"while": {
 		"prefix": "while",
 		"body": [
