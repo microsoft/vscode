@@ -167,12 +167,12 @@ export class WebviewViewPane extends ViewPane {
 		this._activated = true;
 
 		const webviewId = generateUuid();
-		const webview = this.webviewService.createWebviewOverlay(
-			webviewId,
-			{ purpose: WebviewContentPurpose.WebviewView },
-			{},
-			this.extensionId ? { id: this.extensionId } : undefined
-		);
+		const webview = this.webviewService.createWebviewOverlay({
+			id: webviewId,
+			options: { purpose: WebviewContentPurpose.WebviewView },
+			contentOptions: {},
+			extension: this.extensionId ? { id: this.extensionId } : undefined
+		});
 		webview.state = this.viewState[storageKeys.webviewState];
 		this._webview.value = webview;
 
