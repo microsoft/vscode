@@ -19,6 +19,7 @@ import 'vs/editor/contrib/comment/browser/comment';
 import 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import 'vs/editor/contrib/cursorUndo/browser/cursorUndo';
 import 'vs/editor/contrib/dnd/browser/dnd';
+import 'vs/editor/contrib/dropIntoEditor/browser/dropIntoEditorContribution';
 import 'vs/editor/contrib/find/browser/findController';
 import 'vs/editor/contrib/folding/browser/folding';
 import 'vs/editor/contrib/fontZoom/browser/fontZoom';

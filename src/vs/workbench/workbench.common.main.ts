@@ -343,7 +343,4 @@ import 'vs/workbench/contrib/list/browser/list.contribution';
 // Audio Cues
 import 'vs/workbench/contrib/audioCues/browser/audioCues.contribution';
 
-// Drop into editor
-import 'vs/workbench/contrib/dropIntoEditor/browser/dropIntoEditor.contibution';
-
 //#endregion

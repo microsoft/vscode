@@ -179,9 +179,9 @@ export class UnicodeHighlighter extends Disposable implements IEditorContributio
 		}
 	}
 
-	public getDecorationInfo(decorationId: string): UnicodeHighlighterDecorationInfo | null {
+	public getDecorationInfo(decoration: IModelDecoration): UnicodeHighlighterDecorationInfo | null {
 		if (this._highlighter) {
-			return this._highlighter.getDecorationInfo(decorationId);
+			return this._highlighter.getDecorationInfo(decoration);
 		}
 		return null;
 	}
@@ -214,7 +214,7 @@ function resolveOptions(trusted: boolean, options: InternalUnicodeHighlightOptio
 class DocumentUnicodeHighlighter extends Disposable {
 	private readonly _model: ITextModel = this._editor.getModel();
 	private readonly _updateSoon: RunOnceScheduler;
-	private _decorationIds = new Set<string>();
+	private _decorations = this._editor.createDecorationsCollection();
 
 	constructor(
 		private readonly _editor: IActiveCodeEditor,
@@ -233,7 +233,7 @@ class DocumentUnicodeHighlighter extends Disposable {
 	}
 
 	public override dispose() {
-		this._decorationIds = new Set(this._model.deltaDecorations(Array.from(this._decorationIds), []));
+		this._decorations.clear();
 		super.dispose();
 	}
 
@@ -243,7 +243,7 @@ class DocumentUnicodeHighlighter extends Disposable {
 		}
 
 		if (!this._model.mightContainNonBasicASCII()) {
-			this._decorationIds = new Set(this._editor.deltaDecorations(Array.from(this._decorationIds), []));
+			this._decorations.clear();
 			return;
 		}
 
@@ -271,31 +271,21 @@ class DocumentUnicodeHighlighter extends Disposable {
 						});
 					}
 				}
-				this._decorationIds = new Set(this._editor.deltaDecorations(
-					Array.from(this._decorationIds),
-					decorations
-				));
+				this._decorations.set(decorations);
 			});
 	}
 
-	public getDecorationInfo(decorationId: string): UnicodeHighlighterDecorationInfo | null {
-		if (!this._decorationIds.has(decorationId)) {
+	public getDecorationInfo(decoration: IModelDecoration): UnicodeHighlighterDecorationInfo | null {
+		if (!this._decorations.has(decoration)) {
 			return null;
 		}
 		const model = this._editor.getModel();
-		const range = model.getDecorationRange(decorationId)!;
-		const decoration = {
-			range: range,
-			options: Decorations.instance.getDecorationFromOptions(this._options),
-			id: decorationId,
-			ownerId: 0,
-		};
 		if (
 			!isModelDecorationVisible(model, decoration)
 		) {
 			return null;
 		}
-		const text = model.getValueInRange(range);
+		const text = model.getValueInRange(decoration.range);
 		return {
 			reason: computeReason(text, this._options)!,
 			inComment: isModelDecorationInComment(model, decoration),
@@ -308,7 +298,7 @@ class ViewportUnicodeHighlighter extends Disposable {
 
 	private readonly _model: ITextModel = this._editor.getModel();
 	private readonly _updateSoon: RunOnceScheduler;
-	private _decorationIds = new Set<string>();
+	private readonly _decorations = this._editor.createDecorationsCollection();
 
 	constructor(
 		private readonly _editor: IActiveCodeEditor,
@@ -336,7 +326,7 @@ class ViewportUnicodeHighlighter extends Disposable {
 	}
 
 	public override dispose() {
-		this._decorationIds = new Set(this._model.deltaDecorations(Array.from(this._decorationIds), []));
+		this._decorations.clear();
 		super.dispose();
 	}
 
@@ -346,7 +336,7 @@ class ViewportUnicodeHighlighter extends Disposable {
 		}
 
 		if (!this._model.mightContainNonBasicASCII()) {
-			this._decorationIds = new Set(this._editor.deltaDecorations(Array.from(this._decorationIds), []));
+			this._decorations.clear();
 			return;
 		}
 
@@ -379,22 +369,15 @@ class ViewportUnicodeHighlighter extends Disposable {
 		}
 		this._updateState(totalResult);
 
-		this._decorationIds = new Set(this._editor.deltaDecorations(Array.from(this._decorationIds), decorations));
+		this._decorations.set(decorations);
 	}
 
-	public getDecorationInfo(decorationId: string): UnicodeHighlighterDecorationInfo | null {
-		if (!this._decorationIds.has(decorationId)) {
+	public getDecorationInfo(decoration: IModelDecoration): UnicodeHighlighterDecorationInfo | null {
+		if (!this._decorations.has(decoration)) {
 			return null;
 		}
 		const model = this._editor.getModel();
-		const range = model.getDecorationRange(decorationId)!;
-		const text = model.getValueInRange(range);
-		const decoration = {
-			range: range,
-			options: Decorations.instance.getDecorationFromOptions(this._options),
-			id: decorationId,
-			ownerId: 0,
-		};
+		const text = model.getValueInRange(decoration.range);
 		if (!isModelDecorationVisible(model, decoration)) {
 			return null;
 		}
@@ -449,7 +432,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 		let index = 300;
 		for (const d of lineDecorations) {
 
-			const highlightInfo = unicodeHighlighter.getDecorationInfo(d.id);
+			const highlightInfo = unicodeHighlighter.getDecorationInfo(d);
 			if (!highlightInfo) {
 				continue;
 			}

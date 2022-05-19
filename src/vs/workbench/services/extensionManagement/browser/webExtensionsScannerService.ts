@@ -140,10 +140,11 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				this.logService.info(`Checking additional builtin extensions: Ignoring '${extension.id}' because it is reported to be malicious.`);
 				continue;
 			}
-			if (extensionsControlManifest.unsupportedPreReleaseExtensions && extensionsControlManifest.unsupportedPreReleaseExtensions[extension.id.toLowerCase()]) {
-				const preReleaseExtensionId = extensionsControlManifest.unsupportedPreReleaseExtensions[extension.id.toLowerCase()].id;
-				this.logService.info(`Checking additional builtin extensions: '${extension.id}' is no longer supported, instead using '${preReleaseExtensionId}'`);
-				result.push({ id: preReleaseExtensionId, preRelease: true });
+			const deprecationInfo = extensionsControlManifest.deprecated[extension.id.toLowerCase()];
+			if (deprecationInfo?.extension?.autoMigrate) {
+				const preReleaseExtensionId = deprecationInfo.extension.id;
+				this.logService.info(`Checking additional builtin extensions: '${extension.id}' is deprecated, instead using '${preReleaseExtensionId}'`);
+				result.push({ id: preReleaseExtensionId, preRelease: !!extension.preRelease });
 			} else {
 				result.push(extension);
 			}
