@@ -65,6 +65,7 @@ import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { NativePolicyService } from 'vs/platform/policy/node/nativePolicyService';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 /**
  * The main VS Code entry point.
@@ -142,6 +143,8 @@ class CodeMain {
 
 	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, IPolicyService, ConfigurationService, StateMainService, BufferLogService, IProductService] {
 		const services = new ServiceCollection();
+		const disposables = new DisposableStore();
+		process.once('exit', () => disposables.dispose());
 
 		// Product
 		const productService = { _serviceBrand: undefined, ...product };
@@ -156,8 +159,7 @@ class CodeMain {
 		// we are the only instance running, otherwise we'll have concurrent
 		// log file access on Windows (https://github.com/microsoft/vscode/issues/41218)
 		const bufferLogService = new BufferLogService();
-		const logService = new MultiplexLogService([new ConsoleMainLogger(getLogLevel(environmentMainService)), bufferLogService]);
-		process.once('exit', () => logService.dispose());
+		const logService = disposables.add(new MultiplexLogService([new ConsoleMainLogger(getLogLevel(environmentMainService)), bufferLogService]));
 		services.set(ILogService, logService);
 
 		// Files
@@ -170,8 +172,8 @@ class CodeMain {
 		services.set(ILoggerService, new LoggerService(logService, fileService));
 
 		// Policy
-		const policyService = isWindows && productService.win32RegValueName ? new NativePolicyService(productService.win32RegValueName)
-			: environmentMainService.policyFile ? new FilePolicyService(environmentMainService.policyFile, fileService, logService)
+		const policyService = isWindows && productService.win32RegValueName ? disposables.add(new NativePolicyService(productService.win32RegValueName))
+			: environmentMainService.policyFile ? disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService))
 				: new NullPolicyService();
 		services.set(IPolicyService, policyService);
 
