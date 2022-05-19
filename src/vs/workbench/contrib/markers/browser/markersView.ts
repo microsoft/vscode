@@ -86,16 +86,16 @@ export interface IProblemsWidget {
 	dispose(): void;
 	domFocus(): void;
 	filterMarkers(resourceMarkers: ResourceMarkers[], filterOptions: FilterOptions): void;
-	getFocus(): (MarkerElement | null)[];
+	getFocus(): (MarkerElement | MarkerTableItem | null)[];
 	getHTMLElement(): HTMLElement;
-	getRelativeTop(location: MarkerElement | null): number | null;
-	getSelection(): (MarkerElement | null)[];
+	getRelativeTop(location: MarkerElement | MarkerTableItem | null): number | null;
+	getSelection(): (MarkerElement | MarkerTableItem | null)[];
 	getVisibleItemCount(): number;
 	layout(height: number, width: number): void;
 	reset(resourceMarkers: ResourceMarkers[]): void;
 	revealMarkers(activeResource: ResourceMarkers | null, focus: boolean, lastSelectedRelativeTop: number): void;
 	setAriaLabel(label: string): void;
-	setMarkerSelection(): void;
+	setMarkerSelection(marker?: Marker): void;
 	toggleVisibility(hide: boolean): void;
 	update(resourceMarkers: ResourceMarkers[]): void;
 	updateMarker(marker: Marker): void;
@@ -416,8 +416,6 @@ export class MarkersView extends ViewPane implements IMarkersView {
 	}
 
 	private createWidget(parent: HTMLElement): void {
-		this.widgetDisposables.clear();
-
 		this.widget = this.markersViewModel.viewMode === MarkersViewMode.Table ? this.createTable(parent) : this.createTree(parent);
 		this.widgetDisposables.add(this.widget);
 
@@ -602,11 +600,20 @@ export class MarkersView extends ViewPane implements IMarkersView {
 	private onDidChangeViewMode(): void {
 		if (this.widgetContainer && this.widget) {
 			this.widgetContainer.textContent = '';
-			this.widget.dispose();
+			this.widgetDisposables.clear();
 		}
 
+		// Save selection
+		const selection = this.widget?.getSelection();
+
+		// Create new widget
 		this.createWidget(this.widgetContainer);
 		this.refreshPanel();
+
+		// Restore selection
+		if (selection && selection.length > 0 && (selection[0] instanceof Marker || selection[0] instanceof MarkerTableItem)) {
+			this.widget.setMarkerSelection(selection[0]);
+		}
 	}
 
 	private isCurrentResourceGotAddedToMarkersData(changedResources: URI[]) {
@@ -979,16 +986,26 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 		this.ariaLabel = label;
 	}
 
-	setMarkerSelection(): void {
-		if (this.isVisible() && this.getSelection().length === 0) {
-			const firstVisibleElement = this.firstVisibleElement;
-			const marker = firstVisibleElement ?
-				firstVisibleElement instanceof ResourceMarkers ? firstVisibleElement.markers[0] :
-					firstVisibleElement instanceof Marker ? firstVisibleElement : undefined
-				: undefined;
+	setMarkerSelection(marker: Marker): void {
+		if (this.isVisible()) {
 			if (marker) {
-				this.setFocus([marker]);
-				this.setSelection([marker]);
+				const markerNode = this.findMarkerNode(marker);
+
+				if (markerNode) {
+					this.setFocus([markerNode]);
+					this.setSelection([markerNode]);
+				}
+			} else if (this.getSelection().length === 0) {
+				const firstVisibleElement = this.firstVisibleElement;
+				const marker = firstVisibleElement ?
+					firstVisibleElement instanceof ResourceMarkers ? firstVisibleElement.markers[0] :
+						firstVisibleElement instanceof Marker ? firstVisibleElement : undefined
+					: undefined;
+
+				if (marker) {
+					this.setFocus([marker]);
+					this.setSelection([marker]);
+				}
 			}
 		}
 	}
@@ -1002,6 +1019,18 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 
 	updateMarker(marker: Marker): void {
 		this.rerender(marker);
+	}
+
+	private findMarkerNode(marker: Marker) {
+		for (const resourceNode of this.getNode().children) {
+			for (const markerNode of resourceNode.children) {
+				if (markerNode.element instanceof Marker && markerNode.element.marker === marker.marker) {
+					return markerNode.element;
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	private hasSelectedMarkerFor(resource: ResourceMarkers): boolean {

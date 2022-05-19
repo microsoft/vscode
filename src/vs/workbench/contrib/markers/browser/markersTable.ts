@@ -465,10 +465,18 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 		this.table.domNode.ariaLabel = label;
 	}
 
-	setMarkerSelection(): void {
-		if (this.isVisible() && this.getSelection().length === 0 && this.getVisibleItemCount() > 0) {
-			this.table.setFocus([0]);
-			this.table.setSelection([0]);
+	setMarkerSelection(marker?: Marker): void {
+		if (this.isVisible()) {
+			if (marker) {
+				const index = this.findMarkerIndex(marker);
+				if (index !== -1) {
+					this.table.setFocus([index]);
+					this.table.setSelection([index]);
+				}
+			} else if (this.getSelection().length === 0 && this.getVisibleItemCount() > 0) {
+				this.table.setFocus([0]);
+				this.table.setSelection([0]);
+			}
 		}
 	}
 
@@ -486,6 +494,16 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 
 	updateMarker(marker: Marker): void {
 		this.table.rerender();
+	}
+
+	private findMarkerIndex(marker: Marker): number {
+		for (let index = 0; index < this.table.length; index++) {
+			if (this.table.row(index).marker === marker.marker) {
+				return index;
+			}
+		}
+
+		return -1;
 	}
 
 	private hasSelectedMarkerFor(resource: ResourceMarkers): boolean {
