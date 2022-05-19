@@ -9,7 +9,7 @@ import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IProgressService, ProgressLocation, } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IFileService, FileKind, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -58,6 +58,9 @@ import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm } from 'vs/workbench/contrib/files/browser/fileImportExport';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
+import { ISearchService, QueryType } from 'vs/workbench/services/search/common/search';
+import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
+import { TernarySearchTree } from 'vs/base/common/map';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -605,19 +608,44 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private editorsAffectingFilter = new Set<EditorInput>();
 	private _onDidChange = new Emitter<void>();
 	private toDispose: IDisposable[] = [];
+	// List of ignoreFiles. Used to detect changes to the ignoreFiles.
+	private ignoreFileResources: URI[] = [];
+	// Ignore tree
+	private gitIgnoreEntries: TernarySearchTree<URI, IgnoreFile> = TernarySearchTree.forUris((uri) => this.uriIdentityService.extUri.ignorePathCasing(uri));
 
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ISearchService private readonly searchService: ISearchService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration()));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('files.exclude')) {
 				this.updateConfiguration();
 			}
+		}));
+		this.updateWorkspaceIgnoreFiles();
+		this.toDispose.push(this.fileService.onDidFilesChange(e => {
+			// Check to see if the update contains any of the ignoreFileResources
+			this.ignoreFileResources.forEach(r => {
+				if (e.contains(r, FileChangeType.DELETED, FileChangeType.UPDATED)) {
+					this.updateWorkspaceIgnoreFiles();
+					return;
+				}
+				// TODO @lramos15 ask for a better way to check if a .ignore file was added
+				if (e.gotAdded()) {
+					const added = e.rawAdded;
+					const ignoreFiles = added.filter(r => r.path.endsWith('.gitignore'));
+					if (ignoreFiles.length) {
+						this.updateWorkspaceIgnoreFiles();
+						return;
+					}
+				}
+			});
 		}));
 		this.toDispose.push(this.editorService.onDidVisibleEditorsChange(() => {
 			const editors = this.editorService.visibleEditors;
@@ -678,6 +706,30 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		}
 	}
 
+	private async updateWorkspaceIgnoreFiles() {
+		// Clear out old entries and watchers to repopulate with new ones
+		this.gitIgnoreEntries.clear();
+		this.ignoreFileResources = [];
+
+		for (const folder of this.contextService.getWorkspace().folders) {
+			const folderQuery = { folder: folder.uri };
+			let searchResults = (await this.searchService.fileSearch({ type: QueryType.File, folderQueries: [folderQuery], includePattern: { '**/.gitignore': true }, })).results;
+			// Sort the result by path length. This ensures that the root most .gitignore is read first
+			searchResults.sort((a, b) => a.resource.path.length - b.resource.path.length);
+			for (const result of searchResults) {
+				// Maybe we need a cancellation token here in case it's super long?
+				const content = await this.fileService.readFile(result.resource);
+				// Get the result.resource.path and strip .gitignore from the end to get the dir path
+				const dirUri = dirname(result.resource);
+				const ignoreParent = this.gitIgnoreEntries.findSubstr(dirUri);
+				const ignoreFile = new IgnoreFile(content.value.toString(), dirUri.path + path.sep, ignoreParent);
+				this.gitIgnoreEntries.set(dirUri, ignoreFile);
+				this.ignoreFileResources.push(result.resource);
+			}
+		}
+		this._onDidChange.fire();
+	}
+
 	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
 		return this.isVisible(stat, parentVisibility);
 	}
@@ -694,7 +746,11 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 		// Hide those that match Hidden Patterns
 		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
-		if ((cached && cached.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) || stat.parent?.isExcluded) {
+		const globMatch = cached?.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)));
+		// Small optimization to only traverse gitIgnore if the globMatch from fileExclude returned nothing
+		const ignoreFile = globMatch ? undefined : this.gitIgnoreEntries.findSubstr(stat.resource);
+		const isIgnoredByIgnoreFile = ignoreFile?.isArbitraryPathIgnored(stat.resource.path, stat.isDirectory);
+		if (isIgnoredByIgnoreFile || globMatch || stat.parent?.isExcluded) {
 			stat.isExcluded = true;
 			const editors = this.editorService.visibleEditors;
 			const editor = editors.find(e => e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, stat.resource));
