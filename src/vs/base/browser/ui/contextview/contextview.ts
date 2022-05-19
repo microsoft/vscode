@@ -257,7 +257,6 @@ export class ContextView extends Disposable {
 
 		// Compute around
 		let around: IView;
-		let zoom = 1;
 
 		// Get the element's position and size (to anchor the view)
 		if (DOM.isHTMLElement(anchor)) {
@@ -266,7 +265,7 @@ export class ContextView extends Disposable {
 			// In areas where zoom is applied to the element or its ancestors, we need to adjust the size of the element
 			// e.g. The title bar has counter zoom behavior meaning it applies the inverse of zoom level.
 			// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Size Multiplier: 1.5
-			zoom *= DOM.getDomNodeZoomLevel(anchor);
+			const zoom = DOM.getDomNodeZoomLevel(anchor);
 
 			around = {
 				top: elementPosition.top * zoom,
