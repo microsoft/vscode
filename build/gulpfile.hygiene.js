@@ -39,9 +39,13 @@ function checkPackageJSON(actualPath) {
 const checkPackageJSONTask = task.define('check-package-json', () => {
 	return gulp.src('package.json').pipe(
 		es.through(function () {
+			console.log(`${Date.now() / 1000}: 1`);
 			checkPackageJSON.call(this, 'remote/package.json');
+			console.log(`${Date.now() / 1000}: 2`);
 			checkPackageJSON.call(this, 'remote/web/package.json');
+			console.log(`${Date.now() / 1000}: 3`);
 			checkPackageJSON.call(this, 'build/package.json');
+			console.log(`${Date.now() / 1000}: 4`);
 		})
 	);
 });

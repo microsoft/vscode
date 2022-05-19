@@ -11,6 +11,7 @@ const path = require('path');
 const fs = require('fs');
 const pall = require('p-all');
 const { all, copyrightFilter, unicodeFilter, indentationFilter, tsFormattingFilter, eslintFilter } = require('./filters');
+const debug = require('gulp-debug');
 
 const copyrightHeaderLines = [
 	'/*---------------------------------------------------------------------------------------------',
@@ -150,8 +151,10 @@ function hygiene(some, linting = true) {
 	const productJsonFilter = filter('product.json', { restore: true });
 	const unicodeFilterStream = filter(unicodeFilter, { restore: true });
 
+	console.log(`${Date.now() / 1000}: ${JSON.stringify(input)}`);
 	const result = input
 		.pipe(filter((f) => !f.stat.isDirectory()))
+		.pipe(debug('hi'))
 		.pipe(productJsonFilter)
 		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : productJson)
 		.pipe(productJsonFilter.restore)
@@ -267,12 +270,14 @@ if (require.main === module) {
 	});
 
 	if (process.argv.length > 2) {
+		console.log(`1`);
 		hygiene(process.argv.slice(2)).on('error', (err) => {
 			console.error();
 			console.error(err);
 			process.exit(1);
 		});
 	} else {
+		console.log(`2`);
 		cp.exec(
 			'git diff --cached --name-only',
 			{ maxBuffer: 2000 * 1024 },
