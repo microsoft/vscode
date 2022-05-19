@@ -19,6 +19,7 @@ interface TerminalData {
 	task: Task;
 	status: ITerminalStatus;
 	problemMatcher: AbstractProblemCollector;
+	taskRunEnded?: boolean;
 	disposeListener?: Disposable;
 }
 
@@ -67,7 +68,7 @@ export class TaskTerminalStatus extends Disposable {
 		if (!terminalData) {
 			return;
 		}
-
+		terminalData.taskRunEnded = true;
 		terminalData.terminal.statusList.remove(terminalData.status);
 		if ((event.exitCode === 0) && (terminalData.problemMatcher.numberOfMatches === 0)) {
 			terminalData.terminal.statusList.add(SUCCEEDED_TASK_STATUS);
@@ -82,7 +83,7 @@ export class TaskTerminalStatus extends Disposable {
 
 	private eventInactive(event: TaskEvent) {
 		const terminalData = this.terminalFromEvent(event);
-		if (!terminalData || !terminalData.problemMatcher) {
+		if (!terminalData || !terminalData.problemMatcher || terminalData.taskRunEnded) {
 			return;
 		}
 		terminalData.terminal.statusList.remove(terminalData.status);
@@ -105,6 +106,7 @@ export class TaskTerminalStatus extends Disposable {
 		if (!terminalData.disposeListener) {
 			terminalData.terminal.onDisposed(() => this.terminalMap.delete(event.__task?._id!));
 		}
+		terminalData.taskRunEnded = false;
 		terminalData.terminal.statusList.remove(terminalData.status);
 		// We don't want to show an infinite status for a background task that doesn't have a problem matcher.
 		if ((terminalData.problemMatcher instanceof StartStopProblemCollector) || (terminalData.problemMatcher?.problemMatchers.length > 0) || event.runType === TaskRunType.SingleRun) {

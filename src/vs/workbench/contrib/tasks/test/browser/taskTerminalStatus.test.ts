@@ -55,20 +55,20 @@ suite('Task Terminal Status', () => {
 		testTask = instantiationService.createInstance(TestTask);
 		problemCollector = instantiationService.createInstance(TestProblemCollector);
 	});
-	test('Should show failed status when there is an exit code on task end', async () => {
-		await taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
+	test('Should add failed status when there is an exit code on task end', async () => {
+		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
 		taskService.triggerStateChange({ kind: TaskEventKind.End, exitCode: 1 });
 		setTimeout(() => strictEqual(testTerminal.statusList.statuses, [FAILED_TASK_STATUS]), 200);
 	});
-	test('Should show spinner when a task is run again in the same terminal', async () => {
+	test('Should add active status when a non-background task is run for a second time in the same terminal', async () => {
 		await taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
 		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted });
-		setTimeout(() => strictEqual(testTerminal.statusList.statuses, [ACTIVE_TASK_STATUS]), 200);
+		await setTimeout(() => strictEqual(testTerminal.statusList.statuses, [ACTIVE_TASK_STATUS]), 200);
 		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
-		setTimeout(() => strictEqual(testTerminal.statusList.statuses, [SUCCEEDED_TASK_STATUS]), 200);
+		await setTimeout(() => strictEqual(testTerminal.statusList.statuses, [SUCCEEDED_TASK_STATUS]), 200);
 		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted, runType: TaskRunType.SingleRun });
-		setTimeout(() => strictEqual(testTerminal.statusList.statuses, [ACTIVE_TASK_STATUS]), 200);
+		await setTimeout(() => strictEqual(testTerminal.statusList.statuses, [ACTIVE_TASK_STATUS]), 200);
 		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
-		setTimeout(() => strictEqual(testTerminal.statusList.statuses, [SUCCEEDED_TASK_STATUS]), 200);
+		await setTimeout(() => strictEqual(testTerminal.statusList.statuses, [SUCCEEDED_TASK_STATUS]), 200);
 	});
 });
