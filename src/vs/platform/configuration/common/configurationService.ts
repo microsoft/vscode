@@ -10,10 +10,10 @@ import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationChangeEvent, ConfigurationModel, UserSettings } from 'vs/platform/configuration/common/configurationModels';
-import { DefaultConfiguration, PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
+import { DefaultConfiguration, IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IPolicyService } from 'vs/platform/policy/common/policy';
+import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 
 export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
 
@@ -21,7 +21,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 
 	private configuration: Configuration;
 	private readonly defaultConfiguration: DefaultConfiguration;
-	private readonly policyConfiguration: PolicyConfiguration;
+	private readonly policyConfiguration: IPolicyConfiguration;
 	private readonly userConfiguration: UserSettings;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 
@@ -36,7 +36,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	) {
 		super();
 		this.defaultConfiguration = this._register(new DefaultConfiguration());
-		this.policyConfiguration = this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
+		this.policyConfiguration = policyService instanceof NullPolicyService ? new NullPolicyConfiguration() : this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
 		this.userConfiguration = this._register(new UserSettings(this.settingsResource, undefined, extUriBiasedIgnorePathCase, fileService));
 		this.configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, new ConfigurationModel());
 

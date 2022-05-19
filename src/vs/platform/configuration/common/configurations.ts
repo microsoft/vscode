@@ -5,7 +5,7 @@
 
 import { coalesce } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
 import { isEmptyObject } from 'vs/base/common/types';
@@ -78,7 +78,19 @@ export class DefaultConfigurationModel extends ConfigurationModel {
 	}
 }
 
-export class PolicyConfiguration extends Disposable {
+export interface IPolicyConfiguration {
+	readonly onDidChangeConfiguration: Event<ConfigurationModel>;
+	readonly configurationModel: ConfigurationModel;
+	initialize(): Promise<ConfigurationModel>;
+}
+
+export class NullPolicyConfiguration implements IPolicyConfiguration {
+	readonly onDidChangeConfiguration = Event.None;
+	readonly configurationModel = new ConfigurationModel();
+	async initialize() { return this.configurationModel; }
+}
+
+export class PolicyConfiguration extends Disposable implements IPolicyConfiguration {
 
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
