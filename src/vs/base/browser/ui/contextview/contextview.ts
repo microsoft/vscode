@@ -257,16 +257,30 @@ export class ContextView extends Disposable {
 
 		// Compute around
 		let around: IView;
+		let zoom = 1;
 
 		// Get the element's position and size (to anchor the view)
 		if (DOM.isHTMLElement(anchor)) {
 			let elementPosition = DOM.getDomNodePagePosition(anchor);
 
+			// In areas where zoom is applied to the element or its ancestors, we need to adjust the size of the element
+			// e.g. The title bar has counter zoom behavior meaning it applies the inverse of zoom level.
+			// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Size Multiplier: 1.5
+			let testElement: HTMLElement | null = anchor;
+			do {
+				const elementZoomLevel = (DOM.getComputedStyle(testElement) as any).zoom;
+				if (elementZoomLevel !== null && elementZoomLevel !== undefined && elementZoomLevel !== '1') {
+					zoom *= elementZoomLevel;
+				}
+
+				testElement = testElement.parentElement;
+			} while (testElement !== null && testElement !== document.documentElement);
+
 			around = {
-				top: elementPosition.top,
-				left: elementPosition.left,
-				width: elementPosition.width,
-				height: elementPosition.height
+				top: elementPosition.top * zoom,
+				left: elementPosition.left * zoom,
+				width: elementPosition.width * zoom,
+				height: elementPosition.height * zoom
 			};
 		} else {
 			around = {
