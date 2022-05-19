@@ -144,21 +144,18 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			return c;
 		}
 
-
-
 		clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
 		dynamicFormatterRegistration = getClientCapability('textDocument.rangeFormatting.dynamicRegistration', false) && (typeof initializationOptions.provideFormatter !== 'boolean');
 		foldingRangeLimitDefault = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 		hierarchicalDocumentSymbolSupport = getClientCapability('textDocument.documentSymbol.hierarchicalDocumentSymbolSupport', false);
 		formatterMaxNumberOfEdits = initializationOptions.customCapabilities?.rangeFormatting?.editLimit || Number.MAX_VALUE;
 
-		const pullDiagnosticSupport = getClientCapability('textDocument.diagnostic', undefined);
-		if (pullDiagnosticSupport === undefined) {
+		const supportsDiagnosticPull = getClientCapability('textDocument.diagnostic', undefined);
+		if (supportsDiagnosticPull === undefined) {
 			diagnosticsSupport = registerDiagnosticsPushSupport(documents, connection, runtime, validateTextDocument);
 		} else {
 			diagnosticsSupport = registerDiagnosticsPullSupport(documents, connection, runtime, validateTextDocument);
 		}
-
 
 		const capabilities: ServerCapabilities = {
 			textDocumentSync: TextDocumentSyncKind.Incremental,

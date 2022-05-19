@@ -101,8 +101,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		languageServices.scss = getSCSSLanguageService({ fileSystemProvider: requestService, clientCapabilities: params.capabilities });
 		languageServices.less = getLESSLanguageService({ fileSystemProvider: requestService, clientCapabilities: params.capabilities });
 
-		const pullDiagnosticSupport = getClientCapability('textDocument.diagnostic', undefined);
-		if (pullDiagnosticSupport === undefined) {
+		const supportsDiagnosticPull = getClientCapability('textDocument.diagnostic', undefined);
+		if (supportsDiagnosticPull === undefined) {
 			diagnosticsSupport = registerDiagnosticsPushSupport(documents, connection, runtime, validateTextDocument);
 		} else {
 			diagnosticsSupport = registerDiagnosticsPullSupport(documents, connection, runtime, validateTextDocument);
