@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
-	Connection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder, TextDocumentSyncKind, NotificationType, Disposable, TextDocumentIdentifier, Range, FormattingOptions, TextEdit
+	Connection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder, TextDocumentSyncKind, NotificationType, Disposable, TextDocumentIdentifier, Range, FormattingOptions, TextEdit, Diagnostic
 } from 'vscode-languageserver';
 import { URI } from 'vscode-uri';
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, TextDocument, Position, CSSFormatConfiguration } from 'vscode-css-languageservice';
@@ -64,6 +64,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	// After the server has started the client sends an initialize request. The server receives
 	// in the passed params the rootPath of the workspace plus the client capabilities.
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
+
+		const initializationOptions = params.initializationOptions as any || {};
+
 		workspaceFolders = (<any>params).workspaceFolders;
 		if (!Array.isArray(workspaceFolders)) {
 			workspaceFolders = [];
@@ -72,7 +75,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			}
 		}
 
-		requestService = getRequestService(params.initializationOptions?.handledSchemas || ['file'], connection, runtime);
+		requestService = getRequestService(initializationOptions?.handledSchemas || ['file'], connection, runtime);
 
 		function getClientCapability<T>(name: string, def: T) {
 			const keys = name.split('.');
@@ -88,7 +91,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		const snippetSupport = !!getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
 		scopedSettingsSupport = !!getClientCapability('workspace.configuration', false);
 		foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
-		formatterMaxNumberOfEdits = params.initializationOptions?.customCapabilities?.rangeFormatting?.editLimit || Number.MAX_VALUE;
+		formatterMaxNumberOfEdits = initializationOptions?.customCapabilities?.rangeFormatting?.editLimit || Number.MAX_VALUE;
 
 		languageServices.css = getCSSLanguageService({ fileSystemProvider: requestService, clientCapabilities: params.capabilities });
 		languageServices.scss = getSCSSLanguageService({ fileSystemProvider: requestService, clientCapabilities: params.capabilities });
@@ -110,8 +113,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			colorProvider: {},
 			foldingRangeProvider: true,
 			selectionRangeProvider: true,
-			documentRangeFormattingProvider: params.initializationOptions?.provideFormatter === true,
-			documentFormattingProvider: params.initializationOptions?.provideFormatter === true,
+			documentRangeFormattingProvider: initializationOptions?.provideFormatter === true,
+			documentFormattingProvider: initializationOptions?.provideFormatter === true,
 		};
 		return { capabilities };
 	});
@@ -135,7 +138,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			let promise = documentSettings[textDocument.uri];
 			if (!promise) {
 				const configRequestParam = { items: [{ scopeUri: textDocument.uri, section: textDocument.languageId }] };
-				promise = connection.sendRequest(ConfigurationRequest.type, configRequestParam).then(s => s[0]);
+				promise = connection.sendRequest(ConfigurationRequest.type, configRequestParam).then(s => s[0] as LanguageSettings | undefined);
 				documentSettings[textDocument.uri] = promise;
 			}
 			return promise;
@@ -145,12 +148,12 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	// The settings have changed. Is send on server activation as well.
 	connection.onDidChangeConfiguration(change => {
-		updateConfiguration(<Settings>change.settings);
+		updateConfiguration(change.settings as any);
 	});
 
-	function updateConfiguration(settings: Settings) {
+	function updateConfiguration(settings: any) {
 		for (const languageId in languageServices) {
-			languageServices[languageId].configure((settings as any)[languageId]);
+			languageServices[languageId].configure(settings[languageId]);
 		}
 		// reset all document settings
 		documentSettings = {};
@@ -193,7 +196,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		const settingsPromise = getDocumentSettings(textDocument);
 		Promise.all([settingsPromise, dataProvidersReady]).then(async ([settings]) => {
 			const stylesheet = stylesheets.get(textDocument);
-			const diagnostics = getLanguageService(textDocument).doValidation(textDocument, stylesheet, settings);
+			const diagnostics = getLanguageService(textDocument).doValidation(textDocument, stylesheet, settings) as Diagnostic[];
 			// Send the computed diagnostics to VSCode.
 			connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 		}, e => {
