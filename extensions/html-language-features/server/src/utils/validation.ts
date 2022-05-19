@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Connection, Diagnostic, Disposable, TextDocuments } from 'vscode-languageserver';
+import { CancellationToken, Connection, Diagnostic, Disposable, DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportKind, TextDocuments } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-html-languageservice';
-import { formatError } from './runner';
+import { formatError, runSafe } from './runner';
 import { RuntimeEnvironment } from '../htmlServer';
 
 export type Validator = (textDocument: TextDocument) => Promise<Diagnostic[]>;
-export type DiagnosticPushSupport = { dispose(): void; triggerValidation(textDocument: TextDocument): void };
+export type DiagnosticsSupport = {
+	dispose(): void;
+	requestRefresh(): void;
+};
 
-export function registerDiagnosticPushSupport(documents: TextDocuments<TextDocument>, connection: Connection, runtime: RuntimeEnvironment, validate: Validator): DiagnosticPushSupport {
+export function registerDiagnosticsPushSupport(documents: TextDocuments<TextDocument>, connection: Connection, runtime: RuntimeEnvironment, validate: Validator): DiagnosticsSupport {
 
 	const pendingValidationRequests: { [uri: string]: Disposable } = {};
 	const validationDelayMs = 500;
@@ -55,10 +58,10 @@ export function registerDiagnosticPushSupport(documents: TextDocuments<TextDocum
 		}, validationDelayMs);
 	}
 
-	documents.all().forEach(triggerValidation);
-
 	return {
-		triggerValidation,
+		requestRefresh: () => {
+			documents.all().forEach(triggerValidation);
+		},
 		dispose: () => {
 			disposables.forEach(d => d.dispose());
 			disposables.length = 0;
@@ -69,4 +72,37 @@ export function registerDiagnosticPushSupport(documents: TextDocuments<TextDocum
 			}
 		}
 	};
+}
+
+export function registerDiagnosticsPullSupport(documents: TextDocuments<TextDocument>, connection: Connection, runtime: RuntimeEnvironment, validate: Validator): DiagnosticsSupport {
+
+	function newDocumentDiagnosticReport(diagnostics: Diagnostic[]): DocumentDiagnosticReport {
+		return {
+			kind: DocumentDiagnosticReportKind.Full,
+			items: diagnostics
+		};
+	}
+
+	const registration = connection.languages.diagnostics.on(async (params: DocumentDiagnosticParams, token: CancellationToken) => {
+		return runSafe(runtime, async () => {
+			const document = documents.get(params.textDocument.uri);
+			if (document) {
+				return newDocumentDiagnosticReport(await validate(document));
+			}
+			return newDocumentDiagnosticReport([]);
+
+		}, newDocumentDiagnosticReport([]), `Error while computing diagnostics for ${params.textDocument.uri}`, token);
+	});
+
+	function requestRefresh(): void {
+		connection.languages.diagnostics.refresh();
+	}
+
+	return {
+		requestRefresh,
+		dispose: () => {
+			registration.dispose();
+		}
+	};
+
 }
