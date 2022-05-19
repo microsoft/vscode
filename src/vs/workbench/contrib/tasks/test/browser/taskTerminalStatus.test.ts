@@ -58,28 +58,27 @@ suite('Task Terminal Status', () => {
 	test('Should add failed status when there is an exit code on task end', async () => {
 		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
 		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted });
-		ok(assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS));
+		assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS);
 		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
-		ok(assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS));
-		taskService.triggerStateChange({ kind: TaskEventKind.End, exitCode: 1 });
-		ok(assertStatus(testTerminal.statusList, FAILED_TASK_STATUS));
+		assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS);
+		taskService.triggerStateChange({ kind: TaskEventKind.End, exitCode: 2 });
+		setTimeout(() => assertStatus(testTerminal.statusList, FAILED_TASK_STATUS), 50);
 	});
 	test('Should add active status when a non-background task is run for a second time in the same terminal', async () => {
 		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
 		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted });
-		ok(assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS));
+		assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS);
 		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
-		ok(assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS));
+		assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS);
 		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted, runType: TaskRunType.SingleRun });
-		ok(assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS));
+		assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS);
 		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
-		ok(assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS));
+		assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS);
 	});
 });
 
-function assertStatus(actual: ITerminalStatusList, expected: ITerminalStatus): boolean {
-	if (actual.statuses.length !== 1) {
-		return false;
-	}
-	return actual.statuses[0].id === expected.id;
+function assertStatus(actual: ITerminalStatusList, expected: ITerminalStatus): void {
+	ok(actual.statuses.length === 1, '# of statuses');
+	ok(actual.primary?.id === expected.id, 'ID');
+	ok(actual.primary?.severity === expected.severity, 'Severity');
 }
