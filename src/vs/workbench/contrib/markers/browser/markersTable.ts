@@ -301,25 +301,23 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 
 		const list = this.table.domNode.querySelector('.monaco-list-rows')! as HTMLElement;
 
-		// TODO - clean this up
-		const onMouseOver = new DomEmitter(list, 'mouseover');
-		const onRowHover = Event.chain(onMouseOver.event)
+		// mouseover/mouseleave event handlers
+		const onRowHover = Event.chain(this._register(new DomEmitter(list, 'mouseover')).event)
 			.map(e => DOM.findParentWithClass(e.target as HTMLElement, 'monaco-list-row', 'monaco-list-rows'))
 			.filter<HTMLElement>(((e: HTMLElement | null) => !!e) as any)
 			.map(e => parseInt(e.getAttribute('data-index')!))
 			.event;
 
-		const onMouseLeave = new DomEmitter(list, 'mouseleave');
-		const onListLeave = Event.map(onMouseLeave.event, () => -1);
+		const onListLeave = Event.map(this._register(new DomEmitter(list, 'mouseleave')).event, () => -1);
 
 		const onRowHoverOrLeave = Event.latch(Event.any(onRowHover, onListLeave));
 		const onRowPermanentHover = Event.debounce(onRowHoverOrLeave, (_, e) => e, 500);
 
-		onRowPermanentHover(e => {
+		this._register(onRowPermanentHover(e => {
 			if (e !== -1 && this.table.row(e)) {
 				this.markersViewModel.onMarkerMouseHover(this.table.row(e));
 			}
-		});
+		}));
 	}
 
 	get contextKeyService(): IContextKeyService {

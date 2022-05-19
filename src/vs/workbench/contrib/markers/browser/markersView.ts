@@ -112,6 +112,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 	private readonly onVisibleDisposables = this._register(new DisposableStore());
 
 	private widget!: IProblemsWidget;
+	private widgetDisposables = this._register(new DisposableStore());
 	private widgetContainer!: HTMLElement;
 	private widgetIdentityProvider: IIdentityProvider<MarkerElement | MarkerTableItem>;
 	private widgetAccessibilityProvider: MarkersWidgetAccessibilityProvider;
@@ -415,20 +416,23 @@ export class MarkersView extends ViewPane implements IMarkersView {
 	}
 
 	private createWidget(parent: HTMLElement): void {
+		this.widgetDisposables.clear();
+
 		this.widget = this.markersViewModel.viewMode === MarkersViewMode.Table ? this.createTable(parent) : this.createTree(parent);
+		this.widgetDisposables.add(this.widget);
 
 		const markerFocusContextKey = Constants.MarkerFocusContextKey.bindTo(this.widget.contextKeyService);
 		const relatedInformationFocusContextKey = Constants.RelatedInformationFocusContextKey.bindTo(this.widget.contextKeyService);
-		this._register(this.widget.onDidChangeFocus(focus => {
+		this.widgetDisposables.add(this.widget.onDidChangeFocus(focus => {
 			markerFocusContextKey.set(focus.elements.some(e => e instanceof Marker));
 			relatedInformationFocusContextKey.set(focus.elements.some(e => e instanceof RelatedInformation));
 		}));
 
-		this._register(Event.debounce(this.widget.onDidOpen, (last, event) => event, 75, true)(options => {
+		this.widgetDisposables.add(Event.debounce(this.widget.onDidOpen, (last, event) => event, 75, true)(options => {
 			this.openFileAtElement(options.element, !!options.editorOptions.preserveFocus, options.sideBySide, !!options.editorOptions.pinned);
 		}));
 
-		this._register(Event.any<any>(this.widget.onDidChangeSelection, this.widget.onDidChangeFocus)(() => {
+		this.widgetDisposables.add(Event.any<any>(this.widget.onDidChangeSelection, this.widget.onDidChangeFocus)(() => {
 			const elements = [...this.widget.getSelection(), ...this.widget.getFocus()];
 			for (const element of elements) {
 				if (element instanceof Marker) {
@@ -440,12 +444,12 @@ export class MarkersView extends ViewPane implements IMarkersView {
 			}
 		}));
 
-		this._register(this.widget.onContextMenu(this.onContextMenu, this));
-		this._register(this.widget.onDidChangeSelection(this.onSelected, this));
+		this.widgetDisposables.add(this.widget.onContextMenu(this.onContextMenu, this));
+		this.widgetDisposables.add(this.widget.onDidChangeSelection(this.onSelected, this));
 	}
 
 	private createTable(parent: HTMLElement): IProblemsWidget {
-		const table = this._register(this.instantiationService.createInstance(MarkersTable,
+		const table = this.instantiationService.createInstance(MarkersTable,
 			dom.append(parent, dom.$('.markers-table-container')),
 			this.markersViewModel,
 			this.getResourceMarkers(),
@@ -457,7 +461,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 				multipleSelectionSupport: false,
 				selectionNavigation: true
 			},
-		));
+		);
 
 		return table;
 	}
@@ -465,7 +469,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 	private createTree(parent: HTMLElement): IProblemsWidget {
 		const onDidChangeRenderNodeCount = new Relay<ITreeNode<any, any>>();
 
-		const treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
+		const treeLabels = this.instantiationService.createInstance(ResourceLabels, this);
 
 		const virtualDelegate = new VirtualDelegate(this.markersViewModel);
 		const renderers = [
@@ -474,7 +478,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 			this.instantiationService.createInstance(RelatedInformationRenderer)
 		];
 
-		const tree = this._register(this.instantiationService.createInstance(MarkersTree,
+		const tree = this.instantiationService.createInstance(MarkersTree,
 			'MarkersView',
 			dom.append(parent, dom.$('.tree-container.show-file-icons')),
 			virtualDelegate,
@@ -502,7 +506,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 				selectionNavigation: true,
 				multipleSelectionSupport: true,
 			},
-		));
+		);
 
 		onDidChangeRenderNodeCount.input = tree.onDidChangeRenderNodeCount;
 
