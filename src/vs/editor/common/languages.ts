@@ -669,9 +669,6 @@ export interface CodeAction {
 	disabled?: string;
 }
 
-/**
- * @internal
- */
 export const enum CodeActionTriggerType {
 	Invoke = 1,
 	Auto = 2,

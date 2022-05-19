@@ -5814,6 +5814,10 @@ declare namespace monaco.languages {
 		 * Requested kind of actions to return.
 		 */
 		readonly only?: string;
+		/**
+		 * The reason why code actions were requested.
+		 */
+		readonly trigger: CodeActionTriggerType;
 	}
 
 	/**
@@ -6414,6 +6418,11 @@ declare namespace monaco.languages {
 		kind?: string;
 		isPreferred?: boolean;
 		disabled?: string;
+	}
+
+	export enum CodeActionTriggerType {
+		Invoke = 1,
+		Auto = 2
 	}
 
 	export interface CodeActionList extends IDisposable {

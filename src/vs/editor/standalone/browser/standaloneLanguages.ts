@@ -531,7 +531,7 @@ export function registerCodeActionProvider(languageSelector: LanguageSelector, p
 			const markers = markerService.read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
-			return provider.provideCodeActions(model, range, { markers, only: context.only }, token);
+			return provider.provideCodeActions(model, range, { markers, only: context.only, trigger: context.trigger }, token);
 		},
 		resolveCodeAction: provider.resolveCodeAction
 	});
@@ -664,6 +664,11 @@ export interface CodeActionContext {
 	 * Requested kind of actions to return.
 	 */
 	readonly only?: string;
+
+	/**
+	 * The reason why code actions were requested.
+	 */
+	readonly trigger: languages.CodeActionTriggerType;
 }
 
 /**
@@ -753,6 +758,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		SignatureHelpTriggerKind: standaloneEnums.SignatureHelpTriggerKind,
 		InlayHintKind: standaloneEnums.InlayHintKind,
 		InlineCompletionTriggerKind: standaloneEnums.InlineCompletionTriggerKind,
+		CodeActionTriggerType: standaloneEnums.CodeActionTriggerType,
 
 		// classes
 		FoldingRangeKind: languages.FoldingRangeKind,
