@@ -20,6 +20,7 @@ const isFirefox = (
 
 const searchParams = new URL(location.toString()).searchParams;
 const ID = searchParams.get('id');
+const webviewOrigin = searchParams.get('origin');
 const onElectron = searchParams.get('platform') === 'electron';
 const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
 
@@ -314,7 +315,6 @@ const hostMessaging = new class HostMessaging {
 		};
 
 		const parentOrigin = searchParams.get('parentOrigin');
-		const id = searchParams.get('id');
 
 		const hostname = location.hostname;
 
@@ -327,7 +327,7 @@ const hostMessaging = new class HostMessaging {
 		// compute a sha-256 composed of `parentOrigin` and `salt` converted to base 32
 		let parentOriginHash;
 		try {
-			const strData = JSON.stringify({ parentOrigin, salt: id });
+			const strData = JSON.stringify({ parentOrigin, salt: webviewOrigin });
 			const encoder = new TextEncoder();
 			const arrData = encoder.encode(strData);
 			const hash = await crypto.subtle.digest('sha-256', arrData);

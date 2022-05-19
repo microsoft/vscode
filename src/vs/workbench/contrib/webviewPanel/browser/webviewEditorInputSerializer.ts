@@ -21,6 +21,7 @@ interface SerializedIconPath {
 
 export interface SerializedWebview {
 	readonly id: string;
+	readonly origin: string | undefined;
 	readonly viewType: string;
 	readonly title: string;
 	readonly options: SerializedWebviewOptions;
@@ -33,6 +34,7 @@ export interface SerializedWebview {
 
 export interface DeserializedWebview {
 	readonly id: string;
+	readonly origin: string | undefined;
 	readonly viewType: string;
 	readonly title: string;
 	readonly webviewOptions: WebviewOptions;
@@ -76,6 +78,7 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 		return this._webviewWorkbenchService.reviveWebview({
 			webviewInitInfo: {
 				id: data.id,
+				origin: data.origin,
 				options: data.webviewOptions,
 				contentOptions: data.contentOptions,
 				extension: data.extension,
@@ -102,6 +105,7 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 	protected toJson(input: WebviewInput): SerializedWebview {
 		return {
 			id: input.id,
+			origin: input.webview.origin,
 			viewType: input.viewType,
 			title: input.getName(),
 			options: { ...input.webview.options, ...input.webview.contentOptions },
