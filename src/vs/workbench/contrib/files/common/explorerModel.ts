@@ -334,9 +334,9 @@ export class ExplorerItem {
 						fileChildren.push(child);
 					}
 				}
-
+				const itemsToNest = fileChildren.map(([name]) => name).concat(dirChildren.map(([name]) => name));
 				const nested = this.fileNester.nest(
-					fileChildren.map(([name]) => name),
+					itemsToNest,
 					this.getPlatformAwareName(this.name));
 
 				for (const [fileEntryName, fileEntryItem] of fileChildren) {
@@ -354,8 +354,11 @@ export class ExplorerItem {
 					}
 				}
 
-				for (const [_, dirEntryItem] of dirChildren.values()) {
-					items.push(dirEntryItem);
+				for (const [dirEntryName, dirEntryItem] of dirChildren.values()) {
+					const nestedItems = nested.get(dirEntryName);
+					if (nestedItems !== undefined) {
+						items.push(dirEntryItem);
+					}
 				}
 			} else {
 				this.children.forEach(child => {
@@ -378,7 +381,6 @@ export class ExplorerItem {
 						this.getPlatformAwareName(parentPattern.trim()),
 						childrenPatterns.split(',').map(p => this.getPlatformAwareName(p.trim().replace(/\u200b/g, '')))
 					] as [string, string[]]);
-
 			this.root._fileNester = new ExplorerFileNestingTrie(patterns);
 		}
 		return this.root._fileNester;
