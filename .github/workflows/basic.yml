@@ -12,7 +12,7 @@ on:
 
 jobs:
   main:
-    name: Basic checks
+    name: Compilation, Unit and Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
