@@ -231,7 +231,7 @@ export class HoverWidget extends Widget {
 		this._hover.contentsDomNode.style.maxHeight = '';
 
 		const getZoomAccountedBoundingClientRect = (e: HTMLElement) => {
-			let zoom = dom.getDomNodeZoomLevel(e);
+			const zoom = dom.getDomNodeZoomLevel(e);
 
 			const boundingRect = e.getBoundingClientRect();
 			return {
