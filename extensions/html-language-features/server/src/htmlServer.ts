@@ -184,8 +184,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 		formatterMaxNumberOfEdits = initializationOptions?.customCapabilities?.rangeFormatting?.editLimit || Number.MAX_VALUE;
 
-		const pullDiagnosticSupport = getClientCapability('textDocument.diagnostic', undefined);
-		if (pullDiagnosticSupport === undefined) {
+		const supportsDiagnosticPull = getClientCapability('textDocument.diagnostic', undefined);
+		if (supportsDiagnosticPull === undefined) {
 			diagnosticsSupport = registerDiagnosticsPushSupport(documents, connection, runtime, validateTextDocument);
 		} else {
 			diagnosticsSupport = registerDiagnosticsPullSupport(documents, connection, runtime, validateTextDocument);
