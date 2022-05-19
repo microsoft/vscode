@@ -7,9 +7,9 @@ import { strictEqual } from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { FAILED_TASK_STATUS, TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
+import { ACTIVE_TASK_STATUS, FAILED_TASK_STATUS, SUCCEEDED_TASK_STATUS, TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
 import { AbstractProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
-import { CommonTask, TaskEvent, TaskEventKind } from 'vs/workbench/contrib/tasks/common/tasks';
+import { CommonTask, TaskEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
@@ -55,9 +55,20 @@ suite('Task Terminal Status', () => {
 		testTask = instantiationService.createInstance(TestTask);
 		problemCollector = instantiationService.createInstance(TestProblemCollector);
 	});
-	test('Should update the status', async () => {
+	test('Should show failed status when there is an exit code on task end', async () => {
 		await taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
 		taskService.triggerStateChange({ kind: TaskEventKind.End, exitCode: 1 });
 		setTimeout(() => strictEqual(testTerminal.statusList.statuses, [FAILED_TASK_STATUS]), 200);
+	});
+	test('Should show spinner when a task is run again in the same terminal', async () => {
+		await taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
+		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted });
+		setTimeout(() => strictEqual(testTerminal.statusList.statuses, [ACTIVE_TASK_STATUS]), 200);
+		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
+		setTimeout(() => strictEqual(testTerminal.statusList.statuses, [SUCCEEDED_TASK_STATUS]), 200);
+		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted, runType: TaskRunType.SingleRun });
+		setTimeout(() => strictEqual(testTerminal.statusList.statuses, [ACTIVE_TASK_STATUS]), 200);
+		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
+		setTimeout(() => strictEqual(testTerminal.statusList.statuses, [SUCCEEDED_TASK_STATUS]), 200);
 	});
 });
