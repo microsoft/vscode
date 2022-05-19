@@ -12,13 +12,15 @@ import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { toResource } from 'vs/base/test/common/utils';
 import { TestFileService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { SortOrder } from 'vs/workbench/contrib/files/common/files';
 
 
 suite('Files - View Model', function () {
 
 	const fileService = new TestFileService();
-	const configService = new TestConfigurationService();
-	function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number): ExplorerItem {
+	const testConfigService = new TestConfigurationService();
+	function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number, configService: IConfigurationService): ExplorerItem {
 		return new ExplorerItem(toResource.call(this, path), fileService, configService, undefined, isFolder, false, false, name, mtime);
 	}
 
@@ -26,7 +28,7 @@ suite('Files - View Model', function () {
 
 	test('Properties', function () {
 		const d = new Date().getTime();
-		let s = createStat.call(this, '/path/to/stat', 'sName', true, true, 8096, d);
+		let s = createStat.call(this, '/path/to/stat', 'sName', true, true, 8096, d, testConfigService);
 
 		assert.strictEqual(s.isDirectoryResolved, false);
 		assert.strictEqual(s.resource.fsPath, toResource.call(this, '/path/to/stat').fsPath);
@@ -34,15 +36,15 @@ suite('Files - View Model', function () {
 		assert.strictEqual(s.isDirectory, true);
 		assert.strictEqual(s.mtime, new Date(d).getTime());
 
-		s = createStat.call(this, '/path/to/stat', 'sName', false, false, 8096, d);
+		s = createStat.call(this, '/path/to/stat', 'sName', false, false, 8096, d, testConfigService);
 	});
 
 	test('Add and Remove Child, check for hasChild', function () {
 		const d = new Date().getTime();
-		const s = createStat.call(this, '/path/to/stat', 'sName', true, false, 8096, d);
+		const s = createStat.call(this, '/path/to/stat', 'sName', true, false, 8096, d, testConfigService);
 
-		const child1 = createStat.call(this, '/path/to/stat/foo', 'foo', true, false, 8096, d);
-		const child4 = createStat.call(this, '/otherpath/to/other/otherbar.html', 'otherbar.html', false, false, 8096, d);
+		const child1 = createStat.call(this, '/path/to/stat/foo', 'foo', true, false, 8096, d, testConfigService);
+		const child4 = createStat.call(this, '/otherpath/to/other/otherbar.html', 'otherbar.html', false, false, 8096, d, testConfigService);
 
 		s.addChild(child1);
 
@@ -63,10 +65,10 @@ suite('Files - View Model', function () {
 	test('Move', function () {
 		const d = new Date().getTime();
 
-		const s1 = createStat.call(this, '/', '/', true, false, 8096, d);
-		const s2 = createStat.call(this, '/path', 'path', true, false, 8096, d);
-		const s3 = createStat.call(this, '/path/to', 'to', true, false, 8096, d);
-		const s4 = createStat.call(this, '/path/to/stat', 'stat', false, false, 8096, d);
+		const s1 = createStat.call(this, '/', '/', true, false, 8096, d, testConfigService);
+		const s2 = createStat.call(this, '/path', 'path', true, false, 8096, d, testConfigService);
+		const s3 = createStat.call(this, '/path/to', 'to', true, false, 8096, d, testConfigService);
+		const s4 = createStat.call(this, '/path/to/stat', 'stat', false, false, 8096, d, testConfigService);
 
 		s1.addChild(s2);
 		s2.addChild(s3);
@@ -78,9 +80,9 @@ suite('Files - View Model', function () {
 		assert.strictEqual(s4.resource.fsPath, toResource.call(this, '/' + s4.name).fsPath);
 
 		// Move a subtree with children
-		const leaf = createStat.call(this, '/leaf', 'leaf', true, false, 8096, d);
-		const leafC1 = createStat.call(this, '/leaf/folder', 'folder', true, false, 8096, d);
-		const leafCC2 = createStat.call(this, '/leaf/folder/index.html', 'index.html', true, false, 8096, d);
+		const leaf = createStat.call(this, '/leaf', 'leaf', true, false, 8096, d, testConfigService);
+		const leafC1 = createStat.call(this, '/leaf/folder', 'folder', true, false, 8096, d, testConfigService);
+		const leafCC2 = createStat.call(this, '/leaf/folder/index.html', 'index.html', true, false, 8096, d, testConfigService);
 
 		leaf.addChild(leafC1);
 		leafC1.addChild(leafCC2);
@@ -94,17 +96,17 @@ suite('Files - View Model', function () {
 	test('Rename', function () {
 		const d = new Date().getTime();
 
-		const s1 = createStat.call(this, '/', '/', true, false, 8096, d);
-		const s2 = createStat.call(this, '/path', 'path', true, false, 8096, d);
-		const s3 = createStat.call(this, '/path/to', 'to', true, false, 8096, d);
-		const s4 = createStat.call(this, '/path/to/stat', 'stat', true, false, 8096, d);
+		const s1 = createStat.call(this, '/', '/', true, false, 8096, d, testConfigService);
+		const s2 = createStat.call(this, '/path', 'path', true, false, 8096, d, testConfigService);
+		const s3 = createStat.call(this, '/path/to', 'to', true, false, 8096, d, testConfigService);
+		const s4 = createStat.call(this, '/path/to/stat', 'stat', true, false, 8096, d, testConfigService);
 
 		s1.addChild(s2);
 		s2.addChild(s3);
 		s3.addChild(s4);
 
 		assert.strictEqual(s1.getChild(s2.name), s2);
-		const s2renamed = createStat.call(this, '/otherpath', 'otherpath', true, true, 8096, d);
+		const s2renamed = createStat.call(this, '/otherpath', 'otherpath', true, true, 8096, d, testConfigService);
 		s2.rename(s2renamed);
 		assert.strictEqual(s1.getChild(s2.name), s2);
 
@@ -114,7 +116,7 @@ suite('Files - View Model', function () {
 		assert.strictEqual(s3.resource.fsPath, toResource.call(this, '/otherpath/to').fsPath);
 		assert.strictEqual(s4.resource.fsPath, toResource.call(this, '/otherpath/to/stat').fsPath);
 
-		const s4renamed = createStat.call(this, '/otherpath/to/statother.js', 'statother.js', true, false, 8096, d);
+		const s4renamed = createStat.call(this, '/otherpath/to/statother.js', 'statother.js', true, false, 8096, d, testConfigService);
 		s4.rename(s4renamed);
 		assert.strictEqual(s3.getChild(s4.name), s4);
 		assert.strictEqual(s4.name, s4renamed.name);
@@ -124,14 +126,14 @@ suite('Files - View Model', function () {
 	test('Find', function () {
 		const d = new Date().getTime();
 
-		const s1 = createStat.call(this, '/', '/', true, false, 8096, d);
-		const s2 = createStat.call(this, '/path', 'path', true, false, 8096, d);
-		const s3 = createStat.call(this, '/path/to', 'to', true, false, 8096, d);
-		const s4 = createStat.call(this, '/path/to/stat', 'stat', true, false, 8096, d);
-		const s4Upper = createStat.call(this, '/path/to/STAT', 'stat', true, false, 8096, d);
+		const s1 = createStat.call(this, '/', '/', true, false, 8096, d, testConfigService);
+		const s2 = createStat.call(this, '/path', 'path', true, false, 8096, d, testConfigService);
+		const s3 = createStat.call(this, '/path/to', 'to', true, false, 8096, d, testConfigService);
+		const s4 = createStat.call(this, '/path/to/stat', 'stat', true, false, 8096, d, testConfigService);
+		const s4Upper = createStat.call(this, '/path/to/STAT', 'stat', true, false, 8096, d, testConfigService);
 
-		const child1 = createStat.call(this, '/path/to/stat/foo', 'foo', true, false, 8096, d);
-		const child2 = createStat.call(this, '/path/to/stat/foo/bar.html', 'bar.html', false, false, 8096, d);
+		const child1 = createStat.call(this, '/path/to/stat/foo', 'foo', true, false, 8096, d, testConfigService);
+		const child2 = createStat.call(this, '/path/to/stat/foo/bar.html', 'bar.html', false, false, 8096, d, testConfigService);
 
 		s1.addChild(s2);
 		s2.addChild(s3);
@@ -159,13 +161,13 @@ suite('Files - View Model', function () {
 	test('Find with mixed case', function () {
 		const d = new Date().getTime();
 
-		const s1 = createStat.call(this, '/', '/', true, false, 8096, d);
-		const s2 = createStat.call(this, '/path', 'path', true, false, 8096, d);
-		const s3 = createStat.call(this, '/path/to', 'to', true, false, 8096, d);
-		const s4 = createStat.call(this, '/path/to/stat', 'stat', true, false, 8096, d);
+		const s1 = createStat.call(this, '/', '/', true, false, 8096, d, testConfigService);
+		const s2 = createStat.call(this, '/path', 'path', true, false, 8096, d, testConfigService);
+		const s3 = createStat.call(this, '/path/to', 'to', true, false, 8096, d, testConfigService);
+		const s4 = createStat.call(this, '/path/to/stat', 'stat', true, false, 8096, d, testConfigService);
 
-		const child1 = createStat.call(this, '/path/to/stat/foo', 'foo', true, false, 8096, d);
-		const child2 = createStat.call(this, '/path/to/stat/foo/bar.html', 'bar.html', false, false, 8096, d);
+		const child1 = createStat.call(this, '/path/to/stat/foo', 'foo', true, false, 8096, d, testConfigService);
+		const child2 = createStat.call(this, '/path/to/stat/foo/bar.html', 'bar.html', false, false, 8096, d, testConfigService);
 
 		s1.addChild(s2);
 		s2.addChild(s3);
@@ -184,8 +186,8 @@ suite('Files - View Model', function () {
 
 	test('Validate File Name (For Create)', function () {
 		const d = new Date().getTime();
-		const s = createStat.call(this, '/path/to/stat', 'sName', true, true, 8096, d);
-		const sChild = createStat.call(this, '/path/to/stat/alles.klar', 'alles.klar', true, true, 8096, d);
+		const s = createStat.call(this, '/path/to/stat', 'sName', true, true, 8096, d, testConfigService);
+		const sChild = createStat.call(this, '/path/to/stat/alles.klar', 'alles.klar', true, true, 8096, d, testConfigService);
 		s.addChild(sChild);
 
 		assert(validateFileName(pathService, s, null!, OS) !== null);
@@ -209,8 +211,8 @@ suite('Files - View Model', function () {
 
 	test('Validate File Name (For Rename)', function () {
 		const d = new Date().getTime();
-		const s = createStat.call(this, '/path/to/stat', 'sName', true, true, 8096, d);
-		const sChild = createStat.call(this, '/path/to/stat/alles.klar', 'alles.klar', true, true, 8096, d);
+		const s = createStat.call(this, '/path/to/stat', 'sName', true, true, 8096, d, testConfigService);
+		const sChild = createStat.call(this, '/path/to/stat/alles.klar', 'alles.klar', true, true, 8096, d, testConfigService);
 		s.addChild(sChild);
 
 		assert(validateFileName(pathService, s, 'alles.klar', OS) === null);
@@ -225,7 +227,7 @@ suite('Files - View Model', function () {
 
 	test('Validate Multi-Path File Names', function () {
 		const d = new Date().getTime();
-		const wsFolder = createStat.call(this, '/', 'workspaceFolder', true, false, 8096, d);
+		const wsFolder = createStat.call(this, '/', 'workspaceFolder', true, false, 8096, d, testConfigService);
 
 		assert(validateFileName(pathService, wsFolder, 'foo/bar', OS) === null);
 		assert(validateFileName(pathService, wsFolder, 'foo\\bar', OS) === null);
@@ -234,13 +236,13 @@ suite('Files - View Model', function () {
 		assert(validateFileName(pathService, wsFolder, '/slashAtBeginning', OS) !== null);
 
 		// attempting to add a child to a deeply nested file
-		const s1 = createStat.call(this, '/path', 'path', true, false, 8096, d);
-		const s2 = createStat.call(this, '/path/to', 'to', true, false, 8096, d);
-		const s3 = createStat.call(this, '/path/to/stat', 'stat', true, false, 8096, d);
+		const s1 = createStat.call(this, '/path', 'path', true, false, 8096, d, testConfigService);
+		const s2 = createStat.call(this, '/path/to', 'to', true, false, 8096, d, testConfigService);
+		const s3 = createStat.call(this, '/path/to/stat', 'stat', true, false, 8096, d, testConfigService);
 		wsFolder.addChild(s1);
 		s1.addChild(s2);
 		s2.addChild(s3);
-		const fileDeeplyNested = createStat.call(this, '/path/to/stat/fileNested', 'fileNested', false, false, 8096, d);
+		const fileDeeplyNested = createStat.call(this, '/path/to/stat/fileNested', 'fileNested', false, false, 8096, d, testConfigService);
 		s3.addChild(fileDeeplyNested);
 		assert(validateFileName(pathService, wsFolder, '/path/to/stat/fileNested/aChild', OS) !== null);
 
@@ -250,19 +252,19 @@ suite('Files - View Model', function () {
 	});
 
 	test('Merge Local with Disk', function () {
-		const merge1 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), fileService, configService, undefined, true, false, false, 'to', Date.now());
-		const merge2 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), fileService, configService, undefined, true, false, false, 'to', Date.now());
+		const merge1 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), fileService, testConfigService, undefined, true, false, false, 'to', Date.now());
+		const merge2 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), fileService, testConfigService, undefined, true, false, false, 'to', Date.now());
 
 		// Merge Properties
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.mtime, merge2.mtime);
 
 		// Merge Child when isDirectoryResolved=false is a no-op
-		merge2.addChild(new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), fileService, configService, undefined, true, false, false, 'foo.html', Date.now()));
+		merge2.addChild(new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), fileService, testConfigService, undefined, true, false, false, 'foo.html', Date.now()));
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
 
 		// Merge Child with isDirectoryResolved=true
-		const child = new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), fileService, configService, undefined, true, false, false, 'foo.html', Date.now());
+		const child = new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), fileService, testConfigService, undefined, true, false, false, 'foo.html', Date.now());
 		merge2.removeChild(child);
 		merge2.addChild(child);
 		(<any>merge2)._isDirectoryResolved = true;
@@ -274,5 +276,58 @@ suite('Files - View Model', function () {
 		const existingChild = merge1.getChild('foo.html');
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
 		assert.ok(existingChild === merge1.getChild(existingChild!.name));
+	});
+
+	test('File nesting', async function () {
+		const fileNestingConfigService = new TestConfigurationService({
+			explorer: {
+				fileNesting: {
+					enabled: true,
+					patterns: {
+						"file1.txt": "file2.txt"
+					}
+				}
+			}
+		});
+
+		const d = new Date().getTime();
+		const wsFolder = createStat.call(this, '/', 'workspaceFolder', true, false, 8096, d, fileNestingConfigService);
+		const file1 = createStat.call(this, '/file1.txt', 'file1.txt', false, false, 8096, d, fileNestingConfigService);
+		wsFolder.addChild(file1);
+		const file2 = createStat.call(this, '/file2.txt', 'file2.txt', false, false, 8096, d, fileNestingConfigService);
+		wsFolder.addChild(file2);
+
+		const children = await wsFolder.fetchChildren(SortOrder.Default);
+		assert.strictEqual(children.length, 1);
+		assert.strictEqual(children[0].name, 'file1.txt');
+		assert.strictEqual(children[0].nestedChildren?.length, 1);
+		assert.strictEqual(children[0].nestedChildren?.[0].name, "file2.txt");
+	});
+
+	test('File nesting with nested directory', async function () {
+		const fileNestingConfigService = new TestConfigurationService({
+			explorer: {
+				fileNesting: {
+					enabled: true,
+					patterns: {
+						"file1.txt": "dir1"
+					}
+				}
+			}
+		});
+
+		const d = new Date().getTime();
+		const wsFolder = createStat.call(this, '/', 'workspaceFolder', true, false, 8096, d, fileNestingConfigService);
+		const file1 = createStat.call(this, '/file1.txt', 'file1.txt', false, false, 8096, d, fileNestingConfigService);
+		wsFolder.addChild(file1);
+		const dir1 = createStat.call(this, '/dir1', 'dir1', true, false, 8096, d, fileNestingConfigService);
+		wsFolder.addChild(dir1);
+
+		const children = await wsFolder.fetchChildren(SortOrder.Default);
+		assert.strictEqual(children.length, 1);
+		assert.strictEqual(children[0].name, 'file1.txt');
+		assert.strictEqual(children[0].nestedChildren?.length, 1);
+		assert.strictEqual(children[0].nestedChildren?.[0].name, "dir1");
+		assert.strictEqual(children[0].nestedChildren?.[0].isDirectory, true);
 	});
 });
