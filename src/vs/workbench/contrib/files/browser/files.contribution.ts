@@ -189,7 +189,8 @@ configurationRegistry.registerConfiguration({
 		'files.excludeGitIgnore': {
 			type: 'boolean',
 			description: nls.localize('excludeGitignore', "Controls whether entries in .gitignore should be parsed and excluded from the explorer. Similar to `files.exclude`."),
-			default: false
+			default: false,
+			scope: ConfigurationScope.RESOURCE
 		},
 		'files.eol': {
 			'type': 'string',
