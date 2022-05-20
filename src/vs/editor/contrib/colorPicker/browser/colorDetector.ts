@@ -16,7 +16,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IModelDecoration, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -41,7 +41,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	private _decorationsIds: string[] = [];
 	private _colorDatas = new Map<string, IColorData>();
 
-	private _colorDecoratorIds: ReadonlySet<string> = new Set<string>();
+	private readonly _colorDecoratorIds = this._editor.createDecorationsCollection();
 
 	private _isEnabled: boolean;
 
@@ -215,12 +215,12 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			});
 		}
 
-		this._colorDecoratorIds = new Set(this._editor.deltaDecorations([...this._colorDecoratorIds], decorations));
+		this._colorDecoratorIds.set(decorations);
 	}
 
 	private removeAllDecorations(): void {
 		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, []);
-		this._colorDecoratorIds = new Set(this._editor.deltaDecorations([...this._colorDecoratorIds], []));
+		this._colorDecoratorIds.clear();
 		this._colorDecorationClassRefs.clear();
 	}
 
@@ -241,8 +241,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		return this._colorDatas.get(decorations[0].id)!;
 	}
 
-	isColorDecorationId(decorationId: string): boolean {
-		return this._colorDecoratorIds.has(decorationId);
+	isColorDecoration(decoration: IModelDecoration): boolean {
+		return this._colorDecoratorIds.has(decoration);
 	}
 }
 

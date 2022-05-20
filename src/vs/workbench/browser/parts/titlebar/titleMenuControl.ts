@@ -95,7 +95,19 @@ export class TitleMenuControl {
 						}
 
 						private _updateFromWindowTitle() {
-							this.workspaceTitle.innerText = windowTitle.workspaceName;
+
+							// label: just workspace name and optional decorations
+							const { prefix, suffix } = windowTitle.getTitleDecorations();
+							let label = windowTitle.workspaceName;
+							if (prefix) {
+								label = localize('label1', "{0} {1}", prefix, label);
+							}
+							if (suffix) {
+								label = localize('label2', "{0} {1}", label, suffix);
+							}
+							this.workspaceTitle.innerText = label;
+
+							// tooltip: full windowTitle
 							const kb = keybindingService.lookupKeybinding(action.id)?.getLabel();
 							const title = kb
 								? localize('title', "Search {0} ({1}) \u2014 {2}", windowTitle.workspaceName, kb, windowTitle.value)
@@ -177,7 +189,7 @@ const activeBackground = colors.registerColor(
 // border: defaults to active background
 colors.registerColor(
 	'titleMenu.border',
-	{ dark: activeBackground, hcDark: activeBackground, light: activeBackground, hcLight: activeBackground },
+	{ dark: activeBackground, hcDark: colors.inputBorder, light: activeBackground, hcLight: colors.inputBorder },
 	localize('titleMenu-border', "Border color of the title menu"),
 	false
 );

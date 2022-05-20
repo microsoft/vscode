@@ -10,7 +10,7 @@
 	},
 	"enabledApiProposals": [
 		"notebookEditor",
-		"notebookEditorEdit"
+    "notebookWorkspaceEdit"
 	],
 	"activationEvents": [
 		"*"

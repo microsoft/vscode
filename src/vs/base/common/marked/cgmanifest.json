@@ -6,11 +6,11 @@
 				"git": {
 					"name": "marked",
 					"repositoryUrl": "https://github.com/markedjs/marked",
-					"commitHash": "d1b7d521c41bcf915f81f0218b0e5acd607c1b72"
+					"commitHash": "2002557d004139ca2208c910d9ca999829b65406"
 				}
 			},
 			"license": "MIT",
-			"version": "3.0.2"
+			"version": "4.0.16"
 		}
 	],
 	"version": 1

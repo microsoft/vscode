@@ -270,4 +270,47 @@ suite('markdown.DocumentLinkProvider', () => {
 		const link = links[0];
 		assertRangeEqual(link.range, new vscode.Range(0, 5, 0, 23));
 	});
+
+	test('Should not detect links inside html comment blocks', async () => {
+		const links = await getLinksForFile(joinLines(
+			`<!-- <http://example.com> -->`,
+			`<!-- [text](./foo.md) -->`,
+			`<!-- [text]: ./foo.md -->`,
+			``,
+			`<!--`,
+			`<http://example.com>`,
+			`-->`,
+			``,
+			`<!--`,
+			`[text](./foo.md)`,
+			`-->`,
+			``,
+			`<!--`,
+			`[text]: ./foo.md`,
+			`-->`,
+		));
+		assert.strictEqual(links.length, 0);
+	});
+
+	test.skip('Should not detect links inside inline html comments', async () => {
+		// See #149678
+		const links = await getLinksForFile(joinLines(
+			`text <!-- <http://example.com> --> text`,
+			`text <!-- [text](./foo.md) --> text`,
+			`text <!-- [text]: ./foo.md --> text`,
+			``,
+			`text <!--`,
+			`<http://example.com>`,
+			`--> text`,
+			``,
+			`text <!--`,
+			`[text](./foo.md)`,
+			`--> text`,
+			``,
+			`text <!--`,
+			`[text]: ./foo.md`,
+			`--> text`,
+		));
+		assert.strictEqual(links.length, 0);
+	});
 });
