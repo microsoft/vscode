@@ -59,7 +59,7 @@ import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { ResourceSet, TernarySearchTree } from 'vs/base/common/map';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -608,7 +608,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private _onDidChange = new Emitter<void>();
 	private toDispose: IDisposable[] = [];
 	// List of ignoreFile resources. Used to detect changes to the ignoreFiles.
-	private ignoreFileResources: Map<String, URI> = new Map<String, URI>();
+	private ignoreFileResources: ResourceSet = new ResourceSet();
 	// Ignore tree
 	private gitIgnoreEntries: TernarySearchTree<URI, IgnoreFile> = TernarySearchTree.forUris((uri) => this.uriIdentityService.extUri.ignorePathCasing(uri));
 
@@ -634,14 +634,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 				}
 				if (e.contains(r, FileChangeType.DELETED)) {
 					this.gitIgnoreEntries.delete(r);
-					this.ignoreFileResources.delete(r.toString());
-				}
-				if (e.gotAdded()) {
-					// No better way at the moment exists for tracking adds of unknown files
-					const added = e.rawAdded;
-					const ignoreFiles = added.filter(r => r.path.endsWith('.gitignore'));
-					// Add the newly added ignore files to the ignore tree
-					ignoreFiles.forEach(async r => await this.processIgnoreFile(r, false));
+					this.ignoreFileResources.delete(r);
 				}
 			});
 		}));
@@ -723,8 +716,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		const ignoreFile = new IgnoreFile(content.value.toString(), dirUri.path + path.sep, ignoreParent);
 		this.gitIgnoreEntries.set(dirUri, ignoreFile);
 		// If we haven't seen this resource before then we need to add it to the list of resources we're tracking
-		if (!this.ignoreFileResources.has(ignoreFileResource.toString())) {
-			this.ignoreFileResources.set(ignoreFileResource.toString(), ignoreFileResource);
+		if (!this.ignoreFileResources.has(ignoreFileResource)) {
+			this.ignoreFileResources.add(ignoreFileResource);
 		}
 		// Notify the explorer of the change so we may ignore these files
 		this._onDidChange.fire();
@@ -732,8 +725,12 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
 		// Add newly visited .gitignore files to the ignore tree
-		if (stat.name === '.gitignore' && !this.ignoreFileResources.has(stat.resource.toString())) {
-			this.processIgnoreFile(stat.resource, false);
+		if (stat.name === '.gitignore') {
+			if (!this.ignoreFileResources.has(stat.resource)) {
+				this.processIgnoreFile(stat.resource, false);
+			}
+			// Never hide .gitignore files
+			return true;
 		}
 
 		return this.isVisible(stat, parentVisibility);
