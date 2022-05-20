@@ -54,6 +54,16 @@ export interface SemanticTokenData {
 	modifierSet: number;
 }
 
+export type CompletionItemData = {
+	languageId: string;
+	uri: string;
+	offset: number;
+};
+
+export function isCompletionItemData(value: any): value is CompletionItemData {
+	return value && typeof value.languageId === 'string' && typeof value.uri === 'string' && typeof value.offset === 'number';
+}
+
 export interface LanguageMode {
 	getId(): string;
 	getSelectionRange?: (document: TextDocument, position: Position) => Promise<SelectionRange>;

@@ -18,8 +18,9 @@ import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_S
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { ConfigurationScope, EditPresentationTypes } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -221,6 +222,12 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.value = displayValue;
 			this.scopeValue = isConfigured && overrideValues[targetSelector];
 			this.defaultValue = overrideValues.defaultValue ?? inspected.defaultValue;
+
+			const registryValues = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationDefaultsOverrides();
+			const overrideValueSource = registryValues.get(`[${languageSelector}]`)?.valuesSources?.get(this.setting.key);
+			if (overrideValueSource) {
+				this.setting.defaultValueSource = overrideValueSource;
+			}
 		} else {
 			this.value = displayValue;
 			this.scopeValue = isConfigured && inspected[targetSelector];

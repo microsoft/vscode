@@ -26,6 +26,7 @@ async function getComputedDiagnostics(doc: InMemoryDocument, workspaceContents: 
 			validateFilePaths: DiagnosticLevel.warning,
 			validateOwnHeaders: DiagnosticLevel.warning,
 			validateReferences: DiagnosticLevel.warning,
+			skipPaths: [],
 		}, noopToken)
 	).diagnostics;
 }
@@ -43,6 +44,7 @@ class MemoryDiagnosticConfiguration implements DiagnosticConfiguration {
 
 	constructor(
 		private readonly enabled: boolean = true,
+		private readonly skipPaths: string[] = [],
 	) { }
 
 	getOptions(_resource: vscode.Uri): DiagnosticOptions {
@@ -52,6 +54,7 @@ class MemoryDiagnosticConfiguration implements DiagnosticConfiguration {
 				validateFilePaths: DiagnosticLevel.ignore,
 				validateOwnHeaders: DiagnosticLevel.ignore,
 				validateReferences: DiagnosticLevel.ignore,
+				skipPaths: this.skipPaths,
 			};
 		}
 		return {
@@ -59,6 +62,7 @@ class MemoryDiagnosticConfiguration implements DiagnosticConfiguration {
 			validateFilePaths: DiagnosticLevel.warning,
 			validateOwnHeaders: DiagnosticLevel.warning,
 			validateReferences: DiagnosticLevel.warning,
+			skipPaths: this.skipPaths,
 		};
 	}
 }
@@ -177,6 +181,50 @@ suite('markdown: Diagnostics', () => {
 		));
 
 		const diagnostics = await getComputedDiagnostics(doc1, new InMemoryWorkspaceMarkdownDocuments([doc1]));
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('Should allow ignoring invalid file link using glob', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`[text](/no-such-file)`,
+			`![img](/no-such-file)`,
+			`[text]: /no-such-file`,
+		));
+
+		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration(true, ['/no-such-file']));
+		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('skipPaths should allow skipping non-existent file', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`[text](/no-such-file#header)`,
+		));
+
+		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration(true, ['/no-such-file']));
+		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('skipPaths should not consider link fragment', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`[text](/no-such-file#header)`,
+		));
+
+		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration(true, ['/no-such-file']));
+		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('skipPaths should support globs', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`![i](/images/aaa.png)`,
+			`![i](/images/sub/bbb.png)`,
+			`![i](/images/sub/sub2/ccc.png)`,
+		));
+
+		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration(true, ['/images/**/*.png']));
+		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
 		assert.deepStrictEqual(diagnostics.length, 0);
 	});
 });

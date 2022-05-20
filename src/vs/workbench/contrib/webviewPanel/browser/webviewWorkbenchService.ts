@@ -15,7 +15,8 @@ import { createDecorator, IInstantiationService } from 'vs/platform/instantiatio
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IOverlayWebview, IWebviewService, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { IOverlayWebview, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
@@ -34,24 +35,18 @@ export interface IWebviewWorkbenchService {
 	readonly iconManager: WebviewIconManager;
 
 	createWebview(
-		id: string,
+		webviewInitInfo: WebviewInitInfo,
 		viewType: string,
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
-		webviewOptions: WebviewOptions,
-		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
 	): WebviewInput;
 
 	reviveWebview(options: {
-		id: string;
+		webviewInitInfo: WebviewInitInfo;
 		viewType: string;
 		title: string;
 		iconPath: WebviewIcons | undefined;
 		state: any;
-		webviewOptions: WebviewOptions;
-		contentOptions: WebviewContentOptions;
-		extension: WebviewExtensionDescription | undefined;
 		group: number | undefined;
 	}): WebviewInput;
 
@@ -218,16 +213,13 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 	}
 
 	public createWebview(
-		id: string,
+		webviewInitInfo: WebviewInitInfo,
 		viewType: string,
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
-		webviewOptions: WebviewOptions,
-		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
 	): WebviewInput {
-		const webview = this._webviewService.createWebviewOverlay(id, webviewOptions, contentOptions, extension);
-		const webviewInput = this._instantiationService.createInstance(WebviewInput, id, viewType, title, webview, this.iconManager);
+		const webview = this._webviewService.createWebviewOverlay(webviewInitInfo);
+		const webviewInput = this._instantiationService.createInstance(WebviewInput, webviewInitInfo.id, viewType, title, webview, this.iconManager);
 		this._editorService.openEditor(webviewInput, {
 			pinned: true,
 			preserveFocus: showOptions.preserveFocus,
@@ -268,20 +260,17 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 	}
 
 	public reviveWebview(options: {
-		id: string;
+		webviewInitInfo: WebviewInitInfo;
 		viewType: string;
 		title: string;
 		iconPath: WebviewIcons | undefined;
 		state: any;
-		webviewOptions: WebviewOptions;
-		contentOptions: WebviewContentOptions;
-		extension: WebviewExtensionDescription | undefined;
 		group: number | undefined;
 	}): WebviewInput {
-		const webview = this._webviewService.createWebviewOverlay(options.id, options.webviewOptions, options.contentOptions, options.extension);
+		const webview = this._webviewService.createWebviewOverlay(options.webviewInitInfo);
 		webview.state = options.state;
 
-		const webviewInput = this._instantiationService.createInstance(LazilyResolvedWebviewEditorInput, options.id, options.viewType, options.title, webview);
+		const webviewInput = this._instantiationService.createInstance(LazilyResolvedWebviewEditorInput, options.webviewInitInfo.id, options.viewType, options.title, webview);
 		webviewInput.iconPath = options.iconPath;
 
 		if (typeof options.group === 'number') {

@@ -336,7 +336,10 @@
             "type": "string",
             "scope": "resource",
             "default": "collapse",
-            "enum": ["collapse", "expand"],
+            "enum": [
+              "collapse",
+              "expand"
+            ],
             "markdownDescription": "%css.format.braceStyle.desc%"
           },
           "css.format.preserveNewLines": {
@@ -638,7 +641,10 @@
             "type": "string",
             "scope": "resource",
             "default": "collapse",
-            "enum": ["collapse", "expand"],
+            "enum": [
+              "collapse",
+              "expand"
+            ],
             "markdownDescription": "%scss.format.braceStyle.desc%"
           },
           "scss.format.preserveNewLines": {
@@ -941,7 +947,10 @@
             "type": "string",
             "scope": "resource",
             "default": "collapse",
-            "enum": ["collapse", "expand"],
+            "enum": [
+              "collapse",
+              "expand"
+            ],
             "markdownDescription": "%less.format.braceStyle.desc%"
           },
           "less.format.preserveNewLines": {
@@ -985,7 +994,7 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^7.0.0",
+    "vscode-languageclient": "^8.0.1",
     "vscode-nls": "^5.0.0",
     "vscode-uri": "^3.0.3"
   },
