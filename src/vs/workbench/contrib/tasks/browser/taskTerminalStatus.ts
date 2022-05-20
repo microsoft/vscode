@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { AbstractProblemCollector, StartStopProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import { TaskEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
@@ -20,7 +20,7 @@ interface TerminalData {
 	status: ITerminalStatus;
 	problemMatcher: AbstractProblemCollector;
 	taskRunEnded?: boolean;
-	disposeListener?: Disposable;
+	disposeListener?: IDisposable;
 }
 
 const TASK_TERMINAL_STATUS_ID = 'task_terminal_status';
@@ -104,7 +104,10 @@ export class TaskTerminalStatus extends Disposable {
 			return;
 		}
 		if (!terminalData.disposeListener) {
-			terminalData.terminal.onDisposed(() => this.terminalMap.delete(event.__task?._id!));
+			terminalData.disposeListener = terminalData.terminal.onDisposed(() => {
+				this.terminalMap.delete(event.__task?._id!);
+				terminalData.disposeListener?.dispose();
+			});
 		}
 		terminalData.taskRunEnded = false;
 		terminalData.terminal.statusList.remove(terminalData.status);

@@ -41,14 +41,15 @@ class TestProblemCollector implements Partial<AbstractProblemCollector> {
 
 }
 
-const instantiationService = new TestInstantiationService();
 suite('Task Terminal Status', () => {
+	let instantiationService: TestInstantiationService;
 	let taskService: TestTaskService;
 	let taskTerminalStatus: TaskTerminalStatus;
 	let testTerminal: ITerminalInstance;
 	let testTask: Task;
 	let problemCollector: AbstractProblemCollector;
 	setup(() => {
+		instantiationService = new TestInstantiationService();
 		taskService = new TestTaskService();
 		taskTerminalStatus = instantiationService.createInstance(TaskTerminalStatus, taskService);
 		testTerminal = instantiationService.createInstance(TestTerminal);
