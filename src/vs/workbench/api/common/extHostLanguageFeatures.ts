@@ -1161,6 +1161,7 @@ class InlineCompletionAdapterNew extends InlineCompletionAdapterBase {
 	private readonly languageTriggerKindToVSCodeTriggerKind: Record<languages.InlineCompletionTriggerKind, vscode.InlineCompletionTriggerKindNew> = {
 		[languages.InlineCompletionTriggerKind.Automatic]: InlineCompletionTriggerKindNew.Automatic,
 		[languages.InlineCompletionTriggerKind.Explicit]: InlineCompletionTriggerKindNew.Invoke,
+		[languages.InlineCompletionTriggerKind.CursorMove]: InlineCompletionTriggerKindNew.CursorMove,
 	};
 
 	override async provideInlineCompletions(resource: URI, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {

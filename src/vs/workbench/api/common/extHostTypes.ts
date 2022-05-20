@@ -2677,11 +2677,13 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 export enum InlineCompletionTriggerKind {
 	Invoke = 0,
 	Automatic = 1,
+	CursorMove = 2,
 }
 
 export enum InlineCompletionTriggerKindNew {
 	Invoke = 0,
 	Automatic = 1,
+	CursorMove = 2,
 }
 
 @es5ClassCompat

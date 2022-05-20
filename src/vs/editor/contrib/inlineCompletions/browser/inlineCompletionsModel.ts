@@ -72,14 +72,14 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 					'acceptSelectedSuggestion',
 				]);
 				if (commands.has(e.commandId) && editor.hasTextFocus()) {
-					this.handleUserInput();
+					this.handleUserInput(InlineCompletionTriggerKind.Explicit);
 				}
 			})
 		);
 
 		this._register(
 			this.editor.onDidType((e) => {
-				this.handleUserInput();
+				this.handleUserInput(InlineCompletionTriggerKind.Automatic);
 			})
 		);
 
@@ -109,7 +109,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		);
 	}
 
-	private handleUserInput() {
+	private handleUserInput(triggerKind: InlineCompletionTriggerKind) {
 		if (this.session && !this.session.isValid) {
 			this.hide();
 		}
@@ -118,7 +118,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 				return;
 			}
 			// Wait for the cursor update that happens in the same iteration loop iteration
-			this.startSessionIfTriggered();
+			this.startSessionIfTriggered(triggerKind);
 		}, 0);
 	}
 
@@ -149,7 +149,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		}
 	}
 
-	private startSessionIfTriggered(): void {
+	private startSessionIfTriggered(triggerKind: InlineCompletionTriggerKind): void {
 		const suggestOptions = this.editor.getOption(EditorOption.inlineSuggest);
 		if (!suggestOptions.enabled) {
 			return;
@@ -159,7 +159,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 			return;
 		}
 
-		this.trigger(InlineCompletionTriggerKind.Automatic);
+		this.trigger(triggerKind);
 	}
 
 	public trigger(triggerKind: InlineCompletionTriggerKind): void {
