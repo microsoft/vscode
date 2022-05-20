@@ -24,8 +24,8 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 
 	_serviceBrand = undefined;
 
-	private serverConfiguration = this.productService['sessionSync.store']!;
-	private storeClient: UserDataSyncStoreClient;
+	private serverConfiguration = this.productService['sessionSync.store'];
+	private storeClient: UserDataSyncStoreClient | undefined;
 
 	#authenticationInfo: { sessionId: string; token: string; providerId: string } | undefined;
 
@@ -41,8 +41,6 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 		@IRequestService private readonly requestService: IRequestService,
 	) {
 		super();
-
-		this.storeClient = new UserDataSyncStoreClient(URI.parse(this.serverConfiguration.url), this.productService, this.requestService, this.logService, this.environmentService, this.fileService, this.storageService);
 	}
 
 	async write(editSession: EditSession): Promise<void> {
@@ -51,7 +49,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 			throw new Error('Unable to store edit session.');
 		}
 
-		await this.storeClient.write('editSessions', JSON.stringify(editSession), null);
+		await this.storeClient?.write('editSessions', JSON.stringify(editSession), null);
 	}
 
 	async read(): Promise<EditSession | undefined> {
@@ -79,6 +77,14 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	private async waitAndInitialize(): Promise<boolean> {
 		// Wait for authentication extensions to be registered
 		await this.extensionService.whenInstalledExtensionsRegistered();
+
+		if (!this.serverConfiguration?.url) {
+			throw new Error('Unable to initialize sessions sync as session sync preference is not configured in product.json.');
+		}
+
+		if (!this.storeClient) {
+			this.storeClient = new UserDataSyncStoreClient(URI.parse(this.serverConfiguration.url), this.productService, this.requestService, this.logService, this.environmentService, this.fileService, this.storageService);
+		}
 
 		// If we already have an existing auth session, use that
 		if (this.#authenticationInfo !== undefined) {
@@ -126,9 +132,14 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	}
 
 	private async getAuthenticationProviders() {
+		if (!this.serverConfiguration) {
+			throw new Error('Unable to get configured authentication providers as session sync preference is not configured in product.json.');
+		}
+
 		// Get the list of authentication providers configured in product.json
-		const configuredAuthenticationProviders = Object.keys(this.serverConfiguration.authenticationProviders).reduce<IAuthenticationProvider[]>((result, id) => {
-			result.push({ id, scopes: this.serverConfiguration.authenticationProviders[id].scopes });
+		const authenticationProviders = this.serverConfiguration.authenticationProviders;
+		const configuredAuthenticationProviders = Object.keys(authenticationProviders).reduce<IAuthenticationProvider[]>((result, id) => {
+			result.push({ id, scopes: authenticationProviders[id].scopes });
 			return result;
 		}, []);
 
