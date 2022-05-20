@@ -58,7 +58,6 @@ import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm } from 'vs/workbench/contrib/files/browser/fileImportExport';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
-import { ISearchService, QueryType } from 'vs/workbench/services/search/common/search';
 import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
 import { TernarySearchTree } from 'vs/base/common/map';
 
@@ -608,8 +607,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private editorsAffectingFilter = new Set<EditorInput>();
 	private _onDidChange = new Emitter<void>();
 	private toDispose: IDisposable[] = [];
-	// List of ignoreFiles. Used to detect changes to the ignoreFiles.
-	private ignoreFileResources: URI[] = [];
+	// List of ignoreFile resources. Used to detect changes to the ignoreFiles.
+	private ignoreFileResources: Map<String, URI> = new Map<String, URI>();
 	// Ignore tree
 	private gitIgnoreEntries: TernarySearchTree<URI, IgnoreFile> = TernarySearchTree.forUris((uri) => this.uriIdentityService.extUri.ignorePathCasing(uri));
 
@@ -619,7 +618,6 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ISearchService private readonly searchService: ISearchService,
 		@IFileService private readonly fileService: IFileService
 	) {
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration()));
@@ -628,22 +626,22 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 				this.updateConfiguration();
 			}
 		}));
-		this.updateWorkspaceIgnoreFiles();
 		this.toDispose.push(this.fileService.onDidFilesChange(e => {
 			// Check to see if the update contains any of the ignoreFileResources
-			this.ignoreFileResources.forEach(r => {
-				if (e.contains(r, FileChangeType.DELETED, FileChangeType.UPDATED)) {
-					this.updateWorkspaceIgnoreFiles();
-					return;
+			this.ignoreFileResources.forEach(async r => {
+				if (e.contains(r, FileChangeType.UPDATED)) {
+					await this.processIgnoreFile(r, true);
 				}
-				// TODO @lramos15 ask for a better way to check if a .ignore file was added
+				if (e.contains(r, FileChangeType.DELETED)) {
+					this.gitIgnoreEntries.delete(r);
+					this.ignoreFileResources.delete(r.toString());
+				}
 				if (e.gotAdded()) {
+					// No better way at the moment exists for tracking adds of unknown files
 					const added = e.rawAdded;
 					const ignoreFiles = added.filter(r => r.path.endsWith('.gitignore'));
-					if (ignoreFiles.length) {
-						this.updateWorkspaceIgnoreFiles();
-						return;
-					}
+					// Add the newly added ignore files to the ignore tree
+					ignoreFiles.forEach(async r => await this.processIgnoreFile(r, false));
 				}
 			});
 		}));
@@ -706,31 +704,38 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		}
 	}
 
-	private async updateWorkspaceIgnoreFiles() {
-		// Clear out old entries and watchers to repopulate with new ones
-		this.gitIgnoreEntries.clear();
-		this.ignoreFileResources = [];
+	/**
+	 * Given a .gitignore file resource, processes the resource and adds it to the ignore tree which hides explorer items
+	 * @param ignoreFileResource The resource of the .gitignore file
+	 * @param update Whether or not we're updating an existing ignore file. If true it deletes the old entry
+	 */
+	private async processIgnoreFile(ignoreFileResource: URI, update?: boolean) {
+		// Get the name of the directory which the ignore file is in
+		const dirUri = dirname(ignoreFileResource);
 
-		for (const folder of this.contextService.getWorkspace().folders) {
-			const folderQuery = { folder: folder.uri };
-			let searchResults = (await this.searchService.fileSearch({ type: QueryType.File, folderQueries: [folderQuery], includePattern: { '**/.gitignore': true }, })).results;
-			// Sort the result by path length. This ensures that the root most .gitignore is read first
-			searchResults.sort((a, b) => a.resource.path.length - b.resource.path.length);
-			for (const result of searchResults) {
-				// Maybe we need a cancellation token here in case it's super long?
-				const content = await this.fileService.readFile(result.resource);
-				// Get the result.resource.path and strip .gitignore from the end to get the dir path
-				const dirUri = dirname(result.resource);
-				const ignoreParent = this.gitIgnoreEntries.findSubstr(dirUri);
-				const ignoreFile = new IgnoreFile(content.value.toString(), dirUri.path + path.sep, ignoreParent);
-				this.gitIgnoreEntries.set(dirUri, ignoreFile);
-				this.ignoreFileResources.push(result.resource);
-			}
+		// If it's an update we remove the stale ignore file as we will be adding a new one
+		if (update) {
+			this.gitIgnoreEntries.delete(dirUri);
 		}
+		// Maybe we need a cancellation token here in case it's super long?
+		const content = await this.fileService.readFile(ignoreFileResource);
+		const ignoreParent = this.gitIgnoreEntries.findSubstr(dirUri);
+		const ignoreFile = new IgnoreFile(content.value.toString(), dirUri.path + path.sep, ignoreParent);
+		this.gitIgnoreEntries.set(dirUri, ignoreFile);
+		// If we haven't seen this resource before then we need to add it to the list of resources we're tracking
+		if (!this.ignoreFileResources.has(ignoreFileResource.toString())) {
+			this.ignoreFileResources.set(ignoreFileResource.toString(), ignoreFileResource);
+		}
+		// Notify the explorer of the change so we may ignore these files
 		this._onDidChange.fire();
 	}
 
 	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
+		// Add newly visited .gitignore files to the ignore tree
+		if (stat.name === '.gitignore' && !this.ignoreFileResources.has(stat.resource.toString())) {
+			this.processIgnoreFile(stat.resource, false);
+		}
+
 		return this.isVisible(stat, parentVisibility);
 	}
 
