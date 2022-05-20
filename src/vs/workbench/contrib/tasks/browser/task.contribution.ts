@@ -20,7 +20,7 @@ import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatus
 
 import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/services/output/common/output';
 
-import { TaskEvent, TaskEventKind, TaskGroup, TASKS_CATEGORY, TASK_RUNNING_STATE } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ITaskEvent, TaskEventKind, TaskGroup, TASKS_CATEGORY, TASK_RUNNING_STATE } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, ProcessExecutionSupportedContext, ShellExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -146,7 +146,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 		}
 	}
 
-	private ignoreEventForUpdateRunningTasksCount(event: TaskEvent): boolean {
+	private ignoreEventForUpdateRunningTasksCount(event: ITaskEvent): boolean {
 		if (!this.taskService.inTerminal()) {
 			return false;
 		}
@@ -377,7 +377,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: TasksQuickAccessProvider.PREFIX,
 	contextKey: tasksPickerContextKey,
 	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type the name of a task to run."),
-	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Run Task"), needsEditor: false }]
+	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Run Task") }]
 });
 
 // tasks.json validation

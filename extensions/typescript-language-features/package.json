@@ -301,6 +301,12 @@
           "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
           "scope": "resource"
         },
+        "typescript.inlayHints.variableTypes.suppressWhenTypeMatchesName": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName%",
+          "scope": "resource"
+        },
         "typescript.inlayHints.propertyDeclarationTypes.enabled": {
           "type": "boolean",
           "default": false,
@@ -351,6 +357,12 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
+          "scope": "resource"
+        },
+        "javascript.inlayHints.variableTypes.suppressWhenTypeMatchesName": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName%",
           "scope": "resource"
         },
         "javascript.inlayHints.propertyDeclarationTypes.enabled": {
@@ -705,7 +717,7 @@
         },
         "js/ts.implicitProjectConfig.strictNullChecks": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "%configuration.implicitProjectConfig.strictNullChecks%",
           "scope": "window"
         },
@@ -1091,7 +1103,10 @@
           "type": "boolean",
           "default": false,
           "description": "%configuration.tsserver.experimental.enableProjectDiagnostics%",
-          "scope": "window"
+          "scope": "window",
+          "tags": [
+            "experimental"
+          ]
         },
         "typescript.tsserver.watchOptions": {
           "type": "object",

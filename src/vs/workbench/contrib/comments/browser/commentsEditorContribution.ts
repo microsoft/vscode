@@ -241,8 +241,10 @@ class CommentingRangeDecorator {
 			});
 		}
 
-		this.decorationIds = editor.deltaDecorations(this.decorationIds, commentingRangeDecorations);
-		commentingRangeDecorations.forEach((decoration, index) => decoration.id = this.decorationIds[index]);
+		editor.changeDecorations((accessor) => {
+			this.decorationIds = accessor.deltaDecorations(this.decorationIds, commentingRangeDecorations);
+			commentingRangeDecorations.forEach((decoration, index) => decoration.id = this.decorationIds[index]);
+		});
 
 		const rangesDifference = this.commentingRangeDecorations.length - commentingRangeDecorations.length;
 		this.commentingRangeDecorations = commentingRangeDecorations;
@@ -870,7 +872,16 @@ export class CommentController implements IEditorContribution {
 				let pendingComment = zone.getPendingComment();
 				let providerCacheStore = this._pendingCommentCache[zone.owner];
 
-				if (pendingComment) {
+				let lastCommentBody;
+				if (zone.commentThread.comments && zone.commentThread.comments.length) {
+					const lastComment = zone.commentThread.comments[zone.commentThread.comments.length - 1];
+					if (typeof lastComment.body === 'string') {
+						lastCommentBody = lastComment.body;
+					} else {
+						lastCommentBody = lastComment.body.value;
+					}
+				}
+				if (pendingComment && (pendingComment !== lastCommentBody)) {
 					if (!providerCacheStore) {
 						this._pendingCommentCache[zone.owner] = {};
 					}

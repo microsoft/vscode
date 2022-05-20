@@ -14,7 +14,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZo
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 
@@ -108,15 +108,13 @@ class Arrow {
 	private static readonly _IdGenerator = new IdGenerator('.arrow-decoration-');
 
 	private readonly _ruleName = Arrow._IdGenerator.nextId();
-	private _decorations: string[] = [];
+	private readonly _decorations = this._editor.createDecorationsCollection();
 	private _color: string | null = null;
 	private _height: number = -1;
 
 	constructor(
 		private readonly _editor: ICodeEditor
-	) {
-		//
-	}
+	) { }
 
 	dispose(): void {
 		this.hide();
@@ -152,14 +150,18 @@ class Arrow {
 			where = { lineNumber: where.lineNumber, column: 2 };
 		}
 
-		this._decorations = this._editor.deltaDecorations(
-			this._decorations,
-			[{ range: Range.fromPositions(where), options: { description: 'zone-widget-arrow', className: this._ruleName, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } }]
-		);
+		this._decorations.set([{
+			range: Range.fromPositions(where),
+			options: {
+				description: 'zone-widget-arrow',
+				className: this._ruleName,
+				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+			}
+		}]);
 	}
 
 	hide(): void {
-		this._editor.deltaDecorations(this._decorations, []);
+		this._decorations.clear();
 	}
 }
 
@@ -168,7 +170,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 	private _arrow: Arrow | null = null;
 	private _overlayWidget: OverlayWidgetDelegate | null = null;
 	private _resizeSash: Sash | null = null;
-	private _positionMarkerId: string[] = [];
+	private readonly _positionMarkerId: IEditorDecorationsCollection;
 
 	protected _viewZone: ViewZoneDelegate | null = null;
 	protected readonly _disposables = new DisposableStore();
@@ -181,6 +183,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 	constructor(editor: ICodeEditor, options: IOptions = {}) {
 		this.editor = editor;
+		this._positionMarkerId = this.editor.createDecorationsCollection();
 		this.options = objects.deepClone(options);
 		objects.mixin(this.options, defaultOptions, false);
 		this.domNode = document.createElement('div');
@@ -212,8 +215,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			});
 		}
 
-		this.editor.deltaDecorations(this._positionMarkerId, []);
-		this._positionMarkerId = [];
+		this._positionMarkerId.clear();
 
 		this._disposables.dispose();
 	}
@@ -291,17 +293,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 	}
 
 	get position(): Position | undefined {
-		const [id] = this._positionMarkerId;
-		if (!id) {
-			return undefined;
-		}
-
-		const model = this.editor.getModel();
-		if (!model) {
-			return undefined;
-		}
-
-		const range = model.getDecorationRange(id);
+		const range = this._positionMarkerId.getRange(0);
 		if (!range) {
 			return undefined;
 		}
@@ -315,7 +307,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this._isShowing = true;
 		this._showImpl(range, heightInLines);
 		this._isShowing = false;
-		this._positionMarkerId = this.editor.deltaDecorations(this._positionMarkerId, [{ range, options: ModelDecorationOptions.EMPTY }]);
+		this._positionMarkerId.set([{ range, options: ModelDecorationOptions.EMPTY }]);
 	}
 
 	hide(): void {

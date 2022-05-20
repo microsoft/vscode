@@ -38,10 +38,6 @@ exports.base = [
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',
-	},
-	{
-		name: 'vs/platform/extensions/node/extensionHostStarterWorker',
-		exclude: ['vs/base/common/worker/simpleWorker']
 	}
 ];
 

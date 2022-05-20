@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { ColorId, ITokenPresentation, TokenMetadata } from 'vs/editor/common/languages';
+import { ColorId, TokenMetadata, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
 
 /**
  * A token on a line.

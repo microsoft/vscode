@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Iterable } from 'vs/base/common/iterator';
+import { toDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
+
 export const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
 
 /**
@@ -71,13 +75,31 @@ export function ensureValidWordDefinition(wordDefinition?: RegExp | null): RegEx
 	return result;
 }
 
-const _defaultConfig = {
+
+export interface IGetWordAtTextConfig {
+	maxLen: number;
+	windowSize: number;
+	timeBudget: number;
+}
+
+
+const _defaultConfig = new LinkedList<IGetWordAtTextConfig>();
+_defaultConfig.unshift({
 	maxLen: 1000,
 	windowSize: 15,
 	timeBudget: 150
-};
+});
 
-export function getWordAtText(column: number, wordDefinition: RegExp, text: string, textOffset: number, config = _defaultConfig): IWordAtPosition | null {
+export function setDefaultGetWordAtTextConfig(value: IGetWordAtTextConfig) {
+	const rm = _defaultConfig.unshift(value);
+	return toDisposable(rm);
+}
+
+export function getWordAtText(column: number, wordDefinition: RegExp, text: string, textOffset: number, config?: IGetWordAtTextConfig): IWordAtPosition | null {
+
+	if (!config) {
+		config = Iterable.first(_defaultConfig)!;
+	}
 
 	if (text.length > config.maxLen) {
 		// don't throw strings that long at the regexp

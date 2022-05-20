@@ -577,5 +577,19 @@ suite('markdown: find all references', () => {
 				{ uri: docUri, line: 2 },
 			);
 		});
+
+		test('Should not consider checkboxes as reference links', async () => {
+			const docUri = workspacePath('doc.md');
+			const doc = new InMemoryDocument(docUri, joinLines(
+				`- [x]`,
+				`- [X]`,
+				`- [ ]`,
+				``,
+				`[x]: https://example.com`
+			));
+
+			const refs = await getReferences(doc, new vscode.Position(0, 4), new InMemoryWorkspaceMarkdownDocuments([doc]));
+			assert.strictEqual(refs?.length!, 0);
+		});
 	});
 });

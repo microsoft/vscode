@@ -14,7 +14,7 @@ export class TestColorTheme implements IColorTheme {
 	public readonly label = 'test';
 
 	constructor(
-		private colors: { [id: string]: string } = {},
+		private colors: { [id: string]: string | undefined } = {},
 		public type = ColorScheme.DARK,
 		public readonly semanticHighlighting = false
 	) { }

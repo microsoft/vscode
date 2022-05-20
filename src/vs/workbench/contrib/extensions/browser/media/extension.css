@@ -82,6 +82,10 @@
 	overflow: hidden;
 }
 
+.extension-list-item.deprecated > .details > .header-container > .header > .name {
+	text-decoration: line-through;
+}
+
 .extension-list-item > .details > .header-container > .header > .activation-status,
 .extension-list-item > .details > .header-container > .header > .install-count,
 .extension-list-item > .details > .header-container > .header > .ratings {
@@ -150,6 +154,10 @@
 .extension-list-item > .details > .description {
 	padding-right: 11px;
 	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-list-row.selected .extension-list-item > .details > .description{
+	color: unset;
 }
 
 .hc-black .extension-list-item > .details > .description,

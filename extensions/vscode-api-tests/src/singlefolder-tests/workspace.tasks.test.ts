@@ -147,7 +147,7 @@ import { assertNoRpc } from '../utils';
 		suite('CustomExecution', () => {
 			test('task should start and shutdown successfully', async () => {
 				window.terminals.forEach(terminal => terminal.dispose());
-				interface CustomTestingTaskDefinition extends TaskDefinition {
+				interface ICustomTestingTaskDefinition extends TaskDefinition {
 					/**
 					 * One of the task properties. This can be used to customize the task in the tasks.json
 					 */
@@ -179,7 +179,7 @@ import { assertNoRpc } from '../utils';
 					disposables.push(tasks.registerTaskProvider(taskType, {
 						provideTasks: () => {
 							const result: Task[] = [];
-							const kind: CustomTestingTaskDefinition = {
+							const kind: ICustomTestingTaskDefinition = {
 								type: taskType,
 								customProp1: 'testing task one'
 							};
@@ -235,7 +235,7 @@ import { assertNoRpc } from '../utils';
 			});
 
 			test('sync task should flush all data on close', async () => {
-				interface CustomTestingTaskDefinition extends TaskDefinition {
+				interface ICustomTestingTaskDefinition extends TaskDefinition {
 					/**
 					 * One of the task properties. This can be used to customize the task in the tasks.json
 					 */
@@ -250,7 +250,7 @@ import { assertNoRpc } from '../utils';
 					disposables.push(tasks.registerTaskProvider(taskType, {
 						provideTasks: () => {
 							const result: Task[] = [];
-							const kind: CustomTestingTaskDefinition = {
+							const kind: ICustomTestingTaskDefinition = {
 								type: taskType,
 								customProp1: 'testing task one'
 							};

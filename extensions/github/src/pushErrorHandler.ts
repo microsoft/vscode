@@ -102,12 +102,13 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 				let title = `Update ${remoteName}`;
 				const head = repository.state.HEAD?.name;
 
+				let body: string | undefined;
+
 				if (head) {
 					const commit = await repository.getCommit(head);
-					title = commit.message.replace(/\n.*$/m, '');
+					title = commit.message.split('\n')[0];
+					body = commit.message.slice(title.length + 1).trim();
 				}
-
-				let body: string | undefined;
 
 				const templates = await findPullRequestTemplates(repository.rootUri);
 				if (templates.length > 0) {
@@ -219,7 +220,7 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 			return false;
 		}
 
-		const match = /^(?:https:\/\/github\.com\/|git@github\.com:)([^/]+)\/([^/.]+)(?:\.git)?$/i.exec(remoteUrl);
+		const match = /^(?:https:\/\/github\.com\/|git@github\.com:)([^\/]+)\/([^\/.]+)/i.exec(remoteUrl);
 		if (!match) {
 			return false;
 		}

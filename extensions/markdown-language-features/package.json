@@ -16,7 +16,8 @@
     "Programming Languages"
   ],
   "enabledApiProposals": [
-    "textEditorDrop"
+    "textEditorDrop",
+    "documentPaste"
   ],
   "activationEvents": [
     "onLanguage:markdown",
@@ -414,43 +415,75 @@
           "markdownDescription": "%configuration.markdown.editor.drop.enabled%",
           "scope": "resource"
         },
+        "markdown.experimental.editor.pasteLinks.enabled": {
+          "type": "boolean",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.editor.pasteLinks.enabled%",
+          "default": false,
+          "tags": [
+            "experimental"
+          ]
+        },
         "markdown.experimental.validate.enabled": {
           "type": "boolean",
           "scope": "resource",
           "description": "%configuration.markdown.experimental.validate.enabled.description%",
-          "default": false
-        },
-        "markdown.experimental.validate.referenceLinks": {
-          "type": "string",
-          "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.referenceLinks.description%",
-          "default": "warning",
-          "enum": [
-            "ignore",
-            "warning",
-            "error"
+          "default": false,
+          "tags": [
+            "experimental"
           ]
         },
-        "markdown.experimental.validate.headerLinks": {
+        "markdown.experimental.validate.referenceLinks.enabled": {
           "type": "string",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.headerLinks.description%",
+          "markdownDescription": "%configuration.markdown.experimental.validate.referenceLinks.enabled.description%",
           "default": "warning",
           "enum": [
             "ignore",
             "warning",
             "error"
+          ],
+          "tags": [
+            "experimental"
           ]
         },
-        "markdown.experimental.validate.fileLinks": {
+        "markdown.experimental.validate.headerLinks.enabled": {
           "type": "string",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.fileLinks.description%",
+          "markdownDescription": "%configuration.markdown.experimental.validate.headerLinks.enabled.description%",
           "default": "warning",
           "enum": [
             "ignore",
             "warning",
             "error"
+          ],
+          "tags": [
+            "experimental"
+          ]
+        },
+        "markdown.experimental.validate.fileLinks.enabled": {
+          "type": "string",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.experimental.validate.fileLinks.enabled.description%",
+          "default": "warning",
+          "enum": [
+            "ignore",
+            "warning",
+            "error"
+          ],
+          "tags": [
+            "experimental"
+          ]
+        },
+        "markdown.experimental.validate.ignoreLinks": {
+          "type": "array",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.experimental.validate.ignoreLinks.description%",
+          "items": {
+            "type": "string"
+          },
+          "tags": [
+            "experimental"
           ]
         }
       }
@@ -504,6 +537,7 @@
     "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.1",
     "morphdom": "^2.6.1",
+    "picomatch": "^2.3.1",
     "vscode-languageserver-textdocument": "^1.0.4",
     "vscode-nls": "^5.0.0",
     "vscode-uri": "^3.0.3"
@@ -512,6 +546,7 @@
     "@types/dompurify": "^2.3.1",
     "@types/lodash.throttle": "^4.1.3",
     "@types/markdown-it": "12.2.3",
+    "@types/picomatch": "^2.3.0",
     "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",
     "lodash.throttle": "^4.1.1"

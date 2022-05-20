@@ -577,6 +577,24 @@ export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePositi
 	};
 }
 
+/**
+ * Returns the effective zoom on a given element before window zoom level is applied
+ */
+export function getDomNodeZoomLevel(domNode: HTMLElement): number {
+	let testElement: HTMLElement | null = domNode;
+	let zoom = 1.0;
+	do {
+		const elementZoomLevel = (getComputedStyle(testElement) as any).zoom;
+		if (elementZoomLevel !== null && elementZoomLevel !== undefined && elementZoomLevel !== '1') {
+			zoom *= elementZoomLevel;
+		}
+
+		testElement = testElement.parentElement;
+	} while (testElement !== null && testElement !== document.documentElement);
+
+	return zoom;
+}
+
 export interface IStandardWindow {
 	readonly scrollX: number;
 	readonly scrollY: number;
@@ -1684,8 +1702,7 @@ export interface IDragAndDropObserverCallbacks {
 	readonly onDragLeave: (e: DragEvent) => void;
 	readonly onDrop: (e: DragEvent) => void;
 	readonly onDragEnd: (e: DragEvent) => void;
-
-	readonly onDragOver?: (e: DragEvent) => void;
+	readonly onDragOver?: (e: DragEvent, dragDuration: number) => void;
 }
 
 export class DragAndDropObserver extends Disposable {
@@ -1696,6 +1713,9 @@ export class DragAndDropObserver extends Disposable {
 	// repeadedly.
 	private counter: number = 0;
 
+	// Allows to measure the duration of the drag operation.
+	private dragStartTime = 0;
+
 	constructor(private readonly element: HTMLElement, private readonly callbacks: IDragAndDropObserverCallbacks) {
 		super();
 
@@ -1705,6 +1725,7 @@ export class DragAndDropObserver extends Disposable {
 	private registerListeners(): void {
 		this._register(addDisposableListener(this.element, EventType.DRAG_ENTER, (e: DragEvent) => {
 			this.counter++;
+			this.dragStartTime = e.timeStamp;
 
 			this.callbacks.onDragEnter(e);
 		}));
@@ -1713,7 +1734,7 @@ export class DragAndDropObserver extends Disposable {
 			e.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
 
 			if (this.callbacks.onDragOver) {
-				this.callbacks.onDragOver(e);
+				this.callbacks.onDragOver(e, e.timeStamp - this.dragStartTime);
 			}
 		}));
 
@@ -1721,17 +1742,23 @@ export class DragAndDropObserver extends Disposable {
 			this.counter--;
 
 			if (this.counter === 0) {
+				this.dragStartTime = 0;
+
 				this.callbacks.onDragLeave(e);
 			}
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.DRAG_END, (e: DragEvent) => {
 			this.counter = 0;
+			this.dragStartTime = 0;
+
 			this.callbacks.onDragEnd(e);
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.DROP, (e: DragEvent) => {
 			this.counter = 0;
+			this.dragStartTime = 0;
+
 			this.callbacks.onDrop(e);
 		}));
 	}

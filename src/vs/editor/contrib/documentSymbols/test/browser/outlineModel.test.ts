@@ -77,9 +77,9 @@ suite('OutlineModel', function () {
 		});
 
 		assert.strictEqual(isCancelled, false);
-		let s1 = new CancellationTokenSource();
+		const s1 = new CancellationTokenSource();
 		service.getOrCreate(model, s1.token);
-		let s2 = new CancellationTokenSource();
+		const s2 = new CancellationTokenSource();
 		service.getOrCreate(model, s2.token);
 
 		s1.cancel();

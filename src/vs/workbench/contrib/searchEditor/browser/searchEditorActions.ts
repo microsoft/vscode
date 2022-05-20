@@ -139,7 +139,7 @@ export const openNewSearchEditor =
 			}
 		}
 
-		telemetryService.publicLog2('searchEditor/openNewSearchEditor');
+		telemetryService.publicLog2<{}, { owner: 'roblourens' }>('searchEditor/openNewSearchEditor');
 
 		const seedSearchStringFromSelection = _args.location === 'new' || configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
 		const args: OpenSearchEditorArgs = { query: seedSearchStringFromSelection ? selected : undefined };
@@ -189,7 +189,7 @@ export const createEditorFromSearchResult =
 		const sortOrder = configurationService.getValue<ISearchConfigurationProperties>('search').sortOrder;
 
 
-		telemetryService.publicLog2('searchEditor/createEditorFromSearchResult');
+		telemetryService.publicLog2<{}, { owner: 'roblourens' }>('searchEditor/createEditorFromSearchResult');
 
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
 

@@ -615,7 +615,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	}
 
 	public show(initialInput?: string, options?: { focus?: boolean }): void {
-		if (initialInput && !this._isVisible) {
+		if (initialInput) {
 			this._findInput.setValue(initialInput);
 		}
 
@@ -632,11 +632,11 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	}
 
 	public showWithReplace(initialInput?: string, replaceInput?: string): void {
-		if (initialInput && !this._isVisible) {
+		if (initialInput) {
 			this._findInput.setValue(initialInput);
 		}
 
-		if (replaceInput && !this._isVisible) {
+		if (replaceInput) {
 			this._replaceInput.setValue(replaceInput);
 		}
 

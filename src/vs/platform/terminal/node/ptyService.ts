@@ -742,7 +742,7 @@ class XtermSerializer implements ITerminalSerializer {
 			this._xterm.writeln(reviveBuffer);
 		}
 		this.setUnicodeVersion(unicodeVersion);
-		this._shellIntegrationAddon = new ShellIntegrationAddon(logService);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(true, undefined, logService);
 		this._xterm.loadAddon(this._shellIntegrationAddon);
 	}
 
@@ -766,8 +766,8 @@ class XtermSerializer implements ITerminalSerializer {
 		return {
 			events: [
 				{
-					cols: this._xterm.getOption('cols'),
-					rows: this._xterm.getOption('rows'),
+					cols: this._xterm.cols,
+					rows: this._xterm.rows,
 					data: serialized
 				}
 			],

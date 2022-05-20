@@ -424,6 +424,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private _logExtensionActivationTimes(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason, outcome: string, activationTimes?: ExtensionActivationTimes) {
 		const event = getTelemetryActivationEvent(extensionDescription, reason);
 		type ExtensionActivationTimesClassification = {
+			owner: 'jrieken';
 			outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		} & TelemetryActivationEventFragment & ExtensionActivationTimesFragment;
 
@@ -447,7 +448,9 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	private _doActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
 		const event = getTelemetryActivationEvent(extensionDescription, reason);
-		type ActivatePluginClassification = {} & TelemetryActivationEventFragment;
+		type ActivatePluginClassification = {
+			owner: 'jrieken';
+		} & TelemetryActivationEventFragment;
 		this._mainThreadTelemetryProxy.$publicLog2<TelemetryActivationEvent, ActivatePluginClassification>('activatePlugin', event);
 		const entryPoint = this._getEntryPoint(extensionDescription);
 		if (!entryPoint) {

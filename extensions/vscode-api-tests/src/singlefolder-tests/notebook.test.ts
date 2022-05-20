@@ -18,7 +18,7 @@ async function openRandomNotebookDocument() {
 	return vscode.workspace.openNotebookDocument(uri);
 }
 
-async function saveAllFilesAndCloseAll() {
+export async function saveAllFilesAndCloseAll() {
 	await saveAllEditors();
 	await closeAllEditors();
 }
@@ -29,14 +29,20 @@ async function withEvent<T>(event: vscode.Event<T>, callback: (e: Promise<T>) =>
 }
 
 
-class Kernel {
+function sleep(ms: number): Promise<void> {
+	return new Promise(resolve => {
+		setTimeout(resolve, ms);
+	});
+}
+
+export class Kernel {
 
 	readonly controller: vscode.NotebookController;
 
 	readonly associatedNotebooks = new Set<string>();
 
-	constructor(id: string, label: string) {
-		this.controller = vscode.notebooks.createNotebookController(id, 'notebookCoreTest', label);
+	constructor(id: string, label: string, viewType: string = 'notebookCoreTest') {
+		this.controller = vscode.notebooks.createNotebookController(id, viewType, label);
 		this.controller.executeHandler = this._execute.bind(this);
 		this.controller.supportsExecutionOrder = true;
 		this.controller.supportedLanguages = ['typescript', 'javascript'];
@@ -59,8 +65,9 @@ class Kernel {
 		// create a single output with exec order 1 and output is plain/text
 		// of either the cell itself or (iff empty) the cell's document's uri
 		const task = this.controller.createNotebookCellExecution(cell);
-		task.start();
+		task.start(Date.now());
 		task.executionOrder = 1;
+		await sleep(10); // Force to be take some time
 		await task.replaceOutput([new vscode.NotebookCellOutput([
 			vscode.NotebookCellOutputItem.text(cell.document.getText() || cell.document.uri.toString(), 'text/plain')
 		])]);
@@ -256,14 +263,25 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		const editor = await vscode.window.showNotebookDocument(notebook);
 
 		const notebookChangeEvent = asPromise<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument);
-		const version = editor.document.version;
-		await editor.edit(editBuilder => {
-			editBuilder.replaceCells(1, 0, [{ kind: vscode.NotebookCellKind.Code, languageId: 'javascript', value: 'test 2', outputs: [], metadata: undefined }]);
-			editBuilder.replaceCellMetadata(0, { inputCollapsed: false });
-		});
-
+		const version = editor.notebook.version;
+		const edit = new vscode.WorkspaceEdit();
+		const cellEdit = vscode.NotebookEdit.replaceCells(new vscode.NotebookRange(1, 0), [{ kind: vscode.NotebookCellKind.Code, languageId: 'javascript', value: 'test 2', outputs: [], metadata: undefined }]);
+		const metdataEdit = vscode.NotebookEdit.updateNotebookMetadata({ ...notebook.metadata, custom: { ...(notebook.metadata.custom || {}), extraNotebookMetadata: true } });
+		edit.set(notebook.uri, [cellEdit, metdataEdit]);
+		await vscode.workspace.applyEdit(edit);
 		await notebookChangeEvent;
-		assert.strictEqual(version + 1, editor.document.version);
+
+		const notebookChangeEvent2 = asPromise<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument);
+		const edit2 = new vscode.WorkspaceEdit();
+		const cellMetadataEdit = vscode.NotebookEdit.updateCellMetadata(0, { extraCellMetadata: true });
+		edit2.set(notebook.uri, [cellMetadataEdit]);
+		await vscode.workspace.applyEdit(edit2);
+		await notebookChangeEvent2;
+
+		assert.strictEqual(version + 2, editor.notebook.version);
+		const cell = editor.notebook.cellAt(0);
+		assert.ok(editor.notebook.metadata.custom.extraNotebookMetadata, `Test metadata not found`);
+		assert.ok(cell.metadata.extraCellMetadata, `Test cell metdata not found`);
 	});
 
 	test('edit API batch edits undo/redo', async function () {
