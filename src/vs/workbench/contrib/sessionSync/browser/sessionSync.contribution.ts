@@ -17,8 +17,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { URI } from 'vs/base/common/uri';
 import { joinPath, relativePath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-
-/* eslint-disable code-no-unexternalized-strings */
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 const SYNC_TITLE = localize('session sync', 'Edit Sessions');
 const applyLatestCommand = {
@@ -32,16 +32,36 @@ const storeLatestCommand = {
 
 class SessionSyncContribution extends Disposable implements IWorkbenchContribution {
 
+	private registered = false;
+
 	constructor(
 		@ISessionSyncWorkbenchService private readonly sessionSyncWorkbenchService: ISessionSyncWorkbenchService,
 		@IFileService private readonly fileService: IFileService,
+		@IProgressService private readonly progressService: IProgressService,
 		@ISCMService private readonly scmService: ISCMService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 	) {
 		super();
 
+		this.configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('workbench.experimental.sessionSync.enabled')) {
+				this.registerActions();
+			}
+		});
+
+		this.registerActions();
+	}
+
+	private registerActions() {
+		if (this.registered || this.configurationService.getValue('workbench.experimental.sessionSync.enabled') === false) {
+			return;
+		}
+
 		this.registerApplyEditSessionAction();
 		this.registerStoreEditSessionAction();
+
+		this.registered = true;
 	}
 
 	private registerApplyEditSessionAction(): void {
@@ -58,26 +78,31 @@ class SessionSyncContribution extends Disposable implements IWorkbenchContributi
 			}
 
 			async run(accessor: ServicesAccessor): Promise<void> {
-				const editSession = await that.sessionSyncWorkbenchService.read();
-				if (!editSession) {
-					return;
-				}
-
-				for (const folder of editSession.folders) {
-					const folderRoot = that.contextService.getWorkspace().folders.find((f) => f.name === folder.name);
-					if (!folderRoot) {
+				await that.progressService.withProgress({
+					location: ProgressLocation.Notification,
+					title: localize('applying edit session', 'Applying edit session...')
+				}, async () => {
+					const editSession = await that.sessionSyncWorkbenchService.read();
+					if (!editSession) {
 						return;
 					}
 
-					for (const { relativeFilePath, contents, type } of folder.workingChanges) {
-						const uri = joinPath(folderRoot.uri, relativeFilePath);
-						if (type === ChangeType.Addition) {
-							await that.fileService.writeFile(uri, VSBuffer.fromString(contents));
-						} else if (type === ChangeType.Deletion && await that.fileService.exists(uri)) {
-							await that.fileService.del(uri);
+					for (const folder of editSession.folders) {
+						const folderRoot = that.contextService.getWorkspace().folders.find((f) => f.name === folder.name);
+						if (!folderRoot) {
+							return;
+						}
+
+						for (const { relativeFilePath, contents, type } of folder.workingChanges) {
+							const uri = joinPath(folderRoot.uri, relativeFilePath);
+							if (type === ChangeType.Addition) {
+								await that.fileService.writeFile(uri, VSBuffer.fromString(contents));
+							} else if (type === ChangeType.Deletion && await that.fileService.exists(uri)) {
+								await that.fileService.del(uri);
+							}
 						}
 					}
-				}
+				});
 			}
 		}));
 	}
@@ -96,41 +121,46 @@ class SessionSyncContribution extends Disposable implements IWorkbenchContributi
 			}
 
 			async run(accessor: ServicesAccessor): Promise<void> {
-				const folders: Folder[] = [];
+				await that.progressService.withProgress({
+					location: ProgressLocation.Notification,
+					title: localize('storing edit session', 'Storing edit session...')
+				}, async () => {
+					const folders: Folder[] = [];
 
-				for (const repository of that.scmService.repositories) {
-					// Look through all resource groups and compute which files were added/modified/deleted
-					const trackedUris = repository.provider.groups.elements.reduce((resources, resourceGroups) => {
-						resourceGroups.elements.map((resource) => resources.add(resource.sourceUri));
-						return resources;
-					}, new Set<URI>()); // A URI might appear in more than one resource group
+					for (const repository of that.scmService.repositories) {
+						// Look through all resource groups and compute which files were added/modified/deleted
+						const trackedUris = repository.provider.groups.elements.reduce((resources, resourceGroups) => {
+							resourceGroups.elements.map((resource) => resources.add(resource.sourceUri));
+							return resources;
+						}, new Set<URI>()); // A URI might appear in more than one resource group
 
-					const workingChanges: Change[] = [];
-					let name = repository.provider.rootUri ? that.contextService.getWorkspaceFolder(repository.provider.rootUri)?.name : undefined;
+						const workingChanges: Change[] = [];
+						let name = repository.provider.rootUri ? that.contextService.getWorkspaceFolder(repository.provider.rootUri)?.name : undefined;
 
-					for (const uri of trackedUris) {
-						const workspaceFolder = that.contextService.getWorkspaceFolder(uri);
-						if (!workspaceFolder) {
-							continue;
+						for (const uri of trackedUris) {
+							const workspaceFolder = that.contextService.getWorkspaceFolder(uri);
+							if (!workspaceFolder) {
+								continue;
+							}
+
+							name = name ?? workspaceFolder.name;
+							const relativeFilePath = relativePath(workspaceFolder.uri, uri) ?? uri.path;
+
+							if (await that.fileService.exists(uri)) {
+								workingChanges.push({ type: ChangeType.Addition, contents: (await that.fileService.readFile(uri)).value.toString(), relativeFilePath: relativeFilePath });
+							} else {
+								// Assume it's a deletion
+								workingChanges.push({ type: ChangeType.Deletion, contents: undefined, relativeFilePath: relativeFilePath });
+							}
 						}
 
-						name = name ?? workspaceFolder.name;
-						const relativeFilePath = relativePath(workspaceFolder.uri, uri) ?? uri.path;
-
-						if (await that.fileService.exists(uri)) {
-							workingChanges.push({ type: ChangeType.Addition, contents: (await that.fileService.readFile(uri)).value.toString(), relativeFilePath: relativeFilePath });
-						} else {
-							// Assume it's a deletion
-							workingChanges.push({ type: ChangeType.Deletion, contents: undefined, relativeFilePath: relativeFilePath });
-						}
+						folders.push({ workingChanges, name: name ?? '' });
 					}
 
-					folders.push({ workingChanges, name: name ?? '' });
-				}
+					const data: EditSession = { folders, version: 1 };
 
-				const data: EditSession = { folders, version: 1 };
-
-				await that.sessionSyncWorkbenchService.write(data);
+					await that.sessionSyncWorkbenchService.write(data);
+				});
 			}
 		}));
 	}
