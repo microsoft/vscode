@@ -166,12 +166,7 @@ export class ShowAllCommandsAction extends Action2 {
 				primary: !isFirefox ? (KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyP) : undefined,
 				secondary: [KeyCode.F1]
 			},
-			f1: true,
-			menu: {
-				id: MenuId.TitleMenuQuickPick,
-				group: '1/workspaceNav',
-				order: 3
-			}
+			f1: true
 		});
 	}
 

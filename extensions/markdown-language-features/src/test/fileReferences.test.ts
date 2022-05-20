@@ -9,11 +9,12 @@ import * as vscode from 'vscode';
 import { MdLinkProvider } from '../languageFeatures/documentLinkProvider';
 import { MdReference, MdReferencesProvider } from '../languageFeatures/references';
 import { githubSlugifier } from '../slugify';
+import { noopToken } from '../util/cancellation';
 import { InMemoryDocument } from '../util/inMemoryDocument';
 import { MdWorkspaceContents } from '../workspaceContents';
 import { createNewMarkdownEngine } from './engine';
 import { InMemoryWorkspaceMarkdownDocuments } from './inMemoryWorkspace';
-import { joinLines, noopToken, workspacePath } from './util';
+import { joinLines, workspacePath } from './util';
 
 
 function getFileReferences(resource: vscode.Uri, workspaceContents: MdWorkspaceContents) {

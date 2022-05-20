@@ -225,6 +225,7 @@ export class Debugger implements IDebugger {
 			const properties = attributes.properties;
 			properties['type'] = {
 				enum: [this.type],
+				enumDescriptions: [this.label],
 				description: nls.localize('debugType', "Type of configuration."),
 				pattern: '^(?!node2)',
 				deprecationMessage: this.enabled ? undefined : debuggerDisabledMessage(this.type),

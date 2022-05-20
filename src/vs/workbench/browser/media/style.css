@@ -135,50 +135,6 @@ body.web {
 	-webkit-app-region: no-drag;
 }
 
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical {
-	padding: .5em 0;
-}
-
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-menu-item {
-	height: 1.8em;
-}
-
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .keybinding {
-	font-size: inherit;
-	padding: 0 2em;
-}
-
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .menu-item-check {
-	font-size: inherit;
-	width: 2em;
-}
-
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-label.separator {
-	font-size: inherit;
-	padding: 0.2em 0 0 0;
-	margin-bottom: 0.2em;
-}
-
-.monaco-workbench.linux .monaco-menu .monaco-action-bar.vertical .action-label.separator {
-	margin-left: 0;
-	margin-right: 0;
-}
-
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
-	font-size: 60%;
-	padding: 0 1.8em;
-}
-
-.monaco-workbench.linux .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
-	height: 100%;
-	mask-size: 10px 10px;
-	-webkit-mask-size: 10px 10px;
-}
-
-.monaco-workbench .monaco-menu .action-item {
-	cursor: default;
-}
 
 .monaco-workbench .codicon[class*='codicon-'] {
 	font-size: 16px; /* sets font-size for codicons in workbench (https://github.com/microsoft/vscode/issues/98495) */

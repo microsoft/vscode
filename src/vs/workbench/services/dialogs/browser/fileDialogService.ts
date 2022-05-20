@@ -16,7 +16,7 @@ import { basename } from 'vs/base/common/resources';
 import { triggerDownload, triggerUpload } from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { extractFileListData } from 'vs/workbench/browser/dnd';
+import { extractFileListData } from 'vs/platform/dnd/browser/dnd';
 import { Iterable } from 'vs/base/common/iterator';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 

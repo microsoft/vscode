@@ -165,7 +165,13 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 		const extension = reviveWebviewExtension(extensionData);
 
-		const webview = this._webviewWorkbenchService.createWebview(handle, this.webviewPanelViewType.fromExternal(viewType), initData.title, mainThreadShowOptions, reviveWebviewOptions(initData.panelOptions), reviveWebviewContentOptions(initData.webviewOptions), extension);
+		const webview = this._webviewWorkbenchService.createWebview({
+			id: handle,
+			options: reviveWebviewOptions(initData.panelOptions),
+			contentOptions: reviveWebviewContentOptions(initData.webviewOptions),
+			extension
+		}, this.webviewPanelViewType.fromExternal(viewType), initData.title, mainThreadShowOptions);
+
 		this.addWebviewInput(handle, webview, { serializeBuffersForPostMessage: initData.serializeBuffersForPostMessage });
 
 		const payload = {

@@ -20,7 +20,7 @@ import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { extractEditorsDropData } from 'vs/workbench/browser/dnd';
+import { extractEditorsDropData } from 'vs/platform/dnd/browser/dnd';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { isWeb } from 'vs/base/common/platform';
 import { triggerDownload } from 'vs/base/browser/dom';

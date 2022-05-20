@@ -347,20 +347,20 @@ suite('Folding Model', () => {
 		let textModel = createTextModel(lines.join('\n'));
 		try {
 
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 
-			let ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
+			const ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
 			foldingModel.update(ranges);
 
-			let r1 = r(1, 2, false);
-			let r2 = r(3, 11, false);
-			let r3 = r(4, 10, false);
-			let r4 = r(5, 6, false);
-			let r5 = r(8, 9, false);
+			const r1 = r(1, 2, false);
+			const r2 = r(3, 11, false);
+			const r3 = r(4, 10, false);
+			const r4 = r(5, 6, false);
+			const r5 = r(8, 9, false);
 
-			let region1 = foldingModel.getRegionAtLine(r1.startLineNumber);
-			let region2 = foldingModel.getRegionAtLine(r2.startLineNumber);
-			let region3 = foldingModel.getRegionAtLine(r3.startLineNumber);
+			const region1 = foldingModel.getRegionAtLine(r1.startLineNumber);
+			const region2 = foldingModel.getRegionAtLine(r2.startLineNumber);
+			const region3 = foldingModel.getRegionAtLine(r3.startLineNumber);
 
 			assertRanges(foldingModel, [r1, r2, r3, r4, r5]);
 

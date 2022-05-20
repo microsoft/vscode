@@ -122,6 +122,7 @@ export interface ICommonCellInfo {
 
 export interface IFocusNotebookCellOptions {
 	readonly skipReveal?: boolean;
+	readonly focusEditorLine?: number;
 }
 
 //#endregion
@@ -441,12 +442,12 @@ export interface INotebookEditor {
 	 */
 	getLayoutInfo(): NotebookLayoutInfo;
 
-	getVisibleRangesPlusViewportBelow(): ICellRange[];
+	getVisibleRangesPlusViewportAboveAndBelow(): ICellRange[];
 
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
 	 */
-	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
+	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): Promise<void>;
 
 	/**
 	 * Execute the given notebook cells
@@ -704,7 +705,8 @@ export enum CellEditState {
 
 export enum CellFocusMode {
 	Container,
-	Editor
+	Editor,
+	Output
 }
 
 export enum CursorAtBoundary {

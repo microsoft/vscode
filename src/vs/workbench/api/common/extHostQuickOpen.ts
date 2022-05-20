@@ -17,7 +17,6 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { coalesce } from 'vs/base/common/arrays';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon as ThemeIconUtils } from 'vs/platform/theme/common/themeService';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export type Item = string | QuickPickItem;
 
@@ -147,7 +146,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		showInput(options?: InputBoxOptions, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
 
 			// global validate fn used in callback below
-			this._validateInput = options ? options.validateInput2 ?? options.validateInput : undefined;
+			this._validateInput = options?.validateInput;
 
 			return proxy.$input(options, typeof this._validateInput === 'function', token)
 				.then(undefined, err => {
@@ -698,10 +697,9 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		private _password = false;
 		private _prompt: string | undefined;
-		private _validationMessage: string | undefined;
-		private _validationMessage2: string | InputBoxValidationMessage | undefined;
+		private _validationMessage: string | InputBoxValidationMessage | undefined;
 
-		constructor(private readonly extension: IExtensionDescription, onDispose: () => void) {
+		constructor(extension: IExtensionDescription, onDispose: () => void) {
 			super(extension.identifier, onDispose);
 			this.update({ type: 'inputBox' });
 		}
@@ -728,18 +726,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			return this._validationMessage;
 		}
 
-		set validationMessage(validationMessage: string | undefined) {
+		set validationMessage(validationMessage: string | InputBoxValidationMessage | undefined) {
 			this._validationMessage = validationMessage;
-			this.update({ validationMessage, severity: validationMessage ? Severity.Error : Severity.Ignore });
-		}
-
-		get validationMessage2() {
-			return this._validationMessage2;
-		}
-
-		set validationMessage2(validationMessage: string | InputBoxValidationMessage | undefined) {
-			checkProposedApiEnabled(this.extension, 'inputBoxSeverity');
-			this._validationMessage2 = validationMessage;
 			if (!validationMessage) {
 				this.update({ validationMessage: undefined, severity: Severity.Ignore });
 			} else if (typeof validationMessage === 'string') {

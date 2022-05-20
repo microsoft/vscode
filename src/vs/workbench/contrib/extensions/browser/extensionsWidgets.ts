@@ -117,6 +117,7 @@ export class RatingsWidget extends ExtensionWidget {
 
 	render(): void {
 		this.container.innerText = '';
+		this.container.title = '';
 
 		if (!this.extension) {
 			return;
@@ -135,7 +136,7 @@ export class RatingsWidget extends ExtensionWidget {
 		}
 
 		const rating = Math.round(this.extension.rating * 2) / 2;
-
+		this.container.title = localize('ratedLabel', "Average rating: {0} out of 5", rating);
 		if (this.small) {
 			append(this.container, $('span' + ThemeIcon.asCSSSelector(starFullIcon)));
 
@@ -156,29 +157,6 @@ export class RatingsWidget extends ExtensionWidget {
 				ratingCountElemet.style.paddingLeft = '1px';
 			}
 		}
-	}
-}
-
-export class RunningPreReleaseVersionIndicatorWidget extends ExtensionWidget {
-
-	constructor(
-		private readonly container: HTMLElement,
-	) {
-		super();
-		container.classList.add('extension-pre-release');
-		this.render();
-	}
-
-	render(): void {
-		this.container.innerText = '';
-
-		if (!this.extension
-			|| this.extension.state !== ExtensionState.Installed
-			|| !this.extension.local?.isPreReleaseVersion) {
-			return;
-		}
-
-		append(this.container, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
 	}
 }
 
@@ -207,7 +185,7 @@ export class RecommendationWidget extends ExtensionWidget {
 
 	render(): void {
 		this.clear();
-		if (!this.extension || this.extension.state === ExtensionState.Installed) {
+		if (!this.extension || this.extension.state === ExtensionState.Installed || this.extension.deprecationInfo) {
 			return;
 		}
 		const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
@@ -252,7 +230,7 @@ export class PreReleaseBookmarkWidget extends ExtensionWidget {
 		if (!this.extension.hasPreReleaseVersion) {
 			return;
 		}
-		if (this.extension.state === ExtensionState.Installed && this.extension.local?.isPreReleaseVersion) {
+		if (this.extension.state === ExtensionState.Installed && !this.extension.local?.isPreReleaseVersion) {
 			return;
 		}
 		this.element = append(this.parent, $('div.extension-bookmark'));
@@ -569,6 +547,9 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 	private getRecommendationMessage(extension: IExtension): string | undefined {
 		if (extension.state === ExtensionState.Installed) {
+			return undefined;
+		}
+		if (extension.deprecationInfo) {
 			return undefined;
 		}
 		const recommendation = this.extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()];

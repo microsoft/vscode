@@ -25,6 +25,10 @@ export class Delayer<T> {
 		this.task = null;
 	}
 
+	dispose() {
+		this.cancelTimeout();
+	}
+
 	public trigger(task: ITask<T>, delay: number = this.defaultDelay): Promise<T | null> {
 		this.task = task;
 		if (delay >= 0) {

@@ -241,8 +241,10 @@ class CommentingRangeDecorator {
 			});
 		}
 
-		this.decorationIds = editor.deltaDecorations(this.decorationIds, commentingRangeDecorations);
-		commentingRangeDecorations.forEach((decoration, index) => decoration.id = this.decorationIds[index]);
+		editor.changeDecorations((accessor) => {
+			this.decorationIds = accessor.deltaDecorations(this.decorationIds, commentingRangeDecorations);
+			commentingRangeDecorations.forEach((decoration, index) => decoration.id = this.decorationIds[index]);
+		});
 
 		const rangesDifference = this.commentingRangeDecorations.length - commentingRangeDecorations.length;
 		this.commentingRangeDecorations = commentingRangeDecorations;
@@ -612,6 +614,7 @@ export class CommentController implements IEditorContribution {
 				if (matchedZones.length) {
 					let matchedZone = matchedZones[0];
 					matchedZone.update(thread);
+					this.openCommentsView(thread);
 				}
 			});
 			added.forEach(thread => {
@@ -637,8 +640,8 @@ export class CommentController implements IEditorContribution {
 		this.beginCompute();
 	}
 
-	private async openCommentsView() {
-		if (this._commentWidgets.length) {
+	private async openCommentsView(thread: languages.CommentThread) {
+		if (thread.comments && (thread.comments.length > 0)) {
 			if (this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).openView === 'file') {
 				return this.viewsService.openView(COMMENTS_VIEW_ID);
 			} else if (this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).openView === 'firstFile') {
@@ -655,7 +658,7 @@ export class CommentController implements IEditorContribution {
 		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment);
 		zoneWidget.display(thread.range.endLineNumber);
 		this._commentWidgets.push(zoneWidget);
-		this.openCommentsView();
+		this.openCommentsView(thread);
 	}
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {

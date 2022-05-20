@@ -230,7 +230,19 @@ export class HoverWidget extends Widget {
 		this._hover.containerDomNode.classList.remove('right-aligned');
 		this._hover.contentsDomNode.style.maxHeight = '';
 
-		const targetBounds = this._target.targetElements.map(e => e.getBoundingClientRect());
+		const getZoomAccountedBoundingClientRect = (e: HTMLElement) => {
+			const zoom = dom.getDomNodeZoomLevel(e);
+
+			const boundingRect = e.getBoundingClientRect();
+			return {
+				top: boundingRect.top * zoom,
+				bottom: boundingRect.bottom * zoom,
+				right: boundingRect.right * zoom,
+				left: boundingRect.left * zoom,
+			};
+		};
+
+		const targetBounds = this._target.targetElements.map(e => getZoomAccountedBoundingClientRect(e));
 		const top = Math.min(...targetBounds.map(e => e.top));
 		const right = Math.max(...targetBounds.map(e => e.right));
 		const bottom = Math.max(...targetBounds.map(e => e.bottom));
