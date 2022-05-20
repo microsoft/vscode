@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, window, TextDocument, CompletionContext, CancellationToken, ProviderResult, CompletionList, FormattingOptions, workspace } from 'vscode';
-import { Disposable, LanguageClientOptions, ProvideCompletionItemsSignature, NotificationType, CommonLanguageClient, DocumentRangeFormattingParams, DocumentRangeFormattingRequest } from 'vscode-languageclient';
+import { Disposable, LanguageClientOptions, ProvideCompletionItemsSignature, NotificationType, BaseLanguageClient, DocumentRangeFormattingParams, DocumentRangeFormattingRequest } from 'vscode-languageclient';
 import * as nls from 'vscode-nls';
 import { getCustomDataSource } from './customData';
 import { RequestService, serveFileSystemRequests } from './requests';
@@ -15,7 +15,7 @@ namespace CustomDataChangedNotification {
 
 const localize = nls.loadMessageBundle();
 
-export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => CommonLanguageClient;
+export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => BaseLanguageClient;
 
 export interface Runtime {
 	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string } };
@@ -39,7 +39,7 @@ interface CSSFormatSettings {
 
 const cssFormatSettingKeys: (keyof CSSFormatSettings)[] = ['newlineBetweenSelectors', 'newlineBetweenRules', 'spaceAroundSelectorSeparator', 'braceStyle', 'preserveNewLines', 'maxPreserveNewLines'];
 
-export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {
+export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<BaseLanguageClient> {
 
 	const customDataSource = getCustomDataSource(context.subscriptions);
 
@@ -100,31 +100,25 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 	// Create the language client and start the client.
 	let client = newLanguageClient('css', localize('cssserver.name', 'CSS Language Server'), clientOptions);
 	client.registerProposedFeatures();
-	client.onReady().then(() => {
 
+	await client.start();
+
+	client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
+	customDataSource.onDidChange(() => {
 		client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
-		customDataSource.onDidChange(() => {
-			client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
-		});
-
-		// manually register / deregister format provider based on the `css/less/scss.format.enable` setting avoiding issues with late registration. See #71652.
-		for (const registration of formatterRegistrations) {
-			updateFormatterRegistration(registration);
-			context.subscriptions.push({ dispose: () => registration.provider?.dispose() });
-			context.subscriptions.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration(registration.settingId) && updateFormatterRegistration(registration)));
-		}
-
-		serveFileSystemRequests(client, runtime);
 	});
 
-	let disposable = client.start();
-	// Push the disposable to the context's subscriptions so that the
-	// client can be deactivated on extension deactivation
-	context.subscriptions.push(disposable);
+	// manually register / deregister format provider based on the `css/less/scss.format.enable` setting avoiding issues with late registration. See #71652.
+	for (const registration of formatterRegistrations) {
+		updateFormatterRegistration(registration);
+		context.subscriptions.push({ dispose: () => registration.provider?.dispose() });
+		context.subscriptions.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration(registration.settingId) && updateFormatterRegistration(registration)));
+	}
 
-	client.onReady().then(() => {
-		context.subscriptions.push(initCompletionProvider());
-	});
+	serveFileSystemRequests(client, runtime);
+
+
+	context.subscriptions.push(initCompletionProvider());
 
 	function initCompletionProvider(): Disposable {
 		const regionCompletionRegExpr = /^(\s*)(\/(\*\s*(#\w*)?)?)?$/;
@@ -204,11 +198,10 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 							}
 						}
 					}
-					console.log(JSON.stringify(params.options));
 					return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
 						client.protocol2CodeConverter.asTextEdits,
 						(error) => {
-							client.handleFailedRequest(DocumentRangeFormattingRequest.type, error, []);
+							client.handleFailedRequest(DocumentRangeFormattingRequest.type, undefined, error, []);
 							return Promise.resolve([]);
 						}
 					);
@@ -216,4 +209,6 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			});
 		}
 	}
+
+	return client;
 }

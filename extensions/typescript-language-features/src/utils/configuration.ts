@@ -82,7 +82,7 @@ export class ImplicitProjectConfiguration {
 
 	private static readCheckJs(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('js/ts.implicitProjectConfig.checkJs')
-			?? configuration.get<boolean>('javascript.implicitProjectConfig.checkJs', true);
+			?? configuration.get<boolean>('javascript.implicitProjectConfig.checkJs', false);
 	}
 
 	private static readExperimentalDecorators(configuration: vscode.WorkspaceConfiguration): boolean {
@@ -91,7 +91,7 @@ export class ImplicitProjectConfiguration {
 	}
 
 	private static readImplicitStrictNullChecks(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('js/ts.implicitProjectConfig.strictNullChecks', false);
+		return configuration.get<boolean>('js/ts.implicitProjectConfig.strictNullChecks', true);
 	}
 
 	private static readImplicitStrictFunctionTypes(configuration: vscode.WorkspaceConfiguration): boolean {

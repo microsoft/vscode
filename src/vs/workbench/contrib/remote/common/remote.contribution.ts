@@ -243,20 +243,20 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 			await timeout(EXT_HOST_LATENCY_DELAY);
 		}
 
-		type RemoteConnectionFailureClassification = {
+		type RemoteConnectionLatencyClassification = {
 			owner: 'connor4312';
 			comment: 'The latency to the remote extension host';
 			web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether this is running on web' };
 			remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Anonymized remote name' };
 			latencyMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Latency to the remote, in milliseconds'; isMeasurement: true };
 		};
-		type RemoteConnectionFailureEvent = {
+		type RemoteConnectionLatencyEvent = {
 			web: boolean;
 			remoteName: string | undefined;
 			latencyMs: number;
 		};
 
-		this._telemetryService.publicLog2<RemoteConnectionFailureEvent, RemoteConnectionFailureClassification>('remoteConnectionFailure', {
+		this._telemetryService.publicLog2<RemoteConnectionLatencyEvent, RemoteConnectionLatencyClassification>('remoteConnectionLatency', {
 			web: isWeb,
 			remoteName: getRemoteName(this._environmentService.remoteAuthority),
 			latencyMs: bestLatency

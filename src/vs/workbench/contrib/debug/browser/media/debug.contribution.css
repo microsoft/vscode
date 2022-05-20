@@ -71,8 +71,7 @@
 /* Expressions */
 
 
-.monaco-workbench .debug-pane .monaco-list-row .expression,
-.monaco-workbench .debug-hover-widget .monaco-list-row .expression {
+.monaco-workbench .monaco-list-row .expression {
 	display: flex;
 }
 
