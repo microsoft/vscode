@@ -226,10 +226,6 @@ export class ReplacePattern {
 
 				switch (nextChCode) {
 					case CharCode.Digit0:
-						// $0 => $&
-						replaceWithCharacter = '$&';
-						this._hasParameters = true;
-						break;
 					case CharCode.BackTick:
 					case CharCode.SingleQuote:
 						this._hasParameters = true;
