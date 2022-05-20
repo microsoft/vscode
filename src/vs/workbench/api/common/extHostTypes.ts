@@ -616,22 +616,34 @@ export class NotebookEdit implements vscode.NotebookEdit {
 		return new NotebookEdit(range, newCells);
 	}
 
+	static insertCells(index: number, newCells: vscode.NotebookCellData[]): vscode.NotebookEdit {
+		return new NotebookEdit(new NotebookRange(index, index), newCells);
+	}
+
 	static deleteCells(range: NotebookRange): NotebookEdit {
 		return new NotebookEdit(range, []);
 	}
 
 	static updateCellMetadata(index: number, newMetadata: { [key: string]: any }): NotebookEdit {
-		return new NotebookEdit(new NotebookRange(index, index), [], newMetadata);
+		const edit = new NotebookEdit(new NotebookRange(index, index), []);
+		edit.newCellMetadata = newMetadata;
+		return edit;
 	}
 
-	readonly range: NotebookRange;
-	readonly newCells: NotebookCellData[];
-	readonly newCellMetadata?: { [key: string]: any };
+	static updateNotebookMetadata(newMetadata: { [key: string]: any }): NotebookEdit {
+		const edit = new NotebookEdit(new NotebookRange(0, 0), []);
+		edit.newNotebookMetadata = newMetadata;
+		return edit;
+	}
 
-	constructor(range: NotebookRange, newCells: NotebookCellData[], newCellMetadata?: { [key: string]: any }) {
+	range: NotebookRange;
+	newCells: NotebookCellData[];
+	newCellMetadata?: { [key: string]: any };
+	newNotebookMetadata?: { [key: string]: any };
+
+	constructor(range: NotebookRange, newCells: NotebookCellData[]) {
 		this.range = range;
 		this.newCells = newCells;
-		this.newCellMetadata = newCellMetadata;
 	}
 }
 

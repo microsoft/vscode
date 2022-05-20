@@ -42,7 +42,7 @@
 .monaco-workbench.windows .part.titlebar>.titlebar-container,
 .monaco-workbench.linux .part.titlebar>.titlebar-container {
 	height: 30px;
-	line-height: 30px;
+	line-height: 22px;
 	justify-content: left;
 }
 

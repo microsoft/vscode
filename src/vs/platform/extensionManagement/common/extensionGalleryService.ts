@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getFallbackTargetPlarforms, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { getFallbackTargetPlarforms, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
@@ -537,7 +537,20 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 
 interface IRawExtensionsControlManifest {
 	malicious: string[];
-	deprecated?: IStringDictionary<boolean | { id: string; displayName: string; migrateStorage?: boolean; engine?: string; preRelease?: boolean }>;
+	migrateToPreRelease?: IStringDictionary<{
+		id: string;
+		displayName: string;
+		migrateStorage?: boolean;
+		engine?: string;
+	}>;
+	deprecated?: IStringDictionary<boolean | {
+		disallowInstall?: boolean;
+		extension?: {
+			id: string;
+			displayName: string;
+		};
+		settings?: string[];
+	}>;
 }
 
 abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
@@ -1138,7 +1151,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		}
 
 		if (!this.extensionsControlUrl) {
-			return { malicious: [] };
+			return { malicious: [], deprecated: {} };
 		}
 
 		const context = await this.requestService.request({ type: 'GET', url: this.extensionsControlUrl }, CancellationToken.None);
@@ -1148,13 +1161,36 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 		const result = await asJson<IRawExtensionsControlManifest>(context);
 		const malicious: IExtensionIdentifier[] = [];
+		const deprecated: IStringDictionary<IDeprecationInfo> = {};
 		if (result) {
 			for (const id of result.malicious) {
 				malicious.push({ id });
 			}
+			if (result.migrateToPreRelease) {
+				for (const [unsupportedPreReleaseExtensionId, preReleaseExtensionInfo] of Object.entries(result.migrateToPreRelease)) {
+					if (!preReleaseExtensionInfo.engine || isEngineValid(preReleaseExtensionInfo.engine, this.productService.version, this.productService.date)) {
+						deprecated[unsupportedPreReleaseExtensionId.toLowerCase()] = {
+							disallowInstall: true,
+							extension: {
+								id: preReleaseExtensionInfo.id,
+								displayName: preReleaseExtensionInfo.displayName,
+								autoMigrate: { storage: !!preReleaseExtensionInfo.migrateStorage },
+								preRelease: true
+							}
+						};
+					}
+				}
+			}
+			if (result.deprecated) {
+				for (const [deprecatedExtensionId, deprecationInfo] of Object.entries(result.deprecated)) {
+					if (deprecationInfo) {
+						deprecated[deprecatedExtensionId.toLowerCase()] = isBoolean(deprecationInfo) ? {} : deprecationInfo;
+					}
+				}
+			}
 		}
 
-		return { malicious, deprecated: result?.deprecated };
+		return { malicious, deprecated };
 	}
 }
 

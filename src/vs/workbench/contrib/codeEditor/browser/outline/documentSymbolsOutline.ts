@@ -239,7 +239,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 		const { symbol } = entry;
 		this._editor.revealRangeInCenterIfOutsideViewport(symbol.range, ScrollType.Smooth);
-		const ids = this._editor.deltaDecorations([], [{
+		const decorationsCollection = this._editor.createDecorationsCollection([{
 			range: symbol.range,
 			options: {
 				description: 'document-symbols-outline-range-highlight',
@@ -247,7 +247,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 				isWholeLine: true
 			}
 		}]);
-		return toDisposable(() => this._editor.deltaDecorations(ids, []));
+		return toDisposable(() => decorationsCollection.clear());
 	}
 
 	captureViewState(): IDisposable {
