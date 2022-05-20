@@ -52,10 +52,12 @@
 	padding: 3px;
 	margin-left: 12px;
 	text-decoration: underline;
+	cursor: pointer;
 }
 
 .monaco-workbench .part.banner .message-container a {
 	text-decoration: underline;
+	cursor: pointer;
 }
 
 .monaco-workbench .part.banner .action-container {

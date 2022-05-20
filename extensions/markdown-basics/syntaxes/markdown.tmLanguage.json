@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/b068fcb2fbfa834e695505bfb02bbcc0b4edab8b",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/09c3e715102d08bba4c4ea828634474fc58b6f57",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -2838,7 +2838,7 @@
 					"name": "punctuation.definition.constant.end.markdown"
 				}
 			},
-			"match": "(\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])(\\[)([^\\]]*+)(\\])",
+			"match": "(?<![\\]\\\\])(\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])(\\[)([^\\]]*+)(\\])",
 			"name": "meta.link.reference.markdown"
 		},
 		"link-ref-literal": {
@@ -2859,7 +2859,7 @@
 					"name": "punctuation.definition.constant.end.markdown"
 				}
 			},
-			"match": "(\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])[ ]?(\\[)(\\])",
+			"match": "(?<![\\]\\\\])(\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])[ ]?(\\[)(\\])",
 			"name": "meta.link.reference.literal.markdown"
 		},
 		"link-ref-shortcut": {
@@ -2874,7 +2874,7 @@
 					"name": "punctuation.definition.link.title.end.markdown"
 				}
 			},
-			"match": "(\\[)(\\S+?)(\\])",
+			"match": "(?<![\\]\\\\])(\\[)(\\S+?)(\\])",
 			"name": "meta.link.reference.markdown"
 		},
 		"raw": {

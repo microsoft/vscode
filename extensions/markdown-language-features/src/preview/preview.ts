@@ -109,6 +109,8 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	private readonly _onScrollEmitter = this._register(new vscode.EventEmitter<LastScrollLocation>());
 	public readonly onScroll = this._onScrollEmitter.event;
 
+	private readonly _disposeCts = this._register(new vscode.CancellationTokenSource());
+
 	constructor(
 		webview: vscode.WebviewPanel,
 		resource: vscode.Uri,
@@ -202,6 +204,8 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	}
 
 	override dispose() {
+		this._disposeCts.cancel();
+
 		super.dispose();
 
 		this._disposed = true;
@@ -286,7 +290,9 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		try {
 			document = await vscode.workspace.openTextDocument(this._resource);
 		} catch {
-			await this.showFileNotFoundError();
+			if (!this._disposed) {
+				await this.showFileNotFoundError();
+			}
 			return;
 		}
 
@@ -306,7 +312,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this.currentVersion = pendingVersion;
 
 		const content = await (shouldReloadPage
-			? this._contentProvider.provideTextDocumentContent(document, this, this._previewConfigurations, this.line, this.state)
+			? this._contentProvider.provideTextDocumentContent(document, this, this._previewConfigurations, this.line, this.state, this._disposeCts.token)
 			: this._contentProvider.markdownBody(document, this));
 
 		// Another call to `doUpdate` may have happened.

@@ -89,11 +89,9 @@ export class MouseHandler extends ViewEventHandler {
 		// because their `e.detail` is always 0.
 		// We will therefore save the pointer id for the mouse and then reuse it in the `mousedown` event
 		// for `element.setPointerCapture`.
-		let mousePointerId: number = 0;
-		this._register(mouseEvents.onPointerDown(this.viewHelper.viewDomNode, (e, pointerType, pointerId) => {
-			if (pointerType === 'mouse') {
-				mousePointerId = pointerId;
-			}
+		let capturePointerId: number = 0;
+		this._register(mouseEvents.onPointerDown(this.viewHelper.viewDomNode, (e, pointerId) => {
+			capturePointerId = pointerId;
 		}));
 		// The `pointerup` listener registered by `GlobalEditorPointerMoveMonitor` does not get invoked 100% of the times.
 		// I speculate that this is because the `pointerup` listener is only registered during the `mousedown` event, and perhaps
@@ -103,7 +101,7 @@ export class MouseHandler extends ViewEventHandler {
 		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, dom.EventType.POINTER_UP, (e: PointerEvent) => {
 			this._mouseDownOperation.onPointerUp();
 		}));
-		this._register(mouseEvents.onMouseDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e, mousePointerId)));
+		this._register(mouseEvents.onMouseDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e, capturePointerId)));
 
 		const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
 			this.viewController.emitMouseWheel(browserEvent);

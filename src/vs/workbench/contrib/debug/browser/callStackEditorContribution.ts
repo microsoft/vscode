@@ -109,7 +109,7 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocuse
 
 export class CallStackEditorContribution implements IEditorContribution {
 	private toDispose: IDisposable[] = [];
-	private decorationIds: string[] = [];
+	private decorations = this.editor.createDecorationsCollection();
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -117,7 +117,7 @@ export class CallStackEditorContribution implements IEditorContribution {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 	) {
-		const setDecorations = () => this.decorationIds = this.editor.deltaDecorations(this.decorationIds, this.createCallStackDecorations());
+		const setDecorations = () => this.decorations.set(this.createCallStackDecorations());
 		this.toDispose.push(Event.any(this.debugService.getViewModel().onDidFocusStackFrame, this.debugService.getModel().onDidChangeCallStack)(() => {
 			setDecorations();
 		}));
@@ -170,7 +170,7 @@ export class CallStackEditorContribution implements IEditorContribution {
 	}
 
 	dispose(): void {
-		this.editor.deltaDecorations(this.decorationIds, []);
+		this.decorations.clear();
 		this.toDispose = dispose(this.toDispose);
 	}
 }

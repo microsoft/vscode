@@ -67,6 +67,7 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 	const terminalEnvironmentManager = new TerminalEnvironmentManager(context, environment);
 	disposables.push(terminalEnvironmentManager);
 
+	outputChannelLogger.logInfo(localize('using git', "Using git {0} from {1}", info.version, info.path));
 
 	const git = new Git({
 		gitPath: info.path,
@@ -81,8 +82,6 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 	model.onDidOpenRepository(onRepository, null, disposables);
 	model.onDidCloseRepository(onRepository, null, disposables);
 	onRepository();
-
-	outputChannelLogger.logInfo(localize('using git', "Using git {0} from {1}", info.version, info.path));
 
 	const onOutput = (str: string) => {
 		const lines = str.split(/\r?\n/mg);

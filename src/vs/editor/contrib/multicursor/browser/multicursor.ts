@@ -16,7 +16,7 @@ import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/comm
 import { CursorMoveCommands } from 'vs/editor/common/cursor/cursorMoveCommands';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -846,7 +846,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 
 	private readonly editor: ICodeEditor;
 	private _isEnabled: boolean;
-	private decorations: string[];
+	private readonly _decorations: IEditorDecorationsCollection;
 	private readonly updateSoon: RunOnceScheduler;
 	private state: SelectionHighlighterState | null;
 
@@ -857,7 +857,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		super();
 		this.editor = editor;
 		this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
-		this.decorations = [];
+		this._decorations = editor.createDecorationsCollection();
 		this.updateSoon = this._register(new RunOnceScheduler(() => this._update(), 300));
 		this.state = null;
 
@@ -986,9 +986,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this.state = newState;
 
 		if (!this.state) {
-			this.editor.changeDecorations((accessor) => {
-				this.decorations = accessor.deltaDecorations(this.decorations, []);
-			});
+			this._decorations.clear();
 			return;
 		}
 
@@ -1044,9 +1042,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			};
 		});
 
-		this.editor.changeDecorations((accessor) => {
-			this.decorations = accessor.deltaDecorations(this.decorations, decorations);
-		});
+		this._decorations.set(decorations);
 	}
 
 	private static readonly _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
