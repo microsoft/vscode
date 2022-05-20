@@ -1233,6 +1233,7 @@ export class QuickInputController extends Disposable {
 
 		const checkAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-check-all'));
 		checkAll.type = 'checkbox';
+		checkAll.setAttribute('aria-label', localize('quickInput.checkAll', "Toggle all checkboxes"));
 		this._register(dom.addStandardDisposableListener(checkAll, dom.EventType.CHANGE, e => {
 			const checked = checkAll.checked;
 			list.setAllVisibleChecked(checked);
@@ -1477,6 +1478,7 @@ export class QuickInputController extends Disposable {
 			input.matchOnLabel = (options.matchOnLabel === undefined) || options.matchOnLabel; // default to true
 			input.autoFocusOnList = (options.autoFocusOnList === undefined) || options.autoFocusOnList; // default to true
 			input.quickNavigate = options.quickNavigate;
+			input.hideInput = !!options.hideInput;
 			input.contextKey = options.contextKey;
 			input.busy = true;
 			Promise.all([picks, options.activeItem])

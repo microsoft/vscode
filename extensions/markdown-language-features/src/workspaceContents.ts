@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { coalesce } from './util/arrays';
 import { Disposable } from './util/dispose';
 import { isMarkdownFile } from './util/file';
 import { InMemoryDocument } from './util/inMemoryDocument';
+import { Limiter } from './util/limiter';
 
 /**
  * Minimal version of {@link vscode.TextLine}. Used for mocking out in testing.
@@ -40,6 +42,8 @@ export interface MdWorkspaceContents {
 
 	getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined>;
 
+	pathExists(resource: vscode.Uri): Promise<boolean>;
+
 	readonly onDidChangeMarkdownDocument: vscode.Event<SkinnyTextDocument>;
 	readonly onDidCreateMarkdownDocument: vscode.Event<SkinnyTextDocument>;
 	readonly onDidDeleteMarkdownDocument: vscode.Event<vscode.Uri>;
@@ -68,15 +72,27 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 	 */
 	async getAllMarkdownDocuments(): Promise<SkinnyTextDocument[]> {
 		const maxConcurrent = 20;
-		const docList: SkinnyTextDocument[] = [];
-		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
 
-		for (let i = 0; i < resources.length; i += maxConcurrent) {
-			const resourceBatch = resources.slice(i, i + maxConcurrent);
-			const documentBatch = (await Promise.all(resourceBatch.map(x => this.getMarkdownDocument(x)))).filter((doc) => !!doc) as SkinnyTextDocument[];
-			docList.push(...documentBatch);
-		}
-		return docList;
+		const foundFiles = new Set<string>();
+		const limiter = new Limiter<SkinnyTextDocument | undefined>(maxConcurrent);
+
+		// Add files on disk
+		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
+		const onDiskResults = await Promise.all(resources.map(resource => {
+			return limiter.queue(async () => {
+				const doc = await this.getMarkdownDocument(resource);
+				if (doc) {
+					foundFiles.add(doc.uri.toString());
+				}
+				return doc;
+			});
+		}));
+
+		// Add opened files (such as untitled files)
+		const openTextDocumentResults = await Promise.all(vscode.workspace.textDocuments
+			.filter(doc => !foundFiles.has(doc.uri.toString()) && this.isRelevantMarkdownDocument(doc)));
+
+		return coalesce([...onDiskResults, ...openTextDocumentResults]);
 	}
 
 	public get onDidChangeMarkdownDocument() {
@@ -120,14 +136,18 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 		}));
 
 		this._register(vscode.workspace.onDidChangeTextDocument(e => {
-			if (isMarkdownFile(e.document)) {
+			if (this.isRelevantMarkdownDocument(e.document)) {
 				this._onDidChangeMarkdownDocumentEmitter.fire(e.document);
 			}
 		}));
 	}
 
+	private isRelevantMarkdownDocument(doc: vscode.TextDocument) {
+		return isMarkdownFile(doc) && doc.uri.scheme !== 'vscode-bulkeditpreview';
+	}
+
 	public async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
-		const matchingDocument = vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === resource.toString());
+		const matchingDocument = vscode.workspace.textDocuments.find((doc) => this.isRelevantMarkdownDocument(doc) && doc.uri.toString() === resource.toString());
 		if (matchingDocument) {
 			return matchingDocument;
 		}
@@ -141,5 +161,15 @@ export class VsCodeMdWorkspaceContents extends Disposable implements MdWorkspace
 		} catch {
 			return undefined;
 		}
+	}
+
+	public async pathExists(target: vscode.Uri): Promise<boolean> {
+		let targetResourceStat: vscode.FileStat | undefined;
+		try {
+			targetResourceStat = await vscode.workspace.fs.stat(target);
+		} catch {
+			return false;
+		}
+		return targetResourceStat.type === vscode.FileType.File || targetResourceStat.type === vscode.FileType.Directory;
 	}
 }

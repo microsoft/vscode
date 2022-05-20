@@ -26,6 +26,7 @@ import { ExtHostEditorTabs, IExtHostEditorTabs } from 'vs/workbench/api/common/e
 import { ExtHostLoggerService } from 'vs/workbench/api/common/extHostLoggerService';
 import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { ExtHostLogService } from 'vs/workbench/api/common/extHostLogService';
+import { ExtHostVariableResolverProviderService, IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHostVariableResolverService';
 
 registerSingleton(ILoggerService, ExtHostLoggerService);
 registerSingleton(ILogService, ExtHostLogService);
@@ -48,3 +49,4 @@ registerSingleton(IExtHostWorkspace, ExtHostWorkspace);
 registerSingleton(IExtHostSecretState, ExtHostSecretState);
 registerSingleton(IExtHostTelemetry, ExtHostTelemetry);
 registerSingleton(IExtHostEditorTabs, ExtHostEditorTabs);
+registerSingleton(IExtHostVariableResolverProvider, ExtHostVariableResolverProviderService);

@@ -8,9 +8,19 @@
 import { spawnSync } from 'child_process';
 import { constants, statSync } from 'fs';
 import path = require('path');
-import { additionalDeps, bundledDeps } from './dep-lists';
+import { additionalDeps, bundledDeps, referenceGeneratedDepsByArch } from './dep-lists';
+import { ArchString } from './types';
 
-export function getDependencies(buildDir: string, applicationName: string): string[] {
+// A flag that can easily be toggled.
+// Make sure to compile the build directory after toggling the value.
+// If false, we warn about new dependencies if they show up
+// while running the rpm prepare package task for a release.
+// If true, we fail the build if there are new dependencies found during that task.
+// The reference dependencies, which one has to update when the new dependencies
+// are valid, are in dep-lists.ts
+const FAIL_BUILD_FOR_NEW_DEPENDENCIES: boolean = true;
+
+export function getDependencies(buildDir: string, applicationName: string, arch: ArchString): string[] {
 	// Get the files for which we want to find dependencies.
 	const nativeModulesPath = path.join(buildDir, 'resources', 'app', 'node_modules.asar.unpacked');
 	const findResult = spawnSync('find', [nativeModulesPath, '-name', '*.node']);
@@ -49,9 +59,22 @@ export function getDependencies(buildDir: string, applicationName: string): stri
 		return !bundledDeps.some(bundledDep => dependency.startsWith(bundledDep));
 	});
 
+	const referenceGeneratedDeps = referenceGeneratedDepsByArch[arch];
+	if (JSON.stringify(sortedDependencies) !== JSON.stringify(referenceGeneratedDeps)) {
+		const failMessage = 'The dependencies list has changed. '
+			+ 'Printing newer dependencies list that one can use to compare against referenceGeneratedDeps:\n'
+			+ sortedDependencies.join('\n');
+		if (FAIL_BUILD_FOR_NEW_DEPENDENCIES) {
+			throw new Error(failMessage);
+		} else {
+			console.warn(failMessage);
+		}
+	}
+
 	return sortedDependencies;
 }
 
+// Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/calculate_package_deps.py.
 function calculatePackageDeps(binaryPath: string): Set<string> {
 	try {
 		if (!(statSync(binaryPath).mode & constants.S_IXUSR)) {
@@ -68,11 +91,6 @@ function calculatePackageDeps(binaryPath: string): Set<string> {
 	}
 
 	const requires = new Set(findRequiresResult.stdout.toString('utf-8').trimEnd().split('\n'));
-
-	// we only need to use provides to check for newer dependencies
-	// const provides = readFileSync('dist_package_provides.json');
-	// const jsonProvides = JSON.parse(provides.toString('utf-8'));
-
 	return requires;
 }
 

@@ -9,6 +9,8 @@ import * as cp from 'child_process';
 import * as glob from 'glob';
 import * as gulp from 'gulp';
 import * as path from 'path';
+import * as through2 from 'through2';
+import got from 'got';
 import { Stream } from 'stream';
 import * as File from 'vinyl';
 import { createStatsStream } from './stats';
@@ -198,18 +200,19 @@ function fromLocalNormal(extensionPath: string): Stream {
 	return result.pipe(createStatsStream(path.basename(extensionPath)));
 }
 
+const userAgent = 'VSCode Build';
 const baseHeaders = {
 	'X-Market-Client-Id': 'VSCode Build',
-	'User-Agent': 'VSCode Build',
+	'User-Agent': userAgent,
 	'X-Market-User-Id': '291C1CD0-051A-4123-9B4B-30D60EF52EE2',
 };
 
-export function fromMarketplace(extensionName: string, version: string, metadata: any): Stream {
+export function fromMarketplace(serviceUrl: string, { name: extensionName, version, metadata }: IBuiltInExtension): Stream {
 	const remote = require('gulp-remote-retry-src');
 	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
 
 	const [publisher, name] = extensionName.split('.');
-	const url = `https://marketplace.visualstudio.com/_apis/public/gallery/publishers/${publisher}/vsextensions/${name}/${version}/vspackage`;
+	const url = `${serviceUrl}/publishers/${publisher}/vsextensions/${name}/${version}/vspackage`;
 
 	fancyLog('Downloading extension:', ansiColors.yellow(`${extensionName}@${version}`), '...');
 
@@ -232,6 +235,50 @@ export function fromMarketplace(extensionName: string, version: string, metadata
 		.pipe(json({ __metadata: metadata }))
 		.pipe(packageJsonFilter.restore);
 }
+
+const ghApiHeaders: Record<string, string> = {
+	Accept: 'application/vnd.github.v3+json',
+	'User-Agent': userAgent,
+};
+if (process.env.GITHUB_TOKEN) {
+	ghApiHeaders.Authorization = 'Basic ' + Buffer.from(process.env.GITHUB_TOKEN).toString('base64');
+}
+const ghDownloadHeaders = {
+	...ghApiHeaders,
+	Accept: 'application/octet-stream',
+};
+
+export function fromGithub({ name, version, repo, metadata }: IBuiltInExtension): Stream {
+	const remote = require('gulp-remote-retry-src');
+	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
+
+	fancyLog('Downloading extension from GH:', ansiColors.yellow(`${name}@${version}`), '...');
+
+	const packageJsonFilter = filter('package.json', { restore: true });
+
+	return remote([`/repos${new URL(repo).pathname}/releases/tags/v${version}`], {
+		base: 'https://api.github.com',
+		requestOptions: { headers: ghApiHeaders }
+	}).pipe(through2.obj(function (file, _enc, callback) {
+		const asset = JSON.parse(file.contents.toString()).assets.find((a: any) => a.name.endsWith('.vsix'));
+		if (!asset) {
+			return callback(new Error(`Could not find vsix in release of ${repo} @ ${version}`));
+		}
+
+		const res = got.stream(asset.url, { headers: ghDownloadHeaders, followRedirect: true });
+		file.contents = res.pipe(through2());
+		callback(null, file);
+	}))
+		.pipe(buffer())
+		.pipe(vzip.src())
+		.pipe(filter('extension/**'))
+		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
+		.pipe(packageJsonFilter)
+		.pipe(buffer())
+		.pipe(json({ __metadata: metadata }))
+		.pipe(packageJsonFilter.restore);
+}
+
 const excludedExtensions = [
 	'vscode-api-tests',
 	'vscode-colorize-tests',
@@ -335,7 +382,7 @@ export function packageLocalExtensionsStream(forWeb: boolean): Stream {
 	);
 }
 
-export function packageMarketplaceExtensionsStream(forWeb: boolean): Stream {
+export function packageMarketplaceExtensionsStream(forWeb: boolean, galleryServiceUrl?: string): Stream {
 	const marketplaceExtensionsDescriptions = [
 		...builtInExtensions.filter(({ name }) => (forWeb ? !marketplaceWebExtensionsExclude.has(name) : true)),
 		...(forWeb ? webBuiltInExtensions : [])
@@ -344,7 +391,7 @@ export function packageMarketplaceExtensionsStream(forWeb: boolean): Stream {
 		es.merge(
 			...marketplaceExtensionsDescriptions
 				.map(extension => {
-					const input = fromMarketplace(extension.name, extension.version, extension.metadata)
+					const input = (galleryServiceUrl ? fromMarketplace(galleryServiceUrl, extension) : fromGithub(extension))
 						.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
 					return updateExtensionPackageJSON(input, (data: any) => {
 						delete data.scripts;

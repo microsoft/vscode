@@ -89,6 +89,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		for (const node of event.composedPath()) {
+			if (node instanceof HTMLElement && node.classList.contains('output')) {
+				// output
+				postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', {
+					id: node.id,
+				});
+				break;
+			}
+		}
+
+		for (const node of event.composedPath()) {
 			if (node instanceof HTMLAnchorElement && node.href) {
 				if (node.href.startsWith('blob:')) {
 					handleBlobUrlClick(node.href, node.download);
@@ -401,17 +411,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	}
 
-	function isAncestor(testChild: Node | null, testAncestor: Node | null): boolean {
-		while (testChild) {
-			if (testChild === testAncestor) {
-				return true;
-			}
-			testChild = testChild.parentNode;
-		}
-
-		return false;
-	}
-
 	function _internalHighlightRange(range: Range, tagName = 'mark', attributes = {}) {
 		// derived from https://github.com/Treora/dom-highlight-range/blob/master/highlight-range.js
 
@@ -633,64 +632,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 			};
 		}
-	}
-
-	class OutputFocusTracker {
-		private _outputId: string;
-		private _hasFocus: boolean = false;
-		private _loosingFocus: boolean = false;
-		private _element: HTMLElement | Window;
-		constructor(element: HTMLElement | Window, outputId: string) {
-			this._element = element;
-			this._outputId = outputId;
-			this._hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
-			this._loosingFocus = false;
-
-			element.addEventListener('focus', this._onFocus.bind(this), true);
-			element.addEventListener('blur', this._onBlur.bind(this), true);
-		}
-
-		private _onFocus() {
-			this._loosingFocus = false;
-			if (!this._hasFocus) {
-				this._hasFocus = true;
-				postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', {
-					id: this._outputId,
-				});
-			}
-		}
-
-		private _onBlur() {
-			if (this._hasFocus) {
-				this._loosingFocus = true;
-				window.setTimeout(() => {
-					if (this._loosingFocus) {
-						this._loosingFocus = false;
-						this._hasFocus = false;
-						postNotebookMessage<webviewMessages.IOutputBlurMessage>('outputBlur', {
-							id: this._outputId,
-						});
-					}
-				}, 0);
-			}
-		}
-
-		dispose() {
-			if (this._element) {
-				this._element.removeEventListener('focus', this._onFocus, true);
-				this._element.removeEventListener('blur', this._onBlur, true);
-			}
-		}
-	}
-
-	const outputFocusTrackers = new Map<string, OutputFocusTracker>();
-
-	function addOutputFocusTracker(element: HTMLElement, outputId: string): void {
-		if (outputFocusTrackers.has(outputId)) {
-			outputFocusTrackers.get(outputId)?.dispose();
-		}
-
-		outputFocusTrackers.set(outputId, new OutputFocusTracker(element, outputId));
 	}
 
 	function createEmitter<T>(listenerChange: (listeners: Set<Listener<T>>) => void = () => undefined): EmitterLike<T> {
@@ -1119,11 +1060,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 				renderers.clearAll();
 				viewModel.clearAll();
 				document.getElementById('container')!.innerText = '';
-
-				outputFocusTrackers.forEach(ft => {
-					ft.dispose();
-				});
-				outputFocusTrackers.clear();
 				break;
 
 			case 'clearOutput': {
@@ -2029,7 +1965,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.style.padding = '0px';
 
 			addMouseoverListeners(this.element, outputId);
-			addOutputFocusTracker(this.element, outputId);
 		}
 
 

@@ -336,7 +336,7 @@ export class Workbench extends Layout {
 		this.restoreFontInfo(storageService, configurationService);
 
 		// Create Parts
-		[
+		for (const { id, role, classes, options } of [
 			{ id: Parts.TITLEBAR_PART, role: 'contentinfo', classes: ['titlebar'] },
 			{ id: Parts.BANNER_PART, role: 'banner', classes: ['banner'] },
 			{ id: Parts.ACTIVITYBAR_PART, role: 'none', classes: ['activitybar', this.getSideBarPosition() === Position.LEFT ? 'left' : 'right'] }, // Use role 'none' for some parts to make screen readers less chatty #114892
@@ -345,11 +345,11 @@ export class Workbench extends Layout {
 			{ id: Parts.PANEL_PART, role: 'none', classes: ['panel', 'basepanel', positionToString(this.getPanelPosition())] },
 			{ id: Parts.AUXILIARYBAR_PART, role: 'none', classes: ['auxiliarybar', 'basepanel', this.getSideBarPosition() === Position.LEFT ? 'right' : 'left'] },
 			{ id: Parts.STATUSBAR_PART, role: 'status', classes: ['statusbar'] }
-		].forEach(({ id, role, classes, options }) => {
+		]) {
 			const partContainer = this.createPart(id, role, classes);
 
 			this.getPart(id).create(partContainer, options);
-		});
+		}
 
 		// Notification Handlers
 		this.createNotificationsHandlers(instantiationService, notificationService);

@@ -30,7 +30,8 @@ import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { compareFileExtensionsDefault, compareFileNamesDefault, compareFileNamesUpper, compareFileExtensionsUpper, compareFileNamesLower, compareFileExtensionsLower, compareFileNamesUnicode, compareFileExtensionsUnicode } from 'vs/base/common/comparers';
-import { fillEditorsDragData, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
+import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
+import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
@@ -75,6 +76,7 @@ export const explorerRootErrorEmitter = new Emitter<URI>();
 export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | ExplorerItem[], ExplorerItem> {
 
 	constructor(
+		private fileFilter: FilesFilter,
 		@IProgressService private readonly progressService: IProgressService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -85,7 +87,8 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 	) { }
 
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
-		return Array.isArray(element) || element.hasChildren;
+		// don't render nest parents as containing children when all the children are filtered out
+		return Array.isArray(element) || element.hasChildren((stat) => this.fileFilter.filter(stat, TreeVisibility.Visible));
 	}
 
 	getChildren(element: ExplorerItem | ExplorerItem[]): ExplorerItem[] | Promise<ExplorerItem[]> {
@@ -849,6 +852,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private dropEnabled = false;
 
 	constructor(
+		private isCollapsed: (item: ExplorerItem) => boolean,
 		@IExplorerService private explorerService: IExplorerService,
 		@IEditorService private editorService: IEditorService,
 		@IDialogService private dialogService: IDialogService,
@@ -1082,8 +1086,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		const elementsData = FileDragAndDrop.getStatsFromDragAndDropData(data);
 		const distinctItems = new Set(elementsData);
 
-		if (this.configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting.operateAsGroup) {
-			for (const item of distinctItems) {
+		for (const item of distinctItems) {
+			if (this.isCollapsed(item)) {
 				const nestedChildren = item.nestedChildren;
 				if (nestedChildren) {
 					for (const child of nestedChildren) {
@@ -1092,6 +1096,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				}
 			}
 		}
+
 		const items = distinctParents([...distinctItems], s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 

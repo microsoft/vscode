@@ -785,26 +785,26 @@ suite('SerializableGrid', function () {
 	});
 
 	test('sanitizeGridNodeDescriptor', () => {
-		const nodeDescriptor = { groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{}, {}] }] };
-		const nodeDescriptorCopy = deepClone<GridNodeDescriptor>(nodeDescriptor);
+		const nodeDescriptor: GridNodeDescriptor<any> = { groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{}, {}] }] };
+		const nodeDescriptorCopy = deepClone(nodeDescriptor);
 		sanitizeGridNodeDescriptor(nodeDescriptorCopy, true);
 		assert.deepStrictEqual(nodeDescriptorCopy, { groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{ size: 0.5 }, { size: 0.5 }] }] });
 	});
 
 	test('createSerializedGrid', () => {
-		const gridDescriptor = { orientation: Orientation.VERTICAL, groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{}, {}] }] };
+		const gridDescriptor = { orientation: Orientation.VERTICAL, groups: [{ size: 0.2, data: 'a' }, { size: 0.2, data: 'b' }, { size: 0.6, groups: [{ data: 'c' }, { data: 'd' }] }] };
 		const serializedGrid = createSerializedGrid(gridDescriptor);
 		assert.deepStrictEqual(serializedGrid, {
 			root: {
 				type: 'branch',
 				size: undefined,
 				data: [
-					{ type: 'leaf', size: 0.2, data: null },
-					{ type: 'leaf', size: 0.2, data: null },
+					{ type: 'leaf', size: 0.2, data: 'a' },
+					{ type: 'leaf', size: 0.2, data: 'b' },
 					{
 						type: 'branch', size: 0.6, data: [
-							{ type: 'leaf', size: 0.5, data: null },
-							{ type: 'leaf', size: 0.5, data: null }
+							{ type: 'leaf', size: 0.5, data: 'c' },
+							{ type: 'leaf', size: 0.5, data: 'd' }
 						]
 					}
 				]
@@ -840,6 +840,30 @@ suite('SerializableGrid', function () {
 
 		// should not throw
 		grid.removeView(views[2]);
+	});
+
+	test('from', () => {
+		const createView = (): ISerializableView => ({
+			element: document.createElement('div'),
+			layout: () => null,
+			minimumWidth: 0,
+			maximumWidth: Number.POSITIVE_INFINITY,
+			minimumHeight: 0,
+			maximumHeight: Number.POSITIVE_INFINITY,
+			onDidChange: Event.None,
+			toJSON: () => ({})
+		});
+
+		const a = createView();
+		const b = createView();
+		const c = createView();
+		const d = createView();
+
+		const gridDescriptor = { orientation: Orientation.VERTICAL, groups: [{ size: 0.2, data: a }, { size: 0.2, data: b }, { size: 0.6, groups: [{ data: c }, { data: d }] }] };
+		const grid = SerializableGrid.from(gridDescriptor);
+
+		assert.deepStrictEqual(nodesToArrays(grid.getViews()), [a, b, [c, d]]);
+		grid.dispose();
 	});
 
 	test('serialize should store visibility and previous size', function () {

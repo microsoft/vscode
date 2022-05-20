@@ -190,7 +190,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		let activeIndentEndLineNumber = 0;
 		let activeIndentLevel = 0;
 
-		if (this._bracketPairGuideOptions.highlightActiveIndentation && activeCursorPosition) {
+		if (this._bracketPairGuideOptions.highlightActiveIndentation !== false && activeCursorPosition) {
 			const activeIndentInfo = this._context.viewModel.getActiveIndentGuide(activeCursorPosition.lineNumber, visibleStartLineNumber, visibleEndLineNumber);
 			activeIndentStartLineNumber = activeIndentInfo.startLineNumber;
 			activeIndentEndLineNumber = activeIndentInfo.endLineNumber;
@@ -213,7 +213,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 				const indentGuide = (indentLvl - 1) * indentSize + 1;
 				const isActive =
 					// Disable active indent guide if there are bracket guides.
-					bracketGuidesInLine.length === 0 &&
+					(this._bracketPairGuideOptions.highlightActiveIndentation === 'always' || bracketGuidesInLine.length === 0) &&
 					activeIndentStartLineNumber <= lineNumber &&
 					lineNumber <= activeIndentEndLineNumber &&
 					indentLvl === activeIndentLevel;

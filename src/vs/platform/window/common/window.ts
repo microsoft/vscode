@@ -8,6 +8,7 @@ import { isLinux, isMacintosh, isNative, isWeb } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { FileType } from 'vs/platform/files/common/files';
 import { LogLevel } from 'vs/platform/log/common/log';
@@ -167,43 +168,44 @@ export function getTitleBarStyle(configurationService: IConfigurationService): '
 	return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
 }
 
-export interface IPath extends IPathData {
+export interface IPath<T = IEditorOptions> extends IPathData<T> {
 
-	// the file path to open within the instance
+	/**
+	 * The file path to open within the instance
+	 */
 	fileUri?: URI;
 }
 
-export interface IPathData {
+export interface IPathData<T = IEditorOptions> {
 
-	// the file path to open within the instance
+	/**
+	 * The file path to open within the instance
+	 */
 	readonly fileUri?: UriComponents;
 
 	/**
-	 * An optional selection to apply in the file
+	 * Optional editor options to apply in the file
 	 */
-	readonly selection?: {
-		readonly startLineNumber: number;
-		readonly startColumn: number;
-		readonly endLineNumber?: number;
-		readonly endColumn?: number;
-	};
+	readonly options?: T;
 
-	// a hint that the file exists. if true, the
-	// file exists, if false it does not. with
-	// `undefined` the state is unknown.
+	/**
+	 * A hint that the file exists. if true, the
+	 * file exists, if false it does not. with
+	 * `undefined` the state is unknown.
+	 */
 	readonly exists?: boolean;
 
-	// a hint about the file type of this path.
-	// with `undefined` the type is unknown.
+	/**
+	 * A hint about the file type of this path.
+	 * with `undefined` the type is unknown.
+	 */
 	readonly type?: FileType;
 
-	// Specifies if the file should be only be opened
-	// if it exists
+	/**
+	 * Specifies if the file should be only be opened
+	 * if it exists.
+	 */
 	readonly openOnlyIfExists?: boolean;
-
-	// Specifies an optional id to override the editor
-	// used to edit the resource, e.g. custom editor.
-	readonly editorOverrideId?: string;
 }
 
 export interface IPathsToWaitFor extends IPathsToWaitForData {

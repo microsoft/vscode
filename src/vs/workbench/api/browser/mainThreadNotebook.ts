@@ -200,14 +200,14 @@ CommandsRegistry.registerCommand('_executeDataToNotebook', async (accessor, ...a
 	}
 
 	const dto = await info.serializer.dataToNotebook(bytes);
-	return NotebookDto.toNotebookDataDto(dto);
+	return new SerializableObjectWithBuffers(NotebookDto.toNotebookDataDto(dto));
 });
 
 CommandsRegistry.registerCommand('_executeNotebookToData', async (accessor, ...args) => {
 
 	const [notebookType, dto] = args;
 	assertType(typeof notebookType === 'string', 'string');
-	assertType(typeof dto === 'object', 'NotebookDataDto');
+	assertType(typeof dto === 'object');
 
 	const notebookService = accessor.get(INotebookService);
 	const info = await notebookService.withNotebookDataProvider(notebookType);
@@ -215,7 +215,7 @@ CommandsRegistry.registerCommand('_executeNotebookToData', async (accessor, ...a
 		return;
 	}
 
-	const data = NotebookDto.fromNotebookDataDto(dto);
+	const data = NotebookDto.fromNotebookDataDto(dto.value);
 	const bytes = await info.serializer.notebookToData(data);
 	return bytes;
 });

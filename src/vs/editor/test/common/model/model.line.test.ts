@@ -125,7 +125,7 @@ suite('ModelLinesTokens', () => {
 
 		for (let lineIndex = 0; lineIndex < expected.length; lineIndex++) {
 			const actualLine = model.getLineContent(lineIndex + 1);
-			const actualTokens = model.getLineTokens(lineIndex + 1);
+			const actualTokens = model.tokenization.getLineTokens(lineIndex + 1);
 			assert.strictEqual(actualLine, expected[lineIndex].text);
 			assertLineTokens(actualTokens, expected[lineIndex].tokens);
 		}
@@ -462,7 +462,7 @@ suite('ModelLinesTokens', () => {
 			text: 'a'
 		}]);
 
-		const actualTokens = model.getLineTokens(1);
+		const actualTokens = model.tokenization.getLineTokens(1);
 		assertLineTokens(actualTokens, [new TestToken(0, 1)]);
 
 		model.dispose();

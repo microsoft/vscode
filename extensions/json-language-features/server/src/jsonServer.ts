@@ -6,11 +6,11 @@
 import {
 	Connection,
 	TextDocuments, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind, TextEdit, DocumentFormattingRequest, TextDocumentIdentifier, FormattingOptions
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind, TextEdit, DocumentFormattingRequest, TextDocumentIdentifier, FormattingOptions, Diagnostic
 } from 'vscode-languageserver';
 
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
-import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Diagnostic, Range, Position } from 'vscode-json-languageservice';
+import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration, ClientCapabilities, Range, Position } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { Utils, URI } from 'vscode-uri';
 
@@ -57,7 +57,7 @@ export interface RequestService {
 export interface RuntimeEnvironment {
 	file?: RequestService;
 	http?: RequestService;
-	configureHttpRequests?(proxy: string, strictSSL: boolean): void;
+	configureHttpRequests?(proxy: string | undefined, strictSSL: boolean): void;
 	readonly timer: {
 		setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable;
 		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
@@ -117,7 +117,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	// in the passed params the rootPath of the workspace plus the client capabilities.
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
 
-		const handledProtocols = params.initializationOptions?.handledSchemaProtocols;
+		const initializationOptions = params.initializationOptions as any || {};
+
+		const handledProtocols = initializationOptions?.handledSchemaProtocols;
 
 		languageService = getLanguageService({
 			schemaRequestService: getSchemaRequestService(handledProtocols),
@@ -138,11 +140,13 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			return c;
 		}
 
+
+
 		clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
-		dynamicFormatterRegistration = getClientCapability('textDocument.rangeFormatting.dynamicRegistration', false) && (typeof params.initializationOptions?.provideFormatter !== 'boolean');
+		dynamicFormatterRegistration = getClientCapability('textDocument.rangeFormatting.dynamicRegistration', false) && (typeof initializationOptions.provideFormatter !== 'boolean');
 		foldingRangeLimitDefault = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
 		hierarchicalDocumentSymbolSupport = getClientCapability('textDocument.documentSymbol.hierarchicalDocumentSymbolSupport', false);
-		formatterMaxNumberOfEdits = params.initializationOptions?.customCapabilities?.rangeFormatting?.editLimit || Number.MAX_VALUE;
+		formatterMaxNumberOfEdits = initializationOptions.customCapabilities?.rangeFormatting?.editLimit || Number.MAX_VALUE;
 		const capabilities: ServerCapabilities = {
 			textDocumentSync: TextDocumentSyncKind.Incremental,
 			completionProvider: clientSnippetSupport ? {
@@ -151,8 +155,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			} : undefined,
 			hoverProvider: true,
 			documentSymbolProvider: true,
-			documentRangeFormattingProvider: params.initializationOptions?.provideFormatter === true,
-			documentFormattingProvider: params.initializationOptions?.provideFormatter === true,
+			documentRangeFormattingProvider: initializationOptions.provideFormatter === true,
+			documentFormattingProvider: initializationOptions.provideFormatter === true,
 			colorProvider: {},
 			foldingRangeProvider: true,
 			selectionRangeProvider: true,
@@ -166,14 +170,15 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	// The settings interface describes the server relevant settings part
 	interface Settings {
-		json: {
-			schemas: JSONSchemaSettings[];
-			format: { enable: boolean };
+		json?: {
+			schemas?: JSONSchemaSettings[];
+			format?: { enable?: boolean };
+			validate?: { enable?: boolean };
 			resultLimit?: number;
 		};
-		http: {
-			proxy: string;
-			proxyStrictSSL: boolean;
+		http?: {
+			proxy?: string;
+			proxyStrictSSL?: boolean;
 		};
 	}
 
@@ -226,22 +231,24 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = undefined;
 	let schemaAssociations: ISchemaAssociations | SchemaConfiguration[] | undefined = undefined;
 	let formatterRegistrations: Thenable<Disposable>[] | null = null;
+	let validateEnabled = true;
 
 	// The settings have changed. Is send on server activation as well.
 	connection.onDidChangeConfiguration((change) => {
 		let settings = <Settings>change.settings;
 		if (runtime.configureHttpRequests) {
-			runtime.configureHttpRequests(settings.http && settings.http.proxy, settings.http && settings.http.proxyStrictSSL);
+			runtime.configureHttpRequests(settings?.http?.proxy, !!settings.http?.proxyStrictSSL);
 		}
-		jsonConfigurationSettings = settings.json && settings.json.schemas;
+		jsonConfigurationSettings = settings.json?.schemas;
+		validateEnabled = !!settings.json?.validate?.enable;
 		updateConfiguration();
 
-		foldingRangeLimit = Math.trunc(Math.max(settings.json && settings.json.resultLimit || foldingRangeLimitDefault, 0));
-		resultLimit = Math.trunc(Math.max(settings.json && settings.json.resultLimit || Number.MAX_VALUE, 0));
+		foldingRangeLimit = Math.trunc(Math.max(settings.json?.resultLimit || foldingRangeLimitDefault, 0));
+		resultLimit = Math.trunc(Math.max(settings.json?.resultLimit || Number.MAX_VALUE, 0));
 
 		// dynamically enable & disable the formatter
 		if (dynamicFormatterRegistration) {
-			const enableFormatter = settings && settings.json && settings.json.format && settings.json.format.enable;
+			const enableFormatter = settings.json?.format?.enable;
 			if (enableFormatter) {
 				if (!formatterRegistrations) {
 					const documentSelector = [{ language: 'json' }, { language: 'jsonc' }];
@@ -309,7 +316,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	function updateConfiguration() {
 		const languageSettings = {
-			validate: true,
+			validate: validateEnabled,
 			allowComments: true,
 			schemas: new Array<SchemaConfiguration>()
 		};
@@ -371,10 +378,14 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	function triggerValidation(textDocument: TextDocument): void {
 		cleanPendingValidation(textDocument);
-		pendingValidationRequests[textDocument.uri] = runtime.timer.setTimeout(() => {
-			delete pendingValidationRequests[textDocument.uri];
-			validateTextDocument(textDocument);
-		}, validationDelayMs);
+		if (validateEnabled) {
+			pendingValidationRequests[textDocument.uri] = runtime.timer.setTimeout(() => {
+				delete pendingValidationRequests[textDocument.uri];
+				validateTextDocument(textDocument);
+			}, validationDelayMs);
+		} else {
+			connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: [] });
+		}
 	}
 
 	function validateTextDocument(textDocument: TextDocument, callback?: (diagnostics: Diagnostic[]) => void): void {
@@ -396,7 +407,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			runtime.timer.setImmediate(() => {
 				const currDocument = documents.get(textDocument.uri);
 				if (currDocument && currDocument.version === version) {
-					respond(diagnostics); // Send the computed diagnostics to VSCode.
+					respond(diagnostics as Diagnostic[]); // Send the computed diagnostics to VSCode.
 				}
 			});
 		}, error => {

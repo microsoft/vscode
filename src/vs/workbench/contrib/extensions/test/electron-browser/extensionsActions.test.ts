@@ -100,7 +100,7 @@ async function setupTest() {
 		onUninstallExtension: uninstallEvent.event,
 		onDidUninstallExtension: didUninstallEvent.event,
 		async getInstalled() { return []; },
-		async getExtensionsControlManifest() { return { malicious: [] }; },
+		async getExtensionsControlManifest() { return { malicious: [], deprecated: {} }; },
 		async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata) {
 			local.identifier.uuid = metadata.id;
 			local.publisherDisplayName = metadata.publisherDisplayName;
@@ -2424,7 +2424,7 @@ function createExtensionManagementService(installed: ILocalExtension[] = []): IE
 			return local;
 		},
 		async getTargetPlatform() { return getTargetPlatform(platform, arch); },
-		async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [] }; },
+		async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {} }; },
 	};
 }
 

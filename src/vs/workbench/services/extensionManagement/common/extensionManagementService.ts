@@ -21,7 +21,6 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { flatten } from 'vs/base/common/arrays';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
-import { canceled } from 'vs/base/common/errors';
 import { IUserDataSyncEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { Promises } from 'vs/base/common/async';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
@@ -31,6 +30,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { isUndefined } from 'vs/base/common/types';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationError } from 'vs/base/common/errors';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
 
@@ -74,8 +74,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		this.onDidUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidUninstallExtensionOnServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onDidUninstallExtension, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<DidUninstallExtensionOnServerEvent>())).event;
 	}
 
-	async getInstalled(type?: ExtensionType, donotIgnoreInvalidExtensions?: boolean): Promise<ILocalExtension[]> {
-		const result = await Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.getInstalled(type, donotIgnoreInvalidExtensions)));
+	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
+		const result = await Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.getInstalled(type)));
 		return flatten(result);
 	}
 
@@ -179,27 +179,40 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	}
 
 	async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
+		const manifest = await this.getManifest(vsix);
+		return this.installVSIX(vsix, manifest, options);
+	}
+
+	async installVSIX(vsix: URI, manifest: IExtensionManifest, options?: InstallVSIXOptions): Promise<ILocalExtension> {
+		const serversToInstall = this.getServersToInstall(manifest);
+		if (serversToInstall?.length) {
+			await this.checkForWorkspaceTrust(manifest);
+			const [local] = await Promises.settled(serversToInstall.map(server => this.installVSIXInServer(vsix, server, options)));
+			return local;
+		}
+		return Promise.reject('No Servers to Install');
+	}
+
+	private getServersToInstall(manifest: IExtensionManifest): IExtensionManagementServer[] | undefined {
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const manifest = await this.getManifest(vsix);
 			if (isLanguagePackExtension(manifest)) {
 				// Install on both servers
-				const [local] = await Promises.settled([this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer].map(server => this.installVSIX(vsix, server, options)));
-				return local;
+				return [this.extensionManagementServerService.localExtensionManagementServer, this.extensionManagementServerService.remoteExtensionManagementServer];
 			}
 			if (this.extensionManifestPropertiesService.prefersExecuteOnUI(manifest)) {
 				// Install only on local server
-				return this.installVSIX(vsix, this.extensionManagementServerService.localExtensionManagementServer, options);
+				return [this.extensionManagementServerService.localExtensionManagementServer];
 			}
 			// Install only on remote server
-			return this.installVSIX(vsix, this.extensionManagementServerService.remoteExtensionManagementServer, options);
+			return [this.extensionManagementServerService.remoteExtensionManagementServer];
 		}
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
-			return this.installVSIX(vsix, this.extensionManagementServerService.localExtensionManagementServer, options);
+			return [this.extensionManagementServerService.localExtensionManagementServer];
 		}
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			return this.installVSIX(vsix, this.extensionManagementServerService.remoteExtensionManagementServer, options);
+			return [this.extensionManagementServerService.remoteExtensionManagementServer];
 		}
-		return Promise.reject('No Servers to Install');
+		return undefined;
 	}
 
 	async installWebExtension(location: URI): Promise<ILocalExtension> {
@@ -209,18 +222,16 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.install(location);
 	}
 
-	protected async installVSIX(vsix: URI, server: IExtensionManagementServer, options: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
-		const manifest = await this.getManifest(vsix);
-		if (manifest) {
-			await this.checkForWorkspaceTrust(manifest);
-			return server.extensionManagementService.install(vsix, options);
-		}
-		return Promise.reject('Unable to get the extension manifest.');
+	protected installVSIXInServer(vsix: URI, server: IExtensionManagementServer, options: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
+		return server.extensionManagementService.install(vsix, options);
 	}
 
 	getManifest(vsix: URI): Promise<IExtensionManifest> {
 		if (vsix.scheme === Schemas.file && this.extensionManagementServerService.localExtensionManagementServer) {
 			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.getManifest(vsix);
+		}
+		if (vsix.scheme === Schemas.file && this.extensionManagementServerService.remoteExtensionManagementServer) {
+			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getManifest(vsix);
 		}
 		if (vsix.scheme === Schemas.vscodeRemote && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			return this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getManifest(vsix);
@@ -368,7 +379,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				case 1:
 					return true;
 			}
-			throw canceled();
+			throw new CancellationError();
 		}
 		return false;
 	}
@@ -383,7 +394,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		if (this.extensionManagementServerService.webExtensionManagementServer) {
 			return this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.getExtensionsControlManifest();
 		}
-		return Promise.resolve({ malicious: [] });
+		return Promise.resolve({ malicious: [], deprecated: {} });
 	}
 
 	private getServer(extension: ILocalExtension): IExtensionManagementServer | null {
@@ -402,7 +413,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			});
 
 			if (trustState === undefined) {
-				throw canceled();
+				throw new CancellationError();
 			}
 		}
 	}
@@ -462,7 +473,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			// Unfortunately ICommandService cannot be used directly due to cyclic dependencies
 			this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('extension.open', extension.identifier.id, 'extensionPack'));
 		}
-		throw canceled();
+		throw new CancellationError();
 
 	}
 

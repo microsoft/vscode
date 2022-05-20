@@ -3,17 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-editor-pane-placeholder {
+	padding: 0 16px 0 16px;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+}
+
 .monaco-editor-pane-placeholder:focus {
 	outline: none !important;
 }
 
-.monaco-editor-pane-placeholder {
-	padding: 0 0 0 16px;
-	box-sizing: border-box;
+.monaco-editor-pane-placeholder .editor-placeholder-icon-container .codicon {
+	font-size: 48px;
+}
+
+.monaco-editor-pane-placeholder.max-height-200px .editor-placeholder-icon-container {
+	/* Hide the icon when height is limited */
+	display: none;
+}
+
+.monaco-editor-pane-placeholder .editor-placeholder-label-container {
+	font-size: 14px;
+	max-width: 450px;
+	text-align: center
 }
 
 .monaco-editor-pane-placeholder .monaco-link,
 .monaco-editor-pane-placeholder .monaco-link:hover {
+	font-size: 14px;
 	cursor: pointer;
 	text-decoration: underline;
 	margin-left: 5px;

@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcMain, session } from 'electron';
+import { session } from 'electron';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { FileAccess, Schemas } from 'vs/base/common/network';
@@ -138,7 +139,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		// Install IPC handler
 		const channel = resource.toString();
 		const handler = async (): Promise<T | undefined> => obj;
-		ipcMain.handle(channel, handler);
+		validatedIpcMain.handle(channel, handler);
 
 		this.logService.trace(`IPC Object URL: Registered new channel ${channel}.`);
 
@@ -148,7 +149,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 			dispose: () => {
 				this.logService.trace(`IPC Object URL: Removed channel ${channel}.`);
 
-				ipcMain.removeHandler(channel);
+				validatedIpcMain.removeHandler(channel);
 			}
 		};
 	}

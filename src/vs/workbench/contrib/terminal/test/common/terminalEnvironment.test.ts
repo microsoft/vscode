@@ -180,66 +180,66 @@ suite('Workbench - TerminalEnvironment', () => {
 			strictEqual(Uri.file(a).fsPath, Uri.file(b).fsPath);
 		}
 
-		test('should default to userHome for an empty workspace', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, undefined), '/userHome/');
+		test('should default to userHome for an empty workspace', async () => {
+			assertPathsMatch(await getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, undefined), '/userHome/');
 		});
 
-		test('should use to the workspace if it exists', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, Uri.file('/foo'), undefined), '/foo');
+		test('should use to the workspace if it exists', async () => {
+			assertPathsMatch(await getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, Uri.file('/foo'), undefined), '/foo');
 		});
 
-		test('should use an absolute custom cwd as is', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, '/foo'), '/foo');
+		test('should use an absolute custom cwd as is', async () => {
+			assertPathsMatch(await getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, '/foo'), '/foo');
 		});
 
-		test('should normalize a relative custom cwd against the workspace path', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, Uri.file('/bar'), 'foo'), '/bar/foo');
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, Uri.file('/bar'), './foo'), '/bar/foo');
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, Uri.file('/bar'), '../foo'), '/foo');
+		test('should normalize a relative custom cwd against the workspace path', async () => {
+			assertPathsMatch(await getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, Uri.file('/bar'), 'foo'), '/bar/foo');
+			assertPathsMatch(await getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, Uri.file('/bar'), './foo'), '/bar/foo');
+			assertPathsMatch(await getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, Uri.file('/bar'), '../foo'), '/foo');
 		});
 
-		test('should fall back for relative a custom cwd that doesn\'t have a workspace', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, 'foo'), '/userHome/');
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, './foo'), '/userHome/');
-			assertPathsMatch(getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, '../foo'), '/userHome/');
+		test('should fall back for relative a custom cwd that doesn\'t have a workspace', async () => {
+			assertPathsMatch(await getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, 'foo'), '/userHome/');
+			assertPathsMatch(await getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, './foo'), '/userHome/');
+			assertPathsMatch(await getCwd({ executable: undefined, args: [] }, '/userHome/', undefined, undefined, '../foo'), '/userHome/');
 		});
 
-		test('should ignore custom cwd when told to ignore', () => {
-			assertPathsMatch(getCwd({ executable: undefined, args: [], ignoreConfigurationCwd: true }, '/userHome/', undefined, Uri.file('/bar'), '/foo'), '/bar');
+		test('should ignore custom cwd when told to ignore', async () => {
+			assertPathsMatch(await getCwd({ executable: undefined, args: [], ignoreConfigurationCwd: true }, '/userHome/', undefined, Uri.file('/bar'), '/foo'), '/bar');
 		});
 	});
 
 	suite('getDefaultShell', () => {
-		test('should change Sysnative to System32 in non-WoW64 systems', () => {
-			const shell = getDefaultShell(key => {
+		test('should change Sysnative to System32 in non-WoW64 systems', async () => {
+			const shell = await getDefaultShell(key => {
 				return ({ 'terminal.integrated.shell.windows': 'C:\\Windows\\Sysnative\\cmd.exe' } as any)[key];
 			}, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, false, Platform.Windows);
 			strictEqual(shell, 'C:\\Windows\\System32\\cmd.exe');
 		});
 
-		test('should not change Sysnative to System32 in WoW64 systems', () => {
-			const shell = getDefaultShell(key => {
+		test('should not change Sysnative to System32 in WoW64 systems', async () => {
+			const shell = await getDefaultShell(key => {
 				return ({ 'terminal.integrated.shell.windows': 'C:\\Windows\\Sysnative\\cmd.exe' } as any)[key];
 			}, 'DEFAULT', true, 'C:\\Windows', undefined, {} as any, false, Platform.Windows);
 			strictEqual(shell, 'C:\\Windows\\Sysnative\\cmd.exe');
 		});
 
-		test('should use automationShell when specified', () => {
-			const shell1 = getDefaultShell(key => {
+		test('should use automationShell when specified', async () => {
+			const shell1 = await getDefaultShell(key => {
 				return ({
 					'terminal.integrated.shell.windows': 'shell',
 					'terminal.integrated.automationShell.windows': undefined
 				} as any)[key];
 			}, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, false, Platform.Windows);
 			strictEqual(shell1, 'shell', 'automationShell was false');
-			const shell2 = getDefaultShell(key => {
+			const shell2 = await getDefaultShell(key => {
 				return ({
 					'terminal.integrated.shell.windows': 'shell',
 					'terminal.integrated.automationShell.windows': undefined
 				} as any)[key];
 			}, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, true, Platform.Windows);
 			strictEqual(shell2, 'shell', 'automationShell was true');
-			const shell3 = getDefaultShell(key => {
+			const shell3 = await getDefaultShell(key => {
 				return ({
 					'terminal.integrated.shell.windows': 'shell',
 					'terminal.integrated.automationShell.windows': 'automationShell'

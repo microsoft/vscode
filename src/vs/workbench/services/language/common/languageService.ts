@@ -16,6 +16,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IRawLanguageExtensionPoint {
 	id: string;
@@ -113,7 +114,8 @@ export class WorkbenchLanguageService extends LanguageService {
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(environmentService.verbose || environmentService.isExtensionDevelopment || !environmentService.isBuilt);
 		this._configurationService = configurationService;
@@ -184,6 +186,12 @@ export class WorkbenchLanguageService extends LanguageService {
 		if (configuration.files?.associations) {
 			Object.keys(configuration.files.associations).forEach(pattern => {
 				const langId = configuration.files.associations[pattern];
+				if (typeof langId !== 'string') {
+					this.logService.warn(`Ingnoing configured 'files.associations' for '${pattern}' because its type is not a string but '${typeof langId}'`);
+
+					return; // https://github.com/microsoft/vscode/issues/147284
+				}
+
 				const mimeType = this.getMimeType(langId) || `text/x-${langId}`;
 
 				registerConfiguredLanguageAssociation({ id: langId, mime: mimeType, filepattern: pattern });

@@ -9,7 +9,8 @@
 	display: flex;
 	flex-shrink: 1;
 	box-sizing: border-box;
-	height: 30px;
+	height: 100%;
+	padding: 4px 0;
 	overflow: hidden;
 	flex-wrap: wrap;
 }
@@ -23,6 +24,7 @@
 	align-items: center;
 	box-sizing: border-box;
 	padding: 0px 8px;
+	border-radius: 5px;
 	cursor: default;
 	-webkit-app-region: no-drag;
 	zoom: 1;

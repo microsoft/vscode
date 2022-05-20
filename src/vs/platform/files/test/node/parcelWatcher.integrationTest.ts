@@ -450,6 +450,18 @@ import { ltrim } from 'vs/base/common/strings';
 		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
 	});
 
+	test('includes are supported (relative pattern explicit)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: [{ base: testDir, pattern: 'deep/newFile.txt' }], recursive: true }]);
+
+		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
+	});
+
+	test('includes are supported (relative pattern implicit)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['deep/newFile.txt'], recursive: true }]);
+
+		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
+	});
+
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (root)', async function () {
 		const link = join(testDir, 'deep-linked');
 		const linkTarget = join(testDir, 'deep');

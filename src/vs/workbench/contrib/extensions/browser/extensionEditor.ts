@@ -71,6 +71,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import semver = require('vs/base/common/semver/semver');
 
 class NavBar extends Disposable {
 
@@ -183,10 +184,10 @@ class VersionWidget extends ExtensionWithDifferentGalleryVersionWidget {
 		this.render();
 	}
 	render(): void {
-		if (!this.extension) {
+		if (!this.extension || !semver.valid(this.extension.version)) {
 			return;
 		}
-		this.element.textContent = `v${this.gallery ? this.gallery.version : this.extension.version}`;
+		this.element.textContent = `v${this.gallery?.version ?? this.extension.version}`;
 	}
 }
 
@@ -341,8 +342,8 @@ export class ExtensionEditor extends EditorPane {
 					this.instantiationService.createInstance(InstallAnotherVersionAction),
 				]
 			]),
-			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction),
-			this.instantiationService.createInstance(SwitchToReleasedVersionAction),
+			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction, false),
+			this.instantiationService.createInstance(SwitchToReleasedVersionAction, false),
 			this.instantiationService.createInstance(ToggleSyncExtensionAction),
 			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),
 		];
@@ -657,7 +658,7 @@ export class ExtensionEditor extends EditorPane {
 			}
 		};
 		reset(template.recommendation);
-		if (extension.state === ExtensionState.Installed) {
+		if (extension.deprecationInfo || extension.state === ExtensionState.Installed) {
 			return;
 		}
 		updateRecommendationText(false);
@@ -743,10 +744,15 @@ export class ExtensionEditor extends EditorPane {
 				return Promise.resolve(null);
 			}
 
-			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay(generateUuid(), {
-				enableFindWidget: true,
-				tryRestoreScrollPosition: true,
-			}, {}, undefined));
+			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay({
+				id: generateUuid(),
+				options: {
+					enableFindWidget: true,
+					tryRestoreScrollPosition: true,
+				},
+				contentOptions: {},
+				extension: undefined,
+			}));
 
 			webview.initialScrollProgress = this.initialScrollProgress.get(webviewIndex) || 0;
 

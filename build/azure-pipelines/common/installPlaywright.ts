@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { retry } from './retry';
-const { installDefaultBrowsersForNpmInstall } = require('playwright-core/lib/utils/registry');
+const { installDefaultBrowsersForNpmInstall } = require('playwright-core/lib/server');
 
 async function install() {
 	await retry(() => installDefaultBrowsersForNpmInstall());

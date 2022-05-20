@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
+import { IDataTransfer } from 'vs/base/common/dataTransfer';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -16,9 +19,7 @@ import * as model from 'vs/editor/common/model';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 /**
  * Open ended enum at runtime
@@ -75,10 +76,11 @@ export const enum StandardTokenType {
  *     1098 7654 3210 9876 5432 1098 7654 3210
  * - -------------------------------------------
  *     xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx
- *     bbbb bbbb bfff ffff ffFF FFTT LLLL LLLL
+ *     bbbb bbbb ffff ffff fFFF FBTT LLLL LLLL
  * - -------------------------------------------
  *  - L = LanguageId (8 bits)
  *  - T = StandardTokenType (2 bits)
+ *  - B = Balanced bracket (1 bit)
  *  - F = FontStyle (4 bits)
  *  - f = foreground color (9 bits)
  *  - b = background color (9 bits)
@@ -88,14 +90,15 @@ export const enum StandardTokenType {
 export const enum MetadataConsts {
 	LANGUAGEID_MASK = 0b00000000000000000000000011111111,
 	TOKEN_TYPE_MASK = 0b00000000000000000000001100000000,
-	FONT_STYLE_MASK = 0b00000000000000000011110000000000,
-	FOREGROUND_MASK = 0b00000000011111111100000000000000,
-	BACKGROUND_MASK = 0b11111111100000000000000000000000,
+	BALANCED_BRACKETS_MASK = 0b00000000000000000000010000000000,
+	FONT_STYLE_MASK = 0b00000000000000000111100000000000,
+	FOREGROUND_MASK = 0b00000000111111111000000000000000,
+	BACKGROUND_MASK = 0b11111111000000000000000000000000,
 
-	ITALIC_MASK = 0b00000000000000000000010000000000,
-	BOLD_MASK = 0b00000000000000000000100000000000,
-	UNDERLINE_MASK = 0b00000000000000000001000000000000,
-	STRIKETHROUGH_MASK = 0b00000000000000000010000000000000,
+	ITALIC_MASK = 0b00000000000000000000100000000000,
+	BOLD_MASK = 0b00000000000000000001000000000000,
+	UNDERLINE_MASK = 0b00000000000000000010000000000000,
+	STRIKETHROUGH_MASK = 0b00000000000000000100000000000000,
 
 	// Semantic tokens cannot set the language id, so we can
 	// use the first 8 bits for control purposes
@@ -108,9 +111,10 @@ export const enum MetadataConsts {
 
 	LANGUAGEID_OFFSET = 0,
 	TOKEN_TYPE_OFFSET = 8,
-	FONT_STYLE_OFFSET = 10,
-	FOREGROUND_OFFSET = 14,
-	BACKGROUND_OFFSET = 23
+	BALANCED_BRACKETS_OFFSET = 10,
+	FONT_STYLE_OFFSET = 11,
+	FOREGROUND_OFFSET = 15,
+	BACKGROUND_OFFSET = 24
 }
 
 /**
@@ -124,6 +128,10 @@ export class TokenMetadata {
 
 	public static getTokenType(metadata: number): StandardTokenType {
 		return (metadata & MetadataConsts.TOKEN_TYPE_MASK) >>> MetadataConsts.TOKEN_TYPE_OFFSET;
+	}
+
+	public static containsBalancedBrackets(metadata: number): boolean {
+		return (metadata & MetadataConsts.BALANCED_BRACKETS_MASK) !== 0;
 	}
 
 	public static getFontStyle(metadata: number): FontStyle {
@@ -673,6 +681,10 @@ export interface CompletionItem {
 	 * A command that should be run upon acceptance of this item.
 	 */
 	command?: Command;
+	/**
+	 * @internal
+	 */
+	extensionId?: ExtensionIdentifier;
 
 	/**
 	 * @internal
@@ -822,6 +834,10 @@ export interface InlineCompletion {
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 	readonly items: readonly TItem[];
+	/**
+	 * A list of commands associated with the inline completions of this list.
+	 */
+	readonly commands?: Command[];
 }
 
 export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
@@ -1717,6 +1733,7 @@ export interface CommentThread<T = IRange> {
 	onDidChangeState: Event<CommentThreadState | undefined>;
 	onDidChangeCanReply: Event<boolean>;
 	isDisposed: boolean;
+	isTemplate: boolean;
 }
 
 /**
@@ -1969,18 +1986,6 @@ export enum ExternalUriOpenerPriority {
 	Preferred = 3,
 }
 
-/**
- * @internal
- */
-export interface IDataTransferItem {
-	asString(): Thenable<string>;
-	value: any;
-}
-
-/**
- * @internal
- */
-export type IDataTransfer = Map<string, IDataTransferItem>;
 
 /**
  * @internal

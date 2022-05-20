@@ -15,7 +15,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
+import { Command, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
 import { BaseGhostTextWidgetModel, GhostText, GhostTextReplacement, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
@@ -32,6 +32,7 @@ import { assertNever } from 'vs/base/common/types';
 import { matchesSubString } from 'vs/base/common/filters';
 import { getReadonlyEmptyArray } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -84,7 +85,8 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 
 		this._register(
 			this.editor.onDidChangeCursorPosition((e) => {
-				if (this.session && !this.session.isValid) {
+				if (e.reason === CursorChangeReason.Explicit ||
+					this.session && !this.session.isValid) {
 					this.hide();
 				}
 			})
@@ -252,6 +254,9 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}));
 
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
+			if (e.reason === CursorChangeReason.Explicit) {
+				return;
+			}
 			// Ghost text depends on the cursor position
 			this.cache.value?.updateRanges();
 			if (this.cache.value) {
@@ -398,10 +403,14 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		if (!currentCompletion) {
 			return undefined;
 		}
+		const cursorPosition = this.editor.getPosition();
+		if (currentCompletion.range.getEndPosition().isBefore(cursorPosition)) {
+			return undefined;
+		}
 
 		const mode = this.editor.getOptions().get(EditorOption.inlineSuggest).mode;
 
-		const ghostText = inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, this.editor.getPosition());
+		const ghostText = inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, cursorPosition);
 		if (ghostText) {
 			if (ghostText.isEmpty()) {
 				return undefined;
@@ -538,6 +547,11 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 
 		this.onDidChangeEmitter.fire();
 	}
+
+	public get commands(): Command[] {
+		const lists = new Set(this.cache.value?.completions.map(c => c.inlineCompletion.sourceInlineCompletions) || []);
+		return [...lists].flatMap(l => l.commands || []);
+	}
 }
 
 export class UpdateOperation implements IDisposable {
@@ -555,6 +569,7 @@ export class UpdateOperation implements IDisposable {
 */
 export class SynchronizedInlineCompletionsCache extends Disposable {
 	public readonly completions: readonly CachedInlineCompletion[];
+	private isDisposing = false;
 
 	constructor(
 		completionsSource: TrackedInlineCompletions,
@@ -574,6 +589,7 @@ export class SynchronizedInlineCompletionsCache extends Disposable {
 			}))
 		);
 		this._register(toDisposable(() => {
+			this.isDisposing = true;
 			editor.deltaDecorations(decorationIds, []);
 		}));
 
@@ -586,7 +602,11 @@ export class SynchronizedInlineCompletionsCache extends Disposable {
 		this._register(completionsSource);
 	}
 
-	public updateRanges() {
+	public updateRanges(): void {
+		if (this.isDisposing) {
+			return;
+		}
+
 		let hasChanged = false;
 		const model = this.editor.getModel();
 		for (const c of this.completions) {
@@ -784,7 +804,7 @@ function closeBrackets(text: string, position: Position, model: ITextModel, lang
 	const lineStart = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
 	const newLine = lineStart + text;
 
-	const newTokens = model.tokenizeLineWithEdit(position, newLine.length - (position.column - 1), text);
+	const newTokens = model.tokenization.tokenizeLineWithEdit(position, newLine.length - (position.column - 1), text);
 	const slicedTokens = newTokens?.sliceAndInflate(position.column - 1, newLine.length, 0);
 	if (!slicedTokens) {
 		return text;

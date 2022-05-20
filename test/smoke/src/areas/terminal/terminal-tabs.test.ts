@@ -3,15 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
+import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue, SettingsEditor } from '../../../../automation';
+import { setTerminalTestSettings } from './terminal-helpers';
 
 export function setup() {
 	describe('Terminal Tabs', () => {
 		// Acquire automation API
 		let terminal: Terminal;
-		before(function () {
+		let settingsEditor: SettingsEditor;
+
+		before(async function () {
 			const app = this.app as Application;
 			terminal = app.workbench.terminal;
+			settingsEditor = app.workbench.settingsEditor;
+			await setTerminalTestSettings(app);
+		});
+
+		after(async function () {
+			await settingsEditor.clearUserSettings();
 		});
 
 		it('clicking the plus button should create a terminal and display the tabs view showing no split decorations', async () => {

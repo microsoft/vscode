@@ -33,6 +33,7 @@ import { NaiveCwdDetectionCapability } from 'vs/platform/terminal/common/capabil
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { URI } from 'vs/base/common/uri';
 import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -130,7 +131,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -249,8 +251,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					});
 					const options: ITerminalProcessOptions = {
 						shellIntegration: {
-							enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
-							showWelcome: this._configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome),
+							enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled)
 						},
 						windowsEnableConpty: this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled
 					};
@@ -333,6 +334,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					case ProcessPropertyType.HasChildProcesses:
 						this._hasChildProcesses = value;
 						break;
+					case ProcessPropertyType.FailedShellIntegrationActivation:
+						this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivationFailureCustomArgs');
+						break;
 				}
 				this._onDidChangeProperty.fire({ type, value });
 			})
@@ -388,7 +392,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			baseEnv = await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority);
 		}
 
-		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
+		const env = await terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
 		if (!this._isDisposed && !shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
 			this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;
 			this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
@@ -398,7 +402,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// info widget. While technically these could differ due to the slight change of a race
 			// condition, the chance is minimal plus the impact on the user is also not that great
 			// if it happens - it's not worth adding plumbing to sync back the resolved collection.
-			this._extEnvironmentVariableCollection.applyToProcessEnvironment(env, variableResolver);
+			await this._extEnvironmentVariableCollection.applyToProcessEnvironment(env, variableResolver);
 			if (this._extEnvironmentVariableCollection.map.size > 0) {
 				this.environmentVariableInfo = new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection);
 				this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
@@ -423,7 +427,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 
-		const initialCwd = terminalEnvironment.getCwd(
+		const initialCwd = await terminalEnvironment.getCwd(
 			shellLaunchConfig,
 			userHome,
 			variableResolver,
@@ -436,8 +440,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const options: ITerminalProcessOptions = {
 			shellIntegration: {
-				enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
-				showWelcome: this._configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome),
+				enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled)
 			},
 			windowsEnableConpty: this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled
 		};

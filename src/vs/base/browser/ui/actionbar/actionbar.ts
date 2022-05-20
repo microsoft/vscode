@@ -6,6 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -43,11 +44,13 @@ export interface IActionBarOptions {
 	readonly actionViewItemProvider?: IActionViewItemProvider;
 	readonly actionRunner?: IActionRunner;
 	readonly ariaLabel?: string;
+	readonly ariaRole?: string;
 	readonly animated?: boolean;
 	readonly triggerKeys?: ActionTrigger;
 	readonly allowContextMenu?: boolean;
 	readonly preventLoopNavigation?: boolean;
 	readonly focusOnlyEnabledItems?: boolean;
+	readonly hoverDelegate?: IHoverDelegate;
 }
 
 export interface IActionOptions extends IActionViewItemOptions {
@@ -212,7 +215,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		this.actionsList = document.createElement('ul');
 		this.actionsList.className = 'actions-container';
-		this.actionsList.setAttribute('role', 'toolbar');
+		this.actionsList.setAttribute('role', this.options.ariaRole || 'toolbar');
 
 		if (this.options.ariaLabel) {
 			this.actionsList.setAttribute('aria-label', this.options.ariaLabel);
@@ -225,7 +228,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	private refreshRole(): void {
 		if (this.length() >= 2) {
-			this.actionsList.setAttribute('role', 'toolbar');
+			this.actionsList.setAttribute('role', this.options.ariaRole || 'toolbar');
 		} else {
 			this.actionsList.setAttribute('role', 'presentation');
 		}
@@ -326,7 +329,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			}
 
 			if (!item) {
-				item = new ActionViewItem(this.context, action, options);
+				item = new ActionViewItem(this.context, action, { hoverDelegate: this.options.hoverDelegate, ...options });
 			}
 
 			// Prevent native context menu on actions
@@ -469,7 +472,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 			this.focusedItem = (this.focusedItem + 1) % this.viewItems.length;
 			item = this.viewItems[this.focusedItem];
-		} while (this.focusedItem !== startIndex && this.options.focusOnlyEnabledItems && !item.isEnabled());
+		} while (this.focusedItem !== startIndex && ((this.options.focusOnlyEnabledItems && !item.isEnabled()) || item.action.id === Separator.ID));
 
 		this.updateFocus();
 		return true;
@@ -496,7 +499,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 				this.focusedItem = this.viewItems.length - 1;
 			}
 			item = this.viewItems[this.focusedItem];
-		} while (this.focusedItem !== startIndex && this.options.focusOnlyEnabledItems && !item.isEnabled());
+		} while (this.focusedItem !== startIndex && ((this.options.focusOnlyEnabledItems && !item.isEnabled()) || item.action.id === Separator.ID));
 
 
 		this.updateFocus(true);
@@ -521,6 +524,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 			}
 
 			if (this.options.focusOnlyEnabledItems && types.isFunction(actionViewItem.isEnabled) && !actionViewItem.isEnabled()) {
+				focusItem = false;
+			}
+
+			if (actionViewItem.action.id === Separator.ID) {
 				focusItem = false;
 			}
 

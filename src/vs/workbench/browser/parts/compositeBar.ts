@@ -227,6 +227,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			},
 			orientation: this.options.orientation,
 			ariaLabel: localize('activityBarAriaLabel', "Active View Switcher"),
+			ariaRole: 'tablist',
 			animated: false,
 			preventLoopNavigation: this.options.preventLoopNavigation,
 			triggerKeys: { keyDown: true }
@@ -424,12 +425,6 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		// Solv: we open the default composite
 		if (defaultCompositeId && defaultCompositeId !== compositeId && this.isPinned(defaultCompositeId)) {
 			this.options.openComposite(defaultCompositeId, true);
-		}
-
-		// Case: we closed the last visible composite
-		// Solv: we hide the part
-		else if (this.visibleComposites.length <= 1) {
-			this.options.hidePart();
 		}
 
 		// Case: we closed the default composite

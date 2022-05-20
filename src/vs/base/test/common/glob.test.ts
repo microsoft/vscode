@@ -1066,6 +1066,18 @@ suite('Glob', () => {
 		}
 	});
 
+	test('relative pattern - single star alone', function () {
+		if (isWindows) {
+			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo\\something\\Program.cs', pattern: '*' };
+			assertGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\something\\Program.cs');
+			assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.cs');
+		} else {
+			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo/something/Program.cs', pattern: '*' };
+			assertGlobMatch(p, '/DNXConsoleApp/foo/something/Program.cs');
+			assertNoGlobMatch(p, '/DNXConsoleApp/foo/Program.cs');
+		}
+	});
+
 	test('relative pattern - ignores case on macOS/Windows', function () {
 		if (isWindows) {
 			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: 'something/*.cs' };
@@ -1113,5 +1125,19 @@ suite('Glob', () => {
 		const parsedExpression = glob.parse(expression);
 
 		assert.strictEqual('**/*.js', await parsedExpression('test.js', undefined, hasSibling));
+	});
+
+	test('patternsEquals', () => {
+		assert.ok(glob.patternsEquals(['a'], ['a']));
+		assert.ok(!glob.patternsEquals(['a'], ['b']));
+
+		assert.ok(glob.patternsEquals(['a', 'b', 'c'], ['a', 'b', 'c']));
+		assert.ok(!glob.patternsEquals(['1', '2'], ['1', '3']));
+
+		assert.ok(glob.patternsEquals([{ base: 'a', pattern: '*' }, 'b', 'c'], [{ base: 'a', pattern: '*' }, 'b', 'c']));
+
+		assert.ok(glob.patternsEquals(undefined, undefined));
+		assert.ok(!glob.patternsEquals(undefined, ['b']));
+		assert.ok(!glob.patternsEquals(['a'], undefined));
 	});
 });

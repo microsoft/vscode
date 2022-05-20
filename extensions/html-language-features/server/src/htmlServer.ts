@@ -11,7 +11,7 @@ import {
 } from 'vscode-languageserver';
 import {
 	getLanguageModes, LanguageModes, Settings, TextDocument, Position, Diagnostic, WorkspaceFolder, ColorInformation,
-	Range, DocumentLink, SymbolInformation, TextDocumentIdentifier
+	Range, DocumentLink, SymbolInformation, TextDocumentIdentifier, isCompletionItemData
 } from './modes/languageModes';
 
 import { format } from './modes/formatting';
@@ -67,7 +67,7 @@ namespace SemanticTokenLegendRequest {
 
 export interface RuntimeEnvironment {
 	fileFs?: FileSystemProvider;
-	configureHttpRequests?(proxy: string, strictSSL: boolean): void;
+	configureHttpRequests?(proxy: string | undefined, strictSSL: boolean): void;
 	readonly timer: {
 		setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable;
 		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
@@ -129,7 +129,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	// After the server has started the client sends an initialize request. The server receives
 	// in the passed params the rootPath of the workspace plus the client capabilities
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
-		const initializationOptions = params.initializationOptions;
+		const initializationOptions = params.initializationOptions as any || {};
 
 		workspaceFolders = (<any>params).workspaceFolders;
 		if (!Array.isArray(workspaceFolders)) {
@@ -179,14 +179,14 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		scopedSettingsSupport = getClientCapability('workspace.configuration', false);
 		workspaceFoldersSupport = getClientCapability('workspace.workspaceFolders', false);
 		foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
-		formatterMaxNumberOfEdits = params.initializationOptions?.customCapabilities?.rangeFormatting?.editLimit || Number.MAX_VALUE;
+		formatterMaxNumberOfEdits = initializationOptions?.customCapabilities?.rangeFormatting?.editLimit || Number.MAX_VALUE;
 		const capabilities: ServerCapabilities = {
 			textDocumentSync: TextDocumentSyncKind.Incremental,
 			completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : undefined,
 			hoverProvider: true,
 			documentHighlightProvider: true,
-			documentRangeFormattingProvider: params.initializationOptions?.provideFormatter === true,
-			documentFormattingProvider: params.initializationOptions?.provideFormatter === true,
+			documentRangeFormattingProvider: initializationOptions?.provideFormatter === true,
+			documentFormattingProvider: initializationOptions?.provideFormatter === true,
 			documentLinkProvider: { resolveProvider: false },
 			documentSymbolProvider: true,
 			definitionProvider: true,
@@ -226,7 +226,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	// The settings have changed. Is send on server activation as well.
 	connection.onDidChangeConfiguration((change) => {
-		globalSettings = change.settings;
+		globalSettings = change.settings as Settings;
 		documentSettings = {}; // reset all document settings
 		documents.all().forEach(triggerValidation);
 
@@ -321,15 +321,6 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			}
 			const doComplete = mode.doComplete;
 
-			if (mode.getId() !== 'html') {
-				/* __GDPR__
-					"html.embbedded.complete" : {
-						"languageId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				 */
-				connection.telemetry.logEvent({ key: 'html.embbedded.complete', value: { languageId: mode.getId() } });
-			}
-
 			const settings = await getDocumentSettings(document, () => doComplete.length > 2);
 			const documentContext = getDocumentContext(document.uri, workspaceFolders);
 			return doComplete(document, textDocumentPosition.position, documentContext, settings);
@@ -340,7 +331,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	connection.onCompletionResolve((item, token) => {
 		return runSafe(runtime, async () => {
 			const data = item.data;
-			if (data && data.languageId && data.uri) {
+			if (isCompletionItemData(data)) {
 				const mode = languageModes.getMode(data.languageId);
 				const document = documents.get(data.uri);
 				if (mode && mode.doResolve && document) {
