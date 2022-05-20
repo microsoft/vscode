@@ -775,7 +775,9 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		const globMatch = cached?.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)));
 		// Small optimization to only traverse gitIgnore if the globMatch from fileExclude returned nothing
 		const ignoreFile = globMatch ? undefined : this.ignoreTreesPerRoot.get(stat.root.resource.toString())?.findSubstr(stat.resource);
-		const isIgnoredByIgnoreFile = !ignoreFile?.isPathIncludedInTraversal(stat.resource.path, stat.isDirectory);
+		const isIncludedInTraversal = ignoreFile?.isPathIncludedInTraversal(stat.resource.path, stat.isDirectory);
+		// Doing !undefined returns true and we want it to be false when undefined because that means it's not included in the ignore file
+		const isIgnoredByIgnoreFile = isIncludedInTraversal === undefined ? false : !isIncludedInTraversal;
 		if (isIgnoredByIgnoreFile || globMatch || stat.parent?.isExcluded) {
 			stat.isExcluded = true;
 			const editors = this.editorService.visibleEditors;
