@@ -1,17 +1,16 @@
 name: Basic checks
 
 on:
-  # push:
-  #   branches:
-  #     - main
-  #     - release/*
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
-      - release/*
 
 jobs:
   main:
+    if: github.ref != 'refs/heads/main'
     name: Compilation, Unit and Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -77,6 +76,7 @@ jobs:
         run: DISPLAY=:10 ./scripts/test-integration.sh
 
   hygiene:
+    if: github.ref != 'refs/heads/main'
     name: Hygiene and Layering
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -140,3 +140,45 @@ jobs:
 
       - name: Run Trusted Types Checks
         run: yarn tsec-compile-check
+
+  warm-cache:
+    name: Warm up node modules cache
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      - name: Compute node modules cache key
+        id: nodeModulesCacheKey
+        run: echo "::set-output name=value::$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)"
+      - name: Cache node modules
+        id: cacheNodeModules
+        uses: actions/cache@v3
+        with:
+          path: "**/node_modules"
+          key: ${{ runner.os }}-cacheNodeModules21-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules21-
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
+      - name: Execute yarn
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+        run: yarn --frozen-lockfile --network-timeout 180000
