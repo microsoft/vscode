@@ -6,10 +6,14 @@
 import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import BaseSeverity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export import Severity = BaseSeverity;
+export enum Severity {
+	Ignore = 0,
+	Info = 1,
+	Warning = 2,
+	Error = 3
+}
 
 export const INotificationService = createDecorator<INotificationService>('notificationService');
 
