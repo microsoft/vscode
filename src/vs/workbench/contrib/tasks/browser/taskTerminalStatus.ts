@@ -13,18 +13,19 @@ import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskServic
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
 	task: Task;
 	status: ITerminalStatus;
 	problemMatcher: AbstractProblemCollector;
-	taskRunEnded?: boolean;
+	taskRunEnded: boolean;
 	disposeListener?: IDisposable;
 }
 
 const TASK_TERMINAL_STATUS_ID = 'task_terminal_status';
-export const ACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.loading, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.active', "Task is running") };
+export const ACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: spinningLoading, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.active', "Task is running") };
 export const SUCCEEDED_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.check, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.succeeded', "Task succeeded") };
 const SUCCEEDED_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.check, severity: Severity.Info, tooltip: nls.localize('taskTerminalStatus.succeededInactive', "Task succeeded and waiting...") };
 export const FAILED_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, icon: Codicon.error, severity: Severity.Error, tooltip: nls.localize('taskTerminalStatus.errors', "Task has errors") };
@@ -52,11 +53,11 @@ export class TaskTerminalStatus extends Disposable {
 	addTerminal(task: Task, terminal: ITerminalInstance, problemMatcher: AbstractProblemCollector) {
 		const status: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, severity: Severity.Info };
 		terminal.statusList.add(status);
-		this.terminalMap.set(task._id, { terminal, task, status, problemMatcher });
+		this.terminalMap.set(task._id, { terminal, task, status, problemMatcher, taskRunEnded: false });
 	}
 
 	private terminalFromEvent(event: TaskEvent): TerminalData | undefined {
-		if (!event.__task || !this.terminalMap.get(event.__task._id)) {
+		if (!event.__task) {
 			return undefined;
 		}
 
