@@ -18,6 +18,7 @@ import { URI } from 'vs/base/common/uri';
 import { joinPath, relativePath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 
+/* eslint-disable code-no-unexternalized-strings */
 
 const SYNC_TITLE = localize('session sync', 'Edit Sessions');
 const applyLatestCommand = {
@@ -62,20 +63,18 @@ class SessionSyncContribution extends Disposable implements IWorkbenchContributi
 					return;
 				}
 
-				if ('folders' in editSession && Array.isArray(editSession.folders)) {
-					for (const folder of editSession.folders) {
-						const folderRoot = that.contextService.getWorkspace().folders.find((f) => f.name === folder.name);
-						if (!folderRoot) {
-							return;
-						}
+				for (const folder of editSession.folders) {
+					const folderRoot = that.contextService.getWorkspace().folders.find((f) => f.name === folder.name);
+					if (!folderRoot) {
+						return;
+					}
 
-						for (const { relativeFilePath, contents, type } of folder.workingChanges) {
-							const uri = joinPath(folderRoot.uri, relativeFilePath);
-							if (type === ChangeType.Addition) {
-								await that.fileService.writeFile(uri, VSBuffer.fromString(contents));
-							} else if (type === ChangeType.Deletion && await that.fileService.exists(uri)) {
-								await that.fileService.del(uri);
-							}
+					for (const { relativeFilePath, contents, type } of folder.workingChanges) {
+						const uri = joinPath(folderRoot.uri, relativeFilePath);
+						if (type === ChangeType.Addition) {
+							await that.fileService.writeFile(uri, VSBuffer.fromString(contents));
+						} else if (type === ChangeType.Deletion && await that.fileService.exists(uri)) {
+							await that.fileService.del(uri);
 						}
 					}
 				}
