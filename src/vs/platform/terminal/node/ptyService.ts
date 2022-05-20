@@ -766,8 +766,8 @@ class XtermSerializer implements ITerminalSerializer {
 		return {
 			events: [
 				{
-					cols: this._xterm.getOption('cols'),
-					rows: this._xterm.getOption('rows'),
+					cols: this._xterm.cols,
+					rows: this._xterm.rows,
 					data: serialized
 				}
 			],
