@@ -14,7 +14,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { CellKind, INotebookTextModel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 export class NotebookExecutionService implements INotebookExecutionService, IDisposable {
 	declare _serviceBrand: undefined;
@@ -39,6 +39,10 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 		}
 
 		let kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
+		if (!kernel) {
+			kernel = await this.resolveSourceActions(notebook);
+		}
+
 		if (!kernel) {
 			await this._commandService.executeCommand(SELECT_KERNEL_ID);
 			kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
@@ -84,6 +88,21 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 				unconfirmed.forEach(exe => exe.complete({}));
 			}
 		}
+	}
+
+	private async resolveSourceActions(notebook: INotebookTextModel) {
+		let kernel: INotebookKernel | undefined;
+		const info = this._notebookKernelService.getMatchingKernel(notebook);
+		if (info.all.length === 0) {
+			// no kernel at all
+			const sourceActions = this._notebookKernelService.getSourceActions();
+			if (sourceActions.length === 1) {
+				await this._notebookKernelService.runSourceAction(sourceActions[0]);
+				kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
+			}
+		}
+
+		return kernel;
 	}
 
 	async cancelNotebookCellHandles(notebook: INotebookTextModel, cells: Iterable<number>): Promise<void> {

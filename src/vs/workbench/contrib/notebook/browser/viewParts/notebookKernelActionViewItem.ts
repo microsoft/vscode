@@ -64,25 +64,41 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 
 		const runningAction = this._notebookKernelService.getRunningSourceAction();
 		if (runningAction) {
-			this._updateActionFromSourceAction(runningAction);
-			return;
-		} else {
-			this.action.class = ThemeIcon.asClassName(selectKernelIcon);
-			const info = this._notebookKernelService.getMatchingKernel(notebook);
-			this._updateActionFromKernelInfo(info);
+			return this._updateActionFromSourceAction(runningAction, true);
 		}
+
+		const info = this._notebookKernelService.getMatchingKernel(notebook);
+		if (info.all.length === 0) {
+			return this._updateActionsFromSourceActions();
+		}
+
+		this._updateActionFromKernelInfo(info);
 	}
 
-	private _updateActionFromSourceAction(sourceAction: IAction) {
-		this.action.class = ThemeIcon.asClassName(ThemeIcon.modify(executingStateIcon, 'spin'));
+	private _updateActionFromSourceAction(sourceAction: IAction, running: boolean) {
+		this.action.class = running ? ThemeIcon.asClassName(ThemeIcon.modify(executingStateIcon, 'spin')) : ThemeIcon.asClassName(selectKernelIcon);
 		this.updateClass();
 		this._action.label = sourceAction.label;
 		this._action.enabled = true;
 	}
 
+	private _updateActionsFromSourceActions() {
+		this._action.enabled = true;
+		const sourceActions = this._notebookKernelService.getSourceActions();
+		if (sourceActions.length === 1) {
+			// exact one action
+			this._updateActionFromSourceAction(sourceActions[0], false);
+		} else {
+			this._action.class = ThemeIcon.asClassName(selectKernelIcon);
+			this._action.label = localize('select', "Select Kernel");
+			this._action.tooltip = '';
+		}
+	}
+
 	private _updateActionFromKernelInfo(info: INotebookKernelMatchResult): void {
 		this._kernelDisposable.clear();
 		this._action.enabled = true;
+		this._action.class = ThemeIcon.asClassName(selectKernelIcon);
 		const selectedOrSuggested = info.selected ?? (info.suggestions.length === 1 ? info.suggestions[0] : undefined);
 		if (selectedOrSuggested) {
 			// selected or suggested kernel
