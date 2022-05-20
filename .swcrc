@@ -1,0 +1,22 @@
+{
+	"$schema": "http://json.schemastore.org/swcrc",
+	"jsc": {
+		"baseUrl": "src",
+		"parser": {
+			"syntax": "typescript",
+			"tsx": false,
+			"decorators": true,
+			"dynamicImport": true
+		},
+		"target": "es2020",
+		"loose": false,
+		"transform": {
+			"legacyDecorator": true
+		}
+	},
+	"sourceMaps": true,
+	"module": {
+		"type": "amd",
+		"strict": true
+	}
+}
