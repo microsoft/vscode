@@ -63,11 +63,7 @@ suite('Task Terminal Status', () => {
 		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
 		assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS);
 		taskService.triggerStateChange({ kind: TaskEventKind.End, exitCode: 2 });
-		try {
-			assertStatus(testTerminal.statusList, FAILED_TASK_STATUS);
-		} catch {
-			await setTimeout(() => assertStatus(testTerminal.statusList, FAILED_TASK_STATUS), 10);
-		}
+		await poll<void>(async () => Promise.resolve(), () => testTerminal?.statusList.primary?.id === FAILED_TASK_STATUS.id, 'terminal status should be updated');
 	});
 	test('Should add active status when a non-background task is run for a second time in the same terminal', async () => {
 		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
@@ -86,4 +82,36 @@ function assertStatus(actual: ITerminalStatusList, expected: ITerminalStatus): v
 	ok(actual.statuses.length === 1, '# of statuses');
 	ok(actual.primary?.id === expected.id, 'ID');
 	ok(actual.primary?.severity === expected.severity, 'Severity');
+}
+
+async function poll<T>(
+	fn: () => Thenable<T>,
+	acceptFn: (result: T) => boolean,
+	timeoutMessage: string,
+	retryCount: number = 200,
+	retryInterval: number = 10 // millis
+): Promise<T> {
+	let trial = 1;
+	let lastError: string = '';
+
+	while (true) {
+		if (trial > retryCount) {
+			throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.\r${lastError}`);
+		}
+
+		let result;
+		try {
+			result = await fn();
+			if (acceptFn(result)) {
+				return result;
+			} else {
+				lastError = 'Did not pass accept function';
+			}
+		} catch (e: any) {
+			lastError = Array.isArray(e.stack) ? e.stack.join('\n') : e.stack;
+		}
+
+		await new Promise(resolve => setTimeout(resolve, retryInterval));
+		trial++;
+	}
 }
