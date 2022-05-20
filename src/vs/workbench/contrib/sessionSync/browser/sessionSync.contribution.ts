@@ -132,4 +132,4 @@ class SessionSyncContribution extends Disposable implements IWorkbenchContributi
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SessionSyncContribution, LifecyclePhase.Ready);
+workbenchRegistry.registerWorkbenchContribution(SessionSyncContribution, LifecyclePhase.Restored);
