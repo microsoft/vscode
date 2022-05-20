@@ -3426,7 +3426,6 @@ export class NotebookRendererScript {
 	}
 }
 
-
 //#endregion
 
 //#region Timeline
