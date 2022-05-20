@@ -16,7 +16,7 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IAuthenticationProvider } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { AuthenticationSession, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { EditSession, ISessionSyncWorkbenchService } from 'vs/workbench/services/sessionSync/common/sessionSync';
 
@@ -45,10 +45,10 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	) {
 		super();
 
-		// TODO@joyceerhl If the user signs out of the current session, update all our cached state
-		// this._register(Event.filter(this.authenticationService.onDidChangeSessions, e => this.isSupportedAuthenticationProviderId(e.providerId))(({ event }) => this.onDidChangeSessions(event)));
+		// If the user signs out of the current session, reset our cached auth state in memory and on disk
+		this._register(this.authenticationService.onDidChangeSessions((e) => this.onDidChangeSessions(e.event)));
 
-		// If another window changes the preferred session storage, update all our cached state
+		// If another window changes the preferred session storage, reset our cached auth state in memory
 		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
 	}
 
@@ -110,7 +110,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 
 		// If the user signed in previously and the session is still available, reuse that without prompting the user again
 		if (this.existingSessionId) {
-			const existing = await this.getMatchingSession();
+			const existing = await this.getExistingSession();
 			if (existing !== undefined) {
 				this.#authenticationInfo = { sessionId: existing.session.id, token: existing.session.accessToken, providerId: existing.session.providerId };
 				this.storeClient.setAuthToken(this.#authenticationInfo.token, this.#authenticationInfo.providerId);
@@ -123,7 +123,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 		if (session !== undefined) {
 			this.#authenticationInfo = { sessionId: session.id, token: session.accessToken, providerId: session.providerId };
 			this.storeClient.setAuthToken(this.#authenticationInfo.token, this.#authenticationInfo.providerId);
-			this.storageService.store(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, session.id, StorageScope.GLOBAL, StorageTarget.USER);
+			this.existingSessionId = session.id;
 			return true;
 		}
 
@@ -204,7 +204,15 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 		return this.storageService.get(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
 	}
 
-	private async getMatchingSession() {
+	private set existingSessionId(sessionId: string | undefined) {
+		if (sessionId === undefined) {
+			this.storageService.remove(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
+		} else {
+			this.storageService.store(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, sessionId, StorageScope.GLOBAL, StorageTarget.USER);
+		}
+	}
+
+	private async getExistingSession() {
 		const accounts = await this.getAllSessions();
 		return accounts.find((account) => account.session.id === this.existingSessionId);
 	}
@@ -215,6 +223,14 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 			&& this.#authenticationInfo?.sessionId !== this.existingSessionId
 		) {
 			this.#authenticationInfo = undefined;
+			this.initialized = false;
+		}
+	}
+
+	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
+		if (this.#authenticationInfo?.sessionId && e.removed.find(session => session.id === this.#authenticationInfo?.sessionId)) {
+			this.#authenticationInfo = undefined;
+			this.existingSessionId = undefined;
 			this.initialized = false;
 		}
 	}
