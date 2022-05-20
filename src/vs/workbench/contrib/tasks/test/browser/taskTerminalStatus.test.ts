@@ -55,16 +55,16 @@ suite('Task Terminal Status', () => {
 		testTask = instantiationService.createInstance(TestTask);
 		problemCollector = instantiationService.createInstance(TestProblemCollector);
 	});
-	test('Should add failed status when there is an exit code on task end', async () => {
+	test('Should add failed status when there is an exit code on task end', () => {
 		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
 		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted });
 		assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS);
 		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
 		assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS);
 		taskService.triggerStateChange({ kind: TaskEventKind.End, exitCode: 2 });
-		setTimeout(() => assertStatus(testTerminal.statusList, FAILED_TASK_STATUS), 50);
+		poll<void>(() => Promise.resolve(), () => pollForStatus(testTerminal.statusList, FAILED_TASK_STATUS), 'status should be correct');
 	});
-	test('Should add active status when a non-background task is run for a second time in the same terminal', async () => {
+	test('Should add active status when a non-background task is run for a second time in the same terminal', () => {
 		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
 		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted });
 		assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS);
@@ -81,4 +81,40 @@ function assertStatus(actual: ITerminalStatusList, expected: ITerminalStatus): v
 	ok(actual.statuses.length === 1, '# of statuses');
 	ok(actual.primary?.id === expected.id, 'ID');
 	ok(actual.primary?.severity === expected.severity, 'Severity');
+}
+
+function pollForStatus(actual: ITerminalStatusList, expected: ITerminalStatus): boolean {
+	return actual.statuses.length === 1 && actual.primary?.id === expected.id && actual.primary?.severity === expected.severity;
+}
+
+async function poll<T>(
+	fn: () => Thenable<T>,
+	acceptFn: (result: T) => boolean,
+	timeoutMessage: string,
+	retryCount: number = 200,
+	retryInterval: number = 10 // millis
+): Promise<T> {
+	let trial = 1;
+	let lastError: string = '';
+
+	while (true) {
+		if (trial > retryCount) {
+			throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.\r${lastError}`);
+		}
+
+		let result;
+		try {
+			result = await fn();
+			if (acceptFn(result)) {
+				return result;
+			} else {
+				lastError = 'Did not pass accept function';
+			}
+		} catch (e: any) {
+			lastError = Array.isArray(e.stack) ? e.stack.join('\n') : e.stack;
+		}
+
+		await new Promise(resolve => setTimeout(resolve, retryInterval));
+		trial++;
+	}
 }
