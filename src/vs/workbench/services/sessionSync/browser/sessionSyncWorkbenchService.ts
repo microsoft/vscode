@@ -13,7 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IAuthenticationProvider } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { AuthenticationSession, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
@@ -30,6 +30,8 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	#authenticationInfo: { sessionId: string; token: string; providerId: string } | undefined;
 	private static CACHED_SESSION_STORAGE_KEY = 'editSessionSyncAccountPreference';
 
+	private initialized = false;
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -43,21 +45,33 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 	) {
 		super();
 
-		// TODO@joyceerhl If another window changes the preferred session storage, update all our cached state
+		// TODO@joyceerhl If the user signs out of the current session, update all our cached state
+		// this._register(Event.filter(this.authenticationService.onDidChangeSessions, e => this.isSupportedAuthenticationProviderId(e.providerId))(({ event }) => this.onDidChangeSessions(event)));
+
+		// If another window changes the preferred session storage, update all our cached state
+		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
 	}
 
+	/**
+	 *
+	 * @param editSession An object representing edit session state to be restored.
+	 */
 	async write(editSession: EditSession): Promise<void> {
-		const initialized = await this.waitAndInitialize();
-		if (!initialized) {
+		this.initialized = await this.waitAndInitialize();
+		if (!this.initialized) {
 			throw new Error('Unable to store edit session.');
 		}
 
 		await this.storeClient?.write('editSessions', JSON.stringify(editSession), null);
 	}
 
+	/**
+	 *
+	 * @returns An object representing the latest saved edit session state, if any.
+	 */
 	async read(): Promise<EditSession | undefined> {
-		const initialized = await this.waitAndInitialize();
-		if (!initialized) {
+		this.initialized = await this.waitAndInitialize();
+		if (!this.initialized) {
 			throw new Error('Unable to apply latest edit session.');
 		}
 
@@ -73,9 +87,9 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 
 	/**
 	 *
-	 * Ensure that the store client is initialized
-	 * meaning that authentication is available and it
-	 * can be used to communicate with the settings sync server
+	 * Ensures that the store client is initialized,
+	 * meaning that authentication is configured and it
+	 * can be used to communicate with the remote storage service
 	 */
 	private async waitAndInitialize(): Promise<boolean> {
 		// Wait for authentication extensions to be registered
@@ -95,10 +109,8 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 		}
 
 		// If the user signed in previously and the session is still available, reuse that without prompting the user again
-		const existingSessionId = this.storageService.get(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
-		if (existingSessionId) {
-			const accounts = await this.getAllAccounts();
-			const existing = accounts.find((account) => account.session.id === existingSessionId);
+		if (this.existingSessionId) {
+			const existing = await this.getMatchingSession();
 			if (existing !== undefined) {
 				this.#authenticationInfo = { sessionId: existing.session.id, token: existing.session.accessToken, providerId: existing.session.providerId };
 				this.storeClient.setAuthToken(this.#authenticationInfo.token, this.#authenticationInfo.providerId);
@@ -118,7 +130,34 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 		return false;
 	}
 
-	private async getAllAccounts() {
+	/**
+	 *
+	 * Prompts the user to pick an authentication option for storing and getting edit sessions.
+	 */
+	private async getAccountPreference(): Promise<AuthenticationSession & { providerId: string } | undefined> {
+		const quickpick = this.quickInputService.createQuickPick<IQuickPickItem & { session: AuthenticationSession & { providerId: string } }>();
+		quickpick.title = localize('account preference', 'Edit Sessions');
+		quickpick.ok = false;
+		quickpick.placeholder = localize('choose account placeholder', "Select an account to sign in");
+		quickpick.ignoreFocusOut = true;
+		// TODO@joyceerhl Should we be showing sessions here?
+		quickpick.items = await this.getAllSessions();
+
+		return new Promise((resolve, reject) => {
+			quickpick.onDidHide((e) => quickpick.dispose());
+			quickpick.onDidAccept((e) => {
+				resolve(quickpick.selectedItems[0].session);
+				quickpick.hide();
+			});
+			quickpick.show();
+		});
+	}
+
+	/**
+	 *
+	 * Returns all authentication sessions available from {@link getAuthenticationProviders}.
+	 */
+	private async getAllSessions() {
 		const options = [];
 		const authenticationProviders = await this.getAuthenticationProviders();
 
@@ -137,24 +176,12 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 		return options;
 	}
 
-	private async getAccountPreference(): Promise<AuthenticationSession & { providerId: string } | undefined> {
-		const quickpick = this.quickInputService.createQuickPick<IQuickPickItem & { session: AuthenticationSession & { providerId: string } }>();
-		quickpick.title = localize('account preference', 'Edit Sessions');
-		quickpick.ok = false;
-		quickpick.placeholder = localize('choose account placeholder', "Select an account to sign in");
-		quickpick.ignoreFocusOut = true;
-		quickpick.items = await this.getAllAccounts();
-
-		return new Promise((resolve, reject) => {
-			quickpick.onDidHide((e) => quickpick.dispose());
-			quickpick.onDidAccept((e) => {
-				resolve(quickpick.selectedItems[0].session);
-				quickpick.hide();
-			});
-			quickpick.show();
-		});
-	}
-
+	/**
+	 *
+	 * Returns all authentication providers which can be used to authenticate
+	 * to the remote storage service, based on product.json configuration
+	 * and registered authentication providers.
+	 */
 	private async getAuthenticationProviders() {
 		if (!this.serverConfiguration) {
 			throw new Error('Unable to get configured authentication providers as session sync preference is not configured in product.json.');
@@ -171,6 +198,25 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 		const availableAuthenticationProviders = this.authenticationService.declaredProviders;
 
 		return configuredAuthenticationProviders.filter(({ id }) => availableAuthenticationProviders.some(provider => provider.id === id));
+	}
+
+	private get existingSessionId() {
+		return this.storageService.get(SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
+	}
+
+	private async getMatchingSession() {
+		const accounts = await this.getAllSessions();
+		return accounts.find((account) => account.session.id === this.existingSessionId);
+	}
+
+	private async onDidChangeStorage(e: IStorageValueChangeEvent): Promise<void> {
+		if (e.key === SessionSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY
+			&& e.scope === StorageScope.GLOBAL
+			&& this.#authenticationInfo?.sessionId !== this.existingSessionId
+		) {
+			this.#authenticationInfo = undefined;
+			this.initialized = false;
+		}
 	}
 }
 
