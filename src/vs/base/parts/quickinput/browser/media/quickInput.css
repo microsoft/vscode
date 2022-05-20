@@ -10,6 +10,7 @@
 	padding: 0 1px 1px 1px;
 	left: 50%;
 	margin-left: -300px;
+	-webkit-app-region: no-drag;
 }
 
 .quick-input-titlebar {
