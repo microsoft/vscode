@@ -983,6 +983,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		let ariaLabel = this.ariaLabel;
 		if (!ariaLabel) {
 			ariaLabel = this.placeholder || QuickPick.DEFAULT_ARIA_LABEL;
+			// If we have a title, include it in the aria label.
 			if (this.title) {
 				ariaLabel += ` - ${this.title}`;
 			}
