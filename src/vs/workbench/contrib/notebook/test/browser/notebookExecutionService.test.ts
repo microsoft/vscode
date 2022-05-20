@@ -20,7 +20,7 @@ import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernel, INotebookKernelService, ISelectedNotebooksChangeEvent, NotebookControllerState } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelService, ISelectedNotebooksChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
@@ -178,7 +178,6 @@ class TestNotebookKernel implements INotebookKernel {
 	preloadUris: URI[] = [];
 	preloadProvides: string[] = [];
 	supportedLanguages: string[] = [];
-	onDispose = Event.None;
 	executeNotebookCellsRequest(): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
@@ -189,7 +188,6 @@ class TestNotebookKernel implements INotebookKernel {
 		this.supportedLanguages = opts?.languages ?? [PLAINTEXT_LANGUAGE_ID];
 	}
 	kind?: string | undefined;
-	state?: NotebookControllerState | undefined;
 	implementsInterrupt?: boolean | undefined;
 	implementsExecutionOrder?: boolean | undefined;
 }

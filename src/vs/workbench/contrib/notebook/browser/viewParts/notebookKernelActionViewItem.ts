@@ -10,7 +10,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { executingStateIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { INotebookKernel, INotebookKernelMatchResult, INotebookKernelService, NotebookControllerState } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelMatchResult, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { Event } from 'vs/base/common/event';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -121,11 +121,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 	}
 
 	private _generateKenrelLabel(kernel: INotebookKernel) {
-		if (kernel.state === NotebookControllerState.Connecting) {
-			return localize('kernelconnecting', "Connecting...");
-		} else {
-			return kernel.label;
-		}
+		return kernel.label;
 	}
 
 	private _resetAction(): void {

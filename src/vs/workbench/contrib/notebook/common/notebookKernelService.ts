@@ -28,14 +28,8 @@ export interface INotebookKernelChangeEvent {
 	description?: true;
 	detail?: true;
 	kind?: true;
-	state?: true;
 	supportedLanguages?: true;
 	hasExecutionOrder?: true;
-}
-
-export enum NotebookControllerState {
-	Idle = 1,
-	Connecting = 2
 }
 
 export interface INotebookKernel {
@@ -52,14 +46,12 @@ export interface INotebookKernel {
 	description?: string;
 	detail?: string;
 	kind?: string;
-	state?: NotebookControllerState;
 	supportedLanguages: string[];
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;
 
 	executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
 	cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
-	onDispose: Event<void>;
 }
 
 export const enum ProxyKernelState {

@@ -64,18 +64,6 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 			executeCells.push(cell);
 		}
 
-		if (kernel.state !== undefined) {
-			// kernel has connection state management
-			const kernelId = kernel.id;
-			kernel.onDispose(() => {
-				// proxy kernel scenario, kernel disposed, we should now make way for new preferred kernel
-				const exes = executeCells.map(c => this._notebookExecutionStateService.createCellExecution(kernelId, notebook.uri, c.handle));
-				exes.forEach(e => e.complete({}));
-
-				this.executeNotebookCells(notebook, executeCells);
-			});
-		}
-
 		if (executeCells.length > 0) {
 			this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
 

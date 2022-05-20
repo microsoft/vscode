@@ -970,11 +970,6 @@ export interface MainThreadNotebookDocumentsShape extends IDisposable {
 	$trySaveNotebook(uri: UriComponents): Promise<boolean>;
 }
 
-export enum NotebookControllerState {
-	Idle = 1,
-	Connecting = 2
-}
-
 export interface INotebookKernelDto2 {
 	id: string;
 	notebookType: string;
@@ -984,7 +979,6 @@ export interface INotebookKernelDto2 {
 	detail?: string;
 	description?: string;
 	kind?: string;
-	state?: NotebookControllerState;
 	supportedLanguages?: string[];
 	supportsInterrupt?: boolean;
 	supportsExecutionOrder?: boolean;

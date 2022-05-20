@@ -174,7 +174,8 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'notebook/kernelSource',
 		id: MenuId.NotebookKernelSource,
-		description: localize('notebook.kernelSource', "The contributed notebook kernel sources menu")
+		description: localize('notebook.kernelSource', "The contributed notebook kernel sources menu"),
+		proposed: 'notebookProxyController'
 	},
 	{
 		key: 'notebook/cell/title',

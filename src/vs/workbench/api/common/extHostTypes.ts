@@ -3426,10 +3426,6 @@ export class NotebookRendererScript {
 	}
 }
 
-export enum NotebookControllerState {
-	Idle = 1,
-	Connecting = 2
-}
 
 //#endregion
 

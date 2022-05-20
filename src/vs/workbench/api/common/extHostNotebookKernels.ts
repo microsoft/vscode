@@ -196,15 +196,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			get rendererScripts() {
 				return data.preloads ? data.preloads.map(extHostTypeConverters.NotebookRendererScript.to) : [];
 			},
-			get state() {
-				checkProposedApiEnabled(extension, 'notebookProxyController');
-				return data.state;
-			},
-			set state(value) {
-				checkProposedApiEnabled(extension, 'notebookProxyController');
-				data.state = value;
-				_update();
-			},
 			get executeHandler() {
 				return _executeHandler;
 			},

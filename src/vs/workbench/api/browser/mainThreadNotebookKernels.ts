@@ -17,14 +17,12 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/no
 import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, INotebookKernelChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape, NotebookControllerState } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 
 abstract class MainThreadKernel implements INotebookKernel {
 	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
 	private readonly preloads: { uri: URI; provides: string[] }[];
 	readonly onDidChange: Event<INotebookKernelChangeEvent> = this._onDidChange.event;
-	private readonly _onDispose = new Emitter<void>();
-	readonly onDispose = this._onDispose.event;
 	readonly id: string;
 	readonly viewType: string;
 	readonly extension: ExtensionIdentifier;
@@ -34,7 +32,6 @@ abstract class MainThreadKernel implements INotebookKernel {
 	description?: string;
 	detail?: string;
 	kind?: string;
-	state?: NotebookControllerState;
 	supportedLanguages: string[];
 	implementsExecutionOrder: boolean;
 	localResourceRoot: URI;
@@ -57,7 +54,6 @@ abstract class MainThreadKernel implements INotebookKernel {
 		this.description = data.description;
 		this.detail = data.detail;
 		this.kind = data.kind;
-		this.state = data.state;
 		this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : _languageService.getRegisteredLanguageIds();
 		this.implementsExecutionOrder = data.supportsExecutionOrder ?? false;
 		this.localResourceRoot = URI.revive(data.extensionLocation);
@@ -84,10 +80,6 @@ abstract class MainThreadKernel implements INotebookKernel {
 			this.kind = data.kind;
 			event.kind = true;
 		}
-		if (data.state !== undefined) {
-			this.state = data.state;
-			event.state = true;
-		}
 		if (data.supportedLanguages !== undefined) {
 			this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : this._languageService.getRegisteredLanguageIds();
 			event.supportedLanguages = true;
@@ -97,10 +89,6 @@ abstract class MainThreadKernel implements INotebookKernel {
 			event.hasExecutionOrder = true;
 		}
 		this._onDidChange.fire(event);
-	}
-
-	dispose() {
-		this._onDispose.fire();
 	}
 
 	abstract executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
@@ -228,7 +216,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		});
 
 		const registration = this._notebookKernelService.registerKernel(kernel);
-		this._kernels.set(handle, [kernel, combinedDisposable(kernel, listener, registration)]);
+		this._kernels.set(handle, [kernel, combinedDisposable(listener, registration)]);
 	}
 
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void {

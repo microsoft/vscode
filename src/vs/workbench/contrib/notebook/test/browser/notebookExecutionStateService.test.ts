@@ -182,7 +182,6 @@ class TestNotebookKernel implements INotebookKernel {
 	preloadUris: URI[] = [];
 	preloadProvides: string[] = [];
 	supportedLanguages: string[] = [];
-	onDispose = Event.None;
 	async executeNotebookCellsRequest(): Promise<void> { }
 	async cancelNotebookCellExecution(): Promise<void> { }
 
