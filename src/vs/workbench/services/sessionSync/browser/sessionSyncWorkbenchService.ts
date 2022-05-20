@@ -116,7 +116,7 @@ export class SessionSyncWorkbenchService extends Disposable implements ISessionS
 
 			for (const session of sessions) {
 				options.push({
-					label: session.account.id,
+					label: session.account.label,
 					session: { ...session, providerId: provider.id }
 				});
 			}

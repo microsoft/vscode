@@ -38,6 +38,6 @@ export interface Folder {
 }
 
 export interface EditSession {
-	// version: 1;
+	version: 1;
 	folders: Folder[];
 }

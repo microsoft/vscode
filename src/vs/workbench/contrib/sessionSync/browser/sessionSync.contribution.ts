@@ -15,7 +15,7 @@ import { ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
-import { joinPath } from 'vs/base/common/resources';
+import { joinPath, relativePath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 
@@ -25,7 +25,7 @@ const applyLatestCommand = {
 	title: localize('apply latest', "{0}: Apply Latest Edit Session", SYNC_TITLE),
 };
 const storeLatestCommand = {
-	id: 'workbench.sessionSync.actions.publishLatest',
+	id: 'workbench.sessionSync.actions.storeLatest',
 	title: localize('store latest', "{0}: Store Latest Edit Session", SYNC_TITLE),
 };
 
@@ -110,20 +110,26 @@ class SessionSyncContribution extends Disposable implements IWorkbenchContributi
 					let name = repository.provider.rootUri ? that.contextService.getWorkspaceFolder(repository.provider.rootUri)?.name : undefined;
 
 					for (const uri of trackedUris) {
-						name = name ?? that.contextService.getWorkspaceFolder(uri)?.name;
+						const workspaceFolder = that.contextService.getWorkspaceFolder(uri);
+						if (!workspaceFolder) {
+							continue;
+						}
+
+						name = name ?? workspaceFolder.name;
+						const relativeFilePath = relativePath(workspaceFolder.uri, uri) ?? uri.path;
 
 						if (await that.fileService.exists(uri)) {
-							workingChanges.push({ type: ChangeType.Addition, contents: (await that.fileService.readFile(uri)).value.toString(), relativeFilePath: uri.path });
+							workingChanges.push({ type: ChangeType.Addition, contents: (await that.fileService.readFile(uri)).value.toString(), relativeFilePath: relativeFilePath });
 						} else {
 							// Assume it's a deletion
-							workingChanges.push({ type: ChangeType.Deletion, contents: undefined, relativeFilePath: uri.path });
+							workingChanges.push({ type: ChangeType.Deletion, contents: undefined, relativeFilePath: relativeFilePath });
 						}
 					}
 
 					folders.push({ workingChanges, name: name ?? '' });
 				}
 
-				const data: EditSession = { folders };
+				const data: EditSession = { folders, version: 1 };
 
 				await that.sessionSyncWorkbenchService.write(data);
 			}
