@@ -17,7 +17,7 @@ export interface IUserDataProfile {
 	readonly keybindingsResource: URI;
 	readonly tasksResource: URI;
 	readonly snippetsHome: URI;
-	readonly extensionsResource: URI;
+	readonly extensionsResource: URI | undefined;
 }
 
 export const IUserDataProfilesService = createDecorator<IUserDataProfilesService>('IUserDataProfilesService');
@@ -53,7 +53,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			keybindingsResource: joinPath(defaultProfileLocation, 'keybindings.json'),
 			tasksResource: joinPath(defaultProfileLocation, 'tasks.json'),
 			snippetsHome: joinPath(defaultProfileLocation, 'snippets'),
-			extensionsResource: joinPath(defaultProfileLocation, 'extensions.json')
+			extensionsResource: undefined
 		};
 	}
 }

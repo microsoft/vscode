@@ -10,11 +10,12 @@ import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionM
 import { IScannedExtension, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, IUninstallExtensionTask, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
+import { AbstractExtensionManagementService, AbstractInstallExtensionTask, AbstractUninstallExtensionTask, IInstallExtensionTask, IUninstallExtensionTask, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { isBoolean, isUndefined } from 'vs/base/common/types';
+import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 
 export class WebExtensionManagementService extends AbstractExtensionManagementService implements IExtensionManagementService {
 
@@ -26,6 +27,7 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		@ILogService logService: ILogService,
 		@IWebExtensionsScannerService private readonly webExtensionsScannerService: IWebExtensionsScannerService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IProductService productService: IProductService
 	) {
 		super(extensionGalleryService, telemetryService, logService, productService);
@@ -88,11 +90,11 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	}
 
 	protected createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions): IInstallExtensionTask {
-		return new InstallExtensionTask(manifest, extension, options, this.webExtensionsScannerService);
+		return new InstallExtensionTask(manifest, extension, options, this.webExtensionsScannerService, this.extensionsProfileScannerService);
 	}
 
 	protected createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask {
-		return new UninstallExtensionTask(extension, options, this.webExtensionsScannerService);
+		return new UninstallExtensionTask(extension, options, this.webExtensionsScannerService, this.extensionsProfileScannerService);
 	}
 
 	zip(extension: ILocalExtension): Promise<URI> { throw new Error('unsupported'); }
@@ -123,7 +125,7 @@ function getMetadata(options?: InstallOptions, existingExtension?: IExtension): 
 	return metadata;
 }
 
-class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implements IInstallExtensionTask {
+class InstallExtensionTask extends AbstractInstallExtensionTask implements IInstallExtensionTask {
 
 	readonly identifier: IExtensionIdentifier;
 	readonly source: URI | IGalleryExtension;
@@ -134,15 +136,16 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 	constructor(
 		manifest: IExtensionManifest,
 		private readonly extension: URI | IGalleryExtension,
-		private readonly options: InstallOptions,
+		options: InstallOptions,
 		private readonly webExtensionsScannerService: IWebExtensionsScannerService,
+		extensionsProfileScannerService: IExtensionsProfileScannerService,
 	) {
-		super();
+		super(options, extensionsProfileScannerService);
 		this.identifier = URI.isUri(extension) ? { id: getGalleryExtensionId(manifest.publisher, manifest.name) } : extension.identifier;
 		this.source = extension;
 	}
 
-	protected async doRun(token: CancellationToken): Promise<ILocalExtension> {
+	protected async install(token: CancellationToken): Promise<{ local: ILocalExtension; metadata: Metadata }> {
 		const userExtensions = await this.webExtensionsScannerService.scanUserExtensions();
 		const existingExtension = userExtensions.find(e => areSameExtensions(e.identifier, this.identifier));
 		if (existingExtension) {
@@ -167,21 +170,22 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 
 		const scannedExtension = URI.isUri(this.extension) ? await this.webExtensionsScannerService.addExtension(this.extension, metadata)
 			: await this.webExtensionsScannerService.addExtensionFromGallery(this.extension, metadata);
-		return toLocalExtension(scannedExtension);
+		return { local: toLocalExtension(scannedExtension), metadata };
 	}
 }
 
-class UninstallExtensionTask extends AbstractExtensionTask<void> implements IUninstallExtensionTask {
+class UninstallExtensionTask extends AbstractUninstallExtensionTask implements IUninstallExtensionTask {
 
 	constructor(
-		readonly extension: ILocalExtension,
+		extension: ILocalExtension,
 		options: UninstallExtensionTaskOptions,
 		private readonly webExtensionsScannerService: IWebExtensionsScannerService,
+		extensionsProfileScannerService: IExtensionsProfileScannerService,
 	) {
-		super();
+		super(extension, options, extensionsProfileScannerService);
 	}
 
-	protected doRun(token: CancellationToken): Promise<void> {
+	protected uninstall(token: CancellationToken): Promise<void> {
 		return this.webExtensionsScannerService.removeExtension(this.extension.identifier);
 	}
 }
