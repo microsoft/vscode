@@ -26,7 +26,7 @@ async function getComputedDiagnostics(doc: InMemoryDocument, workspaceContents: 
 			validateFilePaths: DiagnosticLevel.warning,
 			validateOwnHeaders: DiagnosticLevel.warning,
 			validateReferences: DiagnosticLevel.warning,
-			skipPaths: [],
+			ignoreLinks: [],
 		}, noopToken)
 	).diagnostics;
 }
@@ -44,7 +44,7 @@ class MemoryDiagnosticConfiguration implements DiagnosticConfiguration {
 
 	constructor(
 		private readonly enabled: boolean = true,
-		private readonly skipPaths: string[] = [],
+		private readonly ignoreLinks: string[] = [],
 	) { }
 
 	getOptions(_resource: vscode.Uri): DiagnosticOptions {
@@ -54,7 +54,7 @@ class MemoryDiagnosticConfiguration implements DiagnosticConfiguration {
 				validateFilePaths: DiagnosticLevel.ignore,
 				validateOwnHeaders: DiagnosticLevel.ignore,
 				validateReferences: DiagnosticLevel.ignore,
-				skipPaths: this.skipPaths,
+				ignoreLinks: this.ignoreLinks,
 			};
 		}
 		return {
@@ -62,7 +62,7 @@ class MemoryDiagnosticConfiguration implements DiagnosticConfiguration {
 			validateFilePaths: DiagnosticLevel.warning,
 			validateOwnHeaders: DiagnosticLevel.warning,
 			validateReferences: DiagnosticLevel.warning,
-			skipPaths: this.skipPaths,
+			ignoreLinks: this.ignoreLinks,
 		};
 	}
 }
@@ -196,7 +196,7 @@ suite('markdown: Diagnostics', () => {
 		assert.deepStrictEqual(diagnostics.length, 0);
 	});
 
-	test('skipPaths should allow skipping non-existent file', async () => {
+	test('ignoreLinks should allow skipping link to non-existent file', async () => {
 		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
 			`[text](/no-such-file#header)`,
 		));
@@ -206,7 +206,7 @@ suite('markdown: Diagnostics', () => {
 		assert.deepStrictEqual(diagnostics.length, 0);
 	});
 
-	test('skipPaths should not consider link fragment', async () => {
+	test('ignoreLinks should not consider link fragment', async () => {
 		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
 			`[text](/no-such-file#header)`,
 		));
@@ -216,7 +216,7 @@ suite('markdown: Diagnostics', () => {
 		assert.deepStrictEqual(diagnostics.length, 0);
 	});
 
-	test('skipPaths should support globs', async () => {
+	test('ignoreLinks should support globs', async () => {
 		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
 			`![i](/images/aaa.png)`,
 			`![i](/images/sub/bbb.png)`,
@@ -226,5 +226,34 @@ suite('markdown: Diagnostics', () => {
 		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration(true, ['/images/**/*.png']));
 		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
 		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('ignoreLinks should support ignoring header', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`![i](#no-such)`,
+		));
+
+		const manager = createDiagnosticsManager(new InMemoryWorkspaceMarkdownDocuments([doc1]), new MemoryDiagnosticConfiguration(true, ['#no-such']));
+		const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+		assert.deepStrictEqual(diagnostics.length, 0);
+	});
+
+	test('ignoreLinks should support ignoring header in file', async () => {
+		const doc1 = new InMemoryDocument(workspacePath('doc1.md'), joinLines(
+			`![i](/doc2.md#no-such)`,
+		));
+		const doc2 = new InMemoryDocument(workspacePath('doc2.md'), joinLines(''));
+
+		const contents = new InMemoryWorkspaceMarkdownDocuments([doc1, doc2]);
+		{
+			const manager = createDiagnosticsManager(contents, new MemoryDiagnosticConfiguration(true, ['/doc2.md#no-such']));
+			const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+			assert.deepStrictEqual(diagnostics.length, 0);
+		}
+		{
+			const manager = createDiagnosticsManager(contents, new MemoryDiagnosticConfiguration(true, ['/doc2.md#*']));
+			const { diagnostics } = await manager.recomputeDiagnosticState(doc1, noopToken);
+			assert.deepStrictEqual(diagnostics.length, 0);
+		}
 	});
 });

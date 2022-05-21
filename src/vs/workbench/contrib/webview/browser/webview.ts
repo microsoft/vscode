@@ -151,7 +151,15 @@ export interface WebviewMessageReceivedEvent {
 
 export interface IWebview extends IDisposable {
 
+	/**
+	 * External identifier of this webview.
+	 */
 	readonly id: string;
+
+	/**
+	 * The origin this webview itself is loaded from. May not be unique
+	 */
+	readonly origin: string;
 
 	html: string;
 	contentOptions: WebviewContentOptions;

@@ -23,6 +23,10 @@
 	line-height: var(--vscode-repl-line-height);
 }
 
+.monaco-workbench .repl .repl-tree .monaco-tl-contents .expression .lazy-button {
+	cursor: pointer;
+}
+
 .monaco-workbench .repl .repl-tree .monaco-tl-twistie {
 	background-position-y: calc(100% - (var(--vscode-repl-font-size-for-twistie)));
 }
