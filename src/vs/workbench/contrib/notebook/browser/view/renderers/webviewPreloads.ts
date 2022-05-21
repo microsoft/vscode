@@ -1172,6 +1172,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 				_highlighter?.dispose();
 				break;
 			}
+			case 'trackFinalOutputRender': {
+				viewModel.trackFinalOutput(event.data.cellId);
+				break;
+			}
 		}
 	});
 
@@ -1394,6 +1398,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		private readonly _markupCells = new Map<string, MarkupCell>();
 		private readonly _outputCells = new Map<string, OutputCell>();
+		private _pendingFinalOutput: string | undefined;
 
 		public clearAll() {
 			this._markupCells.clear();
@@ -1403,6 +1408,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public rerender() {
 			this.rerenderMarkupCells();
 			this.renderOutputCells();
+		}
+
+		public trackFinalOutput(cellId: string) {
+			const cell = this._outputCells.get(cellId);
+			if (cell) {
+				cell.addFinalOutputTracker();
+			} else {
+				this._pendingFinalOutput = cellId;
+			}
 		}
 
 		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number, visible: boolean): Promise<MarkupCell> {
@@ -1517,6 +1531,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			// don't hide until after this step so that the height is right
 			cellOutput.element.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
+
+			// If notebook side has indicated we are done (and we haven't added it yet), stick in the final render
+			if (data.cellId === this._pendingFinalOutput) {
+				this._pendingFinalOutput = undefined;
+				cellOutput.addFinalOutputTracker();
+			}
 		}
 
 		public ensureOutputCell(cellId: string, cellTop: number, skipCellTopUpdateIfExist: boolean): OutputCell {
@@ -1817,8 +1837,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 			container.appendChild(this.element);
 			this.element = this.element;
 
+
 			const lowerWrapperElement = createFocusSink(cellId, true);
 			container.appendChild(lowerWrapperElement);
+
+			// New thoughts.
+			// Send message to indicate force scroll.
+			// Add resizeObserver on the element
+			// When resize occurs, scroll lowerWrapperElement into view
+			// Send message to indicate stop scrolling
 		}
 
 		public createOutputElement(outputId: string, outputOffset: number, left: number): OutputElement {
@@ -1876,6 +1903,24 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			if (request.forceDisplay) {
 				this.element.style.visibility = 'visible';
+			}
+		}
+
+		public addFinalOutputTracker() {
+			const id = `${this.element.id}-final-output-tracker`;
+			let tracker: HTMLImageElement | null = document.getElementById(id) as HTMLImageElement;
+			if (!tracker) {
+				tracker = document.createElement('img') as HTMLImageElement;
+				tracker.id = id;
+				tracker.style.height = '0px';
+				tracker.src = '';
+				tracker.addEventListener('error', (ev) => {
+					console.log(`Final cell output has rendered`);
+
+					// Src is empty so this should fire as soon as it renders
+					postNotebookMessage('didRenderFinalOutput', { cellId: this.element.id });
+				});
+				this.element.appendChild(tracker);
 			}
 		}
 	}

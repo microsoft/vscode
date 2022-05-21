@@ -37,6 +37,7 @@ import { preloadsScriptStr, RendererMetadata } from 'vs/workbench/contrib/notebo
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellUri, INotebookRendererInfo, NotebookSetting, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, IResolvedNotebookKernel, NotebookKernelType } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -66,6 +67,7 @@ export interface INotebookDelegateForWebview {
 	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): Promise<void>;
 	toggleNotebookCellSelection(cell: IGenericCellViewModel, selectFromPrevious: boolean): void;
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
+	getCellByHandle(cellHandle: number): IGenericCellViewModel | undefined;
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): Promise<void>;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
 	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
@@ -134,6 +136,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService
 	) {
 		super();
 
@@ -172,6 +175,19 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				type: 'tokenizedStylesChanged',
 				css: getTokenizationCss(),
 			});
+		}));
+
+		this._register(notebookExecutionStateService.onDidChangeCellExecution((e) => {
+			// If e.changed is undefined, it means notebook execution just finished.
+			if (e.changed === undefined && e.affectsNotebook(this.documentUri)) {
+				const cell = this.notebookEditor.getCellByHandle(e.cellHandle);
+				if (cell) {
+					this._sendMessageToWebview({
+						type: 'trackFinalOutputRender',
+						cellId: cell.id
+					});
+				}
+			}
 		}));
 	}
 
@@ -816,6 +832,11 @@ var requirejs = (function() {
 				}
 				case 'renderedCellOutput': {
 					this._handleHighlightCodeBlock(data.codeBlocks);
+					break;
+				}
+
+				case 'didRenderFinalOutput': {
+					console.log(`Rendered final output for ${data.cellId}`);
 					break;
 				}
 			}

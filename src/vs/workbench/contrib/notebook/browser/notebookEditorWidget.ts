@@ -1385,6 +1385,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			triggerScroll(event: IMouseWheelEvent) { that._listViewInfoAccessor.triggerScroll(event); },
 			getCellByInfo: that.getCellByInfo.bind(that),
 			getCellById: that._getCellById.bind(that),
+			getCellByHandle: that.getCellByHandle.bind(that),
 			toggleNotebookCellSelection: that._toggleNotebookCellSelection.bind(that),
 			focusNotebookCell: that.focusNotebookCell.bind(that),
 			focusNextNotebookCell: that.focusNextNotebookCell.bind(that),
