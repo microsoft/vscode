@@ -330,4 +330,61 @@ suite('Files - View Model', function () {
 		assert.strictEqual(children[0].nestedChildren?.[0].name, "dir1");
 		assert.strictEqual(children[0].nestedChildren?.[0].isDirectory, true);
 	});
+
+
+	test('Move nested directory', async function () {
+		const fileNestingConfigService = new TestConfigurationService({
+			explorer: {
+				fileNesting: {
+					enabled: true,
+					patterns: {
+						"file1.txt": "dir1"
+					}
+				}
+			}
+		});
+
+		const d = new Date().getTime();
+		const wsFolder = createStat.call(this, '/', 'workspaceFolder', true, false, 8096, d, fileNestingConfigService);
+		const file1 = createStat.call(this, '/file1.txt', 'file1.txt', false, false, 8096, d, fileNestingConfigService);
+		wsFolder.addChild(file1);
+		const dir1 = createStat.call(this, '/dir1', 'dir1', true, false, 8096, d, fileNestingConfigService);
+		wsFolder.addChild(dir1);
+		const dir2 = createStat.call(this, '/dir2', 'dir2', true, false, 8096, d, fileNestingConfigService);
+		wsFolder.addChild(dir2);
+
+		const assertDirNested = (children: any) => {
+			assert.strictEqual(children.length, 2);
+			assert.strictEqual(children[0].name, 'file1.txt');
+			assert.strictEqual(children[0].nestedChildren?.length, 1);
+			assert.strictEqual(children[0].nestedChildren?.[0].name, "dir1");
+			assert.strictEqual(children[0].nestedChildren?.[0].isDirectory, true);
+			assert.strictEqual(children[1].name, 'dir2');
+		};
+
+		const children = await wsFolder.fetchChildren(SortOrder.FoldersNestsFiles);
+		assertDirNested(children);
+
+		dir1.move(dir2); // move dir to another folder
+
+		const children2 = await wsFolder.fetchChildren(SortOrder.FoldersNestsFiles);
+		assert.strictEqual(children2.length, 2);
+		assert.strictEqual(children2[0].name, 'file1.txt');
+		assert.strictEqual(children2[0].nestedChildren?.length, 0);
+		assert.strictEqual(children2[1].name, 'dir2');
+
+
+		dir1.move(wsFolder); // move dir back to folder to nest again
+
+		const children3 = await wsFolder.fetchChildren(SortOrder.FoldersNestsFiles);
+		assertDirNested(children3);
+
+		file1.move(dir1); // move file to nested dir
+
+		const children4 = await wsFolder.fetchChildren(SortOrder.FoldersNestsFiles);
+		assert.strictEqual(children4.length, 2);
+		assert.strictEqual(children4[0].name, 'dir2');
+		assert.strictEqual(children4[1].name, 'dir1');
+		assert.strictEqual(children4[1].children?.size, 1);
+	});
 });
