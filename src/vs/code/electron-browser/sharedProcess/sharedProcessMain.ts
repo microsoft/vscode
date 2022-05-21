@@ -228,7 +228,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Configuration
-		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService));
+		const configurationService = this._register(new ConfigurationService(userDataProfilesService.currentProfile.settingsResource, fileService));
 		services.set(IConfigurationService, configurationService);
 
 		// Storage (global access only)

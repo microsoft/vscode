@@ -166,17 +166,17 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		}
 
 		// Check for global settings file
-		if (isEqual(resource, this.userDataProfilesService.defaultProfile.settingsResource)) {
+		if (isEqual(resource, this.userDataProfilesService.currentProfile.settingsResource)) {
 			return 'global-settings';
 		}
 
 		// Check for keybindings file
-		if (isEqual(resource, this.userDataProfilesService.defaultProfile.keybindingsResource)) {
+		if (isEqual(resource, this.userDataProfilesService.currentProfile.keybindingsResource)) {
 			return 'keybindings';
 		}
 
 		// Check for snippets
-		if (isEqualOrParent(resource, this.userDataProfilesService.defaultProfile.snippetsHome)) {
+		if (isEqualOrParent(resource, this.userDataProfilesService.currentProfile.snippetsHome)) {
 			return 'snippets';
 		}
 

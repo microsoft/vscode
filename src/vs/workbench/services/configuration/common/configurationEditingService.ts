@@ -604,9 +604,9 @@ export class ConfigurationEditingService {
 	private getConfigurationFileResource(target: EditableConfigurationTarget, standAloneConfigurationKey: string | undefined, relativePath: string, resource: URI | null | undefined): URI | null {
 		if (target === EditableConfigurationTarget.USER_LOCAL) {
 			if (standAloneConfigurationKey === TASKS_CONFIGURATION_KEY) {
-				return this.userDataProfilesService.defaultProfile.tasksResource;
+				return this.userDataProfilesService.currentProfile.tasksResource;
 			} else {
-				return this.userDataProfilesService.defaultProfile.settingsResource;
+				return this.userDataProfilesService.currentProfile.settingsResource;
 			}
 		}
 		if (target === EditableConfigurationTarget.USER_REMOTE) {

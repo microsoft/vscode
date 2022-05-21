@@ -85,7 +85,7 @@ async function computePicks(snippetService: ISnippetsService, userDataProfilesSe
 		}
 	}
 
-	const dir = userDataProfilesService.defaultProfile.snippetsHome;
+	const dir = userDataProfilesService.currentProfile.snippetsHome;
 	for (const languageId of languageService.getRegisteredLanguageIds()) {
 		const label = languageService.getLanguageName(languageId);
 		if (label && !seen.has(languageId)) {
@@ -239,7 +239,7 @@ registerAction2(class ConfigureSnippets extends Action2 {
 		const globalSnippetPicks: SnippetPick[] = [{
 			scope: nls.localize('new.global_scope', 'global'),
 			label: nls.localize('new.global', "New Global Snippets file..."),
-			uri: userDataProfilesService.defaultProfile.snippetsHome
+			uri: userDataProfilesService.currentProfile.snippetsHome
 		}];
 
 		const workspaceSnippetPicks: SnippetPick[] = [];

@@ -350,7 +350,7 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private async _initUserSnippets(): Promise<any> {
-		const userSnippetsFolder = this._userDataProfilesService.defaultProfile.snippetsHome;
+		const userSnippetsFolder = this._userDataProfilesService.currentProfile.snippetsHome;
 		await this._fileService.createFolder(userSnippetsFolder);
 		return await this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables);
 	}

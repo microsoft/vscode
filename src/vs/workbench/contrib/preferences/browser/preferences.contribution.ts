@@ -252,7 +252,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					icon: preferencesOpenSettingsIcon,
 					menu: [{
 						id: MenuId.EditorTitle,
-						when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.defaultProfile.settingsResource.toString()), ContextKeyExpr.not('isInDiffEditor')),
+						when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.currentProfile.settingsResource.toString()), ContextKeyExpr.not('isInDiffEditor')),
 						group: 'navigation',
 						order: 1
 					}]
@@ -744,7 +744,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						{ id: MenuId.CommandPalette },
 						{
 							id: MenuId.EditorTitle,
-							when: ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.defaultProfile.keybindingsResource.toString()),
+							when: ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.currentProfile.keybindingsResource.toString()),
 							group: 'navigation',
 							order: 1,
 						}

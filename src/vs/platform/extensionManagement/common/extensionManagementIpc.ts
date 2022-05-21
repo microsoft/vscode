@@ -138,7 +138,7 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 	}
 
 	install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
-		const serverInstallOptions: ServerInstallVSIXOptions = { ...options, profileLocation: this.userDataProfilesService?.defaultProfile.extensionsResource };
+		const serverInstallOptions: ServerInstallVSIXOptions = { ...options, profileLocation: this.userDataProfilesService?.currentProfile.extensionsResource };
 		return Promise.resolve(this.channel.call<ILocalExtension>('install', [vsix, serverInstallOptions])).then(local => transformIncomingExtension(local, null));
 	}
 
@@ -147,12 +147,12 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 	}
 
 	installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
-		const serverInstallOptions: ServerInstallOptions = { ...installOptions, profileLocation: this.userDataProfilesService?.defaultProfile.extensionsResource };
+		const serverInstallOptions: ServerInstallOptions = { ...installOptions, profileLocation: this.userDataProfilesService?.currentProfile.extensionsResource };
 		return Promise.resolve(this.channel.call<ILocalExtension>('installFromGallery', [extension, serverInstallOptions])).then(local => transformIncomingExtension(local, null));
 	}
 
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
-		const serverUninstallOptions: ServerUninstallOptions = { ...options, profileLocation: this.userDataProfilesService?.defaultProfile.extensionsResource };
+		const serverUninstallOptions: ServerUninstallOptions = { ...options, profileLocation: this.userDataProfilesService?.currentProfile.extensionsResource };
 		return Promise.resolve(this.channel.call('uninstall', [extension!, serverUninstallOptions]));
 	}
 
@@ -161,7 +161,7 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 	}
 
 	getInstalled(type: ExtensionType | null = null): Promise<ILocalExtension[]> {
-		return Promise.resolve(this.channel.call<ILocalExtension[]>('getInstalled', [type, this.userDataProfilesService?.defaultProfile.extensionsResource]))
+		return Promise.resolve(this.channel.call<ILocalExtension[]>('getInstalled', [type, this.userDataProfilesService?.currentProfile.extensionsResource]))
 			.then(extensions => extensions.map(extension => transformIncomingExtension(extension, null)));
 	}
 

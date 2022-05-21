@@ -47,7 +47,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	public _serviceBrand: undefined;
 	private queue: Queue<void>;
 
-	private resource: URI = this.userDataProfilesService.defaultProfile.keybindingsResource;
+	private resource: URI = this.userDataProfilesService.currentProfile.keybindingsResource;
 
 	constructor(
 		@ITextModelService private readonly textModelResolverService: ITextModelService,

@@ -172,7 +172,7 @@ class CodeMain {
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Configuration
-		const configurationService = new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService);
+		const configurationService = new ConfigurationService(userDataProfilesService.currentProfile.settingsResource, fileService);
 		services.set(IConfigurationService, configurationService);
 
 		// Lifecycle

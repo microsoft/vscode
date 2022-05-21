@@ -29,7 +29,7 @@ export class SettingsProfile implements IResourceProfile {
 
 	async getProfileContent(options?: ProfileCreationOptions): Promise<string> {
 		const ignoredSettings = this.getIgnoredSettings();
-		const formattingOptions = await this.userDataSyncUtilService.resolveFormattingOptions(this.userDataProfilesService.defaultProfile.settingsResource);
+		const formattingOptions = await this.userDataSyncUtilService.resolveFormattingOptions(this.userDataProfilesService.currentProfile.settingsResource);
 		const localContent = await this.getLocalFileContent();
 		let settingsProfileContent = updateIgnoredSettings(localContent || '{}', '{}', ignoredSettings, formattingOptions);
 		if (options?.skipComments) {
@@ -45,9 +45,9 @@ export class SettingsProfile implements IResourceProfile {
 		const settingsContent: ISettingsContent = JSON.parse(content);
 		this.logService.trace(`Profile: Applying settings...`);
 		const localSettingsContent = await this.getLocalFileContent();
-		const formattingOptions = await this.userDataSyncUtilService.resolveFormattingOptions(this.userDataProfilesService.defaultProfile.settingsResource);
+		const formattingOptions = await this.userDataSyncUtilService.resolveFormattingOptions(this.userDataProfilesService.currentProfile.settingsResource);
 		const contentToUpdate = updateIgnoredSettings(settingsContent.settings, localSettingsContent || '{}', this.getIgnoredSettings(), formattingOptions);
-		await this.fileService.writeFile(this.userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(contentToUpdate));
+		await this.fileService.writeFile(this.userDataProfilesService.currentProfile.settingsResource, VSBuffer.fromString(contentToUpdate));
 		this.logService.info(`Profile: Applied settings`);
 	}
 
@@ -59,7 +59,7 @@ export class SettingsProfile implements IResourceProfile {
 
 	private async getLocalFileContent(): Promise<string | null> {
 		try {
-			const content = await this.fileService.readFile(this.userDataProfilesService.defaultProfile.settingsResource);
+			const content = await this.fileService.readFile(this.userDataProfilesService.currentProfile.settingsResource);
 			return content.value.toString();
 		} catch (error) {
 			return null;

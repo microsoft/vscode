@@ -380,7 +380,7 @@ function isInterestingEditorModel(editor: ICodeEditor, userDataProfilesService: 
 	if (!model) {
 		return false;
 	}
-	return isEqual(model.uri, userDataProfilesService.defaultProfile.keybindingsResource);
+	return isEqual(model.uri, userDataProfilesService.currentProfile.keybindingsResource);
 }
 
 registerEditorContribution(DefineKeybindingController.ID, DefineKeybindingController);

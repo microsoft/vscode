@@ -56,7 +56,7 @@ export class CachedExtensionScanner {
 			const language = platform.language;
 			const [scannedSystemExtensions, scannedUserExtensions] = await Promise.all([
 				this._extensionsScannerService.scanSystemExtensions({ language, useCache: true, checkControlFile: true }),
-				this._extensionsScannerService.scanUserExtensions({ language, profileLocation: this._userDataProfilesService.defaultProfile.extensionsResource, useCache: true })]);
+				this._extensionsScannerService.scanUserExtensions({ language, profileLocation: this._userDataProfilesService.currentProfile.extensionsResource, useCache: true })]);
 			const scannedDevelopedExtensions = await this._extensionsScannerService.scanExtensionsUnderDevelopment({ language }, [...scannedSystemExtensions, ...scannedUserExtensions]);
 			const system = scannedSystemExtensions.map(e => toExtensionDescription(e, false));
 			const user = scannedUserExtensions.map(e => toExtensionDescription(e, false));

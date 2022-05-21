@@ -136,7 +136,7 @@ suite('ConfigurationEditingService', () => {
 	});
 
 	test('errors cases - invalid configuration', async () => {
-		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
+		await fileService.writeFile(userDataProfilesService.currentProfile.settingsResource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
 		try {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
@@ -185,36 +185,36 @@ suite('ConfigurationEditingService', () => {
 
 	test('write one setting - empty file', async () => {
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
-		const contents = await fileService.readFile(userDataProfilesService.defaultProfile.settingsResource);
+		const contents = await fileService.readFile(userDataProfilesService.currentProfile.settingsResource);
 		const parsed = json.parse(contents.value.toString());
 		assert.strictEqual(parsed['configurationEditing.service.testSetting'], 'value');
 	});
 
 	test('write one setting - existing file', async () => {
-		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
+		await fileService.writeFile(userDataProfilesService.currentProfile.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
 
-		const contents = await fileService.readFile(userDataProfilesService.defaultProfile.settingsResource);
+		const contents = await fileService.readFile(userDataProfilesService.currentProfile.settingsResource);
 		const parsed = json.parse(contents.value.toString());
 		assert.strictEqual(parsed['configurationEditing.service.testSetting'], 'value');
 		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
 	});
 
 	test('remove an existing setting - existing file', async () => {
-		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value", "configurationEditing.service.testSetting": "value" }'));
+		await fileService.writeFile(userDataProfilesService.currentProfile.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value", "configurationEditing.service.testSetting": "value" }'));
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: undefined });
 
-		const contents = await fileService.readFile(userDataProfilesService.defaultProfile.settingsResource);
+		const contents = await fileService.readFile(userDataProfilesService.currentProfile.settingsResource);
 		const parsed = json.parse(contents.value.toString());
 		assert.deepStrictEqual(Object.keys(parsed), ['my.super.setting']);
 		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
 	});
 
 	test('remove non existing setting - existing file', async () => {
-		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
+		await fileService.writeFile(userDataProfilesService.currentProfile.settingsResource, VSBuffer.fromString('{ "my.super.setting": "my.super.value" }'));
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: undefined });
 
-		const contents = await fileService.readFile(userDataProfilesService.defaultProfile.settingsResource);
+		const contents = await fileService.readFile(userDataProfilesService.currentProfile.settingsResource);
 		const parsed = json.parse(contents.value.toString());
 		assert.deepStrictEqual(Object.keys(parsed), ['my.super.setting']);
 		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
@@ -225,7 +225,7 @@ suite('ConfigurationEditingService', () => {
 		const value = { 'configurationEditing.service.testSetting': 'overridden value' };
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key, value });
 
-		const contents = await fileService.readFile(userDataProfilesService.defaultProfile.settingsResource);
+		const contents = await fileService.readFile(userDataProfilesService.currentProfile.settingsResource);
 		const parsed = json.parse(contents.value.toString());
 		assert.deepStrictEqual(parsed[key], value);
 	});

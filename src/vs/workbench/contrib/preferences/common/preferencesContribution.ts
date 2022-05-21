@@ -71,7 +71,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 				},
 				({ resource, options }): EditorInputWithOptions => {
 					// Global User Settings File
-					if (isEqual(resource, this.userDataProfilesService.defaultProfile.settingsResource)) {
+					if (isEqual(resource, this.userDataProfilesService.currentProfile.settingsResource)) {
 						return { editor: this.preferencesService.createSplitJsonEditorInput(ConfigurationTarget.USER_LOCAL, resource), options };
 					}
 
