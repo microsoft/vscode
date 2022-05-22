@@ -243,7 +243,7 @@ export function workbenchInstantiationService(
 	const environmentService = overrides?.environmentService ? overrides.environmentService(instantiationService) : TestEnvironmentService;
 	instantiationService.stub(IEnvironmentService, environmentService);
 	instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
-	instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, new NullLogService()));
+	instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(undefined, environmentService, new NullLogService()));
 	const contextKeyService = overrides?.contextKeyService ? overrides.contextKeyService(instantiationService) : instantiationService.createInstance(MockContextKeyService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
 	instantiationService.stub(IProgressService, new TestProgressService());

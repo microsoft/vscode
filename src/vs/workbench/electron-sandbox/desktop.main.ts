@@ -180,7 +180,7 @@ export class DesktopMain extends Disposable {
 		}
 
 		// User Data Profiles
-		const userDataProfilesService = new UserDataProfilesService(environmentService, logService);
+		const userDataProfilesService = new UserDataProfilesService(this.configuration.profile, environmentService, logService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Shared Process
@@ -263,7 +263,7 @@ export class DesktopMain extends Disposable {
 				return service;
 			}),
 
-			this.createStorageService(payload, environmentService, mainProcessService).then(service => {
+			this.createStorageService(payload, environmentService, userDataProfilesService, mainProcessService).then(service => {
 
 				// Storage
 				serviceCollection.set(IStorageService, service);
@@ -345,8 +345,8 @@ export class DesktopMain extends Disposable {
 		}
 	}
 
-	private async createStorageService(payload: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
-		const storageService = new NativeStorageService(payload, mainProcessService, environmentService);
+	private async createStorageService(payload: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, userDataProfilesService: IUserDataProfilesService, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
+		const storageService = new NativeStorageService(payload, mainProcessService, userDataProfilesService, environmentService);
 
 		try {
 			await storageService.initialize();

@@ -71,6 +71,7 @@ import { ExtensionHostStatusService, IExtensionHostStatusService } from 'vs/serv
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/server/node/extensionsScannerService';
 import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -108,8 +109,11 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IFileService, fileService);
 	fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService)));
 
-	const configurationService = new ConfigurationService(environmentService.machineSettingsResource, fileService);
+	// Configuration
+	const userDataProfilesService = new UserDataProfilesService(undefined, environmentService, logService);
+	const configurationService = new ConfigurationService(userDataProfilesService, fileService);
 	services.set(IConfigurationService, configurationService);
+	configurationService.initialize(environmentService.machineSettingsResource);
 
 	const extensionHostStatusService = new ExtensionHostStatusService();
 	services.set(IExtensionHostStatusService, extensionHostStatusService);
@@ -182,7 +186,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	instantiationService.invokeFunction(accessor => {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		const extensionsScannerService = accessor.get(IExtensionsScannerService);
-		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, extensionManagementCLIService, logService, extensionHostStatusService, extensionsScannerService);
+		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, userDataProfilesService, extensionManagementCLIService, logService, extensionHostStatusService, extensionsScannerService);
 		socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
 		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), appInsightsAppender);

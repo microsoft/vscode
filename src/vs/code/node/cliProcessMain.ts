@@ -131,11 +131,11 @@ class CliMain extends Disposable {
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Profiles
-		const userDataProfilesService = new UserDataProfilesService(environmentService, logService);
+		const userDataProfilesService = new UserDataProfilesService(undefined, environmentService, logService);
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Configuration
-		const configurationService = this._register(new ConfigurationService(userDataProfilesService.currentProfile.settingsResource, fileService));
+		const configurationService = this._register(new ConfigurationService(userDataProfilesService, fileService));
 		services.set(IConfigurationService, configurationService);
 
 		// Init config
@@ -175,7 +175,7 @@ class CliMain extends Disposable {
 				commonProperties: (async () => {
 					let machineId: string | undefined = undefined;
 					try {
-						const storageContents = await Promises.readFile(joinPath(environmentService.globalStorageHome, 'storage.json').fsPath);
+						const storageContents = await Promises.readFile(joinPath(userDataProfilesService.defaultProfile.globalStorageHome, 'storage.json').fsPath);
 						machineId = JSON.parse(storageContents.toString())[machineIdKey];
 					} catch (error) {
 						if (error.code !== 'ENOENT') {

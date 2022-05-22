@@ -270,7 +270,7 @@ export function workbenchInstantiationService(disposables = new DisposableStore(
 	instantiationService.stub(INativeEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(INativeWorkbenchEnvironmentService, TestEnvironmentService);
-	instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(TestEnvironmentService, new NullLogService()));
+	instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(undefined, TestEnvironmentService, new NullLogService()));
 
 	return instantiationService;
 }

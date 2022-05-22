@@ -52,7 +52,7 @@ suite('FileUserDataProvider', () => {
 		await testObject.createFolder(backupWorkspaceHomeOnDisk);
 
 		environmentService = new TestEnvironmentService(userDataHomeOnDisk);
-		userDataProfilesService = new UserDataProfilesService(environmentService, logService);
+		userDataProfilesService = new UserDataProfilesService(undefined, environmentService, logService);
 
 		fileUserDataProvider = new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, logService);
 		disposables.add(fileUserDataProvider);

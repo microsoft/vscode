@@ -12,7 +12,9 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IUserDataProfile {
+	readonly name: string | undefined;
 	readonly location: URI;
+	readonly globalStorageHome: URI;
 	readonly settingsResource: URI;
 	readonly keybindingsResource: URI;
 	readonly tasksResource: URI;
@@ -42,18 +44,27 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	readonly onDidChangeCurrentProfile = this._onDidChangeCurrentProfile.event;
 
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
+		profile: string | undefined,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService logService: ILogService
 	) {
 		super();
-		const defaultProfileLocation = environmentService.userRoamingDataHome;
-		this._currentProfile = this.defaultProfile = {
-			location: defaultProfileLocation,
-			settingsResource: joinPath(defaultProfileLocation, 'settings.json'),
-			keybindingsResource: joinPath(defaultProfileLocation, 'keybindings.json'),
-			tasksResource: joinPath(defaultProfileLocation, 'tasks.json'),
-			snippetsHome: joinPath(defaultProfileLocation, 'snippets'),
-			extensionsResource: undefined
+		this.defaultProfile = this.createProfile(undefined);
+		this._currentProfile = profile ? this.createProfile(profile) : this.defaultProfile;
+	}
+
+	private createProfile(name: string | undefined): IUserDataProfile {
+		const location = name ? joinPath(this.environmentService.userRoamingDataHome, 'profiles', name) : this.environmentService.userRoamingDataHome;
+		return {
+			name,
+			location: location,
+			globalStorageHome: joinPath(location, 'globalStorage'),
+			settingsResource: joinPath(location, 'settings.json'),
+			keybindingsResource: joinPath(location, 'keybindings.json'),
+			tasksResource: joinPath(location, 'tasks.json'),
+			snippetsHome: joinPath(location, 'snippets'),
+			extensionsResource: name ? joinPath(location, 'extensions') : undefined
 		};
 	}
+
 }

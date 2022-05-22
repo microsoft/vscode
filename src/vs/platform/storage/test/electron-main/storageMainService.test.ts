@@ -20,6 +20,7 @@ import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from 'vs/platf
 import { StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ICodeWindow, UnloadReason } from 'vs/platform/window/electron-main/window';
 
 suite('StorageMainService', function () {
@@ -126,7 +127,8 @@ suite('StorageMainService', function () {
 	}
 
 	function createStorageService(lifecycleMainService: ILifecycleMainService = new StorageTestLifecycleMainService()): TestStorageMainService {
-		return new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), lifecycleMainService, new FileService(new NullLogService()), NullTelemetryService);
+		const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
+		return new TestStorageMainService(new NullLogService(), environmentService, new UserDataProfilesService(undefined, environmentService, new NullLogService()), lifecycleMainService, new FileService(new NullLogService()), NullTelemetryService);
 	}
 
 	test('basics (global)', function () {

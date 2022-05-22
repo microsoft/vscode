@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
@@ -13,34 +13,42 @@ import { Configuration, ConfigurationChangeEvent, ConfigurationModel, DefaultCon
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
 
 	declare readonly _serviceBrand: undefined;
 
 	private configuration: Configuration;
-	private userConfiguration: UserSettings;
+	private userConfiguration: MutableDisposable<UserSettings>;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 
 	private readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
 	readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	constructor(
-		private readonly settingsResource: URI,
-		fileService: IFileService
+		private readonly userDataProfilesService: IUserDataProfilesService,
+		private readonly fileService: IFileService
 	) {
 		super();
-		this.userConfiguration = this._register(new UserSettings(this.settingsResource, undefined, extUriBiasedIgnorePathCase, fileService));
 		this.configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
+		this.userConfiguration = this._register(new MutableDisposable<UserSettings>());
 
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reloadConfiguration(), 50));
 		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(({ properties }) => this.onDidDefaultConfigurationChange(properties)));
-		this._register(this.userConfiguration.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
 	}
 
-	async initialize(): Promise<void> {
-		const userConfiguration = await this.userConfiguration.loadConfiguration();
-		this.configuration = new Configuration(new DefaultConfigurationModel(), userConfiguration);
+	private initPromise: Promise<void> | undefined;
+	initialize(settingsResource?: URI): Promise<void> {
+		if (!this.initPromise) {
+			this.initPromise = (async () => {
+				this.userConfiguration.value = new UserSettings(settingsResource ?? this.userDataProfilesService.currentProfile.settingsResource, undefined, extUriBiasedIgnorePathCase, this.fileService);
+				this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
+				const userConfiguration = await this.userConfiguration.value.loadConfiguration();
+				this.configuration = new Configuration(new DefaultConfigurationModel(), userConfiguration);
+			})();
+		}
+		return this.initPromise;
 	}
 
 	getConfigurationData(): IConfigurationData {
@@ -79,8 +87,10 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	}
 
 	async reloadConfiguration(): Promise<void> {
-		const configurationModel = await this.userConfiguration.loadConfiguration();
-		this.onDidChangeUserConfiguration(configurationModel);
+		if (this.userConfiguration.value) {
+			const configurationModel = await this.userConfiguration.value.loadConfiguration();
+			this.onDidChangeUserConfiguration(configurationModel);
+		}
 	}
 
 	private onDidChangeUserConfiguration(userConfigurationModel: ConfigurationModel): void {

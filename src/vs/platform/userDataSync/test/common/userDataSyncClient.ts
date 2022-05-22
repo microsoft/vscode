@@ -66,7 +66,7 @@ export class UserDataSyncClient extends Disposable {
 			sync: 'on',
 		});
 
-		const userDataProfilesService = this.instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, logService));
+		const userDataProfilesService = this.instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(undefined, environmentService, logService));
 
 		this.instantiationService.stub(IProductService, {
 			_serviceBrand: undefined, ...product, ...{
@@ -86,7 +86,7 @@ export class UserDataSyncClient extends Disposable {
 
 		this.instantiationService.stub(IStorageService, this._register(new InMemoryStorageService()));
 
-		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService));
+		const configurationService = this._register(new ConfigurationService(userDataProfilesService, fileService));
 		await configurationService.initialize();
 		this.instantiationService.stub(IConfigurationService, configurationService);
 		this.instantiationService.stub(IUriIdentityService, this.instantiationService.createInstance(UriIdentityService));

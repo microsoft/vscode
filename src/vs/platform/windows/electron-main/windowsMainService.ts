@@ -51,6 +51,7 @@ import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electro
 import { ICodeWindow, UnloadReason } from 'vs/platform/window/electron-main/window';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 //#region Helper Interfaces
 
@@ -193,6 +194,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@ILogService private readonly logService: ILogService,
 		@IStateMainService private readonly stateMainService: IStateMainService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -1296,6 +1298,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// loading the window.
 			backupPath: options.emptyWindowBackupInfo ? join(this.environmentMainService.backupHome, options.emptyWindowBackupInfo.backupFolder) : undefined,
 
+			profile: this.userDataProfilesService.currentProfile.name,
 			homeDir: this.environmentMainService.userHome.fsPath,
 			tmpDir: this.environmentMainService.tmpDir.fsPath,
 			userDataDir: this.environmentMainService.userDataPath,

@@ -266,6 +266,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	execPath: string;
 	backupPath?: string;
 
+	profile?: string;
 	homeDir: string;
 	tmpDir: string;
 	userDataDir: string;

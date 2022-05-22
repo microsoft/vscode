@@ -90,13 +90,13 @@ class CodeMain {
 		setUnexpectedErrorHandler(err => console.error(err));
 
 		// Create services
-		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService] = this.createServices();
+		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService, userDataProfilesService] = this.createServices();
 
 		try {
 
 			// Init services
 			try {
-				await this.initServices(environmentMainService, configurationService, stateMainService);
+				await this.initServices(environmentMainService, userDataProfilesService, configurationService, stateMainService);
 			} catch (error) {
 
 				// Show a dialog for errors that can be resolved by the user
@@ -138,7 +138,7 @@ class CodeMain {
 		}
 	}
 
-	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateMainService, BufferLogService, IProductService] {
+	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateMainService, BufferLogService, IProductService, IUserDataProfilesService] {
 		const services = new ServiceCollection();
 
 		// Product
@@ -146,7 +146,8 @@ class CodeMain {
 		services.set(IProductService, productService);
 
 		// Environment
-		const environmentMainService = new EnvironmentMainService(this.resolveArgs(), productService);
+		const args = this.resolveArgs();
+		const environmentMainService = new EnvironmentMainService(args, productService);
 		const instanceEnvironment = this.patchEnvironment(environmentMainService); // Patch `process.env` with the instance's environment
 		services.set(IEnvironmentMainService, environmentMainService);
 
@@ -168,18 +169,18 @@ class CodeMain {
 		services.set(ILoggerService, new LoggerService(logService, fileService));
 
 		// User Data Profiles
-		const userDataProfilesService = new UserDataProfilesService(environmentMainService, logService);
+		const userDataProfilesService = new UserDataProfilesService(args['__profile'], environmentMainService, logService);
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Configuration
-		const configurationService = new ConfigurationService(userDataProfilesService.currentProfile.settingsResource, fileService);
+		const configurationService = new ConfigurationService(userDataProfilesService, fileService);
 		services.set(IConfigurationService, configurationService);
 
 		// Lifecycle
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
 
 		// State
-		const stateMainService = new StateMainService(environmentMainService, logService, fileService);
+		const stateMainService = new StateMainService(environmentMainService, userDataProfilesService, logService, fileService);
 		services.set(IStateMainService, stateMainService);
 
 		// Request
@@ -197,7 +198,7 @@ class CodeMain {
 		// Protocol
 		services.set(IProtocolMainService, new SyncDescriptor(ProtocolMainService));
 
-		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService];
+		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService, userDataProfilesService];
 	}
 
 	private patchEnvironment(environmentMainService: IEnvironmentMainService): IProcessEnvironment {
@@ -217,7 +218,7 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private initServices(environmentMainService: IEnvironmentMainService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<unknown> {
+	private initServices(environmentMainService: IEnvironmentMainService, userDataProfilesService: IUserDataProfilesService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<unknown> {
 		return Promises.settled<unknown>([
 
 			// Environment service (paths)
@@ -225,7 +226,8 @@ class CodeMain {
 				environmentMainService.extensionsPath,
 				environmentMainService.codeCachePath,
 				environmentMainService.logsPath,
-				environmentMainService.globalStorageHome.fsPath,
+				userDataProfilesService.defaultProfile.globalStorageHome.fsPath,
+				userDataProfilesService.currentProfile.globalStorageHome.fsPath,
 				environmentMainService.workspaceStorageHome.fsPath,
 				environmentMainService.localHistoryHome.fsPath,
 				environmentMainService.backupHome

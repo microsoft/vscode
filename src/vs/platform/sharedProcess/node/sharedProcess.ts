@@ -24,4 +24,6 @@ export interface ISharedProcessConfiguration extends ISandboxConfiguration {
 	readonly logLevel: LogLevel;
 
 	readonly backupWorkspacesPath: string;
+
+	readonly profile?: string;
 }

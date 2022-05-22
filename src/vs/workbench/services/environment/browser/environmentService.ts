@@ -62,9 +62,6 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get cacheHome(): URI { return joinPath(this.userRoamingDataHome, 'caches'); }
 
 	@memoize
-	get globalStorageHome(): URI { return joinPath(this.userRoamingDataHome, 'globalStorage'); }
-
-	@memoize
 	get workspaceStorageHome(): URI { return joinPath(this.userRoamingDataHome, 'workspaceStorage'); }
 
 	@memoize

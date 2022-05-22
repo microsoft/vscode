@@ -54,7 +54,6 @@ export interface IEnvironmentService {
 
 	// --- data paths
 	untitledWorkspacesHome: URI;
-	globalStorageHome: URI;
 	workspaceStorageHome: URI;
 	localHistoryHome: URI;
 	cacheHome: URI;

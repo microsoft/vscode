@@ -204,7 +204,7 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(ILogService, logService);
 
 		// User Data Profiles
-		const userDataProfilesService = new UserDataProfilesService(environmentService, logService);
+		const userDataProfilesService = new UserDataProfilesService(undefined, environmentService, logService);
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Remote
