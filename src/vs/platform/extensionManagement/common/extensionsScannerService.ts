@@ -124,6 +124,7 @@ export interface IExtensionsScannerService {
 	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType, scanOptions: ScanOptions): Promise<IScannedExtension | null>;
 	scanOneOrMultipleExtensions(extensionLocation: URI, extensionType: ExtensionType, scanOptions: ScanOptions): Promise<IScannedExtension[]>;
 
+	scanMetadata(extensionLocation: URI): Promise<Metadata | undefined>;
 	updateMetadata(extensionLocation: URI, metadata: Partial<Metadata>): Promise<void>;
 }
 
@@ -228,6 +229,13 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		const extensionsScannerInput = await this.createExtensionScannerInput(extensionLocation, false, extensionType, true, scanOptions.language);
 		const extensions = await this.extensionsScanner.scanOneOrMultipleExtensions(extensionsScannerInput);
 		return this.applyScanOptions(extensions, scanOptions, true);
+	}
+
+	async scanMetadata(extensionLocation: URI): Promise<Metadata | undefined> {
+		const manifestLocation = joinPath(extensionLocation, 'package.json');
+		const content = (await this.fileService.readFile(manifestLocation)).value.toString();
+		const manifest: IScannedExtensionManifest = JSON.parse(content);
+		return manifest.__metadata;
 	}
 
 	async updateMetadata(extensionLocation: URI, metaData: Partial<Metadata>): Promise<void> {
@@ -542,7 +550,7 @@ class ExtensionsScanner extends Disposable {
 		return extension;
 	}
 
-	private async scanExtensionManifest(extensionLocation: URI): Promise<IScannedExtensionManifest | null> {
+	async scanExtensionManifest(extensionLocation: URI): Promise<IScannedExtensionManifest | null> {
 		const manifestLocation = joinPath(extensionLocation, 'package.json');
 		let content;
 		try {

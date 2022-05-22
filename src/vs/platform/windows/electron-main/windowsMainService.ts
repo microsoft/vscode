@@ -1298,7 +1298,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// loading the window.
 			backupPath: options.emptyWindowBackupInfo ? join(this.environmentMainService.backupHome, options.emptyWindowBackupInfo.backupFolder) : undefined,
 
-			profile: this.userDataProfilesService.currentProfile.name,
+			defaultProfile: this.userDataProfilesService.defaultProfile,
+			currentProfile: this.userDataProfilesService.currentProfile,
+
 			homeDir: this.environmentMainService.userHome.fsPath,
 			tmpDir: this.environmentMainService.tmpDir.fsPath,
 			userDataDir: this.environmentMainService.userDataPath,

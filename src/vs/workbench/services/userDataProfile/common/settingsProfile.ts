@@ -11,7 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { removeComments, updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
-import { IResourceProfile, ProfileCreationOptions } from 'vs/workbench/services/profiles/common/profile';
+import { IResourceProfile, ProfileCreationOptions } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface ISettingsContent {
 	settings: string;

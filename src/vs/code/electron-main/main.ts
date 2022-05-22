@@ -62,7 +62,8 @@ import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 /**
  * The main VS Code entry point.
@@ -90,13 +91,13 @@ class CodeMain {
 		setUnexpectedErrorHandler(err => console.error(err));
 
 		// Create services
-		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService, userDataProfilesService] = this.createServices();
+		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService, userDataProfilesMainService] = this.createServices();
 
 		try {
 
 			// Init services
 			try {
-				await this.initServices(environmentMainService, userDataProfilesService, configurationService, stateMainService);
+				await this.initServices(environmentMainService, userDataProfilesMainService, configurationService, stateMainService);
 			} catch (error) {
 
 				// Show a dialog for errors that can be resolved by the user
@@ -138,7 +139,7 @@ class CodeMain {
 		}
 	}
 
-	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateMainService, BufferLogService, IProductService, IUserDataProfilesService] {
+	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateMainService, BufferLogService, IProductService, UserDataProfilesMainService] {
 		const services = new ServiceCollection();
 
 		// Product
@@ -146,8 +147,7 @@ class CodeMain {
 		services.set(IProductService, productService);
 
 		// Environment
-		const args = this.resolveArgs();
-		const environmentMainService = new EnvironmentMainService(args, productService);
+		const environmentMainService = new EnvironmentMainService(this.resolveArgs(), productService);
 		const instanceEnvironment = this.patchEnvironment(environmentMainService); // Patch `process.env` with the instance's environment
 		services.set(IEnvironmentMainService, environmentMainService);
 
@@ -169,18 +169,18 @@ class CodeMain {
 		services.set(ILoggerService, new LoggerService(logService, fileService));
 
 		// User Data Profiles
-		const userDataProfilesService = new UserDataProfilesService(args['__profile'], environmentMainService, logService);
-		services.set(IUserDataProfilesService, userDataProfilesService);
+		const userDataProfilesMainService = new UserDataProfilesMainService(environmentMainService, fileService, logService);
+		services.set(IUserDataProfilesService, userDataProfilesMainService);
 
 		// Configuration
-		const configurationService = new ConfigurationService(userDataProfilesService, fileService);
+		const configurationService = new ConfigurationService(userDataProfilesMainService, fileService);
 		services.set(IConfigurationService, configurationService);
 
 		// Lifecycle
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
 
 		// State
-		const stateMainService = new StateMainService(environmentMainService, userDataProfilesService, logService, fileService);
+		const stateMainService = new StateMainService(environmentMainService, userDataProfilesMainService, logService, fileService);
 		services.set(IStateMainService, stateMainService);
 
 		// Request
@@ -198,7 +198,7 @@ class CodeMain {
 		// Protocol
 		services.set(IProtocolMainService, new SyncDescriptor(ProtocolMainService));
 
-		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService, userDataProfilesService];
+		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService, userDataProfilesMainService];
 	}
 
 	private patchEnvironment(environmentMainService: IEnvironmentMainService): IProcessEnvironment {
@@ -218,7 +218,10 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private initServices(environmentMainService: IEnvironmentMainService, userDataProfilesService: IUserDataProfilesService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<unknown> {
+	private async initServices(environmentMainService: IEnvironmentMainService, userDataProfilesMainService: UserDataProfilesMainService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<unknown> {
+		// State service
+		await stateMainService.init();
+
 		return Promises.settled<unknown>([
 
 			// Environment service (paths)
@@ -226,18 +229,18 @@ class CodeMain {
 				environmentMainService.extensionsPath,
 				environmentMainService.codeCachePath,
 				environmentMainService.logsPath,
-				userDataProfilesService.defaultProfile.globalStorageHome.fsPath,
-				userDataProfilesService.currentProfile.globalStorageHome.fsPath,
+				userDataProfilesMainService.defaultProfile.globalStorageHome.fsPath,
 				environmentMainService.workspaceStorageHome.fsPath,
 				environmentMainService.localHistoryHome.fsPath,
 				environmentMainService.backupHome
 			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
 
-			// Configuration service
-			configurationService.initialize(),
+			// User Data Profiles Service
+			userDataProfilesMainService.init(stateMainService)
+				.then(() => userDataProfilesMainService.currentProfile.globalStorageHome.fsPath !== userDataProfilesMainService.defaultProfile.globalStorageHome.fsPath ? FSPromises.mkdir(userDataProfilesMainService.currentProfile.globalStorageHome.fsPath, { recursive: true }) : undefined),
 
-			// State service
-			stateMainService.init()
+			// Configuration service
+			configurationService.initialize()
 		]);
 	}
 

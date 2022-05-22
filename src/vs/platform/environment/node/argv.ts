@@ -149,7 +149,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'vmodule': { type: 'string' },
 	'_urls': { type: 'string[]' },
 	'disable-dev-shm-usage': { type: 'boolean' },
-	'__profile': { type: 'string' },
 
 	_: { type: 'string[]' } // main arguments
 };

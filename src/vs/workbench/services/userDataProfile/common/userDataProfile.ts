@@ -7,15 +7,36 @@ import { isUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export interface IProfile {
+export type CreationOptions = {
+	settings?: boolean;
+	keybindings?: boolean;
+	tasks?: boolean;
+	snippets?: boolean;
+	extensions?: boolean;
+	uiState?: boolean;
+};
+
+export const IUserDataProfileManagementService = createDecorator<IUserDataProfileManagementService>('IUserDataProfileManagementService');
+export interface IUserDataProfileManagementService {
+	readonly _serviceBrand: undefined;
+
+	createAndEnterProfile(name: string, options?: CreationOptions): Promise<void>;
+	createAndEnterProfileFromTemplate(name: string, template: IUserDataProfileTemplate, options?: CreationOptions): Promise<void>;
+	removeProfile(name: string): Promise<void>;
+	switchProfile(name: string): Promise<void>;
+
+	reset(): Promise<void>;
+}
+
+export interface IUserDataProfileTemplate {
 	readonly name?: string;
 	readonly settings?: string;
 	readonly globalState?: string;
 	readonly extensions?: string;
 }
 
-export function isProfile(thing: any): thing is IProfile {
-	const candidate = thing as IProfile | undefined;
+export function isProfile(thing: any): thing is IUserDataProfileTemplate {
+	const candidate = thing as IUserDataProfileTemplate | undefined;
 
 	return !!(candidate && typeof candidate === 'object'
 		&& (isUndefined(candidate.name) || typeof candidate.name === 'string')
@@ -26,12 +47,12 @@ export function isProfile(thing: any): thing is IProfile {
 
 export type ProfileCreationOptions = { readonly skipComments: boolean };
 
-export const IWorkbenchProfileService = createDecorator<IWorkbenchProfileService>('IWorkbenchProfileService');
-export interface IWorkbenchProfileService {
+export const IUserDataProfileWorkbenchService = createDecorator<IUserDataProfileWorkbenchService>('IUserDataProfileWorkbenchService');
+export interface IUserDataProfileWorkbenchService {
 	readonly _serviceBrand: undefined;
 
-	createProfile(options?: ProfileCreationOptions): Promise<IProfile>;
-	setProfile(profile: IProfile): Promise<void>;
+	createProfile(options?: ProfileCreationOptions): Promise<IUserDataProfileTemplate>;
+	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
 
 export interface IResourceProfile {

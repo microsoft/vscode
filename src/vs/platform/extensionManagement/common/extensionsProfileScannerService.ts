@@ -32,7 +32,7 @@ export interface IExtensionsProfileScannerService {
 	readonly _serviceBrand: undefined;
 
 	scanProfileExtensions(profileLocation: URI): Promise<IScannedProfileExtension[]>;
-	addExtensionToProfile(extension: ILocalExtension, metadata: Metadata, profileLocation: URI): Promise<IScannedProfileExtension[]>;
+	addExtensionsToProfile(extensions: [ILocalExtension, Metadata | undefined][], profileLocation: URI): Promise<IScannedProfileExtension[]>;
 	removeExtensionFromProfile(identifier: IExtensionIdentifier, profileLocation: URI): Promise<IScannedProfileExtension[]>;
 }
 
@@ -52,11 +52,11 @@ export class ExtensionsProfileScannerService extends Disposable implements IExte
 		return this.withProfileExtensions(profileLocation);
 	}
 
-	addExtensionToProfile(extension: ILocalExtension, metadata: Metadata, profileLocation: URI): Promise<IScannedProfileExtension[]> {
+	addExtensionsToProfile(extensions: [ILocalExtension, Metadata][], profileLocation: URI): Promise<IScannedProfileExtension[]> {
 		return this.withProfileExtensions(profileLocation, profileExtensions => {
 			// Remove the existing extension to avoid duplicates
-			profileExtensions = profileExtensions.filter(e => !areSameExtensions(e.identifier, extension.identifier));
-			profileExtensions.push({ identifier: extension.identifier, location: extension.location, metadata });
+			profileExtensions = profileExtensions.filter(e => extensions.some(([extension]) => !areSameExtensions(e.identifier, extension.identifier)));
+			profileExtensions.push(...extensions.map(([extension, metadata]) => ({ identifier: extension.identifier, location: extension.location, metadata })));
 			return profileExtensions;
 		});
 	}

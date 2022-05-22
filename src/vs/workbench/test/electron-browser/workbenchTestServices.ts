@@ -48,9 +48,23 @@ import { IElevatedFileService } from 'vs/workbench/services/files/common/elevate
 import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { joinPath } from 'vs/base/common/resources';
 
 const args = parseArgs(process.argv, OPTIONS);
+
+const homeDir = homedir();
+const NULL_PROFILE: IUserDataProfile = {
+	name: '',
+	location: URI.file(homeDir),
+	settingsResource: joinPath(URI.file(homeDir), 'settings.json'),
+	globalStorageHome: joinPath(URI.file(homeDir), 'globalStorage'),
+	keybindingsResource: joinPath(URI.file(homeDir), 'keybindings.json'),
+	tasksResource: joinPath(URI.file(homeDir), 'tasks.json'),
+	snippetsHome: joinPath(URI.file(homeDir), 'snippets'),
+	extensionsResource: undefined
+};
 
 export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	windowId: 0,
@@ -64,9 +78,11 @@ export const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	colorScheme: { dark: true, highContrast: false },
 	os: { release: release(), hostname: hostname() },
 	product,
-	homeDir: homedir(),
+	homeDir: homeDir,
 	tmpDir: tmpdir(),
 	userDataDir: getUserDataPath(args),
+	defaultProfile: NULL_PROFILE,
+	currentProfile: NULL_PROFILE,
 	...args
 };
 
@@ -270,7 +286,7 @@ export function workbenchInstantiationService(disposables = new DisposableStore(
 	instantiationService.stub(INativeEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(INativeWorkbenchEnvironmentService, TestEnvironmentService);
-	instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(undefined, TestEnvironmentService, new NullLogService()));
+	instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(undefined, undefined, TestEnvironmentService, new FileService(new NullLogService()), new NullLogService()));
 
 	return instantiationService;
 }

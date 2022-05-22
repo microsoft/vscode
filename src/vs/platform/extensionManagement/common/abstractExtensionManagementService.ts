@@ -594,6 +594,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	abstract install(vsix: URI, options?: ServerInstallVSIXOptions): Promise<ILocalExtension>;
 	abstract getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
 
+	abstract getMetadata(extension: ILocalExtension): Promise<Metadata | undefined>;
 	abstract updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
 	abstract updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension>;
 
@@ -705,7 +706,7 @@ export abstract class AbstractInstallExtensionTask extends AbstractExtensionTask
 	protected async doRun(token: CancellationToken): Promise<ILocalExtension> {
 		const { local, metadata } = await this.install(token);
 		if (this.options.profileLocation) {
-			await this.extensionsProfileScannerService.addExtensionToProfile(local, metadata, this.options.profileLocation);
+			await this.extensionsProfileScannerService.addExtensionsToProfile([[local, metadata]], this.options.profileLocation);
 		}
 		return local;
 	}
@@ -725,9 +726,10 @@ export abstract class AbstractUninstallExtensionTask extends AbstractExtensionTa
 	}
 
 	protected async doRun(token: CancellationToken): Promise<void> {
-		await this.uninstall(token);
 		if (this.options.profileLocation) {
 			await this.extensionsProfileScannerService.removeExtensionFromProfile(this.extension.identifier, this.options.profileLocation);
+		} else {
+			await this.uninstall(token);
 		}
 	}
 

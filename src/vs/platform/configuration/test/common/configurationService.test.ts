@@ -31,7 +31,7 @@ suite('ConfigurationService', () => {
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-		userDataProfileService = new UserDataProfilesService(undefined, <IEnvironmentService>{ userRoamingDataHome: URI.file('User') }, new NullLogService());
+		userDataProfileService = new UserDataProfilesService(undefined, undefined, <IEnvironmentService>{ userRoamingDataHome: URI.file('User') }, fileService, new NullLogService());
 	});
 
 	teardown(() => disposables.clear());
@@ -157,7 +157,7 @@ suite('ConfigurationService', () => {
 			}
 		});
 
-		let testObject = disposables.add(new ConfigurationService(new UserDataProfilesService(undefined, <IEnvironmentService>{ userRoamingDataHome: URI.file('User1') }, new NullLogService()), fileService));
+		let testObject = disposables.add(new ConfigurationService(new UserDataProfilesService(undefined, undefined, <IEnvironmentService>{ userRoamingDataHome: URI.file('User1') }, fileService, new NullLogService()), fileService));
 		await testObject.initialize();
 		let setting = testObject.getValue<ITestSetting>();
 

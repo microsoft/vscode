@@ -8,22 +8,109 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { asJson, asText, IRequestService } from 'vs/platform/request/common/request';
-import { IProfile, isProfile, IWorkbenchProfileService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER } from 'vs/workbench/services/profiles/common/profile';
+import { IUserDataProfileTemplate, isProfile, IUserDataProfileManagementService, IUserDataProfileWorkbenchService, PROFILES_CATEGORY, PROFILE_EXTENSION, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+
+registerAction2(class SaveProfileAsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.profiles.actions.saveProfileAs',
+			title: {
+				value: localize('save profile as', "Save Settings Profile As..."),
+				original: 'Save Settings Profile As...'
+			},
+			category: PROFILES_CATEGORY,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const quickInputService = accessor.get(IQuickInputService);
+		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
+		const name = await quickInputService.input({
+			placeHolder: localize('name', "Profile name"),
+			title: localize('save profile as', "Save Settings Profile As..."),
+		});
+		if (name) {
+			await userDataProfileManagementService.createAndEnterProfile(name);
+		}
+	}
+});
+
+registerAction2(class SwitchProfileAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.profiles.actions.switchProfile',
+			title: {
+				value: localize('switch profile', "Switch Settings Profile"),
+				original: 'Switch Settings Profile'
+			},
+			category: PROFILES_CATEGORY,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const quickInputService = accessor.get(IQuickInputService);
+		const userDataProfilesService = accessor.get(IUserDataProfilesService);
+		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
+
+		const profiles = await userDataProfilesService.getAllProfiles();
+		if (profiles.length) {
+			const picks: IQuickPickItem[] = profiles.map(p => ({
+				label: p.name!,
+				description: p.name === userDataProfilesService.currentProfile.name ? localize('current', "Current") : undefined,
+			}));
+			const pick = await quickInputService.pick(picks, { placeHolder: localize('pick profile', "Select Settings Profile") });
+			if (pick) {
+				await userDataProfileManagementService.switchProfile(pick.label);
+			}
+		}
+	}
+});
+
+registerAction2(class RemoveProfileAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.profiles.actions.removeProfile',
+			title: {
+				value: localize('remove profile', "Remove Settings Profile"),
+				original: 'Remove Settings Profile'
+			},
+			category: PROFILES_CATEGORY,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const quickInputService = accessor.get(IQuickInputService);
+		const userDataProfilesService = accessor.get(IUserDataProfilesService);
+		const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
+
+		const profiles = (await userDataProfilesService.getAllProfiles()).filter(p => p.name !== userDataProfilesService.currentProfile.name && p.name !== userDataProfilesService.defaultProfile.name);
+		if (profiles.length) {
+			const pick = await quickInputService.pick(profiles.map(p => ({ label: p.name! })), { placeHolder: localize('pick profile', "Select Settings Profile") });
+			if (pick) {
+				await userDataProfileManagementService.removeProfile(pick.label);
+			}
+		}
+	}
+});
 
 registerAction2(class ExportProfileAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.profiles.actions.exportProfile',
 			title: {
-				value: localize('export profile', "Export Settings as a Profile..."),
-				original: 'Export Settings as a Profile...'
+				value: localize('export profile', "Export Settings Profile as a Template..."),
+				original: 'Export Settings as a Profile as a Template...'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true
@@ -33,7 +120,7 @@ registerAction2(class ExportProfileAction extends Action2 {
 	async run(accessor: ServicesAccessor) {
 		const textFileService = accessor.get(ITextFileService);
 		const fileDialogService = accessor.get(IFileDialogService);
-		const profileService = accessor.get(IWorkbenchProfileService);
+		const profileService = accessor.get(IUserDataProfileWorkbenchService);
 		const notificationService = accessor.get(INotificationService);
 
 		const profileLocation = await fileDialogService.showSaveDialog({
@@ -53,13 +140,13 @@ registerAction2(class ExportProfileAction extends Action2 {
 	}
 });
 
-registerAction2(class ImportProfileAction extends Action2 {
+registerAction2(class CreateProfileFromTemplateAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.profiles.actions.importProfile',
+			id: 'workbench.profiles.actions.createProfileFromTemplate',
 			title: {
-				value: localize('import profile', "Import Settings from a Profile..."),
-				original: 'Import Settings from a Profile...'
+				value: localize('create profile from template', "Create Settings Profile from Template..."),
+				original: 'Create Settings Profile from Template...'
 			},
 			category: PROFILES_CATEGORY,
 			f1: true
@@ -71,15 +158,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const fileService = accessor.get(IFileService);
 		const requestService = accessor.get(IRequestService);
-		const profileService = accessor.get(IWorkbenchProfileService);
-		const dialogService = accessor.get(IDialogService);
-
-		if (!(await dialogService.confirm({
-			title: localize('import profile title', "Import Settings from a Profile"),
-			message: localize('confiirmation message', "This will replace your current settings. Are you sure you want to continue?"),
-		})).confirmed) {
-			return;
-		}
+		const userDataProfileMangementService = accessor.get(IUserDataProfileManagementService);
 
 		const disposables = new DisposableStore();
 		const quickPick = disposables.add(quickInputService.createQuickPick());
@@ -98,14 +177,20 @@ registerAction2(class ImportProfileAction extends Action2 {
 			quickPick.hide();
 			const profile = quickPick.selectedItems[0].description ? await this.getProfileFromURL(quickPick.value, requestService) : await this.getProfileFromFileSystem(fileDialogService, fileService);
 			if (profile) {
-				await profileService.setProfile(profile);
+				const name = await quickInputService.input({
+					placeHolder: localize('name', "Profile name"),
+					title: localize('save profile as', "Save Settings Profile As..."),
+				});
+				if (name) {
+					await userDataProfileMangementService.createAndEnterProfileFromTemplate(name, profile);
+				}
 			}
 		}));
 		disposables.add(quickPick.onDidHide(() => disposables.dispose()));
 		quickPick.show();
 	}
 
-	private async getProfileFromFileSystem(fileDialogService: IFileDialogService, fileService: IFileService): Promise<IProfile | null> {
+	private async getProfileFromFileSystem(fileDialogService: IFileDialogService, fileService: IFileService): Promise<IUserDataProfileTemplate | null> {
 		const profileLocation = await fileDialogService.showOpenDialog({
 			canSelectFolders: false,
 			canSelectFiles: true,
@@ -121,7 +206,7 @@ registerAction2(class ImportProfileAction extends Action2 {
 		return isProfile(parsed) ? parsed : null;
 	}
 
-	private async getProfileFromURL(url: string, requestService: IRequestService): Promise<IProfile | null> {
+	private async getProfileFromURL(url: string, requestService: IRequestService): Promise<IUserDataProfileTemplate | null> {
 		const options = { type: 'GET', url };
 		const context = await requestService.request(options, CancellationToken.None);
 		if (context.res.statusCode === 200) {

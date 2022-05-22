@@ -128,7 +128,8 @@ suite('StorageMainService', function () {
 
 	function createStorageService(lifecycleMainService: ILifecycleMainService = new StorageTestLifecycleMainService()): TestStorageMainService {
 		const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
-		return new TestStorageMainService(new NullLogService(), environmentService, new UserDataProfilesService(undefined, environmentService, new NullLogService()), lifecycleMainService, new FileService(new NullLogService()), NullTelemetryService);
+		const fileService = new FileService(new NullLogService());
+		return new TestStorageMainService(new NullLogService(), environmentService, new UserDataProfilesService(undefined, undefined, environmentService, fileService, new NullLogService()), lifecycleMainService, fileService, NullTelemetryService);
 	}
 
 	test('basics (global)', function () {

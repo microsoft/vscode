@@ -69,6 +69,10 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return this.installExtension(manifest, location, options);
 	}
 
+	getMetadata(extension: ILocalExtension): Promise<Metadata | undefined> {
+		return this.webExtensionsScannerService.scanMetadata(extension.location);
+	}
+
 	protected override async getCompatibleVersion(extension: IGalleryExtension, fetchCompatibleVersion: boolean, includePreRelease: boolean): Promise<IGalleryExtension | null> {
 		const compatibleExtension = await super.getCompatibleVersion(extension, fetchCompatibleVersion, includePreRelease);
 		if (compatibleExtension) {

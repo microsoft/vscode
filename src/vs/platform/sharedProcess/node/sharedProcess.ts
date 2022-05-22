@@ -6,6 +6,7 @@
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { LogLevel } from 'vs/platform/log/common/log';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export interface ISharedProcess {
 
@@ -25,5 +26,6 @@ export interface ISharedProcessConfiguration extends ISandboxConfiguration {
 
 	readonly backupWorkspacesPath: string;
 
-	readonly profile?: string;
+	readonly defaultProfile: IUserDataProfile;
+	readonly currentProfile: IUserDataProfile;
 }

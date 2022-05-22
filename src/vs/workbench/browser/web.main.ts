@@ -203,10 +203,6 @@ export class BrowserMain extends Disposable {
 		const logService = new BufferLogService(getLogLevel(environmentService));
 		serviceCollection.set(ILogService, logService);
 
-		// User Data Profiles
-		const userDataProfilesService = new UserDataProfilesService(undefined, environmentService, logService);
-		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
-
 		// Remote
 		const connectionToken = environmentService.options.connectionToken || getCookieValue(connectionTokenCookieName);
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(productService, connectionToken, this.configuration.resourceUriProvider);
@@ -235,6 +231,10 @@ export class BrowserMain extends Disposable {
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IWorkbenchFileService, fileService);
 		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, logsPath);
+
+		// User Data Profiles
+		const userDataProfilesService = new UserDataProfilesService(undefined, undefined, environmentService, fileService, logService);
+		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
 
 		// URI Identity
 		const uriIdentityService = new UriIdentityService(fileService);

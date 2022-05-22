@@ -61,6 +61,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
 		@IExtensionsProfileScannerService protected readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IDownloadService private downloadService: IDownloadService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -124,6 +125,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		}
 
 		return this.installExtension(manifest, downloadLocation, options);
+	}
+
+	getMetadata(extension: ILocalExtension): Promise<Metadata | undefined> {
+		return this.extensionsScannerService.scanMetadata(extension.location);
 	}
 
 	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {

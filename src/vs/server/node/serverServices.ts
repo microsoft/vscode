@@ -110,7 +110,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService)));
 
 	// Configuration
-	const userDataProfilesService = new UserDataProfilesService(undefined, environmentService, logService);
+	const userDataProfilesService = new UserDataProfilesService(undefined, undefined, environmentService, fileService, logService);
 	const configurationService = new ConfigurationService(userDataProfilesService, fileService);
 	services.set(IConfigurationService, configurationService);
 	configurationService.initialize(environmentService.machineSettingsResource);

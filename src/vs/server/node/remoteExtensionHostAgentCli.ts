@@ -93,7 +93,7 @@ class CliMain extends Disposable {
 		fileService.registerProvider(Schemas.file, this._register(new DiskFileSystemProvider(logService)));
 
 		// User Data Profiles
-		const userDataProfilesService = this._register(new UserDataProfilesService(undefined, environmentService, logService));
+		const userDataProfilesService = this._register(new UserDataProfilesService(undefined, undefined, environmentService, fileService, logService));
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Configuration

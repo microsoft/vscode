@@ -152,11 +152,12 @@ export interface IWebExtensionsScannerService {
 	scanSystemExtensions(): Promise<IExtension[]>;
 	scanUserExtensions(options?: ScanOptions): Promise<IScannedExtension[]>;
 	scanExtensionsUnderDevelopment(): Promise<IExtension[]>;
-	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IExtension | null>;
+	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IScannedExtension | null>;
 
 	addExtension(location: URI, metadata?: Metadata): Promise<IExtension>;
 	addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: Metadata): Promise<IExtension>;
 	removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void>;
 
+	scanMetadata(extensionLocation: URI): Promise<Metadata | undefined>;
 	scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null>;
 }
