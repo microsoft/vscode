@@ -35,6 +35,12 @@ if [ "$(id -u)" = "0" ]; then
 	fi
 fi
 
+# when run in remote terminal, use the remote cli instead
+if [ -n "$VSCODE_IPC_HOOK_CLI" ] && [ -n "$VSCODE_REMOTE_CLI_PATH" ]; then
+	"$VSCODE_REMOTE_CLI_PATH"
+	exit $?
+fi
+
 if [ ! -L "$0" ]; then
 	# if path is not a symlink, find relatively
 	VSCODE_PATH="$(dirname "$0")/.."

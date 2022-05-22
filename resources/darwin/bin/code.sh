@@ -3,6 +3,12 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 
+# when run in remote terminal, use the remote cli instead
+if [ -n "$VSCODE_IPC_HOOK_CLI" ] && [ -n "$VSCODE_REMOTE_CLI_PATH" ]; then
+	"$VSCODE_REMOTE_CLI_PATH"
+	exit $?
+fi
+
 function app_realpath() {
 	SOURCE=$1
 	while [ -h "$SOURCE" ]; do
@@ -19,6 +25,7 @@ if [ -z "$APP_PATH" ]; then
 	echo "Unable to determine app path from symlink : ${BASH_SOURCE[0]}"
 	exit 1
 fi
+
 CONTENTS="$APP_PATH/Contents"
 ELECTRON="$CONTENTS/MacOS/Electron"
 CLI="$CONTENTS/Resources/app/out/cli.js"

@@ -21,8 +21,9 @@ import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
+import { IProductService } from 'vs/platform/product/common/productService';
 
-export async function buildUserEnvironment(startParamsEnv: { [key: string]: string | null } = {}, withUserShellEnvironment: boolean, language: string, isDebug: boolean, environmentService: IServerEnvironmentService, logService: ILogService): Promise<IProcessEnvironment> {
+export async function buildUserEnvironment(startParamsEnv: { [key: string]: string | null } = {}, withUserShellEnvironment: boolean, language: string, isDebug: boolean, environmentService: IServerEnvironmentService, productService: IProductService, logService: ILogService): Promise<IProcessEnvironment> {
 	const nlsConfig = await getNLSConfiguration(language, environmentService.userDataPath);
 
 	let userShellEnv: typeof process.env = {};
@@ -62,6 +63,8 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 		PATH = remoteCliBinFolder;
 	}
 	setCaseInsensitive(env, 'PATH', PATH);
+
+	env.VSCODE_REMOTE_CLI_PATH = join(remoteCliBinFolder, productService.applicationName + (isWindows ? '.cmd' : '')); // the `code` command
 
 	if (!environmentService.args['without-browser-env-var']) {
 		env.BROWSER = join(binFolder, 'helpers', isWindows ? 'browser.cmd' : 'browser.sh'); // a command that opens a browser on the local machine
@@ -108,6 +111,7 @@ export class ExtensionHostConnection {
 		socket: NodeSocket | WebSocketNodeSocket,
 		initialDataChunk: VSBuffer,
 		@IServerEnvironmentService private readonly _environmentService: IServerEnvironmentService,
+		@IProductService private readonly _productService: IProductService,
 		@ILogService private readonly _logService: ILogService,
 		@IExtensionHostStatusService private readonly _extensionHostStatusService: IExtensionHostStatusService,
 	) {
@@ -194,7 +198,7 @@ export class ExtensionHostConnection {
 				execArgv = [`--inspect${startParams.break ? '-brk' : ''}=${startParams.port}`];
 			}
 
-			const env = await buildUserEnvironment(startParams.env, true, startParams.language, !!startParams.debugId, this._environmentService, this._logService);
+			const env = await buildUserEnvironment(startParams.env, true, startParams.language, !!startParams.debugId, this._environmentService, this._productService, this._logService);
 			removeDangerousEnvVariables(env);
 
 			const opts = {
