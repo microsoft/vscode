@@ -1768,7 +1768,7 @@ class TestNamedProblemMatcher implements Partial<ProblemMatcher> {
 class TestParseContext implements Partial<ParseContext> {
 }
 
-suite('Task Configuration Test', () => {
+suite('Problem matcher and task parser', () => {
 	let instantiationService: TestInstantiationService;
 	let parseContext: ParseContext;
 	let namedProblemMatcher: NamedProblemMatcher;
