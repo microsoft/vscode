@@ -1772,7 +1772,7 @@ class TestNamedProblemMatcher implements Partial<ProblemMatcher> {
 class TestParseContext implements Partial<ParseContext> {
 }
 
-suite.only('To task configuration from', () => {
+suite('To task configuration from', () => {
 	let instantiationService: TestInstantiationService;
 	let parseContext: ParseContext;
 	let namedProblemMatcher: NamedProblemMatcher;
