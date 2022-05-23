@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-<<<<<<< HEAD
-=======
 import { promises as fs, exists, realpath } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -18,21 +16,8 @@ import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes,
 import { CancellationToken, ConfigurationChangeEvent, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
->>>>>>> a00e1380401
 import * as byline from 'byline';
-import * as cp from 'child_process';
-import { EventEmitter } from 'events';
-import * as filetype from 'file-type';
-import { exists, promises as fs, realpath } from 'fs';
-import * as iconv from 'iconv-lite-umd';
-import * as os from 'os';
-import * as path from 'path';
 import { StringDecoder } from 'string_decoder';
-import { CancellationToken, Progress, Uri } from 'vscode';
-import * as which from 'which';
-import { Branch, BranchQuery, Change, CommitOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status } from './api/git';
-import { detectEncoding } from './encoding';
-import { assign, detectUnicodeEncoding, dispose, Encoding, groupBy, IDisposable, Limiter, mkdirp, onceEvent, readBytes, splitInChunks, toDisposable, Versions } from './util';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
@@ -1418,7 +1403,9 @@ export class Repository {
 		if (!opts.useEditor || message) {
 			options.input = message;
 			args.push(...['--allow-empty-message', '--file', '-']);
-		} else if (opts.verbose) {
+		}
+
+		if (opts.verbose) {
 			args.push('--verbose');
 		}
 

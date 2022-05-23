@@ -1438,16 +1438,11 @@ export class CommandCenter {
 			opts.signoff = true;
 		}
 
-		if (config.get<boolean>('useEditorToCommit')) {
+		if (config.get<boolean>('useEditorAsCommitInput')) {
 			opts.useEditor = true;
-		}
 
-		if (config.get<boolean>('verboseCommit')) {
-			opts.verbose = true;
-			if (!opts.useEditor) {
-				window.showInformationMessage(
-					localize('useless verbose commit', "Verbose committing has no effect. The setting 'git.useEditorToCommit' is not enabled.")
-				);
+			if (config.get<boolean>('verboseCommit')) {
+				opts.verbose = true;
 			}
 		}
 
@@ -1564,7 +1559,7 @@ export class CommandCenter {
 		const getCommitMessage = async () => {
 			let _message: string | undefined = message;
 
-			if (!_message && !config.get<boolean>('useEditorToCommit')) {
+			if (!_message && !config.get<boolean>('useEditorAsCommitInput')) {
 				let value: string | undefined = undefined;
 
 				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
@@ -3010,16 +3005,12 @@ export class CommandCenter {
 						message = localize('missing user info', "Make sure you configure your 'user.name' and 'user.email' in git.");
 						choices.set(localize('learn more', "Learn More"), () => commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-setup-git')));
 						break;
-<<<<<<< HEAD
 					case GitErrorCodes.EmptyCommitMessage:
 						message = localize('empty commit', "Aborting commit due to empty commit message.");
 						type = 'warning';
 						options.modal = false;
 						break;
-					default:
-=======
 					default: {
->>>>>>> a00e1380401
 						const hint = (err.stderr || err.message || String(err))
 							.replace(/^error: /mi, '')
 							.replace(/^> husky.*$/mi, '')

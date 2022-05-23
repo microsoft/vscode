@@ -13,7 +13,6 @@ import { CommandCenter } from './commands';
 import { GitFileSystemProvider } from './fileSystemProvider';
 import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
-import { GitEditor } from './gitEditor';
 import { toDisposable, filterEvent, eventToPromise } from './util';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { GitExtension } from './api/git';
@@ -25,12 +24,10 @@ import * as os from 'os';
 import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
 import { TerminalEnvironmentManager } from './terminal';
-<<<<<<< HEAD
-import { createIPCServer, IIPCServer } from './ipc/ipcServer';
-import { GitCommitFileSystemProvider } from './commitFileSystemProvider';
-=======
 import { OutputChannelLogger } from './log';
->>>>>>> a00e1380401
+import { createIPCServer, IIPCServer } from './ipc/ipcServer';
+import { GitEditor } from './gitEditor/gitEditor';
+import { GitEditorFileSystemProvider } from './gitEditor/fileSystemProvider';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -66,19 +63,15 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 		return !skip;
 	});
 
-<<<<<<< HEAD
 	let ipc: IIPCServer | undefined = undefined;
 
 	try {
 		ipc = await createIPCServer(context.storagePath);
 	} catch (err) {
-		outputChannel.appendLine(`[error] Failed to create git askpass IPC: ${err}`);
+		outputChannelLogger.logError(`Failed to create git IPC: ${err}`);
 	}
 
 	const askpass = new Askpass(ipc);
-=======
-	const askpass = await Askpass.create(outputChannelLogger, context.storagePath);
->>>>>>> a00e1380401
 	disposables.push(askpass);
 
 	const gitEditor = new GitEditor(ipc);
@@ -119,8 +112,8 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 	const cc = new CommandCenter(git, model, outputChannelLogger, telemetryReporter);
 	disposables.push(
 		cc,
+		new GitEditorFileSystemProvider(),
 		new GitFileSystemProvider(model),
-		new GitCommitFileSystemProvider(),
 		new GitDecorations(model),
 		new GitProtocolHandler(),
 		new GitTimelineProvider(model, cc)

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, Event, ProviderResult, Uri } from 'vscode';
+import { Uri, Event, Disposable, ProviderResult } from 'vscode';
 export { ProviderResult } from 'vscode';
 
 export interface Git {

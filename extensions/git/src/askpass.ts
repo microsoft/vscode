@@ -8,25 +8,12 @@ import { IDisposable, EmptyDisposable, toDisposable } from './util';
 import * as path from 'path';
 import { IIPCHandler, IIPCServer } from './ipc/ipcServer';
 import { CredentialsProvider, Credentials } from './api/git';
-import { OutputChannelLogger } from './log';
 
 export class Askpass implements IIPCHandler {
 
 	private disposable: IDisposable = EmptyDisposable;
 	private cache = new Map<string, Credentials>();
 	private credentialsProviders = new Set<CredentialsProvider>();
-
-<<<<<<< HEAD
-=======
-	static async create(outputChannelLogger: OutputChannelLogger, context?: string): Promise<Askpass> {
-		try {
-			return new Askpass(await createIPCServer(context));
-		} catch (err) {
-			outputChannelLogger.logError(`Failed to create git askpass IPC: ${err}`);
-			return new Askpass();
-		}
-	}
->>>>>>> a00e1380401
 
 	constructor(private ipc?: IIPCServer) {
 		if (ipc) {
