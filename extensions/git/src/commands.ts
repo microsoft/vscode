@@ -1111,7 +1111,8 @@ export class CommandCenter {
 	@command('git.openThreeWayMerge')
 	async openThreeWayMerge(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		for (const state of resourceStates) {
-			await commands.executeCommand('vscode.merge', toGitUri(state.resourceUri, '~1'), toGitUri(state.resourceUri, '~2'), toGitUri(state.resourceUri, ''), toGitUri(state.resourceUri, '~3'), path.basename(state.resourceUri.fsPath) + ' (merge)');
+			// To open the 3 way merge: provide URIs to the (1) target file; (2) common ancestor; (3) left hand side; (4) right hand side, plus a title. See example below for git:
+			await commands.executeCommand('vscode.merge', state.resourceUri, toGitUri(state.resourceUri, '~1'), toGitUri(state.resourceUri, '~2'), toGitUri(state.resourceUri, '~3'), path.basename(state.resourceUri.fsPath) + ' (merge)');
 		}
 	}
 
