@@ -17,7 +17,7 @@ import { findPreferredPM } from './preferred-pm';
 import { readScripts } from './readScripts';
 
 const localize = nls.loadMessageBundle();
-const excludeRegex = new RegExp('node_modules|.vscode-test', 'i');
+const excludeRegex = new RegExp('^(node_modules|.vscode-test)$', 'i');
 
 export interface NpmTaskDefinition extends TaskDefinition {
 	script: string;
