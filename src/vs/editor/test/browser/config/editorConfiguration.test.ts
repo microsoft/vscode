@@ -126,7 +126,7 @@ suite('Common Editor Config', () => {
 	});
 
 	test('wordWrap off does not use wordWrapColumn', () => {
-		let config = new TestWrappingConfiguration({
+		const config = new TestWrappingConfiguration({
 			wordWrap: 'off',
 			wordWrapColumn: 10
 		});
