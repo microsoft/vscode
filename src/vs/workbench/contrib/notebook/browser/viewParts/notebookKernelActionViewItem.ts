@@ -6,7 +6,6 @@
 import 'vs/css!./notebookKernelActionViewItem';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Action, IAction } from 'vs/base/common/actions';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { executingStateIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
@@ -18,7 +17,6 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 export class NotebooKernelActionViewItem extends ActionViewItem {
 
 	private _kernelLabel?: HTMLAnchorElement;
-	private _kernelDisposable: DisposableStore;
 
 	constructor(
 		actualAction: IAction,
@@ -34,7 +32,6 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		this._register(_notebookKernelService.onDidChangeNotebookAffinity(this._update, this));
 		this._register(_notebookKernelService.onDidChangeSelectedNotebooks(this._update, this));
 		this._register(_notebookKernelService.onDidChangeSourceActions(this._update, this));
-		this._kernelDisposable = this._register(new DisposableStore());
 	}
 
 	override render(container: HTMLElement): void {
@@ -96,7 +93,6 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 	}
 
 	private _updateActionFromKernelInfo(info: INotebookKernelMatchResult): void {
-		this._kernelDisposable.clear();
 		this._action.enabled = true;
 		this._action.class = ThemeIcon.asClassName(selectKernelIcon);
 		const selectedOrSuggested = info.selected ?? (info.suggestions.length === 1 ? info.suggestions[0] : undefined);
@@ -107,12 +103,6 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 			if (!info.selected) {
 				// special UI for selected kernel?
 			}
-
-			this._kernelDisposable.add(selectedOrSuggested.onDidChange(e => {
-				if (e.state) {
-					this._action.label = this._generateKenrelLabel(selectedOrSuggested);
-				}
-			}));
 		} else {
 			// many kernels or no kernels
 			this._action.label = localize('select', "Select Kernel");
