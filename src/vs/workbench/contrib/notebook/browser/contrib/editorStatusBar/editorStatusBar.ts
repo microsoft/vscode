@@ -212,14 +212,6 @@ registerAction2(class extends Action2 {
 			});
 		}
 
-		if (!all.length) {
-			// there is no kernel, show the install from marketplace
-			quickPickItems.push({
-				id: 'install',
-				label: nls.localize('installKernels', "Install kernels from the marketplace"),
-			});
-		}
-
 		const sourceActions = notebookKernelService.getSourceActions();
 		if (sourceActions.length) {
 			quickPickItems.push({
@@ -235,6 +227,14 @@ registerAction2(class extends Action2 {
 				};
 
 				quickPickItems.push(res);
+			});
+		}
+
+		if (!all.length && !sourceActions.length) {
+			// there is no kernel, show the install from marketplace
+			quickPickItems.push({
+				id: 'install',
+				label: nls.localize('installKernels', "Install kernels from the marketplace"),
 			});
 		}
 
