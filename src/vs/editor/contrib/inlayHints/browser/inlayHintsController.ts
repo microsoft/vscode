@@ -253,9 +253,9 @@ export class InlayHintsController implements IEditorContribution {
 				const newRenderMode = e.altKey && e.ctrlKey ? altMode : defaultMode;
 				if (newRenderMode !== this._activeRenderMode) {
 					this._activeRenderMode = newRenderMode;
-					const ranges = this._getHintsRanges();
-					const copies = this._copyInlayHintsWithCurrentAnchor(this._editor.getModel());
-					this._updateHintsDecorators(ranges, copies);
+					const model = this._editor.getModel();
+					const copies = this._copyInlayHintsWithCurrentAnchor(model);
+					this._updateHintsDecorators([model.getFullModelRange()], copies);
 					scheduler.schedule(0);
 				}
 			}));
@@ -393,7 +393,7 @@ export class InlayHintsController implements IEditorContribution {
 	}
 
 	// return inlay hints but with an anchor that reflects "updates"
-	// that happens after receiving them, e.g adding new lines before a hint
+	// that happened after receiving them, e.g adding new lines before a hint
 	private _copyInlayHintsWithCurrentAnchor(model: ITextModel): InlayHintItem[] {
 		const items = new Map<InlayHintItem, InlayHintItem>();
 		for (const [id, obj] of this._decorationsMetadata) {
