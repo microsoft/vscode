@@ -8127,6 +8127,11 @@ node-abi@^3.3.0:
   dependencies:
     semver "^7.3.5"
 
+node-addon-api@*:
+  version "5.0.0"
+  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-5.0.0.tgz#7d7e6f9ef89043befdb20c1989c905ebde18c501"
+  integrity sha512-CvkDw2OEnme7ybCykJpVcKH+uAOLV2qLqiyla128dN9TkEWfrYmxG6C2boDe5KcNQqZF3orkqzGgOMvZ/JNekA==
+
 node-addon-api@^3.0.2:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-3.1.0.tgz#98b21931557466c6729e51cb77cd39c965f42239"
@@ -11781,6 +11786,14 @@ vscode-oniguruma@1.6.1:
   version "1.6.1"
   resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.6.1.tgz#2bf4dfcfe3dd2e56eb549a3068c8ee39e6c30ce5"
   integrity sha512-vc4WhSIaVpgJ0jJIejjYxPvURJavX6QG41vu0mGhqywMkQqulezEqEQ3cO3gc8GvcOpX6ycmKGqRoROEMBNXTQ==
+
+vscode-policy-watcher@^1.1.0:
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/vscode-policy-watcher/-/vscode-policy-watcher-1.1.0.tgz#2921353c5080b3452929f1e350b9fab9ff852cc9"
+  integrity sha512-yPvy3Or66H0l8/FyWbJeGxpWW3GDZf65EIT7fqp1Ethdz4ecEnHThuHti7SlfdRJTf5qnifrX7af02INiHqDMA==
+  dependencies:
+    bindings "^1.5.0"
+    node-addon-api "*"
 
 vscode-proxy-agent@^0.12.0:
   version "0.12.0"
