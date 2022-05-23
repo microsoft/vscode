@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { MarkersViewMode } from 'vs/workbench/contrib/markers/browser/markersView';
 
 export default {
 	MARKERS_CONTAINER_ID: 'workbench.panel.markers',
@@ -23,6 +24,7 @@ export default {
 	MARKER_SHOW_QUICK_FIX: 'problems.action.showQuickFixes',
 	TOGGLE_MARKERS_VIEW_ACTION_ID: 'workbench.actions.view.toggleProblems',
 
+	MarkersViewModeContextKey: new RawContextKey<MarkersViewMode>('problemsViewMode', MarkersViewMode.Tree),
 	MarkersViewSmallLayoutContextKey: new RawContextKey<boolean>(`problemsView.smallLayout`, false),
 	MarkersTreeVisibilityContextKey: new RawContextKey<boolean>('problemsVisibility', false),
 	MarkerFocusContextKey: new RawContextKey<boolean>('problemFocus', false),

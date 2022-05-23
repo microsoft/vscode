@@ -204,7 +204,8 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 				configuration.properties = {};
 			}
 			for (let key in properties) {
-				const message = validateProperty(key);
+				const propertyConfiguration = properties[key];
+				const message = validateProperty(key, propertyConfiguration);
 				if (message) {
 					delete properties[key];
 					extension.collector.warn(message);
@@ -215,7 +216,6 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 					extension.collector.warn(nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", key));
 					continue;
 				}
-				const propertyConfiguration = properties[key];
 				if (!isObject(propertyConfiguration)) {
 					delete properties[key];
 					extension.collector.error(nls.localize('invalid.property', "configuration.properties property '{0}' must be an object", key));

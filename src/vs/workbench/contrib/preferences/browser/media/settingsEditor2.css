@@ -399,18 +399,28 @@
 	-webkit-user-select: text;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description {
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description,
+.settings-editor > .settings-body .settings-tree-container .setting-item > .setting-item-contents .setting-item-policy-description {
 	display: flex;
 	font-weight: 600;
 	margin: 6px 0 12px 0;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description > span {
+.settings-editor > .settings-body .settings-tree-container .setting-item > .setting-item-contents .setting-item-policy-description[hidden] {
+	display: none;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description > span,
+.settings-editor > .settings-body .settings-tree-container .setting-item > .setting-item-contents .setting-item-policy-description > span {
 	padding-right: 5px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description > span.codicon.codicon-workspace-untrusted {
 	color: var(--workspace-trust-state-untrusted-color) !important;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item > .setting-item-contents .setting-item-policy-description > span.codicon.codicon-lock {
+	color: var(--organization-policy-icon-color) !important;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-validation-message {
