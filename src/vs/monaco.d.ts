@@ -2529,7 +2529,7 @@ declare namespace monaco.editor {
 		 * will get the ownerId of the editor (meaning they will not show up in other editors).
 		 * These decorations will be automatically cleared when the editor's model changes.
 		 */
-		createDecorationsCollection(): IEditorDecorationsCollection;
+		createDecorationsCollection(decorations?: IModelDeltaDecoration[]): IEditorDecorationsCollection;
 	}
 
 	/**
@@ -3798,11 +3798,10 @@ declare namespace monaco.editor {
 		 */
 		fontFamily?: string;
 		/**
-		 * The display style to render inlay hints with.
-		 * Compact mode disables the borders and padding around the inlay hint.
-		 * Defaults to 'standard'.
+		 * Enables the padding around the inlay hint.
+		 * Defaults to false.
 		 */
-		displayStyle: 'standard' | 'compact';
+		padding?: boolean;
 	}
 
 	/**

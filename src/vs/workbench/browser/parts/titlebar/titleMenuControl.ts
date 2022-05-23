@@ -95,7 +95,19 @@ export class TitleMenuControl {
 						}
 
 						private _updateFromWindowTitle() {
-							this.workspaceTitle.innerText = windowTitle.workspaceName;
+
+							// label: just workspace name and optional decorations
+							const { prefix, suffix } = windowTitle.getTitleDecorations();
+							let label = windowTitle.workspaceName;
+							if (prefix) {
+								label = localize('label1', "{0} {1}", prefix, label);
+							}
+							if (suffix) {
+								label = localize('label2', "{0} {1}", label, suffix);
+							}
+							this.workspaceTitle.innerText = label;
+
+							// tooltip: full windowTitle
 							const kb = keybindingService.lookupKeybinding(action.id)?.getLabel();
 							const title = kb
 								? localize('title', "Search {0} ({1}) \u2014 {2}", windowTitle.workspaceName, kb, windowTitle.value)
@@ -107,7 +119,7 @@ export class TitleMenuControl {
 							const container = document.createElement('span');
 							container.classList.add('all-options');
 							parent.appendChild(container);
-							const action = new Action('all', localize('all', "Show Quick Pick Options..."), Codicon.chevronDown.classNames, true, () => {
+							const action = new Action('all', localize('all', "Show Search Modes..."), Codicon.chevronDown.classNames, true, () => {
 								quickInputService.quickAccess.show('?');
 							});
 							const dropdown = new ActionViewItem(undefined, action, { icon: true, label: false, hoverDelegate });

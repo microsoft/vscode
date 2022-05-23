@@ -341,6 +341,10 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 		return this.list.getFocusedElements();
 	}
 
+	getRelativeTop(index: number): number | null {
+		return this.list.getRelativeTop(index);
+	}
+
 	reveal(index: number, relativeTop?: number): void {
 		this.list.reveal(index, relativeTop);
 	}

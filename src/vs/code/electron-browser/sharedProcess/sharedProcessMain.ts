@@ -100,6 +100,8 @@ import { InspectProfilingService as V8InspectProfilingService } from 'vs/platfor
 import { IV8InspectProfilingService } from 'vs/platform/profiling/common/profiling';
 import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
+import { PolicyChannelClient } from 'vs/platform/policy/common/policyIpc';
+import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 
 class SharedProcessMain extends Disposable {
 
@@ -180,6 +182,10 @@ class SharedProcessMain extends Disposable {
 		const mainProcessService = new MessagePortMainProcessService(this.server, mainRouter);
 		services.set(IMainProcessService, mainProcessService);
 
+		// Policies
+		const policyService = this.configuration.policiesData ? new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy')) : new NullPolicyService();
+		services.set(IPolicyService, policyService);
+
 		// Environment
 		const environmentService = new SharedProcessEnvironmentService(this.configuration.args, productService);
 		services.set(INativeEnvironmentService, environmentService);
@@ -222,7 +228,7 @@ class SharedProcessMain extends Disposable {
 		fileService.registerProvider(Schemas.vscodeUserData, userDataFileSystemProvider);
 
 		// Configuration
-		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
+		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService, policyService, logService));
 		services.set(IConfigurationService, configurationService);
 
 		// Storage (global access only)
