@@ -81,7 +81,7 @@
 
 /* Window Title Menu */
 .monaco-workbench .part.titlebar>.titlebar-container>.window-title>.title-menu {
-	z-index: 3000;
+	z-index: 2550;
 	-webkit-app-region: no-drag;
 	padding: 0 8px;
 }

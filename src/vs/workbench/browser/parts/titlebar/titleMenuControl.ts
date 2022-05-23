@@ -119,7 +119,7 @@ export class TitleMenuControl {
 							const container = document.createElement('span');
 							container.classList.add('all-options');
 							parent.appendChild(container);
-							const action = new Action('all', localize('all', "Show Quick Pick Options..."), Codicon.chevronDown.classNames, true, () => {
+							const action = new Action('all', localize('all', "Show Search Modes..."), Codicon.chevronDown.classNames, true, () => {
 								quickInputService.quickAccess.show('?');
 							});
 							const dropdown = new ActionViewItem(undefined, action, { icon: true, label: false, hoverDelegate });
