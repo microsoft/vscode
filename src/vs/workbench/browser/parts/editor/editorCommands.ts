@@ -92,6 +92,7 @@ export const OPEN_EDITOR_AT_INDEX_COMMAND_ID = 'workbench.action.openEditorAtInd
 
 export const API_OPEN_EDITOR_COMMAND_ID = '_workbench.open';
 export const API_OPEN_DIFF_EDITOR_COMMAND_ID = '_workbench.diff';
+export const API_OPEN_MERGE_EDITOR_COMMAND_ID = '_workbench.merge';
 export const API_OPEN_WITH_EDITOR_COMMAND_ID = '_workbench.openWith';
 
 export interface ActiveEditorMoveCopyArguments {
@@ -552,6 +553,50 @@ function registerOpenEditorAPICommands(): void {
 				{ name: 'title', description: 'Human readable title for the diff editor' },
 			]
 		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: 'vscode.merge',
+		handler: (accessor, commonAncestor, left, output, right, label) => {
+			accessor.get(ICommandService).executeCommand(API_OPEN_MERGE_EDITOR_COMMAND_ID, commonAncestor, left, output, right, label);
+		},
+		description: {
+			description: 'Opens the provided resources in the three way merge editor to compare their contents.',
+			args: [
+				{ name: 'commonAncestor', description: 'The most recent common ancestor of the left- and right-hand side resources' },
+				{ name: 'left', description: 'Left-hand side resource of the merge editor' },
+				{ name: 'output', description: 'Center resource of the merge editor, where the result will be saved to' },
+				{ name: 'right', description: 'Right-hand side resource of the merge editor' },
+				{ name: 'title', description: 'Human readable title for the merge editor' },
+			]
+		}
+	});
+
+	CommandsRegistry.registerCommand(API_OPEN_MERGE_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, commonAncestor: UriComponents, current: UriComponents, output: UriComponents, incoming: UriComponents, labelAndOrDescription?: string | { label: string; description: string }, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], context?: IOpenEvent<unknown>) {
+		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const [columnArg, optionsArg] = columnAndOptions ?? [];
+		const [options, column] = mixinContext(context, optionsArg, columnArg);
+
+		let label: string | undefined = undefined;
+		let description: string | undefined = undefined;
+		if (typeof labelAndOrDescription === 'string') {
+			label = labelAndOrDescription;
+		} else if (labelAndOrDescription) {
+			label = labelAndOrDescription.label;
+			description = labelAndOrDescription.description;
+		}
+
+		await editorService.openEditor({
+			commonAncestor: { resource: URI.revive(commonAncestor) },
+			current: { resource: URI.revive(current) },
+			output: { resource: URI.revive(output) },
+			incoming: { resource: URI.revive(incoming) },
+			label,
+			description,
+			options
+		}, columnToEditorGroup(editorGroupService, column));
 	});
 
 	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, originalResource: UriComponents, modifiedResource: UriComponents, labelAndOrDescription?: string | { label: string; description: string }, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], context?: IOpenEvent<unknown>) {

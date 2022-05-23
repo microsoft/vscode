@@ -1108,6 +1108,13 @@ export class CommandCenter {
 		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
 	}
 
+	@command('git.openThreeWayMerge')
+	async openThreeWayMerge(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		for (const state of resourceStates) {
+			await commands.executeCommand('vscode.merge', toGitUri(state.resourceUri, '~1'), toGitUri(state.resourceUri, '~2'), toGitUri(state.resourceUri, ''), toGitUri(state.resourceUri, '~3'), path.basename(state.resourceUri.fsPath) + ' (merge)');
+		}
+	}
+
 	@command('git.revertChange')
 	async revertChange(uri: Uri, changes: LineChange[], index: number): Promise<void> {
 		if (!uri) {

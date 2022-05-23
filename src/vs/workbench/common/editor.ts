@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditorViewState } from 'vs/editor/common/editorCommon';
+import { ICodeEditorViewState, IDiffEditor, IMergeEditor, IDiffEditorViewState, IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput } from 'vs/platform/editor/common/editor';
 import type { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
@@ -46,6 +46,11 @@ export const SIDE_BY_SIDE_EDITOR_ID = 'workbench.editor.sidebysideEditor';
  * Text diff editor id.
  */
 export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
+
+/**
+ * Text merge editor id.
+ */
+export const TEXT_MERGE_EDITOR_ID = 'workbench.editors.textMergeEditor';
 
 /**
  * Binary diff editor id.
@@ -337,6 +342,17 @@ export interface ITextDiffEditorPane extends IEditorPane {
 }
 
 /**
+ * The text editor pane is the container for workbench text merge editors.
+ */
+export interface ITextMergeEditorPane extends IEditorPane {
+
+	/**
+	 * Returns the underlying text editor widget of this editor.
+	 */
+	getControl(): IMergeEditor | undefined;
+}
+
+/**
  * Marker interface for the control inside an editor pane. Callers
  * have to cast the control to work with it, e.g. via methods
  * such as `isCodeEditor(control)`.
@@ -473,6 +489,59 @@ export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 	readonly modified: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
+/**
+ * A resource three column editor input shows 3 editors vertically but
+ * without highlighting any differences.
+ *
+ * Note: all columns will be resolved as editor individually. As such, it is
+ * possible to show 3 different editors vertically.
+ */
+export interface IResourceThreeColumnEditorInput extends IBaseUntypedEditorInput {
+	/**
+	 * The left hand side editor.
+	 */
+	readonly left: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+
+	/**
+	 * The center editor.
+	 */
+	readonly center: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+
+	/**
+	 * The right hand side editor.
+	 */
+	readonly right: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+}
+
+/**
+ * A resource merge editor input compares 3 editors vertically
+ * highlighting their differences with the base version.
+ *
+ * Note: all columns must be resolvable to the same editor, or
+ * a text based presentation will be used as fallback.
+ */
+export interface IResourceMergeEditorInput extends IBaseUntypedEditorInput {
+	/**
+	 * The common ancestor editor inside a merge editor, hidden by default.
+	 */
+	readonly commonAncestor: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+
+	/**
+	 * The current branch (left) editor to open inside a merge editor.
+	 */
+	readonly current: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+
+	/**
+	 * The incoming branch (right) editor to open inside a merge editor.
+	 */
+	readonly incoming: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+
+	/**
+	 * The output (center) editor to open inside a merge editor.
+	 */
+	readonly output: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+}
+
 export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
 	if (isEditorInput(editor)) {
 		return false; // make sure to not accidentally match on typed editor inputs
@@ -505,6 +574,30 @@ export function isResourceSideBySideEditorInput(editor: unknown): editor is IRes
 	const candidate = editor as IResourceSideBySideEditorInput | undefined;
 
 	return candidate?.primary !== undefined && candidate.secondary !== undefined;
+}
+
+export function isResourceMergeEditorInput(editor: unknown): editor is IResourceMergeEditorInput {
+	if (isEditorInput(editor)) {
+		return false; // make sure to not accidentally match on typed editor inputs
+	}
+
+	const candidate = editor as IResourceMergeEditorInput | undefined;
+
+	return candidate?.current !== undefined && candidate.incoming !== undefined && candidate.output !== undefined;
+}
+
+export function isResourceThreeColumnEditorInput(editor: unknown): editor is IResourceThreeColumnEditorInput {
+	if (isEditorInput(editor)) {
+		return false; // make sure to not accidentally match on typed editor inputs
+	}
+
+	if (isResourceMergeEditorInput(editor)) {
+		return false; // make sure to not accidentally match on diff editors
+	}
+
+	const candidate = editor as IResourceThreeColumnEditorInput | undefined;
+
+	return candidate?.left !== undefined && candidate.center !== undefined && candidate.right !== undefined;
 }
 
 export function isUntitledResourceEditorInput(editor: unknown): editor is IUntitledTextResourceEditorInput {
@@ -684,7 +777,7 @@ export const enum EditorInputCapabilities {
 	CanDropIntoEditor = 1 << 7,
 }
 
-export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput;
+export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput | IResourceThreeColumnEditorInput;
 
 export abstract class AbstractEditorInput extends Disposable {
 	// Marker class for implementing `isEditorInput`
@@ -741,6 +834,29 @@ export function isSideBySideEditorInput(editor: unknown): editor is ISideBySideE
 	return isEditorInput(candidate?.primary) && isEditorInput(candidate?.secondary);
 }
 
+export interface IThreeColumnEditorInput extends EditorInput {
+	/**
+	 * The left editor input.
+	 */
+	left: EditorInput;
+
+	/**
+	 * The center editor input.
+	 */
+	center: EditorInput;
+
+	/**
+	 * The right editor input.
+	 */
+	right: EditorInput;
+}
+
+export function isThreeColumnEditorInput(editor: unknown): editor is IThreeColumnEditorInput {
+	const candidate = editor as IThreeColumnEditorInput | undefined;
+
+	return isEditorInput(candidate?.left) && isEditorInput(candidate?.center) && isEditorInput(candidate?.right);
+}
+
 export interface IDiffEditorInput extends EditorInput {
 
 	/**
@@ -766,6 +882,23 @@ export interface IUntypedFileEditorInput extends ITextResourceEditorInput {
 	 * A marker to create a `IFileEditorInput` from this untyped input.
 	 */
 	forceFile: true;
+}
+
+export interface IMergeEditorInput extends EditorInput {
+	/** The current branch editor input is shown on the left hand side. */
+	current: EditorInput;
+
+	/** The incoming branch editor input is shown on the right hand side. */
+	incoming: EditorInput;
+
+	/** The output editor input is shown on the center. */
+	output: EditorInput;
+}
+
+export function isMergeEditorInput(editor: unknown): editor is IMergeEditorInput {
+	const candidate = editor as IMergeEditorInput | undefined;
+
+	return isEditorInput(candidate?.current) && isEditorInput(candidate?.incoming) && isEditorInput(candidate?.output);
 }
 
 /**
@@ -1129,6 +1262,10 @@ class EditorResourceAccessorImpl {
 			return;
 		}
 
+		if (isResourceMergeEditorInput(editor) || isResourceThreeColumnEditorInput(editor)) {
+			return;
+		}
+
 		// Original URI is the `preferredResource` of an editor if any
 		const originalResource = isEditorInputWithPreferredResource(editor) ? editor.preferredResource : editor.resource;
 		if (!originalResource || !options || !options.filterByScheme) {
@@ -1189,6 +1326,10 @@ class EditorResourceAccessorImpl {
 		}
 
 		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor)) {
+			return;
+		}
+
+		if (isResourceMergeEditorInput(editor) || isResourceThreeColumnEditorInput(editor)) {
 			return;
 		}
 

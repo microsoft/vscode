@@ -276,6 +276,10 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			// do not allow breakpoints in our settings files and output
 			return false;
 		}
+		if (!model.isForSimpleWidget) {
+			// do not allow breakpoints in merge / diff editors
+			return false;
+		}
 		if (this.configurationService.getValue<IDebugConfiguration>('debug').allowBreakpointsEverywhere) {
 			return true;
 		}

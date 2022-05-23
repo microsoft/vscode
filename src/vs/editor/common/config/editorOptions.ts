@@ -53,6 +53,10 @@ export interface IEditorOptions {
 	 */
 	inDiffEditor?: boolean;
 	/**
+	 * This editor is used inside a merge editor.
+	 */
+	inMergeEditor?: boolean;
+	/**
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
 	ariaLabel?: string;
@@ -729,6 +733,54 @@ export interface IDiffEditorOptions extends IEditorOptions, IDiffEditorBaseOptio
  * @internal
  */
 export type ValidDiffEditorBaseOptions = Readonly<Required<IDiffEditorBaseOptions>>;
+
+export interface IMergeEditorBaseOptions {
+	/**
+	 * Allow the user to resize the merge editor split view.
+	 * Defaults to true.
+	 */
+	enableSplitViewResizing?: boolean;
+	/**
+	 * Timeout in milliseconds after which diff computation is cancelled.
+	 * Defaults to 5000.
+	 */
+	maxComputationTime?: number;
+	/**
+	 * Maximum supported file size in MB.
+	 * Defaults to 50.
+	 */
+	maxFileSize?: number;
+	/**
+	 * Compute the diff by ignoring leading/trailing whitespace
+	 * Defaults to true.
+	 */
+	ignoreTrimWhitespace?: boolean;
+	/**
+	 * Render +/- indicators for added/deleted changes.
+	 * Defaults to true.
+	 */
+	renderIndicators?: boolean;
+	/**
+	 * If the diff editor should render overview ruler
+	 * Defaults to true
+	 */
+	renderOverviewRuler?: boolean;
+	/**
+	 * Control the wrapping of the merge editor.
+	 */
+	mergeWordWrap?: 'off' | 'on' | 'inherit';
+}
+
+/**
+ * Configuration options for the merge editor.
+ */
+export interface IMergeEditorOptions extends IEditorOptions, IMergeEditorBaseOptions {
+}
+
+/**
+ * @vscode-internal
+ */
+export type ValidMergeEditorBaseOptions = Readonly<Required<IMergeEditorBaseOptions>>;
 
 //#endregion
 

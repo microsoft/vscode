@@ -2235,6 +2235,67 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * A model for the merge editor.
+	 */
+	export interface IMergeEditorModel {
+		/**
+		 * Common ancestor model.
+		 */
+		commonAncestor: ITextModel;
+		/**
+		 * Current branch model.
+		 */
+		current: ITextModel;
+		/**
+		 * Output model.
+		 */
+		output: ITextModel;
+		/**
+		 * Incoming branch model.
+		 */
+		incoming: ITextModel;
+		/**
+		 * Model state that stores the merge progress.
+		 */
+		state: IMergeEditorModelState;
+	}
+
+	/**
+	 * A state that stores the merge editor model state.
+	 */
+	export interface IMergeEditorModelState {
+		initialized?: boolean;
+		resolvedRegions: IMergeEditorModelResolvedRegion[];
+		currentEditorBanner?: HTMLElement;
+		outputEditorBanner?: HTMLElement;
+		incomingEditorBanner?: HTMLElement;
+		bannerHeight?: number;
+	}
+
+	/**
+	 * Represents a resolved conflict region in the merge editor.
+	 */
+	export interface IMergeEditorModelResolvedRegion {
+		index: number;
+		versionId: number;
+		lastState: ConflictState;
+	}
+
+	/** State of a merge region with respect to the conflict. */
+	export enum ConflictState {
+		/** No conflict to resolve. */
+		Resolved = 0,
+		/** Conflict before any resolution action. */
+		Unresolved = 1,
+		/** Resolved conflict by accepting left. */
+		AppliedLeft = 2,
+		/** Resolved conflict by accepting right. */
+		AppliedRight = 3,
+		/** Resolved conflict by accepting both. */
+		AppliedBoth = 4
+	}
+
+	/**
 	 * An event describing that an editor has had its model reset (i.e. `editor.setModel()`).
 	 */
 	export interface IModelChangedEvent {
@@ -2268,7 +2329,7 @@ declare namespace monaco.editor {
 		run(): Promise<void>;
 	}
 
-	export type IEditorModel = ITextModel | IDiffEditorModel;
+	export type IEditorModel = ITextModel | IDiffEditorModel | IMergeEditorModel;
 
 	/**
 	 * A (serializable) state of the cursors.
@@ -2312,9 +2373,18 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * (Serializable) View state for the merge editor.
+	 */
+	export interface IMergeEditorViewState {
+		current: ICodeEditorViewState | null;
+		output: ICodeEditorViewState | null;
+		incoming: ICodeEditorViewState | null;
+	}
+
+	/**
 	 * An editor view state.
 	 */
-	export type IEditorViewState = ICodeEditorViewState | IDiffEditorViewState;
+	export type IEditorViewState = ICodeEditorViewState | IDiffEditorViewState | IMergeEditorViewState;
 
 	export enum ScrollType {
 		Smooth = 0,
@@ -2533,6 +2603,30 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * A merge editor.
+	 *
+	 * @vscode-internal
+	 */
+	export interface IMergeEditor extends IEditor {
+		/**
+		 * Type the getModel() of IEditor.
+		 */
+		getModel(): IMergeEditorModel | null;
+		/**
+		 * Get the `current branch` editor.
+		 */
+		getCurrentEditor(): IEditor;
+		/**
+		 * Get the `output` editor.
+		 */
+		getOutputEditor(): IEditor;
+		/**
+		 * Get the `incoming branch` editor.
+		 */
+		getIncomingEditor(): IEditor;
+	}
+
+	/**
 	 * A collection of decorations
 	 */
 	export interface IEditorDecorationsCollection {
@@ -2587,6 +2681,7 @@ declare namespace monaco.editor {
 	export const EditorType: {
 		ICodeEditor: string;
 		IDiffEditor: string;
+		IMergeEditor: string;
 	};
 
 	/**
@@ -2804,6 +2899,10 @@ declare namespace monaco.editor {
 		 * This editor is used inside a diff editor.
 		 */
 		inDiffEditor?: boolean;
+		/**
+		 * This editor is used inside a merge editor.
+		 */
+		inMergeEditor?: boolean;
 		/**
 		 * The aria label for the editor's textarea (when it is focused).
 		 */
@@ -3468,6 +3567,54 @@ declare namespace monaco.editor {
 	 */
 	export interface IDiffEditorOptions extends IEditorOptions, IDiffEditorBaseOptions {
 	}
+
+	export interface IMergeEditorBaseOptions {
+		/**
+		 * Allow the user to resize the merge editor split view.
+		 * Defaults to true.
+		 */
+		enableSplitViewResizing?: boolean;
+		/**
+		 * Timeout in milliseconds after which diff computation is cancelled.
+		 * Defaults to 5000.
+		 */
+		maxComputationTime?: number;
+		/**
+		 * Maximum supported file size in MB.
+		 * Defaults to 50.
+		 */
+		maxFileSize?: number;
+		/**
+		 * Compute the diff by ignoring leading/trailing whitespace
+		 * Defaults to true.
+		 */
+		ignoreTrimWhitespace?: boolean;
+		/**
+		 * Render +/- indicators for added/deleted changes.
+		 * Defaults to true.
+		 */
+		renderIndicators?: boolean;
+		/**
+		 * If the diff editor should render overview ruler
+		 * Defaults to true
+		 */
+		renderOverviewRuler?: boolean;
+		/**
+		 * Control the wrapping of the merge editor.
+		 */
+		mergeWordWrap?: 'off' | 'on' | 'inherit';
+	}
+
+	/**
+	 * Configuration options for the merge editor.
+	 */
+	export interface IMergeEditorOptions extends IEditorOptions, IMergeEditorBaseOptions {
+	}
+
+	/**
+	 * @vscode-internal
+	 */
+	export type ValidMergeEditorBaseOptions = Readonly<Required<IMergeEditorBaseOptions>>;
 
 	/**
 	 * An event describing that the configuration of the editor has changed.

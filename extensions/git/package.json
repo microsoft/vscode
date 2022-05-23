@@ -89,6 +89,12 @@
         "icon": "$(compare-changes)"
       },
       {
+        "command": "git.openThreeWayMerge",
+        "title": "%command.openThreeWayMerge%",
+        "category": "Git",
+        "icon": "$(layout-centered)"
+      },
+      {
         "command": "git.openAllChanges",
         "title": "%command.openAllChanges%",
         "category": "Git"
@@ -1270,6 +1276,11 @@
         {
           "command": "git.openChange",
           "when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction && !config.git.openDiffOnClick",
+          "group": "inline@1"
+        },
+        {
+          "command": "git.openThreeWayMerge",
+          "when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction",
           "group": "inline@1"
         },
         {

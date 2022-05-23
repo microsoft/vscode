@@ -496,7 +496,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model;
 	}
 
-	public setModel(_model: ITextModel | editorCommon.IDiffEditorModel | null = null): void {
+	public setModel(_model: ITextModel | editorCommon.IDiffEditorModel | editorCommon.IMergeEditorModel | null = null): void {
 		const model = <ITextModel | null>_model;
 		if (this._modelData === null && model === null) {
 			// Current model is the new model

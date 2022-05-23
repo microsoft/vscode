@@ -16,6 +16,8 @@ import {
 import { SideBySideEditorInput, SideBySideEditorInputSerializer } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
+import { TextMergeEditor } from 'vs/workbench/browser/parts/editor/textMergeEditor';
+import { MergeEditorInput } from 'vs/workbench/common/editor/mergeEditorInput';
 import { DiffEditorInput, DiffEditorInputSerializer } from 'vs/workbench/common/editor/diffEditorInput';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -111,6 +113,17 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	),
 	[
 		new SyncDescriptor(SideBySideEditorInput)
+	]
+);
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		TextMergeEditor,
+		TextMergeEditor.ID,
+		localize('textMergeEditor', "Text Merge Editor")
+	),
+	[
+		new SyncDescriptor(MergeEditorInput)
 	]
 );
 
