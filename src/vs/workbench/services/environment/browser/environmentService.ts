@@ -189,7 +189,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 		const webviewExternalEndpointCommit = this.payload?.get('webviewExternalEndpointCommit');
 		return endpoint
-			.replace('{{commit}}', webviewExternalEndpointCommit ?? this.productService.commit ?? '181b43c0e2949e36ecb623d8cc6de29d4fa2bae8')
+			.replace('{{commit}}', webviewExternalEndpointCommit ?? this.productService.commit ?? '3c8520fab514b9f56070214496b26ff68d1b1cb5')
 			.replace('{{quality}}', (webviewExternalEndpointCommit ? 'insider' : this.productService.quality) ?? 'insider');
 	}
 

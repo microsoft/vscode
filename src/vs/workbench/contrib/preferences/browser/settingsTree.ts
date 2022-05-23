@@ -36,14 +36,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorBackground, editorErrorForeground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, editorErrorForeground, editorInfoForeground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { inspectSetting, ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, ObjectSettingDropdownWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, ObjectSettingCheckboxWidget } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
-import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
+import { LANGUAGE_SETTING_TAG, POLICY_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
@@ -62,6 +62,7 @@ import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/prefere
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { focusedRowBackground, focusedRowBorder, rowHoverBackground, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
+import { getIndicatorsLabelAriaLabel, ISettingOverrideClickEvent, SettingsTreeIndicatorsLabel } from 'vs/workbench/contrib/preferences/browser/settingsEditorSettingIndicators';
 
 const $ = DOM.$;
 
@@ -584,10 +585,11 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	containerElement: HTMLElement;
 	categoryElement: HTMLElement;
 	labelElement: SimpleIconLabel;
+	policyWarningElement: HTMLElement;
 	descriptionElement: HTMLElement;
 	controlElement: HTMLElement;
 	deprecationWarningElement: HTMLElement;
-	miscLabel: SettingsTreeMiscLabel;
+	indicatorsLabel: SettingsTreeIndicatorsLabel;
 	toolbar: ToolBar;
 	elementDisposables: DisposableStore;
 }
@@ -605,6 +607,7 @@ type ISettingNumberItemTemplate = ISettingTextItemTemplate;
 
 interface ISettingEnumItemTemplate extends ISettingItemTemplate<number> {
 	selectBox: SelectBox;
+	selectElement: HTMLSelectElement | null;
 	enumDescriptionElement: HTMLElement;
 }
 
@@ -661,11 +664,6 @@ export interface ISettingChangeEvent {
 
 export interface ISettingLinkClickEvent {
 	source: SettingsTreeSettingElement;
-	targetKey: string;
-}
-
-export interface ISettingOverrideClickEvent {
-	scope: string;
 	targetKey: string;
 }
 
@@ -738,8 +736,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	protected readonly _onDidChangeSettingHeight = this._register(new Emitter<HeightChangeParams>());
 	readonly onDidChangeSettingHeight: Event<HeightChangeParams> = this._onDidChangeSettingHeight.event;
 
-	protected readonly _onApplyLanguageFilter = this._register(new Emitter<string>());
-	readonly onApplyLanguageFilter: Event<string> = this._onApplyLanguageFilter.event;
+	protected readonly _onApplyFilter = this._register(new Emitter<string>());
+	readonly onApplyFilter: Event<string> = this._onApplyFilter.event;
 
 	private readonly markdownRenderer: MarkdownRenderer;
 
@@ -781,8 +779,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
 		const labelElementContainer = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
 		const labelElement = new SimpleIconLabel(labelElementContainer);
-
-		const miscLabel = new SettingsTreeMiscLabel(titleElement);
+		const indicatorsLabel = new SettingsTreeIndicatorsLabel(titleElement);
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
@@ -794,6 +791,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toDispose = new DisposableStore();
+		const policyWarningElement = this.renderPolicyLabel(container, toDispose);
 
 		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
 		const toolbar = this.renderSettingToolbar(toolbarContainer);
@@ -805,10 +803,11 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			containerElement: container,
 			categoryElement,
 			labelElement,
+			policyWarningElement,
 			descriptionElement,
 			controlElement,
 			deprecationWarningElement,
-			miscLabel,
+			indicatorsLabel,
 			toolbar
 		};
 
@@ -837,6 +836,33 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 				this._onDidFocusSetting.fire(template.context);
 			}
 		});
+	}
+
+	protected renderPolicyLabel(container: HTMLElement, toDispose: DisposableStore): HTMLElement {
+		const policyWarningElement = DOM.append(container, $('.setting-item-policy-description'));
+		const policyIcon = DOM.append(policyWarningElement, $('span.codicon.codicon-lock'));
+		toDispose.add(attachStylerCallback(this._themeService, { editorInfoForeground }, colors => {
+			policyIcon.style.setProperty('--organization-policy-icon-color', colors.editorInfoForeground?.toString() || '');
+		}));
+		const element = DOM.append(policyWarningElement, $('span'));
+		element.textContent = localize('policyLabel', "This setting is managed by your organization.");
+		const viewPolicyLabel = localize('viewPolicySettings', "View policy settings");
+		const linkElement: HTMLAnchorElement = DOM.append(policyWarningElement, $('a'));
+		linkElement.textContent = viewPolicyLabel;
+		linkElement.setAttribute('tabindex', '0');
+		linkElement.href = '#';
+		toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.CLICK, (e: MouseEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this._onApplyFilter.fire(`@${POLICY_SETTING_TAG}`);
+		}));
+		toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+				e.stopPropagation();
+				this._onApplyFilter.fire(`@${POLICY_SETTING_TAG}`);
+			}
+		}));
+		return policyWarningElement;
 	}
 
 	protected renderSettingToolbar(container: HTMLElement): ToolBar {
@@ -885,7 +911,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			template.descriptionElement.innerText = element.description;
 		}
 
-		template.miscLabel.updateOtherOverrides(element, template.elementDisposables, this._onDidClickOverrideElement);
+		template.indicatorsLabel.updateScopeOverrides(element, template.elementDisposables, this._onDidClickOverrideElement);
 
 		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context!.valueType, manualReset: false });
 		const deprecationText = element.setting.deprecationMessage || '';
@@ -902,11 +928,13 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 
-		template.miscLabel.updateSyncIgnored(element, this.ignoredSettings);
-		template.miscLabel.updateDefaultOverrideIndicator(element);
+		template.indicatorsLabel.updateSyncIgnored(element, this.ignoredSettings);
+		template.indicatorsLabel.updateDefaultOverrideIndicator(element);
 		template.elementDisposables.add(this.onDidChangeIgnoredSettings(() => {
-			template.miscLabel.updateSyncIgnored(element, this.ignoredSettings);
+			template.indicatorsLabel.updateSyncIgnored(element, this.ignoredSettings);
 		}));
+
+		template.policyWarningElement.hidden = !element.hasPolicyValue;
 
 		this.updateSettingTabbable(element, template);
 		template.elementDisposables.add(element.onDidChangeTabbable(() => {
@@ -1087,7 +1115,7 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 
 		template.elementDisposables.add(template.button.onDidClick(() => {
 			if (isLanguageTagSetting) {
-				this._onApplyLanguageFilter.fire(plainKey);
+				this._onApplyFilter.fire(`@${LANGUAGE_SETTING_TAG}:${plainKey}`);
 			} else {
 				this._onDidOpenSettings.fire(dataElement.setting.key);
 			}
@@ -1538,6 +1566,7 @@ abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer imple
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
 		template.inputBox.setAriaLabel(dataElement.setting.key);
+		template.inputBox.inputElement.disabled = !!dataElement.hasPolicyValue;
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
 				onChange(value);
@@ -1633,6 +1662,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		const template: ISettingEnumItemTemplate = {
 			...common,
 			selectBox,
+			selectElement,
 			enumDescriptionElement
 		};
 
@@ -1704,6 +1734,10 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 			}
 		};
 
+		if (template.selectElement) {
+			template.selectElement.disabled = !!dataElement.hasPolicyValue;
+		}
+
 		template.enumDescriptionElement.innerText = '';
 	}
 }
@@ -1757,6 +1791,7 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
 		template.inputBox.setAriaLabel(dataElement.setting.key);
+		template.inputBox.setEnabled(!dataElement.hasPolicyValue);
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
 				onChange(nullNumParseFn(value));
@@ -1781,14 +1816,13 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElementContainer = DOM.append(titleElement, $('span.setting-item-label'));
 		const labelElement = new SimpleIconLabel(labelElementContainer);
-		const miscLabel = new SettingsTreeMiscLabel(titleElement);
+		const indicatorsLabel = new SettingsTreeIndicatorsLabel(titleElement);
 
 		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
 		const descriptionElement = DOM.append(descriptionAndValueElement, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
 		modifiedIndicatorElement.title = localize('modified', "The setting has been configured in the current scope.");
-
 
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
@@ -1819,6 +1853,8 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const toolbar = this.renderSettingToolbar(toolbarContainer);
 		toDispose.add(toolbar);
 
+		const policyWarningElement = this.renderPolicyLabel(container, toDispose);
+
 		const template: ISettingBoolItemTemplate = {
 			toDispose,
 			elementDisposables: new DisposableStore(),
@@ -1828,9 +1864,10 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 			labelElement,
 			controlElement,
 			checkbox,
+			policyWarningElement,
 			descriptionElement,
 			deprecationWarningElement,
-			miscLabel,
+			indicatorsLabel,
 			toolbar
 		};
 
@@ -1852,6 +1889,11 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		template.onChange = undefined;
 		template.checkbox.checked = dataElement.value;
 		template.checkbox.setTitle(dataElement.setting.key);
+		if (dataElement.hasPolicyValue) {
+			template.checkbox.disable();
+		} else {
+			template.checkbox.enable();
+		}
 		template.onChange = onChange;
 	}
 }
@@ -1912,7 +1954,7 @@ export class SettingTreeRenderers {
 
 	readonly onDidChangeSettingHeight: Event<HeightChangeParams>;
 
-	readonly onApplyLanguageFilter: Event<string>;
+	readonly onApplyFilter: Event<string>;
 
 	readonly allRenderers: ITreeRenderer<SettingsTreeElement, never, any>[];
 
@@ -1961,7 +2003,7 @@ export class SettingTreeRenderers {
 		this.onDidClickSettingLink = Event.any(...settingRenderers.map(r => r.onDidClickSettingLink));
 		this.onDidFocusSetting = Event.any(...settingRenderers.map(r => r.onDidFocusSetting));
 		this.onDidChangeSettingHeight = Event.any(...settingRenderers.map(r => r.onDidChangeSettingHeight));
-		this.onApplyLanguageFilter = Event.any(...settingRenderers.map(r => r.onApplyLanguageFilter));
+		this.onApplyFilter = Event.any(...settingRenderers.map(r => r.onApplyFilter));
 
 		this.allRenderers = [
 			...settingRenderers,
@@ -2097,120 +2139,6 @@ function escapeInvisibleChars(enumValue: string): string {
 		.replace(/\r/g, '\\r');
 }
 
-/**
- * Controls logic and rendering of the label next to each setting header.
- * For example, the "Modified by" and "Overridden by" labels go here.
- */
-class SettingsTreeMiscLabel {
-	private labelElement: HTMLElement;
-	private otherOverridesElement: HTMLElement;
-	private syncIgnoredElement: HTMLElement;
-	private defaultOverrideIndicatorElement: HTMLElement;
-	private defaultOverrideIndicatorLabel: SimpleIconLabel;
-
-	constructor(container: HTMLElement) {
-		this.labelElement = DOM.append(container, $('.misc-label'));
-		this.labelElement.style.display = 'inline';
-
-		this.otherOverridesElement = this.createOtherOverridesElement();
-		this.syncIgnoredElement = this.createSyncIgnoredElement();
-		const { element, label } = this.createDefaultOverrideIndicator();
-		this.defaultOverrideIndicatorElement = element;
-		this.defaultOverrideIndicatorLabel = label;
-	}
-
-	private createOtherOverridesElement(): HTMLElement {
-		const otherOverridesElement = $('span.setting-item-overrides');
-		return otherOverridesElement;
-	}
-
-	private createSyncIgnoredElement(): HTMLElement {
-		const syncIgnoredElement = $('span.setting-item-ignored');
-		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
-		syncIgnoredLabel.text = `$(sync-ignored) ${localize('extensionSyncIgnoredLabel', 'Sync: Ignored')}`;
-		syncIgnoredLabel.title = localize('syncIgnoredTitle', "Settings sync does not sync this setting");
-		return syncIgnoredElement;
-	}
-
-	private createDefaultOverrideIndicator(): { element: HTMLElement; label: SimpleIconLabel } {
-		const defaultOverrideIndicator = $('span.setting-item-default-overridden');
-		const defaultOverrideLabel = new SimpleIconLabel(defaultOverrideIndicator);
-		return { element: defaultOverrideIndicator, label: defaultOverrideLabel };
-	}
-
-	private render() {
-		const elementsToShow = [this.otherOverridesElement, this.syncIgnoredElement, this.defaultOverrideIndicatorElement].filter(element => {
-			return element.style.display !== 'none';
-		});
-
-		this.labelElement.innerText = '';
-		this.labelElement.style.display = 'none';
-		if (elementsToShow.length) {
-			this.labelElement.style.display = 'inline';
-			DOM.append(this.labelElement, $('span', undefined, '('));
-			for (let i = 0; i < elementsToShow.length - 1; i++) {
-				DOM.append(this.labelElement, elementsToShow[i]);
-				DOM.append(this.labelElement, $('span.comma', undefined, ', '));
-			}
-			DOM.append(this.labelElement, elementsToShow[elementsToShow.length - 1]);
-			DOM.append(this.labelElement, $('span', undefined, ')'));
-		}
-	}
-
-	updateSyncIgnored(element: SettingsTreeSettingElement, ignoredSettings: string[]) {
-		this.syncIgnoredElement.style.display = ignoredSettings.includes(element.setting.key) ? 'inline' : 'none';
-		this.render();
-	}
-
-	updateOtherOverrides(element: SettingsTreeSettingElement, elementDisposables: DisposableStore, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>) {
-		this.otherOverridesElement.innerText = '';
-		this.otherOverridesElement.style.display = 'none';
-		if (element.overriddenScopeList.length) {
-			this.otherOverridesElement.style.display = 'inline';
-			const otherOverridesLabel = element.isConfigured ?
-				localize('alsoConfiguredIn', "Also modified in") :
-				localize('configuredIn', "Modified in");
-
-			DOM.append(this.otherOverridesElement, $('span', undefined, `${otherOverridesLabel}: `));
-
-			for (let i = 0; i < element.overriddenScopeList.length; i++) {
-				const view = DOM.append(this.otherOverridesElement, $('a.modified-scope', undefined, element.overriddenScopeList[i]));
-
-				if (i !== element.overriddenScopeList.length - 1) {
-					DOM.append(this.otherOverridesElement, $('span', undefined, ', '));
-				}
-
-				elementDisposables.add(
-					DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {
-						onDidClickOverrideElement.fire({
-							targetKey: element.setting.key,
-							scope: element.overriddenScopeList[i]
-						});
-						e.preventDefault();
-						e.stopPropagation();
-					}));
-			}
-		}
-		this.render();
-	}
-
-	updateDefaultOverrideIndicator(element: SettingsTreeSettingElement) {
-		this.defaultOverrideIndicatorElement.style.display = 'none';
-		if (element.setting.defaultValueSource) {
-			this.defaultOverrideIndicatorElement.style.display = 'inline';
-			const defaultValueSource = element.setting.defaultValueSource;
-			if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
-				const extensionSource = defaultValueSource.displayName ?? defaultValueSource.id;
-				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default value overridden by {0}", extensionSource);
-				this.defaultOverrideIndicatorLabel.text = localize('defaultOverrideLabelText', "$(wrench) Overridden by: {0}", extensionSource);
-			} else if (typeof defaultValueSource === 'string') {
-				this.defaultOverrideIndicatorLabel.title = localize('defaultOverriddenDetails', "Default value overridden by {0}", defaultValueSource);
-				this.defaultOverrideIndicatorLabel.text = localize('defaultOverrideLabelText', "$(wrench) Overridden by: {0}", defaultValueSource);
-			}
-		}
-		this.render();
-	}
-}
 
 export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 	constructor(
@@ -2374,9 +2302,9 @@ class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<Se
 				ariaLabelSections.push(modifiedText);
 			}
 
-			const miscLabelAriaLabel = this.getMiscLabelAriaLabel(element);
-			if (miscLabelAriaLabel.length) {
-				ariaLabelSections.push(`${miscLabelAriaLabel}.`);
+			const indicatorsLabelAriaLabel = getIndicatorsLabelAriaLabel(element, this.configurationService);
+			if (indicatorsLabelAriaLabel.length) {
+				ariaLabelSections.push(`${indicatorsLabelAriaLabel}.`);
 			}
 
 			const descriptionWithoutSettingLinks = fixSettingLinks(element.description, false);
@@ -2393,39 +2321,6 @@ class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<Se
 
 	getWidgetAriaLabel() {
 		return localize('settings', "Settings");
-	}
-
-	private getMiscLabelAriaLabel(element: SettingsTreeSettingElement): string {
-		const ariaLabelSections: string[] = [];
-
-		// Add other overrides text
-		const otherOverridesStart = element.isConfigured ?
-			localize('alsoConfiguredIn', "Also modified in") :
-			localize('configuredIn', "Modified in");
-		const otherOverridesList = element.overriddenScopeList.join(', ');
-		if (element.overriddenScopeList.length) {
-			ariaLabelSections.push(`${otherOverridesStart} ${otherOverridesList}`);
-		}
-
-		// Add sync ignored text
-		const ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this.configurationService);
-		if (ignoredSettings.includes(element.setting.key)) {
-			ariaLabelSections.push(localize('syncIgnoredTitle', "Settings sync does not sync this setting"));
-		}
-
-		// Add default override indicator text
-		if (element.setting.defaultValueSource) {
-			const defaultValueSource = element.setting.defaultValueSource;
-			if (typeof defaultValueSource !== 'string' && defaultValueSource.id !== element.setting.extensionInfo?.id) {
-				const extensionSource = defaultValueSource.displayName ?? defaultValueSource.id;
-				ariaLabelSections.push(localize('defaultOverriddenDetails', "Default value overridden by {0}", extensionSource));
-			} else if (typeof defaultValueSource === 'string') {
-				ariaLabelSections.push(localize('defaultOverriddenDetails', "Default value overridden by {0}", defaultValueSource));
-			}
-		}
-
-		const ariaLabel = ariaLabelSections.join('. ');
-		return ariaLabel;
 	}
 }
 
