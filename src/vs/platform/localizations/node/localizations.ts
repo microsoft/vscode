@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
-import { distinct, equals } from 'vs/base/common/arrays';
+import { equals } from 'vs/base/common/arrays';
 import { Queue } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionIdentifier, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ILocalizationsService, isValidLocalization } from 'vs/platform/localizations/common/localizations';
+import { ILocaleDetails, isValidLocalization, LocalizationsBaseService } from 'vs/platform/localizations/common/localizations';
 import { ILogService } from 'vs/platform/log/common/log';
 
 interface ILanguagePack {
 	hash: string;
+	label: string | undefined;
 	extensions: {
 		extensionIdentifier: IExtensionIdentifier;
 		version: string;
@@ -25,7 +26,7 @@ interface ILanguagePack {
 	translations: { [id: string]: string };
 }
 
-export class LocalizationsService extends Disposable implements ILocalizationsService {
+export class LocalizationsService extends LocalizationsBaseService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -34,9 +35,10 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 	constructor(
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
+		@IExtensionGalleryService galleryService: IExtensionGalleryService,
 		@ILogService private readonly logService: ILogService
 	) {
-		super();
+		super(galleryService);
 		this.cache = this._register(new LanguagePacksCache(environmentService, logService));
 		this.extensionManagementService.registerParticipant({
 			postInstall: async (extension: ILocalExtension): Promise<void> => {
@@ -48,11 +50,18 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 		});
 	}
 
-	async getLanguageIds(): Promise<string[]> {
+	async getInstalledLanguages(): Promise<Array<ILocaleDetails>> {
 		const languagePacks = await this.cache.getLanguagePacks();
-		// Contributed languages are those installed via extension packs, so does not include English
-		const languages = ['en', ...Object.keys(languagePacks)];
-		return distinct(languages);
+		const languages = Object.keys(languagePacks).map(language => {
+			const languagePack = languagePacks[language];
+			return {
+				extensionId: languagePack.extensions[0].extensionIdentifier.id,
+				locale: language,
+				label: languagePack.label
+			};
+		});
+		languages.push({ extensionId: 'default', locale: 'en', label: 'English' });
+		return languages;
 	}
 
 	private async postInstallExtension(extension: ILocalExtension): Promise<void> {
@@ -125,7 +134,12 @@ class LanguagePacksCache extends Disposable {
 			if (extension.location.scheme === Schemas.file && isValidLocalization(localizationContribution)) {
 				let languagePack = languagePacks[localizationContribution.languageId];
 				if (!languagePack) {
-					languagePack = { hash: '', extensions: [], translations: {} };
+					languagePack = {
+						hash: '',
+						extensions: [],
+						translations: {},
+						label: localizationContribution.localizedLanguageName ?? localizationContribution.languageName
+					};
 					languagePacks[localizationContribution.languageId] = languagePack;
 				}
 				let extensionInLanguagePack = languagePack.extensions.filter(e => areSameExtensions(e.extensionIdentifier, extensionIdentifier))[0];
