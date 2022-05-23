@@ -1766,7 +1766,6 @@ class TestNamedProblemMatcher implements Partial<ProblemMatcher> {
 }
 
 class TestParseContext implements Partial<ParseContext> {
-
 }
 
 suite('Task Configuration Test', () => {
