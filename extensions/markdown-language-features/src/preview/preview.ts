@@ -155,12 +155,6 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}));
 
-		this._register(this._webviewPanel.onDidChangeViewState(event => {
-			if (event.webviewPanel.visible) {
-				this.refresh(true);
-			}
-		}));
-
 		const watcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(resource, '*')));
 		this._register(watcher.onDidChange(uri => {
 			if (this.isPreviewOf(uri)) {
@@ -643,7 +637,12 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 		const webview = vscode.window.createWebviewPanel(
 			DynamicMarkdownPreview.viewType,
 			DynamicMarkdownPreview.getPreviewTitle(input.resource, input.locked),
-			previewColumn, { enableFindWidget: true, });
+			previewColumn,
+			{
+				enableFindWidget: true,
+				retainContextWhenHidden: true,
+			},
+		);
 
 		webview.iconPath = contentProvider.iconPath;
 
