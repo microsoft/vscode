@@ -125,7 +125,7 @@ export class InteractiveEditor extends EditorPane {
 		@INotebookKernelService notebookKernelService: INotebookKernelService,
 		@ILanguageService languageService: ILanguageService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
@@ -402,6 +402,12 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookWidget.value!.setOptions({
 			isReadOnly: true
 		});
+		this.#widgetDisposableStore.add(this.#notebookWidget.value!.onDidResizeOutput((cvm) => {
+			// If we're already at the bottom or auto scroll is enabled, scroll to the bottom
+			if (this.configurationService.getValue<boolean>('interactive.alwaysScrollOnNewCell') || this.#state === ScrollingState.StickyToBottom) {
+				this.#notebookWidget.value!.scrollToBottom();
+			}
+		}));
 		this.#widgetDisposableStore.add(this.#notebookWidget.value!.onDidFocusWidget(() => this.#onDidFocusWidget.fire()));
 		this.#widgetDisposableStore.add(model.notebook.onDidChangeContent(() => {
 			(model as ComplexNotebookEditorModel).setDirty(false);

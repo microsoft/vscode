@@ -401,15 +401,21 @@ export interface IDidFindHighlightMessage extends BaseToWebviewMessage {
 	readonly offset: number;
 }
 
-export interface ITrackFinalOutputRenderMessage {
-	readonly type: 'trackFinalOutputRender';
+export interface IStartWatchingOutputMessage {
+	readonly type: 'startWatchingOutputResize';
 	readonly cellId: string;
 }
 
-export interface IDidRenderFinalOutputMessage extends BaseToWebviewMessage {
-	readonly type: 'didRenderFinalOutput';
+export interface IStopWatchingOutputMessage {
+	readonly type: 'stopWatchingOutputResize';
 	readonly cellId: string;
 }
+
+export interface IOutputResizedMessage extends BaseToWebviewMessage {
+	readonly type: 'outputResized';
+	readonly cellId: string;
+}
+
 
 export type FromWebviewMessage = WebviewInitialized |
 	IDimensionMessage |
@@ -439,7 +445,7 @@ export type FromWebviewMessage = WebviewInitialized |
 	IRenderedCellOutputMessage |
 	IDidFindMessage |
 	IDidFindHighlightMessage |
-	IDidRenderFinalOutputMessage;
+	IOutputResizedMessage;
 
 export type ToWebviewMessage = IClearMessage |
 	IFocusOutputMessage |
@@ -470,7 +476,8 @@ export type ToWebviewMessage = IClearMessage |
 	IFindHighlightMessage |
 	IFindUnHighlightMessage |
 	IFindStopMessage |
-	ITrackFinalOutputRenderMessage;
+	IStartWatchingOutputMessage |
+	IStopWatchingOutputMessage;
 
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;

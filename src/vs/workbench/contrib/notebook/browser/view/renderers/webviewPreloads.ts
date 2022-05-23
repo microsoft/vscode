@@ -387,6 +387,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	function createFocusSink(cellId: string, focusNext?: boolean) {
 		const element = document.createElement('div');
+		element.id = `focus-sink-${cellId}`;
 		element.tabIndex = 0;
 		element.addEventListener('focus', () => {
 			postNotebookMessage<webviewMessages.IBlurOutputMessage>('focus-editor', {
@@ -1172,8 +1173,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 				_highlighter?.dispose();
 				break;
 			}
-			case 'trackFinalOutputRender': {
-				viewModel.trackFinalOutput(event.data.cellId);
+			case 'startWatchingOutputResize': {
+				viewModel.startWatchingOutput(event.data.cellId);
+				break;
+			}
+			case 'stopWatchingOutputResize': {
+				viewModel.stopWatchingOutput(event.data.cellId);
 				break;
 			}
 		}
@@ -1398,7 +1403,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		private readonly _markupCells = new Map<string, MarkupCell>();
 		private readonly _outputCells = new Map<string, OutputCell>();
-		private _pendingFinalOutput: string | undefined;
+		private _trackingResize: string | undefined;
+		private _outputResizeObservers: ResizeObserver[] = [];
+		private _outputResizeTimer: any;
 
 		public clearAll() {
 			this._markupCells.clear();
@@ -1410,13 +1417,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.renderOutputCells();
 		}
 
-		public trackFinalOutput(cellId: string) {
-			const cell = this._outputCells.get(cellId);
-			if (cell) {
-				cell.addFinalOutputTracker();
-			} else {
-				this._pendingFinalOutput = cellId;
-			}
+		public startWatchingOutput(cellId: string) {
+			this._trackingResize = cellId;
+			this._outputResizeObservers.forEach(o => o.disconnect());
+			this._outputResizeObservers = [];
+		}
+
+		public stopWatchingOutput(cellId: string) {
+			this._trackingResize = undefined;
 		}
 
 		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number, visible: boolean): Promise<MarkupCell> {
@@ -1529,14 +1537,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 			const outputNode = cellOutput.createOutputElement(data.outputId, data.outputOffset, data.left);
 			outputNode.render(data.content, preloadsAndErrors);
 
+			// Track resizes on this output
+			this.trackOutputResize(data.cellId, outputNode.element);
+
 			// don't hide until after this step so that the height is right
 			cellOutput.element.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
-
-			// If notebook side has indicated we are done (and we haven't added it yet), stick in the final render
-			if (data.cellId === this._pendingFinalOutput) {
-				this._pendingFinalOutput = undefined;
-				cellOutput.addFinalOutputTracker();
-			}
 		}
 
 		public ensureOutputCell(cellId: string, cellTop: number, skipCellTopUpdateIfExist: boolean): OutputCell {
@@ -1584,6 +1589,33 @@ async function webviewPreloads(ctx: PreloadContext) {
 			for (const request of updates) {
 				const cell = this._outputCells.get(request.cellId);
 				cell?.updateScroll(request);
+			}
+		}
+
+		private outputResizeHandler(cellId: string) {
+			// If no longer tracking, disconnect. However
+			// send one more resize event.
+			if (this._trackingResize !== cellId) {
+				this._outputResizeObservers.forEach(o => o.disconnect());
+				this._outputResizeObservers = [];
+			}
+
+			// Debounce this callback to only happen after
+			// 250 ms. Don't need resize events that often.
+			clearTimeout(this._outputResizeTimer);
+			this._outputResizeTimer = setTimeout(() => {
+				postNotebookMessage('outputResized', {
+					cellId
+				});
+			}, 250);
+		}
+
+		private trackOutputResize(cellId: string, outputContainer: HTMLElement) {
+			if (this._trackingResize === cellId) {
+				const handler = this.outputResizeHandler.bind(this, cellId);
+				const observer = new ResizeObserver(handler);
+				this._outputResizeObservers.push(observer);
+				observer.observe(outputContainer);
 			}
 		}
 	}();
@@ -1819,6 +1851,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	class OutputCell {
 
 		public readonly element: HTMLElement;
+		public readonly bottomElement: HTMLElement;
 
 		private readonly outputElements = new Map</*outputId*/ string, OutputContainer>();
 
@@ -1838,8 +1871,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element = this.element;
 
 
-			const lowerWrapperElement = createFocusSink(cellId, true);
-			container.appendChild(lowerWrapperElement);
+			this.bottomElement = createFocusSink(cellId, true);
+			container.appendChild(this.bottomElement);
 
 			// New thoughts.
 			// Send message to indicate force scroll.
@@ -1903,24 +1936,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			if (request.forceDisplay) {
 				this.element.style.visibility = 'visible';
-			}
-		}
-
-		public addFinalOutputTracker() {
-			const id = `${this.element.id}-final-output-tracker`;
-			let tracker: HTMLImageElement | null = document.getElementById(id) as HTMLImageElement;
-			if (!tracker) {
-				tracker = document.createElement('img') as HTMLImageElement;
-				tracker.id = id;
-				tracker.style.height = '0px';
-				tracker.src = '';
-				tracker.addEventListener('error', (ev) => {
-					console.log(`Final cell output has rendered`);
-
-					// Src is empty so this should fire as soon as it renders
-					postNotebookMessage('didRenderFinalOutput', { cellId: this.element.id });
-				});
-				this.element.appendChild(tracker);
 			}
 		}
 	}

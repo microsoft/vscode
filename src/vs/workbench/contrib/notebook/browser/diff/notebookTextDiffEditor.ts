@@ -202,6 +202,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	didDropMarkupCell(cellId: string) {
 		// throw new Error('Method not implemented.');
 	}
+	didResizeOutput(cellId: string): void {
+		// throw new Error('Method not implemented.');
+	}
 
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, DOM.$('.notebook-text-diff-editor'));
