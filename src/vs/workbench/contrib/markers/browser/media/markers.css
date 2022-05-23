@@ -217,3 +217,87 @@
 .markers-panel .monaco-tl-contents .actions .action-item.disabled {
 	display: none;
 }
+
+/* Table */
+
+.markers-panel .markers-table-container {
+	margin-top: 8px;
+	padding-left: 20px;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-table-th {
+	display: flex;
+	font-weight: 600;
+	align-items: center;
+	padding-left: 10px;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td {
+	display: flex;
+	align-items: center;
+	padding-left: 10px;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td .highlight {
+	font-weight: bold;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .message,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .file,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .owner {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .severity {
+	display: flex;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row.selected .monaco-table-tr > .monaco-table-td.quickFix > .severity,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row.focused .monaco-table-tr > .monaco-table-td.quickFix > .severity,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row:hover .monaco-table-tr > .monaco-table-td.quickFix > .severity {
+	display: none;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .actions {
+	margin-left: -3px;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .actions > .monaco-action-bar .action-item {
+	display: none;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row.selected .monaco-table-tr > .monaco-table-td.quickFix > .actions > .monaco-action-bar .action-item,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row.focused .monaco-table-tr > .monaco-table-td.quickFix > .actions > .monaco-action-bar .action-item,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row:hover .monaco-table-tr > .monaco-table-td.quickFix > .actions > .monaco-action-bar .action-item {
+	display: flex;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code > .monaco-link::before,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code > .code-label::before {
+	content: '(';
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code > .monaco-link::after,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code > .code-label::after {
+	content: ')';
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code.code-link > .code-label {
+	display: none;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code.code-link > .monaco-link {
+	display: inline;
+	text-decoration: underline;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code > .monaco-link {
+	display: none;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .file > .file-position {
+	margin-left: 6px;
+	opacity: 0.7;
+}
