@@ -24,6 +24,7 @@ export interface ILinkDescriptor {
 export interface ILinkOptions {
 	readonly opener?: (href: string) => void;
 	readonly textLinkForeground?: string;
+	readonly underline?: boolean;
 }
 
 export class Link extends Disposable {
@@ -42,6 +43,7 @@ export class Link extends Disposable {
 			this.el.style.pointerEvents = 'auto';
 			this.el.style.opacity = '1';
 			this.el.style.cursor = 'pointer';
+			this.el.style.textDecoration = this.options.underline ? 'underline' : 'none';
 			this._enabled = false;
 		} else {
 			this.el.setAttribute('aria-disabled', 'true');
@@ -49,6 +51,7 @@ export class Link extends Disposable {
 			this.el.style.pointerEvents = 'none';
 			this.el.style.opacity = '0.4';
 			this.el.style.cursor = 'default';
+			this.el.style.textDecoration = 'none';
 			this._enabled = true;
 		}
 
@@ -79,7 +82,7 @@ export class Link extends Disposable {
 	constructor(
 		container: HTMLElement,
 		private _link: ILinkDescriptor,
-		options: ILinkOptions = {},
+		private options: ILinkOptions = {},
 		@IOpenerService openerService: IOpenerService
 	) {
 		super();
@@ -109,8 +112,8 @@ export class Link extends Disposable {
 
 			EventHelper.stop(e, true);
 
-			if (options?.opener) {
-				options.opener(this._link.href);
+			if (this.options?.opener) {
+				this.options.opener(this._link.href);
 			} else {
 				openerService.open(this._link.href, { allowCommands: true });
 			}

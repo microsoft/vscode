@@ -588,7 +588,7 @@ export abstract class ViewPane extends Pane implements IView {
 						if (typeof node === 'string') {
 							append(p, document.createTextNode(node));
 						} else {
-							const link = disposables.add(this.instantiationService.createInstance(Link, p, node, {}));
+							const link = disposables.add(this.instantiationService.createInstance(Link, p, node, { underline: true }));
 
 							if (precondition && node.href.startsWith('command:')) {
 								const updateEnablement = () => link.enabled = this.contextKeyService.contextMatchesRules(precondition);
