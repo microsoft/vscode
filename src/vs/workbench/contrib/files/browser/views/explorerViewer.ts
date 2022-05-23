@@ -739,7 +739,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		// Maybe we need a cancellation token here in case it's super long?
 		const content = await this.fileService.readFile(ignoreFileResource);
 		const ignoreParent = ignoreTree.findSubstr(dirUri);
-		const ignoreFile = new IgnoreFile(content.value.toString(), dirUri.path + path.sep, ignoreParent);
+		const ignoreFile = new IgnoreFile(content.value.toString(), dirUri.path, ignoreParent);
 		ignoreTree.set(dirUri, ignoreFile);
 		// If we haven't seen this resource before then we need to add it to the list of resources we're tracking
 		if (!this.ignoreFileResourcesPerRoot.get(root)?.has(ignoreFileResource)) {
