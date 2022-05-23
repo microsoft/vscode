@@ -502,6 +502,8 @@ export class PersistentTerminalProcess extends Disposable {
 			reconnectConstants.scrollback,
 			unicodeVersion,
 			reviveBuffer,
+			this._terminalProcess.shellLaunchConfig.isFeatureTerminal || this._terminalProcess.shellLaunchConfig.hideFromUser || !this._terminalProcess.shellLaunchConfig.executable,
+			undefined,
 			this._logService
 		);
 		this._fixedDimensions = fixedDimensions;
@@ -742,7 +744,7 @@ class XtermSerializer implements ITerminalSerializer {
 			this._xterm.writeln(reviveBuffer);
 		}
 		this.setUnicodeVersion(unicodeVersion);
-		this._shellIntegrationAddon = new ShellIntegrationAddon(undefined, logService);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(undefined, undefined, logService);
 		this._xterm.loadAddon(this._shellIntegrationAddon);
 	}
 

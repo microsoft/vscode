@@ -128,6 +128,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _activationTimeout: any;
 
 	constructor(
+		private _disableTelemetry: boolean | undefined,
 		private readonly _telemetryService: ITelemetryService | undefined,
 		@ILogService private readonly _logService: ILogService
 	) {
@@ -230,10 +231,14 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	}
 
 	private async _ensureCapabilitiesOrAddFailureTelemetry(): Promise<void> {
+		if (this._disableTelemetry) {
+			this._hasUpdatedTelemetry = true;
+			return;
+		}
 		this._activationTimeout = setTimeout(() => {
 			if (!this.capabilities.get(TerminalCapability.CommandDetection) && !this.capabilities.get(TerminalCapability.CwdDetection)) {
 				this._telemetryService?.publicLog2<{ classification: 'SystemMetaData'; purpose: 'FeatureInsight' }>('terminal/shellIntegrationActivationTimeout');
-				this._logService.warn('Shell integration failed to add capabilities within 10 seconds');
+				this._logService.trace('Shell integration failed to add capabilities within 10 seconds');
 			}
 			this._hasUpdatedTelemetry = true;
 		}, 10000);

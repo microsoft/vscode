@@ -657,7 +657,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new ErrorNoTelemetry('Terminal disposed of during xterm.js creation');
 		}
 
-		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this.capabilities);
+		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this.capabilities, this.shellLaunchConfig.isFeatureTerminal || this.shellLaunchConfig.hideFromUser || this.shellLaunchConfig.executable === undefined);
 		this.xterm = xterm;
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);
