@@ -1763,7 +1763,6 @@ suite('Bugs / regression tests', () => {
 });
 
 class TestNamedProblemMatcher implements Partial<ProblemMatcher> {
-
 }
 
 class TestParseContext implements Partial<ParseContext> {
