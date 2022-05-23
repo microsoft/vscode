@@ -128,6 +128,12 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 * The default value
 	 */
 	defaultValue?: any;
+	/**
+	 * The source of the default value to display.
+	 * This value also accounts for extension-contributed language-specific default value overrides,
+	 * whereas setting.defaultValueSource only accounts for non-language-specific default value overrides.
+	 */
+	defaultValueSource: string | IExtensionInfo | undefined;
 
 	/**
 	 * The source of the default value to display.
@@ -150,8 +156,24 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 */
 	hasPolicyValue = false;
 
+	/**
+	 * The language selector under which we are viewing the setting.
+	 */
+	languageSelector: string | undefined;
+
 	tags?: Set<string>;
 	overriddenScopeList: string[] = [];
+
+	/**
+	 * Language-specific versions of the orriddenScopeList field.
+	 */
+	languageOverridenScopeLists: Map<string, string[]> = new Map<string, string[]>();
+
+	/**
+	 * Language-specific default overrides for this setting.
+	 * The key is the language.
+	 */
+	languageDefaultOverrides: Map<string, string | IExtensionInfo | undefined> = new Map<string, string | IExtensionInfo | undefined>();
 
 	/**
 	 * For each language that contributes setting values or default overrides, we can see those values here.
@@ -199,6 +221,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 	update(inspectResult: IInspectResult, isWorkspaceTrusted: boolean): void {
 		let { isConfigured, inspected, targetSelector, inspectedLanguageOverrides, languageSelector } = inspectResult;
+		this.languageSelector = languageSelector;
 
 		switch (targetSelector) {
 			case 'workspaceFolderValue':
@@ -221,11 +244,34 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			overriddenScopeList.push(localize('user', "User"));
 		}
 
+		this.languageOverridenScopeLists.clear();
+		this.languageDefaultOverrides.clear();
 		if (inspected.overrideIdentifiers) {
 			for (const overrideIdentifier of inspected.overrideIdentifiers) {
 				const inspectedOverride = inspectedLanguageOverrides.get(overrideIdentifier);
 				if (inspectedOverride) {
 					this.languageOverrideValues.set(overrideIdentifier, inspectedOverride);
+
+					if (typeof inspectedOverride.default?.override !== 'undefined') {
+						// We want to figure out where the default value got overridden.
+						const registryValues = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationDefaultsOverrides();
+						const overrideValueSource = registryValues.get(`[${overrideIdentifier}]`)?.valuesSources?.get(this.setting.key);
+						this.languageDefaultOverrides.set(overrideIdentifier, overrideValueSource);
+					}
+
+					this.languageOverridenScopeLists.set(overrideIdentifier, []);
+					const languageOverriddenScopeList = this.languageOverridenScopeLists.get(overrideIdentifier)!;
+					if (targetSelector !== 'workspaceValue' && typeof inspectedOverride.workspaceValue !== 'undefined') {
+						languageOverriddenScopeList.push(localize('workspace', "Workspace"));
+					}
+
+					if (targetSelector !== 'userRemoteValue' && typeof inspectedOverride.userRemoteValue !== 'undefined') {
+						languageOverriddenScopeList.push(localize('remote', "Remote"));
+					}
+
+					if (targetSelector !== 'userLocalValue' && typeof inspectedOverride.userLocalValue !== 'undefined') {
+						languageOverriddenScopeList.push(localize('user', "User"));
+					}
 				}
 			}
 		}
@@ -549,7 +595,7 @@ export class SettingsTreeModel {
 	}
 
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
-		const inspectResult = inspectSetting(setting.key, this._viewState.settingsTarget, this._viewState.languageFilter, this._configurationService);
+		const inspectResult: IInspectResult = inspectSetting(setting.key, this._viewState.settingsTarget, this._viewState.languageFilter, this._configurationService);
 		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted, this._languageService);
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) || [];

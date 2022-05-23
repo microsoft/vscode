@@ -13,6 +13,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
 import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
+import { ID_SETTING_TAG, LANGUAGE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 
 const $ = DOM.$;
 
@@ -29,6 +30,8 @@ export class SettingsTreeIndicatorsLabel {
 	 * This element wraps around the other elements.
 	 */
 	private labelElement: HTMLElement;
+	private languageOverridesElement: HTMLElement;
+	private languageOverridesLabel: SimpleIconLabel;
 	private scopeOverridesElement: HTMLElement;
 	private syncIgnoredElement: HTMLElement;
 	private defaultOverrideIndicatorElement: HTMLElement;
@@ -38,11 +41,20 @@ export class SettingsTreeIndicatorsLabel {
 		this.labelElement = DOM.append(container, $('.misc-label'));
 		this.labelElement.style.display = 'inline';
 
+		const { element: languageOverridesElement, label: languageOverridesLabel } = this.createLanguageOverridesIndicator();
+		this.languageOverridesElement = languageOverridesElement;
+		this.languageOverridesLabel = languageOverridesLabel;
 		this.scopeOverridesElement = this.createScopeOverridesElement();
 		this.syncIgnoredElement = this.createSyncIgnoredElement();
 		const { element: defaultOverrideElement, label: defaultOverrideLabel } = this.createDefaultOverrideIndicator();
 		this.defaultOverrideIndicatorElement = defaultOverrideElement;
 		this.defaultOverrideIndicatorLabel = defaultOverrideLabel;
+	}
+
+	private createLanguageOverridesIndicator(): { element: HTMLElement; label: SimpleIconLabel } {
+		const languageOverridesElement = $('span.setting-item-language-overrides');
+		const languageOverridesLabel = new SimpleIconLabel(languageOverridesElement);
+		return { element: languageOverridesElement, label: languageOverridesLabel };
 	}
 
 	private createScopeOverridesElement(): HTMLElement {
@@ -65,7 +77,7 @@ export class SettingsTreeIndicatorsLabel {
 	}
 
 	private render() {
-		const elementsToShow = [this.scopeOverridesElement, this.syncIgnoredElement, this.defaultOverrideIndicatorElement].filter(element => {
+		const elementsToShow = [this.languageOverridesElement, this.scopeOverridesElement, this.syncIgnoredElement, this.defaultOverrideIndicatorElement].filter(element => {
 			return element.style.display !== 'none';
 		});
 
@@ -73,18 +85,54 @@ export class SettingsTreeIndicatorsLabel {
 		this.labelElement.style.display = 'none';
 		if (elementsToShow.length) {
 			this.labelElement.style.display = 'inline';
-			DOM.append(this.labelElement, $('span', undefined, '('));
+			DOM.append(this.labelElement, $('span', undefined, '  '));
 			for (let i = 0; i < elementsToShow.length - 1; i++) {
 				DOM.append(this.labelElement, elementsToShow[i]);
-				DOM.append(this.labelElement, $('span.comma', undefined, ', '));
+				DOM.append(this.labelElement, $('span.comma', undefined, ' '));
 			}
 			DOM.append(this.labelElement, elementsToShow[elementsToShow.length - 1]);
-			DOM.append(this.labelElement, $('span', undefined, ')'));
 		}
 	}
 
 	updateSyncIgnored(element: SettingsTreeSettingElement, ignoredSettings: string[]) {
 		this.syncIgnoredElement.style.display = ignoredSettings.includes(element.setting.key) ? 'inline' : 'none';
+		this.render();
+	}
+
+	updateLanguageOverrides(element: SettingsTreeSettingElement, elementDisposables: DisposableStore, onApplyFilter: Emitter<string[]>) {
+		this.languageOverridesElement.style.display = 'none';
+		const hasLanguageSpecificValuesOrOverrides = element.languageDefaultOverrides.size || element.languageOverridenScopeLists.size;
+		if (!element.languageSelector && hasLanguageSpecificValuesOrOverrides) {
+			this.languageOverridesElement.style.display = 'inline';
+			this.languageOverridesLabel.text = '$(bracket) ';
+
+			// Get the list of languages that have default value overrides or user-configured values.
+			const overrideSources: Set<string> = new Set<string>();
+			for (const language of element.languageDefaultOverrides.keys()) {
+				overrideSources.add(language);
+			}
+			for (const language of element.languageOverridenScopeLists.keys()) {
+				overrideSources.add(language);
+			}
+
+			const overrideSourcesList: string[] = Array.from(overrideSources).sort();
+			this.languageOverridesLabel.title = localize('languageOverridesDetails', "Language-specific settings or default value overrides occur for: {0}", overrideSourcesList.join(', '));
+			for (let i = 0; i < overrideSourcesList.length; i++) {
+				const language = overrideSourcesList[i];
+				const languageLink = DOM.append(this.languageOverridesElement, $('a.language-link', undefined, language));
+
+				if (i !== overrideSourcesList.length - 1) {
+					DOM.append(this.languageOverridesElement, $('span', undefined, ', '));
+				}
+
+				elementDisposables.add(
+					DOM.addStandardDisposableListener(languageLink, DOM.EventType.CLICK, e => {
+						onApplyFilter.fire([`@${LANGUAGE_SETTING_TAG}${language}`, `@${ID_SETTING_TAG}${element.setting.key}`]);
+						e.preventDefault();
+						e.stopPropagation();
+					}));
+			}
+		}
 		this.render();
 	}
 
@@ -98,7 +146,6 @@ export class SettingsTreeIndicatorsLabel {
 				localize('configuredIn', "Modified in");
 
 			DOM.append(this.scopeOverridesElement, $('span', undefined, `${otherOverridesLabel}: `));
-
 			for (let i = 0; i < element.overriddenScopeList.length; i++) {
 				const view = DOM.append(this.scopeOverridesElement, $('a.modified-scope', undefined, element.overriddenScopeList[i]));
 

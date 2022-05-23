@@ -344,8 +344,9 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored .codicon,
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-language-overrides .codicon,
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-default-overridden .codicon {
-	vertical-align: text-top;
+	vertical-align: middle;
 	padding-left: 1px;
 }
 
@@ -353,7 +354,8 @@
 	vertical-align: text-top;
 }
 
-.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides a.modified-scope {
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides a.modified-scope,
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-language-overrides a.language-link {
 	text-decoration: underline;
 	cursor: pointer;
 }

@@ -868,10 +868,15 @@ export class SettingsEditor2 extends EditorPane {
 				// the element was not found
 			}
 		}));
-		this._register(this.settingRenderers.onApplyFilter((filter: string) => {
-			if (this.searchWidget && !this.searchWidget.getValue().includes(filter)) {
-				// Prepend the filter to the query.
-				const newQuery = `${filter} ${this.searchWidget.getValue().trimStart()}`;
+		this._register(this.settingRenderers.onApplyFilters((filters: string[]) => {
+			if (this.searchWidget) {
+				const newFilters: Set<string> = new Set<string>();
+				for (const filter of filters) {
+					if (!this.searchWidget.getValue().includes(filter)) {
+						newFilters.add(filter);
+					}
+				}
+				const newQuery = `${this.searchWidget.getValue().trimEnd()} ${Array.from(newFilters).sort().join(' ')}`;
 				this.focusSearch(newQuery, false);
 			}
 		}));

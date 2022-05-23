@@ -736,8 +736,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	protected readonly _onDidChangeSettingHeight = this._register(new Emitter<HeightChangeParams>());
 	readonly onDidChangeSettingHeight: Event<HeightChangeParams> = this._onDidChangeSettingHeight.event;
 
-	protected readonly _onApplyFilter = this._register(new Emitter<string>());
-	readonly onApplyFilter: Event<string> = this._onApplyFilter.event;
+	protected readonly _onApplyFilters = this._register(new Emitter<string[]>());
+	readonly onApplyFilters: Event<string[]> = this._onApplyFilters.event;
 
 	private readonly markdownRenderer: MarkdownRenderer;
 
@@ -854,12 +854,12 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.CLICK, (e: MouseEvent) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this._onApplyFilter.fire(`@${POLICY_SETTING_TAG}`);
+			this._onApplyFilters.fire([`@${POLICY_SETTING_TAG}`]);
 		}));
 		toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
 				e.stopPropagation();
-				this._onApplyFilter.fire(`@${POLICY_SETTING_TAG}`);
+				this._onApplyFilters.fire([`@${POLICY_SETTING_TAG}`]);
 			}
 		}));
 		return policyWarningElement;
@@ -930,6 +930,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		template.indicatorsLabel.updateSyncIgnored(element, this.ignoredSettings);
 		template.indicatorsLabel.updateDefaultOverrideIndicator(element);
+		template.indicatorsLabel.updateLanguageOverrides(element, template.toDispose, this._onApplyFilters);
 		template.elementDisposables.add(this.onDidChangeIgnoredSettings(() => {
 			template.indicatorsLabel.updateSyncIgnored(element, this.ignoredSettings);
 		}));
@@ -1115,7 +1116,7 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 
 		template.elementDisposables.add(template.button.onDidClick(() => {
 			if (isLanguageTagSetting) {
-				this._onApplyFilter.fire(`@${LANGUAGE_SETTING_TAG}${plainKey}`);
+				this._onApplyFilters.fire([`@${LANGUAGE_SETTING_TAG}${plainKey}`]);
 			} else {
 				this._onDidOpenSettings.fire(dataElement.setting.key);
 			}
@@ -1954,7 +1955,7 @@ export class SettingTreeRenderers {
 
 	readonly onDidChangeSettingHeight: Event<HeightChangeParams>;
 
-	readonly onApplyFilter: Event<string>;
+	readonly onApplyFilters: Event<string[]>;
 
 	readonly allRenderers: ITreeRenderer<SettingsTreeElement, never, any>[];
 
@@ -2003,7 +2004,7 @@ export class SettingTreeRenderers {
 		this.onDidClickSettingLink = Event.any(...settingRenderers.map(r => r.onDidClickSettingLink));
 		this.onDidFocusSetting = Event.any(...settingRenderers.map(r => r.onDidFocusSetting));
 		this.onDidChangeSettingHeight = Event.any(...settingRenderers.map(r => r.onDidChangeSettingHeight));
-		this.onApplyFilter = Event.any(...settingRenderers.map(r => r.onApplyFilter));
+		this.onApplyFilters = Event.any(...settingRenderers.map(r => r.onApplyFilters));
 
 		this.allRenderers = [
 			...settingRenderers,
