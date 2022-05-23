@@ -27,7 +27,7 @@ export class GitEditor implements IIPCHandler {
 			const id = uuid();
 			const uri = Uri.parse(`gitcommit://${id}${isWindows ? '/' : ''}${commitMessagePath}`);
 			const doc = await workspace.openTextDocument(uri);
-			await window.showTextDocument(doc);
+			await window.showTextDocument(doc, { preview: false });
 
 			return new Promise((c) => {
 				const onDidClose = window.tabGroups.onDidChangeTabs(async (tabs) => {
