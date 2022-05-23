@@ -37,7 +37,7 @@ fi
 
 # when run in remote terminal, use the remote cli instead
 if [ -n "$VSCODE_IPC_HOOK_CLI" ] && [ -n "$VSCODE_REMOTE_CLI_PATH" ]; then
-	"$VSCODE_REMOTE_CLI_PATH"
+	"$VSCODE_REMOTE_CLI_PATH" "$@"
 	exit $?
 fi
 
