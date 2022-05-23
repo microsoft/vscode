@@ -49,7 +49,7 @@ import { IInteractiveHistoryService, InteractiveHistoryService } from 'vs/workbe
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellEditType, CellKind, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellOutput, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -715,14 +715,14 @@ registerThemingParticipant((theme) => {
 });
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	id: 'interactive',
+	id: 'notebook',
 	order: 100,
 	type: 'object',
 	'properties': {
-		'interactive.alwaysScrollOnNewCell': {
+		[NotebookSetting.interactiveWindowAlwaysScrollOnNewCell]: {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('interactive.alwaysScrollOnNewCell', "Automatically scroll the interactive window to show the output of the last statement executed. If this value is false, the window will only scroll if the last cell was already the one scrolled to.")
+			markdownDescription: localize('interactiveWindow.alwaysScrollOnNewCell', "Automatically scroll the interactive window to show the output of the last statement executed. If this value is false, the window will only scroll if the last cell was already the one scrolled to.")
 		},
 	}
 });
